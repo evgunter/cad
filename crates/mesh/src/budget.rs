@@ -139,7 +139,14 @@ pub struct FaceMeasure {
     /// the integral arm, refined cells for the rational one), in the
     /// order the assembly emits them.
     pub cells: Vec<CellMeasure>,
-    /// The largest per-triangle certificate the face emitted.
+    /// The largest per-triangle certificate of the attempt the face
+    /// exited on. **`0.0` can mean two things**: a genuinely tight
+    /// face, or one that refused before the emit pass ever ran (a
+    /// failed insert, an empty realised constraint, a self-touching
+    /// trim loop) and certified nothing — the caller's own
+    /// `tessellate` result is what separates them, and
+    /// [`Self::dev_samples`] is `0` in the second case whenever the
+    /// meter was armed for deviation.
     pub worst_cert: f64,
     /// The largest SAMPLED `|S − Π|`, or `f64::NAN` when the meter was
     /// not armed for deviation.

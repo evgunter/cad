@@ -16644,10 +16644,26 @@ needs a lane and does not have one.**
 
 ---
 
-## S237. The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way
+## S237. The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one
 
-**Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it — it is one
-file outside the lane's set.**
+**Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it — one of
+the three is outside the lane's file set and two are in a file it never
+opened.** The class is **four instances, one fixed**: I-e's own sweep saw two
+and #887's adversarial review found the other two, which its declared blind
+spot (*"a bound spelled another way"*) would not have caught **because they
+spell it the same way** — the sweep simply undercounted.
+
+| site | state |
+|---|---|
+| `crates/mesh/tests/budget_meter.rs` | **FIXED by #887** — floor added, gated on `worst_cert > eps` |
+| `crates/mesh/tests/probe_review.rs::z1_per_triangle_certificate_falsification` | open — **the row hosted CI runs** |
+| `crates/mesh/src/nurbs_cert.rs:2167` | open — same `d/cert` accumulation, `assert!(worst_ratio <= 1.0, ...)`, inside `#[cfg(test)]` in `src` |
+| `crates/mesh/src/nurbs_cert.rs:2553` | open — the R1 extreme-weight row, and its assertion carries **no message at all** |
+
+The rest of this row is about the `probe_review.rs` instance, which is the
+load-bearing one; the two `nurbs_cert.rs` rows are the same shape at unit
+scale, over synthetic patches rather than tessellated bodies, and whoever takes
+this takes all three.
 `crates/mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification`
 asserts, over four fixtures at two deltas:
 
@@ -16675,8 +16691,11 @@ this corpus' per-face **maxima** at all three ε legs, on `loft_prism`,
 `nonuniform_loft`, `swept_elbow` and `rational_pie` at δ ∈ {3e-2, 6e-3}:
 **0.363–0.500**, stable to three decimals across the ε legs. What a floor needs
 is the per-face **minima**, which #887 did not take here (it took them on
-`loft_prism` alone, through `budget_meter.rs`: 0.454–0.497 over
-δ ∈ [3e-4, 2e-2]). Whoever takes this row measures the minima over the four
+`loft_prism` alone, through `budget_meter.rs`: **0.1667–0.4966 over
+δ ∈ [1e-4, 1e3] at four ε legs**, bottoming at 1/6 once the sizing reaches its
+coarsest grid — note that #887's first pass reported 0.454 as the minimum from
+a 66× δ band, and both its reviewers were right that the band, not the
+population, produced that figure). Whoever takes this row measures the minima over the four
 fixtures and picks one floor, with `worst_cert > eps` as the applicability
 test — `loft_prism`'s planar wall certifies at ~5e-17 and its ratio is decided
 by ε outright (5e-7, 5e-10, 5e-4 at the three legs), which is the case a bare

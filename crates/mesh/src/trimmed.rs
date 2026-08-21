@@ -250,6 +250,17 @@ pub(crate) fn tessellate_trimmed(
             // there `u1 - u0` is 2π against an `hu` the sagitta cap
             // holds at ≤ π/4 — so the two never meet. Arithmetic, not
             // an argument, and this is the line that says so.
+            //
+            // VACUOUS TODAY, and the search that says so was
+            // adversarial rather than incidental: across the suite's
+            // 19 trimmed-cylinder faces `nu` is 5, 16 or 50 and no
+            // polygon repeats an id apart, and the two conditions are
+            // arithmetically exclusive — `nu == 2` needs
+            // `u1 - u0 <= π/2`, a repeat-apart needs the full `2π`
+            // seam. Recorded as *searched for by a reviewer told what
+            // to look for and not found*, which survives someone
+            // adding a fixture in a way that *nothing in tree does
+            // this* does not.
             debug_assert!(
                 nu != 2 || !id_repeats_apart(&polygon),
                 "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
@@ -500,9 +511,17 @@ pub(crate) fn tessellate_trimmed(
             // all it is, because neither ingredient of that fan
             // reaches this lane — no chart singularity, and no
             // repeated id at two UV locations with a single interior
-            // column between them. Both are asserted above, at the
-            // lane choice and at the column count, rather than argued
-            // from facts that live in another module.
+            // column between them.
+            //
+            // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The chart
+            // half is checked at the lane choice, which runs for BOTH
+            // lanes. The column half is checked at the cylinder arm's
+            // `nu`, and this emit pass also runs for NURBS — where
+            // there is no `nu`, because the candidates come from the
+            // cell grid rather than a uniform division, so the
+            // "single interior column" the fan needs has no analogue
+            // to test. That is the argument for the NURBS half, and it
+            // is an ARGUMENT: only the cylinder half is checked.
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
@@ -675,15 +694,23 @@ pub(crate) fn tessellate_trimmed(
 /// Whether any mesh id appears at two DIFFERENT UV locations in the
 /// trim polygon — the second ingredient of #678's non-manifold fan
 /// (`curved::pole_columns` carries the argument; the first ingredient
-/// is a single interior column between them). Bitwise, because that
-/// is what spade's dedup is: two entries at the same UV are ONE CDT
-/// vertex and cannot be fanned apart.
+/// is a single interior column between them).
+///
+/// **"Different" means what SPADE means by it**, which is why this
+/// compares `f64`s and not their bits. Spade's vertex lookup is
+/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0`
+/// are ONE spade vertex and two bit patterns. A `to_bits` compare
+/// would report "apart" exactly where spade dedupes, which is this
+/// file's own complaint (an invariant restated in a spelling that
+/// disagrees with the module it is about) converted rather than
+/// closed. Two entries spade merges are one CDT vertex and cannot be
+/// fanned apart; two it keeps can.
+#[allow(clippy::float_cmp)]
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    let mut seen: HashMap<u32, (u64, u64)> = HashMap::new();
-    polygon.iter().any(|&(u, v, id)| {
-        seen.insert(id, (u.to_bits(), v.to_bits()))
-            .is_some_and(|p| p != (u.to_bits(), v.to_bits()))
-    })
+    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
+    polygon
+        .iter()
+        .any(|&(u, v, id)| seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)))
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim
@@ -925,10 +952,12 @@ mod tests {
     /// fanned apart; the same id twice at the SAME location is one CDT
     /// vertex after spade's dedup and cannot be.
     ///
-    /// The distinction is bitwise, and that is the half worth a row:
-    /// an ulp between two copies of a seam vertex would be a genuine
-    /// repeat-apart, and reading it as "the same point" is how the
-    /// check would go quietly wrong.
+    /// **Both edges of "different" are here**, because the helper's
+    /// only way to go quietly wrong is to disagree with spade about
+    /// which pairs are one vertex: an ulp apart at seam magnitude is
+    /// two spade vertices and must read APART, and `-0.0` against
+    /// `0.0` is one spade vertex and must not — the case a `to_bits`
+    /// spelling gets backwards, and the reason this compares `f64`s.
     #[test]
     fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
         let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
@@ -937,14 +966,28 @@ mod tests {
         let apart = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (2.0, 0.0, 7)];
         assert!(id_repeats_apart(&apart), "the seam double-traversal shape");
 
+        // An ulp at SEAM magnitude (2π), not at zero: an ulp of 0.0 is
+        // 5e-324, a subnormal no chart coordinate reaches, and pinning
+        // there would pin the wrong scale.
+        let seam = std::f64::consts::TAU;
         let ulp = [
             (0.0, 0.0, 7u32),
             (1.0, 0.5, 8),
-            (f64::from_bits(0.0f64.to_bits() + 1), 0.0, 7),
+            (f64::from_bits(seam.to_bits() + 1), 0.0, 7),
+            (seam, 0.0, 7),
         ];
         assert!(
             id_repeats_apart(&ulp),
-            "an ulp apart is two CDT vertices, so it is apart"
+            "an ulp apart at 2pi is two CDT vertices, so it is apart"
+        );
+
+        // The other edge: spade compares positions with `==`, and
+        // `-0.0 == 0.0`. One vertex, so NOT apart — a bitwise compare
+        // would say the opposite.
+        let signed_zero = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (-0.0, 0.0, 7)];
+        assert!(
+            !id_repeats_apart(&signed_zero),
+            "-0.0 and 0.0 are one spade vertex"
         );
 
         // No repeat at all, and distinct ids at one location (a

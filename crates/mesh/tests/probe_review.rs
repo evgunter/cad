@@ -148,7 +148,10 @@ fn z1_per_triangle_certificate_falsification() {
             // tight one. `budget_meter.rs`'s sibling row grew a
             // measured floor beside its ceiling; this one has not, and
             // the asymmetry is recorded as **S237**
-            // (`docs/SMELL-SCAN-2026-08.md`), unowned.
+            // (`docs/SMELL-SCAN-2026-08.md`), unowned — with two more
+            // instances of the same shape in `nurbs_cert.rs`'s own
+            // test module, which #887's sweep missed and its
+            // adversarial review found.
             for f in &measures {
                 assert!(
                     f.worst_ratio <= 1.0,

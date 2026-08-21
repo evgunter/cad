@@ -337,20 +337,41 @@ fn triangulate_chart(
 
     let inside = classify_faces(&cdt, &crossings);
 
-    // WHAT MAKES #678's FAN INERT HERE, checked rather than written
-    // down: this lane's CDT holds the boundary polygons' vertices and
-    // nothing else. `meta` grows only in the insertion pass above, so
-    // an equal count says no interior point was ever added — there is
-    // no column for two entries sharing a mesh vertex to be fanned
-    // over, which is the ingredient `curved::pole_columns` is about.
-    // An interior grid added here would not have to touch the skip
-    // below to break it; it would fail this line (D2 addendum row 5).
+    // WHAT MAKES #678's FAN INERT HERE: this lane's CDT holds the
+    // boundary polygons' vertices and nothing else, so there is no
+    // column for two entries sharing a mesh vertex to be fanned over.
+    // TWO checks, because one of them is not enough and a review of
+    // #887 showed exactly how.
+    //
+    // The first says every CDT vertex is accounted for in `meta`.
+    // `meta` grows only in the insertion pass above, guarded by
+    // `h.index() == meta.len()`, and `try_add_constraint` returns
+    // empty rather than inserting — so this reds for a vertex that
+    // arrived WITHOUT bookkeeping, which is the foreign-insertion
+    // case. It does NOT red for an interior grid added the way
+    // `trimmed` adds one (insert, then push to `meta`), and the
+    // comment that claimed it did was over-claiming: an interior grid
+    // is the likely edit, and it would arrive WITH bookkeeping.
+    //
+    // The second closes that: `meta` can never hold more entries than
+    // the boundary walk offered, so an interior point pushed into it
+    // pushes the count past the loops' own total. Together they say
+    // what the paragraph above says (D2 addendum row 5).
+    let boundary_entries: usize = loops.iter().map(Vec::len).sum();
     debug_assert_eq!(
         cdt.num_vertices(),
         meta.len(),
-        "face {fk:?}: the planar CDT carries {} vertices for {} boundary entries — \
+        "face {fk:?}: the planar CDT carries {} vertices for {} tracked ones — \
          something other than the boundary walk inserted one",
         cdt.num_vertices(),
+        meta.len()
+    );
+    debug_assert!(
+        meta.len() <= boundary_entries,
+        "face {fk:?}: {} tracked CDT vertices for {boundary_entries} boundary \
+         entries — this lane grew an interior point, and the duplicate-id skip \
+         below is `curved`'s pole-fan idiom without `curved`'s separation \
+         argument (#678)",
         meta.len()
     );
 
@@ -372,7 +393,8 @@ fn triangulate_chart(
         // the duplicate ids this lane sees are a slit's two
         // traversals, at the SAME UV and deduped by spade to one CDT
         // vertex, and there is no interior column for anything to fan
-        // over. That second half is asserted above, not argued.
+        // over. That second half is asserted above, by the pair of
+        // checks and not by either alone.
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue; // slit-degenerate sliver
         }

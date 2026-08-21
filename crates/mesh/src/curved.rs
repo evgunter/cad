@@ -354,6 +354,31 @@ pub(crate) fn tessellate_curved(
 /// It takes the caller's own bounding box rather than recomputing one,
 /// so the rectangle it checks is exactly the box the interior grid
 /// spans. `levers` is parallel to `poly`.
+///
+/// # Closed at bitwise zero, NARROWED rather than eliminated
+///
+/// `lever > 0.0` refuses the exact-`0.0` lever a chart singularity
+/// produces, and that is the whole class an adversarial sweep of this
+/// build found: 834 zero-lever entries across five crates, every one a
+/// pole with `lu == 0` and its `v` gap bitwise zero. It does **not**
+/// close the band on a lever that is merely TINY. At `lu = 1e-20`,
+/// `gap * lu < eps` is true for every gap a UV coordinate can hold, so
+/// a sub-ε lever admits exactly the way a zero one did.
+/// `walk::iso_side_starts` bars the same `Chart::radial` with
+/// `radial(junction) > eps` — **one predicate, two spellings, and this
+/// is the looser one.** Nothing in tree produces a non-zero sub-ε
+/// lever (`radial` is a distance from an axis; a point is on it or a
+/// modelling distance away from it), so widening this to `> eps` is a
+/// behaviour change on a class nobody has shown reachable. Stated
+/// here rather than taken.
+///
+/// **`lv` vanishing is UNEXERCISED, not handled.** Every zero lever in
+/// the tree is a `lu` at a pole, so the payload's `(true, false)` and
+/// `(false, false)` arms below are argued and not measured. The route
+/// that would exercise them — a torus whose `R < r` gives a horn or
+/// spindle axis point — is refused by `sweep::revolve` at construction
+/// and NOT checked by `step-import`; that asymmetry is **issue #889**,
+/// and this guard REFUSES such a face rather than meshing it.
 fn entries_off_bbox(
     poly: &[UvPoint],
     levers: &[(f64, f64)],
@@ -366,6 +391,16 @@ fn entries_off_bbox(
     // a `<`, so a poisoned coordinate is false on both axes and the
     // entry stays a refusal rather than being admitted.
     let on_box = |gap: f64, lever: f64| lever > 0.0 && gap_is_noise(gap, lever, eps);
+    // A NaN lever would read as "no metric" on both tests above and
+    // produce a refusal reporting 0 m — silent where the crate is
+    // supposed to be loud. `Chart::radial` is a norm and cannot
+    // produce one from finite input, so this is a kernel-defect
+    // detector, not an input check.
+    debug_assert!(
+        levers.iter().all(|&(lu, lv)| !lu.is_nan() && !lv.is_nan()),
+        "a lever arm is NaN: the payload below cannot distinguish it from a \
+         degenerate chart axis, and both report 0 m"
+    );
     poly.iter()
         .zip(levers)
         .enumerate()
@@ -392,9 +427,16 @@ fn entries_off_bbox(
                 (true, true) => (du * lu).min(dv * lv),
                 (true, false) => du * lu,
                 (false, true) => dv * lv,
-                // No metric on either axis: the entry is one point in
-                // space whatever its UV, and 0 is the only distance
-                // there is to report.
+                // No metric on EITHER axis: the chart is degenerate in
+                // both directions here, so the entry and the box share
+                // one point in space and 0 m is the true distance, not
+                // a blind default. It reads the same as the payload
+                // this match exists to remove — and is not it, because
+                // an entry ON the box never reaches here (it returned
+                // above), so a reported 0 means exactly "off the box in
+                // UV, nowhere in space", which routes to "kernel bug"
+                // correctly. UNREACHABLE today: it needs `lv == 0`,
+                // which no fixture produces (see the doc).
                 (false, false) => 0.0,
             };
             Some((i, d))
@@ -519,7 +561,12 @@ fn require_swept_rectangle(
 ///
 /// **Prophylactic on the sphere, and not clean by luck.** A sphere's
 /// meridian is an ARC and always carries interior chord points, which
-/// occlude the cross-fan; dirty needs `nv >= 3`, and the meridian's
+/// occlude the cross-fan — `sphere_wedge(pi/4)` at delta = 0.05 is
+/// **clean at `nu = 2, nv = 8`**, seven interior column vertices and
+/// an overlap that could have held six edges, which is the observation
+/// the paragraph rests on and the one that makes this arm different
+/// from the cone's rather than a restatement of it. Dirty needs
+/// `nv >= 3`, and the meridian's
 /// chord step `phi(delta_s, r)` and the grid's
 /// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
 /// apart with both capped, so `nv >= 3` FORCES at least two of those

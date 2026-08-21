@@ -162,13 +162,28 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// 1e-6 on one side, 5e-17 against 1e-12 on the other), and it is the
 /// condition under which a floor is about the certificate at all.
 ///
-/// **The floor is measured, on this fixture, through this row's own
-/// arming**: the three curved walls report 0.454–0.497 over
-/// δ ∈ [3e-4, 2e-2] — a 66× span — and over all three ε legs. The
-/// ratio has an asymptote near 0.5 and barely moves, so
-/// [`RATIO_FLOOR`] sits a factor of 4.5 under the smallest measured
-/// value: it fires when a certificate becomes more than ~4.5× looser
-/// than the deviation it bounds, and not on ordinary sizing drift.
+/// **The floor is BRACKETED from both sides, and the bracket is
+/// narrow.** Measured on this fixture through this row's own arming,
+/// over δ ∈ [1e-4, 1e3] — seven orders of magnitude — at four ε legs
+/// (default, 1e-6, 1e-9, 1e-12): the gated ratio runs **0.1667 to
+/// 0.4966**, rising monotonically as δ shrinks toward an asymptote
+/// near 0.5 and **bottoming out at 1/6** once the sizing reaches its
+/// coarsest grid, where it stays for every δ above ~10. So the
+/// legitimate population has a floor it REACHES rather than
+/// approaches, and [`RATIO_FLOOR`] sits **1.67×** under it.
+///
+/// The other side of the bracket is what the row must still catch: a
+/// **5×** loosening of `grid.cert` drops the worst ratio to **0.0971**
+/// (measured). The admissible interval is therefore
+/// `[0.0971, 0.1667]` and 0.1 sits near its bottom. A safer-looking
+/// 0.05 would triple the headroom and **stop catching the only
+/// loosening anyone has demonstrated**, which is the trade this
+/// constant is: sensitivity to a 10× loose certificate, bought with
+/// 1.67× of margin against the coarsest mesh the sizing will build.
+///
+/// An earlier version of this doc claimed 4.5× from a δ ∈ [3e-4, 2e-2]
+/// band; that figure was an artefact of the band, and the reviewer who
+/// widened it was right.
 ///
 /// # What this row is NOT about
 ///
@@ -216,10 +231,10 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
         if m.worst_cert > eps {
             assert!(
                 m.worst_ratio >= RATIO_FLOOR,
-                "a NURBS face's certificate is more than {:.0}x looser than the \
-                 deviation it bounds (worst d/(cert+eps) = {}, floor {RATIO_FLOOR}) — \
-                 the ceiling above cannot see this direction, which is the one #320 \
-                 is about: {m:?}",
+                "a NURBS face's certificate is more than {:.0}x the deviation it \
+                 bounds (worst d/(cert+eps) = {}, floor {RATIO_FLOOR}, measured \
+                 minimum over seven orders of delta 0.1667) — the ceiling above \
+                 cannot see this direction, which is the one #320 is about: {m:?}",
                 1.0 / RATIO_FLOOR,
                 m.worst_ratio
             );
