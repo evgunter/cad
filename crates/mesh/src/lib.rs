@@ -56,7 +56,7 @@
 //! the tree** — a statement about the tree, not a theorem, and it is
 //! weaker than *"ε cannot move an emitted coordinate"*, which is
 //! false. ε arrives once, in [`fn@tessellate`], and is carried on
-//! [`sizing::Tol`], whose doc states what a read may do; where the
+//! `sizing::Tol`, whose doc states what a read may do; where the
 //! reads ARE is pinned by `tests/all.rs`'s
 //! `the_eps_inventory_is_pinned` rather than written down (D9).
 //!
@@ -73,7 +73,7 @@
 //! not call it**, so a mesh whose construction argument failed is
 //! returned as `Ok` unless the caller runs it. The same qualifier is
 //! owed wherever `check_mesh` is named as a backstop; it is stated at
-//! [`Mesh`], at [`fn@tessellate`] and in [`curved`]'s header.
+//! [`Mesh`], at [`fn@tessellate`] and in the `curved` module header.
 //!
 //! **Invariant (ratified via PR #32): per-face tessellation is a pure
 //! function of (face surface, loops, per-edge chord points, δ).** This

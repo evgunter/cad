@@ -72,7 +72,7 @@
 use crate::types::TessellateError;
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
-/// and the run's kernel ε — fetched once by [`crate::tessellate`] and
+/// and the run's kernel ε — fetched once by [`fn@crate::tessellate`] and
 /// carried here, never re-read from `Tolerance`.
 ///
 /// # What ε may and may not do here
