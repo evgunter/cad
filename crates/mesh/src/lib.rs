@@ -49,8 +49,8 @@
 //! never decides in practice.
 //!
 //! **ε is never read for SIZING** — no step, count or schedule in this
-//! crate takes it as an input, which is checkable from
-//! [`sizing`]'s signatures. It IS read: as bars that refuse or report,
+//! crate takes it as an input, which is checkable from [`sizing`]'s
+//! signatures. It IS read: as bars that refuse or report,
 //! and as two CLASSIFICATION bars whose answer selects which `f64` an
 //! emitted entry carries. So mesh structure is a function of (body, δ)
 //! alone **for every body this build can mint** — an empirical claim
@@ -240,7 +240,8 @@
 //! predicate discipline does not apply (its comparisons are honest
 //! display-layer choices, backstopped by the per-triangle certificates
 //! — which [`fn@tessellate`] does check — and by
-//! [`validate::check_mesh`], which it does not; see above). Genericity over `Real` would buy
+//! [`validate::check_mesh`], which it does not; see above).
+//! Genericity over `Real` would buy
 //! nothing here (a mesh of intervals is not a displayable artifact) and
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
