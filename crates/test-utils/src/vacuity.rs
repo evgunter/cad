@@ -204,20 +204,39 @@ pub fn stood_down(label: &str, what_is_not_asserted: &str) {
 mod tests {
     use super::*;
 
+    thread_local! {
+        /// The last panic this module's hook saw, on THIS thread. The
+        /// hook runs on the panicking thread, so a thread-local keeps
+        /// two concurrent rows' messages apart without a lock.
+        static LAST_PANIC: core::cell::RefCell<Option<String>> =
+            const { core::cell::RefCell::new(None) };
+    }
+
     /// The panic message a floor produces, or `None` if it passed. The
     /// module's whole content is assertions that must fire, so every row
     /// below drives one across its boundary in BOTH directions.
+    ///
+    /// The message is taken from a **panic hook**, not by downcasting
+    /// the unwind payload: `downcast_ref` is a second bit channel and
+    /// `scripts/gates/bit-identity-punning.sh` forbids it outside
+    /// `geom-core/src/bit_identity.rs` — correctly, and it caught the
+    /// first draft of this file.
     fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
         let hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {}));
+        std::panic::set_hook(Box::new(|info| {
+            let seen = info.to_string();
+            LAST_PANIC.with(|c| *c.borrow_mut() = Some(seen));
+        }));
         let out = std::panic::catch_unwind(f);
         std::panic::set_hook(hook);
-        out.err().map(|e| {
-            e.downcast_ref::<String>()
-                .cloned()
-                .or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_string()))
-                .unwrap_or_default()
-        })
+        match out {
+            Ok(()) => None,
+            Err(_) => Some(
+                LAST_PANIC
+                    .with(|c| c.borrow_mut().take())
+                    .unwrap_or_default(),
+            ),
+        }
     }
 
     fn three() -> Exposure {
