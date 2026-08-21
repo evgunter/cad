@@ -9642,8 +9642,12 @@ downstream constructor:
 on is stated on the trait: a `Some` never carries a NaN end.** An
 infinite end is still possible and is not poison.
 
-**The three consumers were verified per site rather than assumed**, since
-an `Option` that is newly `None` takes a different branch: `from_certified`
+**The three consumers were verified per site rather than assumed.** The
+schedule row marked this row adversarial for exactly that reason — *a door
+that starts refusing is not the same test as a door that stops laundering,
+and CI covers the second better than the first* — so every consumer that
+survived today's `Some((NaN, NaN))` by accident was walked, not reasoned
+about. An `Option` that is newly `None` takes a different branch: `from_certified`
 and `ssi/enclose.rs`'s `pad_interval` both already mapped `None` to poison
 and both already turned the NaN pair into poison at `from_bounds`, so each
 reaches the same ring by a different route — pinned, not asserted, in
