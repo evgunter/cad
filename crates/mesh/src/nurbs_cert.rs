@@ -2163,6 +2163,10 @@ mod tests {
                 println!(
                     "{name} delta={delta:.0e}: grid {nu}x{nv} tris={tris} max d/cert={worst_ratio:.4}"
                 );
+                // Monotone the easy way — `worst_ratio` only shrinks
+                // as the certificate grows, so a LOOSE bound passes
+                // this by a wider margin than a tight one. One of the
+                // class's three open instances; S237.
                 assert!(
                     worst_ratio <= 1.0,
                     "{name}: a triangle's samples exceeded its certificate"
@@ -2550,7 +2554,12 @@ mod tests {
                 }
             }
             println!("r1_extreme delta={delta:.0e}: tris={tris} max d/cert={worst_ratio:.4}");
-            assert!(worst_ratio <= 1.0);
+            // As above: one-sided, and a loose bound passes it more
+            // easily than a tight one (S237).
+            assert!(
+                worst_ratio <= 1.0,
+                "r1_extreme: a sample exceeded its own certificate ({worst_ratio})"
+            );
         }
     }
 

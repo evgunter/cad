@@ -67,6 +67,55 @@
 //! inconclusive refusal carrying the last iterate and the last
 //! residuals, so a diagnosing consumer sees where the iteration died
 //! and nothing can be mistaken for a foot point.
+//!
+//! # Scalars
+//!
+//! `::project` and `::project_from_seed` bound
+//! `T: `[`geom_core::CertifiedBounds`], so a dual scalar cannot reach
+//! them. The reason is not that they certify — it is that they get the
+//! ANSWER wrong: [`mid`] selects the foot parameter and the two
+//! `Projection` types store it as `f64`, so at a dual the foot and the
+//! orthogonality residual come back as partials at a frozen `t*`,
+//! missing the term each type's own docs name. The bound makes that
+//! answer unreachable; it does not make it right, and issue **#874**
+//! stays open for the fix that would.
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::Point3;
+//! fn admitted(c: &NurbsCurve3<f64>, p: Point3<f64>) {
+//!     let _ = c.project(p);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0599
+//! use geom::NurbsCurve3;
+//! use geom_core::{Dual64, Point3};
+//! fn evicted(c: &NurbsCurve3<Dual64>, p: Point3<Dual64>) {
+//!     let _ = c.project(p);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0599
+//! use geom::NurbsSurface;
+//! use geom_core::{Dual64, Point3};
+//! fn evicted(s: &NurbsSurface<Dual64>, p: Point3<Dual64>) {
+//!     let _ = s.project_from_seed(p, 0.5, 0.5);
+//! }
+//! ```
+//!
+//! [`project_seed`](crate::NurbsCurve3::project_seed) is deliberately NOT on
+//! that bound. It returns `f64`, so it carries no tangent to be wrong
+//! about — and its returning `f64` is what freezes `t*` in the first
+//! place.
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::{Dual64, Point3};
+//! fn still_admitted(c: &NurbsCurve3<Dual64>, p: Point3<Dual64>) -> f64 {
+//!     c.project_seed(p)
+//! }
+//! ```
 
 use geom_core::Bounds;
 
@@ -108,6 +157,27 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// The one other departure from the identity is `mid(-0.0) = +0.0`;
 /// every consumer here either takes `.abs()` of the result or divides
 /// it into a difference that is insensitive to the sign of zero.
+///
+/// **At a dual scalar this is where the derivative channel leaves, and
+/// here that costs something.** `Bounds for Dual` is the value channel's
+/// bracket with the tangent discarded, so `mid` hands both halves an
+/// `f64` that they then FREEZE — into the iteration, and into the
+/// returned foot parameter.
+///
+/// **Freezing a selection is free exactly while the selected quantity is
+/// LOCALLY CONSTANT in the input**, which is why the same move is
+/// correct throughout `geom_core`: a span index, `floor`'s plateau
+/// factor, a `min`/`max` branch pick and `copysign`'s sign all hold
+/// their value over a neighbourhood, so the derivative they would carry
+/// is zero anyway. **A Newton foot parameter is the other kind.**
+/// `t*(p)` is a smooth implicit function of the input — it moves with
+/// every control point and with the query point — so freezing it drops
+/// `dt*/dp` and every quantity built on `t*` loses that term. The value
+/// channel is unaffected either way (D9). The two `Projection` types say
+/// which of their fields this reaches and how far; the defect and its
+/// dispositions are issue #874. **Not an as-of-date claim** —
+/// `geom/tests/dual_foot_tangent.rs` pins the reported tangents and goes
+/// red the day #874 moves them.
 pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
     let (lo, hi) = (v.lo(), v.hi());
     lo + 0.5 * (hi - lo)
