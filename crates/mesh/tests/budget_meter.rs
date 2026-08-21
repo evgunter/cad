@@ -27,6 +27,10 @@ use topo::Body;
 mod common;
 use common::quad;
 
+/// The tightness floor `the_deviation_pass_samples_and_stays_under_its_certificates`
+/// asserts, and the argument for its value is there.
+const RATIO_FLOOR: f64 = 0.1;
+
 /// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
 /// non-affine trapezoid at z = 1, v-degree 2.
 fn loft_prism() -> Body<f64> {
@@ -139,6 +143,59 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// own triangle's certificate — `worst_ratio` is that check for the
 /// whole face, one number, carried out of the kernel instead of
 /// asserted inside it.
+///
+/// # The ceiling is monotone in the safe direction, so there is a floor
+///
+/// `worst_ratio = d / (cert + ε) ≤ 1` gets EASIER as the certificate
+/// grows: a bound loose enough to be worth #320's attention passes it
+/// by a wider margin than a tight one, and the row would report green
+/// hardest exactly where the budget question is sharpest. The floor
+/// below is the other side of that bracket.
+///
+/// **It applies where the CERTIFICATE is the denominator, and ε is
+/// what decides where that is.** This loft's fourth wall is planar: it
+/// certifies at ~5e-17 while its sampled deviation is ~5e-16, so ε
+/// dominates its ratio outright — measured 5e-7, 5e-10 and 5e-4 at the
+/// default, 1e-6 and 1e-12 legs, three orders apart on one face with no
+/// mesh change at all. `worst_cert > eps` separates that face from the
+/// three curved walls with orders of margin at every leg (7e-4 against
+/// 1e-6 on one side, 5e-17 against 1e-12 on the other), and it is the
+/// condition under which a floor is about the certificate at all.
+///
+/// **The floor is BRACKETED from both sides, and the bracket is
+/// narrow.** Measured on this fixture through this row's own arming,
+/// over δ ∈ [1e-4, 1e3] — seven orders of magnitude — at four ε legs
+/// (default, 1e-6, 1e-9, 1e-12): the gated ratio runs **0.1667 to
+/// 0.4966**, rising monotonically as δ shrinks toward an asymptote
+/// near 0.5 and **bottoming out at 1/6** once the sizing reaches its
+/// coarsest grid, where it stays for every δ above ~10. So the
+/// legitimate population has a floor it REACHES rather than
+/// approaches, and [`RATIO_FLOOR`] sits **1.67×** under it.
+///
+/// The other side of the bracket is what the row must still catch: a
+/// **5×** loosening of `grid.cert` drops the worst ratio to **0.0971**
+/// (measured). The admissible interval is therefore
+/// `[0.0971, 0.1667]` and 0.1 sits near its bottom. A safer-looking
+/// 0.05 would triple the headroom and **stop catching the only
+/// loosening anyone has demonstrated**, which is the trade this
+/// constant is: sensitivity to a 10× loose certificate, bought with
+/// 1.67× of margin against the coarsest mesh the sizing will build.
+///
+/// An earlier version of this doc claimed 4.5× from a δ ∈ [3e-4, 2e-2]
+/// band; that figure was an artefact of the band, and the reviewer who
+/// widened it was right.
+///
+/// # What this row is NOT about
+///
+/// Only the NURBS lane resamples (`trimmed`'s `dev_samples_per_edge`
+/// is `None` for `Lane::Cylinder`), so `cert::cert_cylinder` — which
+/// certifies every cylinder triangle in both tessellation lanes — is
+/// falsified by nothing here, and by nothing in any build. The
+/// assertion messages say NURBS for that reason. The gap is real and
+/// is not this row's to close: giving the meter a cylinder row means a
+/// `FaceMeasure` whose NURBS-only columns have no meaning, which is a
+/// change to the consumer contract in `tools/`. Recorded as **S236**
+/// in `docs/SMELL-SCAN-2026-08.md`, unowned.
 #[test]
 fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     let body = loft_prism();
@@ -149,6 +206,11 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     mesh::tessellate(&body, 6e-3).expect("tessellates");
     let measures = budget::take();
     assert!(!measures.is_empty());
+    // The run's own ε, read the way the kernel reads it rather than
+    // transcribed: the floor's applicability test is a comparison
+    // against it, and CI drives this suite at one leg while the ε
+    // battery drives the crate at three.
+    let eps = geom_core::Tolerance::get().eps;
     for m in &measures {
         assert!(m.dev_samples > 0, "resampling ran: {m:?}");
         // The falsification, in the one form that carries it:
@@ -163,8 +225,20 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
         // one does.
         assert!(
             m.worst_ratio <= 1.0,
-            "a triangle's samples exceeded its own certificate: {m:?}"
+            "a NURBS triangle's samples exceeded its own certificate: {m:?}"
         );
+        // The floor, on the faces whose ratio the certificate decides.
+        if m.worst_cert > eps {
+            assert!(
+                m.worst_ratio >= RATIO_FLOOR,
+                "a NURBS face's certificate is more than {:.0}x the deviation it \
+                 bounds (worst d/(cert+eps) = {}, floor {RATIO_FLOOR}, measured \
+                 minimum over seven orders of delta 0.1667) — the ceiling above \
+                 cannot see this direction, which is the one #320 is about: {m:?}",
+                1.0 / RATIO_FLOOR,
+                m.worst_ratio
+            );
+        }
     }
 }
 

@@ -121,8 +121,8 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
-| **S237** | **I-e** (#887) | `mesh/tests/probe_review.rs::z1_per_triangle_certificate_falsification` carries the same monotone ceiling I-e fixed in `budget_meter.rs` — `worst_ratio = d/(bound+eps) ≤ 1` gets **easier as `bound` grows**, and a loose bound is what #320 exists to detect. **The asymmetry is the finding**: the sibling that was fixed runs under `--features budget` at default ε only; **this one is the row hosted CI actually runs.** Measured z1 corpus maxima 0.363–0.500 across three ε legs |
-| **S236** | **I-e** (#887) | `cert::cert_cylinder` is falsified by **nothing, in any build** — `dev_samples_per_edge` is `None` for `Lane::Cylinder` — while `budget_meter.rs`'s assertion message reads as a universal about triangles. **Not a coverage chore: closing it changes #320's consumer contract**, since a cylinder `FaceMeasure` would carry meaningless NURBS columns. The row states the shape question so it is not picked up as a five-minute fix and done wrong |
+| **S237** | **I-e** (#887) | `mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification` carries the same monotone `worst_ratio <= 1` ceiling I-e fixed in `budget_meter.rs` — and **it is the row hosted CI actually runs**, while the one fixed is the row CI runs at default ε only. **Recorded unowned**: the file is in none of the five lanes' file sets, and routing it to I-e is S231's mistake. Carries I-e's measured z1 maxima (0.363–0.500 at three ε legs) so a floor has a starting point |
+| **S236** | **I-e** (#887) | `cert::cert_cylinder` is falsified by **nothing, in any build** — `trimmed`'s deviation pass is NURBS-only and `cert.rs` has no test module, so the one certificate with no empirical falsifier is the one both tessellation lanes use for cylinders. **Recorded unowned, and framed as a decision rather than a chore**: the obvious remedy hands `note_face` a `FaceMeasure` whose NURBS-only columns are meaningless, which changes **#320's consumer contract** in `tools/` — no Track I lane owns those |
 | **S235** | **I-d** (#876) | `geom::curves::boxes::circle_arc_aabb` computes the conic's exact amplitude AND restricts to the certified span, is **public**, and has **no production caller** — while `topo`'s `edge_box` hand-derives a looser, orientation-dependent, span-blind version that in-tree bodies already take (4 of 6 carriers on the extruded three-arc cylinder, factor 1.366). **S16's class, a fourth instance at the CURVE level**, and it outlives #862's fix: the correctness half is #862's (axial = deletion, conic = tightening with the NURBS arm's stated obligation), the *"two constructions, the correct one unused"* half is structural and would not retire with it |
 | **S234** | **I-d** (#876) | The lane's own door-inventory guard computes the roster's **keys** and none of its **content**: it pins where the four doors are and recites which direction each reads looseness in, which is the entire content of the header's argument. A door that changes its reading without moving leaves the docs false and the guard green — **S66's shape one level up, inside the fix for S66** — and the assert message mints a kept-in-step-by-hand invariant in the same diff that removed one. Lifted out of the guard's disclosure list per Q6: a disclosed deviation owes an owner. **Third declared blind spot on this track to come back as a finding.** Closable: one row per door that widens the box and asserts the verdict moves the stated way; #876 demonstrated the mechanism by hand for two of the four |
 | **S233** | **I-a** (#877) | a band restated in prose — `rim_dim_scale_twins.rs`'s *"the ε = 1e-7 band"* against a `DEFAULT_EPS` of **`1e-9`**. **Found by biting this lane**: a row built on the sentence passed at the default for the wrong reason and fired on CI's `eps = 1e-6` leg. The file's own `an_interior_rim_…` row was **already red at ε = 1e-12** and nothing observed it. Off-roster status is registered by `probe-suite-census.sh`; the constant inside it is not covered by that registration, and **that** is the finding. Three prior fixes of the same class exist in this crate, one of them in the immediate sibling file. **Fixed here, out of scope and deliberately** |
@@ -230,9 +230,10 @@ ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
 and left this roster; `curved.rs` below its module header is untouched, so
 I-e starts from that merge with the guard bodies exactly as it found them.
 
-| lane | rows | scope | review | state |
-|---|---|---|---|---|
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **in review as #887** — adversarial and style both running |
+**The roster is empty: every lane has landed and left it** — I-a **#877**,
+I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**. The rows each lane
+carried, and what it did with them, are in the landing narratives below and
+in §D of `SMELL-SCAN-2026-08.md`.
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
@@ -248,6 +249,85 @@ consolidates and the fix comes first. The lane is described in a comment on
 |---|---|---|---|
 | **I-c** | **#872** — **MERGED** `ecc1d492` (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
 | **I-b** | **#873** — **MERGED** `82887044` (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
+
+## Track I — COMPLETE (2026-08-21), except two decisions in front of Evan
+
+**All five lanes landed the day the track was constituted.** I-a **#877**,
+I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**, plus the constitution
+**#866** and one orchestrator sync **#879**. §D's Track I table holds **one row**:
+**I2**, narrowed to **S65**, which is a decision and not a lane.
+
+**Closed:** S60, S64, S66's style halves, S77, S80, S81, S97, S108, S109,
+S112(d), S114(f), S115(d), S116(g). **Minted:** `S230`–`S237`. **Issues filed:**
+**#868**, **#870**, **#881**, **#882**, **#889** — and **#723 reopened twice**.
+
+### In front of Evan, and neighbours stall on them
+
+**S65** and the **D9 ε promise** are both in **PR #884**, priced and stated.
+**S82** is named there too and is not asked; say if it should be.
+
+### What this track leaves unowned, stated so nobody infers an owner
+
+`S230` (certified widths with no ceiling in `editor-core/` and `pncad-py/`),
+`S231` (`chords.rs`'s absence claim), `S236` (`cert_cylinder` falsified by
+nothing in any build — **a decision about #320's consumer contract, not a
+coverage chore**), `S237` (the monotone ceiling **CI actually runs**), and
+**`topo::fixtures::code_only`'s collapse**, whose deferral pointed at a landed
+lane and a lane that does not own the file. `S232` is the exception that proves
+the rule: it is **Track H's**, and the row says so.
+
+**C-m stays struck behind #723**, which is open and unfixed.
+
+### The five findings this track is least comfortable leaving
+
+- **S108 is closed at bitwise zero and NARROWED, not eliminated.** `lever > 0.0`
+  and `walk::iso_side_starts`' `radial(junction) > eps` are two bars on one
+  `Chart::radial`; a lever of 1e-20 still admits any plausible gap. Nothing in
+  tree produces a non-zero sub-ε lever and **neither review tested one**.
+- **S234** — a guard that computes its roster's keys and recites its content.
+- **S235** — the exact box ships, is public, and has no production caller.
+- **#862 is LIVE, not latent**: 37% over on a fixture the tree ships, through
+  the public API, with 4 of 6 certified `u_ref`s wide.
+- **`props/`'s gate premise is strictly weaker than its flux lane's**, and the
+  gap narrowed rather than closed.
+
+### What the record says about the process, measured on eight reviews
+
+**Every unit failed its first review, and four of five failed it the same way —
+the fix minting a fresh instance of the defect it closed.** Naming the trap in
+the brief did not prevent it; five lanes were warned in writing and five were
+caught. **The only thing that reliably found it was a reader who had not
+written the fix.**
+
+**Two reviews per unit earned their cost, and the split was legible.** On I-e
+the adversary returned **MERGE — no kernel defect**, having confirmed the
+predicate over 1,458 traced entries and reproduced the unit's key contrast to
+five digits; the style lane returned the finding that mattered — **the fix is
+narrowed, not closed**. Neither would have produced the other's answer. On I-a
+the adversary **refuted the lane's central safety claim by execution** where
+three earlier readings had accepted it.
+
+**A lane's own disclosed blind spot came back as a finding four times.** It is
+not a discharge; it is the sentence a reviewer starts from, and it should be
+read as a work order by the lane that writes it.
+
+**A citation and a false statement are usually one defect** — four instances on
+#877 alone, found one at a time. **The sweep should come first, and it costs one
+`grep`** (I-a's own words, after running it and finding no fifth).
+
+**Computing a claim beat reciting one, demonstrably.** #872 replaced a recited
+ε roster with a computed pin; the **first** change to touch an ε read afterwards
+— in a different lane — was caught automatically and re-pinned deliberately. A
+recited list would have gone stale silently, which is how the one it replaced
+got there.
+
+**Three self-inflicted incidents, all mine, all recorded below.** The lesson
+common to them: **a rule I stated and did not mechanise did not hold.** I told a
+lane to scan its PR body for closing keywords and did not scan my own; I wrote
+"grep for conflict markers before every push" and then ran the grep without
+gating on it. **An unconditional check is a log line, not a control.**
+
+---
 
 ## Landings
 
