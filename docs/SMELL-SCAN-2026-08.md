@@ -15408,7 +15408,9 @@ the seam, so the answer is wanted before either opens.
 
 ## Track I — the measuring consumers: `props/`, `mesh/`, `census.rs`
 
-**Defined 2026-08-21 by Track F on closing; unclaimed.**
+**Defined 2026-08-21 by Track F on closing; CLAIMED the same day — one live
+orchestrator, `docs/SMELL-I-LOG.md`.** That file is the execution record
+(rulings, lane roster, review outcomes); this table stays the schedule.
 
 **Scope: `crates/geom-brep/src/props/`, `crates/mesh/`, `crates/topo/src/census.rs`.**
 The code that *measures and certifies* geometry — the consumers of Track H's
@@ -15424,13 +15426,27 @@ waits on the other to start.**
 | # | Work | From |
 |---|---|---|
 | **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These four rows are style and stand on their own; the correctness defect is #723's own. | **S60**, **S77**, **S80**, **S81**, S112(d) |
-| **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below) and S64 should not be closed without it. | **S64**, **S65** |
+| **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below). *Amended by* **I-R1**: S64 **lands**, and the PR that lands it opens the S65 question to Evan with both options priced — holding a false sentence in a shipped crate header to preserve a coupling is not what the pairing was for; what it protects is a reader finishing the ε ledger believing the story is closed, and a pointer at the claim site discharges that. | **S64**, **S65** |
 | **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
 | **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
 | **I5** | **S16 unified two of three box constructions; the third's stated reason is retracted at the copy site, and `boxes.rs` cites the retraction as live.** | **S97** |
 | **I6** | Roll-up members in these crates. | S114(f), S115(d), S116(g) |
 
-**Evan-only, and I2 stalls on it:** **S65** — the #678 watertightness backstop is
+**Lanes, 2026-08-21 — five, and they do not map one-to-one onto these rows.**
+Recorded here so a reader of two PRs does not read them as one row.
+**I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**;
+**I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows);
+**I-c** = I2 plus I6's S115(d) and S116(g) (`mesh/` prose and the ε ledger);
+**I-d** = I4 **and** I5 together (`boolean/boxes.rs`'s module doc is one
+header, and I5 is the citation I4's paragraph leans on) — both rows leave
+together; **I-e** = I3 plus I6's S114(f) (`mesh/`'s guards) — **adversarial**,
+and sequenced behind I-c because both read `mesh/src/curved.rs`.
+**I6 leaves when all three of its members are recorded, not when one lane
+lands.** The rulings behind each split are `SMELL-I-LOG.md` **I-R1**–**I-R6**;
+**I-R2** and **I-R3** correct cells in this section rather than complying with
+them.
+
+**Evan-only, and I2 asks it rather than stalling on it (I-R1):** **S65** — the #678 watertightness backstop is
 `#[cfg(debug_assertions)]`, so it is **absent from every build that ships a
 mesh**, while the module header presents floor and assert as a pair without
 saying one is absent from release. Either it pays an O(triangles) per-patch
