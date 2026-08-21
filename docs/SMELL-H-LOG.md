@@ -670,6 +670,49 @@ that ruling is Evan's and it holds here exactly as it did for `C-m`.
 mode is silent: `H-b` would have discovered it only if the issue had
 touched the same lines, and it does not.
 
+### H-R13. The repo has ~39 `compile_fail` rows and not one verifies what it claims
+
+**Two halves, found six hours apart by two different lanes, and neither
+half is visible from the other.**
+
+- **`crates/*/tests/` — never collected.** A doctest in a `tests/` target
+  is not run at all. Established by H-g, confirmed twice by #886's
+  reviewer in a way that **excludes the `autotests = false` confound**: a
+  planted `assert!(false)` doctest and a planted always-green
+  `compile_fail` in the aggregated `geom` target were both uncollected,
+  *and* the same in `crates/quantity/tests/` with autotests **enabled**
+  was also uncollected, while `cargo test -p quantity --test zz_doc_probe`
+  built and ran the target. `cargo test --doc` collects **lib targets
+  only**. **11 such rows**, all in `geom-core/tests/` — this is `S214`.
+- **`crates/*/src/` — collected, but the error code is inert.** #886's
+  reviewer planted two rows annotated `compile_fail,E0277`, one failing
+  with **E0425**, one with **E0308**: `4 passed; 0 failed`, no warning.
+  **The annotation is documentation, not a check. 28 such rows.**
+
+**So the two halves compose into one statement**: ~39 `compile_fail` rows,
+of which 11 never execute and 28 execute but cannot tell the intended
+error from a typo. **Every one of them is a negative proof about the type
+system, and negative proofs rot in the direction nothing else catches.**
+
+**And there is a floor under how well this can be fixed, which is the part
+worth keeping.** For an **inherent method**, no error code can pin an
+eviction: `Dual64` failing the bound and a misspelled method name both
+emit **E0599**. So at `::project`/`::project_from_seed` the idiom is not
+merely unenforced — *no annotation exists that would distinguish the
+proof from a typo*. Only the free-function case (`chart_region_overlap`,
+real `E0277` naming `required by a bound in chart_region_overlap`) can be
+pinned by code at all. **A fix that rewrites annotations buys less than it
+appears to**, and whoever takes this should decide what the rows are
+*for* before deciding how to spell them.
+
+**Why this track found it and the instruments track did not.** Track F's
+subject was guards, and it swept for guards that *fire wrongly*. This is
+a guard that **does not run** and a guard that **runs and accepts
+anything** — the same family as `S110`, and reached here from the
+opposite direction: a lane needed a compile-fail proof for its own change,
+and asked whether the proof worked. **The question that found it is
+"does my own evidence hold", not "is there a defect".**
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
