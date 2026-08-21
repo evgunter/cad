@@ -144,6 +144,11 @@ pub fn mentions_raw_string(text: &str) -> bool {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
+    // These rows touch no process-global state and are safe to run in
+    // parallel with anything. `vacuity`'s do not — its `caught` helper
+    // swaps the process-wide panic hook from parallel test threads and
+    // flakes about one run in seven (**issue #882**). Do not copy that
+    // shape here.
     use super::{code_only, mentions_raw_string};
 
     /// S13's ratified shape for a text-matching guard: **a clean
