@@ -128,8 +128,8 @@ use crate::types::TessellateError;
 /// unshared such walk in the tree (`SMELL-SCAN-2026-08.md` S117). A
 /// count also answers the wrong question: what a reader of D9 needs is
 /// what a read may DO, which is the two kinds above, each argued at
-/// its own site. `rg eps crates/mesh/src` is the
-/// enumeration; this doc is the invariant.
+/// its own site. `rg eps crates/mesh/src` is the enumeration; this doc
+/// is the invariant.
 pub(crate) struct Tol {
     /// The chordal tolerance δ.
     pub delta: f64,
