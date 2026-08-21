@@ -103,7 +103,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
     VertexKey,
@@ -240,7 +240,7 @@ struct RimCarrier<T: Real> {
 /// [`super::build::fillet_edges`] AFTER the battery, for every
 /// request. The verdict's chains are the input; nothing re-derives
 /// what the battery already resolved.
-pub(super) fn fillet_surgery<T: Decide + Bounds>(
+pub(super) fn fillet_surgery<T: Decide + CertifiedBounds>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
     band: Band,
@@ -441,7 +441,7 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
 
 /// The corner ball and octant chart at one fully-requested trivalent
 /// vertex ([`super::build::octant_chart`] picks the chart).
-fn corner_plan<'a, T: Decide + Bounds>(
+fn corner_plan<'a, T: Decide + CertifiedBounds>(
     body: &Body<T>,
     links: CornerLinks<'a, T>,
     radius: T,
@@ -484,7 +484,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
 
 /// Resolve one closed chain onto its plane and sphere supports, with
 /// every structural precondition of the band replacement checked.
-fn resolve_rim<'a, T: Decide + Bounds>(
+fn resolve_rim<'a, T: Decide + CertifiedBounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, FilletError> {
@@ -772,7 +772,7 @@ fn rim_trim_circles<T: Real>(
 /// # Errors
 ///
 /// [`FilletError::RingClearance`] / [`FilletError::Escalated`].
-pub fn ring_clearance<T: Decide + Bounds>(
+pub fn ring_clearance<T: Decide + CertifiedBounds>(
     face: FaceKey,
     margin: T,
     band: Band,
@@ -792,7 +792,7 @@ pub fn ring_clearance<T: Decide + Bounds>(
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
 /// margin, in closed form.
-fn ring_clearance_pass<T: Decide + Bounds>(
+fn ring_clearance_pass<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     opens: &[ConvexOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
@@ -953,7 +953,7 @@ enum ContactCarrier<T: Real> {
 type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
 
 #[allow(clippy::type_complexity)]
-fn blank_phase<T: Decide + Bounds>(
+fn blank_phase<T: Decide + CertifiedBounds>(
     body: &mut Body<T>,
     opens: &[ConvexOpen<'_, T>],
     corners: &[Corner<'_, T>],
@@ -1230,7 +1230,7 @@ fn blank_phase<T: Decide + Bounds>(
 // The rim phase: one torus band per closed chain, in place.
 // ------------------------------------------------------------------
 
-fn rim_phase<T: Decide + Bounds>(
+fn rim_phase<T: Decide + CertifiedBounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     rec: &mut FilletNaming,
@@ -1731,7 +1731,7 @@ fn loop_walk_face<T: Decide>(
 /// certifies, rather than a taxonomy scramble at adoption time
 /// (`CURVED-DESIGN.md` §D7, fifth leave-room obligation; the rule
 /// itself is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
-fn attach_contact<T: Decide + Bounds>(
+fn attach_contact<T: Decide + CertifiedBounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,

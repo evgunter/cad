@@ -37,7 +37,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+    Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign,
+    Vec3,
 };
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
@@ -278,7 +279,7 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
 /// [`FilletError::Escalated`] in band or on poison;
 /// [`FilletError::BodyNotIntact`] when the face or its stored surface
 /// does not resolve.
-pub fn radius_headroom<T: Decide + Bounds>(
+pub fn radius_headroom<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
@@ -338,7 +339,7 @@ pub fn radius_headroom<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`FilletError::SpineIrregular`] / [`FilletError::Escalated`].
-pub fn spine_regularity<T: Decide + Bounds>(
+pub fn spine_regularity<T: Decide + CertifiedBounds>(
     spine_curvature: T,
     radius: T,
     band: Band,
@@ -379,7 +380,7 @@ pub fn spine_regularity<T: Decide + Bounds>(
 ///
 /// [`FilletError::Escalated`] in band or on poison. A definite sign is
 /// returned; the caller judges consistency.
-pub fn convexity_at<T: Decide + Bounds>(
+pub fn convexity_at<T: Decide + CertifiedBounds>(
     n_a: Vec3<T>,
     n_b: Vec3<T>,
     tau: Vec3<T>,
@@ -427,7 +428,7 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`FilletError::ChainNotG1`] / [`FilletError::Escalated`].
-pub fn chain_g1<T: Decide + Bounds>(
+pub fn chain_g1<T: Decide + CertifiedBounds>(
     tau_in: Vec3<T>,
     tau_out: Vec3<T>,
     arm: T,
@@ -489,7 +490,7 @@ pub fn chain_g1<T: Decide + Bounds>(
 ///
 /// [`FilletError::FilletCornerUnsupported`] with the tag and policy;
 /// [`FilletError::Escalated`] on an in-band determinant.
-pub fn corner_config<T: Decide + Bounds>(
+pub fn corner_config<T: Decide + CertifiedBounds>(
     vertex: VertexKey,
     valence: usize,
     convex: usize,
@@ -570,7 +571,7 @@ pub fn corner_config<T: Decide + Bounds>(
 ///
 /// [`FilletError::FaceClearanceUncertified`] /
 /// [`FilletError::Escalated`].
-pub fn face_clearance<T: Decide + Bounds>(
+pub fn face_clearance<T: Decide + CertifiedBounds>(
     face: FaceKey,
     gap: T,
     setback_here: T,
@@ -593,7 +594,7 @@ pub fn face_clearance<T: Decide + Bounds>(
 /// Resolve one link: supports, arm, blend, convexity. Refuses typed
 /// on any support pair the analytic arms do not cover — naming the
 /// canal-surface unit as the missing front door.
-fn resolve_link<T: Decide + Bounds>(
+fn resolve_link<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     edge: EdgeKey,
     radius: T,
@@ -825,7 +826,7 @@ fn vertex_edges<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<Edge
 ///
 /// Any of [`FilletError`]'s predicate arms, or
 /// [`FilletError::Escalated`] with the offending margin as payload.
-pub fn run_battery<T: Decide + Bounds>(
+pub fn run_battery<T: Decide + CertifiedBounds>(
     req: &FilletRequest<'_, T>,
     band: Band,
 ) -> Result<BatteryVerdict<T>, FilletError> {
@@ -959,7 +960,7 @@ pub fn run_battery<T: Decide + Bounds>(
 
 /// Predicate 6 at one termination vertex: gather valence, per-edge
 /// convexity, and the three support normals, then classify.
-fn corner_at<T: Decide + Bounds>(
+fn corner_at<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     vertex: VertexKey,
     radius: T,
@@ -1050,7 +1051,7 @@ fn corner_at<T: Decide + Bounds>(
 
 /// Predicate 2's sweep: for each support face, every pair of its
 /// boundary edges, with the blended ones carrying their setbacks.
-fn consumption_sweep<T: Decide + Bounds>(
+fn consumption_sweep<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
     band: Band,

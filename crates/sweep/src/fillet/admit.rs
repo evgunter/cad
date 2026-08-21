@@ -322,8 +322,9 @@ pub(super) struct RequestedBoundary<T: Real> {
 
 // `Decide` alone: admission walks a cycle and folds a stored plane
 // normal, and decides nothing that reads a bracket. The fillet seam's
-// ratified compound `Decide + Bounds` bound (`geom-core/src/real.rs`,
-// the `Bounds` scope rule) covers three files and this is not one.
+// ratified compound `Decide + CertifiedBounds` bound
+// (`geom-core/src/real.rs`, the `Bounds` scope rule) covers three files
+// and this is not one.
 impl<T: Decide> RequestedBoundary<T> {
     /// Admit one support face of the plan.
     ///

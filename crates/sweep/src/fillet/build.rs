@@ -56,7 +56,7 @@
 //! pretend otherwise: it neither gates on it nor asserts tier 3.
 
 use geom::Surface;
-use geom_core::{Band, Bounds, Decide, Real, Vec3};
+use geom_core::{Band, CertifiedBounds, Decide, Real, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey,
 };
@@ -124,7 +124,7 @@ pub struct Filleted<T: Real> {
 /// typed refusal, when an Euler operator refuses;
 /// [`FilletError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
-pub fn fillet_edges<T: Decide + Bounds>(
+pub fn fillet_edges<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
@@ -196,7 +196,7 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 ///
 /// [`FilletError::UnsupportedGeometry`] when a support of this corner
 /// is not a plane.
-pub(super) fn octant_chart<T: Decide + Bounds>(
+pub(super) fn octant_chart<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
