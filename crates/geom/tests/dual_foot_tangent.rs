@@ -8,7 +8,8 @@
 //! **issue #874** carries the defect and its dispositions.
 //!
 //! **The doors no longer admit a dual.** `::project` and
-//! `::project_from_seed` bound `Decide + CertifiedBounds`, so the wrong
+//! `::project_from_seed` bound `T: CertifiedBounds` — a SOLE bracket
+//! bound, no `Decide` — so the wrong
 //! tangent is unreachable rather than fixed. The eviction is pinned by
 //! `compile_fail` rows in `crates/geom/src/projection.rs`'s module docs
 //! — a doctest is only collected from a `lib` target, so it cannot live
@@ -30,8 +31,10 @@
 //! | `d(distance)/ds` | `0` | `0` — right, and only on the cosine exit |
 //!
 //! **A fixer loses the red-test workflow.** To reproduce those numbers
-//! now, loosen the two doors' bound back to `T: Bounds` locally; that
-//! is the first step of fixing #874, not an obstacle to it.
+//! now, loosen `impl<T: CertifiedBounds>` back to `impl<T: Bounds>` in
+//! `geom/src/{curves,surfaces}/projection.rs` and move `project_seed`
+//! back beside its siblings; that is the first step of fixing #874, not
+//! an obstacle to it.
 //!
 //! It lives directly under `tests/` rather than in `tests/curves/` or
 //! `tests/surfaces/` because its subject is the shared interior
@@ -66,9 +69,25 @@ fn sliding_patch<T: Real>(shift: T) -> NurbsSurface<T> {
     NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, 1.0, 1.0]).unwrap()
 }
 
-/// The step of the central differences below. Large enough that the
-/// difference of two feet is not lost to cancellation, small enough
-/// that the second-order term is far under the tolerances asserted.
+/// The step of the central differences below, and **the usual
+/// justification does not apply to it.** Every derivative these rows
+/// measure is identically zero over a NEIGHBOURHOOD, not merely at a
+/// point, so there is no second-order term to trade cancellation
+/// against: the entire residual is cancellation noise, and the step
+/// only sets how large the divisor is that crushes it. Measured
+/// `d(foot.x)/ds` across the sweep:
+///
+/// | `h` | `1e-3` | `1e-5` | `1e-6` | `1e-7` |
+/// |---|---|---|---|---|
+/// | residual | `-5.6e-14` | `-1.1e-11` | `-5.6e-11` | `0` |
+///
+/// `1e-6` is the WORST step in that range and still sits four orders
+/// under the `1e-6` tolerances asserted below; at `h <= 1e-7` the two
+/// feet come back bit-identical and the difference is exactly zero. It
+/// is kept because it is an unremarkable step at these magnitudes and
+/// the margin is ample, not because it is optimal. **A fixture whose
+/// true derivative is nonzero needs the usual trade and must not copy
+/// this constant or this reasoning.**
 const H: f64 = 1e-6;
 
 /// The query point is FIXED while the carrier slides, so the true

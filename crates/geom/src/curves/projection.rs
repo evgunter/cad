@@ -137,9 +137,8 @@ macro_rules! nurbs_project {
             pub iterations: usize,
         }
 
-        /// The seeding sweep is not a certification door: it returns
-        /// `f64`, so it carries no tangent to be wrong about and any
-        /// scalar with a bracket may run it.
+        /// The seeding sweep is not a certification door and keeps the
+        /// sole bracket bound — module docs' `# Scalars` for why.
         impl<T: Bounds> $Curve<T> {
             /// The fixed-count seeding sweep (module docs: the seeding
             /// rule). Public for warm-start consumers and the planted

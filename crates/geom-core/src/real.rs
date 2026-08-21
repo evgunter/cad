@@ -398,24 +398,19 @@ pub trait Real:
 /// `Dual<f64>`, the `Interval` run's at `Dual<Interval>`. No wrong
 /// certificate exists.
 ///
-/// **Whether `separation` should nonetheless carry
-/// [`CertifiedEnclosure`] was a #643-completeness question left open
-/// here. It is answered NO**, and not on delegation — on the rule that
-/// doors tighten and passes keep their lanes. All three signatures
-/// return a NON-generic type (`Separation`, `Aabb`,
-/// `Result<(), PlacementsMeet>`), so no bracket read in them reaches a
-/// returned value and there is no tangent for a dual to get wrong. And
-/// the door is not free-standing: `Separation::of`/`certify`'s one
+/// **Whether `separation` should carry [`CertifiedEnclosure`] was a
+/// #643-completeness question left open here. Answered NO, and the
+/// CALLER decides it, not the door.** `Separation::of`/`certify`'s one
 /// production caller is `editor_core::eval::wire::wire_placed_union`,
-/// beneath `evaluate<T>` — the evaluation service, a MIXED pass whose
-/// node kinds are overwhelmingly non-certifying. A `CertifiedBounds`
-/// bound here would propagate straight into it and foreclose E4's
-/// dual-through-`evaluate` path over one node kind. The doors that DID
-/// tighten under Evan's 2026-08-21 ruling are the ones whose bracket
-/// read is FED BACK into the computation — `geom`'s point-projection
-/// lane freezes the foot parameter in an `f64` field, and its `foot`
-/// and `orthogonality` tangents are wrong at a dual for exactly that
-/// reason (#874).
+/// beneath `evaluate<T>` — a MIXED pass whose node kinds are
+/// overwhelmingly non-certifying, which a [`CertifiedBounds`] bound
+/// here would reach by propagation. Doors tighten; passes keep their
+/// lanes. That these three signatures return NON-generic types is true
+/// and is why nothing a dual gets from them is WRONG, but it does not
+/// decide it: `topo::chart_region_overlap` has that property and WAS
+/// tightened, nothing generic calling it. Whether an answer is wrong at
+/// a dual is a third question with its own home — `geom::projection`'s
+/// `mid`, on freezing a selection (#874).
 ///
 /// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
 /// `topo::props`'s certified-quadrature plumbing joins the compound
@@ -546,23 +541,20 @@ pub trait Real:
 /// honest signature; a sole-bound form is unsatisfiable.
 ///
 /// **The door and the lane guard different things, and both are
-/// needed.** `chart_region_overlap`'s own bound is
-/// `Decide + `[`CertifiedBounds`], which no [`Dual`](crate::Dual)
-/// satisfies, so the predicate is uninstantiable at a dual however it
-/// is reached — including from outside the crate, where the lane is
-/// never consulted. That makes this seam like the other three
-/// (`props::quad_lane`, `pcurve_cache::fitted_lane`,
-/// `edge_nurbs::lane`) rather than the exception it used to be.
-/// `ChartRegionLane`'s refusing `Dual` impl is NOT redundant with that:
-/// it is what lets the census — a MIXED pass with genuine
-/// non-certifying work at a dual — decline this one arm and keep going,
-/// which no bound on a whole function can express. The door refuses;
-/// the pass keeps its lane.
+/// needed.** The door's bound is `Decide + `[`CertifiedBounds`], which
+/// no [`Dual`](crate::Dual) satisfies, so the predicate is
+/// uninstantiable at a dual however it is reached — including from
+/// outside the crate, where the lane is never consulted; this seam is
+/// no longer the exception among the four. `ChartRegionLane`'s refusing
+/// `Dual` impl is NOT redundant with that: it is what lets the census,
+/// a MIXED pass, decline this one arm and keep going, which no bound on
+/// a whole function can express.
 ///
-/// The tightening replaced an audit, not a wrong answer: this door
-/// returns `ChartOverlap`, which is not generic in `T`, so no bracket
-/// read in it reaches a returned value at all and a dual run's answer
-/// was the value channel's exactly.
+/// The tightening replaced an audit, not a wrong answer — `ChartOverlap`
+/// is not generic in `T`, so a dual run's answer was the value
+/// channel's exactly. **That is not what decided it**: `topo::separation`
+/// shares the property and was NOT tightened, the difference being that
+/// nothing generic calls this door (the `separation` entry above).
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is

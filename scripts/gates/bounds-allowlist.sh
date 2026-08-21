@@ -67,15 +67,10 @@
 # `Decide + CertifiedBounds`, still compound and still firing here
 # correctly.
 #
-# THE DOOR AND THE LANE GUARD DIFFERENT THINGS, and the entry needs
-# both to stay true. `chart_region_overlap`'s own bound excludes
-# `Dual`, so the predicate is uninstantiable at a dual however it is
-# reached — including by an EXTERNAL caller through topo's root
-# re-export, where the lane is never consulted. That is now the same
-# posture as the other three lanes' doors.
-# `topo::chart_region::ChartRegionLane`'s refusing `Dual` impl is not
-# redundant with it: it is what lets the census, a MIXED pass, decline
-# this one arm and keep going. See the real.rs rule entry.
+# The door's own bound now excludes `Dual`, and `ChartRegionLane`'s
+# refusing impl is still not redundant with that. WHY both are needed
+# has ONE home: geom-core/src/real.rs, the M9-2 entry of the `Bounds`
+# scope rule. Not restated here; keep this a pointer.
 # A NEW file writing a compound Bounds bound fails here until it
 # is ratified into the real.rs rule AND this allowlist.
 # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier

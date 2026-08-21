@@ -152,9 +152,8 @@ impl core::fmt::Display for SurfaceProjectionInconclusive {
 
 impl core::error::Error for SurfaceProjectionInconclusive {}
 
-/// The seeding sweep is not a certification door: it returns `f64`, so
-/// it carries no tangent to be wrong about and any scalar with a
-/// bracket may run it.
+/// The seeding sweep is not a certification door and keeps the sole
+/// bracket bound — `crate::projection`'s `# Scalars` for why.
 impl<T: Bounds> NurbsSurface<T> {
     /// The fixed-count seeding sweep (module docs: the seeding rule).
     /// Public for warm-start consumers (the PR 7 marcher and its

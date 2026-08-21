@@ -88,7 +88,7 @@
 //! }
 //! ```
 //!
-//! ```compile_fail,E0277
+//! ```compile_fail,E0599
 //! use geom::NurbsCurve3;
 //! use geom_core::{Dual64, Point3};
 //! fn evicted(c: &NurbsCurve3<Dual64>, p: Point3<Dual64>) {
@@ -96,7 +96,7 @@
 //! }
 //! ```
 //!
-//! ```compile_fail,E0277
+//! ```compile_fail,E0599
 //! use geom::NurbsSurface;
 //! use geom_core::{Dual64, Point3};
 //! fn evicted(s: &NurbsSurface<Dual64>, p: Point3<Dual64>) {
