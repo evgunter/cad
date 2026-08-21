@@ -640,6 +640,36 @@ action, confirm with a second signal** — a lock holder via `fuser`, a
 `target/` mtime, a commit timestamp. If this recurs outside Track H it should
 graduate into the memory; one track's log is the right home for it until then.
 
+### H-R12. `#889` is a correctness defect in `H-b`'s file — flagged, not a gate
+
+**Filed 2026-08-21 by another track**: *horn/spindle tori are rejected on
+one of the two doors that can mint them*, at
+**`crates/geom/src/surfaces.rs`** and `step-import/src/entities.rs`. The
+first is Track H's ground and is **`H-b`'s** file (`S102` edits
+`surfaces.rs:26-30`'s *"The shared helper"* bullet).
+
+**It does not gate `H-b`, and the distinction from the `C-m` precedent is
+the reason.** Evan struck `C-m` from Track I's schedule behind **#723**
+because that row *consolidates the four quadrature engines in the very
+file with the wrong certified volume* — consolidating first would either
+bake the defect into the shared engine or move it somewhere the
+reproduction no longer points. **The coupling here is nothing like
+that**: `H-b`'s work on `surfaces.rs` is one doc bullet that names a
+shared helper without naming `crate::azimuth`, and it does not touch the
+torus classification the issue is about.
+
+**So the rule that applies is the weaker one: `H-b`'s brief carries the
+pointer.** A lane editing a file with an open correctness issue should
+know before it starts, so that (i) it does not "tidy" the defective path
+and make the reproduction stale, and (ii) if it happens to understand the
+defect while it is in there, it files what it learns on **#889** rather
+than into a style row. **A style pass does not fix a correctness defect** —
+that ruling is Evan's and it holds here exactly as it did for `C-m`.
+
+**Recorded rather than left to a merge conflict**, because the failure
+mode is silent: `H-b` would have discovered it only if the issue had
+touched the same lines, and it does not.
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
