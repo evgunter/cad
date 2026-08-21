@@ -9,6 +9,43 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Evan's
+# authorisation; measured in docs/CI-MINUTES-2026-08.md, finding F3).
+#
+# A merge ran the whole gate a SECOND time: ~87 billed minutes on the
+# pull_request, then ~87 again on the push to main. The PR run tests
+# the MERGE-REF — main plus the branch — so with this repo's merge-only
+# rule the tree the push run re-tested was, in the ordinary case, the
+# tree the PR run had already tested.
+#
+# Auditing what a push run alone could do turned up exactly TWO things,
+# and both are WRITE SIDE-EFFECTS rather than gates:
+#
+#   * `rebuild-latency`'s "commit measurement to the timing history
+#     (main only)" step, appending to docs/perf-data/rebuild-latency/;
+#   * `renders`' `push_to`, which re-baselines the render cells.
+#
+# Neither can move onto the PR side, and the PUSH_TO note on the
+# `renders` job records the measurement that says why: a GITHUB_TOKEN
+# bot commit onto a PR branch becomes that PR's head, triggers no run
+# of its own, and strands every green check on the parent commit.
+#
+# So every OTHER job is gated to `pull_request` below, and a push to
+# main now runs `filter` + `rebuild-latency` + `renders`.
+# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
+# test-interval) skip on a push, which skips it too — one mechanism
+# rather than two saying the same thing.
+#
+# WHAT THIS GIVES UP, AND THE MITIGATION IT WANTS. The commit that
+# actually lands on main is now never itself built or tested. When main
+# moves between a PR's last run and its merge — frequent here — that
+# exact combination went untested, and a semantic conflict between two
+# independently-green PRs would now surface at the NEXT PR's merge-ref
+# rather than at the merge that caused it. The intended pairing is a
+# SCHEDULED full run on main (one cheap run, not one per merge), which
+# the NEXT PR adds. Anything that must fail-fast on the landed tree
+# belongs on the PR side of this line, not restored to the push side.
+
 # BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
 # BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is read at RUNTIME
@@ -117,6 +154,12 @@ concurrency:
 # the local gate stays byte-for-byte equivalent in what it PROVES. The
 # mirror convention covers the matrix, not the runner's linker.
 env:
+  # sccache pin for the EXPERIMENT wired into the two build jobs below.
+  # LIVE — disable by setting the repo variable SCCACHE to "0". See
+  # .github/actions/install-sccache and docs/CI-MINUTES-2026-08.md F4.
+  # 0.16.0 is the version local-scripts/gate.sh already runs on the
+  # local gate box, so the trial and the local lane agree.
+  SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
   # of truth), installed from the official GitHub-release prebuilt at the
@@ -230,6 +273,7 @@ jobs:
     name: docs-only ok
     runs-on: ubuntu-latest
     needs: filter
+    if: github.event_name == 'pull_request'
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
@@ -293,7 +337,7 @@ jobs:
     name: discipline (evaluation-code)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -464,11 +508,32 @@ jobs:
       - name: uv composer selftest (demos)
         run: python3 demos/compose_uv_montage.py --selftest
 
+  # rustfmt AND the rustdoc gate, in one job (2026-08-20, minutes audit).
+  # Separately these billed two minutes to do ~50 s of work — 33 s and
+  # 46 s measured (run 32425890937), each rounded up, and most of each
+  # was the runner setup they now share. Together they land inside one
+  # billed minute.
+  #
+  # BOTH KEEP THEIR OWN STEP, with the step names unchanged, because
+  # that is what a failure is read by: a red run still says `rustfmt`
+  # or `rustdoc (gate)`, matching the rows of the same names in
+  # local-scripts/ci-local.sh. Neither is on the critical path (they
+  # finished at 1.4 min of a 13.6 min run), so the serialisation costs
+  # nothing.
+  #
+  # NOT MERGED IN, deliberately: `discipline`, whose ~23 s would push
+  # the total past the minute boundary and buy nothing; and
+  # `docs-only`, which carries no `if` because it is the green check a
+  # docs-tier run reports when every other job skips — the opposite
+  # condition to this job's.
+  #
+  # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
+  # expect exactly one cold run here and warm thereafter.
   fmt:
-    name: rustfmt
+    name: rustfmt + rustdoc (gate)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -484,13 +549,21 @@ jobs:
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
+      - name: rustfmt
+        run: cargo fmt --all --check
+      # Runs even when rustfmt failed: formatting and doc coverage are
+      # independent verdicts, and the matrix-free merge must not turn
+      # two findings into one. `!cancelled()` rather than `always()` so
+      # a cancelled run still stops here.
+      - name: rustdoc (gate)
+        if: '!cancelled()'
+        run: scripts/doc-gate.sh
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -525,21 +598,6 @@ jobs:
   # ratchet over a fixed crate set, and it runs in ~15 s cold, so scoping
   # it to the change closure would trade the ratchet's meaning for no
   # measurable time. It still respects the docs tier via run_build.
-  doc:
-    name: rustdoc (gate)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_build == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # see the identical step in the clippy job for the full reasoning.
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: scripts/doc-gate.sh
-
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
@@ -549,7 +607,7 @@ jobs:
     # Unset today, so this is `ubuntu-latest` and nothing changes.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     # OPT LEVEL — reverses the #52/#53 verdict, because both of its
     # premises expired. That decision ("blanket opt 2 is net-slower on
     # core-crate PRs") was measured when this workspace had 261 test
@@ -629,6 +687,16 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "2"
       CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
+      # repo variable SCCACHE set to "0"; unset means enabled, so the
+      # trial runs without a variable needing to exist.
+      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
+      # unset case is a genuine no-op rather than a broken command.
+      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
+      # it: flipping SCCACHE rotates the cache key and buys exactly one
+      # cold rebuild. That run is not the verdict — same trap the OPT
+      # LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -646,6 +714,12 @@ jobs:
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
+        if: vars.SCCACHE != '0'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: default
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -657,6 +731,14 @@ jobs:
       # the closure's test binaries, so the run rows need no re-scoping.
       - name: build test binaries + archive
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
+      # THE MEASUREMENT. Hit rate here is the whole question: the
+      # deps are already served by rust-cache, so a run that only
+      # hits on those has proved nothing. What would justify
+      # adopting this is hits on the WORKSPACE crates, on a warm
+      # run, against the archive step's own duration on main.
+      - name: sccache stats (experiment)
+        if: vars.SCCACHE != '0' && !cancelled()
+        run: sccache --show-stats
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
       # already up, so the failure can be investigated / re-run without
@@ -690,7 +772,7 @@ jobs:
     name: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: [filter, build]
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     strategy:
       fail-fast: false
       # THE BATTERY IS {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30):
@@ -833,7 +915,7 @@ jobs:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_topo_release == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_topo_release == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL — see the full note on the `filter` job above.
@@ -887,7 +969,7 @@ jobs:
     # Same BUILD_RUNNER variable as the default build job; unset today.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     # Same link/debuginfo/opt knobs, same job-level-not-step-level
     # reasoning, as the default build job — see the LINK/DEBUGINFO and
     # OPT LEVEL notes there. This job is the run's critical path (its
@@ -900,6 +982,16 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "2"
       CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
+      # repo variable SCCACHE set to "0"; unset means enabled, so the
+      # trial runs without a variable needing to exist.
+      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
+      # unset case is a genuine no-op rather than a broken command.
+      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
+      # it: flipping SCCACHE rotates the cache key and buys exactly one
+      # cold rebuild. That run is not the verdict — same trap the OPT
+      # LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -935,6 +1027,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
+      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
+        if: vars.SCCACHE != '0'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: interval
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -947,6 +1045,14 @@ jobs:
       # is the run's critical path (measured on #167): keep it lean.
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
+      # THE MEASUREMENT. Hit rate here is the whole question: the
+      # deps are already served by rust-cache, so a run that only
+      # hits on those has proved nothing. What would justify
+      # adopting this is hits on the WORKSPACE crates, on a warm
+      # run, against the archive step's own duration on main.
+      - name: sccache stats (experiment)
+        if: vars.SCCACHE != '0' && !cancelled()
+        run: sccache --show-stats
       - uses: actions/upload-artifact@v4
         with:
           name: nextest-interval
@@ -984,7 +1090,7 @@ jobs:
     name: clippy + doc-tests (interval)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -1035,24 +1141,48 @@ jobs:
   # compile-side interval coverage is untouched. Only the re-execution
   # of already-executed tests is dropped.
   test-interval:
-    name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+    name: test (interval)
     runs-on: ubuntu-latest
     # `build` joins `needs` for its test list only (a few KB). It
     # finishes well before build-interval, which is the run's critical
     # path, so this adds no wall-clock.
     needs: [filter, build, build-interval]
-    if: needs.filter.outputs.run_build == 'true'
-    strategy:
-      fail-fast: false
-      # One multi-ε row at interval type (D4 ¶1): the interval band test
-      # re-derives every assertion from the run's ε, so the 1e-6 row
-      # genuinely exercises a different band. Same archive both rows —
-      # eps is runtime env. `default` = env unset, and 2-way sharding —
-      # see the `test` matrix comments (the unsharded interval default
-      # leg measured 6.1 min of execution, the run's slowest).
-      matrix:
-        eps: ["default", "1e-6"]
-        shard: [1, 2]
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    # ONE JOB, BOTH ε ROWS, UNSHARDED (2026-08-20, minutes audit).
+    # This was a 2x2 matrix — eps {default, 1e-6} x shard {1,2} — and
+    # every one of the four legs billed a full minute to do 12-20 s of
+    # work (measured, run 32425890937: 12 s, 15 s, 17 s, 20 s). Four
+    # billed minutes for about one minute of execution: the per-job
+    # round-up, not the tests, was the cost.
+    #
+    # THE SHARDING'S PREMISE EXPIRED. The matrix comment justified
+    # 2-way sharding with "the unsharded interval default leg measured
+    # 6.1 min of execution, the run's slowest" — measured when this leg
+    # ran the whole interval archive. It no longer does: the
+    # interval-only SELECTION below (the set difference against the
+    # default build's test list) cut it to a handful of tests that only
+    # the interval build can exercise. At ~5 s of execution per ε row
+    # there is nothing to shard, and `count:1/2` + `count:2/2` over the
+    # same selection is by construction the unpartitioned run.
+    #
+    # This also brings hosted BACK INTO LINE with the local mirror,
+    # which never sharded these: local-scripts/ci-local.sh has exactly
+    # two rows here, `test (interval)` and `test (interval, eps = 1e-6)`,
+    # which is now what this job runs.
+    #
+    # `fail-fast: false` IS PRESERVED, deliberately, and that is what
+    # the loop below is for. The matrix gave each ε row an independent
+    # verdict; a naive `set -e` over two rows in one job would stop at
+    # the first failure and hide whether the other ε row also broke —
+    # which for a tolerance-parameterised suite is precisely the
+    # signal worth having. So each row runs to completion, its status
+    # is recorded, and the job fails at the end naming every row that
+    # failed.
+    #
+    # IF THE SELECTION EVER WIDENS AGAIN, re-measure before assuming
+    # this still holds: the guard rail is that this job must stay well
+    # under the run's critical path (build-interval, ~12 min). At ~5 s
+    # a row it has about two orders of magnitude of headroom.
     env:
       # Nothing compiles here (see the `test` job).
       RUSTUP_TOOLCHAIN: stable
@@ -1097,29 +1227,50 @@ jobs:
       # tests at all (see its header — a pncad-py-only closure is the
       # first). Conditioning on the literal keeps both behaviours: any
       # other filter that selects nothing still fails this leg.
-      - name: run archived tests (interval-only)
+      - name: run archived tests (interval-only, both ε rows)
         run: |
           selection=$(cat interval-selection.txt)
           if [ "$selection" = "none()" ]; then
-            echo "scoped no-op: the selection is none(), so this leg runs 0 tests"
+            echo "scoped no-op: the selection is none(), so this job runs 0 tests"
             no_tests="--no-tests=pass"
           else
             no_tests=""
           fi
-          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$selection" $no_tests
+          # `default` means the variable genuinely UNSET (an empty
+          # CAD_TOLERANCE_EPS is a parse error by design — the
+          # tolerance.rs multi-ε contract), so the row is run with
+          # `env -u` rather than by assigning an empty string.
+          failed=""
+          for eps in default 1e-6; do
+            echo "::group::interval-only tests, eps = $eps"
+            if [ "$eps" = default ]; then
+              env -u CAD_TOLERANCE_EPS cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E "$selection" $no_tests
+            else
+              CAD_TOLERANCE_EPS="$eps" cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E "$selection" $no_tests
+            fi && status=0 || status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "::error::interval-only tests FAILED at eps = $eps (exit $status)"
+              failed="$failed $eps"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "interval-only tests failed at these ε rows:$failed" >&2
+            exit 1
+          fi
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
       - name: persistence save/load/replay-identity (interval)
-        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
+        if: needs.filter.outputs.run_editor_core == 'true'
         run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'"
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
-        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
+        if: needs.filter.outputs.run_editor_core == 'true'
         run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'"
 
   # The archives exist only to ferry binaries from the build jobs to the
@@ -1153,7 +1304,7 @@ jobs:
     needs: filter
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
-    if: needs.filter.outputs.run_interval_backend == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_backend == 'true'
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
@@ -1241,7 +1392,7 @@ jobs:
     name: interval oracle (certify vs inari+MPFR)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_interval_oracle == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_oracle == 'true'
     # inari's rounding primitives sit behind
     # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
     # a compile_error! without them. The repo sets no target-cpu floor
@@ -1296,7 +1447,7 @@ jobs:
     # (dev-)dependency graph is the whole profile -> sweep -> topo -> mesh
     # chain this job exercises, so `stl in closure` is exactly the
     # condition under which any of it can have moved.
-    if: needs.filter.outputs.run_stl == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_stl == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1330,7 +1481,7 @@ jobs:
     # Root package `step-export`: this job builds nothing — it runs FreeCAD
     # over the committed fixtures under crates/step-export/tests/fixtures,
     # which are byte-golden against that crate's writer.
-    if: needs.filter.outputs.run_step_export == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1400,7 +1551,7 @@ jobs:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_pncad_py == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_pncad_py == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1483,14 +1634,29 @@ jobs:
   # (1e-9) pass of these same test targets is inside the `test` job's
   # workspace run, so no band is lost.
   persistence:
-    name: persistence (eps = ${{ matrix.eps }})
+    name: persistence
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        eps: ["1e-6", "1e-12"]
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_editor_core == 'true'
+    # ONE JOB, BOTH ε ROWS (2026-08-20, minutes audit). The matrix
+    # billed two minutes per ε row to do ~1.2 min of work each, and
+    # nearly all of that work was the SAME work: these rows drive
+    # `cargo test`, so each leg compiled editor-core's test binary
+    # independently and then ran it for seconds under its own ε.
+    # Merged, the compile happens once and both ε rows run against it.
+    #
+    # ε IS RUNTIME, WHICH IS WHY THIS IS SOUND — CAD_TOLERANCE_EPS is
+    # read at run time (geom-core/src/tolerance.rs), never at compile
+    # time, so one binary serves both rows. Same reasoning the
+    # build-once/shard-the-tests header gives for the archive jobs.
+    #
+    # `fail-fast: false` IS PRESERVED, per step: the matrix gave each ε
+    # row an independent verdict, and for a tolerance-parameterised
+    # suite "did it break at BOTH ε or only one" is the whole signal.
+    # Each step below runs both ε rows to completion and fails at the
+    # end naming the ones that failed; the later steps carry
+    # `!cancelled()` so an early row's failure cannot hide a later
+    # row's.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1509,22 +1675,63 @@ jobs:
       # D6.1 save/load/replay-identity + the D2 float property row +
       # the committed golden v1 fixture (byte-exact freeze tripwire).
       - name: save/load/replay-identity (D6.1) + float bits (D2) + golden v1
-        run: "cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+        run: |
+          failed=""
+          for eps in 1e-6 1e-12; do
+            echo "::group::eps = ${eps}"
+            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden:: \
+              && status=0 || status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "::error::FAILED at eps = ${eps} (exit ${status})"
+              failed="${failed} ${eps}"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "failed at these ε rows:${failed}" >&2
+            exit 1
+          fi
       # D6.2 ε-change diff (cross-process, goldened): the two probe
       # children pin their OWN ε values — the matrix ε only hosts the
       # orchestrating parent.
       - name: eps-change diff goldened (D6.2)
-        run: "cargo test -p editor-core --test all -- m4_pr6_eps_diff::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+        if: '!cancelled()'
+        run: |
+          failed=""
+          for eps in 1e-6 1e-12; do
+            echo "::group::eps = ${eps}"
+            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- m4_pr6_eps_diff:: \
+              && status=0 || status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "::error::FAILED at eps = ${eps} (exit ${status})"
+              failed="${failed} ${eps}"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "failed at these ε rows:${failed}" >&2
+            exit 1
+          fi
       # D6.3 schema-version / corrupt-file refusal + the adopted
       # adversarial probe suite (review pins) + token key-space pins.
       - name: schema + corruption refusal (D6.3) + review probes
-        run: "cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+        if: '!cancelled()'
+        run: |
+          failed=""
+          for eps in 1e-6 1e-12; do
+            echo "::group::eps = ${eps}"
+            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key:: \
+              && status=0 || status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "::error::FAILED at eps = ${eps} (exit ${status})"
+              failed="${failed} ${eps}"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "failed at these ε rows:${failed}" >&2
+            exit 1
+          fi
 
   # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
   # prints a per-document table (full rebuild + incremental recompute,
@@ -1682,14 +1889,29 @@ jobs:
   # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
   # (1e-9) pass of this corpus is inside the `test` job's workspace run.
   corpus:
-    name: band 4 corpus (eps = ${{ matrix.eps }})
+    name: band 4 corpus
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        eps: ["1e-6", "1e-12"]
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_editor_core == 'true'
+    # ONE JOB, BOTH ε ROWS (2026-08-20, minutes audit). The matrix
+    # billed two minutes per ε row to do ~1.2 min of work each, and
+    # nearly all of that work was the SAME work: these rows drive
+    # `cargo test`, so each leg compiled editor-core's test binary
+    # independently and then ran it for seconds under its own ε.
+    # Merged, the compile happens once and both ε rows run against it.
+    #
+    # ε IS RUNTIME, WHICH IS WHY THIS IS SOUND — CAD_TOLERANCE_EPS is
+    # read at run time (geom-core/src/tolerance.rs), never at compile
+    # time, so one binary serves both rows. Same reasoning the
+    # build-once/shard-the-tests header gives for the archive jobs.
+    #
+    # `fail-fast: false` IS PRESERVED, per step: the matrix gave each ε
+    # row an independent verdict, and for a tolerance-parameterised
+    # suite "did it break at BOTH ε or only one" is the whole signal.
+    # Each step below runs both ε rows to completion and fails at the
+    # end naming the ones that failed; the later steps carry
+    # `!cancelled()` so an early row's failure cannot hide a later
+    # row's.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1706,9 +1928,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: evaluation, exact mass pins, counted reuse, vocabulary totality
-        run: "cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+        run: |
+          failed=""
+          for eps in 1e-6 1e-12; do
+            echo "::group::eps = ${eps}"
+            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus:: \
+              && status=0 || status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "::error::FAILED at eps = ${eps} (exit ${status})"
+              failed="${failed} ${eps}"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "failed at these ε rows:${failed}" >&2
+            exit 1
+          fi
 
   # Spec D3: the large-K fragility lint. A GATE — a flagged margin
   # fails this row (the tool exits 2 and prints the interpretation
@@ -1736,7 +1971,7 @@ jobs:
     # demos/tour (a path-dependent of nine members) and tools/k-lint, and
     # its probe sweep records margins from every kernel crate. So it runs
     # whenever anything builds at all.
-    if: needs.filter.outputs.run_k_lint == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_k_lint == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
