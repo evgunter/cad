@@ -17051,8 +17051,15 @@ the seam, so the answer is wanted before either opens.
 
 ## Track I — the measuring consumers: `props/`, `mesh/`, `census.rs`
 
-**Defined 2026-08-21 by Track F on closing; CLAIMED the same day — one live
-orchestrator, `docs/SMELL-I-LOG.md`.** That file is the execution record
+**COMPLETE 2026-08-21 — all five lanes landed the day the track was
+constituted.** I-a **#877**, I-b **#873**, I-c **#872**, I-d **#876**,
+I-e **#887**. The execution record, the eight rulings and three incidents are
+`docs/SMELL-I-LOG.md`; its closing section carries what this track leaves
+**unowned** and what it is least comfortable leaving. **One row survives below
+— I2, narrowed to S65 — and it is a decision, not a lane.**
+
+**Defined 2026-08-21 by Track F on closing; claimed the same day —
+`docs/SMELL-I-LOG.md`.** That file is the execution record
 (rulings, lane roster, review outcomes); this table stays the schedule.
 
 **Scope: `crates/geom-brep/src/props/`, `crates/mesh/`, `crates/topo/src/census.rs`.**
