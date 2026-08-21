@@ -705,9 +705,12 @@ mod attribution {
     //! `Declined` promotes an [`AssemblyError::AtRest`] refusal into
     //! [`AssemblyError::Uncertified`] — an unrefuted frontier over a
     //! body the kernel refused — and **the whole of `editor-core` goes
-    //! green over it**: 576 integration rows pass, and the one failure
-    //! is `a_structural_finding_on_a_declared_face_is_unattributed`
-    //! here. Relabelling `CensusUnsupported` `Refuted`, by contrast,
+    //! green over it**: every integration row in the crate passes, and
+    //! the one failure is
+    //! `a_structural_finding_on_a_declared_face_is_unattributed` here.
+    //! (A count would rot on an unrelated merge; the claim is the
+    //! re-derivable part, by making that arm `Declined` and running
+    //! the crate.) Relabelling `CensusUnsupported` `Refuted`, by contrast,
     //! reds three rows of `asm_r2b_assembly.rs` — which is the
     //! difference between an arm a fixture reaches and an arm only an
     //! argument reaches.

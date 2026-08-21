@@ -2123,7 +2123,8 @@ mod alignment_key {
     //! Which is exactly the condition under which a length silently
     //! stops being hashed: two documents differing only in the
     //! standoff would share a memo entry and one would be served the
-    //! other's answer.
+    //! other's answer. Dropping the length from the key reds this row
+    //! and nothing else in the crate.
 
     use super::{KeyHasher, feed_alignment};
     use crate::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
