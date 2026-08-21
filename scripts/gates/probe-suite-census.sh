@@ -142,6 +142,7 @@ RUN_FLOOR=(
   ignored:sweep:k_report:1
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
+  plain:geom-core:certified_door:6
   plain:sweep:k_report:0
 )
 

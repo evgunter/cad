@@ -168,7 +168,12 @@ impl RingInterval {
     /// bracket door, which never refuses. `Interval` records a domain
     /// violation in its decoration, not its endpoints — `sqrt([−1, 4])`
     /// is `[0, 2]` at `Trv` — and the ring has two states and no
-    /// decoration channel. Whatever is built from the crossing is a
+    /// *decoration* channel. It does have a domain-violation channel:
+    /// [`Self::is_poison`], which is where its own certified door reads
+    /// the refusal. The two are not the same thing, and only the second
+    /// survives the crossing — which is why a violation an operand
+    /// records in a decoration has to be read HERE, while the decoration
+    /// is still there to read. Whatever is built from the crossing is a
     /// certificate, so a scalar that carries a sound bracket its
     /// computation is not entitled to must become poison here, where the
     /// decoration is still readable, rather than a plausible bound
@@ -290,13 +295,22 @@ impl RingInterval {
     }
 }
 
-/// The ring always certifies: it has two states and no decorations, so
-/// there is no domain-violation channel to consult. Poison is NaN
-/// endpoints, which [`RingInterval::from_bounds`] already rejects
-/// downstream — the refusal is the bracket's, not a separate one.
+/// The ring refuses exactly on poison. It has two states and no
+/// decorations, so [`RingInterval::is_poison`] IS its domain-violation
+/// channel: a poisoned ring stands for no real, and a pair of NaN
+/// endpoints is not a bracket of anything. Every other ring is a sound
+/// bracket read straight off storage.
+///
+/// The refusal is this door's own rather than a loan from
+/// [`RingInterval::from_bounds`]. Handing back `Some((NaN, NaN))` and
+/// leaving a downstream constructor to reject it is precisely what the
+/// trait's method doc excludes: what a generic `T: CertifiedEnclosure`
+/// consumer is promised is a bracket, not a NaN it has to re-check, and
+/// no consumer is obliged to funnel the pair through a constructor that
+/// happens to catch it.
 impl crate::real::CertifiedEnclosure for RingInterval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
-        Some((self.lo, self.hi))
+        (!self.is_poison()).then_some((self.lo, self.hi))
     }
 }
 
