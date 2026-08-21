@@ -79,6 +79,19 @@
 //! layer allowed to hold them is this one. What it adds is I/O and
 //! identity — still no geometry and still no numerics.
 //!
+//! **[`tolerance`] is not that either**, and it is the third thing this
+//! section has to name. It re-exports `geom_core`'s ε vocabulary and
+//! adds three doors that *report* the run's committed ε and where it
+//! came from. Two of them — [`tolerance::report`] and
+//! [`tolerance::eps_source`] — **commit the ambient bootstrap as a side
+//! effect of being asked**, exactly as `Tolerance::get` does, so a
+//! program that later loads a document turns that load into a
+//! `ToleranceConflict` by having asked. That is the one place in this
+//! façade where calling a wrapper changes the run, and
+//! [`tolerance::committed_report`] is the door that does not; the
+//! module says so at each of the three. Still no geometry and still no
+//! numerics.
+//!
 //! [`validated`]: authoring::validated
 //!
 //! # Start here
