@@ -2217,7 +2217,39 @@ before shelling/offset work (M5+), stated now.
 ### Q9: Project license and name
 
 License **resolved**: dual MIT OR Apache-2.0. Name: still pending —
-placeholder workspace acceptable; pre-publish renames are cheap.
+placeholder workspace acceptable; pre-publish renames are cheap. The
+rename is one entry on the **Before publishing** list below; the others
+are not name questions and are not filed here.
+
+### Before publishing (listed so they don't get lost)
+
+Not a design question — the set of things that are deliberately in a
+pre-publication state and have to be put back before the project ships.
+The list exists because each entry is individually invisible: nothing
+goes red when the project publishes with one of them still in the
+shipped state.
+
+- **Roll the version numbers.** No member manifest carries a `version`
+  field today, so every crate is cargo's default `0.0.0`, and
+  `[workspace.package]` says `publish = false` — *"nothing is
+  publishable until the project has its name (Q9)"*. Publishing means
+  setting real versions and dropping that line; **rolling them back is
+  what un-does a premature publish**, and the next entry rides along
+  with it.
+- **Turn release debug-assertions back off.** The root `Cargo.toml`'s
+  `[profile.release]` sets `debug-assertions = true`, so a release build
+  runs every `debug_assert` in the workspace — the D2-addendum row-5
+  postconditions, which cargo's release default would compile out. That
+  is the right posture for a kernel nobody depends on yet: D9's converse
+  half says a bug state must panic *as early as it is detectable*, and a
+  row-5 assert meeting a real part is information nothing else produces.
+  **Deleting the stanza is a real reduction in what a release build
+  checks, so it is a decision to take at publish rather than a chore to
+  tick off** — `SMELL-SCAN-2026-08.md`'s **S65** is the worked example
+  (the #678 watertightness backstop, ruled row 5 in **#884**: the
+  `debug_assert` is the settled mechanism, and only its release REACH
+  was ever in question — which is exactly what this stanza sets).
+- **The name (Q9).** Above.
 
 ### Deferred to their milestones (listed so they don't get lost)
 

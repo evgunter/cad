@@ -35,17 +35,40 @@
 //! [`pole_columns`] is what makes that true and carries the argument,
 //! including the one column count that falsifies it.
 //!
-//! **The two things that hold it up are not in the same builds.** The
-//! floor is three lines and runs everywhere. The `debug_assert` in
-//! [`tessellate_curved`]'s emit pass that re-derives the conclusion
-//! over the patch (D2 addendum row 5) is `#[cfg(debug_assertions)]`,
-//! and `tessellate` does not run [`crate::validate::check_mesh`] — so
-//! **in a release build the floor is the entire guard**, for a class
-//! whose failure is a *silently* non-watertight mesh returned as `Ok`.
-//! Read the sentence above as conditional on the floor in every build
-//! and on the re-derivation only in debug. Whether release should pay
-//! it is an open question for Evan, priced at
-//! `SMELL-SCAN-2026-08.md` **S65** and not settled here.
+//! **The two things that hold it up run in different builds, and which
+//! builds is a manifest setting.** The floor is three lines and runs
+//! everywhere. The `debug_assert` in [`tessellate_curved`]'s emit pass
+//! that re-derives the conclusion over the patch (D2 addendum row 5)
+//! is `#[cfg(debug_assertions)]`, which cargo's release default
+//! compiles out — but the root `Cargo.toml`'s `[profile.release]` sets
+//! `debug-assertions = true`, so **every profile this workspace builds
+//! today runs the re-derivation**. That stanza is a pre-publish
+//! posture and is on `DESIGN.md`'s *Before publishing* list to come
+//! back out; with it gone, the floor is the entire guard in release,
+//! for a class whose failure is a *silently* non-watertight mesh
+//! returned as `Ok`. `tessellate` does not run
+//! [`crate::validate::check_mesh`] in any build.
+//!
+//! **The MECHANISM is settled and the flag is not what settled it.**
+//! The state this re-derives is D2 addendum **row 5** — the crate
+//! computes `nu`/`nv` itself from `(surface, delta)`, so a firing means
+//! the kernel's own sizing corrupted a mesh from a body
+//! `topo::validate` accepts — and D9's converse half makes a panic the
+//! obligation for such a state, not a tolerance. `SMELL-SCAN-2026-08.md`
+//! **S65** asked whether release should instead REFUSE typed; that is
+//! ruled out for a row-5 state, because downgrading a bug to a typed
+//! error launders it into a supported outcome. Ruled in **#884**; the
+//! flag decides only the REACH.
+//!
+//! **What the ruling depends on, stated because it does depend on it:**
+//! the competing reading is row 2 (*valid but unbuilt*, hence a typed
+//! refusal), and it turns on whether [`pole_columns`] closes the
+//! `nu == 2` class. If that floor is ever falsified, the state moves and
+//! so does the mechanism. S65's option C — the full-2π seam case with no
+//! floor in any build, and cross-face identification with no check at
+//! all — is **#897**, and the second of those is outside this
+//! re-derivation by construction: it reads THIS patch's pole-incident
+//! edges only.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
