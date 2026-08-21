@@ -380,6 +380,19 @@ fn bodiless_declaration(b: &[u8], at: usize) -> bool {
 /// classification and no count to notice it — which is the finding
 /// this module exists to close, one layer up. A parse this reader
 /// cannot complete is a defect in the reader, not an item to skip.
+///
+/// **This is a trade, and if it has just surprised you, you are the
+/// person it was made for.** A construct nobody has written yet will
+/// red an unrelated guard here rather than degrade quietly. That is
+/// deliberate: for a reader whose failure mode is *silence*,
+/// loud-and-wrong beats quiet-and-wrong, because quiet-and-wrong is
+/// the defect — a `;` inside `[T; N]` in return position once dropped
+/// every such `pub fn`, and the guards stayed green with no count
+/// moving at all. **The depth counting in [`body_start`] handles the
+/// constructs someone thought of; this panic is what makes the next
+/// one visible.** If you are here because a legitimate signature does
+/// not parse, the fix is to teach the reader that construct and add a
+/// row to [`self::tests`] — not to make this a `continue`.
 fn gave_up(code: &str, kw: usize) -> ! {
     let line = code[..kw].bytes().filter(|c| *c == b'\n').count() + 1;
     let snippet: String = code[kw..].chars().take(80).collect();

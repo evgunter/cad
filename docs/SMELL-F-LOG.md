@@ -1343,9 +1343,12 @@ The verification also confirmed, rather than broke, the lane's own narrowing:
 the pcurve by-name pin is **exactly one door wide**, and the site now says so.
 
 **Residue: S117 / D61**, **eleven** further source-text guards, not the seven
-this lane first wrote — the count moved 7 → 9 → 11 inside one review cycle,
-each step a differently-shaped sweep (`include_str!` was the spelling all six
-of the lane's patterns missed). The sharper framing came with the third sweep:
+this lane first wrote — the count moved **7 → 9 → 11 in a single session**,
+twice under the lane and once under its review, each step a differently-*shaped*
+sweep (`include_str!` was the spelling all six of the lane's patterns missed).
+**Eleven stays written as a floor and the row carries the count's history**, on
+the orchestrator's instruction: a number that has moved three times is better
+evidence of the population's shape than any single value of it. The sharper framing came with the third sweep:
 **four hand-rolled Rust readers exist in this workspace and no two lex the same
 language**, and `pncad/tests/all.rs`'s `code_without_comments` carries the same
 `'"'` defect this lane's review found, worked around in a comment rather than
