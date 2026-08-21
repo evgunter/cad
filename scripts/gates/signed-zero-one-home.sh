@@ -242,20 +242,6 @@ fn adopt(x: f64) -> f64 {
 RS
 }
 
-# The clean fixture plus PLANTER must still PASS.
-selftest_green_case() {
-  local tmp out
-  tmp=$(mktemp -d)
-  gate_plant_clean "$tmp"
-  "$1" "$tmp"
-  if ! out=$(cd "$tmp" && gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the gate FIRED on a legitimate fixture (%s)\n%s\n' "$1" "$out" >&2
-    exit 1
-  fi
-  rm -rf "$tmp"
-}
-
 gate_selftest() {
   gate_selftest_clean
   local want="outside the sanctioned home"
@@ -265,8 +251,8 @@ gate_selftest() {
   gate_selftest_case "$want" plant_deref_add
   gate_selftest_case "$want" plant_reversed_add
   gate_selftest_case "$want" plant_in_tests
-  selftest_green_case plant_innocent_literals
-  selftest_green_case plant_comment_only
+  gate_selftest_passes "innocent literals" plant_innocent_literals
+  gate_selftest_passes "a comment-only mention" plant_comment_only
   printf '%s selftest OK: 6 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/); clean fixture, innocent literals and comment-only mentions stay green\n' \
     "$(gate_name)"
 }

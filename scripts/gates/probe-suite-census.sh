@@ -447,27 +447,36 @@ selftest_listing() {
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   listing=$(cd "$tmp" && gate_listing_for topo)
-  if ! out=$(cd "$tmp" && printf '%s\n' "$listing" | CENSUS_LISTING=topo gate 2>&1); then
+  # REAL SUBPROCESSES, through `--check-listing`, for the same reason
+  # every case in `lib.sh` is one: these used to call `gate` inside an
+  # `if` condition, where bash suppresses errexit — so a diagnostic path
+  # that died at a matcher would have passed all three (S157). The mode
+  # reaches the gate through argv because a global set here does not
+  # cross into a subprocess.
+  if ! out=$(printf '%s\n' "$listing" | "$0" --root "$tmp" --check-listing topo 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: the listing check FAILED on a complete listing\n%s\n' "$out" >&2
     exit 1
   fi
-  if out=$(cd "$tmp" && printf '%s\n' "$listing" | grep -v '^probe_0::' | CENSUS_LISTING=topo gate 2>&1); then
+  if out=$(printf '%s\n' "$listing" | grep -v '^probe_0::' \
+             | "$0" --root "$tmp" --check-listing topo 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: the listing check PASSED with a counted suite missing\n%s\n' "$out" >&2
     exit 1
   fi
+  gate_selftest_assert_diagnosed "a listing missing a counted suite" "$out"
   case "$out" in
     *'built no test from them: probe_0'*) ;;
     *) rm -rf "$tmp"
        printf 'SELFTEST FAILED: the listing check fired with an unexpected message:\n%s\n' "$out" >&2
        exit 1 ;;
   esac
-  if out=$(cd "$tmp" && printf '' | CENSUS_LISTING=topo gate 2>&1); then
+  if out=$(printf '' | "$0" --root "$tmp" --check-listing topo 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: the listing check PASSED on an EMPTY listing\n%s\n' "$out" >&2
     exit 1
   fi
+  gate_selftest_assert_diagnosed "an empty listing" "$out"
   rm -rf "$tmp"
 }
 
@@ -495,7 +504,7 @@ selftest_hosted_half_is_large() {
   for ((i = 0; i < 20000; i++)); do
     printf '      - run: echo filler, below every row this gate matches on\n'
   done >> "$tmp/.github/workflows/ci.yml"
-  if ! out=$(cd "$tmp" && gate 2>&1); then
+  if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: the gate FAILED on a clean fixture with a long ci.yml\n%s\n' "$out" >&2
     exit 1
@@ -512,7 +521,7 @@ selftest_compound_counted() {
   gate_plant_clean "$tmp"
   printf '#![cfg(all(feature = "probe", not(miri)))]\n' \
     > "$tmp/crates/sweep/tests/probe_0.rs"
-  if ! out=$(cd "$tmp" && gate 2>&1); then
+  if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: a compound `probe` gate was not counted as a suite\n%s\n' "$out" >&2
     exit 1
@@ -561,7 +570,7 @@ gate_plant_clean_exempt_control() {
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   plant_exempt_citation "$tmp"
-  if ! out=$(cd "$tmp" && gate 2>&1); then
+  if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: the citation completeness check fired on a CITATION_EXEMPT path\n%s\n' "$out" >&2
     exit 1

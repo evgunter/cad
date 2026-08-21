@@ -167,7 +167,7 @@ selftest_stderr_noise() {
     printf 'exec %s "$@"\n' "$(command -v cargo)"
   } > "$bin/cargo"
   chmod +x "$bin/cargo"
-  if ! out=$(cd "$tmp" && PATH="$bin:$PATH" gate 2>&1); then
+  if ! out=$(PATH="$bin:$PATH" "$0" --root "$tmp" 2>&1); then
     rm -rf "$tmp" "$bin"
     printf 'SELFTEST FAILED: the gate FAILED on a clean fixture when cargo wrote to stderr\n%s\n' "$out" >&2
     exit 1
@@ -193,12 +193,13 @@ selftest_cargo_reply() {
     printf 'exec %s "$@"\n' "$(command -v cargo)"
   } > "$bin/cargo"
   chmod +x "$bin/cargo"
-  if out=$(cd "$tmp" && PATH="$bin:$PATH" gate 2>&1); then
+  if out=$(PATH="$bin:$PATH" "$0" --root "$tmp" 2>&1); then
     rm -rf "$tmp" "$bin"
     printf 'SELFTEST FAILED: the gate PASSED on a cargo reply it cannot use (%s)\n%s\n' "$reply" "$out" >&2
     exit 1
   fi
   rm -rf "$tmp" "$bin"
+  gate_selftest_assert_diagnosed "$reply" "$out"
   case "$out" in
     *"$want"*) ;;
     *) printf 'SELFTEST FAILED: expected %s, got:\n%s\n' "$want" "$out" >&2; exit 1 ;;
