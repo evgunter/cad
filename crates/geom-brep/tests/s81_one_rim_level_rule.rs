@@ -20,8 +20,12 @@
 //! and the row is what the overstatement costs.
 //!
 //! The rows here are the two directions of the change: a face that was
-//! refused and should not have been, and the acceptance floor that
-//! keeps the merge from being a rule that groups everything.
+//! refused and should not have been, and the refusal floor that keeps
+//! the merge from being a rule that groups everything.
+//!
+//! **Every offset comes from the run's own `Band`, never from a
+//! literal.** This suite is on CI's `eps ∈ {default, 1e-6, 1e-12}`
+//! matrix, and an ε-literal states a claim about one of the three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
@@ -107,25 +111,31 @@ fn exact_area(va: f64, vb: f64) -> f64 {
     MINOR * 1.1 * (MAJOR * (vb - va) + MINOR * (vb.sin() - va.sin()))
 }
 
-/// **A rim split half a nanometre off level is one rim.**
+/// **A rim split half an ε off level is one rim.**
 ///
-/// `wobble = 5e-7 rad` on a 1 mm tube displaces the split arc by
-/// `MINOR · 5e-7 = 5e-10 m` — half of ε = 1e-9 m, so the two arcs are
-/// the same level by the run's own tolerance, and the face is a
-/// genuine iso-rectangle. Metered at `major` the same angle reads
-/// `5e-7 m`, five hundred ε, and the two arcs became two groups whose
-/// span sums (0.7 and 0.4) then disagreed: **measured on this
-/// branch's parent, `NotIsoRectangle { what: "props_du_consistent" }`.**
+/// The wobble is taken from the run's OWN band, never from a literal —
+/// this file is on the `eps ∈ {default, 1e-6, 1e-12}` matrix, and a
+/// literal states a claim about one of the three. `MINOR · wobble =
+/// 0.5 · band.zero()`, so the split arc is displaced half a
+/// coincidence threshold: the two arcs are the same level by the run's
+/// own tolerance, and the face is a genuine iso-rectangle.
+///
+/// Metered at `major` instead, the SAME angle reads
+/// `0.5 · (MAJOR/MINOR) · cos v · zero ≈ 490 · zero` — past `escalate`
+/// at any K — so the two arcs became two groups whose span sums (0.7
+/// and 0.4) then disagreed: **measured on this branch's parent,
+/// `NotIsoRectangle { what: "props_du_consistent" }`.**
 ///
 /// Goes red by putting `major` back on the level margin — the group
 /// splits and the refusal returns — and red the other way if the area
 /// stops being exact.
 #[test]
 fn a_rim_arc_split_within_epsilon_of_its_level_stays_one_group() {
+    let band = Band::linear().unwrap();
     let (va, vb) = (0.2, 0.7);
-    let (s, edges) = gasket_band(va, vb, 5e-7);
-    let got = curved_face(&s, &edges, 1.0, Band::linear().unwrap())
-        .expect("a rim wobbled half an epsilon is still one rim");
+    let (s, edges) = gasket_band(va, vb, 0.5 * band.zero() / MINOR);
+    let got =
+        curved_face(&s, &edges, 1.0, band).expect("a rim wobbled half an epsilon is still one rim");
     let exact = exact_area(va, vb);
     let rel = (got.area - exact).abs() / exact;
     assert!(
@@ -137,23 +147,25 @@ fn a_rim_arc_split_within_epsilon_of_its_level_stays_one_group() {
 
 /// **The floor that keeps the merge honest.** The exact lever must
 /// still REFUSE a genuinely distinct level, or "one rule at the minor
-/// radius" would just be a rule that groups everything. At
-/// `wobble = 1e-5 rad` the displacement is `1e-8 m`, ten ε, and the
-/// arc is not at either extreme: the iso-rectangle predicate — the
-/// same rule, the same arm — refuses it. That refusal is the one the
-/// parent gave too; what changed is only where the boundary between
-/// the two answers sits, and it now sits at ε.
+/// radius" would just be a rule that groups everything. Ten times the
+/// run's own ESCALATE threshold is decisively outside the band at any ε
+/// and any K, and the arc is then not at either extreme: the
+/// iso-rectangle predicate — the same rule, the same arm — refuses it.
+/// That refusal is the one the parent gave too; what changed is only
+/// where the boundary between the two answers sits, and it now sits at
+/// the level's own lever.
 #[test]
-fn a_rim_arc_a_decade_of_epsilon_off_its_level_is_still_refused() {
-    let (s, edges) = gasket_band(0.2, 0.7, 1e-5);
+fn a_rim_arc_well_outside_the_band_is_still_refused() {
+    let band = Band::linear().unwrap();
+    let (s, edges) = gasket_band(0.2, 0.7, 10.0 * band.escalate() / MINOR);
     assert!(
         matches!(
-            curved_face(&s, &edges, 1.0, Band::linear().unwrap()),
+            curved_face(&s, &edges, 1.0, band),
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level"
             })
         ),
-        "a rim ten epsilons off its level is not at an extreme"
+        "a rim decisively off its level is not at an extreme"
     );
 }
 

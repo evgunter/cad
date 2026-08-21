@@ -1521,32 +1521,47 @@ mod rim_level_review_probe {
     }
 
     /// **The metric is the chord, and the two call sites share it**
-    /// (S81). A `Unit` pair whose components are each inside the band
-    /// but whose CHORD is outside it must be decided the same way by
-    /// both — it was not: the grouping site decided the components
-    /// separately and answered "same level" where the predicate
-    /// answered "not at an extreme".
+    /// (S81). A `Unit` pair whose two components are each inside the
+    /// coincidence band but whose CHORD is not must not be grouped —
+    /// the grouping site decided the components separately and answered
+    /// "same level" where the predicate answered "not at an extreme".
     ///
-    /// Goes red on any re-split: restore per-component grouping and
-    /// the first assertion flips.
+    /// **The chord can only ever be `√2` × a component**, and the
+    /// escalation multiplier K is larger than that on any sane run, so
+    /// the honest outcome here is a **refusal, not a definite
+    /// disagreement**: the pair lands in the ambiguity band and
+    /// `classify` escalates. Both are `!Ok(true)`, and that — *the
+    /// component rule's answer is not this rule's answer* — is what the
+    /// row asserts, so it holds at every ε and every K rather than at
+    /// the one it was first written against.
+    ///
+    /// The offsets come from the run's own band, never from a literal.
+    /// A literal here passed at ε = 1e-9 for the wrong reason (both
+    /// components were outside the band too) and failed at ε = 1e-6.
     #[test]
-    fn a_pair_inside_both_components_but_outside_the_chord_is_one_answer() {
+    fn a_pair_the_component_rule_calls_one_level_is_not_grouped() {
         let band = Band::linear().expect("band");
-        // Components 0.9e-7 each at arm 1.0 ⇒ 0.9e-7 < ε = 1e-7 apiece,
-        // chord 1.27e-7 > ε. One rule ⇒ NOT the same level, both ways.
-        let d = 0.9e-7_f64;
+        let arms = RimArms::uniform(1.0_f64);
+        // Each component 0.8·zero (inside), chord 1.13·zero (outside).
+        let d = band.zero() * 0.8;
         let a = RimLevel::Unit(0.0, 0.0);
-        let b = RimLevel::Unit(d, d);
-        let arms = RimArms::uniform(1.0);
+        let got = level_coincides(
+            "props_rim_level_group",
+            a,
+            RimLevel::Unit(d, d),
+            &[],
+            arms,
+            band,
+        );
         assert!(
-            !level_coincides("props_rim_level_group", a, b, &[], arms, band).expect("decides"),
-            "the chord clears the band, so these are not one level"
+            !matches!(got, Ok(true)),
+            "components inside the band but the chord outside it is not one level: {got:?}"
         );
         let rim = Rim {
             d_u: 1.0,
             d_u_sign: Sign::Positive,
             dt: 1.0,
-            level: b,
+            level: RimLevel::Unit(d, d),
             tags: (0, 1),
         };
         assert!(
@@ -1558,6 +1573,28 @@ mod rim_level_review_probe {
             )
             .is_err(),
             "and the predicate must agree with the grouping, not differ from it"
+        );
+    }
+
+    /// The floor for the row above: a pair whose CHORD is inside the
+    /// band **is** one level, so "share the chord rule" is not "refuse
+    /// everything". `0.1·zero` per component puts the chord at
+    /// `0.14·zero`, inside at every ε and every K.
+    #[test]
+    fn a_pair_inside_the_band_by_its_chord_is_one_level() {
+        let band = Band::linear().expect("band");
+        let d = band.zero() * 0.1;
+        assert!(
+            level_coincides(
+                "props_rim_level_group",
+                RimLevel::Unit(0.0, 0.0),
+                RimLevel::Unit(d, d),
+                &[],
+                RimArms::uniform(1.0_f64),
+                band,
+            )
+            .expect("decides"),
+            "a pair inside the band by its chord is one level"
         );
     }
 }
