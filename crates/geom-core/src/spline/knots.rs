@@ -166,11 +166,15 @@ pub struct KnotVector {
 /// **Not branded to its knot vector — the pairing is checked, not
 /// structural.** A `Span` is a plain value with no borrow of the
 /// vector it came from, so one drawn from a *different* `KnotVector`
-/// can be handed to any door that takes one. Every such door therefore
-/// asks [`KnotVector::admits`] first and answers a refused span with
-/// poison, never with an out-of-bounds index: that is what keeps D9's
-/// *"the kernel never panics on any input"* true of the public
-/// evaluators.
+/// can be handed to any door that takes one. Every door that takes a
+/// `Span` **directly** therefore asks [`KnotVector::admits`] first and
+/// answers a refused span with poison, never with an out-of-bounds
+/// index: [`super::basis`], [`super::hull`], and the curve evaluators
+/// in `geom`. That is what keeps D9's *"the kernel never panics on any
+/// input"* true of them. It is **not** yet true of every door that
+/// takes a `Span` inside a *wrapper*: `geom`'s `SurfaceWindow` holds
+/// two of them and its own doc concedes it is unbranded in the same
+/// way, and its evaluators still index a foreign window's base.
 ///
 /// What `admits` does **not** buy is exactness. Two vectors of equal
 /// degree and equal control count but different interior knots admit
