@@ -15211,6 +15211,37 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ## The second scan's unscheduled table — frozen, and why
 
+> **UNFROZEN AND UNROUTED, 2026-08-21 — this table's own rule now points at a
+> closed track.** It says a row that unfreezes *"goes to Track F or G by its
+> mechanism, **not back to nobody**."* **Track F is closed** (all eight rows
+> landed), and **Track G's ground is `demos/`, `profile/`,
+> `interval-transcendentals/` and `sweep/src/` outside `fillet/`** — none of
+> which is where these findings live. So the routing sentence resolves to
+> nothing, which is the exact outcome it was written to prevent (§C3).
+>
+> **And the gates have largely fallen.** C-g landed as **#804**, C-q as **#801**,
+> C-j and C-k are discharged — so the `geom/`, `geom-core/` and `mesh/` clusters
+> are unfrozen **now**. **C-m alone is still gated.** **Track C has closed its
+> session**, so the ground these sit on has no orchestrator.
+>
+> **All 21 findings below are still open** — none carries a `FIXED` lead:
+> S60, S64, S65, S66, S77, S80, S81, S82, S85, S86, S88, S89, S90, S97,
+> S99–S103, S108, S109. Track C also left **C-e**, **C-l**, **C-m** and **C-n**
+> unstarted or gated.
+>
+> **Three things a taker should read first**, on this table's own assessments:
+> **S66** is *"the largest correctness exposure in the scan"*; the `props/`
+> cluster is *"the largest cluster … and the one with the most reachable wrong
+> answers"*; and **S86** is marked *should not wait for the others* — a poison
+> ring laundered into `Some((NaN, NaN))`, *"the exact laundering the trait doc
+> forbids"*, one file and hours of work. **S65, S70, S82 and S90 are Evan-only
+> decisions, not work**, and neighbours of theirs will stall on them. **C-n stays
+> last wherever it goes** — 130 files, held back precisely because it conflicts
+> with every open lane.
+>
+> *Recorded by Track F on closing, because a survey that lives only in a
+> conversation is the failure this document keeps finding.*
+
 **Nothing here is unimportant.** Every row is a real finding, and several are
 the sharpest in the scan. They are unscheduled because **their files are Track
 C's**, and two tracks editing one file with no shared orchestrator is the
