@@ -213,8 +213,10 @@ discipline() {
 # stamp. Stdlib-only python3 (no venv, no
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
-# self-test first (the guard must be shown to fire). Hosted mirror: the
-# `k-lint` job's "demos render provenance" step.
+# self-test first (the guard must be shown to fire). Hosted mirror:
+# ci.yml's "render provenance (demos)" step, in the `discipline` job —
+# where all three demos tripwires live, because it is the job with no
+# toolchain and no cargo.
 render_provenance() {
   python3 demos/check_render_provenance.py --selftest && \
     python3 demos/check_render_provenance.py
@@ -237,8 +239,8 @@ uv_composer_selftest() {
 # proves the display -> world direction really is the inverse of the
 # world -> display one it derives from, and pins that a manifest
 # missing `transparency` or `montage` REFUSES rather than defaulting.
-# Stdlib-only python3, milliseconds. Hosted mirror: the `k-lint` job's
-# "scene manifest reader selftest (demos)" step.
+# Stdlib-only python3, milliseconds. Hosted mirror: ci.yml's "scene
+# manifest reader selftest (demos)" step, in the `discipline` job.
 manifest_selftest() {
   python3 demos/manifest.py --selftest
 }
@@ -608,7 +610,7 @@ tesslint_gate() {
 run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
-run_row "scene manifest reader (demos)"  manifest_selftest
+run_row "scene manifest reader (demos)" manifest_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here

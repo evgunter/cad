@@ -127,7 +127,20 @@ def camera_rotation(scene):
     z_cam = to_world(pos_d)  # camera looks along -z_cam
     z_cam.normalize()
     up_w = to_world(up_d)
-    if abs(up_w.dot(z_cam)) > 0.9999:  # straight-down views: fall back
+    # Straight-down views (elev = +-90): the display up vector and the
+    # camera direction are parallel, so `up_w.cross(z_cam)` has no
+    # length and any x_cam would do; pick the display y axis.
+    #
+    # The threshold is written in WORLD coordinates and names no `up`.
+    # That is sound because the axis specs are isometries, so the
+    # quantity here is the display-frame sin(elev) whatever the axis --
+    # `manifest`'s selftest pins that property, which is as close as
+    # anything gets to guarding this branch: NOTHING EXECUTES IT
+    # without FreeCAD, and no lane in CI runs this file outside a full
+    # render. The two committed scenes at elev 90
+    # (`twisted_duct_shadow_z`, `silhouette3_shadow_z`) are what
+    # exercise it, and they only do so in a render pass.
+    if abs(up_w.dot(z_cam)) > 0.9999:
         up_w = to_world((0.0, 1.0, 0.0))
     x_cam = up_w.cross(z_cam)
     x_cam.normalize()

@@ -7,8 +7,10 @@ FreeCAD — the zero-dependency fallback, and the renderer that draws
 OUR OWN tessellation (FreeCAD re-tessellates from the B-rep, so this
 lane is the mesh-path proof).
 
-Scene list comes from <stl_dir>/scenes.json (written by the tour);
-multi-body scenes draw every body into one axes with its own color.
+Scene list comes from <stl_dir>/scenes.json, read through `manifest`.
+BOTH producers reach this renderer: the tour's manifest on the kernel
+lane, and the wild generator's on `render-wild.sh`'s. Multi-body
+scenes draw every body into one axes with its own color.
 
 `--author=TEXT` stamps an `Author` tEXt chunk into every PNG (on top
 of matplotlib's own deterministic `Software` chunk). The wild-corpus

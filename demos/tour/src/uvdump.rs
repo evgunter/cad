@@ -724,9 +724,11 @@ fn escape(s: &str) -> String {
 /// The manifest the montage composer reads (hand-rolled JSON, matching
 /// `scenes.json`'s house style).
 ///
-/// It carries exactly what the composer selects and lays out on: the
-/// cell's file, its identity, and the three keys the selection rule
-/// ranks by. The measured facts of the walk — half-edge and cache
+/// It carries exactly the eight keys the composer reads, and no more:
+/// `svg` to open the cell, `body` and `face` to name and order it,
+/// `curved` and `note` to decide which class it is in, `body`+`chart`
+/// to group it, and `forms`+`loops`+`face` to rank within a group.
+/// The measured facts of the walk — half-edge and cache
 /// counts, signed area, `sense`, the winding verdict, the closure gap
 /// and the chart jump — are NOT here. Each is drawn into the cell's
 /// own SVG, which is where a reader meets it, and the corpus-wide
