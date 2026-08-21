@@ -75,24 +75,78 @@ fn tilted_halves_volume_enclosure_brackets_the_closed_form() {
     }
 }
 
-/// The area enclosure brackets the closed form (stated honestly: the
-/// below-half's wall + cap + section).
+/// The area enclosure brackets the closed form, on BOTH halves — the
+/// two areas are equal (each wall's mean height is H/2), so one closed
+/// form covers the pair, and the halves' pads differ by up to 1.5x.
 #[test]
-fn below_half_area_enclosure_brackets_the_closed_form() {
-    let (_, below) = halves();
+fn half_area_enclosures_bracket_the_closed_form() {
+    let (above, below) = halves();
     let pi = core::f64::consts::PI;
     let exact = pi * R * R + pi * R * H + pi * R * R / PHI.cos();
-    let m = topo::mass_properties(&below).unwrap();
-    assert!(
-        m.area_pad > 0.0,
-        "the cut wall's area is a certified enclosure"
-    );
-    assert!(
-        m.surface_area - m.area_pad <= exact && exact <= m.surface_area + m.area_pad,
-        "area bracket [{}, {}] must contain {exact}",
-        m.surface_area - m.area_pad,
-        m.surface_area + m.area_pad
-    );
+    for (label, body) in [("above", &above), ("below", &below)] {
+        let m = topo::mass_properties(body).unwrap();
+        assert!(
+            m.area_pad > 0.0,
+            "{label}: the cut wall's area is a certified enclosure"
+        );
+        assert!(
+            m.surface_area - m.area_pad <= exact && exact <= m.surface_area + m.area_pad,
+            "{label}: area bracket [{}, {}] must contain {exact}",
+            m.surface_area - m.area_pad,
+            m.surface_area + m.area_pad
+        );
+        // Positivity and containment both get EASIER as a certified
+        // width grows, so on their own they report no widening at all.
+        // The two rows below are what report one.
+        //
+        // FIRST, the area bracket is PINNED TO THE FLUX BRACKET — the
+        // one the kernel actually meters. On this lane
+        // `area = |r·A_s|` and `flux = r²·A_s + o·A⃗` share the one
+        // signed UV area `A_s`, and `o·A⃗` is a closed form entering
+        // flux alone, so `width(flux) ≥ r²·width(A_s)`. With
+        // `area_pad = width(area)/2` and `volume_pad = width(flux)/6`
+        // that gives
+        //
+        //     area_pad ≤ (3/r)·volume_pad
+        //
+        // as an identity of the arithmetic — `R` below is the
+        // fixture's own radius, not a fitted constant. It holds to
+        // within 5e-7 relative at every ε, the shortfall being
+        // `o·A⃗`'s own width.
+        //
+        // SCOPE: this is the cylinder-cut arm on a body whose only
+        // quadrature faces lie on one cylinder of radius `R` — true
+        // here because each half's cap and elliptical section are
+        // planar, hence exact and pad-free. It is NOT a property of
+        // the patch lanes, whose area has its own fixed resolution and
+        // no such tie (there the same body can carry a 1e-13 volume
+        // pad against a 0.2 area pad).
+        //
+        // This is the row that reports S26's defect as stated: it goes
+        // red when the area bracket stops shrinking alongside the flux
+        // bracket, not merely when the pad gets large, and it bites
+        // identically on every ε leg.
+        assert!(
+            m.area_pad <= (3.0 / R) * m.volume_pad * (1.0 + 1e-9),
+            "{label}: area pad {} exceeds {} = (3/r)·volume_pad",
+            m.area_pad,
+            (3.0 / R) * m.volume_pad
+        );
+        // SECOND, an outer backstop, which the pin above does not
+        // give: it would stay green if BOTH brackets widened together.
+        // The anchor is what this lane can structurally produce. Its
+        // width falls monotonically in the piece count (measured over
+        // 16..=4096, where the funnel's reachable set is 16·2^k), so
+        // the widest enclosure it can return is at the initial count
+        // with no refinement round taken: 1.47e-4·exact, over both
+        // halves and all three ε legs, and CI's ε = 1e-6 leg already
+        // sits there. The ceiling clears that maximum by 2.0x.
+        assert!(
+            m.area_pad < 3e-4 * exact,
+            "{label}: area pad {} vs exact area {exact}",
+            m.area_pad
+        );
+    }
 }
 
 /// Tier 3 flips: check 7 (VolumeUncomputable) retires for the newly
@@ -121,8 +175,8 @@ fn quadrature_is_bit_deterministic() {
     assert_eq!(a.area_pad.to_bits(), b.area_pad.to_bits());
 }
 
-/// The two halves complement: volumes sum to the full cylinder within
-/// the summed certified pads (plus closed-form rounding scale).
+/// The two halves complement: volumes sum to the full cylinder well
+/// inside the summed certified pads.
 #[test]
 fn halves_sum_to_the_cylinder() {
     let (above, below) = halves();
@@ -130,10 +184,21 @@ fn halves_sum_to_the_cylinder() {
     let b = topo::mass_properties(&below).unwrap();
     let full = core::f64::consts::PI * R * R * H;
     let sum = a.volume + b.volume;
-    let pad = a.volume_pad + b.volume_pad + 1e-9;
+    let pad = a.volume_pad + b.volume_pad;
     assert!(
         (sum - full).abs() <= pad,
         "sum {sum} vs cylinder {full} (allowed {pad})"
+    );
+    // Containment alone is monotone the wrong way, and here it is
+    // loose by three orders: the residual runs 2.7e-4 to 3.6e-3 of the
+    // summed pad across the ε legs, so a complementarity failure of
+    // ~270x would still pass. The band is the pads' to set — the two
+    // per-half ceilings above bound them — and what this row owes is
+    // that the halves agree far better than their pads require.
+    assert!(
+        (sum - full).abs() <= 0.05 * pad,
+        "the halves' residual {} is not small against the summed pad {pad}",
+        (sum - full).abs()
     );
 }
 
