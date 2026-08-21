@@ -121,6 +121,7 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
+| **S232** | **I-d** (#876) | `geom/src/surfaces/boxes.rs` — S66(b)'s defect one crate down, on `nurbs_surface_aabb`, whose box `face_box` hands to four doors, three of which do not prune. **Routed to Track H**, whose scope is `geom-core/` and `geom/`; the lane had read it as unowned. **The contrast with S230/S231 is the point** — this row has an owner and says so |
 | **S231** | **I-c** (#872) | `mesh/src/chords.rs`'s *"These tightenings are the only places adjacent surfaces enter chord counts"* — S64's shape, in a file inside Track I's crate scope but in **none** of its five lanes' file sets. **Recorded unowned**, and deliberately not routed to I-e: widening a running lane's brief by writing a row at it is how a lane discovers its scope grew after dispatch |
 | **S230** | **I-b** (#873) | S60's class, two live members outside every live track's ground: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, and a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft. **Recorded as unrouted, and it says so** |
 
@@ -215,7 +216,9 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — opened 2026-08-21, four lanes, no file overlap between any two.**
+**Wave 1 — opened 2026-08-21, four lanes; I-e sequenced behind I-c.** No file
+overlap between any two concurrent lanes. *(The table below shows five rows
+because I-e is listed with its gate; four were opened.)*
 `crates/mesh/` carries two of this track's five lanes and they are
 **sequenced, not concurrent**: I-e waits on I-c because both read
 `mesh/src/curved.rs`, from opposite ends (I-c its module header and the ε
