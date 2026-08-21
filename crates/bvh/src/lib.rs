@@ -57,11 +57,9 @@
 //!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!
-//! The seam was written against PR 7 and PR 7 shipped without it:
-//! `geom-brep` does not depend on this crate, and the marcher
-//! subdivides with its own boxes. So the deferral is live and has no
-//! date — recorded rather than deleted, because a flat present-tense
-//! sentence here would erase the only marker that something is owed.
+//! The seam is unwired: `geom-brep` does not depend on this crate,
+//! and the marcher subdivides with its own boxes. The deferral is
+//! live and has no date.
 //!
 //! Items are addressed by dense input index, so any payload (entity
 //! keys today; C3 subdivision cells carrying C9 enclosures if the seam
