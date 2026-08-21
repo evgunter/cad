@@ -298,22 +298,18 @@ impl<T: Real> Vec3<T> {
     ///
     /// Evaluation order (fixed, D9): `s = 1.copysign(n.z)`,
     /// `a = −1/(s + n.z)`, `b = (n.x·n.y)·a`, then
-    /// `b1 = (1 + ((s·n.x)·n.x)·a, s·b, −(s·n.x))` and
+    /// `b1 = (1 + (s·(n.x²))·a, s·b, −(s·n.x))` and
     /// `b2 = (b, s + (n.y²)·a, −n.y)`, each component exactly as
-    /// parenthesized. `n.y²` is the tight square (`powi(2)`), not the
-    /// product `n.y·n.y`: at `Interval` the product treats the two
-    /// factors as independent, so an enclosure of `n.y` straddling zero
-    /// — every direction near the equator of the y-axis — acquires a
-    /// spurious negative lower bound. `b1`'s `(s·n.x)·n.x` is a
-    /// different shape: it is scaled BEFORE the second factor, so
-    /// tightening it is a REASSOCIATION into `s·(n.x²)` rather than a
-    /// square substitution. That reassociation is admissible — D9 is
-    /// determinism at one kernel, not a pin on last year's output —
-    /// and here it is free, since `s = ±1` multiplies exactly. It is
-    /// scheduled as D109(a) with `linalg/mat.rs`'s `rotation_about`,
-    /// the other site of the same shape, and is deliberately not done
-    /// piecemeal: the matcher that finds this shape reds both files at
-    /// once.
+    /// parenthesized. Both squares are the tight square (`powi(2)`), not
+    /// the product `n·n`: at `Interval` the product treats the two
+    /// factors as independent, so an enclosure straddling zero — every
+    /// direction near an equator — acquires a spurious negative lower
+    /// bound. `b1`'s square carries a `±1` scale, so writing it as
+    /// `s·(n.x²)` is a reassociation of `(s·n.x)·n.x` rather than a
+    /// square substitution; it is exact at `f64` (the scale is a sign
+    /// bit and round-to-nearest-even is sign-symmetric) and strictly
+    /// tighter at `Interval`, where a `n.z` enclosure straddling zero
+    /// makes `s` the interval `[−1, 1]`.
     ///
     /// **Discontinuity, documented honestly:** the frame flips across
     /// the equator `n.z = 0` (`s` jumps) — the construction is
@@ -335,7 +331,7 @@ impl<T: Real> Vec3<T> {
         let s = T::one().copysign(self.z);
         let a = -T::one() / (s + self.z);
         let b = (self.x * self.y) * a;
-        let b1 = Self::new(T::one() + ((s * self.x) * self.x) * a, s * b, -(s * self.x));
+        let b1 = Self::new(T::one() + (s * self.x.powi(2)) * a, s * b, -(s * self.x));
         let b2 = Self::new(b, s + self.y.powi(2) * a, -self.y);
         (b1, b2)
     }
@@ -701,20 +697,30 @@ mod tests {
             }
         }
 
-        /// The TANGENT channel of `b2.y`, against its closed-form
-        /// derivative — the channel the test above cannot reach.
+        /// The TANGENT channel of BOTH squared components — `b1.x` and
+        /// `b2.y` — against their closed-form derivatives, the channel
+        /// the test above cannot reach.
         ///
-        /// `b2.y = s + n.y²·a` with `a = −1/(s + n.z)` and `s` locally
-        /// constant (`copysign`'s kink convention; the seam at
-        /// `n.z = 0` is documented at the constructor), so
+        /// With `a = −1/(s + n.z)` and `s` locally constant
+        /// (`copysign`'s kink convention; the seam at `n.z = 0` is
+        /// documented at the constructor), `b1.x = 1 + (s·n.x²)·a` and
+        /// `b2.y = s + n.y²·a`, so
         ///
         /// ```text
-        /// d(b2.y) = 2·n.y·a·ty + n.y²·tz/(s + n.z)²
+        /// d(b1.x) = 2·s·n.x·a·tx + s·n.x²·tz/(s + n.z)²
+        /// d(b2.y) = 2·n.y·a·ty   +   n.y²·tz/(s + n.z)²
         /// ```
         ///
         /// Well conditioned everywhere on the sphere: `|s + n.z|` is
         /// `1 + |n.z| ≥ 1` by construction, which is the whole reason
         /// the two-hemisphere form exists.
+        ///
+        /// **`b1.x` is covered here because it is the component both
+        /// production callers consume** (`newell.rs` and `recognize.rs`
+        /// discard `b2`), and because it is a scaled square: the
+        /// derivative is where a reassociation of `(s·n.x)·n.x` into
+        /// `s·(n.x²)` can go wrong even when the value channel cannot
+        /// see it.
         ///
         /// **The tangents are NOT 1.** `Dual::variable` gives every
         /// input a tangent of `1.0`, and at `ty = 1` the product rule
@@ -726,6 +732,7 @@ mod tests {
         #[test]
         fn orthonormal_basis_dual_tangent_matches_closed_form(
             v in vec3(),
+            tx in -4.0f64..4.0,
             ty in -4.0f64..4.0,
             tz in -4.0f64..4.0,
         ) {
@@ -733,20 +740,49 @@ mod tests {
             let n = v.normalize();
             prop_assume!(n.x.is_finite() && n.y.is_finite() && n.z.is_finite());
             let nd = Vec3::new(
-                Dual::new(n.x, 0.0),
+                Dual::new(n.x, tx),
                 Dual::new(n.y, ty),
                 Dual::new(n.z, tz),
             );
-            let (_, d2) = nd.orthonormal_basis();
+            let (d1, d2) = nd.orthonormal_basis();
             let s = 1.0f64.copysign(n.z);
             let a = -1.0 / (s + n.z);
-            let want = 2.0 * n.y * a * ty + n.y * n.y * tz / ((s + n.z) * (s + n.z));
-            let scale = want.abs().max(1.0);
-            prop_assert!(
-                (d2.y.deriv - want).abs() <= 1e-12 * scale,
-                "tangent {} vs closed form {} (n = {:?}, ty = {}, tz = {})",
-                d2.y.deriv, want, (n.x, n.y, n.z), ty, tz
-            );
+            let dsq = tz / ((s + n.z) * (s + n.z));
+            let want1 = 2.0 * s * n.x * a * tx + s * n.x * n.x * dsq;
+            let want2 = 2.0 * n.y * a * ty + n.y * n.y * dsq;
+            for (got, want, which) in
+                [(d1.x.deriv, want1, "b1.x"), (d2.y.deriv, want2, "b2.y")]
+            {
+                let scale = want.abs().max(1.0);
+                prop_assert!(
+                    (got - want).abs() <= 1e-12 * scale,
+                    "{} tangent {} vs closed form {} \
+                     (n = {:?}, tx = {}, ty = {}, tz = {})",
+                    which, got, want, (n.x, n.y, n.z), tx, ty, tz
+                );
+            }
+        }
+
+        /// The arithmetic identity `b1.x`'s spelling rests on: for a
+        /// scale that is exactly `±1`, `(s·x)·x` and `s·(x²)` are
+        /// bit-identical at `f64`. `s·x` is a sign-bit flip, exact for
+        /// every finite `x`, and round-to-nearest-even is symmetric
+        /// under negation, so the rounding of the remaining product is
+        /// the same one in both associations.
+        ///
+        /// This is what makes the constructor's square free of `f64`
+        /// consequence — and it is a property of the ±1 scale alone.
+        /// `mat.rs::rotation_about`'s diagonal carries an arbitrary
+        /// `t = 1 − cos θ` and does NOT have it; that association moves
+        /// bytes, deliberately.
+        #[test]
+        fn unit_scale_square_reassociates_exactly(x in -1e6f64..1e6) {
+            for s in [1.0f64, -1.0] {
+                prop_assert_eq!(
+                    ((s * x) * x).to_bits(),
+                    (s * <f64 as Real>::powi(x, 2)).to_bits()
+                );
+            }
         }
     }
 

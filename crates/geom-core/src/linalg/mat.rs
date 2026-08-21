@@ -70,7 +70,16 @@ impl<T: Real> Mat3<T> {
     ///
     /// Evaluation order (fixed, D9), with `(s, c) = angle.sin_cos()` and
     /// `t = 1 − c`: each off-diagonal entry is `((t·nᵢ)·nⱼ) ± (s·nₖ)` and
-    /// each diagonal entry is `((t·nᵢ)·nᵢ) + c`, exactly as parenthesized.
+    /// each diagonal entry is `(t·(nᵢ²)) + c`, exactly as parenthesized.
+    /// The diagonal's square is the tight square (`powi(2)`), taken
+    /// before the `t` scale: at `Interval` the plain `(t·nᵢ)·nᵢ` treats
+    /// the two `nᵢ` factors as independent, so an axis component whose
+    /// enclosure straddles zero gives the diagonal a spurious sign
+    /// excursion. Unlike the off-diagonals — genuine mixed products,
+    /// which stay as written — the diagonal is a scaled square, and `t`
+    /// is arbitrary, so this association is not the `f64` product's:
+    /// the two differ by a rounding and that difference is visible in
+    /// `f64` output.
     /// Orthogonality and unit determinant hold to rounding, not exactly.
     pub fn rotation_about(axis: Vec3<T>, angle: T) -> Self {
         let n = axis.normalize();
@@ -78,9 +87,9 @@ impl<T: Real> Mat3<T> {
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);
         Self::from_cols(
-            Vec3::new(t * x * x + c, t * x * y + s * z, t * x * z - s * y),
-            Vec3::new(t * x * y - s * z, t * y * y + c, t * y * z + s * x),
-            Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z * z + c),
+            Vec3::new(t * x.powi(2) + c, t * x * y + s * z, t * x * z - s * y),
+            Vec3::new(t * x * y - s * z, t * y.powi(2) + c, t * y * z + s * x),
+            Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z.powi(2) + c),
         )
     }
 
