@@ -764,6 +764,53 @@ shared branch cannot see reservations held on unshared ones, so a
 reservation scheme is only as good as the frequency with which its
 register reaches the shared branch.*
 
+### H-R15. One confirming sample is not evidence about a set — three instances, one lane, one day
+
+**Lane H-g named this itself, which is why it is a ruling and not an
+incident.** Three times in one day it made a claim quantified over a set
+and supported it with one member:
+
+1. **The caller analysis.** A repo-wide grep piped through `| head -30`;
+   the thirtieth line was not the last. It reported *"no in-repo caller
+   moves"* and **CI found `wire_fillet` instead of the lane** — the
+   finding that turned the fillet seam into a design fork.
+2. **The CI failure.** It told me *"the only failure across every job is
+   this one E0277 in `editor-core`."* **Fifteen jobs were red.** It had
+   read one log. The second cause was its own — a redundant explicit
+   intra-doc link target at `sweep/src/fillet/build.rs:145`, introduced by
+   a doc it had just written, findable in ninety seconds with
+   `scripts/doc-gate.sh`, which it never ran on that branch.
+3. **The merge safety claim.** It offered the **conflict list** as
+   evidence for Evan's merge-before-green rule. The conflict list is what
+   the lane had to resolve; it says nothing about what arrived from
+   `main` underneath — which was #885's reassociated `linalg` and Track
+   I's five `mesh/src` files, a product that had never been built.
+
+**The rule, and it is not "be careful":** *when a claim is quantified over
+a set, the evidence must be about the set.* Each of the three had a cheap
+instrument that answers the actual question and each was skipped in favour
+of one sample that agreed:
+
+| claim | wrong evidence | the instrument |
+|---|---|---|
+| no caller moves | `grep … \| head -30` | the untruncated enumeration |
+| one job is red | one job's log | the runs list's conclusions |
+| safe to merge unbuilt | the conflict list | `git diff --name-only <last-green> <new>` |
+
+**A truncating pager, a single log, and a conflict list are all
+*samples*.** None is a census, and all three read as one because they were
+consistent with the claim. **The tell is grammatical**: a claim containing
+*only*, *no*, *every* or *the whole* is quantified, and quantified claims
+need instruments that enumerate.
+
+**This is the same defect the track has been finding in the tree all
+day**, one level up — `S110`'s vacuous assertions, `S88`'s sample
+mistaken for a census, `S214`/`S216`'s proofs that never ran. **The
+process reproduces the defect it is auditing.** Recorded here rather than
+in a lane's PR because it is about how this track works, not about any
+one row; the lane's own summary is the best statement of it: *"I keep
+treating one confirming sample as the whole set."*
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
