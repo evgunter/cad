@@ -142,8 +142,8 @@ pub struct Filleted<T: Real> {
 ///
 /// — and [`Dual`](geom_core::Dual) does not, so a fillet is not a
 /// differentiable surface. The same bound stands on
-/// [`run_battery`](super::battery::run_battery) and
-/// [`ring_clearance`](super::surgery::ring_clearance), the two
+/// [`super::battery::run_battery`] and
+/// [`super::surgery::ring_clearance`], the two
 /// predicates a caller can reach without coming through this door:
 ///
 /// ```compile_fail,E0277
