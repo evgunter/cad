@@ -589,10 +589,9 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///   FreeCAD corpora. The input class these are about is untested by
 ///   construction, so "it fires nowhere" means nowhere anything looks.
 ///   A typed warning channel would dominate all three; there is none,
-///   and building one is **issue #868** — the schedule this deviation
-///   owes under Q6, rather than a note that it is deferred. Until that
-///   lands the deviation stands as written, and what it costs is
-///   stated in this same list.
+///   and building one is **issue #868** — the scheduled work that
+///   would retire this deviation. Until it lands the deviation stands
+///   as written, at the cost the two bullets above state.
 pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
     gap * lever < eps
 }
@@ -688,8 +687,8 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
 ///   practical risk is small — but it is a trade, not a free win.
 ///
 /// A typed warning channel would dominate both; there is none, and
-/// building one is **issue #868** — which is why this is where it is,
-/// and what would move it.
+/// building one is **issue #868** — which is why the trade is where it
+/// is, and what would retire it.
 fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
     let carrier = unwrap_near(u_raw, anchor);
     let gap = (carrier - anchor).abs();
