@@ -1006,6 +1006,14 @@ pub(crate) fn loop_polygon(
     // takes a re-derivation over every junction PAIR — which is what
     // makes it a `debug_assert` and not an `unreachable!`.
     //
+    // SCOPE, because a near neighbour is easy to mistake for this one:
+    // this compares DECLARED vertex against DECLARED vertex. The pole
+    // classification below compares a junction against an UNDECLARED
+    // analytic chart point (`Chart::poles()` computes it from the
+    // surface), and where the pole carries no vertex of its own this
+    // guard cannot see it. That case is **#896** and is NOT discharged
+    // here.
+    //
     // Equal ids are skipped rather than compared: one declared vertex
     // visited twice by one loop (a seam walked both ways) is that
     // vertex at distance 0, and is legal.

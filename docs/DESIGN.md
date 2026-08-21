@@ -2240,14 +2240,15 @@ shipped state.
   `[profile.release]` sets `debug-assertions = true`, so a release build
   runs every `debug_assert` in the workspace — the D2-addendum row-5
   postconditions, which cargo's release default would compile out. That
-  is the right posture for a kernel nobody is depending on yet, because
-  a row-5 assert firing against a real part is information nothing else
-  produces. It is **not** a decision about what a shipped kernel should
-  do: `SMELL-SCAN-2026-08.md`'s **S65** — whether a specific one of those
-  asserts should instead refuse typed in release — is open and Evan's
-  (**#884**), and this flag does not answer it. Delete the stanza when
-  the version numbers roll, or answer S65 first and keep whatever it
-  rules.
+  is the right posture for a kernel nobody depends on yet: D9's converse
+  half says a bug state must panic *as early as it is detectable*, and a
+  row-5 assert meeting a real part is information nothing else produces.
+  **Deleting the stanza is a real reduction in what a release build
+  checks, so it is a decision to take at publish rather than a chore to
+  tick off** — `SMELL-SCAN-2026-08.md`'s **S65** is the worked example
+  (the #678 watertightness backstop, ruled row 5 in **#884**: the
+  `debug_assert` is the settled mechanism, and only its release REACH
+  was ever in question — which is exactly what this stanza sets).
 - **The name (Q9).** Above.
 
 ### Deferred to their milestones (listed so they don't get lost)

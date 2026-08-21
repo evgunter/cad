@@ -151,9 +151,9 @@
 //! floor is a manifest setting, and the root `Cargo.toml` currently
 //! sets `debug-assertions = true` for `[profile.release]` (a
 //! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
-//! `curved`'s module header states what runs where, and points at the
-//! open decision about what a shipped release should do
-//! (`SMELL-SCAN-2026-08.md` S65, #884).
+//! `curved`'s module header states what runs where, and why the
+//! `debug_assert` — not a typed refusal — is the settled mechanism for
+//! that state (`SMELL-SCAN-2026-08.md` S65, ruled row 5 in #884).
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole

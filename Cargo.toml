@@ -196,9 +196,11 @@ opt-level = 2
 
 # Release builds keep their `debug_assert`s. The kernel's fail-loud
 # postconditions are D2-addendum row-5 checks — kernel-bug states
-# detectable only by re-derivation — and cargo's release default compiles
-# every one of them out, so the profile that would run against real parts
-# is the one profile checking nothing. Dev already defaults this ON (see
+# detectable only by re-derivation — and D9's converse half makes a panic
+# on such a state an OBLIGATION, "as loudly and as early as it is
+# detectable". Cargo's release default compiles every one of them out, so
+# the profile that would meet real parts is the one profile checking
+# nothing. Dev already defaults this ON (see
 # the note above the `[profile.dev.package]` block); this makes release
 # agree. The detached `demos/` workspaces already set this for the same
 # reason; being detached, their stanzas never reached the kernel, and

@@ -49,12 +49,26 @@
 //! returned as `Ok`. `tessellate` does not run
 //! [`crate::validate::check_mesh`] in any build.
 //!
-//! **The flag is not an answer to S65.** What a SHIPPED
-//! release should do — pay the re-derivation and refuse typed, or keep
-//! the floor — is open for Evan, priced at `SMELL-SCAN-2026-08.md`
-//! **S65** (**#884**), and not settled here: a `debug_assert` that
-//! runs in release still PANICS, and whether panic or typed refusal is
-//! the right mechanism is the part of S65 the flag leaves untouched.
+//! **The MECHANISM is settled and the flag is not what settled it.**
+//! The state this re-derives is D2 addendum **row 5** — the crate
+//! computes `nu`/`nv` itself from `(surface, delta)`, so a firing means
+//! the kernel's own sizing corrupted a mesh from a body
+//! `topo::validate` accepts — and D9's converse half makes a panic the
+//! obligation for such a state, not a tolerance. `SMELL-SCAN-2026-08.md`
+//! **S65** asked whether release should instead REFUSE typed; that is
+//! ruled out for a row-5 state, because downgrading a bug to a typed
+//! error launders it into a supported outcome. Ruled in **#884**; the
+//! flag decides only the REACH.
+//!
+//! **What the ruling depends on, stated because it does depend on it:**
+//! the competing reading is row 2 (*valid but unbuilt*, hence a typed
+//! refusal), and it turns on whether [`pole_columns`] closes the
+//! `nu == 2` class. If that floor is ever falsified, the state moves and
+//! so does the mechanism. S65's option C — the full-2π seam case with no
+//! floor in any build, and cross-face identification with no check at
+//! all — is **#897**, and the second of those is outside this
+//! re-derivation by construction: it reads THIS patch's pole-incident
+//! edges only.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
