@@ -365,7 +365,14 @@ fn an_empty_span_of_this_vector_is_refused_however_it_was_minted() {
         bound.is_nan(),
         "sup_norm_bound_span certified an empty span with a finite bound: {bound}"
     );
-    assert!(!(bound <= 1.0e9), "a poisoned bound must fail `<= eps`");
+    // `!(x <= eps)` is deliberate, not `x > eps`: the claim is that a
+    // poisoned bound fails the certificate comparison in the direction
+    // the honesty limb actually writes it, and NaN makes BOTH `<=` and
+    // `>` false. Same NaN-catching form as `net::validate_counts`.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    {
+        assert!(!(bound <= 1.0e9), "a poisoned bound must fail `<= eps`");
+    }
 
     // And the basis row, which divides by the zero knot gap. Without
     // the compare this is `[-inf, NaN, NaN, inf]`, so `all(is_nan)` is
