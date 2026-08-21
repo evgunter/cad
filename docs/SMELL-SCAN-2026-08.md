@@ -13810,6 +13810,60 @@ nothing. That is **D114**.
 
 # Findings raised by the Track H lanes (2026-08-21)
 
+## S214. Eleven `compile_fail` doctests in `geom-core/tests/` have never been collected, and each one asserts the compiler rejects something
+
+**Raised by the Track H orchestrator, 2026-08-21**, from a fact lane H-g
+established while implementing `S90`'s ruling: **a doctest in a `tests/`
+target is never collected.** H-g verified it empirically — it planted a
+deliberately-failing `compile_fail` block in
+`crates/geom/tests/dual_foot_tangent.rs` and `cargo test --doc -p geom`
+reported **zero** rows from the file. That is why #886 sites its
+compile-fail rows in `geom/src/projection.rs`, where rustdoc runs them.
+
+**This is `D113`'s root cause with a second and worse consequence, which
+`D113` does not draw.** `D113` already records that *"`cargo doc` builds
+no test targets, so every [intra-doc link in a `tests/` file] is inert —
+never rendered, never resolved, never checked, on any tier."* The same
+fact applies to **fenced code blocks**, and there the failure is not a
+dead link but a **dead proof**.
+
+**Census, over `crates/*/tests/**.rs`.** 28 opening fences inside `///`
+or `//!` comments across 17 files. **15 are `text` and 2 are `sh` — those
+are correctly annotated, never meant to execute, and are not this
+finding.** The remaining **11 are `compile_fail,EXXXX`**, all in Track
+H's own ground:
+
+| file | count | codes |
+|---|---|---|
+| `geom-core/tests/review_m0_pr2.rs` | **8** | E0369 ×2, E0277 ×2, E0599 ×3, E0605 |
+| `geom-core/tests/review_m0_pr3.rs` | **3** | E0369, E0599, E0277 |
+
+**Why this is the sharp end of `S110`'s class rather than another member
+of it.** A vacuous assertion passes for a bad reason; a `compile_fail`
+block in a `tests/` target **is not run at all**, and what it claims is
+that *the compiler rejects a specific program*. So each of the eleven is
+a negative proof about the type system that **no tier has ever
+evaluated** — and negative proofs rot in the one direction nothing else
+catches: the day a bound is loosened or a method added, the program
+starts compiling and the block that would have gone red is not there to.
+These are M0-era probes (`Real` has no `PartialOrd`, no equality, no
+bad cast) pinning exactly the kind of property later work erodes.
+
+**What is owed.** Move them where rustdoc runs them — `geom-core/src`,
+the pattern #886 uses — or convert them to a form a tier executes, or
+delete them and say the claims are unguarded. **What they must not do is
+stay somewhere that reads as executable and is not.** Whoever takes this
+runs each block *first*: a block that has never been collected may not
+even fail correctly any more, and **an eleven-of-eleven pass would be
+the surprising outcome, not the reassuring one.**
+
+**Not swept beyond `crates/*/tests/`.** Doc-comment fences under
+`demos/`, `tools/`, `review/`, `review-probes/` and `local-scripts/` are
+not censused here; the same fact applies wherever a fence sits in a
+non-`lib` target, and `crates/bvh`-style unowned ground is where it will
+be missed.
+
+
 ## S210. The sole-`T: Bounds` class has a rule, no instrument, and no census outside `geom`
 
 **Raised by H-d while producing S88's `geom` census.** `real.rs`'s
@@ -16505,6 +16559,7 @@ Every row here is takeable today.
 | **H4** | **The one-home fix for the ring crossing minted three local aliases and a hand-counted tally.** | **S89** |
 | **H5** | **The lane-trait collapse, `RingInterval`, and the scalar ladders** — Track C's **C-l**, never started. Expect it to split into two or three lanes; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is **adversarial**, per C-R12. **535 refs across 15 files.** | C7 + **S33** |
 | **H7** | **Reassociate the scaled square** — **ruled YES by Evan** (2026-08-21). `linalg/vec.rs`'s `orthonormal_basis` `b1` is byte-free (`s = ±1` multiplies exactly); `linalg/mat.rs::rotation_about`'s `t·x·x` moves `f64` bytes and re-cuts goldens, which is a chore and not a contract. **Sequencing, non-negotiable: convert the two sites, re-cut what moves, THEN widen the matcher** — widening first reds two ratified sites and greening that by allowlisting is S63's already-realised outcome for the third time. **Extend the `Dual` tangent guard with the change**, not after it. **ADVERSARIAL** — it moves `f64` bytes and re-cuts goldens; the sequencing is the risk, and getting it backwards is an outcome S63 has already realised twice. | **D109**(a) |
+| **H12** | **Eleven `compile_fail` doctests that have never been collected** (**S214**) — a doctest in a `tests/` target is never run, verified empirically by H-g and already implicit in `D113`'s root cause. All eleven are in `geom-core/tests/review_m0_pr{2,3}.rs` — **this track's own ground** — and each asserts the compiler rejects a specific program, so each is a negative proof no tier has ever evaluated. **Run them before moving them**; eleven-of-eleven passing is the surprising outcome. `text`/`sh` fences are correctly annotated and out of scope. | **S214**, `D113` |
 | **H10** | **A rule with no instrument** (**S210**, raised by H-d in #875). `real.rs`'s `Bounds` scope rule governs the sole-`T: Bounds` class and **`bounds-allowlist.sh` cannot see it** — a sole bracket bound is that gate's planted *must-not-fire* case, since firing would red every certification file in `geom` and `geom-brep`. So the form the rule **prescribes** is the form nothing watches, and no census exists outside `geom`. Two costed closures in the finding: a whole-tree trait walk plus grep, accurate only at its merge base; or a **resolved**-bound-set query (`rustc` driver / `rust-analyzer`), which stays true. **Scheduled AFTER `H-g`**, which shrinks the population it would measure. **Read its twin `#701` first** — a `T: Enclosure` hole with no CI row, the same rule one trait over, and the finding's own lead observes that twins go unlinked. | **S210**, #701 |
 | **H11** | **A postcondition stated in four voices, one normative** (**S212**, raised by H-a in #880). `CertifiedEnclosure`'s *"a `Some` never carries a NaN end"* now has a home; **at least three doors re-derive it without reference to it** — `topo/src/census.rs:1338` (`reach_box`), `geom/src/curves/boxes.rs:129` (`extremal_angle_interval`, over the private `Brk` carrier), `topo/src/chart_region.rs:839` (`exact`). **The sweep distinction that produced this row is worth keeping**: the sweep for the *defect* found **no** siblings — all three doors already answer correctly — while the sweep for the *invariant* found three restatements. It is not a bug with siblings; it is a rule with no single home. Also absorbs the hand-maintained implementor census at `real.rs:720-736` (nothing derives it) and the *implementor* half of S86's blind spot: a **fifth** implementor gets no corpus and no CI signal on a `pub`, re-exported trait. **One part is not a doc edit**: `Brk` is a bracket carrier with no certified door, and whether it should have one is a design question. **Dispositions**: `census.rs` is Track I's ground, `chart_region.rs` is in no track's, `boxes.rs` is this track's. | **S212** |
 | **H9** | **`geom`'s box constructors claim a loose box *"never prunes"* — false for three of the four doors those boxes feed** (**S232**, raised by Track I's I-d in #876 and routed here; the claim appears **six times** across `curves/boxes.rs` and `surfaces/boxes.rs`). **Placed on claiming the route, wave 2.** It shares both files with `S211` (closed in #875, which corrected a *different* false sentence in each of them) — so the lane reads #875's record first and must not re-raise what it settled. **`S211`'s own residue is NOT this row's**: its third member, `bvh/src/lib.rs:56-61`, is in no track's ground and stays named rather than taken. | **S232** |
