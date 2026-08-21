@@ -2453,6 +2453,39 @@ its own.)
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
+**HALF TWO OF S14(a) FIXED by #846 — and S14 stays open, with its
+problem statement, because two of its halves do not.** #823 split this
+row into **S14(a)** (the `Span`/`KnotVector` pairing) and **S14(b)** (the
+graft, of which §S70 is the documentation residue); Evan's ruling on
+#823 then split S14(a) itself. State:
+
+- **S14(a), half one — lane E-s:** `NurbsSurface::window_of` off the
+  public surface, closing the argument-order hazard.
+- **S14(a), half two — #846, done:** `KnotVector::admits` — two integer
+  compares, `span.degree() == kv.degree() && span.index() <=
+  kv.last_span()` — refused at `basis_funs`, `ders_basis_funs`,
+  `hull::span_indices` and the four `NurbsCurve{2,3}::*_in_span`
+  families. The panic this row is about no longer happens at the curve
+  doors; #846 verified the sufficiency argument site by site and
+  falsified each compare against a row written for it.
+- **S14(a), half three — open, dispatched as E-u after E-s:** the three
+  `pub` `NurbsSurface::{eval,ders,ders3}_in_span` doors take an
+  unbranded `SurfaceWindow` and index `self.control` off its foreign
+  `base`. **Still a live D9 violation**, demonstrated on #846's branch
+  through `window_at` (a *total* public door, so E-s's removal of
+  `window_of` does not reach it) and reported there rather than
+  committed as a `should_panic`. Neither half one nor half two reaches
+  it: poison in a basis row does not stop an index.
+- **S14(b) — open and unscheduled.** Row 0 reframed its first question
+  and did not answer it.
+
+**The residue #846 accepts, deliberately:** two vectors of equal degree
+and equal control count but different interior knots admit each other's
+spans, so evaluation is a wrong answer rather than a refusal. That is
+the same species as `hull::span_indices`'s length-only `coeffs` check
+one line away, and it is stated at the type rather than implied away.
+
+
 - **Where**: `crates/geom-core/src/spline/knots.rs:166`,
   `crates/geom-core/src/spline/hull.rs:74`,
   `crates/geom-core/src/spline/basis.rs:9`
@@ -12425,6 +12458,7 @@ has been discharged.
 | **E-n** | **D20** | `topo/src/seqgen.rs` | style; **closes on an attribution** — a number saying where the 46% lives, or a written finding that it is inherent | Last. It closes on a measurement, and *a timing is worth nothing without its box* (`memories/perf-measurement-lane.md`) — the attribution comes off hosted CI, not off whatever container the lane runs in. The enumeration class is closed as a candidate; do not re-open it without a number. |
 | ~~**E-o**~~ | ~~**D86**~~ | ~~`scripts/interval-only-selection.py`, and whatever the class sweep finds~~ | ~~style~~ | **Landed as #821 — Track E closed a Track F row.** The bare substring was satisfied by ONE doc-comment line, and that line is identical boilerplate in **five** `tests/all.rs` files, so the block covered any closure inside {`bvh`, `mesh`, `step-export`, `step-import`, `stl`} — not `step-import` alone. Fixed in #753's shape and then one step further: the predicate has ONE home, `carries_interval_cfg` in `check-interval-cfg-additive.py`, which the selection **imports** rather than restating, so the two cannot drift again. Guarded in the tripwire's `--selftest` — the only wiring both CI halves already run, and the one that did not require a file #798 holds — and falsified both ways. Demonstrated on the tier it is about: a throwaway `step-import`-only closure (#822, closed) went green, all four interval legs, run 32419509144. **E-R8 is this row's own finding.** |
 | **E-p** | **S14** | `docs/` — a design conversation, plus one reachability test in `geom/tests/` | **no review; it goes to Evan** | **Dispatched 2026-08-20 as #823, and it is NOT a fix.** S14 had been open since 2026-08-18 with **no channel and no owner**: no design PR existed, and §S70's *"whoever takes S14"* pointed at nothing. The PR's own finding is that **S14 is two questions under one label** — the `Span` pairing (**S14(a)**, `geom-core`/`geom`) and the graft (**S14(b)**, of which §S70 is the documentation residue) — and that row 0's ratified text describes only the second. It answers (a) and scopes (b). Placed **D97**, **D98**, **D99**. **Waits for Evan; never self-merges** (`CLAUDE.md`: PRs that ratify design questions are design conversations). |
+| ~~**E-t**~~ | **S14(a), half two** | `geom-core/src/spline/{knots,basis,hull,locate}.rs`, the `_in_span` families in `geom/src/curves/nurbs.rs` | **ADVERSARIAL** | **Landed as #846 — the D9 violation at the curve doors is closed.** `KnotVector::admits`, two integer compares, at `basis_funs`, `ders_basis_funs`, `hull::span_indices` (which five `hull` doors funnel through) and the four `NurbsCurve{2,3}::*_in_span` families; #463's `poison_row` restored as the refusal shape. The ruling's sufficiency argument was **verified per site, not accepted**, and two refinements came out of it: `last_span` is not merely sufficient but the **exact** bound `ders_basis_funs`' a-ladder needs (`u[i + p + 1] <= u.len() - 1`), and at `hull` the two compares are **not symmetric** — the index compare closes the panic alone, the degree compare closes a silent wrong-window. #823's `should_panic` demonstration recovered from its branch and **inverted**; each compare then deleted in turn, both suites red, with the two panics named (`basis.rs:92` subtract-with-overflow, `hull.rs:149`/`nurbs.rs:1103` index-out-of-bounds). **The falsification caught a defect in itself**: on the shared `span_fixtures::vectors()` spread — five vectors, four distinct degrees, two cubics of equal length — deleting the index compare left the sweep **green**, because that fixture cannot separate on the index. Fixed by adding same-degree-different-length vectors locally rather than reordering a fixture whose order is load-bearing for `span_basis_identity`'s golden table. **Found and did not close S14(a)'s third half** (the surface `_in_span` doors, §S14) — demonstrated, reported, not minted as a row, because §S14 already owns the twin the tree itself declares to be the same thing. No performance number claimed: *a timing is worth nothing without its box.* |
 | ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
 
 ### The rows
