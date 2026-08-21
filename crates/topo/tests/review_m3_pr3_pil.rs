@@ -200,7 +200,10 @@ fn the_verdict_is_blind_to_the_normals_sign() {
                     geom_core::MarginDiag::Enclosure { .. } => "Enclosure",
                     geom_core::MarginDiag::Invalid => "Invalid",
                 };
-                format!("Escalated{loop:?}/{:?}/{:?}/{kind}", diag.predicate, diag.band)
+                format!(
+                    "Escalated{loop:?}/{:?}/{:?}/{kind}",
+                    diag.predicate, diag.band
+                )
             }
             Err(e) => format!("{e:?}"),
         }
