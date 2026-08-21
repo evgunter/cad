@@ -21,13 +21,17 @@
 # payloads, i.e. enclosure consumers of exactly the quadrature's
 # class.
 #
-# STANDING OBLIGATION (D1 ruling, 2026-08-19): the fillet seam is
-# the one allowlisted seam with NO refusing lane behind it, and
-# the guard that made that acceptable — `Bounds` having no `Dual`
-# impl — has lapsed. The argument, the reachability check and what
-# is owed live in ONE home: geom-core/src/real.rs, the M5 PR 12
-# entry of the `Bounds` scope rule. Not restated here; keep this a
-# pointer.
+# The fillet seam has NO refusing lane and needs none: its bound is
+# `Decide + CertifiedBounds`, which `Dual` does not satisfy, so the
+# three files refuse a dual STRUCTURALLY rather than by audit. That
+# is still a compound bound and still fires here, correctly — a
+# parameter that decides AND brackets is this gate's whole subject —
+# so the sweep/fillet entry below is a live ratification, not a
+# residue. Why the tightening was taken, what it costs (`Filleted<T>`
+# carries `Body<T>`, so a fillet is not a differentiable surface),
+# and why no wrong answer was reachable before it, live in ONE home:
+# geom-core/src/real.rs, the M5 PR 12 entry of the `Bounds` scope
+# rule. Not restated here; keep this a pointer.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
 # DECIDES (its `ssi_*` funnel margins) and reads brackets into the

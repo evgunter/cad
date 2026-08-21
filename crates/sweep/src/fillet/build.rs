@@ -124,6 +124,53 @@ pub struct Filleted<T: Real> {
 /// typed refusal, when an Euler operator refuses;
 /// [`FilletError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
+/// # Scalars
+///
+/// The bound is `Decide + `[`CertifiedBounds`]: this door and the
+/// battery behind it both DECIDE and read certified brackets, so they
+/// are open to exactly the scalars that can certify. A bracket-carrying
+/// scalar passes —
+///
+/// ```
+/// use geom_core::Band;
+/// use sweep::fillet::fillet_edges;
+/// use topo::{Body, EdgeKey};
+/// fn admitted(b: &Body<f64>, e: &[EdgeKey], r: f64, band: Band) {
+///     let _ = fillet_edges(b, e, r, band);
+/// }
+/// ```
+///
+/// — and [`Dual`](geom_core::Dual) does not, so a fillet is not a
+/// differentiable surface. The same bound stands on
+/// [`run_battery`](super::battery::run_battery) and
+/// [`ring_clearance`](super::surgery::ring_clearance), the two
+/// predicates a caller can reach without coming through this door:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use sweep::fillet::fillet_edges;
+/// use topo::{Body, EdgeKey};
+/// fn evicted(b: &Body<Dual64>, e: &[EdgeKey], r: Dual64, band: Band) {
+///     let _ = fillet_edges(b, e, r, band);
+/// }
+/// ```
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use sweep::fillet::battery::{FilletRequest, run_battery};
+/// fn evicted(req: &FilletRequest<'_, Dual64>, band: Band) {
+///     let _ = run_battery(req, band);
+/// }
+/// ```
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use sweep::fillet::surgery::ring_clearance;
+/// use topo::FaceKey;
+/// fn evicted(f: FaceKey, margin: Dual64, band: Band) {
+///     let _ = ring_clearance(f, margin, band);
+/// }
+/// ```
 pub fn fillet_edges<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     edges: &[EdgeKey],

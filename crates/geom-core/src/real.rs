@@ -429,52 +429,45 @@ pub trait Real:
 /// certified metric bounds — a support's sup-normal-curvature hull
 /// through `curvature_lever_arm`, a blend's setback bound off the
 /// analytic arm — and every refusal reports the offending margin as an
-/// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
-/// its honest signature.
+/// `f64` payload, which is a bracket read. So a compound bound is its
+/// honest signature.
 ///
-/// What differed from PR 11 was only the SPLIT, and it differed because
-/// there was nothing to split: no dual-scalar path could reach this
-/// code, since [`Bounds`] had no [`Dual`](crate::Dual) impl. A
-/// `PropsQuadLane`-style static lane split would therefore have had an
-/// EMPTY refusing side, so the seam was ratified instead.
+/// **The seam refuses a dual structurally, and has no lane.** The bound
+/// is `Decide + `[`CertifiedBounds`] at every generic signature in
+/// `battery.rs`/`build.rs`/`surgery.rs`, and [`Dual`](crate::Dual)
+/// implements no [`CertifiedEnclosure`], so `fillet_edges`,
+/// `run_battery` and `ring_clearance` are uninstantiable at a dual from
+/// inside this repo or outside it. That is the whole guard; unlike the
+/// four lane traits there is no refusing arm to write, because nothing
+/// in the fillet pass is non-certifying work a dual could still do. The
+/// price is stated rather than hidden: `Filleted<T>` carries a
+/// `Body<T>`, so **a fillet is not a differentiable surface**.
+/// `build.rs`'s `# Scalars` doctests pin both directions.
 ///
-/// **That guard is gone as of the D1 ruling (2026-08-19).** `Bounds` is
-/// now implemented for `Dual` over a bracket-carrying base scalar, so
-/// these signatures ARE satisfiable at a dual and the refusing side is
-/// no longer empty in principle. No **in-repo** caller reaches them at a
-/// dual today — the one production caller (`editor_core::eval`'s fillet
-/// wiring) sits beneath `evaluate<T>`, which additionally requires
-/// `editor_core::ContentBits`, and that has no `Dual` impl.
+/// **This replaced an AUDIT, not a wrong answer.** No dual run of this
+/// pass ever returned a bad value or a bad tangent, and the reason is
+/// worth keeping because it is what a future edit has to preserve if
+/// the bound is ever loosened: **no bracket-derived `f64` is fed back
+/// into the computation.** Every `Bounds` read across the three files
+/// is one of three terminal kinds — typed-error payloads on the `Err`
+/// path (`margin`, `radius`, `gap`, `arm`); `T::from_f64` of literal
+/// constants, which is not a bracket read at all; and selections whose
+/// `f64` is compared and DISCARDED, the returned value being the
+/// selected `T` with its tangent intact (the periodic-lift pick, the
+/// nearer-of-two pick, the corner-chart candidate score) — the
+/// `sugar.rs` "choice among already-classified constructions"
+/// precedent. There is **no `T::from_f64(<bracket-derived f64>)`
+/// anywhere in the seam**, which is the pattern that freezes a
+/// parameter and makes a dual's tangent wrong (`geom`'s projection
+/// doors, #874). `blend.rs`, where the blend geometry is actually
+/// built, is `T: Real` and reads no bracket at all.
 ///
-/// **That is a statement about this repo, not about the API.** This is an
-/// API-first kernel: `sweep::fillet::build::fillet_edges`,
-/// `battery::run_battery` and `surgery::ring_clearance` are `pub` in
-/// `pub mod`s of a library crate, so an external caller instantiates them
-/// at `Dual64` today — compiled from an outside crate and confirmed
-/// (2026-08-19 adversarial review). The `ContentBits` lock guards
-/// `editor_core::evaluate`; it guards nothing on the public surface.
-///
-/// So this is a **standing obligation, not a live hole** — and what makes
-/// it "not a live hole" is the AUDIT, not the reachability. All fourteen
-/// `Bounds` reads across `battery.rs`/`build.rs`/`surgery.rs` were
-/// enumerated (twice, independently): every predicate's `Ok`/`Err` comes
-/// from a `decide(...)` call, ten reads are typed-error payloads, and
-/// four are selections. Two of those four feed a classification or a
-/// mutation rather than sitting after one (`battery.rs:836` → `chain_g1`;
-/// `surgery.rs:1184` → `body.split_edge`), so their safety is
-/// **delegation** — at a dual each takes the value channel's branch,
-/// which is the base scalar's — and NOT the `sugar.rs` "choice among
-/// already-classified constructions" precedent, which does not reach
-/// them. Nothing mints a certificate object.
-///
-/// What is owed is a lane, or a written reason it needs none, and it is
-/// owed on the **public** surface rather than from the day E4 seeds a
-/// dual through `evaluate`. This seam is the one allowlisted
-/// `Decide + Bounds` seam with no lane to refuse on. Recorded here rather
-/// than in a lane's notes because this paragraph is what a reader
-/// consults; `scripts/gates/bounds-allowlist.sh` and S44's D1 block point
-/// at it rather than restating it. The full enumeration lives in PR
-/// #682's body.
+/// So what the bound buys is not correctness but **durability**: the
+/// audit was fourteen reads that the next edit silently grows to
+/// fifteen, and a bound cannot be grown past. Recorded here rather than
+/// in a lane's notes because this paragraph is what a reader consults;
+/// `scripts/gates/bounds-allowlist.sh` and S44's D1 block point at it
+/// rather than restating it.
 ///
 /// **Extension (M6-2, authorized under the PR 11/PR 12 precedent;
 /// retroactive Evan review per the self-merge convention):** the **SSI rung-3 certificate** —
