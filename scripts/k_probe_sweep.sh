@@ -212,8 +212,9 @@ for eps in 1e-6 1e-9 1e-12; do
   fi
 done
 
-# THE FLOOR ON WHAT RAN. Every invocation above recorded its own passed
-# count; this is what turns a sweep that selected everything and executed
-# nothing into a failure, and it is the only place with the evidence to
-# do it.
+# THE FLOOR ON WHAT RAN, and the complement that closes the set. Every
+# invocation above recorded both what it EXECUTED and what it SKIPPED;
+# this is what turns a sweep that selected everything and ran nothing
+# into a failure, and what catches a suite growing a test no selection
+# reaches. It is the only place with the evidence for either.
 scripts/gates/probe-suite-census.sh --check-executed < "$ran"
