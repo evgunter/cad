@@ -108,7 +108,7 @@ Not yet done, same pattern, ~3 more minutes, each independent:
 `persistence` (2 eps legs → 1), `corpus` (2 eps legs → 1), and
 possibly `clippy` + `clippy (interval)`.
 
-### F3 — post-merge runs on main duplicate the PR run
+### F3 — post-merge runs on main duplicate the PR run — LANDED
 
 Every merged code PR pays ~87 minutes a second time. Only **two**
 things are unique to a `push` run, and both are *write* side-effects
@@ -126,7 +126,7 @@ branch becomes the PR's head, triggers no run of its own, and strands
 every green check on the parent — observed on #598 as "30 green jobs
 on 048edc9, and a head commit carrying a single check".
 
-**Proposed shape (needs Evan):** keep the `push: main` trigger but
+**Landed** (Evan authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
 reduce it to `filter` + `rebuild-latency` + `renders`, skipping build,
 test, clippy and k-lint. Preserves both write paths; drops ~65 of the
 87 minutes per merged code PR.
@@ -138,7 +138,7 @@ exact combination went untested. Pair the retirement with a
 **scheduled full run on main** so integration failures surface in one
 cheap run rather than one per merge.
 
-### F4 — sccache: the local revert does not transfer to CI
+### F4 — sccache: the local revert does not transfer to CI — RIG LANDED, OFF
 
 `docs/LOCAL-BUILD-PERF.md:109` reverted sccache locally on a real
 measurement: cold build 156 s → 96 s at a 99.4% hit rate, given up
@@ -159,14 +159,30 @@ evicts — which ci.yml:528 and render.yml:718 both call out, and which
 at opt-2 dominate the two 11–12 minute build jobs. The 156 → 96 s
 local figure does **not** measure that and must not be quoted for it.
 
-**Still an experiment, not an adoption.** What it needs: an in-repo
-composite installing sccache from the official release (mirroring
-`.github/actions/install-nextest`, per the no-third-party-action rule),
-`RUSTC_WRAPPER` on the two build jobs only, and a cold run plus two
-warm runs compared against main's `build test binaries + archive` step.
-Adding `RUSTC_WRAPPER` rotates the rust-cache key, so **run 1 after
-the change is cold and is not the verdict** — the same trap the OPT
-LEVEL note on the build job already warns about.
+**The rig is in the tree and is INERT.**
+`.github/actions/install-sccache` installs the pinned 0.16.0 prebuilt
+(the version `local-scripts/gate.sh` already runs locally) and restores
+a per-lane object cache; the two build jobs carry `RUSTC_WRAPPER` and a
+`sccache --show-stats` step. All of it is gated on the repo variable
+**`SCCACHE`**, the same shape as `BUILD_RUNNER`, so nothing changes
+until someone sets it to `1`.
+
+Verified locally before landing, on the exact artifacts CI will use:
+the release URL resolves (HTTP 200), the tarball's layout matches the
+extract path the action uses, the binary runs (`sccache 0.16.0`), and
+wrapping `rustc` on a throwaway crate gives a **cache miss cold, then a
+cache hit after `cargo clean`** — which is precisely CI's situation,
+since rust-cache restores the deps but not the workspace crates.
+That proves the mechanism, not the size of the win.
+
+**To run the experiment:** set the repo variable `SCCACHE=1`, then
+*discard the first run* — `RUSTC_WRAPPER` is RUST*-prefixed, so
+rust-cache hashes it and the flip buys one cold rebuild (the same trap
+the OPT LEVEL note on the build job warns about). Compare runs 2 and 3
+against main's `build test binaries + archive` step duration, and read
+`sccache --show-stats`: **hits on dependency crates prove nothing** —
+rust-cache already serves those. Only workspace-crate hits on a warm
+run would justify adoption. Unset the variable to revert.
 
 ### F5 — volume
 
@@ -189,6 +205,28 @@ one, and is recorded here without a recommendation.
   billing 2 minutes for ~50 s of work, most of it shared runner setup.
   Both keep their own step and step name; the doc gate runs even when
   rustfmt failed, so the verdicts stay independent. **−1 billed min.**
+* `0768882` — the push-to-main run reduced to `filter` +
+  `rebuild-latency` + `renders` (F3). **−~71 billed min per merged
+  code PR**, and the largest single saving in this audit.
+* `bb65cb9` — `persistence` and `band 4 corpus`: the 2-row eps matrix
+  in each collapses into one job that compiles once and runs both eps
+  rows against the same binary. These drive `cargo test`, so the
+  matrix was paying for the same compile twice. **−4 billed min.**
+* sccache rig, inert behind `vars.SCCACHE` (F4). **0 min until run.**
+
+## Where that leaves a code-tier PR
+
+Roughly **87 → 79 billed minutes** on the pull_request side (the four
+job merges), plus the post-merge run dropping from ~87 to ~16. For a
+PR that lands after N pushes, total spend goes from `87N + 87` to
+`79N + 16`.
+
+The PR-side figure is deliberately modest. The three biggest line
+items — the two build jobs at 12 each and `k-lint` at 10 — are the
+critical path and were not touched; `renders` at 12 is F1, and is a
+feature rather than waste. What remains, in rough order of size, is
+F3's missing scheduled main run (owed), F5 (policy), F1's paired
+change to `render-hosted.sh`, and whatever F4 measures.
 
 ## What did not land, and why
 
@@ -196,7 +234,11 @@ one, and is recorded here without a recommendation.
   default path. Needs the paired change to that script.
 * **merging the default-build test shards** — F2. Costs ~7% run
   latency to save 1 minute.
-* **retiring the post-merge main run** — F3. Needs a decision on
-  losing post-merge integration coverage.
-* **sccache** — F4. Premise checked, experiment specified, not run.
+* **merging `clippy` with `clippy (interval)`** — the two compile
+  different feature unifications and share no artifacts, so the merge
+  buys only one runner setup (~1 billed min) while serialising ~4
+  minutes into a single job. Not worth it.
+* **a scheduled full run on main** — the mitigation F3's trim is
+  supposed to be paired with. OWED: until it exists, no run ever
+  builds or tests the commit that actually landed.
 * **draft-PR skip** — F5. Policy decision.

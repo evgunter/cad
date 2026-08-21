@@ -149,6 +149,12 @@ concurrency:
 # the local gate stays byte-for-byte equivalent in what it PROVES. The
 # mirror convention covers the matrix, not the runner's linker.
 env:
+  # sccache pin for the EXPERIMENT wired into the two build jobs below.
+  # Inert unless the repo variable SCCACHE is "1" — see
+  # .github/actions/install-sccache and docs/CI-MINUTES-2026-08.md F4.
+  # 0.16.0 is the version local-scripts/gate.sh already runs on the
+  # local gate box, so the trial and the local lane agree.
+  SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
   # of truth), installed from the official GitHub-release prebuilt at the
@@ -622,6 +628,14 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "2"
       CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      # sccache EXPERIMENT, off by default (repo variable SCCACHE).
+      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
+      # unset case is a genuine no-op rather than a broken command.
+      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
+      # it: flipping SCCACHE rotates the cache key and buys exactly one
+      # cold rebuild. That run is not the verdict — same trap the OPT
+      # LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -639,6 +653,12 @@ jobs:
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: install sccache (experiment; off unless vars.SCCACHE == '1')
+        if: vars.SCCACHE == '1'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: default
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -650,6 +670,14 @@ jobs:
       # the closure's test binaries, so the run rows need no re-scoping.
       - name: build test binaries + archive
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
+      # THE MEASUREMENT. Hit rate here is the whole question: the
+      # deps are already served by rust-cache, so a run that only
+      # hits on those has proved nothing. What would justify
+      # adopting this is hits on the WORKSPACE crates, on a warm
+      # run, against the archive step's own duration on main.
+      - name: sccache stats (experiment)
+        if: vars.SCCACHE == '1' && !cancelled()
+        run: sccache --show-stats
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
       # already up, so the failure can be investigated / re-run without
@@ -893,6 +921,14 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "2"
       CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      # sccache EXPERIMENT, off by default (repo variable SCCACHE).
+      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
+      # unset case is a genuine no-op rather than a broken command.
+      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
+      # it: flipping SCCACHE rotates the cache key and buys exactly one
+      # cold rebuild. That run is not the verdict — same trap the OPT
+      # LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -928,6 +964,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
+      - name: install sccache (experiment; off unless vars.SCCACHE == '1')
+        if: vars.SCCACHE == '1'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: interval
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -940,6 +982,14 @@ jobs:
       # is the run's critical path (measured on #167): keep it lean.
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
+      # THE MEASUREMENT. Hit rate here is the whole question: the
+      # deps are already served by rust-cache, so a run that only
+      # hits on those has proved nothing. What would justify
+      # adopting this is hits on the WORKSPACE crates, on a warm
+      # run, against the archive step's own duration on main.
+      - name: sccache stats (experiment)
+        if: vars.SCCACHE == '1' && !cancelled()
+        run: sccache --show-stats
       - uses: actions/upload-artifact@v4
         with:
           name: nextest-interval
