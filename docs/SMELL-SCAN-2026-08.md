@@ -14690,6 +14690,40 @@ orchestrator"* rule was written for lanes inside one track and does not survive
 four concurrent orchestrators drawing on one sequence from branches none of them
 can see.
 
+**Track G's second block is `D120`–`D139` and `S190`–`S209`**, claimed
+2026-08-21 **and published here rather than only in `SMELL-G-LOG.md`, which is
+the whole point.** It is deliberately clear of every number in use and of every
+published reservation, with a gap above the highest, because the cost of a gap
+is nothing and the cost of an overlap is a landed collision.
+
+**Track G's first attempt at a second block was `D111`–`D125` / `S167`–`S181`,
+and it was wrong.** It was derived from *the highest number in use anywhere*
+instead of from *the reservations published in this section* — so it drove
+straight through **`S157`–`S168`, which the contents line above already assigns
+to Track F**, and `S167`/`S168` were handed to a Track G lane while Track F
+findings already occupied them. Separately `S169` was minted twice, an hour
+apart, by Track F's F-d and a Track G lane on branches that could not see each
+other, because **both tracks drew from above their spent block instead of
+reserving a new one** — which puts every track back on the single unsynchronised
+sequence the block system exists to replace.
+
+**So the rule the blocks always implied, now written down:** a new block is
+**read off the reservations in this section, never derived from usage**, and it
+is **published here before a lane is given a number from it**. Usage is a lower
+bound on what is taken; only this list says what is *claimed*. **`S167`/`S168` returned to Track F** and reissued
+from the block above.
+
+**And the sentence that stood here — *"the numbers already spent above `S169`
+collide with nothing"* — was false when written, twice over.** `D111` was later
+taken by **Track F's F8 (#844)** and reached this track through a merge, and
+`S136` was minted by **two Track G lanes at once** off a *returned* pair. Both
+were caught only by re-deriving the number set **after** a merge. The claim is
+withdrawn rather than corrected: **no statement of the form "these numbers
+collide with nothing" is checkable at the moment it is written**, because every
+other track is merging concurrently — a number is only yours *as of a tree*, and
+the tree moves.
+
+
 **#833 (G6)'s numbers were reassigned three times, and every time the allocation was the thing at fault.** It was given `S167`/`S168`; **Track F already held both on `main`** (with `D113`/`D114`). It then drew `S176`–`S179` and `D116` from the block its fix brief named — also not Track G's. **And its `S136`, minted from a number `SMELL-G-LOG` recorded as returned free by G-b, was taken by #831 (lane G-d) from that same returned pair while both branches were open** — caught only by re-deriving the whole set against `main` after the merge, which is **G-R13**'s fourth rule doing exactly its job. The merged row wins: #831 keeps `S135`/`S136`. #833's findings are now **S190** (the width-1 decline lookup, issue #855), **S191** (the validator door's `Display` claim), **S192** + **D120** (`ChartRegionError`'s wildcard in `topo::census`), **S193** (the let-else classification) and **S194** (`MatePrimitive`'s wildcards), all from Track G's second block **`D120`–`D139` / `S190`–`S209`**. **`S136`, `S167`, `S168`, `S176`–`S179`, `D113`–`D116` are not this PR's** and are released. Usage is a lower bound on what is taken; a RETURNED number is not a reserved one, and only a published reservation says what is claimed.
 
 **Three edges this table did not carry, and one it carried wrongly**, all
