@@ -361,7 +361,7 @@ census_check_executed() {
     done
     gate_error "$(gate_name): the sweep executed $row_crate's \`$row_module\` under the \`$row_mode\` selection, and RUN_FLOOR does not roster it. An execution nobody rostered is one nobody will notice the loss of — add it with the count it runs today"
     rc=1
-  done < <(printf '%s\n' "$tally" | awk -F'\t' 'NF==4' | sort -u)
+  done < <(printf '%s\n' "$tally" | awk -F'\t' 'NF==4 && $4+0 > 0' | sort -u)
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=${#RUN_FLOOR[@]}
