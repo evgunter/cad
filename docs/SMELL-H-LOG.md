@@ -390,7 +390,7 @@ seam.
 
 | Lane | Row | Findings | Files | Review | State |
 |---|---|---|---|---|---|
-| **H-a** | H1 | **S86** | `geom-core/src/{ring_interval,real,k_stats}.rs`, `geom-brep/src/ssi/enclose.rs`, +3 test files | **adversarial** + style | **#880 open, CI green; review dispatched** 2026-08-21 |
+| **H-a** | H1 | **S86**, **S212** minted | `geom-core/src/{ring_interval,real,k_stats}.rs`, `geom-brep/src/ssi/enclose.rs`, `scripts/gates/probe-suite-census.sh`, +3 test files | **adversarial** + style | **LANDED #880** 2026-08-21, after one fix pass |
 | **H-b** | H2 (+H8) | **S99**–**S103**, **S116(b)** | `geom/src/{net,scalar_lift,surfaces,azimuth}.rs`, `curves/nurbs.rs`, `surfaces/nurbs.rs`, `geom-brep/src/nurbs_iso.rs` | **adversarial** + style | — |
 | **H-c** | H3 + H4 | **S85**, **S89** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom-brep/src/ssi/enclose.rs`, `topo/src/props.rs`, `geom-core/tests/decoration_seam.rs` | style | — |
 | **H-d** | H6 | **S88** (`geom` half), **S210**, **S211** minted | `geom/src/{projection,curves/*,surfaces/*}.rs`, `geom-core/src/dual.rs`, `geom/tests/dual_foot_tangent.rs` | style | **LANDED #875** 2026-08-21, after one fix pass |
@@ -569,6 +569,44 @@ finding is *"recorded, not gating"*, which only works if a lane may decline
 one on evidence. **The cost of getting this wrong is asymmetric**: a lane
 that accepts every finding to be agreeable edits code on a false premise,
 and the false premise is what survives in the record.
+
+### H-R10. Two fix-pass moves worth copying, from #880
+
+**Both are the same shape: fix the mechanism, not the instance** — and
+both were the lane's own upgrade on what the review asked for.
+
+**1. A stale census was rewritten so it cannot go stale again.** The
+review named **two** places still asserting `S86` open; the lane found
+**four** (adding §A2's prioritisation essay and the frozen table's intro).
+Rather than correct four sentences, it rewrote the survey into past tense
+and added: *"this list is not maintained and is not evidence a finding is
+still open — read each finding's own lead."* **A present-tense
+hand-kept census of other findings' states drifts the first time anything
+below it closes**, and the next lane to close a row here would have had to
+find it again. That is the S110/S89 family — a hand-maintained tally with
+nothing deriving it — killed at the source.
+
+**2. A one-sided guard was fixed in code rather than narrowed in prose.**
+`every_refused_ring_crosses_as_poison` counted only `refused`, so a door
+that refused *everything* left that row green while every other row went
+red — in the row that is specifically about what refusal does. The
+tempting fix is to correct the header's *"both halves carry non-vacuity
+assertions"* to exclude it. **The lane instead made the row assert the
+certified side crosses un-poisoned and moved it to the two-sided
+counter**, so the claim became true rather than the claim's scope becoming
+smaller. It is the only code delta in the fix pass, and it is the right
+one.
+
+**And the sweep distinction that decided mint-versus-sweep on `S5`**, which
+is worth having as vocabulary: *the sweep for the **defect** found no
+siblings — all three sibling doors already answer correctly — while the
+sweep for the **invariant** found three restatements.* Two different
+sweeps; only the second has hits. So the row is not *"the bug has siblings
+I am declining to fix"* but *"a rule stated in four voices, one normative,
+with nothing connecting them"*. Minted **`S212`** — the lane had to
+renumber off `S210` mid-flight because #875 took it, which is G-R13's rule
+realised **inside one track**: a published block protects against other
+tracks, not against a sibling lane.
 
 ## Incidents
 
