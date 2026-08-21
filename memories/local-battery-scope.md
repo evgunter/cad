@@ -15,9 +15,10 @@ nextest build-once/sharded matrix), `local-scripts/ci-local.sh`
 is its mirror and `gate.sh` a billing-outage fallback only.
 
 **It is also the CHEAP option, and that is the point.** The hosted
-matrix runs in parallel on GitHub hardware in ~5–7 minutes; the
-same rows locally are serialized, and a cold build on this box has
-measured anywhere from 3 to 69 minutes. Spare the local machine
+matrix runs its rows in parallel on GitHub hardware; the same rows
+locally are serialized behind one box's cores, and a cold local
+build alone can outlast the whole hosted matrix. Spare the local
+machine
 wherever practical: push and let the gate run. A local run is
 justified exactly when it is likely to surface a failure faster
 than pushing — that is the whole calculus. Corollaries:

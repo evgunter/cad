@@ -10,6 +10,14 @@
 //! default build has no reason to pay for a diagnostics scalar. The
 //! other 19 tests of the review artifact stay ungated in
 //! `review_m2_pr2.rs`; only this file carries the whole-file gate.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p profile --features probe --test all -- review_m2_pr2_probe::`.
+
 #![cfg(feature = "probe")]
 #![allow(
     clippy::unwrap_used,
@@ -21,8 +29,8 @@
 mod common;
 
 use common::{lift, profile, tol};
+use geom_core::k_stats::{self, Probe};
 use profile::SegmentKind;
-use profile::k_stats::{self, Probe};
 
 // ------------------------------------------------------------ K-hook --
 

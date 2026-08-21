@@ -80,13 +80,31 @@ import sys
 # memories/ tree. No crate includes a .md file into its docs (`include_str!`
 # is unused), so a .md change cannot move a doc-test.
 #
-# local-scripts/: the LOCAL half of the tooling split (2026-08-11). Hosted
-# CI cannot depend on anything in there, and that is enforced STRUCTURALLY
-# rather than by convention — every workflow job deletes the directory as
-# its first step after checkout, so a workflow that grew a reference to it
-# fails immediately and loudly instead of silently coupling the hosted gate
-# to a developer's machine. Scripts hosted CI DOES run stay in scripts/ and
-# keep forcing TIER=all, because a change to any of them can move a result.
+# local-scripts/: the LOCAL half of the tooling split (2026-08-11). No
+# hosted job whose result is a build, a lint or a test may depend on
+# anything in there, and that is enforced STRUCTURALLY rather than by
+# convention — every workflow job that checks the repo out deletes the
+# directory right after, so a workflow that grew a reference to it fails
+# immediately and loudly instead of silently coupling the hosted gate to a
+# developer's machine. Scripts hosted CI DOES run stay in scripts/ and keep
+# forcing TIER=all, because a change to any of them can move a result.
+#
+# ONE JOB IS EXEMPT AND HAS TO BE: `mirror` reads local-scripts/ci-local.sh
+# because its whole subject is whether the two halves of CI still run the
+# same checks. That does not weaken the classification below — it is what
+# makes it honest. `mirror` carries no `if:`, so it runs on EVERY tier
+# including this one; a change under local-scripts/ therefore skips every
+# build row and still runs the one job it can move. Before that job
+# existed, a gate whose input was this tree argued it need not read the
+# tree, BECAUSE a change to the tree classified docs and skipped the gate —
+# a description of a hole offered as the reason not to close it.
+# `scripts/check-ci-mirror-parity.py` fails if a second job stops pruning, or if
+# `mirror` starts. That check is SITED IN THE JOB IT DESCRIBES, which is
+# self-referential and is stated rather than hidden: deleting the job deletes
+# the thing that would have complained. What limits the damage is that the same
+# check runs in the local half above its docs exit, that the job is a required
+# status check on this branch, and that a diff removing it is one line long in
+# a file three tracks read.
 #
 # .claude/: agent session config (2026-08-15) — the SessionStart hook that
 # provisions a Claude Code on the web container, and the settings.json that
