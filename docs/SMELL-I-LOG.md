@@ -247,7 +247,7 @@ consolidates and the fix comes first. The lane is described in a comment on
 | lane | PR | lanes | state |
 |---|---|---|---|
 | **I-c** | **#872** (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
-| **I-b** | **#873** (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
+| **I-b** | **#873** — **MERGED** `82887044` (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
 
 ## Landings
 
@@ -306,7 +306,41 @@ All four went into the document rather than into a report only I read.
 nobody had filed) — plus **a second copy of that same disclosure** at
 `closing_column` that no finding had noticed.
 
-### I-b — **S60**, the area enclosure's acceptance rows, #873
+### I-b — **S60**, the area enclosure's acceptance rows, #873 — **MERGED**
+
+**The review found the better row inside the lane's own measurement, and the
+fix pass took it.** `area = |r·A_s|` and `flux = r²·A_s + o·A⃗` share one signed
+UV area, so `area_pad / volume_pad ≤ 3/r` — measured to within **5e-7 relative
+at every ε leg**, always below, the shortfall being `o·A⃗`'s own width. The
+landed row pins that coupling from the fixture's own radius.
+
+**What it changed is the whole point.** An area-only widening now trips at
+**2 parts in 10⁹** (green ×1.0000000005, red ×1.000000002). The fitted ceiling
+survives as the explicit outer backstop for the one class the pin cannot see —
+a *joint* widening — which on the binding ε leg trips at **2.05×**, not the
+449× the first draft disclosed as ~1500×. The lane corrected its own number
+twice and published the derivation both times.
+
+**"Structural" was re-derived properly**, the reviewer's way rather than the
+lane's: forcing round 0 and sweeping the piece count directly gives a monotone
+fall 3.049e-4 (16) → 2.893e-9 (4096) with a floor at ~2.9e-9 on accumulated
+rounding. Turning one knob establishes that *that knob* saturates; the sweep
+establishes the lane's maximum, and the word now rests on it.
+
+**The class was five members, not two.** Four fixed here — the loft's
+`Interval` row, `mass_props_interval.rs` (containment against `enc` itself),
+`m6_tube.rs`, and `halves_sum_to_the_cylinder`, whose `+1e-9` slop was deleted:
+its comment called it the *"closed-form rounding scale"* and the real scale is
+`f64::EPSILON·full` = 1.74e-16, **seven orders below**. `editor-core`'s two go
+to **S230**.
+
+**The honest caveat the lane published and I am keeping visible:** three rows'
+liveness was shown by *tightening the constant*, which proves the row executes
+and measures what it claims — **not** that a real degradation was reproduced.
+
+**Its residues:** issue **#870** (the metering proposal #472 deferred, now with
+the measurement that makes it answerable), **`S230`**, and the first sighting of
+the **#723 auto-close**, which it found while checking C-m's gate.
 
 **Two test files, two documents, no kernel change** — `quad.rs` is not in the
 diff, which is **I-R2** executed rather than merely obeyed. `area_pad` gets a
