@@ -288,7 +288,8 @@ sub-block, from the orchestrator.
 | **F-d** | D70, **D107**, **D115** — all used | S126, **S161**, **S169** — all used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
-| unassigned (2nd block) | D108–D110 | S162–S166 |
+| **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
+| unassigned (2nd block) | D108 | S162, S165, S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -447,21 +448,69 @@ a hand-rolled clone silently lacks.
 **disk and by `scripts/gates/` overlap**, not by dependency: F1, F2 and F3 all
 live in that directory and two of them share `scripts/ci-filter.py`.
 
-| lane | row | branch | scope | review | state |
-|---|---|---|---|---|---|
-| **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
+**Wave 2's table is empty: every row in it has landed or is in review**, and
+each is accounted for in the paragraphs below. The header is gone with the rows
+rather than left standing over nothing.
 
-**F-d landed** (#825, merge `335f267e`); its roster row left the table above per
-the recording convention, and the landing is recorded below. **It left late**:
-the row was deleted from the *gated* wave-2 table in the landing PR, then
-reappeared in the *dispatched* table above when wave 2 opened, and four
-`origin/main` merges carried it back in without the lane noticing. Removed here.
+**F-d landed** (#825, merge `335f267e`); its roster row left the wave-2 table
+per the recording convention, and the landing is recorded below. **It left
+late**: the row was deleted from the *gated* wave-2 table in the landing PR,
+then reappeared in the *dispatched* table when wave 2 opened, and four
+`origin/main` merges carried it back in without the lane noticing. Removed in
+#851 — **and carried back a fifth time, by #849's merge**; see the incident
+below.
 
-**F-h's PR is open** (#844) and its roster row left the table above per the
+**F-h's PR is open** (#844) and its roster row left the wave-2 table per the
 recording convention; the landing is recorded below.
 
-**F-f's PR is open** (#798); its roster row left the table above per the
+**F-f's PR is open** (#798); its roster row left the wave-2 table per the
 recording convention, which the landing PR carries.
+
+**F-g's PR is open** (#849), **NOT CLEARED on its first style review and
+fixed**: three MAJORs and thirteen style findings, plus an adversarial pass
+that cleared the two numeric lines and refuted three claims made about them.
+**Two of the three MAJORs were the fix reproducing its own defect** — a
+statement view built and then applied to only one of the two spellings it was
+built for, so verbatim `rustfmt` output still passed; and a `debug_assert`
+escape written as a per-line substring test, which printed *verbatim the
+evidence-free sentence S63 was written against*. The third was **a claim, not a
+defect**: the PR reported five `probe-suite-census.sh` self-test cases as having
+silently run the wrong half, and both trees were executed against it — a
+subshell inherits a non-exported variable, so nothing was ever green that should
+not have been. **What happened is that the change dodged a hazard it would
+itself have created, and wrote it up as a hazard it found.** *A fix that dodges
+a hazard it created reads, afterwards, exactly like a fix that found one*, and
+only execution against the OLD tree separates them. Struck from the record, the
+commit comment and the PR body.
+
+**CLEARED on the fix pass, 2026-08-20, and its one open design question is now
+answered: D109(a) is RULED YES** (Evan, 2026-08-21). The scaled square
+`(k · x) · x` at `linalg/vec.rs`'s `b1` and `linalg/mat.rs`'s `rotation_about`
+may be reassociated into `k · (x²)`: **D9 is determinism at one kernel, not a
+pin on last year's output**, and `u_ref` is stored as data under D2 so existing
+documents keep their frames. The row moves from *needs a decision* to *scheduled
+work*, and **the exact-`f64` argument now predicts cost rather than
+permission** — `b1`'s `s = ±1` makes it byte-free, `mat.rs`'s `t = 1 − cos θ`
+re-cuts goldens. **The lane's warning survives the ruling and is now the only
+thing between it and a bad landing**: widening the matcher before converting the
+two sites reds both ratified files at once, and greening that by allowlisting is
+S63's own outcome a third time. Recorded at **S163(a)/D109**, at the gate header
+and at the constructor; **deliberately not done in #849**, which was two review
+rounds deep on its own scope.
+
+It carries **F3 (S63)**, **S157** (the harness — F-f's
+row, never placed in §D as `D101`, so there was no row to strike) and
+**S125/D69**. Its row left the wave-2 table. **It crossed into three files F1/F2
+had just landed, and every crossing was forced by the harness fix rather than
+chosen** — reported here because the brief said to stop and report:
+`gate-roster.sh` (its `gate_selftest_real` was written to be lifted, and lifting
+means deleting the original), `probe-suite-census.sh` (its mode was selected by
+setting a global, which no longer crosses into a subprocess — five of its
+self-test cases were silently running the wrong half), and `test-aggregation.sh`
+(one must-FAIL case ran in-process). **`.github/workflows/ci.yml`,
+`scripts/ci-filter.py` and `check-ci-mirror-parity.py` were NOT touched**, which
+is why S63's `ci-filter.py` half is **S164/D110** rather than closed, and why
+`bounds-allowlist.sh` keeps the old comment filter (**S163(b)**).
 
 **F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
@@ -539,6 +588,43 @@ re-deriving the escalated part. And **the sharpest reviewer of a finding is the
 lane that raised it**: F-f had the run open, knew what its own gate printed, and
 said so against a document that had just credited it. That is worth more than
 the finding was.
+
+### #849's merge committed two conflict markers into this file (2026-08-21)
+
+**`main` carried literal `<<<<<<< HEAD` / `>>>>>>> origin/main` in
+`docs/SMELL-F-LOG.md` for one merge**, introduced by `5e91eeb5` — an
+`origin/main` merge inside lane F-g — and shipped by `39d2753f`. Found by the
+lane itself, immediately after merging, by grepping the **merged tree** for what
+the recording convention requires instead of reading its own diff. Repaired
+here.
+
+**How a conflicted file gets committed.** The lane resolved the conflict in
+`docs/SMELL-SCAN-2026-08.md`, checked *that file* for markers, saw zero, and ran
+`git add -A && git commit --no-edit`. `git add -A` stages a conflicted file
+verbatim, and a merge commit needs no message, so nothing asked. **The check was
+run on the file the lane was thinking about, not on the tree**, which is the
+same shape as the finding one paragraph up: a claim checked against the thing
+the author had in mind rather than against the artefact.
+
+**And one of the two conflicts was the deletion-union case, so the marker hid a
+resurrection.** Both sides had struck a roster row — `origin/main` struck F-d's
+in #851, F-g struck its own — and the conflicted region therefore contained
+*both* rows, F-d's live again after #851 had just removed it for the fifth time.
+**A conflict between two deletions cannot be resolved by keeping a side.** The
+standing instruction to *keep both sides* is right for two additions to
+different findings and wrong here; the answer is the union of the deletions,
+**derived from `main` rather than from the markers**, since the markers show
+what each side kept and not what either side meant to remove.
+
+**Two rules, both cheap:**
+
+1. **After any conflict resolution, grep the whole `docs/` tree for markers**,
+   not the file you resolved. One command, and it would have caught this before
+   the push, let alone before the merge.
+2. **After merging, check the post-condition against the merged tree**: grep for
+   the rows the convention requires to be gone. The lane did this and it is the
+   only reason the defect is one merge old rather than however long it takes the
+   next reader to notice.
 
 ### Two more register defects, found by a verifier reading the log itself (2026-08-20)
 

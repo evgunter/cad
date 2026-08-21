@@ -199,6 +199,38 @@ fn loop_points<T: Decide>(
 /// plane normal `normal`; `q` is assumed to lie in the loop's plane
 /// (the ring re-homing contract: ring and outer share one face plane).
 ///
+/// # The sign of `normal`
+///
+/// `normal` is read only to recover the loop's PLANE, so a caller may
+/// hand over a raw CHART normal without folding in the face's sense —
+/// `chord_join::face_plane_normal` does exactly that. The
+/// invariance is derived here because it is this walk's property, not
+/// that producer's.
+///
+/// Each schedule member is projected as `r − n̂(n̂·r)`, which is
+/// invariant under `n̂ ↦ −n̂`, and the parity walk then runs in the
+/// in-plane frame `(d, n̂ × d)` — whose second axis is the only thing
+/// a sign flip moves. Negating that axis negates every vertex ordinate
+/// `y`, so the straddle test `sign(yᵢ) ≠ sign(yⱼ)` is unchanged, the
+/// vertex-on-the-ray `Zero` graze is unchanged, and the crossing's
+/// advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and denominator
+/// both negated. Negation is exact and both `sign_within` classifiers
+/// are symmetric about zero, so **the verdict is bit-identical either
+/// way**, and a refusal is identical in variant, predicate and band.
+///
+/// One thing is NOT identical, and saying so is what keeps the
+/// sentence above true: an escalation carries the **signed** margin it
+/// refused on, so the two signs refuse with `MarginDiag::Value(−m)`
+/// against `Value(m)`. That is diagnostic payload —
+/// [`geom_core::Indeterminate`]'s own docs call its fields *"honest
+/// diagnostic data … for actionable error messages and later margin
+/// telemetry"*, and nothing in this walk reads a margin back — but a
+/// differential test comparing whole `Debug` renderings would see
+/// it.
+/// `topo/tests/review_m3_pr3_pil.rs`'s
+/// `the_verdict_is_blind_to_the_normals_sign` pins all of this, and
+/// compares variant, predicate and band rather than the rendering.
+///
 /// # Errors
 ///
 /// [`PointInLoopError`] — escalation, ray exhaustion, or an
