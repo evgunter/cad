@@ -9558,9 +9558,16 @@ duplicate. **The two predicate NAMES stay** (`props_rim_level`,
 `props_rim_level_group`): they are the funnel's recording channels,
 separately audited in `docs/predicate-dimension-audit.md` and
 `docs/K-REPORT.md`, and one rule reported on two channels is not two
-rules. That is said at `level_coincides`, and an in-file row
-(`a_pair_inside_both_components_but_outside_the_chord_is_one_answer`)
-reds on any re-split.
+rules. That is said at `level_coincides`, and two in-file rows red on any
+re-split: `a_pair_the_component_rule_calls_one_level_is_not_grouped`
+and its floor `a_pair_inside_the_band_by_its_chord_is_one_level`.
+**Both take their offsets from the run's own `Band`, not from an
+ε-literal** — the first draft of the first one used a literal, passed at
+the default ε for the wrong reason (both components were outside the
+band too, so it asserted nothing about the chord) and was caught red by
+CI's `eps = 1e-6` row. Every fixture this PR adds is band-derived for
+that reason, and both behaviour-change rows are verified red on the
+parent at **all three** matrix ε.
 
 **S82 is untouched and is Evan's.** The sphere's own lever
 (`RimLevel::Unit(sin v, 0)` at `R`, understating toward the poles in
