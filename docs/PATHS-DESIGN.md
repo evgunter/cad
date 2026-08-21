@@ -574,7 +574,7 @@ no second place to write it. All four are inside `profile`;
 what the table does not reach is at the head of
 `transition_table!`. **The round-9 exhaustiveness pressure does
 NOT ride the same table, and this sentence used to say it did**
-(smell-scan S193, corrected by #836): that pressure is over the
+(smell-scan S195, corrected by #836): that pressure is over the
 ARC-MODE enum `ArcData`, the table is over the VERB vocabulary,
 and the three sites round 9 names as matching `ArcData`
 exhaustively — the replay driver's arc dispatchers, the persist
