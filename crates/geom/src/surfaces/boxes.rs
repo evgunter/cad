@@ -2,9 +2,10 @@
 //! (C10, M5 PR 8) — the surface-side sibling of [`crate::curves::boxes`]
 //! (its module docs carry the placement rationale: the `bvh` crate
 //! stays below the geometry crates; constructors sit next to the
-//! invariants they cite). Certified-box driver code — an allowlisted
-//! [`Bounds`] seam (ratified 2026-07-29, see geom-core `real.rs`,
-//! Bounds scope rule).
+//! invariants they cite). Certified-box driver code — a **sole**-bound
+//! [`Bounds`] seam under the 2026-07-29 amendment (geom-core `real.rs`,
+//! Bounds scope rule), not an allowlisted one: the sibling module's
+//! docs carry why the distinction is not pedantry.
 
 use bvh::Aabb;
 use geom_core::Bounds;

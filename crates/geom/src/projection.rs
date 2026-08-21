@@ -108,6 +108,27 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// The one other departure from the identity is `mid(-0.0) = +0.0`;
 /// every consumer here either takes `.abs()` of the result or divides
 /// it into a difference that is insensitive to the sign of zero.
+///
+/// **At a dual scalar this is where the derivative channel leaves, and
+/// here that costs something.** `Bounds for Dual` is the value channel's
+/// bracket with the tangent discarded, so `mid` hands both halves an
+/// `f64` that they then FREEZE — into the iteration, and into the
+/// returned foot parameter.
+///
+/// **Freezing a selection is free exactly while the selected quantity is
+/// LOCALLY CONSTANT in the input**, which is why the same move is
+/// correct throughout `geom_core`: a span index, `floor`'s plateau
+/// factor, a `min`/`max` branch pick and `copysign`'s sign all hold
+/// their value over a neighbourhood, so the derivative they would carry
+/// is zero anyway. **A Newton foot parameter is the other kind.**
+/// `t*(p)` is a smooth implicit function of the input — it moves with
+/// every control point and with the query point — so freezing it drops
+/// `dt*/dp` and every quantity built on `t*` loses that term. The value
+/// channel is unaffected either way (D9). The two `Projection` types say
+/// which of their fields this reaches and how far; the defect and its
+/// dispositions are issue #874. **Not an as-of-date claim** —
+/// `geom/tests/dual_foot_tangent.rs` pins the reported tangents and goes
+/// red the day #874 moves them.
 pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
     let (lo, hi) = (v.lo(), v.hi());
     lo + 0.5 * (hi - lo)

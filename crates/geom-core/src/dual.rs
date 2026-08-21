@@ -784,7 +784,11 @@ where
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
 /// and this impl does not change that: every C9-ring door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
-/// boxes, pruning, and the `f64` margin payloads a typed refusal reports.
+/// boxes, pruning, the `f64` margin payloads a typed refusal reports,
+/// and **selections**, which are the ones with a condition on them: a
+/// frozen `f64` choice is free of the tangent only while the quantity
+/// chosen is locally constant in the input. `geom::projection::mid` is
+/// where that condition currently fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in
 /// `real.rs` is the home for both that and the fillet seam's obligation.
