@@ -125,10 +125,12 @@ set -euo pipefail
 gate() {
   local out
   # A parse failure, a missing tomllib, or a tree with no crate
-  # manifests must FAIL LOUD, never pass quiet and never fail silent:
-  # python writes the diagnosis to stderr and exits non-zero, which
-  # `set -e` turns into a gate failure with the reason on screen.
-  out=$(python3 - <<'PY'
+  # manifests must FAIL LOUD, never pass quiet and never fail silent.
+  # The `if` is what makes it a DIAGNOSIS rather than a death: python
+  # writes its reason to stderr, but a bare assignment died here under
+  # errexit, so a CI reader got that sentence with no gate name and no
+  # `::error::` annotation around it (S157).
+  if ! out=$(python3 - <<'PY'
 import os, sys
 
 try:
@@ -249,7 +251,10 @@ for manifest in paths:
 print("\n".join(violations))
 print("COUNT\t%d" % len(paths))
 PY
-)
+  ); then
+    gate_error "$(gate_name): the manifest reader failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
+    exit 1
+  fi
 
   local rc=0 count=0 kind manifest where what
   while IFS=$'\t' read -r kind manifest where what; do
@@ -451,6 +456,7 @@ EOF
 
 gate_selftest() {
   gate_selftest_clean
+  gate_selftest_without_tool python3 "the manifest reader failed"
   gate_selftest_case "[dependencies] lib" plant_r1_inline
   gate_selftest_case "[workspace.dependencies] lib" plant_r2_workspace_inherit
   gate_selftest_case "[target.cfg(unix).dependencies] lib" plant_r3_target
@@ -459,7 +465,7 @@ gate_selftest() {
   gate_selftest_case "forwards the ordinary feature 'interval'" plant_r6_same_crate_forward
   gate_selftest_case "forwards the ordinary feature 'middle'" plant_r7_chain
   gate_selftest_case "entry 'lib?/sweep-testing'" plant_r8_weak_forward
-  printf '%s selftest OK: passes a clean fixture carrying the sanctioned dev-dependency and workspace-inheritance shapes, a [package.metadata.*.dependencies] table, and an optional-dependency activation named like a test feature; fires on all eight routes (R1 inline, R2 workspace inheritance, R3 target.*, R4 build-dependencies, R5 cross-crate forward, R6 same-crate forward, R7 two-deep chain, R8 weak forward)\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the sanctioned dev-dependency and workspace-inheritance shapes, a [package.metadata.*.dependencies] table, and an optional-dependency activation named like a test feature; fires on all eight routes (R1 inline, R2 workspace inheritance, R3 target.*, R4 build-dependencies, R5 cross-crate forward, R6 same-crate forward, R7 two-deep chain, R8 weak forward), and diagnoses a reader that fails rather than dying at the assignment that captured it\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
