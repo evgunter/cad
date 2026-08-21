@@ -1,9 +1,13 @@
 //! Shared test scaffolding for the whole tree — the pieces several
 //! suites would otherwise each hand-roll a copy of.
 //!
-//! Today that is exactly one thing: [`fuzz`], the harness every
-//! randomized falsification sweep draws its RNG, its per-run seed and
-//! its EFFORT dial from.
+//! Two things today:
+//!
+//! - [`fuzz`], the harness every randomized falsification sweep draws
+//!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
+//!   sampling guard actually exercised, printed every run and asserted,
+//!   so a run that exercised nothing goes red instead of green.
 //!
 //! # DEV-ONLY, by convention
 //!
@@ -23,3 +27,4 @@
 //! to create.
 
 pub mod fuzz;
+pub mod vacuity;
