@@ -86,23 +86,25 @@ use crate::types::TessellateError;
 /// [`crate::walk`] sets. ε is upstream of one argument of one rule.
 ///
 /// **No consumer SNAPS a value** (the loop-closure snap that did is
-/// gone, S22). The reads refuse a face, report into a `debug_assert`,
-/// classify a vertex, or scale a measurement — **which one each is, is
-/// stated at the read**, not restated here.
+/// gone, S22). What a read does instead — refuse a face, report into a
+/// `debug_assert`, classify a vertex, scale a measurement — **is
+/// stated at the read**. This doc holds neither a roster of the reads
+/// nor a partition of their kinds: the roster is computed (below), and
+/// a partition is a count by another name, which is the thing that
+/// went stale here.
 ///
-/// The two CLASSIFYING reads make *"ε cannot move an emitted
-/// coordinate"* FALSE as stated — pole identification substitutes the
-/// pole's exact `v` and emits two entries instead of one;
-/// `walk::iso_side_starts` picks which of two analytically-equal
-/// columns a side carries. Each argues its own reachability where it
-/// is; what belongs here is the summary: **nothing in the tree flips
-/// either, and whether anything COULD is not established** (a STEP
-/// import is the plausible route in). The dependence is structural and
-/// UNEXERCISED, which is not the same as absent, and it is why *"mesh
-/// structure is a function of (body, δ)"* is a statement about the
-/// tree rather than a theorem.
+/// A CLASSIFYING read makes *"ε cannot move an emitted coordinate"*
+/// FALSE as stated — pole identification substitutes the pole's exact
+/// `v` and emits two entries instead of one; `walk::iso_side_starts`
+/// picks which of two analytically-equal columns a side carries. Each
+/// argues its own reachability where it is; what belongs here is the
+/// summary: **nothing in the tree flips one, and whether anything
+/// COULD is not established** (a STEP import is the plausible route
+/// in). The dependence is structural and UNEXERCISED, which is not the
+/// same as absent, and it is why *"mesh structure is a function of
+/// (body, δ)"* is a statement about the tree rather than a theorem.
 ///
-/// The SCALING read is no bar at all: [`crate::trimmed`]'s deviation
+/// A read can also be no bar at all: [`crate::trimmed`]'s deviation
 /// probe computes `d / (bound + eps)`, so ε moves the `worst_ratio` it
 /// publishes at **every** call, monotonically. No mesh coordinate
 /// moves; a reported number does.

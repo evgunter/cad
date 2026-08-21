@@ -8572,11 +8572,14 @@ commits.
 **What was done — the inventory is COMPUTED (ruling I-R8).** The list
 is gone from the prose and lives in `mesh/tests/all.rs`'s
 `the_eps_inventory_is_pinned`, which walks `crates/mesh/src` through
+`test_utils::source::rust_sources` (recursive) and
 `test_utils::source::code_only`, counts `eps` identifiers in each
-file's production half, and pins them per file with a disposition for
-each. It reds on exactly the change that produced this finding —
-verified by planting a read and watching it name the file. `Tol` now
-states what a read may DO and points at the pin.
+file's production half, and pins them per file. It reds on exactly the
+change that produced this finding — verified by planting a read and
+watching it name the file, and again by planting one in a
+subdirectory. `Tol` now states what a read may DO and points at the
+pin; it holds **neither a roster of the reads nor a partition of their
+kinds**, because a partition is a count by another name.
 
 **I-R8 reopened the delete-vs-compute call, and the first answer was
 wrong for a reason worth recording.** The justification for deleting
@@ -8620,6 +8623,14 @@ about:
   evidence, which is *no body in the tree*; "this build can mint"
   includes anything `import_step` produces, three sentences from a
   paragraph saying a STEP import is the plausible route in.
+- **And a fifth, in the pin's own doc on arrival**: its `walk.rs`
+  breakdown read *"three parameters, four hand-offs, three terminal
+  reads"* and summed to **10** against a pinned **12** (it is four,
+  five and three). A hand-written narrative that did not add up, in
+  the doc of the gate that replaced a hand-written list for going
+  stale. Every per-file breakdown now states its own sum, which is
+  arithmetic a reader can run; the per-file totals are the only
+  numbers the machine checks, and the doc says so.
 
 **What the pin cannot do**, stated at the pin: it cannot see a read
 that does not spell `eps`, and it cannot say which KIND a new read is.
@@ -11681,27 +11692,64 @@ need a helper that does not exist.
 must sequence with them.
 
 **Update, #872 (Track I / I-c): the test-support crate this row names as
-its real question now EXISTS, with one of the two helper shapes in it.**
-Ruling **I-R8** put S64's ε inventory on a computed pin, and the
-justification for *not* computing it had cited `topo`'s `code_only`
-being out of reach — true, and the removable half of the obstacle: the
-row's own answer, a test-support crate, was already in the tree as
-`crates/test-utils`, a zero-dependency leaf that `topo` and `mesh` both
-already dev-depend on. #872 added `test_utils::source::code_only`, the
-blanker's semantics ported unchanged from `topo`'s so that collapsing
-that copy onto this one is a **deletion rather than a redesign**, plus
-`mentions_raw_string` so a caller can assert its own tree is free of
-the one construct the blanker does not model.
+its real question now EXISTS.** Ruling **I-R8** put S64's ε inventory on
+a computed pin, and the justification for *not* computing it had cited
+`topo`'s `code_only` being out of reach — true, and **the removable half
+of the obstacle**: the row's own answer, a test-support crate, was
+already in the tree as `crates/test-utils`, a zero-dependency leaf that
+`topo` and `mesh` both already dev-depend on. #872 added
+`test_utils::source` with `code_only`, `mentions_raw_string`, and
+`rust_sources` — the recursive traversal, added because sharing the
+*predicate* and re-forking the *walk* reproduced exactly the defect the
+sharing was for (a flat `read_dir` left a subdirectory invisible and the
+pin green).
 
-**This does not close the row and it moved one number the wrong way:
-there are now THREE `code_only`-shaped readers, not two** — `topo`'s,
-`pncad`'s `code_without_comments`, and the shared one — because #872
-deliberately did not touch `topo`, whose copy is G8/G9's to sequence.
-What changed is that the destination is no longer a question. What is
-still open: the **second** helper shape (the needle that IS a comment or
-a literal — the four members `CodeOnly` cannot serve), the twelve
-conversions, and the deletion of the two private copies. A taker
-starts by moving, not by writing.
+**Three corrections to what an earlier draft of this paragraph claimed,
+because they change what the collapse means:**
+
+1. **The full-blanker population is FOUR, not three.** `topo` has
+   **two** live blankers — `source_walk.rs`'s `CodeOnly` and
+   `fixtures.rs`'s `code_only` — plus `pncad`'s `code_without_comments`
+   (which this row's own body classes as a different shape), plus the
+   shared one. #872 added the fourth full blanker; it did not reduce the
+   count.
+2. **The port is of the WEAKER of `topo`'s two.**
+   `source_walk::CodeOnly` models raw strings via `raw_string_open`;
+   `fixtures::code_only` does not, and that is what was ported. So
+   *"the collapse is a deletion"* holds **only for
+   `fixtures::code_only`**. Collapsing `CodeOnly` onto the shared one
+   as it stands would be a **downgrade**, and this row names `CodeOnly`
+   as the shape serving seven of the twelve members. **Porting
+   `raw_string_open` into `test_utils::source` is a prerequisite of the
+   collapse, not an optional extra.**
+3. **`topo::fixtures::code_only`'s collapse is UNOWNED**, and saying it
+   was *"G8/G9's to sequence"* was a §C3 — a deferral pointed at a
+   register that does not execute. **G8 landed as #834**, and **G9's
+   scope is `topo/src/boolean/{ops,reduce}.rs` plus `chord_join.rs`**,
+   which contains neither `fixtures.rs` nor `face_normal.rs`. Recorded
+   here as unowned in the same words S230 and S231 use: **it needs a
+   lane and does not have one.**
+
+The port's faithfulness is established rather than asserted: 500,000
+adversarial inputs across `/ * " ' \ # r`, `//!`, `///`, `'a`, `'é'`,
+`b"x"`, `r"x"`, `\"`, newlines and multibyte, **zero mismatches**
+against `fixtures::code_only`; the only body difference is
+`i + 1; k += 1` → `i + 2`.
+
+**One member of the class was fixed on the way, and it is D61's third
+occurrence.** `mentions_raw_string` originally missed `br"…"` and
+`cr"…"` — the prefix byte satisfied its non-identifier-predecessor
+guard — which is the exact `br"x\"` spelling **D61 records #788 fixing
+in `CodeOnly` and G-g re-introducing in `fixtures::code_only`**. Third
+time, in the function whose whole job is to tell a caller its tree is
+free of that construct. Fixed in #872 with a row per prefix; it could
+not have bitten `mesh/src`, which is the argument for fixing it before
+there is a caller who trusts it, not against.
+
+**What is still open**: the **second** helper shape (the needle that IS
+a comment or a literal — the four members `CodeOnly` cannot serve),
+the twelve conversions, the raw-string port above, and the deletion of
+the private copies. A taker starts by moving, not by writing.
 
 **Verdict:**
 ## S126. The silent whole-row stand-down has a population, and it is 13 in three files

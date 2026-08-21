@@ -120,8 +120,7 @@ fn every_suite_file_is_aggregated() {
 ///
 /// Every `eps` identifier in the PRODUCTION half of `crates/mesh/src`
 /// (comments and literal bodies removed by
-/// [`test_utils::source::code_only`]; the production half is everything
-/// above the file's own `#[cfg(test)]`) is counted per file and pinned
+/// [`test_utils::source::code_only`]) is counted per file and pinned
 /// below, so a new ε read cannot land without either appearing in this
 /// table or turning it red.
 ///
@@ -135,6 +134,10 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What the tokens are, per file
 ///
+/// Roles, not line numbers: lines move, and this crate's own S65
+/// record cites by name for that reason. A **hand-off** passes `eps`
+/// on; a **terminal read** compares or adds it.
+///
 /// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
 ///   else: `Tolerance::get().eps` (two tokens on one line) and the
 ///   `Tol` field initialiser.
@@ -146,23 +149,32 @@ fn every_suite_file_is_aggregated() {
 ///   parameters, one hand-off to `entries_off_bbox`, and
 ///   `entries_off_bbox`'s own two `gap_is_noise` calls — the banded
 ///   swept-rectangle domain guard, which REFUSES a face and moves no
-///   coordinate.
+///   coordinate. 2 + 2 + 1 + 2 = 7.
 /// - **`trimmed.rs` — 1.** `d / (bound + tol.eps)` in the deviation
-///   probe. **This one is not a bar**: ε is a continuous addend in a
-///   denominator, so it scales `worst_ratio` — a `pub` measurement
-///   field — at every call, monotonically. The block is absent from a
-///   default build (`budget` feature).
-/// - **`walk.rs` — 12.** Three `eps` parameters, four hand-offs, and
-///   the crate's three TERMINAL reads: `gap_is_noise`'s
-///   `gap * lever < eps` (one predicate, four call sites — the domain
-///   guard above plus three `debug_assert` detectors that gate
-///   nothing), `iso_side_starts`' `radial > eps`, and `pole_v`'s
-///   `norm() <= eps`.
+///   probe. **Not a bar**: ε is a continuous addend in a denominator,
+///   so it scales `worst_ratio` — a `pub` measurement field — at every
+///   call, monotonically. The block is absent from a default build
+///   (`budget` feature).
+/// - **`walk.rs` — 12.** **Four** `eps` parameters (`gap_is_noise`,
+///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
+///   hand-offs (`closing_column`'s and `loop_polygon`'s two
+///   `gap_is_noise` calls, `loop_polygon`'s calls to
+///   `iso_side_starts` and `closing_column`), and the crate's **three**
+///   terminal reads: `gap_is_noise`'s `gap * lever < eps` (one
+///   predicate, four call sites — the domain guard above plus three
+///   `debug_assert` detectors that gate nothing),
+///   `iso_side_starts`' `radial > eps`, and `pole_v`'s
+///   `norm() <= eps`. 4 + 5 + 3 = 12.
 ///
-/// **Seven consumer sites, four terminal reads**, and neither number is
-/// pinned here on purpose: a token count is what a textual walk can
-/// actually check, and stating a second number the walk does not
-/// compute would rebuild the defect this row exists to prevent.
+/// Seven consumer sites, four terminal reads across the crate. **The
+/// per-file totals above are pinned; every other number in this doc is
+/// hand-written and is not.** They are checkable — each file's
+/// breakdown sums to its pinned total, which is the arithmetic a
+/// reader can run and the reason it is written that way. An earlier
+/// draft of `walk.rs`'s line said *"three parameters, four hand-offs
+/// and three terminal reads"* and summed to 10 against a pinned 12: a
+/// hand-written narrative that did not add up, in the doc of the pin
+/// that replaced a hand-written list for going stale.
 ///
 /// # What this cannot match, and it is a work order
 ///
@@ -175,12 +187,35 @@ fn every_suite_file_is_aggregated() {
 /// 2. **Which KIND of read it is.** This row reds when the inventory
 ///    moves; it cannot say whether the new read refuses, classifies or
 ///    scales. That judgement is the reader's, at the site.
-/// 3. **The test half of each file**, deliberately: a test that reads ε
-///    is not a place ε reaches the mesh, and including it would make
-///    the pin churn on every test edit.
-/// 4. **Raw strings**, which [`test_utils::source::code_only`] does not
+/// 3. **The test half of each file** — deliberately, because a test
+///    that reads ε is not a place ε reaches the mesh. **The cut is
+///    crude and its failure modes are not symmetric.** It is the first
+///    line equal to `#[cfg(test)]` at column 0; the row asserts there
+///    is at most one, so the cut is unambiguous. A file with no such
+///    line counts WHOLE (`tessellate.rs` and `trimmed.rs` today) —
+///    conservative, so it over-counts rather than under-counts. An
+///    INDENTED `#[cfg(test)]` does not cut at all (`nurbs_cert.rs` has
+///    two, gating items inside a module) — also conservative. The one
+///    unsound direction is **production code placed after a trailing
+///    test module**, which this cut would not see; nothing in the crate
+///    is written that way and nothing checks that it stays so.
+/// 4. **Compensating changes inside one file.** A read deleted and
+///    another added in the same file leaves the total unmoved. A read
+///    MOVED between files IS caught — both counts change.
+/// 5. **Raw strings**, which [`test_utils::source::code_only`] does not
 ///    model — so this row asserts `crates/mesh/src` contains none
-///    rather than assuming it.
+///    (all four prefixes, `r`/`br`/`cr`) rather than assuming it.
+///
+/// # The walk is shared, and that was not free
+///
+/// The traversal is [`test_utils::source::rust_sources`], **recursive**.
+/// An earlier version of this row hand-rolled a flat `read_dir`, which
+/// left `crates/mesh/src/<any-subdir>/*.rs` invisible — the pin stayed
+/// green over two planted reads. Sharing the *predicate* and re-forking
+/// the *walk* is half a fix: `topo`'s equivalent traversal
+/// (`source_walk::crate_sources`) is `pub(crate)`, the identical
+/// obstacle `code_only` was moved to remove, and re-forking it
+/// reproduced exactly the defect the sharing was for.
 #[test]
 #[allow(clippy::expect_used)]
 fn the_eps_inventory_is_pinned() {
@@ -191,19 +226,25 @@ fn the_eps_inventory_is_pinned() {
         ("trimmed.rs", 1),
         ("walk.rs", 12),
     ];
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    // Both ways the suite runs: a plain `cargo test` against the baked
+    // manifest dir, and a nextest ARCHIVE replayed with the per-test
+    // cwd remapped to the crate root.
+    let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let src = if baked.is_dir() {
+        baked
+    } else {
+        std::env::current_dir()
+            .expect("a working directory")
+            .join("src")
+    };
     let needle = concat!("e", "ps");
     let mut found: Vec<(String, usize)> = Vec::new();
-    for entry in std::fs::read_dir(&src).expect("mesh/src is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
+    for path in test_utils::source::rust_sources(&src) {
         let name = path
-            .file_name()
-            .expect("file has a name")
+            .strip_prefix(&src)
+            .expect("a walked file lies under mesh/src")
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         let text = std::fs::read_to_string(&path).expect("a readable source file");
         assert!(
             !test_utils::source::mentions_raw_string(&text),
@@ -212,7 +253,12 @@ fn the_eps_inventory_is_pinned() {
              rewrite it or teach `test_utils::source` the construct."
         );
         let code = test_utils::source::code_only(&text);
-        // The production half: everything above the file's own tests.
+        let cuts = code.lines().filter(|l| *l == "#[cfg(test)]").count();
+        assert!(
+            cuts <= 1,
+            "{name} has {cuts} top-level `#[cfg(test)]` lines, so the production/test \
+             cut is ambiguous. See this row's docs on what the cut assumes."
+        );
         let prod: String = code
             .lines()
             .take_while(|l| *l != "#[cfg(test)]")
@@ -243,6 +289,6 @@ fn the_eps_inventory_is_pinned() {
         "the ε inventory moved. That is not a failure to silence: a read was added, \
          removed or renamed, and `sizing::Tol`'s ledger plus this row's per-file \
          breakdown both owe an update. Classify the new read at its site — does it \
-         REFUSE, CLASSIFY, or SCALE a number? — then re-pin here."
+         REFUSE, CLASSIFY, or SCALE a number? — then re-pin."
     );
 }
