@@ -975,24 +975,48 @@ jobs:
   # compile-side interval coverage is untouched. Only the re-execution
   # of already-executed tests is dropped.
   test-interval:
-    name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+    name: test (interval)
     runs-on: ubuntu-latest
     # `build` joins `needs` for its test list only (a few KB). It
     # finishes well before build-interval, which is the run's critical
     # path, so this adds no wall-clock.
     needs: [filter, build, build-interval]
     if: needs.filter.outputs.run_build == 'true'
-    strategy:
-      fail-fast: false
-      # One multi-ε row at interval type (D4 ¶1): the interval band test
-      # re-derives every assertion from the run's ε, so the 1e-6 row
-      # genuinely exercises a different band. Same archive both rows —
-      # eps is runtime env. `default` = env unset, and 2-way sharding —
-      # see the `test` matrix comments (the unsharded interval default
-      # leg measured 6.1 min of execution, the run's slowest).
-      matrix:
-        eps: ["default", "1e-6"]
-        shard: [1, 2]
+    # ONE JOB, BOTH ε ROWS, UNSHARDED (2026-08-20, minutes audit).
+    # This was a 2x2 matrix — eps {default, 1e-6} x shard {1,2} — and
+    # every one of the four legs billed a full minute to do 12-20 s of
+    # work (measured, run 32425890937: 12 s, 15 s, 17 s, 20 s). Four
+    # billed minutes for about one minute of execution: the per-job
+    # round-up, not the tests, was the cost.
+    #
+    # THE SHARDING'S PREMISE EXPIRED. The matrix comment justified
+    # 2-way sharding with "the unsharded interval default leg measured
+    # 6.1 min of execution, the run's slowest" — measured when this leg
+    # ran the whole interval archive. It no longer does: the
+    # interval-only SELECTION below (the set difference against the
+    # default build's test list) cut it to a handful of tests that only
+    # the interval build can exercise. At ~5 s of execution per ε row
+    # there is nothing to shard, and `count:1/2` + `count:2/2` over the
+    # same selection is by construction the unpartitioned run.
+    #
+    # This also brings hosted BACK INTO LINE with the local mirror,
+    # which never sharded these: local-scripts/ci-local.sh has exactly
+    # two rows here, `test (interval)` and `test (interval, eps = 1e-6)`,
+    # which is now what this job runs.
+    #
+    # `fail-fast: false` IS PRESERVED, deliberately, and that is what
+    # the loop below is for. The matrix gave each ε row an independent
+    # verdict; a naive `set -e` over two rows in one job would stop at
+    # the first failure and hide whether the other ε row also broke —
+    # which for a tolerance-parameterised suite is precisely the
+    # signal worth having. So each row runs to completion, its status
+    # is recorded, and the job fails at the end naming every row that
+    # failed.
+    #
+    # IF THE SELECTION EVER WIDENS AGAIN, re-measure before assuming
+    # this still holds: the guard rail is that this job must stay well
+    # under the run's critical path (build-interval, ~12 min). At ~5 s
+    # a row it has about two orders of magnitude of headroom.
     env:
       # Nothing compiles here (see the `test` job).
       RUSTUP_TOOLCHAIN: stable
@@ -1037,29 +1061,50 @@ jobs:
       # tests at all (see its header — a pncad-py-only closure is the
       # first). Conditioning on the literal keeps both behaviours: any
       # other filter that selects nothing still fails this leg.
-      - name: run archived tests (interval-only)
+      - name: run archived tests (interval-only, both ε rows)
         run: |
           selection=$(cat interval-selection.txt)
           if [ "$selection" = "none()" ]; then
-            echo "scoped no-op: the selection is none(), so this leg runs 0 tests"
+            echo "scoped no-op: the selection is none(), so this job runs 0 tests"
             no_tests="--no-tests=pass"
           else
             no_tests=""
           fi
-          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$selection" $no_tests
+          # `default` means the variable genuinely UNSET (an empty
+          # CAD_TOLERANCE_EPS is a parse error by design — the
+          # tolerance.rs multi-ε contract), so the row is run with
+          # `env -u` rather than by assigning an empty string.
+          failed=""
+          for eps in default 1e-6; do
+            echo "::group::interval-only tests, eps = $eps"
+            if [ "$eps" = default ]; then
+              env -u CAD_TOLERANCE_EPS cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E "$selection" $no_tests
+            else
+              CAD_TOLERANCE_EPS="$eps" cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E "$selection" $no_tests
+            fi && status=0 || status=$?
+            echo "::endgroup::"
+            if [ "$status" -ne 0 ]; then
+              echo "::error::interval-only tests FAILED at eps = $eps (exit $status)"
+              failed="$failed $eps"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "interval-only tests failed at these ε rows:$failed" >&2
+            exit 1
+          fi
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
       - name: persistence save/load/replay-identity (interval)
-        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
+        if: needs.filter.outputs.run_editor_core == 'true'
         run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'"
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
-        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
+        if: needs.filter.outputs.run_editor_core == 'true'
         run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'"
 
   # The archives exist only to ferry binaries from the build jobs to the
