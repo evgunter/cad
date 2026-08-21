@@ -9328,6 +9328,27 @@ lexing and exactly one disclosed blind spot, and none of the four that
 cost coverage — delegation needs a call graph, aliasing needs name
 resolution, `cfg` needs evaluation.
 
+**The item scan dropped items, and no count moved.** Adversarial
+verification of `CodeOnly` — 2,021 generated snippets run differentially
+against **rustc 1.97.0's own lexer**, with `E0425 cannot find function
+NEEDLE` as ground truth for *"this text is code"* — cleared the blanker
+outright, 0 silent and 0 loud, and found the defect one layer above it:
+the scan took the first `{`-or-`;` after the parameter list, so a `;`
+inside an **array type in return position** (`-> [f64; 3]`, house style
+in this kernel) ended the signature and the whole `pub fn` was skipped.
+`null.rs`'s `loops` was live in the tree and absent from the walk — the
+same standalone differential over `topo/src` gives **159 items before
+and 160 after**. A planted mutation door with an array return was
+**invisible to all three guards with no count moving at all**, which is
+S92's own silent direction one layer above the lexer the second pass
+fixed; it now reds all three. `body_start` is bracket- and paren-aware,
+and a recognised public `fn` head this reader cannot parse **panics**
+rather than being skipped, because a dropped item is a door nothing
+classifies and no count moves for. **The differential method is written
+down beside `CodeOnly`** so the next reader re-runs the proof instead of
+re-arguing it — the reader's standing caveat was *"not proved against a
+grammar"*, and that now has an answer someone can execute.
+
 **Two guards now, not one, and neither is by construction.** The
 co-domain claim under *"two properties of one set"* is asserted by
 `the_two_door_tables_cover_the_same_surface`: a door that both asserts
@@ -9337,7 +9358,12 @@ is the only row that reds. The two hand-chosen floors are gone,
 replaced by one walk floor derived from the measured 37 and one
 by-name pin per guard — the pcurve one because over-stripping is
 **silent** there, a door that stops reading as minting falling to its
-own entry rather than reddening.
+own entry rather than reddening. **That pin is exactly one door wide**,
+which the site now says: the 36 declared doors land in the same arm
+whether or not their needle survives, so a declared non-`Maintains` door
+that starts minting under an over-strip would not reach `mislabelled`.
+Closing that needs a second oracle for *"does this body call it"*, which
+a source read does not have.
 
 **The class.** Swept with `&mut self")` (2 hits, both fixed),
 `body\.contains(` (3 hits, 2 fixed) and the callers of

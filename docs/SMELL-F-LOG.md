@@ -950,7 +950,7 @@ row, which is the thing that was at risk.**
 
 
 
-### F-a — F5 (S92) — PR #788, **NOT CLEARED on first pass**, fixed in the same PR
+### F-a — F5 (S92) — PR #788, **NOT CLEARED twice**, both passes fixed in the same PR
 
 One home for
 the mutation-door set and for the Rust reader under it
@@ -986,6 +986,25 @@ over-strip defects (byte raw strings, char-literal escapes), that
 *"over-stripping is loud"* is **false of the pcurve guard**, and that the
 argument for staying textual rather than parsing existed nowhere — all now
 fixed or written at the site.
+
+**Adversarial verification found a second silent hole, one layer up again
+(F1).** The blanker itself was **cleared by the strongest method used on this
+track** — 2,021 generated snippets run differentially against rustc 1.97.0's
+own lexer, `E0425 cannot find function NEEDLE` as ground truth for *"this text
+is code"*, 0 silent and 0 loud. The defect was in the item scan built on it:
+the first `{`-or-`;` after the parameter list ended the signature, so a `;`
+inside an **array return type** (`-> [f64; 3]`, house style here) dropped the
+whole `pub fn`. `null.rs::loops` was live and missing from the walk (159 items
+where 160 exist), and a planted mutation door with an array return was
+**invisible to all three guards with no count moving** — the third finding
+shape, and S92's own silent direction one layer above the lexer the second pass
+fixed. Fixed bracket- and paren-aware, plus a rule that this reader may not
+skip a public `fn` head it cannot parse: it panics. Re-measured 159 → 160, and
+the planted door now reds all three guards. **The differential method is
+recorded beside `CodeOnly`**, because *"I did not prove it against a grammar"*
+was the lane's own standing caveat and the answer is a method, not an argument.
+The verification also confirmed, rather than broke, the lane's own narrowing:
+the pcurve by-name pin is **exactly one door wide**, and the site now says so.
 
 **Residue: S117 / D61**, **eleven** further source-text guards, not the seven
 this lane first wrote — the count moved 7 → 9 → 11 inside one review cycle,
