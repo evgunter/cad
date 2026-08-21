@@ -126,8 +126,29 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
         m.volume_pad
     );
     // The caps' closed forms contribute pad-free; the walls' area is
-    // an honest enclosure (positive, finite).
-    assert!(m.surface_area > 0.0 && m.area_pad.is_finite());
+    // an honest enclosure — positive, and NARROW. The ceiling is what
+    // reports a widening: containment and positivity are both monotone
+    // in the degrading direction, so a certified width with only those
+    // two rows under it has nothing that goes red when it grows.
+    //
+    // This lane's area width is RESOLUTION-driven, not tolerance-driven
+    // — the patch area rule is O(h) at a fixed cell count — so the
+    // measured 0.199 m² (0.79% of the 25.31 m² surface) is identical at
+    // every ε CI runs, and it doubles exactly when the cell count
+    // halves. The ceiling is 1.5x the measured width, which leaves it
+    // below the 0.397 m² a single halving of that count produces.
+    //
+    // The contrast is the point: this same body's certified VOLUME
+    // bracket is 1.1e-13 m³ wide. The flux lane refines to machine
+    // precision; the area lane stays at whatever its fixed resolution
+    // bought.
+    assert!(m.surface_area > 0.0);
+    assert!(
+        m.area_pad < 0.3,
+        "the walls' area enclosure is {} m² wide (surface area {} m²)",
+        m.area_pad,
+        m.surface_area
+    );
 }
 
 /// **The cut-loft row (M6-3 §7, the PR 10 §5 contract verbatim):** a

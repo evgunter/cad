@@ -93,6 +93,27 @@ fn below_half_area_enclosure_brackets_the_closed_form() {
         m.surface_area - m.area_pad,
         m.surface_area + m.area_pad
     );
+    // The bracket is also USEFUL — the same obligation the volume row
+    // above carries, and the reason a certified width needs a row of
+    // its own: containment and positivity both get EASIER as the pad
+    // grows, so on their own they report no width regression at all.
+    //
+    // The ceiling is anchored on this lane's STRUCTURAL maximum rather
+    // than on today's value. `cylinder_cut_face` refines a piece count
+    // until the flux meter reaches its target, so the widest area
+    // enclosure it can return is the one it starts from — the initial
+    // piece count with no refinement round taken. That saturation is
+    // 9.7e-5·exact, and CI's ε = 1e-6 leg already sits on it (it
+    // converges at round 0, so loosening the target moves nothing);
+    // the ε = 1e-12 leg is 3.6e-10·exact. Clearing the saturated
+    // maximum ~3x is therefore headroom against the pad DERIVATION
+    // widening — a coarser initial resolution, a wider boundary pad —
+    // and not against the convergence funnel, which cannot get there.
+    assert!(
+        m.area_pad < 3e-4 * exact,
+        "area pad {} vs exact area {exact}",
+        m.area_pad
+    );
 }
 
 /// Tier 3 flips: check 7 (VolumeUncomputable) retires for the newly
