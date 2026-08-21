@@ -14050,6 +14050,32 @@ orchestrator"* rule was written for lanes inside one track and does not survive
 four concurrent orchestrators drawing on one sequence from branches none of them
 can see.
 
+**Track G's second block is `D120`–`D139` and `S190`–`S209`**, claimed
+2026-08-21 **and published here rather than only in `SMELL-G-LOG.md`, which is
+the whole point.** It is deliberately clear of every number in use and of every
+published reservation, with a gap above the highest, because the cost of a gap
+is nothing and the cost of an overlap is a landed collision.
+
+**Track G's first attempt at a second block was `D111`–`D125` / `S167`–`S181`,
+and it was wrong.** It was derived from *the highest number in use anywhere*
+instead of from *the reservations published in this section* — so it drove
+straight through **`S157`–`S168`, which the contents line above already assigns
+to Track F**, and `S167`/`S168` were handed to a Track G lane while Track F
+findings already occupied them. Separately `S169` was minted twice, an hour
+apart, by Track F's F-d and a Track G lane on branches that could not see each
+other, because **both tracks drew from above their spent block instead of
+reserving a new one** — which puts every track back on the single unsynchronised
+sequence the block system exists to replace.
+
+**So the rule the blocks always implied, now written down:** a new block is
+**read off the reservations in this section, never derived from usage**, and it
+is **published here before a lane is given a number from it**. Usage is a lower
+bound on what is taken; only this list says what is *claimed*. The numbers Track
+G already spent above `S169` (`S170`–`S177`, `D111`, `D113`, `D114`) stand — they
+collide with nothing — and `S167`/`S168` are being returned to Track F and
+reissued from the block above.
+
+
 **Three edges this table did not carry, and one it carried wrongly**, all
 re-derived from the branches rather than from the schedule (G-R1 through G-R7 in
 the track log):
