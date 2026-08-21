@@ -1700,6 +1700,15 @@ precursor of the error-propagation feature.
   the parameter box. Sketch solver when sketches should become
   constraint-driven rather than programmatic. Design record:
   `docs/ERROR-DESIGN.md`.
+  **Note, carried in as an open question (Evan, 2026-08-21):** *figure
+  out what a `Dual` actually has to do*, and clean up the `Bounds` /
+  `CertifiedEnclosure` split on that answer. **D1**'s *"at least for
+  now"* is what this collects — since 2026-08-19 the dual's refusal
+  rests on the ruling rather than on its lack of a bracket, so what a
+  dual may do is a decision rather than a fact about the type.
+  **Deliberately not answered here**, and not to be answered by
+  speculating about what M10 will need: recorded so it is a question
+  M10 opens with rather than one it rediscovers.
 - **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as
