@@ -123,6 +123,23 @@ worktree**: every resumed command must carry `cd <clone> && ...` in the
 same Bash call, and post-resume battery claims are trusted only after
 verifying the transcript rows carried the cd.
 
+**Merging is destructive to checks — four rules, each guarding a silent or
+permanent failure rather than a red build.** Before merging, filter the check
+runs (`gh api .../check-runs`): reject any `conclusion` that is not `success`,
+**and separately confirm none is still in flight** — a check still running when
+you merge dies at checkout, can never be re-run (a `pull_request` run cannot
+re-checkout a merged ref), and its retry reproduces the failure, so it reads as
+a defect forever. Confirm a *skip* is habitual by checking earlier green runs of
+the same branch. Resolving a conflict where **both sides deleted** something:
+take the union of the deletions, **derived from `main`**, never "keep both
+sides" — keeping yours resurrects what another lane struck, and it looks clean.
+After any resolution, grep the **whole tree** for conflict markers, not the file
+you resolved: `git add -A && git commit --no-edit` on a merge stages a
+conflicted file verbatim and needs no message, so nothing prompts. Then check
+the post-condition **against the merged tree**, not against your diff — a row
+you never touched cannot appear in your diff, which is why the diff cannot tell
+you whether it should have been.
+
 **CONFLICTING = silent CI outage.** A PR that goes CONFLICTING against
 main runs NO check runs at all — it looks like CI is absent, not
 failing. Every implementer brief and PR checklist carries "merge
