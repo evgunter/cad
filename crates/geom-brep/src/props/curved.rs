@@ -434,11 +434,9 @@ impl<T: Real> RimArms<T> {
 ///   the level margin borrowing it.
 /// * **the fail direction.** A mixed representation is structurally
 ///   impossible (one surface builds every rim of a face AND both its
-///   ends), and it REFUSES here. The poisoned margin goes through the
-///   funnel first so the ordinary outcome is a typed escalation rather
-///   than a panic (D9), and a `Zero` from it still refuses — answering
+///   ends), and it REFUSES here — [`mixed_levels`]. Answering
 ///   `Ok(false)` would let a caller that only groups carry on, and
-///   [`require_zero`] would let the `Zero` through outright.
+///   [`require_zero`] would let a poisoned `Zero` through outright.
 ///
 /// `against` is the candidate list: the nearest candidate is what is
 /// decided, so a rim sitting exactly on one extreme is not made to
@@ -458,38 +456,53 @@ fn level_coincides<T: Decide>(
     arms: RimArms<T>,
     band: Band,
 ) -> Result<bool, PropsError> {
-    let mut gap = None;
-    for other in core::iter::once(first).chain(rest.iter().copied()) {
-        let d = match (level, other) {
-            (RimLevel::Length(a), RimLevel::Length(b)) => (a - b).abs(),
-            (RimLevel::Unit(sa, ca), RimLevel::Unit(sb, cb)) => {
-                // powi(2), not x*x: the interval square is tight and
-                // nonnegative, so the sqrt stays fully in-domain even
-                // when the difference encloses zero (an x*x interval
-                // product has a negative lower bound there, and the
-                // domain-clamped sqrt's decoration would poison the
-                // margin — found live on the interval-lane donut).
-                ((sa - sb).powi(2) + (ca - cb).powi(2)).sqrt()
-            }
-            _ => {
-                classify(name, Margin::of(T::from_f64(f64::NAN)), band)?;
-                return Err(PropsError::NotIsoRectangle { what: name });
-            }
+    let Some(mut gap) = level_gap(level, first) else {
+        return Err(mixed_levels::<T>(name, band));
+    };
+    for &other in rest {
+        let Some(d) = level_gap(level, other) else {
+            return Err(mixed_levels::<T>(name, band));
         };
-        gap = Some(match gap {
-            Some(g) => d.min(g),
-            None => d,
-        });
+        gap = gap.min(d);
     }
-    let margin = match (level, gap) {
-        (RimLevel::Length(_), Some(g)) => Margin::of(g),
-        (RimLevel::Unit(..), Some(g)) => Margin::levered(g, arms.level),
-        // `first` is a value, so the loop above runs at least once and
-        // `gap` is `Some` — the arm exists because the compiler cannot
-        // see that, and it refuses rather than unwrapping (D9).
-        (_, None) => return Err(PropsError::NotIsoRectangle { what: name }),
+    let margin = match level {
+        RimLevel::Length(_) => Margin::of(gap),
+        RimLevel::Unit(..) => Margin::levered(gap, arms.level),
     };
     Ok(classify(name, margin, band)? == Sign::Zero)
+}
+
+/// How far apart two rim levels are, **in the level's own units**:
+/// meters for [`RimLevel::Length`] (already a point deviation) and the
+/// dimensionless direction CHORD for [`RimLevel::Unit`] (a point
+/// deviation once levered). `None` for a mixed pair, which
+/// [`level_coincides`] turns into a refusal.
+fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
+    match (a, b) {
+        (RimLevel::Length(la), RimLevel::Length(lb)) => Some((la - lb).abs()),
+        (RimLevel::Unit(sa, ca), RimLevel::Unit(sb, cb)) => {
+            // powi(2), not x*x: the interval square is tight and
+            // nonnegative, so the sqrt stays fully in-domain even when
+            // the difference encloses zero (an x*x interval product has
+            // a negative lower bound there, and the domain-clamped
+            // sqrt's decoration would poison the margin — found live on
+            // the interval-lane donut).
+            Some(((sa - sb).powi(2) + (ca - cb).powi(2)).sqrt())
+        }
+        _ => None,
+    }
+}
+
+/// The refusal a mixed-representation level pair gets. The escalation
+/// is attempted first, so the ordinary outcome is a typed
+/// [`PropsError::Escalated`] rather than a panic (D9); a `Zero` from
+/// the poisoned margin still refuses, which is why this is not routed
+/// through [`require_zero`].
+fn mixed_levels<T: Decide>(name: &'static str, band: Band) -> PropsError {
+    match classify::<T>(name, Margin::of(T::from_f64(f64::NAN)), band) {
+        Ok(_) => PropsError::NotIsoRectangle { what: name },
+        Err(escalated) => escalated,
+    }
 }
 
 /// **The iso-rectangle predicate**: every rim sits at one of the
