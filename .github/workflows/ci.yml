@@ -562,6 +562,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: rustfmt
         run: cargo fmt --all --check
+      # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
+      # comment can silently stop rendering with the gate green. The
+      # command, the flags, and the shrinking exclusion list all live in
+      # scripts/doc-gate.sh — one implementation, called from here and
+      # from local-scripts/ci-local.sh, the ci-filter.py arrangement.
+      # NOT scoped by the filter, deliberately: it is a workspace-wide
+      # ratchet over a fixed crate set, so scoping it to the change
+      # closure would trade the ratchet's meaning for no measurable
+      # time. It still respects the docs tier via this job's run_build.
+      #
       # Runs even when rustfmt failed: formatting and doc coverage are
       # independent verdicts, and the matrix-free merge must not turn
       # two findings into one. `!cancelled()` rather than `always()` so
