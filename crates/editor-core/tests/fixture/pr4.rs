@@ -31,7 +31,13 @@ use super::{ang, desc, insert, len, scl, step};
 /// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide
+        + ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::PropsQuadLane
+        + sweep::fillet::FilletLane,
 {
     evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
 }
@@ -76,7 +82,13 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide
+        + ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::PropsQuadLane
+        + sweep::fillet::FilletLane,
 {
     let mut out = Vec::new();
 

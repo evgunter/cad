@@ -68,7 +68,7 @@ use geom_core::predicate::Decide;
 /// three bridge rows below are what keep it honest.
 fn requires_everything_but_content_bits<T>()
 where
-    T: Decide + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + geom_core::Bounds + Send + Sync + topo::PropsQuadLane + sweep::fillet::FilletLane,
 {
 }
 
@@ -89,7 +89,8 @@ where
         + Send
         + Sync
         + topo::PropsQuadLane
-        + editor_core::eval::ContentBits,
+        + editor_core::eval::ContentBits
+        + sweep::fillet::FilletLane,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -106,7 +107,8 @@ where
         + Send
         + Sync
         + topo::PropsQuadLane
-        + editor_core::eval::ContentBits,
+        + editor_core::eval::ContentBits
+        + sweep::fillet::FilletLane,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

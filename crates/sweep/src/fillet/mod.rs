@@ -224,6 +224,10 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet a set of edges whose open ch
 /// bodies are a separate door.
 pub const FILLET3_BODY_RECOURSE: &str = "fillet a body that is a single solid with a single shell; filleting across \
      several solids at once is not implemented";
+/// The recourse for a scalar with no certified fillet lane.
+pub const FILLET3_LANE_RECOURSE: &str = "run the fillet at a certifying scalar (f64, the interval scalar, the telemetry \
+     probe); a dual scalar carries a bracket but may not certify, and a fillet's \
+     every predicate is a certified margin";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
@@ -264,6 +268,12 @@ pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose rolling-ball sp
 pub enum FilletError {
     /// The run's tolerance did not yield a valid band.
     Band(BandError),
+    /// This scalar has no certified fillet lane — [`FilletLane`]'s
+    /// refusing side. The assembly instantiates none of the battery.
+    LaneUnsupported {
+        /// The refusing lane's name, for the message.
+        scalar: &'static str,
+    },
     /// The chain's edges do not form a connected path, or an edge is
     /// not in the body at all — a structural precondition, checked
     /// before any margin.
@@ -504,6 +514,11 @@ impl fmt::Display for FilletError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "fillet: {e}"),
+            Self::LaneUnsupported { scalar } => write!(
+                f,
+                "fillet: the {scalar} scalar has no certified fillet lane — \
+                 {FILLET3_LANE_RECOURSE}"
+            ),
             Self::ChainNotConnected { edge } => write!(
                 f,
                 "fillet chain: the edge sequence is not a connected path at {edge:?} — \
@@ -652,9 +667,9 @@ mod recourse_tests {
     use super::{
         FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
-        FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-        FilletError, FilletSite,
+        FILLET3_GEOMETRY_RECOURSE, FILLET3_LANE_RECOURSE, FILLET3_RADIUS_RECOURSE,
+        FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+        FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
     };
 
     /// Every recourse sentence this module can append.
@@ -707,6 +722,9 @@ mod recourse_tests {
     fn contract(err: &FilletError) -> (FilletError, Recourse) {
         match err {
             FilletError::Band(_) => (err.clone(), Recourse::None),
+            FilletError::LaneUnsupported { .. } => {
+                (err.clone(), Recourse::Exactly(FILLET3_LANE_RECOURSE))
+            }
             FilletError::ChainNotConnected { .. } => {
                 (err.clone(), Recourse::Exactly(FILLET3_CHAIN_RECOURSE))
             }
@@ -765,6 +783,7 @@ mod recourse_tests {
     fn seeds() -> Vec<FilletError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         vec![
+            FilletError::LaneUnsupported { scalar: "dual" },
             FilletError::UnsupportedBody {
                 solids: 2,
                 shells: 2,
@@ -833,5 +852,90 @@ mod recourse_tests {
                 ),
             }
         }
+    }
+}
+
+/// **The per-scalar fillet lane** — the static split that lets the
+/// evaluation service stay generic over its scalar while
+/// [`fillet_edges`] stays closed to non-certifying ones.
+///
+/// Certifying scalars (`f64`, `Probe`, the interval scalar) reach the
+/// assembly; the dual scalar REFUSES statically, its impl
+/// instantiating none of the battery and returning
+/// [`FilletError::LaneUnsupported`]. That is the `PropsQuadLane`
+/// shape, and it is here for the reason that shape exists: a fillet
+/// node is ONE arm of a pass — `editor_core::eval::evaluate` — whose
+/// other node kinds are genuine non-certifying work a dual can still
+/// do, and no bound on a whole function can say *"this arm certifies,
+/// the rest does not"*.
+///
+/// The lane is not what keeps a dual out of the kernel door.
+/// [`fillet_edges`], [`run_battery`] and
+/// [`surgery::ring_clearance`] all bound
+/// `Decide + `[`geom_core::CertifiedBounds`], which no
+/// [`Dual`](geom_core::Dual) satisfies; this lane is what keeps that
+/// refusal from propagating into a pass's bound.
+pub trait FilletLane: Decide {
+    /// The fillet door at this scalar.
+    ///
+    /// # Errors
+    ///
+    /// [`FilletError`] as [`fillet_edges`], or
+    /// [`FilletError::LaneUnsupported`] on the refusing lane.
+    fn fillet(
+        body: &topo::Body<Self>,
+        edges: &[EdgeKey],
+        radius: Self,
+        band: Band,
+    ) -> Result<Filleted<Self>, FilletError>;
+}
+
+impl FilletLane for f64 {
+    fn fillet(
+        body: &topo::Body<Self>,
+        edges: &[EdgeKey],
+        radius: Self,
+        band: Band,
+    ) -> Result<Filleted<Self>, FilletError> {
+        fillet_edges(body, edges, radius, band)
+    }
+}
+
+#[cfg(feature = "probe")]
+impl FilletLane for geom_core::Probe {
+    fn fillet(
+        body: &topo::Body<Self>,
+        edges: &[EdgeKey],
+        radius: Self,
+        band: Band,
+    ) -> Result<Filleted<Self>, FilletError> {
+        fillet_edges(body, edges, radius, band)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl FilletLane for geom_core::interval::Interval {
+    fn fillet(
+        body: &topo::Body<Self>,
+        edges: &[EdgeKey],
+        radius: Self,
+        band: Band,
+    ) -> Result<Filleted<Self>, FilletError> {
+        fillet_edges(body, edges, radius, band)
+    }
+}
+
+/// The dual lane: statically no fillet assembly (trait docs).
+impl<T> FilletLane for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: Decide,
+{
+    fn fillet(
+        _body: &topo::Body<Self>,
+        _edges: &[EdgeKey],
+        _radius: Self,
+        _band: Band,
+    ) -> Result<Filleted<Self>, FilletError> {
+        Err(FilletError::LaneUnsupported { scalar: "dual" })
     }
 }

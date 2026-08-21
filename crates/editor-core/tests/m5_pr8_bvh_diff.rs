@@ -40,7 +40,8 @@ where
         + geom_core::Bounds
         + Send
         + Sync
-        + topo::PropsQuadLane,
+        + topo::PropsQuadLane
+        + sweep::fillet::FilletLane,
 {
     let opts = EvalOptions {
         boolean_sweep: strategy,

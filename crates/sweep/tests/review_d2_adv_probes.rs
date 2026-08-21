@@ -381,6 +381,7 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
 fn class(e: &FilletError) -> &'static str {
     match e {
         FilletError::Band(_) => "Band",
+        FilletError::LaneUnsupported { .. } => "LaneUnsupported",
         FilletError::ChainNotConnected { .. } => "ChainNotConnected",
         FilletError::RadiusHeadroom { .. } => "RadiusHeadroom",
         FilletError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",

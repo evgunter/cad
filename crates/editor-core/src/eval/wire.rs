@@ -96,7 +96,13 @@ pub(crate) fn run_op<T>(
     env: &OpEnv<'_, T>,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide
+        + super::ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::PropsQuadLane
+        + sweep::fillet::FilletLane,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals)?, names::empty())),
@@ -168,7 +174,13 @@ fn wire_instantiate_part<T>(
     env: &OpEnv<'_, T>,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide
+        + super::ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::PropsQuadLane
+        + sweep::fillet::FilletLane,
 {
     let part = env
         .parts
@@ -638,7 +650,7 @@ fn wire_revolve<T: Decide>(
 /// result carries, even against a disjoint operand — and that
 /// frontier, which predates M6-5, is pinned executed in the same
 /// file. The naming side is ready; the kernel side is not.
-fn wire_fillet<T: Decide + geom_core::Bounds>(
+fn wire_fillet<T: Decide + sweep::fillet::FilletLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
@@ -650,8 +662,7 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(selection, doc, &target_table)?;
-    let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band()?)
-        .map_err(NodeErrorKind::Fillet)?;
+    let filleted = T::fillet(&body, &edges, radius, band()?).map_err(NodeErrorKind::Fillet)?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
