@@ -537,12 +537,12 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — open now.** These three share no file with each other, with
-Track C's open lanes, or with Track E's.
+**Wave 1 is empty — all three lanes are done.** F-b (#783) and F-c (#790) have
+landed; **F-a's PR #788 is open**, carrying its F-R8/F-R9 style fix pass and
+its F1 verification fix pass. See *Landings*.
 
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
-| **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
 **reused** stale lanes from finished work, renamed and reset to `origin/main`
@@ -1544,6 +1544,82 @@ halves.
   not a defect in `ssi`, and the fit budget it was hiding is D9's documented
   constant behaving as documented.
 
+
+
+
+### F-a — F5 (S92) — PR #788, **NOT CLEARED twice**, both passes fixed in the same PR
+
+One home for
+the mutation-door set and for the Rust reader under it
+(`topo/src/source_walk.rs`, a new sibling of `fixtures.rs`), and a classifier
+that reads code rather than prose. Measured at merge base
+`4f959cb4`: the walk finds **37** doors; the duplicated `&mut self` /
+`&mut Body` predicate was **byte-identical** at the two sites, not merely
+near-identical; the two tables (23 and 36 entries, **22 names in both**) were
+consistent with each other and **deliberately did not merge** — they are two
+properties of one set, and a merged table would let an edit about pcurve
+staleness red the tier-1 guard. Both sites now carry that reason.
+
+The string-match hole was **demonstrated before it was closed**: a planted
+door whose body held only two comments naming the two literals left both
+guards green and counted compliant (38 doors: 15 asserting / 23 allowlisted;
+2 re-minting / 36 declared). After the change the same plant reds both.
+`MutationDoor` hands out a body with comments, string and char literals
+blanked, so a consumer is never given a raw body to `contains` on, and
+`source_walk::tests` pins the mechanism in both directions — nine
+spellings of the plant that must not read as calls, ten real calls that must,
+and one whole-pipeline row over text the earlier scan could not survive. Door counts are unchanged by the fix, so nothing was over-stripped.
+
+**Not cleared on first pass (F-R8, F-R9), fixed in the same PR.** The style
+review reproduced the finding's own defect one layer beneath the fix: the
+delimiter matcher that carved bodies for the blanker knew none of the three
+constructs the blanker was written for, so a door carrying `'"'` was dropped
+from the walk and the next one's body corrupted. `CodeOnly` is now the crate's
+only reader for this walk and the item scan is a method on it, so nothing can
+run it over un-blanked text. (**Not** the crate's only reader: G-g landed a
+second `code_only` in `fixtures.rs` during this unit's review, and the two met
+in its merge — S117/D61's twelfth member, recorded there.) Demonstrated on named trees: the pre-fix scanner extracted
+from `6a2d237a` and run standalone loses the `'"'`-carrying door and finds only
+the door after it; the current one finds both. The review also found two
+over-strip defects (byte raw strings, char-literal escapes), that
+*"over-stripping is loud"* is **false of the pcurve guard**, and that the
+argument for staying textual rather than parsing existed nowhere — all now
+fixed or written at the site.
+
+**Adversarial verification found a second silent hole, one layer up again
+(F1).** The blanker itself was **cleared by the strongest method used on this
+track** — 2,021 generated snippets run differentially against rustc 1.97.0's
+own lexer, `E0425 cannot find function NEEDLE` as ground truth for *"this text
+is code"*, 0 silent and 0 loud. The defect was in the item scan built on it:
+the first `{`-or-`;` after the parameter list ended the signature, so a `;`
+inside an **array return type** (`-> [f64; 3]`, house style here) dropped the
+whole `pub fn`. `null.rs::loops` was live and missing from the walk (159 items
+where 160 exist), and a planted mutation door with an array return was
+**invisible to all three guards with no count moving** — the third finding
+shape, and S92's own silent direction one layer above the lexer the second pass
+fixed. Fixed bracket- and paren-aware, plus a rule that this reader may not
+skip a public `fn` head it cannot parse: it panics. Re-measured 159 → 160, and
+the planted door now reds all three guards. **The differential method is
+recorded beside `CodeOnly`**, because *"I did not prove it against a grammar"*
+was the lane's own standing caveat and the answer is a method, not an argument.
+The verification also confirmed, rather than broke, the lane's own narrowing:
+the pcurve by-name pin is **exactly one door wide**, and the site now says so.
+
+**Residue: S117 / D61**, **twelve** further source-text guards, not the seven
+this lane first wrote — the count moved **7 → 9 → 11 → 12 in a single session**,
+twice under the lane, once under its review, and once by a member *arriving*, each step a differently-*shaped*
+sweep (`include_str!` was the spelling all six of the lane's patterns missed).
+**Twelve stays written as a floor and the row carries the count's history**, on
+the orchestrator's instruction: a number that has moved three times is better
+evidence of the population's shape than any single value of it. The sharper framing came with the third sweep:
+**four hand-rolled Rust readers exist in this workspace and no two lex the same
+language**, and `pncad/tests/all.rs`'s `code_without_comments` carries the same
+`'"'` defect this lane's review found, worked around in a comment rather than
+fixed. Of the twelve, **seven** are served by `CodeOnly` as shipped, **three**
+need a comments-only variant and one needs the inverse; five are outside `topo`,
+so the row's real question is whether this warrants a test-support crate.
+`topo/src/{face_normal,chord_join}.rs` are Track G's G8/G9 and
+`pncad/tests/all.rs` is Track E's #763 — flagged there, not taken. **S118 and D62 were reserved to F-a and are unused.**
 
 ## Incidents
 

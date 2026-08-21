@@ -27,6 +27,8 @@ use pncad::document::{
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::profile::PathError;
+use pncad::step_import::StepImportError;
+use pncad::workspace::WorkspaceError;
 
 /// The stable tag for a PATHS authoring refusal.
 ///
@@ -335,6 +337,79 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::EditReplay { .. } => "edit_replay",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
+    }
+}
+
+/// The stable tag for a WORKSPACE refusal.
+///
+/// `WorkspaceError` implements `Display`, so the human message is the
+/// store's own prose and this is the branchable discriminant — the
+/// [`persist_error_tag`] treatment.
+///
+/// The four wrapping arms keep their own tag rather than carrying the
+/// inner [`PersistError`]'s through: the STAGE is the discriminant a
+/// caller branches on (a file whose header refused is a different
+/// situation from one whose body did), and it is what would be lost
+/// by flattening. A caller wanting the inner refusal reads it from
+/// the message, exactly as before.
+///
+/// Exhaustive, per this module's rule, and here that rule is doing
+/// real work: only one door raises a `WorkspaceError` into Python
+/// today, and its message would be perfectly true under any label —
+/// so a mislabelled variant is invisible from Python and invisible in
+/// CI. The map is what makes the label a fact about the value instead
+/// of a fact about which door happened to raise it.
+pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
+    match err {
+        WorkspaceError::Io { .. } => "io",
+        WorkspaceError::DuplicateId { .. } => "duplicate_id",
+        WorkspaceError::Header { .. } => "header",
+        WorkspaceError::UnknownId { .. } => "unknown_id",
+        WorkspaceError::Load { .. } => "load",
+        WorkspaceError::Pin { .. } => "pin",
+        WorkspaceError::PinMismatch { .. } => "pin_mismatch",
+        WorkspaceError::Save { .. } => "save",
+        WorkspaceError::RandomnessUnavailable { .. } => "randomness_unavailable",
+        WorkspaceError::Update { .. } => "update",
+    }
+}
+
+/// The stable tag for a STEP IMPORT refusal.
+///
+/// `StepImportError` implements `Display`, so the human message is the
+/// importer's own prose naming the entity id and line; this is the
+/// branchable discriminant. Twenty-one arms, and unlike
+/// [`workspace_error_tag`]'s door **every one of them is reachable**
+/// through `import_step` — a caller distinguishing a malformed file
+/// from an unsupported entity from a tier refusal has no other way to
+/// do it, because the id and line live in prose.
+///
+/// The nested arms keep their own tag rather than carrying the inner
+/// refusal's through: what the caller branches on is which STAGE of
+/// the import refused, and the inner error is in the message.
+pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
+    match err {
+        StepImportError::Syntax { .. } => "syntax",
+        StepImportError::DanglingReference { .. } => "dangling_reference",
+        StepImportError::WrongEntityType { .. } => "wrong_entity_type",
+        StepImportError::MalformedRecord { .. } => "malformed_record",
+        StepImportError::UnsupportedEntity { .. } => "unsupported_entity",
+        StepImportError::UnsupportedUnit { .. } => "unsupported_unit",
+        StepImportError::NothingToImport => "nothing_to_import",
+        StepImportError::Structure { .. } => "structure",
+        StepImportError::MissingUncertainty => "missing_uncertainty",
+        StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
+        StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
+        StepImportError::MalformedReal { .. } => "malformed_real",
+        StepImportError::Topology { .. } => "topology",
+        StepImportError::Assembly { .. } => "assembly",
+        StepImportError::Adoption { .. } => "adoption",
+        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
+        StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
+        StepImportError::Pcurves { .. } => "pcurves",
+        StepImportError::Placement { .. } => "placement",
+        StepImportError::Instance { .. } => "instance",
+        StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
 
