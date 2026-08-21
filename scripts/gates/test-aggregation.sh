@@ -12,10 +12,12 @@
 # bazel-verdict measurement put 494 of the 514 s of the CI build job
 # (96%) in exactly those per-binary actions, ~1.9 s each. #179 collapsed
 # 249 targets to 12 on that evidence — and `step-import` was MISSED,
-# silently keeping 26 targets, two thirds of every remaining test target
-# in the workspace, until the 2026-08-10 build-contention investigation
+# silently keeping 26 targets, two thirds of every test target the
+# workspace then had, until the 2026-08-10 build-contention investigation
 # found it. A convention that is checked by nobody decays exactly that
-# way, so it is checked here.
+# way, so it is checked here. Those two figures are the record of that
+# event and not claims about today; what this gate asserts is the
+# INVARIANT, and it prints the current total rather than pinning one.
 #
 # The complementary half lives in each crate's `tests/all.rs`:
 # `every_suite_file_is_aggregated` fails when a member HAS opted in but
@@ -167,7 +169,7 @@ selftest_stderr_noise() {
     printf 'exec %s "$@"\n' "$(command -v cargo)"
   } > "$bin/cargo"
   chmod +x "$bin/cargo"
-  if ! out=$(cd "$tmp" && PATH="$bin:$PATH" gate 2>&1); then
+  if ! out=$(PATH="$bin:$PATH" "$0" --root "$tmp" 2>&1); then
     rm -rf "$tmp" "$bin"
     printf 'SELFTEST FAILED: the gate FAILED on a clean fixture when cargo wrote to stderr\n%s\n' "$out" >&2
     exit 1
@@ -193,12 +195,13 @@ selftest_cargo_reply() {
     printf 'exec %s "$@"\n' "$(command -v cargo)"
   } > "$bin/cargo"
   chmod +x "$bin/cargo"
-  if out=$(cd "$tmp" && PATH="$bin:$PATH" gate 2>&1); then
+  if out=$(PATH="$bin:$PATH" "$0" --root "$tmp" 2>&1); then
     rm -rf "$tmp" "$bin"
     printf 'SELFTEST FAILED: the gate PASSED on a cargo reply it cannot use (%s)\n%s\n' "$reply" "$out" >&2
     exit 1
   fi
   rm -rf "$tmp" "$bin"
+  gate_selftest_assert_diagnosed "$reply" "$out"
   case "$out" in
     *"$want"*) ;;
     *) printf 'SELFTEST FAILED: expected %s, got:\n%s\n' "$want" "$out" >&2; exit 1 ;;

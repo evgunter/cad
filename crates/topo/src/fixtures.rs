@@ -34,15 +34,6 @@
 //! the topology itself, and that is what orientation reasoning in tests
 //! points at.
 //!
-//! # Not fixtures: the source walk
-//!
-//! [`src_root`], [`collect_rs`], [`crate_sources`] and [`public_fns`]
-//! read this crate's own `.rs` files. They are here rather than beside
-//! any one caller because several guards walk the sources — an
-//! anti-re-fork guard should not be the next copy of its own walk —
-//! and [`public_fns`] is a hand-rolled Rust reader, deliberately: the
-//! properties those guards check are about the SOURCE surface, which
-//! nothing at runtime can enumerate.
 
 // Test-support code: panicking is a test's failure mechanism (L5), and
 // fixture unwraps are on keys the fixture itself just minted.
@@ -60,56 +51,6 @@ use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 use crate::test_support_impl::ArenaCounts;
-
-/// This crate's `src/`, resolved for both ways the suite runs: a plain
-/// `cargo test` (where the baked-in `CARGO_MANIFEST_DIR` is the tree
-/// that is here) and a nextest ARCHIVE replayed on a different runner
-/// (where that absolute path need not exist, but `--workspace-remap`
-/// has pointed the per-test cwd at the crate root).
-///
-/// Lives here rather than in any one of them because several
-/// anti-re-fork guards walk the crate's own sources — the sector-shape
-/// rungs, the planar sense flip, the arc-side rung, the tier-1
-/// postcondition surface, the pcurve-staleness postures — and a guard
-/// against duplication should not be the next copy of its own walk.
-pub(crate) fn src_root() -> std::path::PathBuf {
-    let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    if baked.is_dir() {
-        return baked;
-    }
-    let cwd = std::env::current_dir()
-        .expect("a working directory")
-        .join("src");
-    assert!(cwd.is_dir(), "neither {baked:?} nor {cwd:?} is topo's src/");
-    cwd
-}
-
-/// Every `.rs` file under `dir`, recursively.
-pub(crate) fn collect_rs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in std::fs::read_dir(dir).expect("a readable source directory") {
-        let path = entry.expect("a readable directory entry").path();
-        if path.is_dir() {
-            collect_rs(&path, out);
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
-        }
-    }
-}
-
-/// Every `.rs` file under this crate's `src/`, with the walk's own
-/// sanity check: a broken or empty walk would otherwise let every
-/// guard built on it pass by finding nothing.
-pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
-    let src = src_root();
-    let mut files = Vec::new();
-    collect_rs(&src, &mut files);
-    assert!(
-        files.len() > 20 && files.iter().any(|f| f.ends_with("lib.rs")),
-        "the walk of {src:?} found {} file(s) and no lib.rs — it is not reading topo/src",
-        files.len()
-    );
-    files
-}
 
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
@@ -1010,88 +951,156 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     body
 }
 
-/// Every `pub fn` in `text`, as `(name, parameter list, body)`.
+/// `text` with every **comment** and every **literal body** blanked —
+/// the shared answer to *"is this text code?"* for the crate's textual
+/// guards.
 ///
-/// Shared by the guards that walk this crate's mutation surface (tier-1
-/// postcondition coverage, pcurve-staleness posture), for the reason
-/// [`src_root`] gives: a guard against duplication should not be the
-/// next copy of its own walk.
+/// Lives here for [`src_root`]'s reason one paragraph up: the guards
+/// that walk this crate's sources each carried their own
+/// `trim_start().starts_with("//")` line test, which is blind to a
+/// `/* … */` block, to `#[doc = "…"]`, and to a needle sitting inside a
+/// string. A guard against duplication should not be the next copy of
+/// its own walk, and the *predicate* is the part that was being copied.
 ///
-/// Deliberately a source read: Rust offers no way to enumerate a
-/// type's methods at runtime, and the property being checked is about
-/// the SOURCE surface — what a future door will look like when someone
-/// adds one.
-pub(crate) fn public_fns(text: &str) -> Vec<(&str, &str, &str)> {
-    let mut out = Vec::new();
-    let bytes = text.as_bytes();
-    let mut from = 0usize;
-    while let Some(rel) = text[from..].find("pub fn ") {
-        let at = from + rel;
-        from = at + "pub fn ".len();
-        // Item position only: a `pub fn` glued to another identifier is
-        // not a definition.
-        if at > 0 && !matches!(bytes[at - 1], b'\n' | b' ') {
-            continue;
-        }
-        let rest = &text[from..];
-        let Some(name_end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_') else {
-            continue;
-        };
-        let name = &rest[..name_end];
-        let Some(open) = text[from..].find('(') else {
-            continue;
-        };
-        let Some(close) = matching(text, from + open, b'(', b')') else {
-            continue;
-        };
-        let params = &text[from + open..close];
-        let Some(brace) = text[close..].find('{') else {
-            continue;
-        };
-        let Some(end) = matching(text, close + brace, b'{', b'}') else {
-            continue;
-        };
-        out.push((name, params, &text[close + brace..end]));
-        from = end;
-    }
-    out
-}
-
-/// The index of the delimiter closing the one at `open`, skipping
-/// string and comment content.
-fn matching(text: &str, open: usize, l: u8, r: u8) -> Option<usize> {
+/// Removed: `//` line comments (anywhere on the line, not only at its
+/// start), `/* … */` blocks (nested), and the CONTENTS of string, byte
+/// and char literals — nothing that a read of an identifier can hide
+/// inside, so blanking them can only remove false positives, never
+/// create a false negative. Byte offsets and line structure are
+/// preserved (newlines survive; removed bytes become spaces), so a
+/// caller may still count lines.
+///
+/// **What it does not model**, because `topo/src` contains none and a
+/// guard that silently mis-parses is worse than one that says so:
+/// **raw strings** (`r"…"`, `r#"…"#`) are treated as an ordinary
+/// string opened at the quote, which is correct unless the body
+/// contains a backslash-quote pair; and an identifier assembled by a
+/// macro (`concat_idents!`, `paste!`) is invisible to any textual walk.
+pub(crate) fn code_only(text: &str) -> String {
     let b = text.as_bytes();
-    let (mut depth, mut i) = (0usize, open);
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    // Blank a byte range, keeping newlines so line numbers survive.
+    let blank = |out: &mut Vec<u8>, b: &[u8], from: usize, to: usize| {
+        for &c in &b[from..to.min(b.len())] {
+            out.push(if c == b'\n' { b'\n' } else { b' ' });
+        }
+    };
+    let mut i = 0usize;
     while i < b.len() {
         match b[i] {
+            b'/' if b.get(i + 1) == Some(&b'/') => {
+                let start = i;
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+                blank(&mut out, b, start, i);
+            }
+            b'/' if b.get(i + 1) == Some(&b'*') => {
+                let (start, mut depth) = (i, 1usize);
+                i += 2;
+                while i + 1 < b.len() && depth > 0 {
+                    if b[i] == b'/' && b[i + 1] == b'*' {
+                        depth += 1;
+                        i += 2;
+                    } else if b[i] == b'*' && b[i + 1] == b'/' {
+                        depth -= 1;
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                }
+                if depth > 0 {
+                    i = b.len();
+                }
+                blank(&mut out, b, start, i);
+            }
             b'"' => {
+                let start = i;
                 i += 1;
                 while i < b.len() && b[i] != b'"' {
                     i += usize::from(b[i] == b'\\') + 1;
                 }
+                i = (i + 1).min(b.len());
+                blank(&mut out, b, start, i);
             }
-            b'/' if b.get(i + 1) == Some(&b'/') => {
-                while i < b.len() && b[i] != b'\n' {
-                    i += 1;
+            // A quote is a char literal only if it closes within one
+            // character (or one escape). Otherwise it is a LIFETIME and
+            // must stay code — mis-reading `'a` as an opening quote
+            // would swallow the rest of the file.
+            b'\'' => {
+                let close = if b.get(i + 1) == Some(&b'\\') {
+                    (i + 2..b.len().min(i + 8)).find(|&k| b[k] == b'\'')
+                } else {
+                    let mut k = i + 1;
+                    // One UTF-8 scalar: 1 byte plus its continuations.
+                    k += 1;
+                    while k < b.len() && (b[k] & 0b1100_0000) == 0b1000_0000 {
+                        k += 1;
+                    }
+                    (b.get(k) == Some(&b'\'')).then_some(k)
+                };
+                match close {
+                    Some(k) => {
+                        blank(&mut out, b, i, k + 1);
+                        i = k + 1;
+                    }
+                    None => {
+                        out.push(b'\'');
+                        i += 1;
+                    }
                 }
             }
-            b'/' if b.get(i + 1) == Some(&b'*') => {
-                i += 2;
-                while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
-                    i += 1;
-                }
+            c => {
+                out.push(c);
                 i += 1;
             }
-            c if c == l => depth += 1,
-            c if c == r => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
         }
-        i += 1;
     }
-    None
+    String::from_utf8(out).unwrap_or_default()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod code_only_tests {
+    /// The shared "is this text code?" predicate, pinned on the four
+    /// shapes the line-prefix test it replaces was blind to, and on the
+    /// one shape a naive quote-scanner breaks on (a lifetime).
+    #[test]
+    fn comments_and_literal_bodies_are_blanked_and_code_is_not() {
+        let n = concat!("sense", "_sign");
+        let blanked = [
+            "// a line comment naming sense_sign",
+            "/// a doc comment naming sense_sign",
+            "//! a module comment naming sense_sign",
+            "/* a block naming sense_sign */",
+            "/* outer /* nested naming sense_sign */ still inside */",
+            "let x = 1; // trailing comment naming sense_sign",
+            "const S: &str = \"a string naming sense_sign\";",
+            "#[doc = \"an attribute naming sense_sign\"]",
+        ];
+        for row in blanked {
+            let out = super::code_only(row);
+            assert_eq!(out.matches(n).count(), 0, "not blanked: {row}");
+            assert_eq!(out.len(), row.len(), "byte offsets moved: {row}");
+        }
+
+        // Code survives, including code that FOLLOWS a blanked region
+        // on the same line — the prefix test could not see it at all.
+        for row in [
+            "let s = f.sense_sign::<T>();",
+            "/* c */ let s = f.sense_sign::<T>();",
+            "let q = '\\'' ; let s = f.sense_sign::<T>();",
+            // A double-quote CHAR literal: mis-read as an opening
+            // string, this swallows the rest of the file.
+            "if line.contains('\"') { let s = f.sense_sign::<T>(); }",
+            // A lifetime is not a quote.
+            "fn f<'a>(x: &'a str) -> T { x.sense_sign() }",
+        ] {
+            assert_eq!(super::code_only(row).matches(n).count(), 1, "lost: {row}");
+        }
+
+        // Newlines survive, so a caller may still count lines.
+        let multi = "// sense_sign\nlet s = f.sense_sign();\n";
+        assert_eq!(super::code_only(multi).lines().count(), 2);
+    }
 }

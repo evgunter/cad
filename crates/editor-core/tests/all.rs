@@ -211,6 +211,8 @@ mod switch_naming;
 mod switch_plate_param;
 #[path = "switch_program_key.rs"]
 mod switch_program_key;
+#[path = "switch_program_vocabulary.rs"]
+mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
 #[path = "u8a_parse.rs"]

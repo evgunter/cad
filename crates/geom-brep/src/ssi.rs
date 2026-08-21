@@ -590,6 +590,19 @@ impl SsiDomain {
         SSI_FLOOR * band.zero() * self.floor_scale
     }
 
+    /// The [`SsiDomain::floor_scale`] that names an accounting floor of
+    /// `metres` under `band` — the inverse of [`SsiDomain::floor`].
+    ///
+    /// A caller whose premise is about a **width** states the width. A
+    /// literal multiplier does not: the floor is `SSI_FLOOR · band.zero()
+    /// · floor_scale`, so one literal names a different width at every ε,
+    /// and a fixture placed by literal is placed only at the tolerance
+    /// whoever wrote it happened to run.
+    #[must_use]
+    pub fn floor_scale_for(metres: f64, band: Band) -> f64 {
+        metres / (SSI_FLOOR * band.zero())
+    }
+
     /// The seeding floor, in meters — a fraction of the **extent**,
     /// not of ε.
     ///

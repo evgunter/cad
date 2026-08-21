@@ -1,0 +1,114 @@
+# Install the PINNED sccache prebuilt and restore its object cache.
+#
+# ON TRIAL, NOT A SETTLED ADOPTION. This action RUNS: the kill switch
+# is the repo variable SCCACHE set to "0", so unset means enabled and
+# no variable has to exist for the trial to proceed. Same shape as
+# BUILD_RUNNER in ci.yml, and for the same reason — it keeps the
+# decision a one-setting flip rather than a branch that rots.
+#
+# The FIRST run after this landed is cold and is NOT the verdict:
+# RUSTC_WRAPPER is RUST*-prefixed, so Swatinem/rust-cache hashes it and
+# the flip buys exactly one cold rebuild. docs/CI-MINUTES-2026-08.md
+# finding F4 says how to read the result; issue #853 tracks going back
+# to read it, and carries the two outcomes and what each one should
+# change.
+#
+# WHY IT IS WORTH TRYING HERE, WHEN IT WAS REVERTED LOCALLY.
+# docs/LOCAL-BUILD-PERF.md reverted sccache on a real measurement — a
+# cold build went 156 s -> 96 s at a 99.4% hit rate, and that was given
+# up because sccache and incremental compilation are mutually exclusive
+# and going non-incremental cost 5-7x on the edit-rebuild loop. That
+# objection does not reach the runner: Swatinem/rust-cache sets
+# CARGO_INCREMENTAL=0 itself, on every job that uses it, so hosted CI
+# has ALREADY paid sccache's one documented cost and currently gets
+# nothing back for it.
+#
+# WHAT IS ACTUALLY BEING TESTED. rust-cache already caches the ~225
+# dependency crates, so the 156 -> 96 s local figure does NOT predict
+# the win here and must not be quoted for it. rust-cache deliberately
+# does not cache WORKSPACE crates (ci.yml's note on the build job, and
+# render.yml's) — those are the ones this is aimed at, and at opt-2
+# they dominate the two 11-12 minute build jobs. The hypothesis is
+# narrow: sccache's contribution in CI is exactly the workspace crates
+# rust-cache evicts. `sccache --show-stats` after the build is what
+# settles it.
+#
+# LOCAL DISK CACHE, NOT THE GHA BACKEND, deliberately. sccache's native
+# GitHub-Actions backend needs ACTIONS_RESULTS_URL and
+# ACTIONS_RUNTIME_TOKEN exported into the step environment, which a
+# `run:` step cannot see and which is normally arranged by a
+# third-party action. SCCACHE_DIR plus actions/cache reaches the same
+# place with first-party pieces only, and matches what this repo
+# already does for the FreeCAD AppImage and the nextest binary.
+#
+# The install mirrors install-nextest exactly — same official-release
+# fetch, same cache-by-version content key, same curl retry rules, and
+# the same download-to-a-file-then-extract discipline (a retried
+# `curl | tar` appends the failed attempt's bytes onto a corrupt
+# stream). Read that action's header for the full reasoning.
+name: install sccache
+description: "Install a pinned sccache prebuilt and restore its object cache (on trial; see F4 and #853)."
+
+inputs:
+  version:
+    description: sccache version to install (ci.yml's SCCACHE_VERSION pin).
+    required: true
+  lane:
+    description: "Cache discriminator — the build lane this runs in (default / interval)."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: cache the sccache binary
+      id: bin
+      uses: actions/cache@v4
+      with:
+        path: ~/.sccache-bin
+        key: sccache-bin-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}
+
+    - name: download sccache (pinned, official prebuilt)
+      if: steps.bin.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        tri=x86_64-unknown-linux-musl
+        dir="sccache-v${{ inputs.version }}-${tri}"
+        mkdir -p "$HOME/.sccache-bin"
+        curl -sSfL \
+          --retry 5 --retry-all-errors --retry-max-time 120 \
+          --connect-timeout 15 --max-time 300 \
+          -o "$RUNNER_TEMP/sccache.tar.gz" \
+          "https://github.com/mozilla/sccache/releases/download/v${{ inputs.version }}/${dir}.tar.gz"
+        tar zxf "$RUNNER_TEMP/sccache.tar.gz" -C "$RUNNER_TEMP" "${dir}/sccache"
+        mv "$RUNNER_TEMP/${dir}/sccache" "$HOME/.sccache-bin/sccache"
+        chmod +x "$HOME/.sccache-bin/sccache"
+        rm -rf "$RUNNER_TEMP/sccache.tar.gz" "$RUNNER_TEMP/${dir}"
+
+    # THE OBJECT CACHE, rolling. The key carries the run id so every run
+    # saves a fresh entry, and `restore-keys` takes the newest previous
+    # one — the standard shape for a cache that must ACCUMULATE rather
+    # than be pinned to a content hash. Keyed per LANE because the two
+    # build jobs compile different feature unifications and would
+    # otherwise fight over one entry.
+    - name: restore the sccache object cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.sccache-objects
+        key: sccache-obj-${{ inputs.lane }}-${{ github.run_id }}
+        restore-keys: |
+          sccache-obj-${{ inputs.lane }}-
+
+    # Fail here rather than in whatever step first reports a wrapper it
+    # cannot execute: a restored-but-empty entry is the one failure mode
+    # this action can plausibly introduce.
+    - name: put sccache on PATH and point it at the object cache
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x "$HOME/.sccache-bin/sccache"
+        echo "$HOME/.sccache-bin" >> "$GITHUB_PATH"
+        {
+          echo "SCCACHE_DIR=$HOME/.sccache-objects"
+          echo "SCCACHE_CACHE_SIZE=2G"
+        } >> "$GITHUB_ENV"
