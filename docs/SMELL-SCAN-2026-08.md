@@ -2603,6 +2603,15 @@ can-only-be-a-bug case in release it names two dispositions — *typed
 error where cheaply detectable, or documented garbage-out* — and **panic
 is not among them.**
 
+> **Dated-correct, now superseded (noted 2026-08-21).** The third clause
+> quotes D9's *"typed errors where cheaply detectable, or documented
+> garbage-out in release"*, which the **D2 addendum SUPERSEDED on
+> 2026-08-19** — a day after this steelman was written — replacing it with
+> the six-row taxonomy whose rows 4 and 5 make a panic the ratified answer
+> for a bug state. The steelman's conclusion is untouched; only the
+> disposition list it cites has moved. Kept rather than rewritten: the
+> record is what it was, and the pointer is what it needs.
+
 *Is the reframe a clarification or a change? Both, in separable
 halves.* *"No panic on any reachable state"* is a **clarification** —
 D9 already says "on any input", and no existing `debug_assert` would
@@ -8750,14 +8759,27 @@ states the asymmetry; it does not resolve it.**
 `nu` floor and nothing else for a class whose failure mode is a
 corrupt STL that no error reports.
 
-**Option B — re-derive in release, and REFUSE typed.** Not `assert!`:
-D9 says the kernel never panics on any input, so "run it in release"
-must mean a `TessellateError`, not a panic. That is a **behaviour
-change** — bodies that today return `Ok` with a silently non-manifold
-mesh would start refusing — and it is the only form consistent with
-D9. The finding's own framing (*"pays an O(triangles) per-patch
-re-derivation in release — against D9's never a panic"*) named the
-panic version, which D9 forbids outright.
+**Option B — re-derive in release, and REFUSE typed.** That is a
+**behaviour change** — bodies that today return `Ok` with a silently
+non-manifold mesh would start refusing.
+
+> **This option's D9 argument was WRONG and is corrected here (2026-08-21).**
+> It read *"D9 says the kernel never panics on any input"* as forbidding a
+> release panic outright, and concluded a typed error was *"the only form
+> consistent with D9."* **It is not.** D9's rule is scoped to states an
+> **input** can reach; the **D2 addendum**'s rows 4 and 5 make a panic the
+> *ratified* mechanism for a state that can only be a kernel bug. So
+> `assert!` is not excluded by D9, and B is not the only D9-consistent
+> option. **The phrasing that produced this error is fixed at
+> `DESIGN.md`'s D9 bullet in the same PR as this correction.**
+>
+> **What actually decides it is a question this row never asked**: which
+> D2 row is the non-manifold state? **Row 1** (reachable by input and
+> invalid) → a typed error, and B is right for the right reason. **Row 5**
+> (kernel bug, detectable only by re-derivation) → the assert is already
+> the correct mechanism and only its *release* reach is in question.
+> **Left open deliberately — S65 is Evan's decision in #884** and this
+> note corrects a false constraint on the choice rather than making it.
 
 **Option C — keep the floor, widen it.** The two narrowings above are
 independent of the debug/release question: the seam case has no floor
