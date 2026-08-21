@@ -65,29 +65,34 @@
 //! `residual.hi() <= eps` under every comparison direction, so a
 //! structural mistake can never be mistaken for a certificate.
 //!
-//! An out-of-range or empty span index used to be on that list. It is
-//! not any more: the per-span entry points take a [`Span`], which is
-//! validated at construction and carries the coefficient window it
-//! selects, so the only structure a span-restricted bound still checks
-//! is that the coefficient array has the length its knot vector
-//! requires — the one fact a `Span` says nothing about.
+//! A span this `kv` does not admit is on that list too, and it is the
+//! **only** span refusal left. A [`Span`] carries "in range and
+//! nonempty" for the vector it was drawn from, but it carries no borrow
+//! of that vector, so a span of a *different* one is a representable
+//! input: [`span_indices`] therefore asks [`KnotVector::admits`]
+//! alongside the coefficient-length check, and either failing is
+//! poison. Emptiness is **not** re-checked: `admits` relates a span to
+//! this vector's shape, so a foreign span that is empty here is
+//! admitted, and the bound below is then the hull of a window this
+//! vector's basis never reads — finite, and wrong. It cannot index out
+//! of bounds, which is what the check is for.
 //!
-//! # The one caller obligation, and what it now costs to break
+//! # The two length-only relations, and the one that is a residue
 //!
-//! A `Span` is **not branded** to its knot vector (the [`Span`] docs say
-//! so; #447 deferred the brand). Everything above therefore reads "the
-//! `kv` this `Span` was drawn from": a `Span` from a *different* vector
-//! passes the length check — which is about `coeffs` versus `kv`, not
-//! about the span — and then indexes with a window this `kv` never
-//! validated. Before the fold, the range guard caught that case and
-//! poisoned; now it can index out of bounds and **panic**, which is a
-//! worse failure than the poison D4 asks for.
+//! Both remaining checks are relations of *length*, not of identity.
+//! `coeffs.len() == kv.control_count()` says nothing about which curve
+//! the coefficients came from, and [`KnotVector::admits`] says nothing
+//! about which vector the span came from: a same-degree, same-control-count
+//! vector admits the span, and a same-length `coeffs` passes the count.
+//! In both cases the bound is then computed over the wrong data and is
+//! **wrong rather than refused** — a silent answer, and a deliberate
+//! residue.
 //!
-//! Structurally closing it means the `Span` carrying its vector — a
-//! borrow, or an invariant-lifetime brand — so that the pairing cannot
-//! be got wrong rather than merely being documented. Until then this is
-//! prose, and every call site in the tree draws its span from the vector
-//! it evaluates against, one statement apart.
+//! What is closed is the worse failure: neither can index out of bounds
+//! any more, so no public door here panics (D9). Closing the residue
+//! means the `Span` and the coefficients carrying their vector — a
+//! borrow, or an invariant-lifetime brand — which is a design change
+//! and not paid for here.
 
 use super::knots::{KnotVector, Span};
 use crate::real::CertifiedEnclosure;
@@ -113,12 +118,15 @@ fn bracket<E: CertifiedEnclosure>(c: E) -> RingInterval {
 /// `span` — the [`Span`]'s own window, `[span − p, span]`, computed
 /// once at its construction rather than re-derived here.
 ///
-/// The **only** remaining refusal is the one a `Span` cannot speak to:
-/// it proves its window lies inside `kv.control_count()`, but says
-/// nothing about the caller's `coeffs`. A length disagreement there
-/// would index out of bounds, so it is the single check left.
+/// `None` — the poison route for every caller below — on either of the
+/// two disagreements a `Span` cannot rule out by itself: a `coeffs`
+/// array that is not the length this `kv` requires, or a span this `kv`
+/// does not admit ([`KnotVector::admits`]). With both discharged,
+/// `last = span.index() <= kv.last_span() = control_count() − 1 =
+/// coeff_len − 1` and `first = last − degree >= 0`, so the whole window
+/// indexes `coeffs` in range.
 fn span_indices(kv: &KnotVector, coeff_len: usize, span: Span) -> Option<(usize, usize)> {
-    if coeff_len != kv.control_count() {
+    if coeff_len != kv.control_count() || !kv.admits(span) {
         return None;
     }
     Some((span.first_control(), span.index()))
@@ -128,9 +136,9 @@ fn span_indices(kv: &KnotVector, coeff_len: usize, span: Span) -> Option<(usize,
 /// brackets of the `p + 1` coefficients active there (module docs: the
 /// convexity fact).
 ///
-/// Poison for a coefficient-count mismatch or a poisoned coefficient —
-/// there is no invalid-span case, the `span` argument being validated
-/// at construction. The result is the polynomial's bound on
+/// Poison for a coefficient-count mismatch, a span this `kv` does not
+/// admit, or a poisoned coefficient. The result is the polynomial's
+/// bound on
 /// `[u_span, u_{span+1}]` only — outside it the span's polynomial
 /// extension is unbounded by anything here.
 pub fn span_hull<E: CertifiedEnclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> RingInterval {

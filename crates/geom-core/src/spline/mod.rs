@@ -27,8 +27,13 @@
 //!   convex-hull property every C9 hull bound stands on.
 //! - **The span contract**: evaluation restricted to a caller-supplied
 //!   span is total for every scalar; outside the span's interval it is
-//!   the polynomial extension (documented garbage-out), and an invalid
-//!   span *index* (checkable structure) is poison.
+//!   the polynomial extension (documented garbage-out), and a [`Span`]
+//!   this knot vector does not admit ([`KnotVector::admits`] — degree
+//!   agreement and an index within range) is poison. What that check
+//!   cannot see is *which* vector of the right shape the span came
+//!   from, so a span from a different vector of equal degree and equal
+//!   control count is a wrong answer rather than a refusal; the
+//!   [`Span`] docs state the residue in full.
 
 pub mod algebra;
 pub mod basis;
