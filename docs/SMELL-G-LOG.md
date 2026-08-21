@@ -105,7 +105,7 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | # | The question | Ruling | By |
 |---|---|---|---|
 | **G-R1** | **G2's note says S113(a)(b) collide with Track E's E-b on `demos/tour/Cargo.toml`**, and routes them to E-b to be consumed back. | **The collision does not exist, and there is nothing to consume.** E-b is **#763**, and its file set was read from the branch rather than from §D's Scope cell: sixteen files — thirteen `crates/*/tests/all.rs`, `geom-core/tests/tolerance_init.rs`, `step-import/tests/tier_gate.rs`, `topo/tests/common/mod.rs`, plus `docs/K-REPORT.md` and the scan doc. **Nothing under `demos/`.** S113(a)(b) stay with G2 and are its work. Recorded rather than silently acted on, because a §D cell is a claim site (`SMELL-C-LOG` C-R11) and this is the third such cell on this scan found describing a branch nobody opened. | orchestrator, 2026-08-20 |
-| **G-R2** | **G10 says *"three of them are Track C's … the rest are free"*, and the same section's rides-along paragraph says S112(a) is Track E's E-g.** Both cannot be operative, and the row's member count decides how it retires. | **The rides-along paragraph is right; G10's sentence over-counts by one.** S112's eight members: **(a)** `sweep/src/fillet/naming.rs` → **E-g**; **(d)** and **(e)** `geom-brep/` → **Track C**; **(b)** and **(c)** `interval-transcendentals/` → **G-a**, which owns that workspace; **(f)** `profile/src/sugar.rs` → **G-d**, which is already in that file for G5; **(h)** `demos/render.py` → **G-b**, which §D already names. **(g)** `crates/pncad/src/lib.rs` is the only member with no other home. **G10 is therefore re-scoped to (g) plus the class ledger**, and assigned to **G-d**: it closes (f) and (g) in its own files and records at S112 *which lane and which PR* closed each of the eight members. **The row leaves §D when that ledger is complete, not when G-d's own member lands** — a class row retiring on its leader's member is §C13's half-fix, and this document exists partly to stop minting those. | **AMENDED 2026-08-21 — this ruling was wrong on member (a), and lane G-d refused to execute it rather than complying.** I routed **S112(a)** to Track E's **E-g**. **E-g landed as #768, its own §D row says S112(a) is not in it, and that row is now struck** — so (a) is owned by nothing. Verified at source before accepting: `sweep/src/fillet/naming.rs:35` still says *"It reads every field EXCEPT [`Retired`]"* while `editor-core/src/names/emit_fillet.rs` builds and consults `retired_e`/`retired_v` in four places. The defect is live and unfixed. **The same struck sentence orphaned `S111(a)(b)(d)` and `S75`**, two of which the lane re-derived and found standing. **Second correction:** the over-count is in *"three of them are Track C's"*, not in *"the rest are free"* — Track C holds **two**, (d) and (e), and the third body in that parenthetical is (e)'s *second file* counted as a member. My conclusion survives both; only its location moves. **What the lane did with this is the part worth keeping:** the ruling said G10 retires when the ledger is complete, and the ledger proved two members have no home — so **it left the row in §D, re-scoped to the residue, and recorded the orphaning as a class (S177) with a row (D114) it deliberately did not take**, because re-homing another track's findings is not a lane's act. **A ruling that would have produced a half-fix was refused by the lane the ruling bound.** That is the mechanism working exactly as intended, and it is the third time this session a lane has corrected this orchestrator from the tree. | orchestrator, 2026-08-20; amended 2026-08-21 |
+| **G-R2** | **G10 says *"three of them are Track C's … the rest are free"*, and the same section's rides-along paragraph says S112(a) is Track E's E-g.** Both cannot be operative, and the row's member count decides how it retires. | **The rides-along paragraph is right; G10's sentence over-counts by one.** S112's eight members: **(a)** `sweep/src/fillet/naming.rs` → **E-g**; **(d)** and **(e)** `geom-brep/` → **Track C**; **(b)** and **(c)** `interval-transcendentals/` → **G-a**, which owns that workspace; **(f)** `profile/src/sugar.rs` → **G-d**, which is already in that file for G5; **(h)** `demos/render.py` → **G-b**, which §D already names. **(g)** `crates/pncad/src/lib.rs` is the only member with no other home. **G10 is therefore re-scoped to (g) plus the class ledger**, and assigned to **G-d**: it closes (f) and (g) in its own files and records at S112 *which lane and which PR* closed each of the eight members. **The row leaves §D when that ledger is complete, not when G-d's own member lands** — a class row retiring on its leader's member is §C13's half-fix, and this document exists partly to stop minting those. | **AMENDED 2026-08-21 — this ruling was wrong on member (a), and lane G-d refused to execute it rather than complying.** I routed **S112(a)** to Track E's **E-g**. **E-g landed as #768, its own §D row says S112(a) is not in it, and that row is now struck** — so (a) is owned by nothing. Verified at source before accepting: `sweep/src/fillet/naming.rs:35` still says *"It reads every field EXCEPT [`Retired`]"* while `editor-core/src/names/emit_fillet.rs` builds and consults `retired_e`/`retired_v` in four places. The defect is live and unfixed. **The same struck sentence orphaned `S111(a)(b)(d)` and `S75`**, two of which the lane re-derived and found standing. **Second correction:** the over-count is in *"three of them are Track C's"*, not in *"the rest are free"* — Track C holds **two**, (d) and (e), and the third body in that parenthetical is (e)'s *second file* counted as a member. My conclusion survives both; only its location moves. **What the lane did with this is the part worth keeping:** the ruling said G10 retires when the ledger is complete, and the ledger proved two members have no home — so **it left the row in §D, re-scoped to the residue, and recorded the orphaning as a class (S177) with a row (D124) it deliberately did not take**, because re-homing another track's findings is not a lane's act. **A ruling that would have produced a half-fix was refused by the lane the ruling bound.** That is the mechanism working exactly as intended, and it is the third time this session a lane has corrected this orchestrator from the tree. | orchestrator, 2026-08-20; amended 2026-08-21 |
 | **G-R3** | **G1 must edit `.github/workflows/ci.yml`** — S72's overreach claim is at `:1097-1099` and S112(b)'s stale *"stays a by-hand gate"* at `:1106-1107` — and Track E's **#753** holds that file. Track F treated an overlap on `ci.yml` as a hard gate (F-R1). | **G-a opens, and declares the fence rather than assuming it.** #753's `ci.yml` diff is **two hunks**, re-derived from the branch: `:73-79` (the mold retirement comment's script path) and `:302-308` (the test-aggregation step). G1's sites are ~790 lines away, in the `oracle-*` job region. F-R1's gate was real because F8's fix *lands in* the hunk #753 rewrites; this one does not, and holding an edge-free row against a disjoint hunk in a 2000-line file is how a register stops executing (§C3). **The fence is the lane's to publish**: its PR says its `ci.yml` edits are confined to the `oracle-certify` / `oracle-inari` job comments, and that it touched neither the gate roster nor the test-aggregation step. If a conflict arrives anyway, merge `origin/main` — the recorded remedy, and cheap here. | orchestrator, 2026-08-20 |
 | **G-R4** | **G8 and G9 both name `topo/src/chord_join.rs`.** §D carries no edge between them. | **The G8 lane opens first; G9 sequences behind it, and they are not merged.** *(This ruling originally said "G-f (G8)", from the planning table since deleted; G8 was dispatched as **G-g**. Rewritten to name the row rather than a letter — a ruling that outlives a roster should not depend on one.)* The two questions are different kinds: G8's is *does `chord_join::face_plane_normal`'s missing `sense_sign` matter, given it feeds `point_in_loop` for ring re-homing* — a predicate, and G8's own row already requires it be a **separate adversarial sub-unit**. G9's is *does the module header's top-level-sibling argument survive its own imports from `splitting/`* — a paragraph. Folding them puts an adversarial correctness unit inside a doc edit, which is exactly what the row forbids one level down. | orchestrator, 2026-08-20 |
 | **G-R5** | **S67 quotes `face_normal.rs:26-31` as *"Three such sites exist and are NAMED (smell-scan D6: …)"*.** That sentence is not in the tree. | **The quote is a paraphrase; the substance holds, and the brief quotes the tree.** What `face_normal.rs:26-31` actually says is *"**"One door" is true of these consumers, not of the workspace.** `boolean::solid_contain::face_plane`, `chord_join`'s `face_plane_normal` and `merge_faces.rs` each still carry their own hand-multiply (smell-scan D6)."* — three sites named, `chord_join` among them, so the finding's defect is intact: `chord_join.rs:2020-2026` returns the raw chart normal with **no `sense_sign` at all** (verified), and the paragraph's *"naming them here rather than leaving the claim unqualified is the point"* is what makes an inaccurate list the whole gap. **A brief is a claim site**; three of five briefs in one session on another track carried a citation that did not resolve, and this one would have made a lane rewrite a sentence that does not exist. | **AMENDED 2026-08-20 — this ruling was half wrong, and lane G-g caught it by re-deriving rather than complying.** The sentence **is** in the tree, **verbatim**, at `face_normal.rs:93-98` — the guard test's gap-#1 bullet, which the finding itself cites as `:88-92`. So it was a **line-number misattribution, not a paraphrase**, and my correction was itself the thing it warned about: a claim about the tree made without re-deriving it. Worse for the original ruling and better for the finding: `:26-31` held a **second copy** of the same three names, and a **third** sat at `boolean/reduce.rs:248-251`, which the finding never named. The lane also found three of the finding's five "unlisted" citations off — `rest.rs:512` is the `let sign =` binding (the multiply is `:521`), `validate.rs` is `:2168` not `:2161`, and **`props.rs:264` is not a normal multiply at all** (the ±1 is an argument to `curved_face`'s closed form). **Both corrections verified from the tree by the orchestrator before acceptance.** The finding's shape held; its count was **low, not high**. | orchestrator, 2026-08-20 |
@@ -128,7 +128,7 @@ five ((b)(c)(f)(g)(h)) are exactly right and all Track G's; Track C holds two,
 `ssi.rs`, counted as a member. (2) **(a) has no owner at all, not E-g.** E-g
 landed as #768, its own §D row records S112(a) as not in it, and that row is
 struck — so the ruling's *"→ E-g"* points at a retired lane. That is **S177**
-and **D114**, and it also means **G10 cannot retire on this ledger**: (a) and
+and **D124**, and it also means **G10 cannot retire on this ledger**: (a) and
 (e) are named by no live row but G10's, so the row stays, re-scoped to the
 residue.
 
@@ -151,12 +151,12 @@ from the orchestrator.
 | lane | §D rows | findings |
 |---|---|---|
 | **G-a** | D71, D72 | S127, S128 |
-| **G-d** (G5 + G10, #831) | **D72**, **D113**, **D114** used | **S128**, **S135**, **S136**, **S176**, **S177** used |
+| **G-d** (G5 + G10, #831) | **D72**, **D113**, **D124** used | **S128**, **S135**, **S136**, **S176**, **S177** used |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 and S136 later taken by G-d |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
 | ~~**G-g**~~ (G8, landed #834) | **D77** and **D80** used | **S171**, **S172** and **S173** used |
 | ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F. Fix pass: **D121** and **S195** (shipped as `S193`, which was G-e's; corrected after the merge) |
-| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); the second block is **`D120`–`D139` / `S190`–`S209`** — `D121` and `S195` taken from it by G-f (`S193` was taken first and collided with G-e's). `D113`, `D114`, `S176` and `S177` were minted under the **retracted** first attempt and stand as issued; the retracted range itself is not restated here, because a withdrawn reservation left standing is what sent a lane looking |
+| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); the second block is **`D120`–`D139` / `S190`–`S209`** — `D121` and `S195` taken from it by G-f (`S193` was taken first and collided with G-e's). `D113`, `D124`, `S176` and `S177` were minted under the **retracted** first attempt and stand as issued; the retracted range itself is not restated here, because a withdrawn reservation left standing is what sent a lane looking |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -243,7 +243,7 @@ have minted one, and a returned number that is never re-spent is a slow leak:
 | **G-f** | G7 | D75, D76 | S169, S170 |
 | **G-g** | G8 | D77, D80 | S171, S172, S173 |
 | **G-h** | G11 | D111, D112 | S174, S175 |
-| **G-d** | G5 + G10 | D113, D114 | S176, S177 |
+| **G-d** | G5 + G10 | D113, D124 | S176, S177 |
 | **G-e** | G6 | — | **S190, S191** (renumbered from S167/S168, which are Track F's) |
 | **G-f** | G7 | D75, **D121** | S170, **S195** (was S193 — collided with G-e's; see the block note below) |
 | **G-g** | G8 | D77, D80 | S171, S172, S173 |
@@ -262,6 +262,31 @@ table itself on the grounds that the line says reconciliation is the
 orchestrator's. That was the right call: **a lane silently correcting a number
 table is how two lanes mint the same number**, which is the incident the whole
 per-track block exists to prevent.
+
+### The `D114` collision, and who moved
+
+**A seventh collision, found on `main` by lane G-h and fixed by the orchestrator
+rather than by a lane**, because it spanned two tracks' landed rows. `D114` was
+held by **Track F** (S168, the recording scalar's unwritten assertion) and by
+**Track G** (#831's re-home of E-g's orphaned findings). Both were merged, so
+the *merged-row-wins* precedent could not decide it; **landing order did** —
+Track F's landed 00:43 UTC, Track G's 03:03 — so **Track G's moved, to `D124`**.
+
+**It is my error twice over.** I issued `D113`/`D114` to a lane **from the
+retracted `D111`–`D125` range**, which is the allocation §D already records as
+wrong; and Track F held `D113`/`D114` before that. So the number was never
+Track G's to give.
+
+**The edit is the one G-R12 exists for, at triple risk.** `D114` appears nine
+times in the scan and seven in this log — and **three of the scan's nine are
+Track F's**: their §D row, a line about #844, and a sentence *describing this
+very collision*. A file-wide substitution would have rewritten all three. Done
+by named anchor with a per-anchor uniqueness assert, `SMELL-F-LOG.md` never
+opened, and the G-R12 removal check run afterwards: every removed line is either
+a `D114` line or the `G-R13` row I amended in the same commit. **My first attempt
+asserted the wrong occurrence counts (5 and 7 against the real 7 and 9) and the
+assert stopped it** — which is the argument for asserting the count rather than
+trusting the grep that produced it.
 
 ## The standing lane header
 
@@ -628,11 +653,11 @@ reviewer's benefit. Split on request — nothing in the G10 commits touches
   tree**. Five closed: (b)(c) #786, (h) #787, (f)(g) #831. Three open.
 - **Two corrections the walk returned, both against the ruling that assigned
   it** — see the amendment note under **G-R2** below.
-- **`S177` + `D114`.** Track E's **E-g** row is struck while it is the only
+- **`S177` + `D124`.** Track E's **E-g** row is struck while it is the only
   live tracker for S111(a)(b)(d), S112(a) and S75, all of which its own row
   records as *not in #768*. Three re-derived from the tree and standing. The
   class is *a lane's row is struck while it is the only index for the findings
-  routed to it after dispatch*; **D114** re-homes the five and asks whether any
+  routed to it after dispatch*; **D124** re-homes the five and asks whether any
   other struck row did the same. **Not taken by this lane**: `sweep/src/fillet/`
   is outside Track G's constitution, and re-dispatching another track's
   findings is not a lane's act.
