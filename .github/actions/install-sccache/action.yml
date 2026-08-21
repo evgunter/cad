@@ -1,12 +1,17 @@
 # Install the PINNED sccache prebuilt and restore its object cache.
 #
-# THIS IS AN EXPERIMENT, NOT AN ADOPTION. Nothing calls this action
-# unless the repo variable SCCACHE is "1" — the same shape as
-# BUILD_RUNNER in ci.yml, and for the same reason: it makes the trial a
-# one-setting flip rather than a branch that rots. Read
-# docs/CI-MINUTES-2026-08.md finding F4 before turning it on; in
-# particular, the FIRST run after flipping it is cold and is NOT the
-# verdict.
+# ON TRIAL, NOT A SETTLED ADOPTION. This action RUNS: the kill switch
+# is the repo variable SCCACHE set to "0", so unset means enabled and
+# no variable has to exist for the trial to proceed. Same shape as
+# BUILD_RUNNER in ci.yml, and for the same reason — it keeps the
+# decision a one-setting flip rather than a branch that rots.
+#
+# The FIRST run after this landed is cold and is NOT the verdict:
+# RUSTC_WRAPPER is RUST*-prefixed, so Swatinem/rust-cache hashes it and
+# the flip buys exactly one cold rebuild. docs/CI-MINUTES-2026-08.md
+# finding F4 says how to read the result; issue #853 tracks going back
+# to read it, and carries the two outcomes and what each one should
+# change.
 #
 # WHY IT IS WORTH TRYING HERE, WHEN IT WAS REVERTED LOCALLY.
 # docs/LOCAL-BUILD-PERF.md reverted sccache on a real measurement — a
@@ -42,7 +47,7 @@
 # `curl | tar` appends the failed attempt's bytes onto a corrupt
 # stream). Read that action's header for the full reasoning.
 name: install sccache
-description: Install a pinned sccache prebuilt and restore its object cache (experiment; see F4).
+description: "Install a pinned sccache prebuilt and restore its object cache (on trial; see F4 and #853)."
 
 inputs:
   version:
