@@ -117,7 +117,7 @@
 //! [`Body::kef`] kills `he`'s edge and **the face of `he`'s loop** —
 //! `he`'s side dies, the exact inverse of `mef`'s "`he1`'s side becomes
 //! the new face" (a `mef` is undone by `kef(created.he_minus)`, the half
-//! it placed in the new loop). The dying loop's remnant merges into the
+//! it placed in the new loop, tol). The dying loop's remnant merges into the
 //! mate's loop. The edge must border two DISTINCT faces and the dying
 //! face must be RING-FREE (move rings off with [`Body::ring_move`]
 //! first, mirroring `kfmrh` — or kill the mate's side if that one is
@@ -215,7 +215,7 @@
 //!
 //! and in the kill∘make direction the re-make sites are derived from the
 //! pre-kill neighborhood (`kev` ↔ `mev(Fan{next(he), next(mate(he))})`
-//! etc.). The make∘kill direction is exact for every site; the
+//! etc., tol). The make∘kill direction is exact for every site; the
 //! kill∘make direction is exact for every site EXCEPT two subcases with
 //! no single-op re-make (the roundtrip property tests skip exactly
 //! these — precise statement and proof sketch in the seqgen
@@ -237,14 +237,17 @@
 //!
 //! ```
 //! use geom_core::Point3;
+//! use geom_core::Tol;
 //! use topo::{Body, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! // kev(he_plus) kills end(he_plus) — the far vertex — and the edge:
 //! // the loop is empty again, holding the seed vertex.

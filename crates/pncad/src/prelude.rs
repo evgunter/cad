@@ -39,7 +39,14 @@ pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // user cannot start from. The recipe is `Band::linear(tol)` — the run's
 // tolerance ε as the coincidence threshold, K·ε as the escalation
 // threshold — which is what every kernel operation builds internally.
-pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+// `Tol` is here for the same reason one rung down: it is the first
+// argument of every authoring call that decides anything, and a
+// prelude that cannot name it is a prelude you cannot author from.
+// `Tol::witness()` is the one line a program writes before modelling
+// — see `crate::tolerance`.
+pub use geom_core::{
+    Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tol, Tolerance, Vec2, Vec3,
+};
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
 // `Length` is the API-boundary quantity newtype; the kernel-internal

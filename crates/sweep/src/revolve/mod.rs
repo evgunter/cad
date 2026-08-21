@@ -266,23 +266,25 @@ impl From<ReadbackError> for WedgeCapsError {
 /// [`topo::readback::face_pose`] refusal.
 ///
 /// ```
-/// use geom_core::{Point2, Tolerance, Vec2};
+/// use geom_core::{Point2, Tol, Vec2};
 /// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Revolution, RevolveAxis, revolve, revolved_caps};
 ///
+/// let tol = Tol::witness();
 /// // A quarter tube: a small circle a distance 5 from the axis,
 /// // revolved a quarter turn about the sketch frame's +v.
-/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
+/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).expect("a positive radius");
 /// // The complete-loop primitives answer with a `ClosedLoop` (the
 /// // lowered loop plus its program); `Profile` takes the loop.
 /// let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
-///     .validate(Tolerance::get())
+///     .validate(tol)
 ///     .expect("the circle validates");
 /// let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: Vec2::new(0.0, 1.0) };
 /// let quarter = revolve::<f64>(
 ///     &sketch,
 ///     axis,
 ///     Revolution::Partial(std::f64::consts::FRAC_PI_2),
+///     tol,
 /// )
 /// .expect("the tube revolves");
 ///

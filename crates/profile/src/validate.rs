@@ -754,9 +754,10 @@ impl<T: Real> ValidatedLoop<T> {
     /// rather than the answer guessing.
     ///
     /// ```
-    /// use geom_core::{Point2, Tolerance};
+    /// use geom_core::{Point2, Tol};
     /// use profile::{ArcSweep, Center, Open, Profile, SegmentKind, SketchPlane, Start};
     ///
+    /// let tol = Tol::witness();
     /// // The tour rocker's eye slot: two R = 1 lobes meeting tip to
     /// // tip, the TOP tip filleted at R = 1/4, the bottom left sharp.
     /// let tip = 0.75f64.sqrt();
@@ -773,10 +774,11 @@ impl<T: Real> ValidatedLoop<T> {
     ///             winding: ArcSweep::Ccw,
     ///             p: Start,
     ///         },
+    ///         tol,
     ///     )
     ///     .expect("the near candidate resolves the tip");
     /// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
-    ///     .validate(Tolerance::get())
+    ///     .validate(tol)
     ///     .expect("the eye slot validates");
     ///
     /// // One filleted corner, found by structure — no radius scan.

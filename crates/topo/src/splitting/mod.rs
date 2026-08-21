@@ -549,7 +549,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// below-copy minting through the **mirror identity**
 /// `split(S, n) ≡ swap(split(S, −n))` (exact: piece assignment is
 /// plane-orientation-equivariant — PR 2's principle, executed by the
-/// PR 3 review's orientation table): on a `DegenerateSection` refusal
+/// PR 3 review's orientation table, tol): on a `DegenerateSection` refusal
 /// the pipeline reruns under the flipped plane — where the pinched
 /// fans ARE the above runs and receive their distinct copies — and
 /// swaps the sides back. Success is therefore

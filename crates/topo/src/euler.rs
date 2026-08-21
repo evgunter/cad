@@ -188,8 +188,10 @@
 //! ```
 //! use geom_core::Point3;
 //! use topo::{Body, MefSite, MevSite};
+//! use geom_core::Tol;
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! // The skeletal body: one face whose outer loop is a lone vertex.
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
@@ -198,13 +200,14 @@
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! // Split the loop with a second v–w edge: the segment closes into a
 //! // two-edge, two-face pillow — the smallest closed manifold body.
 //! let split = body.mef_chord(MefSite::Chords {
 //!     he1: seg.he_plus,
 //!     he2: seg.he_minus,
-//! })?;
+//! }, tol)?;
 //! assert_eq!(topo::validate(&body), Ok(()));
 //! assert_eq!(body.vertices().count(), 2);
 //! assert_eq!(body.edges().count(), 2);

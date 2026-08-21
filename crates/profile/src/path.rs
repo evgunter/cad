@@ -135,24 +135,25 @@
 //! ones:
 //!
 //! ```
-//! use geom_core::{Point2, Tolerance};
+//! use geom_core::{Point2, Tol};
 //! use profile::{Open, Profile, SketchPlane, Start};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let (east, north) = (0.0_f64, std::f64::consts::FRAC_PI_2);
 //! let (west, south) = (std::f64::consts::PI, -north);
 //! let r = 0.25;
-//! let square = Open.at(Point2::new(0.0, -1.0)).angle(east)?
-//!     .fillet(r)?.at(Point2::new(1.0, 0.0))?.angle(north)?
-//!     .fillet(r)?.at(Point2::new(0.0, 1.0))?.angle(west)?
-//!     .fillet(r)?.at(Point2::new(-1.0, 0.0))?.angle(south)?
-//!     .fillet(r)?.to(Start)?;
+//! let square = Open.at(Point2::new(0.0, -1.0)).angle(east, tol)?
+//!     .fillet(r, tol)?.at(Point2::new(1.0, 0.0), tol)?.angle(north, tol)?
+//!     .fillet(r, tol)?.at(Point2::new(0.0, 1.0), tol)?.angle(west, tol)?
+//!     .fillet(r, tol)?.at(Point2::new(-1.0, 0.0), tol)?.angle(south, tol)?
+//!     .fillet(r, tol)?.to(Start, tol)?;
 //! assert_eq!(square.loop_.vertices().len(), 8);
 //! assert_eq!(square.loop_.tangent_joints().len(), 8);
 //! // The chain also RECORDED itself: the program replays to the same
 //! // loop, bit for bit (profiles-as-programs v2 — see [`program`]).
 //! assert_eq!(square.program.len(), 13);
-//! Profile::new(SketchPlane::xy(), vec![square.loop_]).validate(Tolerance::get())?;
+//! Profile::new(SketchPlane::xy(), vec![square.loop_]).validate(tol)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -293,18 +294,20 @@
 //! junction check guards the geometry there, not the lattice:
 //!
 //! ```
+//! use geom_core::Tol;
 //! use geom_core::Point2;
 //! use profile::{ArcSweep, Center, Open};
-//! let sharp = Open.at(Point2::new(5.05, -1.6_f64)).toward(2.1, 0.8).unwrap()
+//! let tol = Tol::witness();
+//! let sharp = Open.at(Point2::new(5.05, -1.6_f64)).toward(2.1, 0.8, tol).unwrap()
 //!     .fillet_arc(0.5, Center {
 //!         c: Point2::new(7.0, 0.0),
 //!         winding: ArcSweep::Ccw,
 //!         p: Point2::new(8.5, 0.0),
-//!     })
+//!     }, tol)
 //!     .unwrap()
 //!     // The arrival tip's tangent is +y; 2.6 rad is a genuine corner.
-//!     .angle(2.6).unwrap()
-//!     .line(0.5);
+//!     .angle(2.6, tol).unwrap()
+//!     .line(0.5, tol);
 //! assert!(sharp.is_ok());
 //! ```
 //!

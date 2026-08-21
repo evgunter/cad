@@ -181,21 +181,24 @@
 //! as its exact inverse:
 //!
 //! ```
-//! use geom_core::Point3;
+//! use geom_core::{Point3, Tol};
 //! use topo::{Body, LoopBoundary, MekrSite, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! // A strut, then kill it: the far vertex is stranded as an EMPTY RING
 //! // of the face — Mäntylä §9.3 step (g), the hole-planting state.
 //! let strut = body.mev_line(
 //!     MevSite::Fan { he1: seg.he_minus, he2: seg.he_minus },
 //!     Point3::new(2.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! let kill = body.kemr(strut.he_plus, strut.he_minus)?;
 //! assert_eq!(
@@ -206,7 +209,7 @@
 //! let restore = body.mekr_chord(MekrSite::EmptyRing {
 //!     target: seg.he_minus,
 //!     ring: kill.ring,
-//! })?;
+//! }, tol)?;
 //! assert_eq!(topo::validate(&body), Ok(()));
 //! assert!(body.get_loop(kill.ring).is_none()); // the ring key died
 //! assert_eq!(body.half_edge_end(restore.he_plus), Some(strut.vertex));
@@ -1427,7 +1430,7 @@ mod tests {
     }
 
     /// mvfs + mev(Lone): the segment body (v0 —e0— v1, one loop
-    /// `[he_plus, he_minus]`).
+    /// `[he_plus, he_minus]`, tol).
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();

@@ -30,15 +30,17 @@
 //! because an arc and the fillet that trims it are one decision.
 //!
 //! ```
-//! use geom_core::Point2;
+//! use geom_core::{Point2, Tol};
 //! use profile::{ArcSweep, Center, Open, Start};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let tip = 0.75_f64.sqrt();
 //! let lens = Open.arc_fillet_arc(
 //!     Center { c: p(-0.5, 0.0), winding: ArcSweep::Ccw, p: p(0.0, -tip) },
 //!     0.25,
 //!     Center { c: p(0.5, 0.0), winding: ArcSweep::Ccw, p: Start },
+//!     tol,
 //! )?;
 //! assert_eq!(lens.program.len(), 1);
 //! # Ok(())
@@ -50,14 +52,16 @@
 //! resolves at the verb, so `p: Start` closes there and then.
 //!
 //! ```
+//! use geom_core::Tol;
 //! use geom_core::Point2;
 //! use profile::{ArcSweep, Center, Open, Start};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let quarter = Open.at(p(0.0, 2.0))
-//!     .line_to(p(0.0, 0.0))?
-//!     .toward(1.0_f64, 0.0)?
-//!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start })?;
+//!     .line_to(p(0.0, 0.0), tol)?
+//!     .toward(1.0_f64, 0.0, tol)?
+//!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start }, tol)?;
 //! assert_eq!(quarter.loop_.vertices().len(), 4);
 //! # Ok(())
 //! # }
@@ -73,20 +77,22 @@
 //!
 //! ```
 //! use geom_core::Point2;
+//! use geom_core::Tol;
 //! use profile::{ArcSide, ArcSweep, Center, Open, Radius, Start};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let boss = Open.at(p(5.05, -1.6))
-//!     .toward(2.1_f64, 0.8)?
+//!     .toward(2.1_f64, 0.8, tol)?
 //!     // Onto the boss circle, blended.
-//!     .fillet_arc(0.5, Center { c: p(7.0, 0.0), winding: ArcSweep::Ccw, p: p(8.5, 0.0) })?
+//!     .fillet_arc(0.5, Center { c: p(7.0, 0.0), winding: ArcSweep::Ccw, p: p(8.5, 0.0) }, tol)?
 //!     // Off it again: r = 1.5 and Left re-derive the centre (7, 0)
 //!     // from the tip's own position and tangent, exactly.
-//!     .arc_fillet(Radius { r: 1.5, side: ArcSide::Left }, 0.5)?
-//!     .at(p(4.05, 1.35))?
-//!     .toward(-4.1, 0.3)?
-//!     .line(1.0)?
-//!     .line_to(Start)?;
+//!     .arc_fillet(Radius { r: 1.5, side: ArcSide::Left }, 0.5, tol)?
+//!     .at(p(4.05, 1.35), tol)?
+//!     .toward(-4.1, 0.3, tol)?
+//!     .line(1.0, tol)?
+//!     .line_to(Start, tol)?;
 //! assert!(boss.loop_.tangent_joints().len() >= 4);
 //! # Ok(())
 //! # }
@@ -98,19 +104,21 @@
 //! leg, whose endpoint the spec DERIVES rather than authors.
 //!
 //! ```
+//! use geom_core::Tol;
 //! use core::f64::consts::FRAC_PI_2;
 //! use geom_core::Point2;
 //! use profile::{ArcSide, Open, Start, Sweep};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let hook = Open.at(p(0.0, 0.0))
-//!     .toward(1.0_f64, 0.0)?
-//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: FRAC_PI_2 })?
-//!     .fillet(0.25)?
-//!     .at(p(0.0, 3.0))?
-//!     .toward(-1.0, 0.0)?
-//!     .line(1.0)?
-//!     .line_to(Start)?;
+//!     .toward(1.0_f64, 0.0, tol)?
+//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: FRAC_PI_2 }, tol)?
+//!     .fillet(0.25, tol)?
+//!     .at(p(0.0, 3.0), tol)?
+//!     .toward(-1.0, 0.0, tol)?
+//!     .line(1.0, tol)?
+//!     .line_to(Start, tol)?;
 //! assert_eq!(hook.loop_.vertices().len(), 5);
 //! # Ok(())
 //! # }

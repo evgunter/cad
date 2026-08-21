@@ -42,13 +42,14 @@ rather than emitted:
 use pncad::prelude::*;
 use pncad::profile::PathError;
 
+let tol = Tol::witness();
 // Arrive heading east, then declare a departure that is also east.
 // That is not a corner; it is a tangency nobody asked for.
 let refused = Open
     .at(p2(0.0, 0.0))
-    .line_to(p2(1.0, 0.0))
+    .line_to(p2(1.0, 0.0), tol)
     .expect("the leg is fine")
-    .toward(1.0, 0.0);
+    .toward(1.0, 0.0, tol);
 
 assert!(matches!(refused, Err(PathError::JunctionTangent { margin, .. }) if margin == 0.0));
 ```
@@ -68,17 +69,18 @@ use pncad::prelude::*;
 use pncad::profile::PathError;
 use pncad::profile::path::PathNoCornerReason;
 
+let tol = Tol::witness();
 let refused = Open
     .at(p2(0.0, 0.0))
-    .line_to(p2(1.0, 0.0))
+    .line_to(p2(1.0, 0.0), tol)
     .expect("the leg is fine")
-    .toward(0.0, 1.0)          // departure ray: north. A real corner.
+    .toward(0.0, 1.0, tol)          // departure ray: north. A real corner.
     .expect("north")
-    .fillet(0.25)
+    .fillet(0.25, tol)
     .expect("the radius is positive")
-    .toward(0.0, 1.0)          // arrival ray: north as well...
+    .toward(0.0, 1.0, tol)          // arrival ray: north as well...
     .expect("north again")
-    .to(p2(1.0, 2.0));         // ...so the two carriers never meet
+    .to(p2(1.0, 2.0), tol);         // ...so the two carriers never meet
 
 assert!(matches!(
     refused,
@@ -106,15 +108,16 @@ caught by `Profile::validate` — the door `validated` runs for you:
 use pncad::prelude::*;
 use pncad::profile::ProfileError;
 
+let tol = Tol::witness();
 // A bowtie: the two diagonals cross. Every corner is locally fine —
 // which is exactly why the lattice AUTHORS it without complaint.
 let bowtie: ClosedLoop<f64> = Open
     .at(p2(0.0, 0.0))
-    .line_to(p2(1.0, 1.0))?
-    .line_to(p2(1.0, 0.0))?
-    .line_to(p2(0.0, 1.0))?
-    .line_to(Start)?;
-let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie.into()]);
+    .line_to(p2(1.0, 1.0), tol)?
+    .line_to(p2(1.0, 0.0), tol)?
+    .line_to(p2(0.0, 1.0), tol)?
+    .line_to(Start, tol)?;
+let refused = validated(SketchPlane::<f64>::xy(), vec![bowtie.into()], tol);
 
 assert!(matches!(refused, Err(ProfileError::NonSimple { .. })));
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -137,18 +140,20 @@ understanding. Two boxes stacked so they share a face plane:
 ```
 use pncad::prelude::*;
 use pncad::topo::BooleanError;
+let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
-#         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0))?
-#         .line_to(p2(1.0, 1.0))?.line_to(p2(0.0, 1.0))?.line_to(Start)?;
+#         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
+#         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
 
-let refused = union(&lower, &upper);
+let refused = union(&lower, &upper, tol);
 assert!(matches!(refused, Err(BooleanError::UndeclaredCoincidence { .. })));
 # Ok::<(), E>(())
 ```
@@ -194,20 +199,21 @@ and the document is left untouched:
 use pncad::prelude::*;
 use pncad::document::EditError;
 
+let tol = Tol::witness();
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 
-let doc = Doc::<ProfileProgram>::empty_derived("guide");
+let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
-})?;
+}, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
     node: Node::Extrude { profile, distance: len(1.0) },
-})?.doc;
+}, tol)?.doc;
 
-let refused = apply(&doc, &DocEdit::DeleteNode { id: profile });
+let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol);
 assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
 assert_eq!(doc.len(), 2, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -366,12 +372,13 @@ symptom.
 
 ```
 use pncad::prelude::*;
+let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # let rect: ClosedLoop<f64> = Open
-#     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0))?
-#     .line_to(p2(1.0, 1.0))?.line_to(p2(0.0, 1.0))?.line_to(Start)?;
-# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()])?, Extrusion::Distance(real(1.0)))?.body;
-match validate_geometric(&body) {
+#     .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
+#     .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
+# let body = extrude(&validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?, Extrusion::Distance(real(1.0)), tol)?.body;
+match validate_geometric(&body, tol) {
     Ok(()) => { /* the body is sound at tier 3 */ }
     Err(failures) => {
         // Every failure, not just the first: report them all at once.

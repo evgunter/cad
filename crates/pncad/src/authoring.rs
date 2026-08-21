@@ -130,7 +130,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// Validates a profile at the ambient tolerance — the authoring
 /// ladder's first rung.
 ///
-/// Equivalent to `Profile::new(plane, loops).validate(Tolerance::get())`,
+/// Equivalent to `Profile::new(plane, loops).validate(tol)`,
 /// which is the form every scene wrote by hand. The tolerance comes
 /// from the environment ([`Tol::witness`]) so that a corpus can be
 /// replayed at a different ε without editing a line; pass a tolerance
@@ -145,20 +145,22 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// only a scalar that can answer trilean predicates may be asked.
 ///
 /// ```
+/// use geom_core::Tol;
 /// use pncad::prelude::*;
 ///
+/// let tol = Tol::witness();
 /// let square: ClosedLoop<f64> = Open
 ///     .at(p2(0.0, 0.0))
-///     .line_to(p2(1.0, 0.0))?
-///     .line_to(p2(1.0, 1.0))?
-///     .line_to(p2(0.0, 1.0))?
-///     .line_to(Start)?;
-/// let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()])?;
+///     .line_to(p2(1.0, 0.0), tol)?
+///     .line_to(p2(1.0, 1.0), tol)?
+///     .line_to(p2(0.0, 1.0), tol)?
+///     .line_to(Start, tol)?;
+/// let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
 /// assert_eq!(profile.loops().len(), 1);
 ///
 /// // Fail-loud: a degenerate profile refuses with a typed error
 /// // rather than panicking or silently repairing itself.
-/// let empty = validated(SketchPlane::<f64>::xy(), vec![]);
+/// let empty = validated(SketchPlane::<f64>::xy(), vec![], tol);
 /// assert!(empty.is_err());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```

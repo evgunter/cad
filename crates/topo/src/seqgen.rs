@@ -58,7 +58,7 @@
 //!   manufacturing them. (Killing the same edge from the other half is
 //!   the strut kill, which IS exactly invertible.)
 //! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
-//!   is then necessarily a self-loop) AND the surviving singleton loop
+//!   is then necessarily a self-loop, tol) AND the surviving singleton loop
 //!   is a ring — or the outer of a face that has rings. The one-op
 //!   re-make `mef(Chords{next(he), next(he)})` re-splits from the
 //!   surviving side, which necessarily leaves the big loop on the

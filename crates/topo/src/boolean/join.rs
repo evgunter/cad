@@ -927,7 +927,7 @@ fn choose_roles<T: Decide>(
 /// Whether the prospective mef run `[h1 .. h2]` — the `next`-order arc
 /// from `h1` through `h2`, closed by the chord `end(h2) → start(h1)`
 /// (exactly the cycle the joiner's first `mef(Chords { he1: h1,
-/// he2: next(h2) })` walls off as the new face) — winds CCW around
+/// he2: next(h2, tol) })` walls off as the new face) — winds CCW around
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///

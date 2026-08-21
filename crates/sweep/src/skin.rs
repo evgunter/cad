@@ -985,10 +985,11 @@ pub fn loft_geometry(
 /// carry.
 ///
 /// ```
-/// use geom_core::{Affine3, Point2, Vec3};
+/// use geom_core::{Affine3, Point2, Tol, Vec3};
 /// use profile::RawLoop;
 /// use sweep::{ProfileLoop, Section, loft_parameters};
 ///
+/// let tol = Tol::witness();
 /// let quad = |pts: [(f64, f64); 4]| -> Section {
 ///     vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))]
 /// };
@@ -1004,7 +1005,7 @@ pub fn loft_geometry(
 ///     .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
 ///     .collect();
 ///
-/// let params = loft_parameters(&sections, &places, 2).expect("the sections skin");
+/// let params = loft_parameters(&sections, &places, 2, tol).expect("the sections skin");
 /// // Ends pinned; the middle is the CHORD-length share, not the
 /// // z-share (which would be 1/3): the flare lengthens the first
 /// // chord, giving t = √73 / (√73 + √265).

@@ -15,7 +15,7 @@
 //! - same loop ⇒ `mef(Chords { he1: h1, he2: next(h2) })` (the book's
 //!   `lmef(h1, h2->nxt)`; our [`MefSite::Chords`] documents the same
 //!   run association, so the argument pair ports literally — and the
-//!   mirror test pins the outcome, not the citation), guarded by
+//!   mirror test pins the outcome, not the citation, tol), guarded by
 //!   `prev(prev(h1)) != h2` (adjacent ⇒ the chord already exists);
 //! - different loops ⇒ `mekr` with the **ring chosen structurally**
 //!   (the loop that is not the face's outer; the book's fixed
