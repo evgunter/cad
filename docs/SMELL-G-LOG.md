@@ -343,6 +343,23 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
   own fix** — the corrected pair did not re-derive either — so the census now
   has one home and a written-down definition rather than a better number.
 
+**Second pass, from the re-check (2026-08-21).** The re-check cleared the
+substance and blocked on one thing: **S176(a) had recurred a third time, inside
+the entry that documents S176(a)** — the S112 ledger's member bullets carried
+`sugar.rs:821`, `ssi.rs:975` and `render_freecad.py:159`, all three stale, under
+a header sentence claiming every line below had been re-derived. Fixed by
+converting them to target names and expressions rather than to corrected
+numbers, and by making the header sentence true of the bullets as well as the
+table. The document also carried **two anchors** for one PR's measurements
+(`3ddd6011` and `4cc0dbf3`); there is now one, `cfdc1c6f`. Two code residues
+taken with it: the table pin's *"assertions below run FIRST"* comment (they moved
+into `report_moved_refuse_pin`), and the one inert `tests/` link left in a
+paragraph this PR re-authored while converting three siblings twenty lines up.
+And two defects this PR had introduced in its own new prose, both one sentence:
+the twin pins' docs named different functions, and the `pncad` façade section
+re-asserted *"no numerics"* directly over the ε-committing counterexample it had
+just written down.
+
 **Style review: NOT CLEARED, and the fix pass is in the same PR.** The review's
 verdict was that the PR **re-minted S71 at the site it was correcting** — the
 header still opened on the flagged sentence with a rider, `check_corner`'s doc

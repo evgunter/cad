@@ -1033,7 +1033,8 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// every shipped band. The wider boundary would also permit a build
 /// that swallows NEITHER carrier; on this table it does not happen, and
 /// the `Ok` arm asserts the non-swallowing property first (via
-/// `assert_swallows_nothing`) so that a moved pin says what got built
+/// `report_moved_refuse_pin`, the one home of that arm) so that a moved
+/// pin says what got built
 /// before it fails.
 ///
 /// (The construction machinery underneath — signed offset radii, the

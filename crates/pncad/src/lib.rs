@@ -89,8 +89,11 @@
 //! `ToleranceConflict` by having asked. That is the one place in this
 //! façade where calling a wrapper changes the run, and
 //! [`tolerance::committed_report`] is the door that does not; the
-//! module says so at each of the three. Still no geometry and still no
-//! numerics.
+//! module says so at each of the three. **So the section's *"no numeric
+//! behavior"* is true of the geometry and false of ε**: nothing here
+//! computes a number, and two doors here can decide which ε every later
+//! predicate is evaluated at. Stating that is the whole reason this
+//! module is named in a section about what the façade contains.
 //!
 //! [`validated`]: authoring::validated
 //!
