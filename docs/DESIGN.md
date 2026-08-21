@@ -45,16 +45,23 @@ self-intersection and to compute tolerance stackups.
 
 ## The central commitment
 
-> **A model is a pure, replayable function from a parameter vector to a
-> solid.** `fn build(params: &Params) -> Result<Solid, ModelError>` —
-> deterministic, no hidden state. The B-rep is a derived value, never a
-> mutated-in-place object.
+> **A model is a pure, replayable function from a parameter vector and a
+> tolerance to a solid.** `fn build(params: &Params, tol: Tol) ->
+> Result<Solid, ModelError>` — deterministic, no hidden state. The B-rep is
+> a derived value, never a mutated-in-place object.
 
-**Not quite: there is one exception, and only one — ε.** No signature
-carries it and every predicate reads it, so a model is a pure function of
-its parameters *and* of ε, which is committed once per process before the
-first predicate and cannot be changed after (D4). Determinism is over the
-pair: the same parameters at the same ε give the same solid.
+Determinism is over the **pair**: the same parameters at the same ε give
+the same solid. ε is committed once per process, before the first
+predicate, and cannot be changed after (D4 ¶1) — so it is a declared run
+parameter rather than hidden state, and it is *named in the signature*
+like any other input. What makes naming it affordable is `Tol`, D4 ¶1's
+witness: it carries evidence that the run's tolerance is committed, not a
+copy of the value, so a signature can declare its ε-dependence without the
+value travelling and without a second ε becoming constructible.
+
+*Until 2026-08-21 this section read "there is one exception, and only one —
+ε: no signature carries it and every predicate reads it". The exception is
+gone; the pair it described is not.*
 
 Everything else follows from holding this invariant from day one:
 
@@ -777,6 +784,27 @@ applied to error handling. Five commitments:
    mixed-tolerance semantics one level up). Per-run initialization also
    enables running the test suite at several ε values to smoke out
    tolerance-sensitive algorithms.
+   **The witness, not the value (ratified 2026-08-21, in conversation
+   with Evan; reverses the "do not thread ε" half of the S22 row-1
+   ruling of 2026-08-19, on a design that ruling did not consider).**
+   Every function whose result depends on ε says so in its signature, as
+   a `Tol` parameter. `Tol` is a zero-sized token with a private field
+   and a single constructor that reads the committed global, so it has
+   exactly **one inhabitant**: passing it is evidence that the run's ε is
+   committed and a door to reading it, never a carrier of a value. That
+   is what lets signature-visibility and single-source-of-truth hold at
+   once. The earlier objection to threading — a `Tolerance` parameter
+   buys documentation at the price of the lock's structural enforcement,
+   evidenced by `profile`'s 256 call sites all passing
+   `Tolerance::get()` — does not reach a type that cannot express a
+   second ε and does not remove the lock. The `OnceLock` stays, and
+   remains the thing that makes "one ε per process" structural; `Tol`
+   makes "this decision is ε-relative" checkable from the signature, and
+   makes the ε-FREE functions — the exact predicates, the combinatorial
+   layer — identifiable by the *absence* of the parameter. Enforced
+   rather than conventional: obtaining a witness is confined to the
+   `pncad` door, binaries and tests by a CI gate, so an internal ambient
+   read cannot quietly reintroduce the thing this removes.
    **Angular thresholds are always derived, never a second global**: an
    angle only means anything through the displacement it induces at a
    lever arm (d = r·θ), so a fixed εₐ would silently privilege the

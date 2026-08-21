@@ -4170,6 +4170,51 @@ per process by construction, mixed-ε assemblies out of scope — belongs in
 for the D2 addendum.
 
 
+### S22 row 1 REVISED (2026-08-21): threaded after all — as a witness, not a value
+
+**Evan, 2026-08-21: thread ε, at every call site.** This reverses the
+*"do not thread ε"* half of the 2026-08-19 ruling above and nothing else.
+Everything that ruling settled stands untouched: the `OnceLock` keeps its
+place and its enforcement job, no session object, no per-model ε, no
+mixed-ε assemblies, and the provenance channel it commissioned (#659) is
+unaffected — this change gives `EpsilonSource` no new readers and moves no
+decision.
+
+**The reversal turns on a design the ruling did not consider.** Both sides
+of the 2026-08-19 argument assumed the threaded parameter would be a
+`Tolerance` — the *value*. Both of the ruling's decisive objections are
+objections to exactly that, and neither reaches a witness:
+
+- *"The `OnceLock` is the only thing structurally enforcing one ε per
+  process; threading deletes that enforcement in exchange for
+  documentation."* True of a value parameter. A zero-sized `Tol` witness
+  carries evidence instead — the value never leaves the `OnceLock`, which
+  stays where it is. Nothing is deleted; enforcement is added to.
+- *"It bought a signature that documents the dependency and no
+  configurability at all"* — `profile`'s 256 call sites, every one passing
+  `Tolerance::get()`. That reads as a false promise because `tol:
+  Tolerance` *looks* like it could carry something else. `Tol` has one
+  inhabitant and cannot, so the signature promises precisely what it
+  delivers, and "every call site passes the same thing" stops being
+  evidence of a bad trade and becomes the type's stated content.
+
+**The objection that survives is churn**, which was real then and is being
+paid now: ~80 `Band::linear()` and 17 `Band::angular_at()` sites in `src`,
+their callers up to each operation entry, and ~400 test sites. What makes
+it affordable is that it is compiler-driven and mechanical — the 355
+functions that already take a `Band` are where threading stops, since the
+band is the derived value — and that no conflicting work is in flight.
+
+**What it buys that neither 2026-08-19 option could.** The `no-ambient-env`
+rule gains an enforceable sibling rather than a documented convention;
+the central commitment's ε exception is *deleted* rather than reworded,
+which is the prose obligation above discharged at its root instead of
+patched; `mesh`'s ε inventory — pinned as a test by #872 and the subject
+of #884's open D9 question — becomes structural, since an ε read that is
+not in a signature stops compiling; and `profile`'s double mechanism, the
+open question this row explicitly left behind, collapses into one.
+
+
 ## S23. The exhaustiveness sweep degrades silently to seed-generation
 
 - **Where**: `crates/geom-brep/src/ssi/exhaust.rs:140`, `:267`,
@@ -14803,7 +14848,7 @@ And a fourth, from the audit that produced Track D:
 |---|---|---|
 | **D6** | **D5's contract is still untyped at two more doors.** #665 typed `enters_material` and `sector_shape`; a differently-shaped sweep (`grep sense_sign`) reaches the rest. This is a schedule, not a sentence — the question is how far the newtype goes, not whether it was right. | nothing hard; colours the sense-carrying surface |
 | **S14** | **What the no-panic principle actually says.** Evan's own reframe, 2026-08-18: *"maybe we need to update that principle to 'no panic on any reachable state, yes panic on things that can only indicate bugs'"*. The steelman split it — the first half is a **clarification** (D9 already says "on any input" and no existing `debug_assert` moves); the second is an **amendment**, because it licenses panics in release, which D9 does not, and on the one such class D9 disposes of it chose typed error or garbage-out. The reframe is also already in the tree unnoticed: PR #447 argued for panicking indexing on the merits and never took it back to D9, while `crates/topo` was ratified the other way. And the honesty defence for `hull.rs:80` fails on reachability — two clamped `KnotVector`s of equal degree and different length, `long_kv.span(k)` handed to a curve built on the short one, indexes out of bounds through the public API with no kernel bug in the trace. Issue **#475** costs out Options A/B/C and misses the cheap third (`kv.span(span.index()) == Some(span)`, O(1), the deleted guard exactly). **Second witness (added by #713, D5).** `topo::instance`'s graft is a public door that can leave a body **tier-1-invalid**: `graft_disjoint_all_keyed` mints an empty destination solid per source solid before transplanting, and its own docs state that a refusal raised mid-transplant leaves `dst` partially written and *spent, never resumable* — an empty solid being `SolidWithoutShells`, a tier-1 error. So a caller that discards the `Err` and keeps the body makes the next Euler operator's `debug_assert` fire from **API misuse, not a kernel bug**, which is precisely the class D9's footnote asserts cannot occur and which S43's proposed sixth state class named and the ratified five do not cover. It is the same question as `Span`'s, one crate over and through a door that already concedes the state in writing — where `Span` needed a somewhat contrived pairing to reach, this is a documented failure mode of a shipping API. #713 recorded the exception at both sites (`euler.rs`, `DESIGN.md`) and proposed no fix. **Correction, #740 (D2):** the door's `# Errors` section named `GraftRecertify` as the mid-transplant refusal, and **that variant cannot be raised at this door at all** — both public `instance` doors bridge with `combine::Bridge::RemapKeys`, whose arm never reaches the only site that raises it. The witness is unharmed: the mid-transplant refusal these doors *can* raise is `JoinDesync`, from the reference remap, and it writes as it goes just the same. #740 corrected the doc. **Third witness, from the other side — RETRACTED by #768 (D27):** executing the addendum over `sweep/src/fillet` produced a state none of the five classes fits — `FilletError::EmptyChain`, neither reachable by input nor locally provable. It is not a witness for this row after all: the state was representable only because `Chain` held its links in a `Vec`, and #768 removed the representation rather than adding a class. **The distinction that leaves is the one this row still turns on, and it is now a question in front of Evan rather than an answer** — `EmptyChain` was a state a type could stop spelling; the graft class above is a state a public door genuinely produces, and no type change removes it. Whether *"can the type stop representing it?"* is therefore the FIRST question at a site of this shape is now **ratified as row 0** of the D2 addendum (Evan, 2026-08-20, #777). **Row 0 reframes this row's first question and does not answer it.** What it asks of the graft class before any classification is: *can `graft_disjoint_all_keyed` be restructured so a partially-written destination is not representable* — staging into a fresh body and committing on success, the shape `merge_coplanar_faces` already uses in the same crate (`merge_faces.rs:468`, `let mut work = self.clone()`, under its own *"Never a partial commit: each sub-stage is tier-2-gated before adoption"*). Whether that restructuring is affordable is exactly row 0's *"if possible"* judgement, and it is **Evan's**, unchanged by #777 — which is why no row was minted for it. **If the answer is "yes, restructure it", that is a row worth minting at that moment**, and it moves the 46 lookup sites #740 left typed because this question is open. And the practical bite of this row is now measurable: #740 left 46 lookup sites as typed errors rather than `unreachable!` **because this question is open**, so S14 is no longer only a taxonomy gap, it is a bound on how much of the kernel can be converted. | This is a **decision, not work** — it was the one row of *Accepted, unscheduled* that had no channel at all. **It has one now: #823**, which splits the row into **S14(a)** (the `Span` pairing) and **S14(b)** (the graft), executes the reachability claim as a running test, re-derives every option's cost at its own base, and leaves the decision to Evan. Nothing in Track D touches it. |
-| **S22 row 1** | **ε ambience** — *settled 2026-08-19*: keep the `OnceLock`, add provenance (#659), no threading, no session object, no mixed-ε assemblies. Listed here only because the row's *other* halves are now closed and the finding should not read as open. | — |
+| **S22 row 1** | **ε ambience** — *settled 2026-08-19, half of it reversed 2026-08-21*: keep the `OnceLock`, add provenance (#659), no session object, no mixed-ε assemblies — all standing. The *no threading* half is **reversed**: ε is threaded at every call site as a zero-sized `Tol` witness, which is not the value-parameter design the ruling rejected. See **S22 row 1 REVISED** above. Listed here only because the row's *other* halves are closed and the finding should not read as open. | — |
 
 **D1 was ruled 2026-08-19** (a `Dual` may not certify, but it may have
 `Bounds`; M10/E4 remains the plan) and has landed — see S44's **D1 DECIDED**
