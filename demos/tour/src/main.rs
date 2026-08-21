@@ -166,10 +166,10 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 /// Both stems are unconditional here. Every tour body exports STL and
 /// STEP — [`run_body`] fails the tour on any refusal rather than
 /// emitting a body without one — so neither is optional on this side.
-/// The manifest FORMAT still admits a null `step` (the wild-corpus
-/// generator writes one for every cell), which is why the renderers
-/// keep reading it defensively; what the format actually promises is
-/// undefined and is smell-scan S114(c).
+/// A null `step` is still a legitimate manifest value: the wild-corpus
+/// generator writes one for every cell, because its STEP is an input
+/// fixture rather than something it exported. `demos/manifest.py` is
+/// where that fact is stated for both readers.
 struct ManifestBody {
     stl: String,
     step: String,
@@ -181,7 +181,6 @@ fn run_body(
     sb: &SceneBody,
     delta: f64,
     outdir: &str,
-    scene: &str,
     dumps: &mut Vec<uvdump::FaceDump>,
 ) -> ManifestBody {
     let label = &sb.name;
@@ -312,7 +311,7 @@ fn run_body(
     // pass because the pcurve caches are a property of THIS body — a
     // reader that re-imported the STEP would be looking at re-minted
     // ones, which is a different question.
-    let faces = uvdump::emit(scene, label, &sb.body, outdir);
+    let faces = uvdump::emit(label, &sb.body, outdir);
     let refused = faces.iter().filter(|f| f.note.is_some()).count();
     println!(
         "   [{label}] uv: {} face chart(s) dumped to uv/{}",
@@ -350,7 +349,7 @@ fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String, dumps: &mut Vec<uv
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir, stop.name, dumps))
+        .map(|sb| run_body(sb, stop.delta, outdir, dumps))
         .collect();
     manifest.push_str(&scene_json(stop, &bodies));
 }
@@ -363,6 +362,14 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
     } else {
         stop.caption.clone()
     };
+    // The wild-corpus generator writes this same field set, scene
+    // keys and body keys alike, INDEPENDENTLY. The agreement is
+    // deliberate and unenforced: no shared type, no crate edge, and
+    // nothing compares the two emitters — two fields do not pay for
+    // that. What holds it together is that one reader
+    // (`demos/manifest.py`) walks both manifests and reads every key
+    // rather than defaulting any, so a drift on either side fails the
+    // first render loudly instead of drawing something plausible.
     let body_entries: Vec<String> = bodies
         .iter()
         .map(|b| {

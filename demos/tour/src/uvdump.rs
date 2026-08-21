@@ -100,8 +100,6 @@ const COLOR_FITTED: &str = "#c1590a";
 /// One face's manifest entry, written to `<outdir>/uv.json` for the
 /// montage composer.
 pub struct FaceDump {
-    /// The tour scene the body belongs to.
-    pub scene: String,
     /// The body's tour label (its STL/STEP stem).
     pub body: String,
     /// The face's ordinal in `body.faces()` order.
@@ -359,7 +357,7 @@ fn measure(loops: &[Vec<Traversal>], sense: bool) -> (Vec<Vec<(f64, f64)>>, Face
 
 /// Emits one SVG per face of `body` under `<outdir>/uv/`, returning the
 /// manifest entries.
-pub fn emit(scene: &str, label: &str, body: &Body<f64>, outdir: &str) -> Vec<FaceDump> {
+pub fn emit(label: &str, body: &Body<f64>, outdir: &str) -> Vec<FaceDump> {
     let dir = format!("{outdir}/uv");
     std::fs::create_dir_all(&dir).expect("create uv dir");
     let band = Band::linear().expect("the run tolerance yields a valid linear band");
@@ -403,7 +401,6 @@ pub fn emit(scene: &str, label: &str, body: &Body<f64>, outdir: &str) -> Vec<Fac
         };
         std::fs::write(format!("{dir}/{svg_name}"), svg).expect("write uv svg");
         dumps.push(FaceDump {
-            scene: scene.to_string(),
             body: label.to_string(),
             face: ord,
             chart,
@@ -726,6 +723,18 @@ fn escape(s: &str) -> String {
 
 /// The manifest the montage composer reads (hand-rolled JSON, matching
 /// `scenes.json`'s house style).
+///
+/// It carries exactly the eight keys the composer reads, and no more:
+/// `svg` to open the cell, `body` and `face` to name and order it,
+/// `curved` and `note` to decide which class it is in, `body`+`chart`
+/// to group it, and `forms`+`loops`+`face` to rank within a group.
+/// The measured facts of the walk — half-edge and cache
+/// counts, signed area, `sense`, the winding verdict, the closure gap
+/// and the chart jump — are NOT here. Each is drawn into the cell's
+/// own SVG, which is where a reader meets it, and the corpus-wide
+/// aggregate of the same numbers is printed by the run that measures
+/// them (see the uv-lane block in `main`). A second copy in a file
+/// nothing reads is a third place for them to disagree.
 pub fn manifest_json(dumps: &[FaceDump]) -> String {
     let entries: Vec<String> = dumps
         .iter()
@@ -736,26 +745,16 @@ pub fn manifest_json(dumps: &[FaceDump]) -> String {
             };
             let forms: Vec<String> = d.stats.forms.iter().map(|f| format!("\"{f}\"")).collect();
             format!(
-                "  {{\"scene\": \"{}\", \"body\": \"{}\", \"face\": {}, \"chart\": \"{}\", \
-                 \"svg\": \"{}\", \"curved\": {}, \"loops\": {}, \"half_edges\": {}, \
-                 \"cached\": {}, \"forms\": [{}], \"area\": {:e}, \"sense\": {}, \
-                 \"winding_ok\": {}, \"gap\": {:e}, \"chart_jump\": {:e}, \
-                 \"note\": {note}}}",
-                d.scene,
+                "  {{\"body\": \"{}\", \"face\": {}, \"chart\": \"{}\", \
+                 \"svg\": \"{}\", \"curved\": {}, \"loops\": {}, \
+                 \"forms\": [{}], \"note\": {note}}}",
                 d.body,
                 d.face,
                 d.chart,
                 d.svg,
                 d.curved,
                 d.stats.loops,
-                d.stats.half_edges,
-                d.stats.cached,
-                forms.join(", "),
-                d.stats.area,
-                d.stats.sense,
-                d.stats.winding_ok,
-                d.stats.gap,
-                d.stats.chart_jump
+                forms.join(", ")
             )
         })
         .collect();

@@ -270,10 +270,26 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
     std::fs::write(format!("{outdir}/{name}.stl"), &stl_buf).expect("write stl");
     println!("   [{name}] exported {name}.stl");
 
+    // The manifest entry, in the same field set the tour writes --
+    // `step` and `transparency` included, and written independently.
+    // The agreement is DELIBERATE AND UNENFORCED: no shared type, no
+    // crate depending on the tour, and nothing compares the two
+    // emitters. Two fields do not pay for that. What holds it
+    // together is that one reader (`demos/manifest.py`) walks both
+    // manifests and READS both keys rather than defaulting them, so a
+    // drift on either side fails the first render loudly instead of
+    // drawing something plausible.
+    //
+    // Both values are constant here, and neither is a placeholder. A
+    // wild cell has no STEP of its own: the fixture it imports is an
+    // INPUT, never written into `outdir`, so there is no file for a
+    // renderer to open -- `null` is the fact. And nothing in this
+    // corpus is about an interior, so every cell is opaque.
     format!(
         "  {{\"name\": \"{name}\", \"caption\": \"{}\", \"montage\": true, \"view\": \
          {{\"elev\": {}, \"azim\": {}, \"up\": \"{}\"}}, \"bodies\": \
-         [{{\"stl\": \"{name}.stl\", \"step\": null, \"color\": [{}, {}, {}]}}]}}",
+         [{{\"stl\": \"{name}.stl\", \"step\": null, \"color\": [{}, {}, {}], \
+         \"transparency\": 0}}]}}",
         cell.caption,
         cell.view.0,
         cell.view.1,
