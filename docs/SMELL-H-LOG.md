@@ -148,6 +148,86 @@ table. The frozen table's *"S99–S103 are one merge's residue and want ONE
 lane, not five rows"* is the argument; this ruling only observes that
 `S116(b)` is a sixth member of that same residue.
 
+### H-R3. The doors tighten to `CertifiedBounds`; the passes keep their lanes
+
+**Evan, 2026-08-21, answering #867: *"tightening to `CertifiedBounds`
+works at least for now."*** *"At least for now"* is part of the ruling
+and is recorded as such — it closes the seams, it does not settle
+whether any of them should ever be differentiable.
+
+**The mechanism was already in the tree and nobody was using it where it
+counts.** #643 split `Bounds` from `CertifiedEnclosure`;
+`CertifiedEnclosure` is implemented for exactly `f64`, `Interval`,
+`RingInterval` and `Probe` and **never for `Dual`**; and `real.rs:800`
+gives the pair a sole-bound spelling, `pub trait CertifiedBounds: Bounds
++ CertifiedEnclosure {}`, blanket-implemented. So a seam that wants duals
+out does not need anything built — it needs **a bound that does not type
+check**.
+
+**What the ruling does not do: it does not delete the four lane traits.**
+The conversation opened on whether it should, and the evidence went the
+other way.
+
+> `CertifiedBounds` refuses at the **function**. A lane trait refuses at
+> a **sub-operation inside a function that has non-certifying work to
+> do**. No bound on a whole function can say *"this arm needs
+> certification, the rest does not."*
+
+All four lane traits gate **mixed passes** — `validate_geometric` /
+`validate_pseudomanifold` (`PropsQuadLane`), `validate_pcurves`
+(`PcurveFittedLane`), `census_and_certify` (`ChartRegionLane`),
+`Body<T>`'s euler impl (`EdgeNurbsLane`) — and the decisive site is
+`topo/tests/geometric_cube.rs:236`, which calls `validate_geometric` at
+`Dual64` and asserts it **succeeds**: the quadrature arm declines
+internally through the refusing impl while the rest genuinely validates,
+after which every certificate's value channel is compared **bitwise** to
+the `f64` build. `sweep/tests/m5_pr11_quad_props.rs`'s
+`dual_lane_keeps_the_closed_form_refusal` is the same shape deliberately.
+Bounding those passes on `CertifiedBounds` would not harden them; it
+would delete `Body<Dual64>`'s ability to go through a validation pass.
+
+**Why the steelman read the other way.** S44's *"What this does NOT
+settle"* priced the four lane traits by asking *does deleting break the
+guarantee* — and answered no for three of them, since their doors carry
+`CertifiedEnclosure` already. That is true and is the wrong question.
+The question that decides it is *does deleting remove a capability*, and
+the answer is yes at all four. **A redundant guarantee and a redundant
+trait are not the same finding**, and C7's collapse was scoped against
+the first.
+
+### H-R4. The door inventory, and Track H takes two sites outside its ground
+
+**A door is a function whose whole job certifies.** Three are currently
+`Decide + Bounds` and admit a dual:
+
+| Door | Where | Owner |
+|---|---|---|
+| `project` / `project_seed` / `project_from_seed` | `geom/src/projection.rs`, `curves/projection.rs`, `surfaces/projection.rs` | **Track H** |
+| `chart_region_overlap` | `topo/src/chart_region.rs:355` — `pub`, re-exported at `lib.rs:287`; an external caller instantiates it at a dual **without `ChartRegionLane` being consulted at all** | unowned |
+| `fillet_edges`, `ring_clearance`, `run_battery` | `sweep/src/fillet/{build,surgery,battery}.rs` — S90's seam | unowned |
+
+**The `geom` doors are not merely undocumented at a dual, they are
+wrong there** — lane H-d filed **#874**: foot and orthogonality come back
+as partials at a *frozen* `f64` foot parameter. The tightening is that
+issue's structural half.
+
+**Track H takes all three, including the two outside its scope.**
+`topo/src/chart_region.rs` belongs to no track (Track I's `topo` ground
+is `census.rs` only), and `sweep/src/fillet/` is explicitly outside Track
+G's *"`sweep/src/` outside `fillet/`"*. **The reason to take them
+together is that the ruling is one**: split across three lanes it would
+be argued three times, and the second and third arguments would be
+transcriptions — which is how `H8` acquired a stale citation (H-R1).
+Published here and in the lane's PR so Tracks G and I can object.
+
+**Verified before scheduling, because it would have been the blocker:**
+`chart_region_overlap` is **not** called from `census_and_certify` — its
+only callers are `chart_region_r2_probes.rs` and one `sweep` test — so
+tightening the door does not propagate a `CertifiedBounds` bound up into
+the census pass and does not disturb H-R3. **The same check is owed at
+the `geom` doors and is the lane's first task**, since a door called from
+inside a mixed pass cannot be tightened without breaking the pass.
+
 ---
 
 ## Sequencing
