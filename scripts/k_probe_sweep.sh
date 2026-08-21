@@ -144,11 +144,11 @@ run_dump() {
 # sweep already named. This runs the other half, and records the
 # `#[ignore]`d complement the floor needs.
 #
-# WHAT THESE TESTS ACTUALLY ASSERT, stated because their own docs do not:
-# one-sided GREENNESS at `Probe` — `failures(&ev).is_empty()` — and not
-# bit-identity against an f64 run, which nothing here compares. Greenness
-# is TOLERANCE-DEPENDENT, so this is run at a stated ε rather than at
-# whatever the ambient default happens to be.
+# WHAT THESE TESTS ASSERT, stated because it is what decides the
+# placement: one-sided GREENNESS at `Probe` — `failures(&ev).is_empty()`
+# — and not bit-identity against an f64 run, which no test in this tree
+# compares. Greenness is TOLERANCE-DEPENDENT, so this runs at a stated ε
+# rather than at whatever the ambient default happens to be.
 #
 # ONCE, NOT PER ε, and the reason is redundancy rather than ε-invariance.
 # `m4_pr8_k_probe`'s `run_doc` asserts the same predicate — plus `validate`,
