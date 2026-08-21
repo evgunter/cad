@@ -713,6 +713,57 @@ opposite direction: a lane needed a compile-fail proof for its own change,
 and asked whether the proof worked. **The question that found it is
 "does my own evidence hold", not "is there a defect".**
 
+### H-R14. `S213` was minted twice inside this track — the orchestrator allocates from here on
+
+**Both lanes re-derived against `main`, both were right to, and neither
+could have seen the other.** `smellh/h-g-doors` (#886) minted `S213` for
+`real.rs`'s false `EdgeNurbsLane` credit; `smellh/h-e` (#885's fix pass)
+minted `S213` for the blind oblique-rotation oracle. **Neither branch was
+merged**, so `main` showed `S210`–`S212` taken and `S213` free to both.
+
+**The published block does exactly what §H says it does, and no more.**
+It protects Track H from *other tracks*. Between two open branches
+*inside* Track H it is worth nothing — which is G-R13's rule, and which
+this track had already seen once today: **H-a renumbered off `S210` only
+because #875 had already landed.** The check that saved H-a cannot fire
+when nothing has landed, and I left two lanes drawing from one pool with
+that check as the only safeguard.
+
+**Resolution — by first mint, not by landing order.** `S213` stays with
+**#886**: minted ~2h earlier and already through an adversarial review, so
+moving it would invalidate a reviewed artifact to spare an unreviewed one.
+*(Track G's `D114` used landing order because both rows were already on
+`main` and merged-row-wins could not decide; here neither has landed, so
+the tiebreak is available and the cheaper one is correct.)* H-e's becomes
+**`S215`**; `S214` is the orchestrator's.
+
+**The mechanism, effective now: the orchestrator allocates, lanes ask.**
+No Track H lane draws from `S210`–`S229` / `D140`–`D159` itself again.
+Each reservation is published in **this file**, which sits on `main` far
+more often than any lane branch — so a reservation is visible to a lane
+that has merged `main`, which is precisely what a block on a branch is
+not.
+
+**Standing allocations**
+
+| number | subject | holder |
+|---|---|---|
+| `S210` | the sole-`T: Bounds` class has a rule and no instrument | H-d, **landed #875** |
+| `S211` | two `geom` box modules claim a gate entry they cannot have | H-d, **landed #875** |
+| `S212` | the certified door's postcondition has one home, three doors re-derive it | H-a, **landed #880** |
+| `S213` | `real.rs` credits M7-8 with a technique it does not use | H-g, **#886 open** |
+| `S214` | eleven `compile_fail` doctests in `tests/` are never collected | orchestrator, **unmerged** |
+| `S215` | the only oblique-axis bit-exact rotation test cannot fail | H-e, **#885 open** |
+| `S216` | the `compile_fail` error code is inert — 28 rows in `src/` | H-g, **to mint** |
+
+**Why this is a ruling and not an incident.** Nothing shipped wrong, both
+lanes followed their briefs exactly, and the collision was caught before
+either landed. **The defect is in the allocation design, which is mine** —
+and the general shape is worth more than the fix: *a check that reads a
+shared branch cannot see reservations held on unshared ones, so a
+reservation scheme is only as good as the frequency with which its
+register reaches the shared branch.*
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
