@@ -179,12 +179,20 @@ fn boundary_pre_pass_edges() {
 /// **What this row can and cannot catch.** It fires on a branch inside
 /// the walk that reads the normal's sign, which is the drift it
 /// guards; and the tilted block below pins ABSOLUTE verdicts, so gross
-/// walk arithmetic reds it too. What no differential row can catch is
-/// an error that moves both signs equally — the invariance argument at
-/// `chord_join::face_plane_normal` is therefore stated as algebra
-/// rather than left to this row. The cost of that limit is bounded:
-/// the four rows above pin the walk's arithmetic absolutely, so a
-/// symmetric error has to survive them first.
+/// walk arithmetic reds it too. **Measured on this branch**, by
+/// mutating the tree and running this row: a `side_axis` that branches
+/// on the normal's sign reds this row and nothing else in the file; an
+/// unsigned crossing lever (`(yⱼ − yᵢ).abs()` in `ray_parity.rs`) reds
+/// this row *and* the four beside it, through the tilted block's
+/// absolute expectations rather than through the differential
+/// comparison.
+///
+/// What no differential row can catch is an error that moves both
+/// signs EQUALLY — measured too: `n̂(n̂·r)` written `n̂·|n̂·r|` leaves
+/// every row in this file green. The invariance is therefore stated as
+/// algebra, at `point_in_loop`, rather than left to this row; the cost
+/// is bounded because the four rows above pin the walk's arithmetic
+/// absolutely, so a symmetric error has to survive them first.
 #[test]
 fn the_verdict_is_blind_to_the_normals_sign() {
     let band = geom_core::Band::linear().unwrap();
