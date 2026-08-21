@@ -546,7 +546,7 @@ fn tear_landed(tear: Tear) -> String {
 /// [`LINK_OPS`] is therefore what the floor counts over, and
 /// `mfkrh_plug` is not in it.
 #[cfg(not(debug_assertions))]
-fn hammer(body: &Body<f64>) -> Exposure {
+fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     use crate::entity::{EdgeKey, LoopKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
@@ -567,13 +567,13 @@ fn hammer(body: &Body<f64>) -> Exposure {
         note(
             "mev_line",
             body.clone()
-                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0))
+                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
                 .is_ok(),
         );
         note(
             "mef_chord",
             body.clone()
-                .mef_chord(MefSite::Chords { he1: he, he2: he })
+                .mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
                 .is_ok(),
         );
         for &other in halves.iter().take(4) {
@@ -587,34 +587,40 @@ fn hammer(body: &Body<f64>) -> Exposure {
                             he2: other,
                         },
                         p(42.0),
+                        tol,
                     )
                     .is_ok(),
             );
             note(
                 "mef_chord",
                 body.clone()
-                    .mef_chord(MefSite::Chords {
-                        he1: he,
-                        he2: other,
-                    })
+                    .mef_chord(
+                        MefSite::Chords {
+                            he1: he,
+                            he2: other,
+                        },
+                        tol,
+                    )
                     .is_ok(),
             );
         }
     }
     for &edge in &edges {
         for t in [0.25, 0.5, 0.75] {
-            note("split_edge", body.clone().split_edge(edge, t).is_ok());
+            note("split_edge", body.clone().split_edge(edge, t, tol).is_ok());
         }
     }
     for &l in &loops {
         note(
             "mef_chord",
-            body.clone().mef_chord(MefSite::Lone { r#loop: l }).is_ok(),
+            body.clone()
+                .mef_chord(MefSite::Lone { r#loop: l }, tol)
+                .is_ok(),
         );
         note(
             "mev_line",
             body.clone()
-                .mev_line(MevSite::Lone { r#loop: l }, p(43.0))
+                .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
                 .is_ok(),
         );
         note("mfkrh_plug", body.clone().mfkrh_plug(l).is_ok());
@@ -643,14 +649,15 @@ fn hammer(body: &Body<f64>) -> Exposure {
 #[cfg(not(debug_assertions))]
 fn torn_bodies_never_reach_a_row_four_unreachable() {
     use test_utils::fuzz;
+    let tol = Tol::witness();
     let mut rng = fuzz::start("review_d18::torn_bodies_row_four");
     let trials = fuzz::scaled(3);
     let mut census = Exposure::new("review_d18 torn sweep");
     for trial in 0..trials {
         for tear in TEARS {
-            let cube = ops_cube();
+            let cube = ops_cube(tol);
             let mut body = cube.body;
-            let dead = recycled_dead_half_edge(&mut body);
+            let dead = recycled_dead_half_edge(&mut body, tol);
             // Compound the tears: one on the first pass, more as the
             // trial index rises, so single and multiple corruption both
             // get exercised. Each planting is snapshotted individually,
@@ -664,7 +671,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
                     census.note(&tear_landed(kind));
                 }
             }
-            census.merge(&hammer(&body));
+            census.merge(&hammer(&body, tol));
         }
     }
     census.report();
@@ -731,13 +738,14 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
 #[test]
 #[cfg(not(debug_assertions))]
 fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut src = cube.body;
     src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
-    let mut dst = ops_cube().body;
+    let mut dst = ops_cube(tol).body;
     let before = deep_snapshot(&dst);
     assert!(
-        crate::graft_disjoint_all_keyed(&mut dst, &src).is_err(),
+        crate::graft_disjoint_all_keyed(&mut dst, &src, tol).is_err(),
         "the torn source must refuse to graft"
     );
     assert_ne!(
@@ -746,7 +754,7 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
         "this row only means something if the refusal really did leave \
          `dst` partially written; if the graft ever becomes atomic, retire it"
     );
-    let census = hammer(&dst);
+    let census = hammer(&dst, tol);
     census.report();
     census.require(
         CALLS,

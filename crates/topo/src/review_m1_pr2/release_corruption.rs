@@ -234,7 +234,8 @@ fn large_torn_body_terminates_quickly() {
 #[test]
 #[cfg(not(debug_assertions))]
 fn foreign_parent_loop_garbage_in_garbage_out_release() {
-    let (mut body, seed, seg, split) = pillow();
+    let tol = Tol::witness();
+    let (mut body, seed, seg, split) = pillow(tol);
     // Both chord halves genuinely share a cycle, but claim the OTHER
     // loop as parent (consistently). Preconditions (same parent, parent
     // resolves, parent is a cycle, walk reaches he2) all pass.
@@ -245,10 +246,13 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
     body.get_half_edge_mut(he_a).unwrap().parent_loop = foreign;
     body.get_half_edge_mut(he_b).unwrap().parent_loop = foreign;
     // No panic, no hang; Ok(garbage) is within contract.
-    let result = body.mef_chord(MefSite::Chords {
-        he1: he_a,
-        he2: he_b,
-    });
+    let result = body.mef_chord(
+        MefSite::Chords {
+            he1: he_a,
+            he2: he_b,
+        },
+        tol,
+    );
     assert!(result.is_ok(), "preconditions cannot see this corruption");
     // The body is garbage now -- validate must say so (and not panic).
     assert!(validate(&body).is_err());
