@@ -321,6 +321,16 @@ gate_selftest_assert_diagnosed() {
 # plant-only self-test.
 gate_selftest_clean() {
   local tmp out
+  # THE HARNESS'S OWN TAIL, proved on every gate rather than in a
+  # comment: a `--root` the gate cannot enter used to kill it at the
+  # `cd`, before it could name itself or say what it had not decided.
+  # Every gate calls this function, so every gate carries the case.
+  out=$("$0" --root "/nonexistent-gate-root-$$" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1) && out=
+  case "$out" in
+    *"cannot enter --root"*) ;;
+    *) printf 'SELFTEST FAILED: an unreadable --root did not produce a gate diagnosis; a gate that cannot reach its tree must say so:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
@@ -388,11 +398,20 @@ gate_selftest() {
 
 # The common tail: --selftest runs both fixtures and exits; otherwise
 # the gate runs against GATE_ROOT.
+#
+# THE `cd` IS CHECKED, and it is the harness's own instance of the class
+# this file exists to catch: an unreadable `--root` made `cd` fail under
+# errexit and killed the gate at this line, so a reader got bash's
+# one-line `cd:` complaint and no gate_error, no gate name, and no
+# statement of what was not decided.
 gate_main() {
   if [ "$GATE_SELFTEST" = true ]; then
     gate_selftest "$@"
     exit 0
   fi
-  cd "$GATE_ROOT"
+  if ! cd "$GATE_ROOT" 2>/dev/null; then
+    gate_error "$(gate_name): cannot enter --root $GATE_ROOT from $PWD, so the gate scanned nothing — which is not a pass"
+    exit 1
+  fi
   gate
 }
