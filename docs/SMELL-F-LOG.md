@@ -288,7 +288,12 @@ sub-block, from the orchestrator.
 | **F-d** | D70, **D107**, **D115** — all used | S126, **S161**, **S169** — all used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
+<<<<<<< HEAD
+| **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
+| unassigned (2nd block) | D107, D108 | S161, S162, S165, S166 |
+=======
 | unassigned (2nd block) | D108–D110 | S162–S166 |
+>>>>>>> origin/main
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -449,7 +454,11 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
+<<<<<<< HEAD
+| **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
+=======
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
+>>>>>>> origin/main
 
 **F-d landed** (#825, merge `335f267e`); its roster row left the table above per
 the recording convention, and the landing is recorded below. **It left late**:
@@ -462,6 +471,52 @@ recording convention; the landing is recorded below.
 
 **F-f's PR is open** (#798); its roster row left the table above per the
 recording convention, which the landing PR carries.
+
+**F-g's PR is open** (#849), **NOT CLEARED on its first style review and
+fixed**: three MAJORs and thirteen style findings, plus an adversarial pass
+that cleared the two numeric lines and refuted three claims made about them.
+**Two of the three MAJORs were the fix reproducing its own defect** — a
+statement view built and then applied to only one of the two spellings it was
+built for, so verbatim `rustfmt` output still passed; and a `debug_assert`
+escape written as a per-line substring test, which printed *verbatim the
+evidence-free sentence S63 was written against*. The third was **a claim, not a
+defect**: the PR reported five `probe-suite-census.sh` self-test cases as having
+silently run the wrong half, and both trees were executed against it — a
+subshell inherits a non-exported variable, so nothing was ever green that should
+not have been. **What happened is that the change dodged a hazard it would
+itself have created, and wrote it up as a hazard it found.** *A fix that dodges
+a hazard it created reads, afterwards, exactly like a fix that found one*, and
+only execution against the OLD tree separates them. Struck from the record, the
+commit comment and the PR body.
+
+**CLEARED on the fix pass, 2026-08-20, and its one open design question is now
+answered: D109(a) is RULED YES** (Evan, 2026-08-21). The scaled square
+`(k · x) · x` at `linalg/vec.rs`'s `b1` and `linalg/mat.rs`'s `rotation_about`
+may be reassociated into `k · (x²)`: **D9 is determinism at one kernel, not a
+pin on last year's output**, and `u_ref` is stored as data under D2 so existing
+documents keep their frames. The row moves from *needs a decision* to *scheduled
+work*, and **the exact-`f64` argument now predicts cost rather than
+permission** — `b1`'s `s = ±1` makes it byte-free, `mat.rs`'s `t = 1 − cos θ`
+re-cuts goldens. **The lane's warning survives the ruling and is now the only
+thing between it and a bad landing**: widening the matcher before converting the
+two sites reds both ratified files at once, and greening that by allowlisting is
+S63's own outcome a third time. Recorded at **S163(a)/D109**, at the gate header
+and at the constructor; **deliberately not done in #849**, which was two review
+rounds deep on its own scope.
+
+It carries **F3 (S63)**, **S157** (the harness — F-f's
+row, never placed in §D as `D101`, so there was no row to strike) and
+**S125/D69**. Its row left the table above. **It crossed into three files F1/F2
+had just landed, and every crossing was forced by the harness fix rather than
+chosen** — reported here because the brief said to stop and report:
+`gate-roster.sh` (its `gate_selftest_real` was written to be lifted, and lifting
+means deleting the original), `probe-suite-census.sh` (its mode was selected by
+setting a global, which no longer crosses into a subprocess — five of its
+self-test cases were silently running the wrong half), and `test-aggregation.sh`
+(one must-FAIL case ran in-process). **`.github/workflows/ci.yml`,
+`scripts/ci-filter.py` and `check-ci-mirror-parity.py` were NOT touched**, which
+is why S63's `ci-filter.py` half is **S164/D110** rather than closed, and why
+`bounds-allowlist.sh` keeps the old comment filter (**S163(b)**).
 
 **F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
