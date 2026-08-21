@@ -860,27 +860,37 @@ applied to error handling. Five commitments:
    layer never reads ε for sizing; display-layer comparisons are
    deliberately not Q1 predicates (none decide kernel topology).
 
-   > **⚠️ QUESTION FOR EVAN, raised by Track I (2026-08-21) — the clause
-   > deleted here said the mesh layer *"reads ε exactly once (pole vertex
-   > identification)"*, and that count was false.** The tree has **four
-   > terminal ε reads** across **seven consumer sites**. #872 replaced the
-   > count with a computed pin (`mesh/tests/all.rs::the_eps_inventory_is_pinned`)
-   > so it cannot drift again. **Only the count is deleted** — the *"never for
-   > sizing"* half is true and is checkable from `sizing`'s signatures.
+   > **RULED 2026-08-21 — the stronger reading, and the pole
+   > classification owes a GUARD rather than a qualifier here.**
    >
-   > **What needs your ruling is the promise underneath, not the arithmetic.**
-   > One of those reads is a **classification**: pole/apex identification
-   > substitutes the pole's exact `v` and emits two polygon entries instead of
-   > one, so **an ε that flipped it would move emitted coordinates**. Nothing
-   > in the tree flips it — no in-tree body puts a non-pole vertex within any
-   > suite's ε of a pole — but whether one is *reachable* is not established,
-   > and a STEP import is the plausible route in.
+   > **The deleted clause** said the mesh layer *"reads ε exactly once
+   > (pole vertex identification)"*. **That count was false** — four
+   > terminal ε reads across seven consumer sites. #872 replaced it with a
+   > computed pin (`mesh/tests/all.rs::the_eps_inventory_is_pinned`) so it
+   > cannot drift again. Only the count is deleted; *"never for sizing"* is
+   > true and checkable from `sizing`'s signatures.
    >
-   > So D9's *"mesh structure is a function of (body, δ) alone"* is **true of
-   > every body this build can mint, and not a theorem.** Is that the promise
-   > D9 intends — in which case the qualifier belongs in this paragraph — or
-   > does D9 mean the stronger thing, in which case the pole classification
-   > owes a guard rather than a qualifier?
+   > **The question underneath was the real one.** One of those reads is a
+   > **classification**, not a bar: pole identification substitutes the
+   > chart's exact `v` and emits two polygon entries instead of one, so an ε
+   > that flipped it would **move emitted coordinates with δ held fixed**.
+   > That makes the sentence above true of every body this build can mint
+   > and **not a theorem** — nothing in the tree flips it, but no argument
+   > establishes that nothing can, and a STEP import is the plausible route
+   > in.
+   >
+   > **The ruling: this paragraph keeps its promise unqualified, and the
+   > classification is guarded so the promise stays true** — filed as
+   > **#896**. Weakening a ratified promise to accommodate a state that
+   > could only arise from **value coincidence** would make this document
+   > quieter about exactly the case worth hearing about, and this project
+   > does not read intent into numerical coincidence. The guard says the
+   > same thing honestly and fails loudly if the belief is wrong.
+   >
+   > **#895's junction guard does not discharge #896**: it compares
+   > declared vertex against declared vertex, and this case is a junction
+   > against an **undeclared** analytic chart pole. Where the pole is itself
+   > declared the two overlap; where it is not, nothing looks.
 
    **The margin dimensional convention (RATIFIED 2026-08-05, Evan 👍 on PR #205 comment 5195787412; shaped
    in-chat with Evan — non-generic erased annotations, his call —
