@@ -219,16 +219,17 @@ before the merge, so answering saves a round.
 ## Lane roster
 
 **Wave 1 — opened 2026-08-21, four lanes, no file overlap between any two.**
-`crates/mesh/` carries two of this track's five lanes and they are
+`crates/mesh/` carried two of this track's five lanes and they were
 **sequenced, not concurrent**: I-e waits on I-c because both read
 `mesh/src/curved.rs`, from opposite ends (I-c its module header and the ε
-ledger, I-e `entries_off_bbox` and the guards).
+ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
+and left this roster; `curved.rs` below its module header is untouched, so
+I-e starts from that merge with the guard bodies exactly as it found them.
 
 | lane | rows | scope | review | state |
 |---|---|---|---|---|
 | **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | dispatching |
-| **I-c** | **I2** (**S64**; **S65** to Evan) + **I6**'s **S115(d)**, **S116(g)** | `mesh/src/{lib.rs,sizing.rs,walk.rs}`, `mesh/src/curved.rs` **header only** | style | dispatching |
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)** | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
+| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
