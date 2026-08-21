@@ -129,7 +129,7 @@ fn z1_per_triangle_certificate_falsification() {
             budget::arm(Mode::Deviation {
                 samples_per_edge: 12,
             });
-            let m = mesh::tessellate(&body, delta).expect("tessellates");
+            let m = mesh::tessellate(&body, delta, Tol::witness()).expect("tessellates");
             let measures = budget::take();
             assert!(
                 !measures.is_empty(),

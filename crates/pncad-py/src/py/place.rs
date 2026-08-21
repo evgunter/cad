@@ -16,6 +16,7 @@ use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use pncad::document as d;
+use pncad::tolerance::Tol;
 
 /// Raise `FrameError` carrying the refusal's stable tag.
 fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
@@ -111,12 +112,14 @@ impl Frame {
         target: (Length, Length, Length),
         roll_reference: (f64, f64, f64),
     ) -> PyResult<Self> {
+        let tol = Tol::witness();
         let [ex, ey, ez] = meters(eye);
         let [tx, ty, tz] = meters(target);
         pncad::geom_core::linalg::frame::point_at::<f64>(
             pncad::authoring::p3(ex, ey, ez),
             pncad::authoring::p3(tx, ty, tz),
             pncad::authoring::v3(roll_reference.0, roll_reference.1, roll_reference.2),
+            tol,
         )
         .map(|a| Self(d::Frame::from_affine(a)))
         .map_err(|err| frame_err(py, &err))
@@ -136,10 +139,12 @@ impl Frame {
         origin: (Length, Length, Length),
         tangent: (f64, f64, f64),
     ) -> PyResult<Self> {
+        let tol = Tol::witness();
         let [ox, oy, oz] = meters(origin);
         pncad::geom_core::linalg::frame::path_start_frame::<f64>(
             pncad::authoring::p3(ox, oy, oz),
             pncad::authoring::v3(tangent.0, tangent.1, tangent.2),
+            tol,
         )
         .map(|a| Self(d::Frame::from_affine(a)))
         .map_err(|err| frame_err(py, &err))
@@ -159,10 +164,12 @@ impl Frame {
         point: (Length, Length, Length),
         normal: (f64, f64, f64),
     ) -> PyResult<Self> {
+        let tol = Tol::witness();
         let [px, py_, pz] = meters(point);
         pncad::geom_core::linalg::frame::mirror_across_plane::<f64>(
             pncad::authoring::p3(px, py_, pz),
             pncad::authoring::v3(normal.0, normal.1, normal.2),
+            tol,
         )
         .map(|a| Self(d::Frame::from_affine(a)))
         .map_err(|err| frame_err(py, &err))

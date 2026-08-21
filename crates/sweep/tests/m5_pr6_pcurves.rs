@@ -440,9 +440,13 @@ fn caches_certify_on_the_interval_lane() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(Interval::from_f64(1.0)))
-        .unwrap()
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let phi = 0.3f64;
     let plane = SplitPlane {
         origin: Point3::new(
@@ -456,7 +460,7 @@ fn caches_certify_on_the_interval_lane() {
             Interval::from_f64(phi.cos()),
         ),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let mut seen = 0usize;
     for part in [result.above.body(), result.below.body()]
         .into_iter()

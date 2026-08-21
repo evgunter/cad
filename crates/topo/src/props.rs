@@ -422,8 +422,9 @@ impl PropsQuadLane for geom_core::Probe {
         outer: &[LoopEdge<Self>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
-        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
     }
 }
 
@@ -435,8 +436,9 @@ impl PropsQuadLane for geom_core::interval::Interval {
         outer: &[LoopEdge<Self>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
-        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
     }
 }
 

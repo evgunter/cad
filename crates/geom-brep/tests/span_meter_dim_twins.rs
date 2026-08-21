@@ -46,7 +46,7 @@ use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, Point3, Sign, Tolerance, Vec3};
+use geom_core::{Band, MarginDiag, Point3, Sign, Vec3};
 use slotmap::SlotMap;
 
 fn band() -> Band {

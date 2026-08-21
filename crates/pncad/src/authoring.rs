@@ -132,7 +132,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 ///
 /// Equivalent to `Profile::new(plane, loops).validate(Tolerance::get())`,
 /// which is the form every scene wrote by hand. The tolerance comes
-/// from the environment ([`Tolerance::get`]) so that a corpus can be
+/// from the environment ([`Tol::witness`]) so that a corpus can be
 /// replayed at a different ε without editing a line; pass a tolerance
 /// explicitly through [`Profile::validate`] when a call site needs to
 /// pin one.

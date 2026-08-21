@@ -36,8 +36,8 @@ mod fixture;
 
 use std::io::Write as _;
 
+use geom_core::Sign;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
-use geom_core::{Sign, Tolerance};
 use topo::{mass_properties, validate, validate_closed};
 
 use corpus::{body_of, documents, eval, failures};
@@ -72,7 +72,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         let body = body_of(&ev, result);
         validate(body).expect("tier 1");
         validate_closed(body).expect("closed");
-        mass_properties(body).expect("mass properties");
+        mass_properties(body, Tol::witness()).expect("mass properties");
     }
     k_stats::take_samples()
 }

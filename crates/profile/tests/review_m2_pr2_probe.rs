@@ -107,7 +107,7 @@ fn probe_errors_equal_f64_errors() {
     for p in [
         profile(vec![common::bowtie()]),
         common::tangent_hole(),
-        common::near_tangent_hole(tol().eps),
+        common::near_tangent_hole(tol().eps()),
     ] {
         let f = p.validate(tol()).expect_err("rejects at f64");
         let q = lift::<Probe>(&p)

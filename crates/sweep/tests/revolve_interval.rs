@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Interval, Point2, Real, Tolerance, Vec2};
+use geom_core::{Interval, Point2, Real, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -35,13 +35,19 @@ fn axis_y() -> RevolveAxis<Interval> {
 fn assert_tiers(body: &topo::Body<Interval>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 #[test]
 fn interval_washer_builds_tier_valid() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.vertices().count(), 4);
     assert_eq!(t.body.edges().count(), 8);
@@ -54,7 +60,13 @@ fn interval_ball_builds_tier_valid() {
         ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
         ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.faces().count(), 2);
 }
@@ -62,7 +74,13 @@ fn interval_ball_builds_tier_valid() {
 #[test]
 fn interval_cone_builds_tier_valid() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.faces().count(), 4);
 }
@@ -73,7 +91,13 @@ fn interval_partial_wedge_builds_tier_valid() {
     // π/2 is not dyadic: the wedge exercises non-dyadic rotation
     // enclosures end-to-end.
     let theta = Interval::from_f64(core::f64::consts::FRAC_PI_2);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta)).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.faces().count(), 5);
 }

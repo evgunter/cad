@@ -123,7 +123,6 @@ use interval_transcendentals::{DInterval, Decoration};
 use crate::dual::KinkJacobian;
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, Real};
-use crate::tolerance::Tol;
 
 /// An enclosure of a true real value: the interval scalar over
 /// [`interval_transcendentals::DInterval`] (see the [module docs](self)

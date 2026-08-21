@@ -272,13 +272,15 @@ mod interval {
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        let body = extrude(&vp, Extrusion::Distance(iv(1.0))).unwrap().body;
+        let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
+            .unwrap()
+            .body;
         let phi = 0.3f64;
         let plane = SplitPlane {
             origin: Point3::new(iv(0.0), iv(0.0), iv(0.5)),
             normal: Vec3::new(iv(phi.sin()), iv(0.0), iv(phi.cos())),
         };
-        let result = split(&body, &plane).unwrap();
+        let result = split(&body, &plane, Tol::witness()).unwrap();
         let SplitPart::Body(above) = result.above else {
             panic!("above side carries material");
         };
@@ -657,7 +659,9 @@ fn even_crossing_belly_cut_at_interval() {
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(iv(1.0))).unwrap().body;
+    let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
+        .unwrap()
+        .body;
     // The tilted-belly even-crossing configuration (both rims crossed
     // twice + both seams once). Axis-parallel even-crossing planes put
     // crossing-vertex PAIRS at equal in-plane u (vertically aligned),
@@ -705,7 +709,7 @@ fn even_crossing_belly_cut_at_interval() {
         (rows, sum)
     };
     let run = || {
-        let result = split(&body, &plane).unwrap();
+        let result = split(&body, &plane, Tol::witness()).unwrap();
         let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
             panic!("both sides carry material at Interval");
         };

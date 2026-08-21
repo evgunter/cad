@@ -137,7 +137,13 @@ fn the_boss_union_document_row_interval_bit_replay() {
     use geom_core::Interval;
     let (doc, _edits, union) = boss_union_doc();
     let fp = || {
-        let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+        let ev = evaluate::<Interval>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let bad: Vec<String> = ev
             .nodes
             .iter()
@@ -153,7 +159,7 @@ fn the_boss_union_document_row_interval_bit_replay() {
         );
         // The union body's volume enclosure must bracket the truth.
         let body = union_body(&ev, union);
-        let vol = topo::mass_properties(body).unwrap().volume;
+        let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
         let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
         assert!(
             geom_core::Bounds::lo(vol) <= expect && expect <= geom_core::Bounds::hi(vol),

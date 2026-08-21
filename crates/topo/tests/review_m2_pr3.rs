@@ -891,7 +891,7 @@ mod interval_lane {
         // Prefer-intrinsic enforcement (M2 PR 4 fix pass): the interval
         // lane classifies the nine transverse corners definitely too,
         // and names their pre-upgrade conventional descriptions.
-        let errs = validate_geometric(&body).unwrap_err();
+        let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
         assert_eq!(errs.len(), 9, "{errs:?}");
         assert!(
             errs.iter()
@@ -900,7 +900,7 @@ mod interval_lane {
         );
         // The prefer-intrinsic upgrade at the interval scalar.
         common::describe_as_intersections(&mut body);
-        assert_eq!(validate_geometric(&body), Ok(()));
+        assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
         assert!(body.curves().all(|(_, c)| matches!(
             c.certified().map(topo::EdgeCurve::description),
             Some(EdgeGeometry::Intersection { .. })
@@ -925,22 +925,29 @@ mod interval_lane {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(f(1.0), f(0.0), f(0.0)),
+                Tol::witness(),
             )
             .unwrap(); // axis-aligned dyadic: certifies
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap(); // dyadic digon chord: certifies
         // The self-loop site: the sugar's scaffolding circle now
         // certifies at Interval (tight squares ⇒ clean [0, hi]
         // residual enclosures ⇒ Zero, decoration intact).
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_minus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         let _ = (split, circ);

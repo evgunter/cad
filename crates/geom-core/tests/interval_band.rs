@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign, Tolerance};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign};
 
 #[test]
 fn interval_classification_tracks_the_global_tolerance() {

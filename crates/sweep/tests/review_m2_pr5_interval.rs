@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Interval, Point2, Real, Tolerance, Vec2};
+use geom_core::{Interval, Point2, Real, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -34,7 +34,7 @@ fn axis_y() -> RevolveAxis<Interval> {
 fn assert_tiers(body: &topo::Body<Interval>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 #[test]
@@ -48,7 +48,13 @@ fn survives_interval_dome_two_band_wire() {
         p2(0.5, 1.5),
         p2(0.0, 1.5),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.vertices().count(), 8);
     assert_eq!(t.body.edges().count(), 14);
@@ -64,7 +70,13 @@ fn survives_interval_donut_wrap_run() {
         ProfileVertex::new(p2(1.0, 0.5), Interval::from_f64(1.0)),
         ProfileVertex::new(p2(2.0, 0.5), Interval::from_f64(1.0)),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.surfaces().count(), 1);
     assert_eq!(t.body.edges().count(), 4);
@@ -76,7 +88,13 @@ fn survives_interval_negative_non_dyadic_wedge() {
     // interval suite only sweeps the positive sign.
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let theta = Interval::from_f64(-core::f64::consts::FRAC_PI_2);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta)).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_tiers(&t.body);
     assert_eq!(t.body.faces().count(), 5);
 }

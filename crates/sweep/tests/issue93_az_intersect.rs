@@ -299,11 +299,11 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
 fn az_plain_interval_refuses_or_encloses() {
     use geom_core::{Bounds, Interval};
     let a = a_prism::<Interval>(vec![lp(&A_OUTLINE)]);
-    match topo::intersect(&a, &z_prism::<Interval>()) {
+    match topo::intersect(&a, &z_prism::<Interval>(), Tol::witness()) {
         Err(_) => {} // conservative refusal: acceptable
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()), "interval tier 2");
-            let v = mass_properties(&bb.body)
+            let v = mass_properties(&bb.body, Tol::witness())
                 .expect("interval mass properties")
                 .volume;
             assert!(

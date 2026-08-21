@@ -184,7 +184,7 @@ fn interval_lane_ring_rehoming() {
     use geom_core::Interval;
     let body = holed_box::<Interval>(6.0, &[1.0, 5.0]);
     assert_eq!(validate_closed(&body), Ok(()));
-    match split(&body, &plane_x::<Interval>(3.0)) {
+    match split(&body, &plane_x::<Interval>(3.0), Tol::witness()) {
         Ok(r) => {
             let (above, below) = (body_of(&r.above), body_of(&r.below));
             assert_eq!(validate_closed(above), Ok(()));

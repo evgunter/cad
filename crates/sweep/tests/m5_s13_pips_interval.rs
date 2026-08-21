@@ -30,7 +30,7 @@ mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
+    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -57,9 +57,13 @@ mod certified {
             p2(4.0, 4.0),
             p2(0.0, 4.0),
         ]);
-        extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(iv(1.0)),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// A radius-`r` ball at `centre` (horizontal polar axis — the §1
@@ -75,10 +79,10 @@ mod certified {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),
         };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full)
+        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
             .unwrap()
             .body;
-        topo::transform_rigid(&ball, &Affine3::translation(centre)).unwrap()
+        topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
     }
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
@@ -106,12 +110,12 @@ mod certified {
     fn interval_finding_union_is_bracketed() {
         let a = slab();
         let b = ball_at(1.0, Vec3::new(iv(2.0), iv(2.0), iv(0.5)));
-        let joined = topo::union(&a, &b).expect("S13: the poking union decides");
+        let joined = topo::union(&a, &b, Tol::witness()).expect("S13: the poking union decides");
         let joined = &joined.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(joined), Ok(()));
+        assert_eq!(topo::validate_geometric(joined, Tol::witness()), Ok(()));
         assert_eq!(joined.shells().count(), 1);
         encloses(
-            mass_properties(joined).unwrap().volume,
+            mass_properties(joined, Tol::witness()).unwrap().volume,
             16.0 + 2.0 * cap(1.0, 0.5),
             "the poking union",
         );
@@ -124,16 +128,16 @@ mod certified {
         let (r, h) = (0.5, 0.3);
         let b = ball_at(r, Vec3::new(iv(2.0), iv(2.0), iv(1.0 + r - h)));
 
-        let cut = topo::subtract(&a, &b).expect("the pip decides at Interval");
+        let cut = topo::subtract(&a, &b, Tol::witness()).expect("the pip decides at Interval");
         let cut = &cut.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(cut), Ok(()));
-        let v_cut = mass_properties(cut).unwrap().volume;
+        assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
+        let v_cut = mass_properties(cut, Tol::witness()).unwrap().volume;
         encloses(v_cut, 16.0 - cap(r, h), "the pip cavity");
 
-        let met = topo::intersect(&a, &b).expect("the cap decides at Interval");
+        let met = topo::intersect(&a, &b, Tol::witness()).expect("the cap decides at Interval");
         let met = &met.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(met), Ok(()));
-        let v_met = mass_properties(met).unwrap().volume;
+        assert_eq!(topo::validate_geometric(met, Tol::witness()), Ok(()));
+        let v_met = mass_properties(met, Tol::witness()).unwrap().volume;
         encloses(v_met, cap(r, h), "the cap");
 
         encloses(v_cut + v_met, 16.0, "∖/∩ additivity");

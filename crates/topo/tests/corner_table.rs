@@ -120,7 +120,7 @@ fn undeclared_corner_leg_refuses_loudly() {
 fn corner_aligned_leg_interval_refuses_or_exact() {
     let a = top::<geom_core::Interval>();
     let b = leg(4.0, 3.0);
-    match union_with(&a, &b, &flush_declarations(&a, &b)) {
+    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()) {
         Err(_) => {} // conservative refusal: acceptable
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));

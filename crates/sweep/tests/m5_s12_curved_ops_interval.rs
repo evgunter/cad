@@ -40,7 +40,7 @@ mod certified {
     use geom_core::Tol;
 
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
+    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -68,9 +68,13 @@ mod certified {
             p2(3.0, 3.0),
             p2(0.0, 3.0),
         ]);
-        extrude(&validated(vec![lp]), Extrusion::Distance(iv(0.8)))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(iv(0.8)),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.
@@ -96,7 +100,9 @@ mod certified {
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        extrude(&vp, Extrusion::Distance(iv(len))).unwrap().body
+        extrude(&vp, Extrusion::Distance(iv(len)), Tol::witness())
+            .unwrap()
+            .body
     }
 
     /// A 3 × 3 × 1 plate with a concave semicircular notch on its `x = 3`
@@ -112,9 +118,13 @@ mod certified {
             ProfileVertex::new(p2(3.0, 3.0), iv(0.0)),
             ProfileVertex::new(p2(0.0, 3.0), iv(0.0)),
         ]);
-        extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(iv(1.0)),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
@@ -170,20 +180,22 @@ mod certified {
     fn interval_curved_subtract_and_intersect_decide_definitely() {
         let a = plate();
         let b = boss(0.3, 1.0);
-        let cut = topo::subtract(&a, &b).expect("curved subtract decides at Interval");
+        let cut =
+            topo::subtract(&a, &b, Tol::witness()).expect("curved subtract decides at Interval");
         let cut = &cut.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(cut), Ok(()));
+        assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(cut).unwrap().volume,
+            mass_properties(cut, Tol::witness()).unwrap().volume,
             3.0 * 3.0 * 0.8 - PI * R * R * 0.5,
             "blind hole",
         );
 
-        let met = topo::intersect(&a, &b).expect("curved intersect decides at Interval");
+        let met =
+            topo::intersect(&a, &b, Tol::witness()).expect("curved intersect decides at Interval");
         let met = &met.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(met), Ok(()));
+        assert_eq!(topo::validate_geometric(met, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(met).unwrap().volume,
+            mass_properties(met, Tol::witness()).unwrap().volume,
             PI * R * R * 0.5,
             "the plug",
         );
@@ -209,14 +221,16 @@ mod certified {
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
-        let b = extrude(&vp, Extrusion::Distance(iv(0.4))).unwrap().body;
+        let b = extrude(&vp, Extrusion::Distance(iv(0.4)), Tol::witness())
+            .unwrap()
+            .body;
 
         let notch = PI * 0.25 / 2.0;
-        let out = topo::intersect(&a, &b).expect("the split decides at Interval");
+        let out = topo::intersect(&a, &b, Tol::witness()).expect("the split decides at Interval");
         let out = &out.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(out), Ok(()));
+        assert_eq!(topo::validate_geometric(out, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(out).unwrap().volume,
+            mass_properties(out, Tol::witness()).unwrap().volume,
             (2.0 - notch) * 0.4,
             "the meet across the reversed wall",
         );
@@ -251,23 +265,25 @@ mod certified {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),
         };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full)
+        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
             .unwrap()
             .body;
         let ball = topo::transform_rigid(
             &ball,
             &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
+            Tol::witness(),
         )
         .unwrap();
 
-        let cut = topo::subtract(&plate(), &ball).expect("S13: the sphere class decides");
+        let cut =
+            topo::subtract(&plate(), &ball, Tol::witness()).expect("S13: the sphere class decides");
         let cut = &cut.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(cut), Ok(()));
+        assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         // plate − (ball zone between z = 0 and z = 0.8):
         // zone = 4π/3 − cap(0.7) − cap(0.5), cap(h) = πh²(3−h)/3.
         let cap = |h: f64| PI * h * h * (3.0 - h) / 3.0;
         let zone = 4.0 * PI / 3.0 - cap(0.7) - cap(0.5);
-        let vol = mass_properties(cut).unwrap().volume;
+        let vol = mass_properties(cut, Tol::witness()).unwrap().volume;
         assert!(
             vol.lo() <= 7.2 - zone && 7.2 - zone <= vol.hi(),
             "enclosure [{}, {}] must contain {}",
@@ -282,6 +298,6 @@ mod certified {
         );
         // And the cylinder class still decides at this scalar (S13
         // opens a class, it does not trade one away).
-        assert!(topo::subtract(&plate(), &boss(0.3, 1.0)).is_ok());
+        assert!(topo::subtract(&plate(), &boss(0.3, 1.0), Tol::witness()).is_ok());
     }
 }

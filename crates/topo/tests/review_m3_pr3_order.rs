@@ -61,13 +61,13 @@ fn tilted_plane_f64_and_replay() {
 fn tilted_plane_interval_agrees_or_refuses_typed() {
     use geom_core::Interval;
     let fx64 = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 1.0);
-    let r64 = split(&fx64.body, &tilted()).unwrap();
+    let r64 = split(&fx64.body, &tilted(), Tol::witness()).unwrap();
     let census64 = |b: &Body<f64>| (b.faces().count(), b.edges().count(), b.vertices().count());
     let c_above = census64(body_of(&r64.above));
     let c_below = census64(body_of(&r64.below));
 
     let fx = prism::<Interval>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 1.0);
-    match split(&fx.body, &tilted::<Interval>()) {
+    match split(&fx.body, &tilted::<Interval>(), Tol::witness()) {
         Ok(r) => {
             let census =
                 |b: &Body<Interval>| (b.faces().count(), b.edges().count(), b.vertices().count());

@@ -44,7 +44,7 @@ fn loft_prism() -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the corpus loft builds")
         .body
 }
@@ -69,7 +69,7 @@ fn a_disarmed_meter_records_nothing() {
     let body = loft_prism();
     assert!(!budget::armed());
     assert!(budget::deviation_samples().is_none());
-    mesh::tessellate(&body, 6e-3).expect("tessellates");
+    mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     assert!(budget::take().is_empty());
 }
 
@@ -83,7 +83,7 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
     let walls = nurbs_faces(&body);
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     budget::arm(Mode::Sizing);
-    mesh::tessellate(&body, 6e-3).expect("tessellates");
+    mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     let measures = budget::take();
     assert_eq!(
         measures.iter().map(|m| m.face).collect::<Vec<_>>(),
@@ -204,7 +204,7 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
         samples_per_edge: 6,
     });
     assert_eq!(budget::deviation_samples(), Some(6));
-    mesh::tessellate(&body, 6e-3).expect("tessellates");
+    mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     let measures = budget::take();
     assert!(!measures.is_empty());
     // The run's own ε, read the way the kernel reads it rather than
@@ -249,11 +249,11 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
 #[test]
 fn arming_the_meter_does_not_change_the_mesh() {
     let body = loft_prism();
-    let plain = mesh::tessellate(&body, 6e-3).expect("tessellates");
+    let plain = mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     budget::arm(Mode::Deviation {
         samples_per_edge: 6,
     });
-    let metered = mesh::tessellate(&body, 6e-3).expect("tessellates");
+    let metered = mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     let measures = budget::take();
     // Non-emptiness FIRST: `all()` on an empty slice is `true`, so a
     // meter that recorded nothing would sail through the next line.

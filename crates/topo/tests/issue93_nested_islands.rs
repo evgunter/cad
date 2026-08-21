@@ -354,16 +354,22 @@ mod interval {
 
     #[test]
     fn nested_intersects_interval() {
-        let BooleanResult::Body(d2) =
-            intersect(&depth2_chain::<Interval>(), &slab::<Interval>()).expect("depth-2 interval")
-        else {
+        let BooleanResult::Body(d2) = intersect(
+            &depth2_chain::<Interval>(),
+            &slab::<Interval>(),
+            Tol::witness(),
+        )
+        .expect("depth-2 interval") else {
             panic!("depth-2 interval intersect returned Empty");
         };
         tiers(&d2, "depth-2 interval");
         census(&d2, 2, 16, "depth-2 interval");
-        let BooleanResult::Body(d3) =
-            intersect(&depth3_chain::<Interval>(), &slab::<Interval>()).expect("depth-3 interval")
-        else {
+        let BooleanResult::Body(d3) = intersect(
+            &depth3_chain::<Interval>(),
+            &slab::<Interval>(),
+            Tol::witness(),
+        )
+        .expect("depth-3 interval") else {
             panic!("depth-3 interval intersect returned Empty");
         };
         tiers(&d3, "depth-3 interval");

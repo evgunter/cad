@@ -39,7 +39,7 @@ use std::io::Write as _;
 
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
-use geom_core::{Point2, Tolerance, Vec2};
+use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{mass_properties, validate, validate_closed, validate_geometric};
@@ -72,8 +72,8 @@ fn run_shape(build: impl FnOnce() -> topo::Body<Probe>) -> Vec<MarginSample> {
     let body = build();
     validate(&body).expect("tier 1");
     validate_closed(&body).expect("tier 2");
-    validate_geometric(&body).expect("tier 3");
-    mass_properties(&body).expect("mass properties");
+    validate_geometric(&body, Tol::witness()).expect("tier 3");
+    mass_properties(&body, Tol::witness()).expect("mass properties");
     k_stats::take_samples()
 }
 
@@ -91,9 +91,13 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     p2(1.0, 2.0),
                     p2(0.0, 2.0),
                 ]);
-                extrude(&validated(vec![lp]), Extrusion::Distance(Probe(1.0)))
-                    .unwrap()
-                    .body
+                extrude(
+                    &validated(vec![lp]),
+                    Extrusion::Distance(Probe(1.0)),
+                    Tol::witness(),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
@@ -109,6 +113,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 extrude(
                     &validated(vec![outer, hole]),
                     Extrusion::Distance(Probe(1.0)),
+                    Tol::witness(),
                 )
                 .unwrap()
                 .body
@@ -134,27 +139,41 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 // tangency is declared intent, verified at validation,
                 // never inferred.
                 .with_tangent_joints((0..8).collect());
-                extrude(&validated(vec![lp]), Extrusion::Distance(Probe(1.0)))
-                    .unwrap()
-                    .body
+                extrude(
+                    &validated(vec![lp]),
+                    Extrusion::Distance(Probe(1.0)),
+                    Tol::witness(),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
             "ball",
             run_shape(|| {
                 let lp = ProfileLoop::new(vec![v(0.0, -1.0, 1.0), v(0.0, 1.0, 0.0)]);
-                revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-                    .unwrap()
-                    .body
+                revolve(
+                    &validated(vec![lp]),
+                    axis_y(),
+                    Revolution::Full,
+                    Tol::witness(),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
             "cone",
             run_shape(|| {
                 let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-                revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-                    .unwrap()
-                    .body
+                revolve(
+                    &validated(vec![lp]),
+                    axis_y(),
+                    Revolution::Full,
+                    Tol::witness(),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
@@ -162,18 +181,28 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
             run_shape(|| {
                 let lp =
                     ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-                revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-                    .unwrap()
-                    .body
+                revolve(
+                    &validated(vec![lp]),
+                    axis_y(),
+                    Revolution::Full,
+                    Tol::witness(),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
             "donut",
             run_shape(|| {
                 let lp = ProfileLoop::new(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
-                revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-                    .unwrap()
-                    .body
+                revolve(
+                    &validated(vec![lp]),
+                    axis_y(),
+                    Revolution::Full,
+                    Tol::witness(),
+                )
+                .unwrap()
+                .body
             }),
         ),
         (
@@ -185,6 +214,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     &validated(vec![lp]),
                     axis_y(),
                     Revolution::Partial(Probe(core::f64::consts::FRAC_PI_2)),
+                    Tol::witness(),
                 )
                 .unwrap()
                 .body
@@ -199,6 +229,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     &validated(vec![lp]),
                     axis_y(),
                     Revolution::Partial(Probe(core::f64::consts::FRAC_PI_2)),
+                    Tol::witness(),
                 )
                 .unwrap()
                 .body
@@ -213,6 +244,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     &validated(vec![lp]),
                     axis_y(),
                     Revolution::Partial(Probe(theta_near_full)),
+                    Tol::witness(),
                 )
                 .unwrap()
                 .body

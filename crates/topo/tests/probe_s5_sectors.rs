@@ -56,6 +56,7 @@
 mod common;
 
 use common::{prism, prism_z};
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use geom_core::{Point3, Real, Vec3};
 use topo::{BooleanResult, SplitPlane, split, subtract};
@@ -123,13 +124,13 @@ fn sector_margin_stream() {
     for scale in [1e-3, 1.0] {
         let a1 = bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b1 = bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-        match subtract(&a1, &b1).expect("corner subtract") {
+        match subtract(&a1, &b1, Tol::witness()).expect("corner subtract") {
             BooleanResult::Body(_) => {}
             other => panic!("corner: {other:?}"),
         }
         let a2 = bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
         let b2 = bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-        subtract(&a2, &b2).expect("pocket subtract");
+        subtract(&a2, &b2, Tol::witness()).expect("pocket subtract");
     }
     let bool_samples = k_stats::take_samples();
 
@@ -139,7 +140,7 @@ fn sector_margin_stream() {
         // The result is not the point; the recorded decisions are. A
         // typed refusal is a legitimate outcome of a vertex-grazing
         // plane and its margins are recorded either way.
-        let _ = split(&body, &plane_y(c));
+        let _ = split(&body, &plane_y(c), Tol::witness());
     }
     let split_samples = k_stats::take_samples();
 

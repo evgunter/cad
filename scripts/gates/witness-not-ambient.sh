@@ -27,6 +27,13 @@
 #  - crates/geom-core/src/tolerance.rs — it DEFINES `witness`.
 #  - crates/pncad/src — the curated document/authoring door, whose
 #    whole job is to be the place a program starts.
+#  - crates/pncad-py/src/py — the pyo3 FFI boundary, which is where a
+#    PYTHON program starts. This one is discharged by REACHABILITY
+#    before the argument above is needed: `Tol` is a Rust ZST and
+#    pyo3 cannot carry it across the boundary, so there is no caller
+#    on the far side that could hold a witness to pass in. Note the
+#    path is `src/py`, not the whole crate: pncad-py's non-FFI
+#    modules are ordinary library code and are scanned.
 #
 # THE COMPANION GATE is no-ambient-env.sh, which forbids the
 # environment read; this one forbids the ambient tolerance read. They
@@ -75,6 +82,7 @@ gate() {
     | grep -F 'Tol::witness' \
     | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
     | grep -vE '^crates/pncad/src/' \
+    | grep -vE '^crates/pncad-py/src/py/' \
     | { if [ -n "$excluded" ]; then grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi } \
     || true)
   if [ -n "$hits" ]; then

@@ -1288,7 +1288,7 @@ fn interval_split_edge_lane() {
     let before = format!("{:?}", cube.body);
     let err = cube
         .body
-        .split_edge(edge, Interval::from_bounds(-0.1, 0.1))
+        .split_edge(edge, Interval::from_bounds(-0.1, 0.1), Tol::witness())
         .unwrap_err();
     assert!(
         matches!(err, EulerOpError::SplitParamEscalated { .. }),
@@ -1296,13 +1296,15 @@ fn interval_split_edge_lane() {
     );
     assert_eq!(format!("{:?}", cube.body), before);
     // A singleton parameter splits, and the whole thing is replayable.
-    cube.body.split_edge(edge, Interval::from_f64(0.5)).unwrap();
+    cube.body
+        .split_edge(edge, Interval::from_f64(0.5), Tol::witness())
+        .unwrap();
     assert_eq!(validate(&cube.body), Ok(()));
     assert_eq!(validate_closed(&cube.body), Ok(()));
     let mut cube2 = build();
     cube2
         .body
-        .split_edge(cube2.mevs[0].edge, Interval::from_f64(0.5))
+        .split_edge(cube2.mevs[0].edge, Interval::from_f64(0.5), Tol::witness())
         .unwrap();
     assert_eq!(format!("{:?}", cube.body), format!("{:?}", cube2.body));
 }

@@ -930,8 +930,8 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     use geom_core::{Bounds, Interval};
     let (doc, s) = subtract_doc(false);
     let opts = EvalOptions::default();
-    let e1 = evaluate::<Interval>(&doc, None, &CancelToken::new(), &opts);
-    let e2 = evaluate::<Interval>(&doc, Some(&e1), &CancelToken::new(), &opts);
+    let e1 = evaluate::<Interval>(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+    let e2 = evaluate::<Interval>(&doc, Some(&e1), &CancelToken::new(), &opts, Tol::witness());
     assert_eq!(
         e2.recomputed, 0,
         "identical doc must fully reuse at Interval"
@@ -939,12 +939,14 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     assert_eq!(e2.reused, e1.recomputed + e1.reused);
     // The reused body is the SAME value (Merkle key match), and its
     // volume enclosure brackets the f64 volume.
-    let vf = mass_properties(boolean_body(&run(&doc, None, false), s))
+    let vf = mass_properties(boolean_body(&run(&doc, None, false), s), Tol::witness())
         .unwrap()
         .volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            mass_properties(body.as_ref()).unwrap().volume
+            mass_properties(body.as_ref(), Tol::witness())
+                .unwrap()
+                .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),
     };
@@ -969,7 +971,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
             expr: len(1.75),
         },
     );
-    let e3 = evaluate::<Interval>(&doc2, Some(&e2), &CancelToken::new(), &opts);
+    let e3 = evaluate::<Interval>(&doc2, Some(&e2), &CancelToken::new(), &opts, Tol::witness());
     assert!(
         e3.recomputed >= 2,
         "edited extrude + subtract must recompute"

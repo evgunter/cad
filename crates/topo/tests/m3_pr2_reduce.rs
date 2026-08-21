@@ -521,7 +521,7 @@ fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;
     for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 2usize)] {
         let fx = prism::<Interval>(profile, 1.0);
-        let red = split_reduce(&fx.body, &plane_y1::<Interval>()).unwrap();
+        let red = split_reduce(&fx.body, &plane_y1::<Interval>(), Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 10);
         assert_eq!(red.null_edges.len(), 12);
         // The V/Λ tip (profile corner index: NOTCHED 6, MIRRORED 2).

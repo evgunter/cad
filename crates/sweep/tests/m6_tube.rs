@@ -258,10 +258,15 @@ mod certified {
             iv(R),
             TubeWindow::Full,
             iv(MINOR),
+            Tol::witness(),
         )
         .expect("the tube builds at Interval");
-        assert_eq!(topo::validate_geometric(&t.body), Ok(()), "tier 3");
-        let m = topo::props::mass_properties(&t.body).expect("mass properties");
+        assert_eq!(
+            topo::validate_geometric(&t.body, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
+        let m = topo::props::mass_properties(&t.body, Tol::witness()).expect("mass properties");
         let exact = 2.0 * PI * PI * R * MINOR * MINOR;
         let (lo, hi) = (
             geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),

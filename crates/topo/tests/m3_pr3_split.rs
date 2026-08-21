@@ -642,7 +642,7 @@ fn interval_lane_acceptance() {
     // Generic asymmetric split.
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)];
     let fx = prism::<Interval>(&profile, 1.0);
-    let r = split(&fx.body, &plane_y::<Interval>(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -667,17 +667,17 @@ fn interval_lane_acceptance() {
 
     // The notched block: three disconnected Above prisms, as at f64.
     let fx = prism::<Interval>(NOTCHED, 1.0);
-    let r = split(&fx.body, &plane_y::<Interval>(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(body_of(&r.above).shells().count(), 3);
     assert_eq!(body_of(&r.below).shells().count(), 1);
 
     // Slicing: three polygons, corners on the plane (containment).
-    let s = plane_section(&fx.body, &plane_y::<Interval>(1.0)).unwrap();
+    let s = plane_section(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 3);
 
     // One-sided tangency refuses typed on this lane too.
     let fx = prism::<Interval>(&[(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)], 1.0);
-    let err = split(&fx.body, &plane_y::<Interval>(1.0)).unwrap_err();
+    let err = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(
         err,
         SplitError::Join(SplitJoinError::DegenerateSection { .. })

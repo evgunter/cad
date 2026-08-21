@@ -38,6 +38,7 @@ use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
+use pncad::tolerance::Tol;
 use pncad::topo;
 
 /// Raise `EvaluationError` with a stable `reason` tag.
@@ -193,7 +194,8 @@ pub(crate) struct Body {
 impl Body {
     /// Volume, area, and their certified pads.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        let props = topo::mass_properties(&self.inner).map_err(|err| {
+        let tol = Tol::witness();
+        let props = topo::mass_properties(&self.inner, tol).map_err(|err| {
             typed_err(
                 py,
                 ErrorClass::Validation,
@@ -226,10 +228,11 @@ impl Body {
 
     /// Geometric validation only.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
+        let tol = Tol::witness();
         self.run_validator(
             py,
             "validate_geometric",
-            topo::validate_geometric(&self.inner),
+            topo::validate_geometric(&self.inner, tol),
         )
     }
 }
@@ -561,8 +564,16 @@ impl Evaluation {
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
+        let tol = Tol::witness();
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
-        match pncad::select::select_where(&self.inner, node.0, &selector.0, &atoms, &self.params) {
+        match pncad::select::select_where(
+            &self.inner,
+            node.0,
+            &selector.0,
+            &atoms,
+            &self.params,
+            tol,
+        ) {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
         }
@@ -595,7 +606,8 @@ impl Evaluation {
         a: &NodeId,
         b: &NodeId,
     ) -> PyResult<Vec<super::flush::FlushFinding>> {
-        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0) {
+        let tol = Tol::witness();
+        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0, tol) {
             Ok(findings) => Ok(findings
                 .into_iter()
                 .map(super::flush::FlushFinding)
@@ -630,11 +642,12 @@ impl Evaluation {
         node: &NodeId,
         product_name: Option<String>,
     ) -> PyResult<String> {
+        let tol = Tol::witness();
         let mut options = pncad::step_export::StepOptions::default();
         if let Some(name) = product_name {
             options.product_name = name;
         }
-        pncad::export::step_for_node(&self.inner, node.0, &options)
+        pncad::export::step_for_node(&self.inner, node.0, &options, tol)
             .map_err(|err| export_err(py, *node, &err))
     }
 
@@ -691,7 +704,9 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
 /// assert it without reaching past the module.
 #[pyfunction]
 pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
-    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default()) {
+    let tol = Tol::witness();
+    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
+    {
         Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
             inner: Arc::new(body),
         }),
@@ -734,12 +749,14 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 /// failed — ask the returned object.
 #[pyfunction]
 pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
+    let tol = Tol::witness();
     Evaluation {
         inner: d::evaluate::<f64>(
             &doc.inner,
             None,
             &d::CancelToken::new(),
             &d::EvalOptions::default(),
+            tol,
         ),
         params: doc.inner.param_env::<f64>(),
     }

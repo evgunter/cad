@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point2, Point3, Tolerance, Vec3};
+use geom_core::{Bounds, Interval, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -30,12 +30,14 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(i(H))).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(i(H)), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(i(0.0), i(0.0), i(H / 2.0)),
         normal: Vec3::new(i(PHI.sin()), i(0.0), i(PHI.cos())),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -49,7 +51,7 @@ fn interval_lane_quadrature_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::mass_properties(body)
+        let m = topo::mass_properties(body, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
         let (lo, hi) = (m.volume.lo() - m.volume_pad, m.volume.hi() + m.volume_pad);
         assert!(
@@ -61,7 +63,7 @@ fn interval_lane_quadrature_brackets_the_closed_form() {
             "{label}: bracket width {} is not useful",
             hi - lo
         );
-        if let Err(errs) = validate_geometric(body) {
+        if let Err(errs) = validate_geometric(body, Tol::witness()) {
             panic!("{label}: tier 3 at Interval: {errs:?}");
         }
     }

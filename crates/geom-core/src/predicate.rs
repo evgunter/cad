@@ -73,7 +73,7 @@
 //! given and only ever return [`Indeterminate`].
 //!
 //! [`Band::linear`] takes the run's tolerance witness
-//! ([`Tol`](crate::tolerance::Tol)) and reads ε through it — so a function
+//! ([`Tol`]) and reads ε through it — so a function
 //! that builds a band says so in its own signature, and one that does not
 //! is visibly ε-free. [`Band::angular_at`] takes the same witness plus a
 //! lever arm r, and derives its coincidence threshold as the angle

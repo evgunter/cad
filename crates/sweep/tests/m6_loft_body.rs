@@ -213,10 +213,15 @@ mod certified {
     #[test]
     fn the_loft_body_certifies_and_encloses_nine_at_interval() {
         let (sections, places) = shape_iii_sections();
-        let lofted =
-            loft_body::<Interval>(&sections, &places, 2).expect("the loft builds at Interval");
-        assert_eq!(topo::validate_geometric(&lofted.body), Ok(()), "tier 3");
-        let m = topo::props::mass_properties(&lofted.body).expect("mass properties");
+        let lofted = loft_body::<Interval>(&sections, &places, 2, Tol::witness())
+            .expect("the loft builds at Interval");
+        assert_eq!(
+            topo::validate_geometric(&lofted.body, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
+        let m =
+            topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
         let (lo, hi) = (
             geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
             geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),

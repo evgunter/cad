@@ -77,9 +77,11 @@
 //! [`PathError`]. Never a panic (evaluation code is total; every
 //! decision goes through the reified-predicate funnel).
 //!
-//! The run-global [`Tolerance`] (`Tolerance::get()`, D4 ¶1's one ε per
-//! run) supplies ε_input for every junction classification — the
-//! ratified surface has no per-call tolerance slot.
+//! The run-global tolerance (D4 ¶1's one ε per run) supplies ε_input
+//! for every junction classification, reached through the [`Tol`]
+//! witness the caller passes in — the ratified surface has no per-call
+//! tolerance VALUE slot, and the witness is not one: it names the
+//! dependence without being able to carry a different ε.
 //!
 //! # Vocabulary growth (LIB-G1)
 //!
@@ -1286,8 +1288,8 @@ impl<T: Real> Core<T> {
 // predicate funnel; margins in meters).
 // ------------------------------------------------------------------
 
-/// The run's linear classification band (ε_input, K·ε_input) from the
-/// global [`Tolerance`].
+/// The run's linear classification band (ε_input, K·ε_input), read
+/// through the caller's [`Tol`] witness.
 fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
     Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)
 }

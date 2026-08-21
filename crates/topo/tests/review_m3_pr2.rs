@@ -360,7 +360,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
             normal: Vec3::new(Probe(1.0 / l), Probe(3.0 / l), Probe(0.0)),
         };
         start_recording();
-        let red_p = split_reduce(&fx_p.body, &plane_p).unwrap();
+        let red_p = split_reduce(&fx_p.body, &plane_p, Tol::witness()).unwrap();
         let samples = take_samples();
         assert_eq!(red_p.on_vertices.len(), 4);
         let sweeps = samples
@@ -540,7 +540,7 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
     ];
     let fx = prism::<Interval>(&wedge, 1.0);
     for (ny, dangling_expected) in [(1.0, 2), (-1.0, 0)] {
-        let red = split_reduce(&fx.body, &plane_y::<Interval>(2.0, ny)).unwrap();
+        let red = split_reduce(&fx.body, &plane_y::<Interval>(2.0, ny), Tol::witness()).unwrap();
         // 2 tips + 4 crossings (x=0/x=10 walls at y=2, both rims).
         assert_eq!(red.on_vertices.len(), 6);
         // Tips mint 2 each; crossings 1 each.
@@ -553,7 +553,7 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
     // a non-singleton enclosure for the constructed point.
     let profile = [(0.0, 0.0), (9.0, 0.0), (10.0, 3.0), (0.0, 3.0)];
     let fx = prism::<Interval>(&profile, 1.0);
-    let red = split_reduce(&fx.body, &plane_y::<Interval>(1.0, 1.0)).unwrap();
+    let red = split_reduce(&fx.body, &plane_y::<Interval>(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 4); // 2 diagonal + 2 wall crossings
     for &v in &red.on_vertices {
         assert_eq!(red.sides[v], PlaneSide::On);
@@ -568,7 +568,7 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
         (0.0, 1.0 + 3.0 * eps),
     ];
     let fx = prism::<Interval>(&profile, 1.0);
-    match split_reduce(&fx.body, &plane_y::<Interval>(1.0, 1.0)) {
+    match split_reduce(&fx.body, &plane_y::<Interval>(1.0, 1.0), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { .. }) => {}
         other => panic!("expected SliverVertex under interval, got {other:?}"),
     }
