@@ -342,6 +342,24 @@ search, and **reported it**. That is the whole obligation — the fence is again
 reading and editing, not a tripwire, and an honest report costs nothing.
 Exclude it in your search commands rather than relying on not looking.
 
+**A fence's track is derivable — from the head's own branch name.** A lane
+derived its fence correctly over eleven open heads and then reported that it
+could not tell a **cross-track fence** from an **intra-track sequencing
+question**, because `git diff --name-only` says which heads touch your files
+and nothing says who owns them. It is right that the overlap pipeline cannot
+answer it, and wrong that the tree cannot: **every branch carries its track as
+a prefix** — `smelle/`, `smellc/`, `smellf/`, `smellg/` — holding across all 81
+`smell*` branches. So `git ls-remote --heads origin`, or the head ref on the
+PR, answers it.
+
+**Why the distinction is worth deriving**: a head on *another* track is a fence
+and you stop. A head on *your own* track is the orchestrator's to sequence, and
+the question to ask is *"which lands first"*, not *"may I touch this."* The
+second question is answerable in a sentence and the first is not, which is why
+a lane that leads with the sequencing framing gets unblocked faster than one
+that leads with a defence of the crossing. **Lead the ask with the question the
+orchestrator can actually answer.**
+
 **And check that your exclusion is the right syntax for the tool you are
 running.** A second lane put the exclusion in the command, as instructed, and
 still read the file: it used git-pathspec syntax — `:!path` — in a `grep -rn`.
