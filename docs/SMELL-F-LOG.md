@@ -252,7 +252,8 @@ sub-block, from the orchestrator.
 | **F-d** | D70 | S126 |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
-| unassigned (2nd block) | D107–D110 | S161–S166 |
+| **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
+| unassigned (2nd block) | D107, D108 | S161, S162, S165, S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -366,11 +367,24 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
-| **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
 | **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued — F-f's row is carried by #798 (open) |
 
 **F-f's PR is open** (#798); its roster row left the table above per the
 recording convention, which the landing PR carries.
+
+**F-g's PR is open** (#PR), carrying **F3 (S63)**, **S157** (the harness — F-f's
+row, never placed in §D as `D101`, so there was no row to strike) and
+**S125/D69**. Its row left the table above. **It crossed into three files F1/F2
+had just landed, and every crossing was forced by the harness fix rather than
+chosen** — reported here because the brief said to stop and report:
+`gate-roster.sh` (its `gate_selftest_real` was written to be lifted, and lifting
+means deleting the original), `probe-suite-census.sh` (its mode was selected by
+setting a global, which no longer crosses into a subprocess — five of its
+self-test cases were silently running the wrong half), and `test-aggregation.sh`
+(one must-FAIL case ran in-process). **`.github/workflows/ci.yml`,
+`scripts/ci-filter.py` and `check-ci-mirror-parity.py` were NOT touched**, which
+is why S63's `ci-filter.py` half is **S164/D110** rather than closed, and why
+`bounds-allowlist.sh` keeps the old comment filter (**S163(b)**).
 
 **F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,

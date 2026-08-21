@@ -8288,75 +8288,80 @@ exclude `lib.sh` — a filename problem solved with a permission bit. It is a
 filename problem again: **both halves skip `lib.sh` by name, and a member of that
 directory that is not executable is a failure, not a skip.**
 
-## S63. Three of the six grep gates pass the spellings they exist to forbid, and one has already produced the cry-wolf-then-allowlist outcome
+## S63. FIXED by #PR — the three grep gates fire on the spellings they forbade, and the leading-`//` strip is gone from the directory
 
-Every claim below was **executed against a planted fixture** by the
-scanning agent.
+**Closed by Track F lane F-g.** Every claim below was executed: the
+gate was planted into the live tree, watched go red, and the near miss
+watched stay green.
 
-**`no-extra-real-bounds.sh:81`** is `grep -rnE '\bReal\s*\+'` — `Real`
-*followed* by `+`, only. `pub fn f<T: PartialOrd + Real>(_t: T) {}`
-passes green. `where T: Real, T: PartialOrd` passes green. And a line of
-*prose* — `// never write T: Real + PartialOrd here` — fires it, because
-this is the one grep gate that strips no comments. The header states the
-purpose as *"`T: Real + PartialOrd` (or any other extra bound) is the
-escape hatch"*; the hatch is open in both commonest alternative
-spellings. Its self-test plants the one spelling the regex was written
-for. **The ruling this needs is already adjudicated one file away** —
-`bounds-allowlist.sh:106-107` plants both operand orders citing "the
-matcher must see both forms rather than carve one out", and
-`signed-zero-one-home.sh:16-24` cites the same ruling by name. It was
-applied to the two gates that reported it and never swept to the sibling
-in the same directory. (Cf. S59: the same ruling, un-swept again.)
+**`no-extra-real-bounds.sh`** matched `Real` followed by `+`, on one
+line, with no comment strip at all. It now matches the RULE — a type
+parameter carrying `Real` and something else — in all three spellings
+Rust has for it: either operand order of the plus (with an optional
+path prefix), the one-line two-predicate form
+(`fn f<T: Real>(..) where T: PartialOrd`), and **the rustfmt-wrapped
+form the formatter converges on**, matched over a statement cut at
+`{`, `}` and `;` rather than over a line. The live invisible hit
+S125/D69 recorded — `spline/locate.rs`'s
+`pub trait SpanLocate: sealed::Sealed + Real` — is **ratified as an
+exact-text skip, not an allowlisted file**: the extra operand is a
+pub-in-private sealing marker with no methods and no nameable
+existence downstream, so it adds none of the comparison surface the
+rule is about, and the skip's subject is proved before every scan
+(reformat it, rename it, or give it a bound with a surface, and the
+gate reds saying which repair is meant). Allowlisting the file would
+have un-guarded every other line of it.
 
-**`bit-identity-debug-only.sh:116-122`** counts two things and
-correlates neither: `uses=$(grep -c 'bit_identity::|eq_bits')`,
-`gates=$(grep -c 'cfg(debug_assertions)')`, fail only if
-`uses > 0 && gates == 0`. One `cfg(debug_assertions)` anywhere in the
-file licenses any number of ungated production uses. A planted
-`source.rs` with one gated `eq_bits` and one bare
-`pub fn production_leak(..)` passes **and prints** *"topo/src/source.rs
-gates its 2 bit-channel use(s) behind cfg(debug_assertions)"* — a
-statement the gate has no evidence for. This matters more than it looks:
-`bit-identity-consumer.sh:71` excludes `crates/topo/src/source.rs`
-wholesale, so this gate is that file's only control.
+**`bit-identity-debug-only.sh`** counted uses and `cfg(debug_assertions)`
+separately and correlated neither, so one gate anywhere licensed any
+number of ungated production uses — and it printed a sentence it had
+no evidence for. It now places **each use against the item that
+encloses it**, by brace depth over the code-only text, and its
+self-test plants the case the counting form passed: one properly
+gated use with a production leak beside it. `#[cfg(any(debug_assertions,
+…))]` is deliberately **not** read as a gate, because it is not one.
 
-**`interval-square-allowlist.sh:40-45`** cannot see `self.x * self.x`
-and fires on `a * a.method()`. The live blind instance is
-`crates/geom-core/src/linalg/vec.rs:326` — `s + (self.y * self.y) * a`
-inside `impl<T: Real> Vec3<T>::orthonormal_basis`, production
-generic-over-`Real` code in a file that is **not** on the allowlist.
-S13's steelman named this exact site (then `:311`) as still standing;
-#626 moved the gate without touching the regex. And the two failures
-compound: `crates/geom-core/src/linalg/mat.rs` **is** on the allowlist,
-and the header at `:26-28` justifies its entry partly with *"the test
-hits are `r * r.transpose()` matrix products"* — a false positive
-resolved by allowlisting the whole file, which is now unguarded for
-genuine `x * x`. The cry-wolf-then-allowlist outcome, already realised.
-The gate is now `grep -rPn` (PCRE), so the lookahead fix logged on
-2026-08-04 is available and still unapplied. Next sites to sweep:
-`crates/geom-brep/src/props/quad.rs:3193`, `crates/editor-core/src/mate.rs:218`.
+**`interval-square-allowlist.sh`** could not see `self.x * self.x` and
+fired on `a * a.method()`. The operand is now a field path and the
+second operand may not be followed by `.`, `(` or `[`. The scan is
+production code only — `#[cfg(test)]` items are dropped, and so is a
+module file whose `mod` declaration is `#[cfg(test)]`-gated, resolved
+from the declaration rather than from a list of names. **That removed
+the false-positive population outright**, and with it the
+cry-wolf-then-allowlist outcome this finding recorded: `interval.rs`
+and `dual.rs` left the allowlist because neither had a production hit
+left, and `linalg/mat.rs`'s entry survives on its D9 evaluation-order
+reason with the `r * r.transpose()` clause — a false positive — struck
+from its justification. **Two live sites were converted**:
+`linalg/vec.rs`'s `orthonormal_basis` (the site S13's steelman named,
+production code generic over `Real` in a file nobody had allowlisted)
+and `profile/src/validate.rs`'s `loop_orientation` circular-segment
+term. Both replace a product by the tight square **in place**; neither
+reassociates. At `f64` `powi(2)` is `1.0 * (x*x)` and therefore
+bit-identical; at `Interval` it is inari `pown`, never wider and
+strictly tighter when the enclosure straddles zero — which `n.y` does
+for every direction near the equator of the y-axis. What the matcher
+still cannot see is **S163**.
 
-**The shared cause.** Five of the six gates share a comment stripper
-that is leading-`//`-only (`grep -vE ':[0-9]+:\s*(//|///|//!)'`), so a
-trailing comment cries wolf and a block comment is invisible; only
-`signed-zero-one-home.sh:73-103` has a real one. `scripts/gates/lib.sh`
-is the home that does not have it. Each false red is a nudge toward the
-allowlist rather than the fix, which the paragraph above shows already
-happening.
+**The shared cause is gone from every gate in the directory but one.**
+`lib.sh` now carries a real Rust reader — `//`, `/* */`, string, raw
+string, byte string, and char literals told apart from lifetimes — and
+`bit-identity-{consumer,punning,debug-only}`, `evalscalar-allowlist`,
+`no-ambient-env`, `interval-square-allowlist` and
+`no-extra-real-bounds` all read through it. **It builds the CODE-ONLY
+view and only that one**: S117 sorts eleven source-text guards three
+ways, and nothing under `scripts/gates/` needs the other two views, so
+they are not written here. Each converted gate carries a bundled
+near-miss fixture — prose, a doc comment, a block comment, a trailing
+comment and a string literal spelling the forbidden thing — that must
+stay green, beside a case planting the violation **behind** a block
+comment that must fire. `bounds-allowlist.sh` is the one gate left on
+the old filter; F-g's brief fenced its file, and the residue is
+**S163(b)**.
 
-**And `scripts/ci-filter.py` — 367 lines, deciding whether any gate runs
-at all — is the only script here with no test.** Every gate under
-`scripts/gates/` carries a `--selftest` both halves invoke;
-`check-interval-cfg-additive.py` and `demos/check_render_provenance.py`
-do too. The script that gates all of them has neither a self-test nor a
-test file anywhere in the tree. It fails closed on exceptions
-(`Bail` → `TIER=all`, `:352`), which covers the direction that matters
-most — but the `docs` branch at `:184` is a **fail-open** path taken
-before any of that, and it is the branch S61 depends on. `lib.sh:29`
-says a guard that has never been shown to fire is not a guard; the
-sentence was not applied one level up.
-
-**Verdict:**
+**The `scripts/ci-filter.py` half of this finding is NOT closed and is
+relocated to S164**, not dropped: closing it needs a `ci.yml` edit,
+which lane F-2 had just landed and F-g's brief fenced.
 
 ## S64. The mesh crate's headline D9 sentence is false, and there is a fourth ε consumer that decides emitted coordinates
 
@@ -10890,24 +10895,28 @@ close in.
 
 **Verdict:**
 
-## S125. `no-extra-real-bounds.sh` is order-sensitive — S56's own defect, un-swept to a third gate
+## S125. FIXED by #PR — `no-extra-real-bounds.sh` is order-insensitive and name-shaped, and the one live hit is ratified as a line
 
-**[verified]** `scripts/gates/no-extra-real-bounds.sh:21` is
-`grep -rnE '\bReal\s*\+' crates/*/src`. It matches `Real + Foo` and
-cannot match `Foo + Real`, which is exactly the bound its header says it
-forbids: *"a type parameter written `T: Real + PartialOrd` (or any other
-extra bound) is the escape hatch"*. One live hit today —
-`crates/geom-core/src/spline/locate.rs:82`,
-`pub trait SpanLocate: sealed::Sealed + Real {` — invisible to the gate
-in the tree as it stands. (Whether a *trait declaration* is in the gate's
-class is the substantive question; that it cannot be **asked** is not.)
+**Closed by Track F lane F-g with S63**, whose scope already held this
+file. The matcher no longer anchors on the operand order — or on the
+`+` at all: see S63's record for the three spellings it now reads, and
+for why the two-predicate forms mattered more than the reversed plus
+(rustfmt converges on one of them).
 
-**S56 was "the compound-`Bounds` gate was order-sensitive"; #676 fixed
-that gate.** S63 already records the same ruling reaching two of the
-gates that reported it and never sweeping to a sibling; this is the
-sibling. The file is **F3 / lane F-g**'s, so #791 did not touch it.
-
-**Verdict:**
+**The substantive question this finding raised was answered rather than
+sidestepped.** `pub trait SpanLocate: sealed::Sealed + Real` **is** in
+the gate's class — it is a compound bound on `Real`, and the gate
+matches it — and it is **ratified**, on the rule's own reason: the
+extra operand is a pub-in-private sealing marker with no methods,
+unnameable downstream, so it adds none of the comparison surface the
+escape hatch is an escape to (`geom-core/src/spline/locate.rs` and
+`geom/src/lib.rs` both say so in their module headers). It is skipped
+as **exact text**, not as a file, and the skip's subject is proved
+before every scan: reformat the declaration, rename it, or give it a
+bound with a surface, and the gate reds naming which repair is meant.
+The self-test plants a violation beside the skipped line (the skip must
+cost one line, not the file) and plants the declaration re-given a real
+bound (the skip must not survive it).
 
 ## S158. The compound-`Bounds` gate anchors on `+`, and `+` is not how Rust expresses a compound bound
 
@@ -10979,6 +10988,87 @@ information exists; what does not exist is any check that a file's current
 bounds are the ones argued for. Options a taker should weigh rather than
 assume: line-scoped or symbol-scoped entries; a count pinned per file; or
 accepting file granularity and saying so at each entry.
+
+**Verdict:**
+
+## S163. What the F3 sweep left open in `scripts/gates/`, and one member is live in production `Interval` code
+
+Raised by lane **F-g** while closing S63 and S157. Three members, one
+row (**D109**), because each is a disclosed blind spot of the same
+sweep and a reader who takes one should see the other two.
+
+**(a) The interval-square matcher cannot see a SCALED square, and there
+is a live instance.** `x * x` is matched; `(k * x) * x` is not, because
+the parenthesisation leaves no `x * x` adjacency in the text.
+`geom-core/src/linalg/vec.rs`'s `orthonormal_basis` writes
+`((s * self.x) * self.x) * a` for `b1`, production code generic over
+`Real`, in a file that is not allowlisted — the twin of the `b2` term
+F3 converted, three characters away and invisible. **It was NOT
+converted, deliberately.** The conversion is not a square substitution:
+it reassociates `(s·x)·x` into `s·(x²)`, and the surrounding doc
+comment fixes that order under D9. That is the same distinction
+`linalg/mat.rs` is allowlisted for — its `rotation_about` writes
+`t * x * x` and its entry says in terms that tightening it *"is a
+design change, not a cleanup"*. **So the open question is one
+question asked twice: may a D9-fixed evaluation order be reassociated
+when the reassociation is strictly tighter and the value is unchanged
+at `f64`?** At `f64` both spellings are bit-identical (`s` is
+`±1` exactly, and `powi(2)` is `1.0 * (x*x)`); at `Interval` the
+current order treats the two factors as independent, so an enclosure of
+`n.x` straddling zero gets a spurious sign range that `s·(x²)` does
+not. Q6's shape: this needs an answer, not a matcher.
+
+**(b) `bounds-allowlist.sh` is the one gate in the directory still on
+the leading-`//` comment filter, and the last one keeping a
+self-test helper that runs in-process.** Both because F-g's brief
+fenced that file (F1 had just landed it). Its own KNOWN GAP 5 names
+this lane as the taker, and its `bounds_selftest_passes` carries a
+comment saying it is named gate-specifically so that promoting one into
+`lib.sh` cannot shadow it — `lib.sh` now has `gate_selftest_passes`, so
+the promotion is a deletion and two call-site edits. The in-process
+helper is a must-PASS case, so it is not blind the way S157's were: a
+gate that died would fail it, with a misleading message.
+
+**(c) The shared reader is a lexer, and says so.** Nested block
+comments (Rust allows them; the first `*/` closes here), `macro_rules!`
+bodies, `include!`d text, and anything behind a `#[cfg]` other than the
+`test` skip are all read as ordinary code. Separately, the
+interval-square scan skips `#[cfg(any(test, feature = "test-support"))]`
+items, which a `test-support` build does compile; an ALL-CAPS operand
+(`SOME_CONST * SOME_CONST`) and an indexed square (`v[i] * v[i]`) are
+both invisible to the square matcher, the first deliberately (the
+ALL-CAPS population here is `usize` sizing) and the second not.
+
+**Verdict:**
+
+## S164. `scripts/ci-filter.py` decides whether any gate runs at all, and it is the one script here with no test
+
+**Relocated out of S63 by lane F-g rather than closed with it** (F-R11:
+a claim the closing record cannot carry moves, it does not vanish).
+S63's other three halves are fixed; this one is not, and recording the
+whole finding as FIXED would have made a live claim read as closed.
+
+**Re-derived, because S63's line numbers had moved.** The script is
+**385 lines** (S63 said 367). Every gate under `scripts/gates/` carries
+a `--selftest` that both halves of CI invoke; `check-interval-cfg-additive.py`,
+`check-ci-mirror-parity.py` and `demos/check_render_provenance.py` do
+too. `ci-filter.py` has neither a self-test nor a test file anywhere in
+the tree, and both halves depend on it: `ci.yml`'s `change filter` job
+runs it and every downstream job reads its output, and
+`local-scripts/ci-local.sh` walks the same output. It fails **closed**
+on uncertainty — `Bail` (`:141`) is caught at top level and turned into
+`TIER=all`, which covers the direction that matters most — but the
+`docs` branch (`:202`, `all(_is_docs(f) for f in files)`) is a
+**fail-open** path taken before any of that, and it is the branch S61
+depends on. `lib.sh` says a guard that has never been shown to fire is
+not a guard; the sentence was never applied one level up.
+
+**Why F-g did not take it.** Wiring a `--selftest` into both halves is
+an edit to `.github/workflows/ci.yml`, which lane F-2 had just landed
+and F-g's brief fenced — and `check-ci-mirror-parity.py` now Bails on
+workflow shapes it does not recognise, so the edit may red with an
+instruction to extend the recogniser. That is a sequencing fact, not an
+argument against the row.
 
 **Verdict:**
 
@@ -12470,6 +12560,16 @@ than from the schedule** (F-R1, F-R2 in the track log):
   C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
   its four members are one missing idiom and closing three of four is §C13.
 
+**F3 — FIXED by #PR** (lane F-g), together with **S157** (the self-test
+harness) and **S125/D69**. The three grep gates fire on the spellings they
+forbade, `scripts/gates/lib.sh` carries the shared code-only Rust reader and a
+self-test harness whose every case is a real subprocess, and two live `x*x`
+sites were converted. **Two halves did not close and are rows rather than
+silence**: `scripts/ci-filter.py`'s missing test moved to **S164/D110** (it
+needs a `ci.yml` edit F2 had just landed), and what the sweep left open in the
+directory — including a live scaled square in `linalg/vec.rs` whose fix is a D9
+ratification question — is **S163/D109**.
+
 **D86 — FIXED by #821**, by **Track E's lane E-o**, which crossed into
 `scripts/` with Evan's approval rather than leave a Track F row blocking two
 Track E rows. `interval-only-selection.py`'s crate scan now asks what
@@ -12492,7 +12592,6 @@ while a row that never enters a log is read by no one.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
-| **F3** | **Three of six grep gates pass the spellings they exist to forbid.** `no-extra-real-bounds.sh` greps `\bReal\s*\+` raw with no comment strip; `bit-identity-debug-only.sh` counts uses and `cfg(debug_assertions)` separately and prints an unsupported sentence; `interval-square-allowlist.sh`'s PCRE backreference cannot see `self.x * self.x`, and `geom-core/src/linalg/vec.rs:325-326` is a live unallowlisted instance. The cry-wolf-then-allowlist outcome is **already realised** at `linalg/mat.rs`. **Its line numbers are fiction — re-derive, do not transcribe.** | **S63** | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `scripts/ci-filter.py` | **ACCEPTED** | style for the gates; **ADVERSARIAL** for the `x*x → powi(2)` conversions, which change numerics in `Interval`-generic production code |
 | **F4** | **Guards whose failure mode is their pass condition** — four instances bound by one missing idiom rather than by files. The spent-graft hammer row lacks the `oks > 0` its twin has, and `ci.yml` cites it by name (**S76**); a fuzz corpus is built entirely behind `if let Ok` with no floor (**S78**); a floor row matches into a `println!("SKIPPED")` arm and returns green (**S84**); a new differential test compares an expression against itself (**S91**). | S76, S78, S84, S91 | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/*`, `geom-core/src/spline/knots.rs` | **ACCEPTED** on all four | **ADVERSARIAL** for S76 and S78 (each is a guard on a soundness contract); style for S84, S91 |
 | **F5** | **Two scraped-source registries of "what is a public mutation door", both classifying by `body.contains("literal")`** — so a comment satisfies the guard. The undisclosed string-match blind spot is the sharper half. | **S92** | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | **ACCEPTED** | style |
 | **F7** | **Assertions that cannot go red, sorted.** The roll-up is **three dispositions, not one**: *(a)* genuinely vacuous assertions in shipped test files — a normal fix lane, cheap and edge-free; *(b)* hand-run diff artefacts whose comparison no longer exists (`probe_s5_sectors.rs` has no runner and says so in the file; `review_m6_5_pr2_sweep_probes.rs`'s printed hash; `review_d8_consumer_differential.rs`'s pinned seeds) — **§C23's class, and §A2 already routes them to the test-suite-cost sweep**; *(c)* equal-by-construction asserts in `demos/`, which go to **Track G**. **The skip-reads-as-a-pass shape is deliberately NOT here** — Evan ruled it un-rolled-up (C21), because a floor concedes the skip and *whether the test should skip at all* comes first. **Do not re-propose the floors.** | **S110** (10 members, enumerated) | six crates' `tests/`, plus `memories/test-suite-cost.md` | **ACCEPTED, SORT REQUIRED** — the sort is above and is the row's first deliverable | style |
@@ -12543,7 +12642,13 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 | **D102** | **The compound-`Bounds` gate anchors on `+`, and `+` is not how Rust expresses a compound bound** (**S158**). `where T: Decide, T: Bounds` and `<T: Decide>(…) where T: Bounds` are silent; so is the multi-line `where` alias declaration **that `rustfmt` converges on** from a spelling the gate does catch. **Subsumes S59** — S59 was blindness to an alias, this is blindness to a spelling. No live instance in an unratified file, so a hole rather than a violation. **Deliberately not closed by #791**: it is a redesign of what the gate matches, no line-based matcher reaches the formatter-stable form, and a colon-free widening false-positives on a trait generic over a sole bracket bound. **The taker should expect F-R6's grandfathering caveat to be live on a real residue**, unlike #791's empty one, and should count the population before choosing a matcher. |
 | **D103** | **The allowlist is file-granular while its justifications are per-seam** (**S159**). Every entry is a path, so a second unrelated compound bound added to an allowlisted file inherits the first's ratification silently. **A different mechanism from D102 and it outlives whatever the matcher does** — S63's `linalg/mat.rs` is the same shape as one bad entry; this is the shape of every entry. Options to weigh rather than assume: line- or symbol-scoped entries, a per-file count pinned, or accepting file granularity and saying so at each entry. |
 | **D106** | **Split the ratification ledger out of `scripts/gates/`'s scripts.** `bounds-allowlist.sh`'s header is **204 lines in front of a 20-line function** — S116(m) measured 130, and #791 took it 131 → 157 → 195 → 204. **The progression is the evidence, and it is why this is structural rather than a discipline problem: the header grew three times and every time for an honest reason.** First, three newly disclosed blind spots (GAPs 3, 4, 5) plus the reason the definition skip is exact text. Second, retracting a mitigation that had been published false, and writing at the gap why no line-based matcher can close it. Third, a review condition that a partial catch must carry the reason it is partial *at the matcher*, not forty lines lower — which is correct, and which no amount of discipline makes shorter. **A gate whose gaps are honest is longer than one whose gaps are silent**, so cutting the header means either un-disclosing a hole or deleting a per-seam ratification argument, and both are worse than the length. What actually makes the file long is that the per-seam justifications are *a document that happens to live in a comment block* — every entry carries the ruling that admitted it, who ruled, and what the refusing lane is. **That is the thing to move**, not the gap list, which belongs beside the matcher it qualifies. A taker should decide where it goes (a `docs/` companion the gate cites by name, or a per-seam file the gate reads) and, whichever it is, keep the property that made #791 recoverable: **the argument and the enforcement must fail together**, so a ledger entry with no matching allowlist line, or the reverse, is itself a red. Not F-e's: that lane has been through a review, a verification and two fix passes on one row, and this is a change across the directory. **Sequence it after F-g**, which owns `lib.sh` and will have the harness open. |
-| **D69** | **`no-extra-real-bounds.sh` matches `Real +` and not `+ Real`** (**S125**) — S56's order-sensitivity defect, never swept to this gate, with one live invisible hit at `geom-core/src/spline/locate.rs:82`. **Belongs to F3 / lane F-g**, whose scope already holds this file; recorded here so it is scheduled rather than remembered. The fix is the shape #791 used: make the matcher order-insensitive **and** name-shaped in one move, since doing only the first is what produced S59 out of S56. |
+
+### Rows placed for Track F by lane F-g
+
+| # | Work |
+|---|---|
+| **D109** | **What the F3 sweep left open in `scripts/gates/`** (**S163**, three members). *(a)* the interval-square matcher cannot see a SCALED square `(k * x) * x`, and `geom-core/src/linalg/vec.rs`'s `orthonormal_basis` has a live one in production `Interval`-generic code, three characters from the term F3 converted — **it is deliberately unconverted, because the fix reassociates a D9-fixed order**, which is the same thing `linalg/mat.rs` is allowlisted for. **That makes the row a DESIGN QUESTION before it is a matcher question** (Q6's shape: may a D9 order be reassociated when the reassociation is strictly tighter and the `f64` value is bit-identical?), and a taker who treats it as a widening will produce a matcher that reds two ratified sites. *(b)* `bounds-allowlist.sh` is the one gate still on the leading-`//` filter and the last with an in-process self-test helper, both because F-g's brief fenced F1's just-landed file; its own KNOWN GAP 5 names this as the taker and `lib.sh` now has the helper it wanted. *(c)* the shared reader is a lexer — nested block comments, `macro_rules!` bodies, `include!`, ALL-CAPS and indexed squares. **ACCEPTED**, style for (b) and (c); (a) goes to Evan before it goes to a matcher. |
+| **D110** | **`scripts/ci-filter.py` has no test, and it decides whether any gate runs at all** (**S164**) — S63's fourth half, relocated rather than closed, with its counts re-derived (385 lines, `Bail` at `:141`, the fail-open `docs` branch at `:202`). Scope: `scripts/ci-filter.py`, and **`.github/workflows/ci.yml` plus `local-scripts/ci-local.sh` for the wiring** — which is why F-g did not take it, F2 having just landed those files. **Sequence it after F2 settles**, and expect `check-ci-mirror-parity.py` to Bail on an unrecognised workflow shape and ask to be extended. **ACCEPTED**, style. |
 
 ### Rows placed for Track F by lane F-b
 
@@ -12611,73 +12716,63 @@ plainly correct and is why the setting exists. **Row: D108.**
 
 ---
 
-## S157. Every gate can die before its own error message, and the self-test harness is blind to that by construction
+## S157. FIXED by #PR — every self-test case in `scripts/gates/` is a real subprocess, so a diagnosis lost to `errexit` fails the self-test
 
-**Found by Track F's lane F-f (#798) while demonstrating F2's re-siting;
-diagnosed by that PR's style review; handed over rather than taken —
-`scripts/gates/lib.sh` is lane F-g's file.**
+**Closed by Track F lane F-g**, which owns `scripts/gates/lib.sh`.
+Raised by F-f (#798) and narrowed by that lane's own refutation of the
+wider claim first recorded here: the `::error::` plumbing works when it
+is reached, and what is true is only the mechanism — a gate whose
+diagnostic path runs a pipeline or a command substitution under
+`set -euo pipefail` can die before `gate_error`, and
+`gate_selftest_case` ran the gate inside `if out=$(…)`, a context in
+which bash suppresses errexit.
 
-> **NARROWED 2026-08-20, and the over-claim was Track F's own.** This finding
-> was first written as *"all fifteen gates currently fail on the hosted half
-> without saying why"* and *"readable only by re-running locally"*. **That is
-> false, and it was refuted by the lane that raised it**, on run `32413754011`:
-> `ERROR:` and `##[error]` lines both appear, carrying the full diagnosis. The
-> `::error::` plumbing works when it is reached. **What is true is only the
-> narrower mechanism below** — a gate that dies under `errexit` never reaches
-> it. The original text generalised one silent run into a property of fifteen
-> gates on the strength of a single observation. **That is the *claim wider
-> than its evidence* failure this track has ruled on four times today,
-> committed by the orchestrator in the register itself**, which is the one
-> place it is hardest to notice: a lane's over-claim gets a reviewer, and the
-> record's does not.
+**The fix REPLACED the harness rather than adding to it.** F-f's
+`gate_selftest_real` was written in `gate-roster.sh` to be lifted here;
+it was lifted with one change, and the change is the point — it became
+`gate_selftest_case` instead of sitting beside it, because a second
+helper leaves the blind path in place for the other thirteen gates,
+which is the finding rather than the fix. `gate_selftest_clean` and the
+new `gate_selftest_passes` (the near-miss twin lane F-e reported
+wanting) run as subprocesses for the same reason. **The mechanism was
+executed on the live tree**: a counting pipeline planted in one gate's
+diagnostic path fails the new harness with *"exited non-zero WITHOUT a
+gate_error diagnosis"*, and passes the old one with a green
+*"selftest OK"*.
 
-On run `32408775985` — a deliberate breakage, so the failure was known and
-expected — the only failure text anywhere, in the job log *and* in the
-check-run annotations queried across every check run on the head SHA, was:
+**Three assertions the harness did not have.** A failing case must
+carry the `gate_error` framing, not merely the wanted text — `$want`
+alone is satisfiable by a gate that echoes its hits and then dies.
+Every gate proves its own tail: a `--root` it cannot enter used to kill
+it at `cd` with bash's one-line complaint and no gate name, and
+`gate_selftest_clean` now plants that case for all fourteen. And
+`gate_selftest_without_tool` shadows a reader with a stub that exits
+non-zero, which is how the two python-backed gates were found dying at
+the assignment that captured them.
 
-    Process completed with exit code 1
+**What the sweep found, which is why fifteen passing self-tests were
+not evidence.** Five of `probe-suite-census.sh`'s citation-half cases
+were **silently running the census half**: they selected the mode by
+setting a global, which no longer crosses into a subprocess — each one
+planted a broken citation, the census half passed it, and the case
+reported green. A gate's mode now reaches it through argv.
+`gate_error` moved to **stderr**, because a `gate_error` inside a
+command substitution had its message captured and thrown away while
+the caller died at the failed assignment — S157 in different clothes,
+on `probe-suite-census.sh`'s nested-suite path — and because that
+gate's stdout is data CI reads. `kernel-serde-free.sh` and
+`test-features-dev-only.sh` both captured a python reader with a bare
+assignment. The three `--check-listing` cases and every remaining
+negative control in the directory now run as subprocesses too.
 
-**not because `::error::` is unavailable, but because the gate died before
-emitting it.**
-
-### The mechanism, found by #798's style review — and it is larger than the finding
-
-**`set -euo pipefail` kills the gate before its own error message, and the
-self-test harness structurally cannot see it.**
-
-At `gate-roster.sh:156-159`, `loopvar=$(grep … | head -1 | awk …)` **aborts the
-script** under `errexit` before `gate_error` can run. The self-test passes only
-because `gate_selftest_case` runs the gate inside `if out=$(…)` — **a context in
-which bash suppresses errexit.** The same shape killed the empty-scan guard in
-what was then `ci-mirror-parity.sh` (now `scripts/check-ci-mirror-parity.py`). **Both of F-f's own instances are fixed in #798**, and its two
-checks now run every self-test case as a real subprocess, so a diagnosis lost to
-errexit fails the self-test rather than passing it.
-
-So the finding is not *"gates print nothing on hosted CI"*. It is:
-
-> **A gate whose diagnostic path runs a pipeline or a command substitution can
-> die before its own error message — and every gate's self-test is blind to
-> that by construction.**
-
-The harness suppresses the exact condition that kills the diagnostic. **That is
-a guard whose verification mechanism cannot observe its own failure mode** — the
-subject of this entire track — sitting in the file that defines the harness for
-all fifteen gates. It is also why the class was invisible to fifteen separate
-self-tests that all pass: they were never able to fail this way.
-
-**Why this is worth its own finding rather than a line in F2's record.** The
-`scripts/gates/` directory's whole design premise is that a gate explains
-itself: S13, S59, S61, S62 and S63 are all findings about gates whose *prose*
-was wrong, argued over at length, and every one of those arguments is about
-text no CI reader has ever seen — and a gate that dies at a matcher shows a
-reader none of it.
-
-**Scope:** `scripts/gates/lib.sh` — the harness — plus every gate whose
-diagnostic path runs a pipeline or a command substitution under `errexit`.
-**Owner:** Track F's **F-g** (row F3), which already holds that file. **Row:
-D101.** F-f owns only the two instances in its own new code and fixes those; the
-harness and the sweep are F-g's, and the sweep is the deliverable — *fifteen
-self-tests passing is not evidence here, because the harness is what hides it.*
+**Residue, disclosed rather than discharged.** `bounds-allowlist.sh`
+keeps a gate-local copy of what is now `gate_selftest_passes`, running
+in-process; F-g's brief fenced that file. It is a must-PASS case, so it
+is not blind — a gate that died would fail it, with a misleading
+message — but it is the last one. **S163(b).** And the harness catches
+an errexit death only on a path some case exercises: a diagnostic path
+with no case is still unobserved, and that is a property of self-tests,
+not of this one.
 
 ## S160. The split scan's constants can be guarded — on the continuous objective, which the cell count is not
 
