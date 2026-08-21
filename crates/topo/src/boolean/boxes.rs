@@ -383,6 +383,17 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   the contract asks for and the arc's own extremes are not cheap.
 ///   What that looseness costs is the door's, not the box's — the
 ///   module docs list the four and their directions.
+///
+///   **`|û_i|·a + |v̂_i|·b` is not the full conic's extent either**,
+///   and it is not invariant under how the carrier is NAMED: the
+///   conic's own half-extent is `√((û_i·a)² + (v̂_i·b)²)`, so a
+///   CIRCLE of radius `r` named from a `u_ref` at 45° to a coordinate
+///   axis is claimed `r√2` wide along it instead of `r`. Two carriers
+///   describing the same circle get different boxes, and the split
+///   lane does mint rotated `u_ref`s. Over-width, not unsoundness —
+///   same class as the cylinder arm's axial one, and reported on
+///   **#862**. The ceiling row below spells the current formula out
+///   so tightening it is loud.
 /// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
 ///   edge whose carrier is null scaffolding. Nothing is certified
 ///   about the locus, so nothing is claimed; the chord is NOT a bound
@@ -584,6 +595,17 @@ mod tests {
     ///
     /// Returns the body and the sector face.
     fn arc_sector(r: f64, span: f64) -> (Body<f64>, FaceKey) {
+        arc_sector_from(r, span, 0.0)
+    }
+
+    /// [`arc_sector`] with the rim carrier's `u_ref` rotated by `phi`
+    /// in the plane: the SAME circle and the same arc, named from a
+    /// different reference direction, with the parameter range shifted
+    /// so the endpoints are unchanged. That is not a contrivance — the
+    /// split lane mints rims this way, and `cyl_wall`'s descending rim
+    /// below is one — and [`EdgeBoxRule::ConicAmplitude`]'s
+    /// per-coordinate `|û_i|·a + |v̂_i|·b` is not invariant under it.
+    fn arc_sector_from(r: f64, span: f64, phi: f64) -> (Body<f64>, FaceKey) {
         let on = |t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
         let (a, b, c) = (on(0.0), on(span), Point3::origin());
         let mut body = Body::<f64>::new();
@@ -600,10 +622,10 @@ mod tests {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
                 radius: r,
-                u_ref: Vec3::unit_x(),
+                u_ref: Vec3::new(phi.cos(), phi.sin(), 0.0),
             },
-            param_start: 0.0,
-            param_end: span,
+            param_start: -phi,
+            param_end: span - phi,
         };
         let e_ab = body
             .mev(
@@ -654,18 +676,22 @@ mod tests {
     fn a_planar_faces_circular_rim_is_inside_its_box() {
         for &r in &[0.001, 1.0, 250.0] {
             for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
-                let span = span_deg.to_radians();
-                let (body, face) = arc_sector(r, span);
-                let b = face_box(&body, face, pad()).unwrap();
-                // The locus is the convex hull of its boundary and the
-                // box is convex, so sampling the boundary settles it.
-                for i in 0..=512 {
-                    let t = span * f64::from(i) / 512.0;
-                    let p = Point3::new(r * t.cos(), r * t.sin(), 0.0);
-                    assert!(
-                        holds(&b, p),
-                        "rim point at {t} rad left the box (r = {r}, span = {span_deg}°): {b:?}"
-                    );
+                for phi_deg in [0.0_f64, 45.0, 137.0] {
+                    let span = span_deg.to_radians();
+                    let (body, face) = arc_sector_from(r, span, phi_deg.to_radians());
+                    let b = face_box(&body, face, pad()).unwrap();
+                    // The locus is the convex hull of its boundary and
+                    // the box is convex, so sampling the boundary
+                    // settles it.
+                    for i in 0..=512 {
+                        let t = span * f64::from(i) / 512.0;
+                        let p = Point3::new(r * t.cos(), r * t.sin(), 0.0);
+                        assert!(
+                            holds(&b, p),
+                            "rim point at {t} rad left the box (r = {r}, \
+                             span = {span_deg}°, u_ref at {phi_deg}°): {b:?}"
+                        );
+                    }
                 }
             }
         }
@@ -969,26 +995,43 @@ mod tests {
 
         // **BoundaryHull, conic-fed.** The rim is a circle, so its
         // `EdgeBoxRule::ConicAmplitude` box is the FULL turn's
-        // `center ± r` in the conic plane whatever the span — the
-        // arc's own extremes are deliberately not recovered — and the
-        // two radii chords lie inside it. Flat in z.
+        // whatever the span — the arc's own extremes are deliberately
+        // not recovered — and the two radii chords lie inside it.
+        // Flat in z.
+        //
+        // `AMPLITUDE` is that arm's per-coordinate reach written out:
+        // `|û_i|·a + |v̂_i|·b`, which for a CIRCLE named from a `u_ref`
+        // at φ is `r·(|cos φ| + |sin φ|)` — the true half-extent `r`
+        // only at the axis-aligned φ, and up to `r√2` at 45°. So the
+        // box a rim gets depends on which reference direction its
+        // carrier happens to carry, which is the same over-width
+        // class as the cylinder arm's axial one and is reported on
+        // **#862**. Spelled out here rather than folded away, for the
+        // same reason: the day it is tightened this row goes red at a
+        // named line.
         for &r in &[0.001, 1.0, 250.0] {
             for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
-                let (body, face) = arc_sector(r, span_deg.to_radians());
-                let b = face_box(&body, face, pad).unwrap();
-                agrees_with_the_rule(
-                    &b,
-                    &Aabb {
-                        min_x: -r - pad,
-                        min_y: -r - pad,
-                        min_z: -pad,
-                        max_x: r + pad,
-                        max_y: r + pad,
-                        max_z: pad,
-                    },
-                    r,
-                    &format!("the planar arm (r = {r}, span = {span_deg}°)"),
-                );
+                for phi_deg in [0.0_f64, 45.0, 137.0] {
+                    let phi = phi_deg.to_radians();
+                    let amplitude = r * (phi.cos().abs() + phi.sin().abs());
+                    let (body, face) = arc_sector_from(r, span_deg.to_radians(), phi);
+                    let b = face_box(&body, face, pad).unwrap();
+                    agrees_with_the_rule(
+                        &b,
+                        &Aabb {
+                            min_x: -amplitude - pad,
+                            min_y: -amplitude - pad,
+                            min_z: -pad,
+                            max_x: amplitude + pad,
+                            max_y: amplitude + pad,
+                            max_z: pad,
+                        },
+                        r,
+                        &format!(
+                            "the planar arm (r = {r}, span = {span_deg}°, u_ref at {phi_deg}°)"
+                        ),
+                    );
+                }
             }
         }
 
