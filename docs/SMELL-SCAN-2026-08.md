@@ -9918,7 +9918,7 @@ weeks with nothing reading it — a latent defect wearing a documentation
 costume, and the plainest available argument for why this lane exists.
 
 **The invariant now has one home, and at least three doors re-derive it
-without reference to that home: `S210`.** Note that the sweep for the
+without reference to that home: `S212`.** Note that the sweep for the
 *defect* found no siblings — every one of those doors already refuses
 correctly — while the sweep for the *invariant* found three restatements.
 Those are different sweeps and only the second has hits.
@@ -14042,10 +14042,13 @@ SURFACE level). This is the curve level, and it was not in that count.
 formula so tightening it is loud, and changed no arithmetic.
 
 
-## S210. The certified door's postcondition now has one home, and at least three doors re-derive it without reference to it
+## S212. The certified door's postcondition now has one home, and at least three doors re-derive it without reference to it
 
 **Raised by H-a (#880) on closing S86**, out of Track H's `S210`–`S229`
-block, re-derived against `main` at merge time.
+block. **Re-derived against `main` at merge time and renumbered**: this was
+drafted as `S210`, which #875 (H-d) took while #880 was open — the block
+protects against other tracks, not against a sibling lane, which is
+G-R13's point exactly.
 
 #880 put a postcondition on `CertifiedEnclosure`: **a `Some((lo, hi))`
 never carries a NaN end** — a bracket that is neither a claim nor a
@@ -14079,6 +14082,15 @@ normative one propagates to nobody.
 **neither track's scope** and has no owner at all — which is `S230`'s and
 `S231`'s shape, one file over. Editing another lane's open file to
 centralise a rule is how a fix mints the collision it was meant to avoid.
+
+**Related to `S210`, and deliberately not folded into it.** `S210` is
+about a *bound* nothing watches — sole `T: Bounds` bracket extraction, with
+a gate that must not fire on it. This row is about a *postcondition* that
+has one normative home and three unlinked restatements; the doors here all
+answer correctly, so there is nothing for a gate to fire on. They are
+siblings in the *a rule with no instrument* family and a taker of either
+should read the other — which is `S210`'s own *"this has a twin on the
+register, and they were unlinked"* observation, applied to itself.
 
 **What the work is**, so it is not re-derived a fourth time: give the
 postcondition one referenceable home on the trait (it is written there
