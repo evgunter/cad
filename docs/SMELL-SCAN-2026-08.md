@@ -8221,7 +8221,13 @@ while its area enclosure stays at **7.8e-3** — eleven orders apart, on the sam
 body, because one is metered and the other is a denominator at a frozen
 resolution.
 
-**Verdict:** ACCEPTED, closed on the test half; the metering is #870.
+**The residue is a row, not a footnote.** Sweeping the class turned up two
+more certified widths with no ceiling, in `editor-core/tests/` and
+`pncad-py/tests/` — **S230**, recorded **unrouted**, because both crates are
+outside every live track's scope.
+
+**Verdict:** ACCEPTED, closed on the test half; the metering is #870, and the
+residue is S230.
 
 ## S61. FIXED by #798 — two gates were sited in a job that skips on the only change class that can break them
 
@@ -15109,6 +15115,47 @@ surface) and the markers start meaning something; or they are deleted
 and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
 this got here. **Row: D122.**
+
+## S230. Two more certified widths with no ceiling, in two crates no live track owns
+
+**Raised by lane I-b while closing S60 (#873).** The parent is **S26**, and
+the class is S26's own lesson stated as a rule: *every certified width needs a
+row that goes red when it grows.* This is not an S110 member — S110's class is
+vacuous assertions in shipped test files, and a containment row is not
+vacuous. It is a **live** assertion that happens to be monotone in the
+degrading direction, which is the sharper and narrower thing.
+
+**This row has no home, and that is part of the finding.**
+`crates/editor-core/` and `crates/pncad-py/` are outside Track I's scope
+(`props/`, `mesh/`, `census.rs`) and outside the scope of every other live
+track. **Nobody is scheduled to fix this.** Recorded unrouted rather than
+implied-owned; a reader should not infer a lane from its presence here.
+
+Both members carry the numbers I-b measured, because the measurement is what
+makes them actionable. **Measured at `5d4b88ab`**, dev profile, x86_64 Linux,
+across CI's own ε matrix (`CAD_TOLERANCE_EPS` ∈ {default, 1e-6, 1e-12}).
+
+- **`crates/editor-core/tests/m5_pr11_corpus_curved.rs:75`** — containment
+  only on `volume_pad`, and it never reads `area_pad` at all. It runs the
+  **same** tilted-cut fixture as `sweep/tests/m5_pr11_quad_props.rs`, whose
+  volume row has carried a tightness ceiling since PR 11 and whose area row
+  gained one in #873. On that fixture's below half the certified widths are
+  `volume_pad` = 3.5356e-7 m³ and `area_pad` = 2.1214e-6 m² at default ε, and
+  3.0780e-4 m² at ε = 1e-6 — a five-order spread across the matrix that this
+  row cannot see in either quantity.
+- **`crates/pncad-py/tests/test_north_star.py:555-556`, `:1238-1239`** — the
+  Python door's rows on the shape (iii) loft. `:556` bounds `volume_pad` at
+  `1e-6` and asserts **nothing** about `area_pad`; `:1238-1239` is containment
+  only. On that same loft the measured widths are `volume_pad` =
+  **1.0725e-13 m³** and `area_pad` = **0.1986 m²** — 7.8e-3 of the body's
+  25.31 m² surface, eleven orders of magnitude apart, and **identical bits at
+  all three ε legs** because that width is resolution-driven, not
+  tolerance-driven. The Python door therefore reports a certified area of
+  25.31 ± 0.20 m² with no row that would notice the pad growing.
+
+The kernel-side reason the second number is what it is — the area enclosure is
+never metered — is **issue #870**, not this row. This row is only about the
+missing ceilings.
 
 ---
 

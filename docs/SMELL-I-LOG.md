@@ -120,7 +120,7 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
-| — | — | — |
+| **S230** | lane **I-b** (#873) | two certified widths with no ceiling, in `editor-core/tests/` and `pncad-py/tests/` — I-b's own residue from S60, **unrouted** (both crates are outside every live track's scope) |
 
 ---
 
