@@ -8504,7 +8504,7 @@ which lane F-2 had just landed and F-g's brief fenced.
 
 ## S64. FIXED by #872 — the mesh crate's ε ledger stops being a roster
 
-**Was:** `crates/mesh/src/lib.rs`'s D9 headline read *"ε is never
+**What was found.** `crates/mesh/src/lib.rs`'s D9 headline read *"ε is never
 *read* for sizing — mesh structure is a function of (body, δ) alone
 (D9)."* The dash makes the second clause a restatement of the first,
 and only the first is true. `sizing::Tol`'s doc refuted the strong
@@ -8518,8 +8518,9 @@ list asserted the opposite explicitly — true of the predicate, false of
 produced a count, not a mechanism, and the count went stale inside two
 commits.
 
-**Done:** the enumeration was **deleted, not corrected**. A right list
-leaves the next reader the same unguarded list.
+**What was done — the enumeration was DELETED, not corrected.** A right
+list leaves the next reader the same unguarded list, and this one went
+stale inside two commits.
 
 - `sizing::Tol` now states **what an ε read may DO**, in two kinds,
   instead of where the reads are: bars that only REFUSE or REPORT (the
@@ -8542,6 +8543,16 @@ leaves the next reader the same unguarded list.
 - `walk.rs`'s consumer list says both halves: `iso_side_starts` does
   not read *that predicate*, and does read ε, and its read decides an
   emitted coordinate.
+
+**The two kinds were verified exhaustive against the tree**, which is
+the claim the new doc rests on. ε enters `mesh` at exactly one place
+(`tessellate.rs` builds `Tol` from `Tolerance::get()`) and leaves
+`Tol` at exactly three call sites: `curved`'s `loop_polygon` call, its
+`require_swept_rectangle` call, and `trimmed`'s certificate probe.
+Inside `loop_polygon` it reaches three further reads — pole-vertex
+identification, `iso_side_starts`, and the `gap_is_noise` detectors.
+`chords.rs`, `planar.rs`, `nurbs_cert.rs` and `sizing.rs` contain no ε
+read at all. Six reads, two kinds, none unaccounted for.
 
 **Residue, stated rather than closed over:** a new ε read still has to
 be classified by hand. What changed is that no claim in the crate can
