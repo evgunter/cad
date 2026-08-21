@@ -310,7 +310,25 @@ and `S165`/`S166` are F-h's — all four appear in `docs/SMELL-SCAN-2026-08.md`,
 so the line that called them unassigned was wrong when written. **A reservation
 table is a claim like any other**, and this one had drifted three times: once
 into a merge conflict, once into the conflict markers that reached `main`, and
-once here. The third block (`D111`–`D120` / `S167`–`S176`) is the live one.
+once here. **There is no third block, and saying there was is the orchestrator's own rule
+failing on the orchestrator** (2026-08-21). `D111`–`D120` / `S167`–`S176` was
+claimed in a lane message and in this table and **never landed in §D**, where
+the other orchestrators read. Another track has since taken **S171, S172 and
+S173** — entirely legitimately, because from `main` those numbers were free.
+
+**The sentence this violates is the one Track F wrote when it claimed block 2:**
+*"a block that has not landed is not a reservation"* — recorded there as the
+lesson from Track E issuing `D61`–`D70` to five of its own lanes while Track F
+held them unmerged. **Written down, published, and then not applied to the very
+next block by the author.**
+
+**No collision occurred.** Track F spent **S167** (merging kills in-flight
+checks), **S168** (the bit-identity docstrings) and **S169** (the loud-stand-down
+class) before the space was contested, and `D113`/`D114`/`D115` alongside them.
+**S170 and S174–S176 are not Track F's** and this track claims nothing further:
+all eight rows are closed and it does not need more numbers. A successor wanting
+one takes it from beyond the highest in the tree **and lands the claim before
+using it.**
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
