@@ -10457,7 +10457,8 @@ see §C.
   dangling intra-doc link is in a `tests/` file and outside this gate
   too — and **S135** measures that hole: rustdoc builds no test targets
   at all, so it is not an excluded root but an excluded *target kind*,
-  285 links wide.)
+  a few hundred links wide — the census is at S135 and is not restated
+  here, per S176(b).)
 - (c) `crates/pncad/src/prelude.rs:11-21` — the corpus-frequency
   measurement that chose the prelude cut *"was taken once, by hand, and
   nothing re-takes it"*, classified as *"unguarded rather than
@@ -11374,16 +11375,49 @@ the same file the whole time and one row did not call it.
 ## S135. Every intra-doc link under `tests/` is inert — nothing renders them, nothing checks them, and nine are already broken
 
 **[verified, #831]** S71's dangling link was invisible to
-`scripts/doc-gate.sh` *"because it is in a `tests/` file"*. The measurement
-behind that: **465 test files across the workspace, 106 of them carrying
-285 bracket-link candidates in doc lines** (re-swept at #831's merge of
-`origin/main`, which added two test files and eight candidates and no new
-breakage). None of the 285 is ever resolved.
+`scripts/doc-gate.sh` *"because it is in a `tests/` file"*.
 `cargo doc` documents lib and bin targets, and the gate's own header says the
 consequence in its own words — *"rustdoc builds no test targets"*
 (`scripts/doc-gate.sh:71`), written there to justify `--all-features`. So an
 intra-doc link in a `tests/` file is decoration with a promise attached, on
 every tier, at every eps, forever.
+
+### The census — **stated once, here, and reproducible**
+
+Every other document that wants this number **points at this block** rather
+than restating it, which is **S176(b)**'s cure applied to the finding that
+raised it.
+
+**At `4cc0dbf3`** (this branch's merge of `origin/main` at `6a4ccfac`):
+**465 test `.rs` files in the workspace, 106 of them carrying 294
+bracket-link candidates on doc lines.** None of the 294 is ever resolved.
+
+**What the sweep counts, exactly** — so that a re-derivation is a
+re-derivation and not a second definition: files tracked by git whose path
+ends in `.rs` and contains a `tests/` component; lines whose trimmed form
+starts with `///` or `//!`; every `[target]` on such a line that is not
+followed by `(`, whose target is identifier-shaped
+(`Ident(::Ident)*`, optionally wrapped in backticks). **57 of the 294 are
+`#[attribute]` names written in prose** (`#[ignore]`, `#[test]`,
+`#[non_exhaustive]`, `#[path]`, `#[cfg]`) — they are link candidates by the
+same test, and they **resolve**, to the built-in attributes in the prelude;
+21 of the same shape sit in `src/` doc lines with `doc-gate.sh` green over
+them, which is how that was settled rather than assumed. They are inert here
+like everything else in `tests/`, and none of the nine broken ones is one.
+
+**Drift, in the record of the finding about drift.** The previous spelling of
+this census — *"285 in 106 of 465"* — does not re-derive: the same sweep at
+this branch's pre-merge head returns **285 in 105**, so the pair that replaced
+*"277 in 105"* was itself half-drifted, mixing a re-swept candidate count with
+a file count from a different run. The final merge then added **9 candidates
+across 4 files** (`editor-core/tests/boolean_op_wire.rs`,
+`editor-core/tests/m4_pr8_k_probe.rs`, `geom-brep/tests/m5_pr7_ssi.rs`,
+`sweep/tests/review_d2_adv_probes.rs`); the five distinct new targets
+(`EVERY_OPERATION`, `test_utils::vacuity`, `test_utils::vacuity::stood_down`,
+`SsiDomain::floor_scale_for`, `census_corpus`) all resolve, member path
+included, so **no new breakage**. This is the third time these numbers moved
+under a merge, which is the argument for writing the definition down rather
+than the count.
 
 **Nine are broken today, and nine is a FLOOR rather than a count** — see the
 blind spot below, which is the same shape as the defect being fixed: the check
@@ -11488,14 +11522,20 @@ things go wrong there by construction, and both did:
   recorded, not swept; S72's and S127's are the samples to check first if
   someone takes it.
 - **(b) One census, written into three documents, drifts inside the PR that
-  took it.** #831 put its link census in `SMELL-G-LOG.md`, in this document and
-  in its PR body; the re-sweep at its second merge of `origin/main` updated one
-  of the three, so the log said *"277 links in 105 files"* while this document
-  said 285 in 106 of 465. **The general form:** a number restated in N places is
-  guarded in none, and the moment that bites is a re-sweep, which is exactly
-  when the register is supposed to be right. The cheap discipline is one home
-  plus pointers; the cheaper one is to re-derive every restatement after the
-  final edit rather than before.
+  took it.** #831 put its link census in `SMELL-G-LOG.md`, in this document, in
+  §D's D113 row and in its PR body; the re-sweep at its second merge of
+  `origin/main` updated one of the four, so the log said *"277 links in 105
+  files"* while this document said *"285 in 106 of 465"*. **It then happened
+  again inside the fix that recorded it**: the replacement pair does not
+  re-derive either — the sweep at the pre-merge head returns 285 in **105**
+  files, so the corrected figure had a re-swept candidate count beside a file
+  count from an older run, and the branch's final merge moved the candidates
+  again. **The general form:** a number restated in N places is guarded in
+  none, and the moment that bites is a re-sweep, which is exactly when the
+  register is supposed to be right. **The cure, applied here rather than
+  described:** the census has **one home** (S135), it states the sweep's
+  definition rather than only its result so a re-derivation is checkable, and
+  the other three sites now point at it instead of carrying a number.
 
 **Why this is a roll-up and not two rows:** one mechanism — the record is
 written before the change is final and is never re-derived against it.
@@ -13906,7 +13946,7 @@ tessellation pin are red on main).
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
-| **D113** | **Decide what an intra-doc link in a `tests/` file is.** `cargo doc` builds no test targets, so all 285 of them across 106 test files are inert — never rendered, never resolved, never checked, on any tier; at least nine are already broken. Two answers, and the row wants one: the form stops being used under `tests/` (it promises a link that cannot exist, and plain backticks say the same thing honestly — precedents at `geom-core/src/interval.rs:62` and `interval-transcendentals/src/lib.rs:114`), or something is built that resolves them, which rustdoc cannot be asked to do for a test target. **Evan's call** — the shape is S61's ruling (*a gate must be sited where it can fire on its own inputs*) applied to a target kind rather than a root; if the answer is build something, it belongs with Track F's instruments. | **S135** | `scripts/doc-gate.sh`, and whatever the answer names | **ACCEPTED**, unstaffed | style |
+| **D113** | **Decide what an intra-doc link in a `tests/` file is.** `cargo doc` builds no test targets, so every one of them is inert — never rendered, never resolved, never checked, on any tier; at least nine are already broken. **The census and its definition live at S135 and are not restated here** (S176(b)). Two answers, and the row wants one: the form stops being used under `tests/` (it promises a link that cannot exist, and plain backticks say the same thing honestly — precedents at `geom-core/src/interval.rs:62` and `interval-transcendentals/src/lib.rs:114`), or something is built that resolves them, which rustdoc cannot be asked to do for a test target. **Evan's call** — the shape is S61's ruling (*a gate must be sited where it can fire on its own inputs*) applied to a target kind rather than a root; if the answer is build something, it belongs with Track F's instruments. | **S135** | `scripts/doc-gate.sh`, and whatever the answer names | **ACCEPTED**, unstaffed | style |
 | **D72** | **Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse.** `review_s2.rs`'s `an_uncertifiable_tangent_point_refuses_instead_of_being_returned` builds on the twin crossing of a hairline lens at ε = 1e-9 and 1e-6, so the near-collapsed offset lever it was mined for decides nothing there; #831 turned that from prose into an assertion, which is a tripwire and not a fix. Wanted: a corner whose mirror IS excluded by the harness's bracketing, so the build arm's ulp claim is about the geometry its prose describes. A witness search, not a doc edit. | **S128** | `profile/tests/review_s2.rs` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |

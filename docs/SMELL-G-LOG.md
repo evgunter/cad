@@ -311,14 +311,17 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
   never exercised on the building bands. Not a kernel defect — the file's fuzz
   skips exactly these draws — and now asserted rather than described. D72
   schedules the re-mine.
-- **`S135` + `D113`.** The dangling-link class was measured: **285 intra-doc
-  links in 106 of 465 test files**, all inert, because `cargo doc` builds no
-  test targets — the doc gate's own header says so. **At least nine** are
-  already broken (nine is a floor: the check resolves a link's root, never its
-  member path); three fixed here — one in `geom-core/tests/`, outside the Scope
-  cell and named in the PR — six dispositioned. **`D113` holds the decision**,
-  Evan's, after the review pointed out that D71 is the same shape and no row
-  was an amnesty rather than a scoping call.
+- **`S135` + `D113`.** Every intra-doc link under `tests/` is inert, because
+  `cargo doc` builds no test targets — the doc gate's own header says so.
+  **At least nine** are already broken (nine is a floor: the check resolves a
+  link's root, never its member path); three fixed here — one in
+  `geom-core/tests/`, outside the Scope cell and named in the PR — six
+  dispositioned. **`D113` holds the decision**, Evan's, after the review
+  pointed out that D71 is the same shape and no row was an amnesty rather than
+  a scoping call. **The census is not restated here**: it has one home, at
+  S135, with the sweep's definition beside it, because this record is where
+  S176(b)'s drift happened and it happened a second time in the fix that
+  recorded it.
 - **S133's `profile/` half discharged** and recorded at the finding: 9 hits in
   the lane's scope with no duplication, 14 in `profile/src/path/` with three
   candidates left for the lanes that own those files.
@@ -329,8 +332,10 @@ pins; `sugar.rs` was re-read and not edited. Three things beyond the doc edit:
 - **`S176`.** Raised BY the style review, out of this lane's own register
   entries: a landing PR's record drifts from the change it documents, two ways
   — stale `file:line` written inside the diff that renumbers the file, and one
-  census restated in log + scan + PR body that a re-sweep updates in one place.
-  Both recorded as classes; neither swept.
+  census restated in log + scan + §D row + PR body that a re-sweep updates in
+  one place. Both recorded as classes; neither swept. **(b) recurred inside its
+  own fix** — the corrected pair did not re-derive either — so the census now
+  has one home and a written-down definition rather than a better number.
 
 **Style review: NOT CLEARED, and the fix pass is in the same PR.** The review's
 verdict was that the PR **re-minted S71 at the site it was correcting** — the
