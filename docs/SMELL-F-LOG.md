@@ -322,7 +322,18 @@ lesson from Track E issuing `D61`–`D70` to five of its own lanes while Track F
 held them unmerged. **Written down, published, and then not applied to the very
 next block by the author.**
 
-**No collision occurred.** Track F spent **S167** (merging kills in-flight
+**Corrected 2026-08-21, and the correction matters because the first version
+over-claimed in a note about over-claiming.** *"No collision occurred"* is too
+strong. **No collision reached the tree** — `S167` and `S168` each have exactly
+one definition on `main`, both Track F's. **But a collision did occur in
+issuance**: Track G's orchestrator reports that its first block attempt was
+derived from *the highest number in use anywhere* rather than read off §D's
+published reservations, **which drove it through `S157`–`S168` and put `S167`
+and `S168` into the hands of a Track G lane while Track F findings already
+occupied them.** It was caught before landing. Two orchestrators reached for the
+same two numbers and the tree survived on timing.
+
+Track F spent **S167** (merging kills in-flight
 checks), **S168** (the bit-identity docstrings) and **S169** (the loud-stand-down
 class) before the space was contested, and `D113`/`D114`/`D115` alongside them.
 **S170 and S174–S176 are not Track F's** and this track claims nothing further:
