@@ -15317,7 +15317,10 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ## Track H — the certification substrate: `geom-core/` and `geom/`
 
-**Defined 2026-08-21 by Track F on closing; unclaimed.** Track C has closed and
+**Defined 2026-08-21 by Track F on closing. CLAIMED 2026-08-21 — one live
+orchestrator, `docs/SMELL-H-LOG.md`**, which holds lane state, rulings, review
+outcomes and incidents. Branch prefix `smellh/`; away-channel tag
+`(TRACK H orchestrator)`. Track C has closed and
 its ground has no orchestrator, so the table below and Track I's are the rows its
 lanes were gating. **They split on the crate boundary, which is where the frozen
 table already split them** — it grouped its rows behind four separate Track C
@@ -15331,18 +15334,30 @@ Every row here is takeable today.
 
 | # | Work | From |
 |---|---|---|
-| **H1** | **`CertifiedEnclosure for RingInterval` returns `Some((NaN, NaN))` for a poison ring — the exact laundering the trait doc forbids.** The frozen table marks it *"should not wait for the others"*: **one file and hours of work**, and it is a certification door returning a certificate for garbage. **Take it first.** | **S86** |
-| **H2** | **One merge's residue, and it wants ONE lane, not five rows** — the frozen table says so explicitly. | **S99**–**S103** |
+| **H1** | **`CertifiedEnclosure for RingInterval` returns `Some((NaN, NaN))` for a poison ring — the exact laundering the trait doc forbids.** The frozen table marks it *"should not wait for the others"*: **one file and hours of work**, and it is a certification door returning a certificate for garbage. **Take it first.** **ADVERSARIAL** — the fix makes the door *refuse*, and every consumer that survives today's `Some((NaN, NaN))` by accident (`ssi/enclose.rs:211`'s `pad_interval`, named in the finding as exactly that) gets `None` afterwards. A door that starts refusing is a different test from a door that stops laundering, and CI covers the second better. | **S86** |
+| **H2** | **One merge's residue, and it wants ONE lane, not five rows** — the frozen table says so explicitly. **Now six: `S116(b)` joined from the dissolved `H8`** (H-R2). **ADVERSARIAL** — `S99`'s widening changes what `net::is_placeholder` answers at **~25 consumer sites**, and the case it newly catches is by construction one nothing currently constructs. | **S99**–**S103**, **S116(b)** |
 | **H3** | **The `Bounds` trait's headline still calls it the certification door, and its ledger grew 50% under the fix meant to retarget it.** | **S85** |
 | **H4** | **The one-home fix for the ring crossing minted three local aliases and a hand-counted tally.** | **S89** |
 | **H5** | **The lane-trait collapse, `RingInterval`, and the scalar ladders** — Track C's **C-l**, never started. Expect it to split into two or three lanes; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is **adversarial**, per C-R12. **535 refs across 15 files.** | C7 + **S33** |
 | **H6** | **D1's newly opened sole-`T: Bounds` doors that the sweep's own pattern cannot see** — the `geom` half only; the `profile` half is Track G's **G4**. | **S88** |
-| **H7** | **Reassociate the scaled square** — **ruled YES by Evan** (2026-08-21). `linalg/vec.rs`'s `orthonormal_basis` `b1` is byte-free (`s = ±1` multiplies exactly); `linalg/mat.rs::rotation_about`'s `t·x·x` moves `f64` bytes and re-cuts goldens, which is a chore and not a contract. **Sequencing, non-negotiable: convert the two sites, re-cut what moves, THEN widen the matcher** — widening first reds two ratified sites and greening that by allowlisting is S63's already-realised outcome for the third time. **Extend the `Dual` tangent guard with the change**, not after it. | **D109**(a) |
-| **H8** | Roll-up members in these crates. | S110(f), S116(b) |
+| **H7** | **Reassociate the scaled square** — **ruled YES by Evan** (2026-08-21). `linalg/vec.rs`'s `orthonormal_basis` `b1` is byte-free (`s = ±1` multiplies exactly); `linalg/mat.rs::rotation_about`'s `t·x·x` moves `f64` bytes and re-cuts goldens, which is a chore and not a contract. **Sequencing, non-negotiable: convert the two sites, re-cut what moves, THEN widen the matcher** — widening first reds two ratified sites and greening that by allowlisting is S63's already-realised outcome for the third time. **Extend the `Dual` tangent guard with the change**, not after it. **ADVERSARIAL** — it moves `f64` bytes and re-cuts goldens; the sequencing is the risk, and getting it backwards is an outcome S63 has already realised twice. | **D109**(a) |
+| ~~**H8**~~ | ~~Roll-up members in these crates.~~ **DISSOLVED into H2 on claiming (H-R2).** **`S110(f)` was already CLOSED by #790** — the citation came from the frozen table, which predates #790, and was transcribed rather than re-derived when this track was constituted (**H-R1**; §H's own *re-derive after every merge* rule applies to a citation exactly as it does to a number). That leaves `S116(b)` as the row's whole content, and `S116(b)`'s `azimuth` half **is `S102`'s subject** — `surfaces.rs:26-30`'s *"The shared helper"* bullet, spelling the `radial`/`tangential` formula without naming `crate::azimuth`. Two lanes editing one merge's naming residue in one file is a conflict the schedule manufactured. | ~~S110(f)~~, **S116(b) → H2** |
+
+**Sequencing, set on claiming — three waves ordered by file collision, not by
+importance.** **Wave 1: `H1`, `H6`, `H7`** (disjoint files — `ring_interval.rs`,
+`geom`'s projection doors, `geom-core/src/linalg/`; `H1` first, as marked).
+**Wave 2: `H2`, `H3`+`H4` as one lane** — `H3`/`H4` both sit on `real.rs` and
+`from_certified`, which `H1` rewrites, and `H2`'s naming work wants `H6`'s doc
+changes landed under it. **Wave 3: `H5`**, in two or three sub-lanes. **`H5` goes
+last for the reason `C-n` does**: 535 refs across 15 files is every file the other
+rows edit, and that is a property of the work rather than of the schedule. Full
+roster, and the argument for each adversarial marking, in `docs/SMELL-H-LOG.md`.
 
 **Evan-only, and neighbours will stall on it:** **S90** — the largest D1 residue
 is the only one without a schedule; is that lane owed now, is the written reason
-sufficient, or is the verdict closed?
+sufficient, or is the verdict closed? **ASKED at constitution, not held until a
+neighbour stalls** — `H-c` reads the same `real.rs` doc block and `H-f` inherits
+the seam, so the answer is wanted before either opens.
 
 ## Track I — the measuring consumers: `props/`, `mesh/`, `census.rs`
 
