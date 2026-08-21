@@ -17,8 +17,15 @@
     clippy::unnecessary_cast
 )]
 
-use geom_brep::ssi::{self, BranchEnd, SsiDomain, SsiError};
+use geom_brep::ssi::{self, BranchEnd, SSI_MAX_FIT_SAMPLES, SsiDomain, SsiError};
+use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Band, Point3, Tolerance, Vec3};
+use test_utils::vacuity;
+
+/// The accounting floor this file's floor-clamped fixture plants, **in
+/// metres** — above the tube radius of a 0.008 m cylinder, and the same
+/// width at every ε of the battery.
+const FLOOR_CLAMP_METRES: f64 = 0.1;
 
 fn eps() -> f64 {
     Tolerance::get().eps
@@ -143,6 +150,20 @@ fn one_loop_slab_seed_count_reproduces() {
 }
 
 /// My own floor-refusal variant on the tiny pair.
+///
+/// **The clamp is stated in metres.** `SsiDomain::floor` is
+/// `SSI_FLOOR · band.zero() · floor_scale`, so a literal scale names a
+/// different width at every ε — the `1.0e8` this row carried is 0.1 m at
+/// the compiled default and **1e-4 m at ε = 1e-12**, which is *below*
+/// the 0.008 m cylinder's tube radius. The `Ok` arm's own message is
+/// *"a floor above the tube radius must refuse"*: a premise about a
+/// width, false at the fine end of the battery, on a row that would then
+/// have panicked for the wrong reason or stood down in silence.
+///
+/// **And the stand-down is proved rather than assumed**, the way this
+/// suite's sibling floor rows are: a refusal that is not the floor's is
+/// only admissible when it is D9's fit budget, genuinely overrun, at an
+/// ε finer than the compiled default. Anything else reds.
 #[test]
 fn the_tiny_pair_floor_variant_refuses_typed() {
     let cyl = Surface::Cylinder {
@@ -155,11 +176,36 @@ fn the_tiny_pair_floor_variant_refuses_typed() {
         center: Point3::new(0.01, 0.0, 0.9999),
         half_extent: 0.05,
         extent: 0.1,
-        floor_scale: 1.0e8,
+        floor_scale: SsiDomain::floor_scale_for(FLOOR_CLAMP_METRES, band()),
     };
     match run(cyl, d) {
         Err(SsiError::ExhaustivenessInconclusive { .. }) => {}
-        Err(e) => println!("a different typed refusal (still not silence): {e}"),
+        Err(SsiError::FitSampleBudget { samples, budget }) => {
+            assert_eq!(
+                budget, SSI_MAX_FIT_SAMPLES,
+                "the stand-down is D9's fit budget or it is not a stand-down"
+            );
+            assert!(samples > budget, "{samples} of {budget} is not an overrun");
+            assert!(
+                eps() < DEFAULT_EPS,
+                "the fit budget fired at ε = {:e}, which is not finer than the compiled \
+                 default {DEFAULT_EPS:e} — the floor claim is REACHABLE here and this row \
+                 owes it, not a stand-down",
+                eps()
+            );
+            vacuity::stood_down(
+                &format!("the tiny-pair floor variant, eps = {:e}", eps()),
+                &format!(
+                    "the fit budget ({samples} of {budget} samples) refused before any \
+                     branch was fitted, so THIS RUN ASSERTS NEITHER that the clamped \
+                     {FLOOR_CLAMP_METRES} m floor refuses NOR what its refusal says"
+                ),
+            );
+        }
+        Err(e) => panic!(
+            "a {FLOOR_CLAMP_METRES} m floor on a 0.008 m cylinder must refuse for the \
+             floor's own reason, or stand down on D9's fit budget; got {e}"
+        ),
         Ok(out) => panic!(
             "a floor above the tube radius must refuse, got Ok with {} branches",
             out.branches.len()
