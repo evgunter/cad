@@ -449,8 +449,13 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
-| **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
+
+**F-d landed** (#825, merge `335f267e`); its roster row left the table above per
+the recording convention, and the landing is recorded below. **It left late**:
+the row was deleted from the *gated* wave-2 table in the landing PR, then
+reappeared in the *dispatched* table above when wave 2 opened, and four
+`origin/main` merges carried it back in without the lane noticing. Removed here.
 
 **F-h's PR is open** (#844) and its roster row left the table above per the
 recording convention; the landing is recorded below.
