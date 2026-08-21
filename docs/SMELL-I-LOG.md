@@ -125,11 +125,7 @@ apart doing exactly that.
 | **S236** | **I-e** (#887) | `cert::cert_cylinder` is falsified by **nothing, in any build** — `dev_samples_per_edge` is `None` for `Lane::Cylinder` — while `budget_meter.rs`'s assertion message reads as a universal about triangles. **Not a coverage chore: closing it changes #320's consumer contract**, since a cylinder `FaceMeasure` would carry meaningless NURBS columns. The row states the shape question so it is not picked up as a five-minute fix and done wrong |
 | **S235** | **I-d** (#876) | `geom::curves::boxes::circle_arc_aabb` computes the conic's exact amplitude AND restricts to the certified span, is **public**, and has **no production caller** — while `topo`'s `edge_box` hand-derives a looser, orientation-dependent, span-blind version that in-tree bodies already take (4 of 6 carriers on the extruded three-arc cylinder, factor 1.366). **S16's class, a fourth instance at the CURVE level**, and it outlives #862's fix: the correctness half is #862's (axial = deletion, conic = tightening with the NURBS arm's stated obligation), the *"two constructions, the correct one unused"* half is structural and would not retire with it |
 | **S234** | **I-d** (#876) | The lane's own door-inventory guard computes the roster's **keys** and none of its **content**: it pins where the four doors are and recites which direction each reads looseness in, which is the entire content of the header's argument. A door that changes its reading without moving leaves the docs false and the guard green — **S66's shape one level up, inside the fix for S66** — and the assert message mints a kept-in-step-by-hand invariant in the same diff that removed one. Lifted out of the guard's disclosure list per Q6: a disclosed deviation owes an owner. **Third declared blind spot on this track to come back as a finding.** Closable: one row per door that widens the box and asserts the verdict moves the stated way; #876 demonstrated the mechanism by hand for two of the four |
-<<<<<<< HEAD
-| **S233** | **I-a** (#877) | `geom-brep/tests/rim_dim_scale_twins.rs` states `Band { zero: 1e-7, escalate: 1e-6 }` in a comment while the tree's `DEFAULT_EPS` is **`1e-9`** — two decades off, in a file whose subject is the dimensional scaling of predicate margins. **The mechanism is the finding**: a lane took the comment for the constant and built a row on it that then **passed for the wrong reason at the default ε**. The file is off CI's roster and `probe-suite-census.sh` registers that fact — **but the registration covers the file's non-execution, not the constants inside it**, which is the gap |
-=======
 | **S233** | **I-a** (#877) | a band restated in prose — `rim_dim_scale_twins.rs`'s *"the ε = 1e-7 band"* against a `DEFAULT_EPS` of **`1e-9`**. **Found by biting this lane**: a row built on the sentence passed at the default for the wrong reason and fired on CI's `eps = 1e-6` leg. The file's own `an_interior_rim_…` row was **already red at ε = 1e-12** and nothing observed it. Off-roster status is registered by `probe-suite-census.sh`; the constant inside it is not covered by that registration, and **that** is the finding. Three prior fixes of the same class exist in this crate, one of them in the immediate sibling file. **Fixed here, out of scope and deliberately** |
->>>>>>> origin/main
 | **S232** | **I-d** (#876) | `crates/geom/src/{surfaces,curves}/boxes.rs`'s *"looser is conservative"* / *"the poison box, which never prunes"* — six instances, one crate below the four doors `face_box` feeds, **three of which do not prune**. **Routed to Track H** (§D: Track H's scope is `crates/geom-core/` and `crates/geom/`), which is live on #865. The row carries I-d's corrected door count as the reason the sentence is false there too: `geom`'s copies inherit S66's *"two of three consumers"* arithmetic, and `boolean/ops.rs:1486` is the refusing door nobody counted. **A row that names its owner**, unlike S230 and S231 |
 | **S231** | **I-c** (#872) | `mesh/src/chords.rs`'s *"These tightenings are the only places adjacent surfaces enter chord counts"* — S64's shape, in a file inside Track I's crate scope but in **none** of its five lanes' file sets. **Recorded unowned**, and deliberately not routed to I-e: widening a running lane's brief by writing a row at it is how a lane discovers its scope grew after dispatch |
 | **S230** | **I-b** (#873) | S60's class — certified widths with no ceiling — in `editor-core/tests/`, `pncad-py/tests/` and `sweep/tests/` files outside I-b's own three: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft (a bracket 0.397 m² wide), and an `Interval` union row in the same crate. **Recorded as unrouted, and it says so.** Three further members, all in `crates/sweep/tests/`, were fixed in #873 rather than recorded — one of them found by executing I-b's own declared blind spot |
@@ -236,12 +232,7 @@ I-e starts from that merge with the guard bodies exactly as it found them.
 
 | lane | rows | scope | review | state |
 |---|---|---|---|---|
-<<<<<<< HEAD
-| **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | dispatching |
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **dispatched** — gate lifted by #872 (`ecc1d492`) |
-=======
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
->>>>>>> origin/main
+| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **in review as #887** — adversarial and style both running |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
@@ -593,7 +584,24 @@ sides* working exactly as intended.
 
 **The control that would have worked** is not "be careful": it is never putting
 a merge behind a pipe, and grepping the tree for markers before every push.
-The second half is cheap and mechanical and is now what I do.
+
+**IT HAPPENED AGAIN, two hours later, and the second time is the instructive
+one.** I ran the grep. It **printed the markers**. And the commit went ahead
+anyway, because the grep was a *statement in the chain* rather than a *gate on
+it* — `grep …; python3 …; git add -A && git commit && git push`. **An
+unconditional check is not a control; it is a log line.** The only form that
+works is one that **exits non-zero**:
+
+```
+if grep -qn '^<<<<<<< \|^=======$\|^>>>>>>> ' docs/*.md; then exit 1; fi
+```
+
+Both times the conflict itself was benign and both times the resolution kept
+the lanes' richer text over my drafts. **The defect was never the conflict; it
+was that nothing stopped the push.** Same shape as this track's other
+self-inflicted incident: I told a lane to scan its PR body for closing keywords
+and did not gate my own — a rule I stated and did not mechanise. **Twice now,
+the thing I wrote down as the lesson was the thing I then failed to apply.**
 
 ### The same defect, committed by the orchestrator, in the PR documenting it
 
