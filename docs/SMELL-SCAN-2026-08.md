@@ -9732,11 +9732,51 @@ that understanding discharges.** Three answers, and the row wants one:
 here"* is in the same position** and takes the same answer; whichever
 way this goes, it should not need asking twice.
 
-**Track H is not proposing an answer.** The one thing it will say is
-that (1) and (2) differ in cost by roughly a lane, and that the current
-state — decided-and-open, pointed at from a gate, with no register that
-executes — is the state the first scan's closing rule exists to
-forbid.
+**CORRECTION, same day, on Evan's question — there is a fourth answer
+and it is much cheaper than (1).** The question above was written as if
+"the lane is owed" meant building a `PropsQuadLane`-style trait. It
+probably does not. **#643 already shipped the type-level mechanism**:
+`CertifiedEnclosure` is implemented for exactly `f64`, `Interval`,
+`RingInterval` and `Probe` — **never for `Dual`** — and `real.rs:800`
+gives the pair a sole-bound spelling, `pub trait CertifiedBounds: Bounds
++ CertifiedEnclosure {}` with a blanket impl. So a seam that wants duals
+out does not need a lane to refuse them at runtime; it needs a **bound
+that does not type-check**.
+
+**The fillet seam is one word from that.** `fillet_edges`
+(`build.rs:127`), `ring_clearance` (`surgery.rs:775`) and `run_battery`
+(`battery.rs:828`) are each `<T: Decide + Bounds>`. Tightening all three
+to `<T: Decide + CertifiedBounds>` makes an external `Dual64`
+instantiation a **compile error**, leaves both real scalars (`f64`,
+`Interval`) untouched, and does not change a line of the bodies. It stays
+a compound bound, so it still fires `scripts/gates/bounds-allowlist.sh`
+and still needs ratification — which is correct, and is the thing being
+ratified here.
+
+4. **Tighten the bound to `Decide + CertifiedBounds`** — three words, not
+   a lane. Costs: it **evicts** duals rather than hardening the seam (see
+   below), and it is only right if nothing should ever differentiate
+   through the fillet battery.
+
+**The wrinkle that decides between (2) and (4), and it is written down in
+exactly one place** — S44's *"What this does NOT settle"*: at plain
+`Interval` a caller hardens a `Decide + Bounds` seam by adding
+`CertifiedEnclosure`, because the scalar satisfies both. At
+`Dual<Interval>` that same upgrade **evicts** rather than hardens. So
+*"harden this seam"* and *"keep duals out of this seam"* are the **same
+edit**, and there is no spelling that does one without the other. (4) is
+therefore not a free tightening: it is a decision that the fillet battery
+is not a differentiable surface, taken at the API.
+
+**Track H is not proposing an answer.** What it will say is that the
+current state — decided-and-open, pointed at from a gate, with no
+register that executes — is the state the first scan's closing rule
+exists to forbid, and that the real choice is now (2) versus (4): *is the
+audit the discharge, or should a dual stop type-checking here?* Option
+(1) as originally written — build a refusing lane — is very likely the
+wrong shape, because three of the four existing lane traits are already
+redundant for the guarantee and only their typed refusals are load-bearing
+(see `C7`/`H5`).
 
 ## S91. FIXED by #825 — the span search is now checked against a definitional oracle, not against itself
 
