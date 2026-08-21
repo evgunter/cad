@@ -9679,6 +9679,8 @@ whole finding.** #875 closes the `geom` half only. The `profile` half —
 `crates/profile/src/fillet_select.rs` — belongs to **Track G's G4** and
 is untouched here; the receipt #875 hands it is in the enumeration
 below. `crates/geom-brep/` is likewise enumerated and not taken.
+Line numbers in the *handoff* section are as of #875's merge base; the
+census tables are keyed on symbols instead, for the reason given there.
 
 **The row was not "fix a line".** The finding's point is that the
 admits-table's six seams were a *sample*, so the deliverable was the
@@ -9728,22 +9730,25 @@ in the crate it changed.**
 ### The census — `crates/geom/`, four modules, 13 public functions
 
 One line per door: what it is, whether a `Dual64` through it is
-meaningful, and the disposition.
+meaningful, and the disposition. **Keyed on the symbol, not on a line
+number** — this document's own citations are the thing G-R13 keeps
+finding falsified by a merge that touched nothing the citation was about,
+and #875 moved every one of these lines itself.
 
 | Door | A `Dual64` through it | Disposition |
 |---|---|---|
-| `curves::boxes::circle_arc_aabb` (`:176`) | meaningful — the value channel's box, which by D9 *is* the plain-`f64` run's box | **fine**, by delegation; nothing written here |
-| `curves::boxes::ellipse_arc_aabb` (`:293`) | same | **fine**, same reason |
-| `curves::boxes::nurbs_curve_aabb` (`:376`) | same, and it is bracket reads only — no arithmetic | **fine**, same reason |
-| `surfaces::boxes::nurbs_surface_aabb` (`:25`) | same | **fine**, same reason |
-| `curves::boxes::Brk::of` (`:36`, `pub(crate)`) | the mechanism of the four above | **fine**; not a door |
-| `NurbsCurve{2,3}::project` (`curves/projection.rs:119`) | meaningful and **partly wrong** | → **issue #874** + docs |
+| `curves::boxes::circle_arc_aabb` | meaningful — the value channel's box, which by D9 *is* the plain-`f64` run's box | **fine**, by delegation; nothing written here |
+| `curves::boxes::ellipse_arc_aabb` | same | **fine**, same reason |
+| `curves::boxes::nurbs_curve_aabb` | same, and it is bracket reads only — no arithmetic | **fine**, same reason |
+| `surfaces::boxes::nurbs_surface_aabb` | same | **fine**, same reason |
+| `curves::boxes::Brk::of` (`pub(crate)`) | the mechanism of the four above | **fine**; not a door |
+| `NurbsCurve{2,3}::project` | meaningful and **partly wrong** | → **issue #874** + docs |
 | `NurbsCurve{2,3}::project_seed` | meaningful — returns `f64`, so the type already says it carries no tangent | **fine**, and it is *why* the two above are wrong |
 | `NurbsCurve{2,3}::project_from_seed` | as `project` | → **issue #874** + docs |
-| `NurbsSurface::project` (`surfaces/projection.rs:136`) | as the curve half, in two parameters | → **issue #874** + docs |
+| `NurbsSurface::project` | as the curve half, in two parameters | → **issue #874** + docs |
 | `NurbsSurface::project_seed` | as the curve half | **fine** |
 | `NurbsSurface::project_from_seed` | as `project` | → **issue #874** + docs |
-| `projection::mid` (`:111`, `pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
+| `projection::mid` (`pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
 
 **"Fine, because —" is the disposition for five of the twelve, and the
 reason is one reason.** The box constructors' bracket read is
