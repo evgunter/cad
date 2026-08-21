@@ -8501,9 +8501,10 @@ way**, and a refusal is identical in variant, predicate and band.
 One thing is NOT bit-identical, and stating it is what keeps the
 sentence above true: an escalation carries the **signed** margin it
 refused on, so two mirrored refusals render as `Value(−m)` against
-`Value(m)`. That is diagnostic payload the type's own docs forbid
-branching on, so no verdict depends on it — but a differential row
-comparing whole `Debug` strings would red on it alone. The pin
+`Value(m)`. `Indeterminate` documents those fields as diagnostic data
+for error messages and telemetry, and nothing in the walk reads a
+margin back — but a differential row comparing whole `Debug` strings
+would red on it alone. The pin
 therefore compares variant, predicate and band, and separately asserts
 the two margins are exact negations. The derivation is written at
 `point_in_loop`, whose property it is, with a pointer from the producer

@@ -2024,27 +2024,12 @@ impl ChordJoiner {
 /// deliberately without the face's sense folded in.
 ///
 /// Its one consumer is [`point_in_loop`], which reads the normal only
-/// to recover the loop's PLANE. It projects each schedule member as
-/// `r − n̂(n̂·r)`, which is invariant under `n̂ ↦ −n̂`, and hands the
-/// parity walk the in-plane frame `(d, n̂ × d)` — whose second axis is
-/// the only thing a sign flip moves. Negating that axis negates every
-/// vertex ordinate `y`, so the straddle test `sign(yᵢ) ≠ sign(yⱼ)` is
-/// unchanged, the vertex-on-the-ray `Zero` graze is unchanged, and the
-/// crossing's advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and
-/// denominator both negated. Negation is exact and both classifiers
-/// are symmetric about zero, so **the verdict is bit-identical either
-/// way** and a refusal is identical in variant, predicate and band:
-/// ring re-homing cannot move a ring on the sense bit.
-/// `tests/review_m3_pr3_pil.rs` pins that.
-///
-/// One thing is NOT identical, and saying so is what keeps the
-/// sentence above true: an [`Indeterminate`] carries the **signed**
-/// margin it refused on, so the two signs escalate with
-/// `MarginDiag::Value(−m)` against `Value(m)`. That is diagnostic
-/// payload the type's own docs forbid branching on, so no verdict
-/// depends on it — but a differential test comparing whole `Debug`
-/// renderings would see it, which is why the pin compares the variant
-/// and the predicate rather than the rendering.
+/// to recover the loop's PLANE and whose verdict is exactly invariant
+/// under `n̂ ↦ −n̂`. **That derivation lives at `point_in_loop`**,
+/// under the function whose property it is rather than under the
+/// five-line producer that relies on it; the consequence here is that
+/// ring re-homing cannot move a ring on the sense bit, and
+/// `tests/review_m3_pr3_pil.rs` pins it.
 ///
 /// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
 /// which multiplies although its own consumer is equally sign-blind,

@@ -171,9 +171,10 @@ fn boundary_pre_pass_edges() {
 /// **A refusal is compared by variant, predicate and band, not by its
 /// `Debug` rendering**, and the difference is real: an `Indeterminate`
 /// carries the SIGNED margin it refused on, so two mirrored escalations
-/// legitimately render as `Value(−m)` and `Value(m)`. That is payload
-/// the type's own docs forbid branching on; comparing the rendering
-/// would red this row on a probe that merely escalated.
+/// legitimately render as `Value(−m)` and `Value(m)`. `Indeterminate`
+/// documents its fields as diagnostic data for error messages and
+/// telemetry, and no verdict in the walk reads one back; comparing the
+/// rendering would red this row on a probe that merely escalated.
 ///
 /// **What this row can and cannot catch.** It fires on a branch inside
 /// the walk that reads the normal's sign, which is the drift it
@@ -190,7 +191,8 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let flipped = Vec3::new(0.0, 0.0, -1.0);
     // A refusal's sign-INVARIANT content: the variant, and for an
     // escalation the predicate, the band and the margin's KIND. The
-    // margin's value is signed and is meant to differ (fn docs).
+    // margin's VALUE is signed and is meant to differ — see
+    // `point_in_loop`'s "sign of `normal`" section.
     fn shape(r: &Result<LoopContainment, PointInLoopError>) -> String {
         match r {
             Ok(v) => format!("{v:?}"),
