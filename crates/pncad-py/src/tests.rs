@@ -10,7 +10,10 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
-use crate::tags::{expr_dimension_error_tag, path_error_tag, persist_error_tag};
+use crate::tags::{
+    expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
+    workspace_error_tag,
+};
 use pncad::document::Dimension;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -349,6 +352,49 @@ fn persist_error_tags_are_stable() {
     assert_eq!(persist_error_tag(&header), "header");
     let unknown = pncad::document::load("schema: 9999\n{}").expect_err("a future schema refuses");
     assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+}
+
+/// The workspace tags `Doc()` publishes. `randomness_unavailable` is
+/// the one `pncad.pyi` names, and it is minted here rather than
+/// provoked: `getrandom::fill` has no injection seam (see
+/// `crate::identity::interactive`), so the reachable-arm door cannot
+/// be driven from a test. `Io` is driven through a real workspace
+/// door — `Workspace::open`, which is NOT the door that raises
+/// `IdentityError`, and that is the point: the map answers about the
+/// VALUE, so it is exercisable wherever a `WorkspaceError` can be
+/// produced rather than only where this one is raised.
+#[test]
+fn workspace_error_tags_are_stable() {
+    use pncad::workspace::{Workspace, WorkspaceError};
+
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::RandomnessUnavailable {
+            message: "entropy source refused".to_string(),
+        }),
+        "randomness_unavailable"
+    );
+    let missing = Workspace::open(Path::new("/nonexistent/pncad-workspace"))
+        .expect_err("a directory that is not there refuses");
+    assert_eq!(workspace_error_tag(&missing), "io");
+}
+
+/// The STEP importer's tags. Every arm of this enum is reachable
+/// through `import_step`, so unlike the workspace map there is no
+/// single-reachable-arm caveat to make: the exhaustive match is the
+/// drift alarm and these two pin its spelling against the wire. The
+/// first goes through the real door; the second is minted, because
+/// reaching `NothingToImport` needs a well-formed Part 21 file and
+/// that is a fixture, not a literal.
+#[test]
+fn step_import_error_tags_are_stable() {
+    let opts = pncad::step_import::ImportOptions::default();
+    let garbage =
+        pncad::step_import::import_step("not a step file", &opts).expect_err("garbage refuses");
+    assert_eq!(step_import_error_tag(&garbage), "syntax");
+    assert_eq!(
+        step_import_error_tag(&pncad::step_import::StepImportError::NothingToImport),
+        "nothing_to_import"
+    );
 }
 
 #[test]

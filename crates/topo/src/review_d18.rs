@@ -349,7 +349,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 /// way to ask a function whether it announces.
 #[test]
 fn link_half_edges_still_announces_rather_than_discards() {
-    let source = std::fs::read_to_string(crate::fixtures::src_root().join("euler.rs"))
+    let source = std::fs::read_to_string(crate::source_walk::src_root().join("euler.rs"))
         .expect("euler.rs must be readable");
     let at = source
         .find("pub(crate) fn link_half_edges(")

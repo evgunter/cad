@@ -427,6 +427,11 @@ impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
         Workspace::resolve(self, doc_ref).map_err(|e| ResolveFailure {
             fault: resolve_fault(&e),
+            // Not an exception to [`resolve_fault`]'s paragraph
+            // below: this match RENDERS rather than classifies, and
+            // the wildcard's answer is the enum's own `Display`. A
+            // variant added later answers for itself here, and misses
+            // only a recourse sentence it does not have.
             message: match &e {
                 WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
                 _ => e.to_string(),
