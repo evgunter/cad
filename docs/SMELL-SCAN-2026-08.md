@@ -8502,66 +8502,142 @@ pin on last year's output), and scheduled rather than done here.
 relocated to S164**, not dropped: closing it needs a `ci.yml` edit,
 which lane F-2 had just landed and F-g's brief fenced.
 
-## S64. The mesh crate's headline D9 sentence is false, and there is a fourth ε consumer that decides emitted coordinates
+## S64. FIXED by #872 — the mesh crate's ε ledger stops being a roster
 
-**[verified]** `crates/mesh/src/lib.rs:49` still reads: *"ε is never
+**Was:** `crates/mesh/src/lib.rs`'s D9 headline read *"ε is never
 *read* for sizing — mesh structure is a function of (body, δ) alone
-(D9)."* Twenty lines into `crates/mesh/src/curved.rs:72-93` the `Tol`
-doc refutes the strong reading in detail: pole/apex identification is a
-classification whose outcome *"substitutes the pole's exact `v`"* and
-emits two polygon entries, *"so an ε that flipped that classification
-WOULD move emitted coordinates"*; and `require_swept_rectangle` reads ε
-to decide whether `tessellate` returns a mesh at all. `lib.rs:49` is now
-the only place in the crate stating the false version, and it is the
-sentence the memo-key contract and D9 are read through.
+(D9)."* The dash makes the second clause a restatement of the first,
+and only the first is true. `sizing::Tol`'s doc refuted the strong
+reading in detail and then enumerated — *"ε reaches three places from
+here and no more"* — and the enumeration was short by at least one:
+`walk::iso_side_starts` reads ε to decide whether a traversal opens an
+iso side or repeats its predecessor's coordinate bitwise, i.e. **which
+`f64` the emitted UV entry gets**. `walk.rs`'s `gap_is_noise` consumer
+list asserted the opposite explicitly — true of the predicate, false of
+ε. S22's shape one level up: the fix pass that counted the consumers
+produced a count, not a mechanism, and the count went stale inside two
+commits.
 
-Worse, the enumeration that replaced it is already short by one.
-`curved.rs:72` says ε *"reaches three places from here and no more"*.
-`crates/mesh/src/walk.rs:852`'s `iso_side_starts` is a fourth:
+**Done:** the enumeration was **deleted, not corrected**. A right list
+leaves the next reader the same unguarded list.
 
-```rust
-!(same_kind && chart.radial(junction) > eps)
-```
+- `sizing::Tol` now states **what an ε read may DO**, in two kinds,
+  instead of where the reads are: bars that only REFUSE or REPORT (the
+  banded domain guard, the `gap_is_noise` detectors, `trimmed`'s
+  probe), and bars that CLASSIFY, whose answer selects which `f64` an
+  emitted entry carries (pole/apex identification; `iso_side_starts`'
+  run grouping). Neither kind snaps a value; *"ε cannot move an emitted
+  coordinate"* is named as false as stated.
+- **Why not computed, said at the claim site.** A roster of source
+  locations is guardable only by a source-text walk; the shared one
+  (`topo`'s `fixtures::code_only`, #834) is `pub(crate)` and does not
+  reach `mesh`, and a private copy would be the thirteenth unshared
+  such walk in the tree (**S117**). `rg eps crates/mesh/src` — one
+  identifier, one crate — is the enumeration.
+- `lib.rs`'s headline separates the two claims: ε is never read **for
+  sizing** (checkable from `sizing`'s signatures — no step, count or
+  schedule takes it as an input), and mesh structure is a function of
+  (body, δ) alone **for every body this build can mint**, an empirical
+  claim about the tree rather than a theorem.
+- `walk.rs`'s consumer list says both halves: `iso_side_starts` does
+  not read *that predicate*, and does read ε, and its read decides an
+  emitted coordinate.
 
-That decides whether a traversal opens an iso side or repeats its
-predecessor's coordinate bitwise — i.e. **which `f64` the emitted UV
-entry gets**, not merely whether something is refused. Commit `27ec8ea`
-("precision: name all three eps consumers in mesh, not two") predates
-`6881c366` (#653), which introduced the read, so the enumeration was
-already stale when it merged. `walk.rs:534-554` asserts the opposite
-explicitly — *"`iso_side_starts` does NOT read this predicate…"* — which
-is true of `gap_is_noise` and false of ε.
+**Residue, stated rather than closed over:** a new ε read still has to
+be classified by hand. What changed is that no claim in the crate can
+be falsified by a list going stale.
 
-This is S22's shape, one level up: the fix pass that counted the ε
-consumers produced a count, not a mechanism, and the count went stale
-inside two commits.
-
-**Verdict:**
+**S65 is OPEN and Evan's** (below, and §D's I2). #872 does not close
+it and does not touch the decision; it points three claim sites at it
+so a reader finishing this ledger does not read the crate's
+ε/watertightness story as settled.
 
 ## S65. The #678 watertightness backstop is compiled out of every build that ships a mesh
 
-**[verified]** `crates/mesh/src/curved.rs:306` — the re-derivation that
-catches the #678 class is `#[cfg(debug_assertions)]`. The class #678
-named is a *silently* non-watertight mesh returned as `Ok`. `tessellate`
-does not run `check_mesh` (stated three times in this file), and
-`rg check_mesh` finds no consumer outside `crates/mesh`, `stl`, `topo`
-and `sweep` tests — no demo or tour row runs it either. So in a release
-build the entire guard for the class is `pole_columns`' three-line
-`if has_pole && nu == 2`.
+**[verified]** **OPEN — Evan's decision, and #872 equipped it rather
+than taking it (I-R1).** The citations below are re-derived at
+`68921183`; the finding originally cited `curved.rs:306`, which is
+`:273`.
 
-The module header at `curved.rs:44-47` presents the floor and the assert
-as a pair (*"Read the sentence above as conditional on both"*) without
-saying that one of the two is absent from the builds that render.
+`crates/mesh/src/curved.rs:273` — the re-derivation that catches the
+#678 class is `#[cfg(debug_assertions)]`. The class #678 named is a
+*silently* non-watertight mesh returned as `Ok`. `tessellate` does not
+run `check_mesh`, and `rg check_mesh` finds no consumer outside
+`crates/mesh`, `stl`, `topo` and `sweep` tests — no demo or tour row
+runs it either. So in a release build the entire guard for the class is
+`pole_columns`' three-line `if has_pole && nu == 2`.
 
 Two narrowings compound it. The filter is
-`poles.contains(&a) || poles.contains(&b)` (`:314`), but
+`poles.contains(&a) || poles.contains(&b)`, but
 `crates/mesh/src/trimmed.rs:456-468` names **two** sources of "one
-repeated mesh id at two distinct UV locations" — chart singularities and
-the full-2π seam double-traversal — and the seam case, held off by an
-arithmetic argument (`nu >= 8` from the π/4 sagitta cap) rather than a
-floor, is the half with no mechanical check, in the lane that actually
-has seams. And the assert is per-patch, so cross-face identification is
-out of scope too.
+repeated mesh id at two distinct UV locations" — chart singularities
+and the full-2π seam double-traversal — and the seam case, held off by
+an arithmetic argument (`nu >= 8` from the π/4 sagitta cap) rather than
+a floor, is the half with no mechanical check, in the lane that
+actually has seams. And the assert is per-patch, so cross-face
+identification is out of scope too.
+
+**What #872 did:** the module header no longer presents the floor and
+the assert as a pair without saying one is absent from release — it
+says which build each holds in, and points here. `lib.rs`'s copy of the
+paragraph says it too, as do `lib.rs`'s two claims that
+`validate::check_mesh` backstops the mesh: it does, and **`tessellate`
+does not call it**, which is why the class is silent. **The header
+states the asymmetry; it does not resolve it.**
+
+### The question, and it is three-way rather than two
+
+**Option A — stay debug-only.** Cost 0. A release build carries the
+`nu` floor and nothing else for a class whose failure mode is a
+corrupt STL that no error reports.
+
+**Option B — re-derive in release, and REFUSE typed.** Not `assert!`:
+D9 says the kernel never panics on any input, so "run it in release"
+must mean a `TessellateError`, not a panic. That is a **behaviour
+change** — bodies that today return `Ok` with a silently non-manifold
+mesh would start refusing — and it is the only form consistent with
+D9. The finding's own framing (*"pays an O(triangles) per-patch
+re-derivation in release — against D9's never a panic"*) named the
+panic version, which D9 forbids outright.
+
+**Option C — keep the floor, widen it.** The two narrowings above are
+independent of the debug/release question: the seam case has no floor
+at all, and cross-face identification has no check in any build.
+
+### Option B priced, by measurement
+
+Tree `68921183` (= `main` at `5d4b88ab` plus Track I's docs-only
+constitution; `crates/mesh/src/curved.rs` byte-identical to
+`5d4b88ab`). `cargo test --release`, one container, 40 reps per row
+after a warm-up, `mesh::tessellate` end to end. Priced by **making the
+guard real in release** — dropping the `#[cfg]`, turning the
+`debug_assert!` into an `assert!` — not by modelling it; the patch and
+the bench were reverted and are not committed.
+
+| body | δ | triangles | baseline (ms) | guard live (ms) | Δ |
+|---|---|---|---|---|---|
+| ball | 0.05 | 224 | 0.174 | 0.203 | +17% |
+| ball | 0.01 | 1 216 | 0.61 | 0.71 – 0.81 | +16 – 31% |
+| ball | 0.002 | 6 224 | 3.32 – 3.37 | 3.96 – 3.98 | +18 – 20% |
+| ball | 0.0005 | 24 616 | 14.8 – 15.5 | 16.6 – 16.9 | +9 – 13% |
+| cone | 0.05 | 116 | 0.061 | 0.067 – 0.071 | +10 – 16% |
+| cone | 0.01 | 484 | 0.211 | 0.255 – 0.260 | +21 – 23% |
+| cone | 0.002 | 2 244 | 0.98 – 1.02 | 1.25 – 1.28 | +25 – 28% |
+| cone | 0.0005 | 8 964 | 4.46 – 4.88 | 6.03 – 6.19 | +26 – 35% |
+| washer (no pole) | 0.01, 0.002 | 308, 684 | 0.52, 1.32 – 1.45 | unchanged | **0** |
+
+Ranges are min–max over two or three runs of the same binary. These are
+wall-clock figures on one box; `mesh/lib.rs`'s standing caveat about
+such numbers applies verbatim.
+
+**Read them as:** ~10–30% of tessellation time on a body whose curved
+faces **all** carry a pole, and **exactly zero** on a body with none —
+the block is inside `if has_pole`. The ball and the cone are the worst
+case that exists, not a representative part. And the price is of *this
+implementation*: it allocates a `HashSet` and a `HashMap` per pole
+patch, which is most of what the table measures. A non-allocating form
+(pole-incident edges into a small `Vec`, sorted) would be materially
+cheaper, so the table is an **upper bound on B**, not its floor.
 
 **Verdict:**
 
@@ -11080,9 +11156,16 @@ see §C.
   unguardable — a re-run of the import census would guard it"*. By its
   own account a guard is available and not taken; no import-census row
   exists in `ci.yml`.
-- (d) `crates/mesh/src/walk.rs:560-583` — the D2-addendum
+- (d) **FIXED by #872** — `crates/mesh/src/walk.rs`'s D2-addendum
   `debug_assert` deviation, disclosed with *"A typed warning channel
-  would dominate all three; there is none."*
+  would dominate all three; there is none."* It has a schedule now:
+  **issue #868**, which names the four things a fix has to decide
+  (where the channel lives, what a warning carries, how a caller
+  receives it against D9 byte-identity, and whether the three
+  detectors then become D2 rows 1/3 proper). Both claim sites cite it
+  — the finding named one, and the lane's sweep found a **second copy
+  of the same disclosure** at `closing_column` (*"would dominate
+  both; there is none"*), which had never been recorded.
 - (e) `crates/editor-core/src/eval/wire.rs:717-723` — see S105.
 - (f) `crates/topo/src/euler.rs:3220-3251` — `strum::EnumCount` named as
   the way out and declined; see S94.
@@ -11146,13 +11229,39 @@ see §C.
   slower. The clause it defends (*"every traversal is bounded"*) was
   already detected by the previous `< 5 s`. No evidence it has flaked;
   the thoroughness of the defence is what draws attention.
-- (g) `crates/mesh/src/curved.rs:340-551` — S28 ("three parallel
-  tessellation pipelines with no shared core") was answered with a
-  refusal and ~470 lines of prose. The file went from 243 to 712
-  production lines of which 429 are comments (60%); the two guard
-  functions carry ~180 doc lines over ~55 lines of code. The shared core
-  does not exist; what exists is a long argument that this lane does not
-  need one.
+- (g) **NARROWED by #872, and open** — `crates/mesh/src/curved.rs`.
+  S28 ("three parallel tessellation pipelines with no shared core")
+  was answered with a refusal and a long argument; the shared core
+  does not exist, and what exists instead is prose saying this lane
+  does not need one.
+
+  **Numbers re-derived at `68921183`** (`curved.rs` byte-identical to
+  `5d4b88ab`), production half = lines 1–681, everything above
+  `#[cfg(test)]`. They had drifted, and **downward**: the production
+  half is **681 lines, 404 comment (59%), 259 code** — not 712/429,
+  and 31 lines *fewer* than the finding recorded. The file's 1 630
+  lines are mostly the **test** half (950 lines), not the argument.
+  The two guard functions carry **146 doc lines over 44 lines of
+  code** (`entries_off_bbox` 52/20, `require_swept_rectangle` 94/24),
+  not ~180/~55. And the finding **missed the sharpest ratio in the
+  file**: `pole_columns` is **82 doc lines over a 3-line body**, more
+  prose per line of code than either function it names, and it is the
+  #678/S65 site.
+
+  **What #872 could reach:** the module header, which re-derived
+  `pole_columns`' `nu == 2` argument almost verbatim — the same
+  argument at two sites, which is this bullet's own shape one level
+  up. The header now states the claim and its condition and points at
+  `pole_columns` for the derivation (56 → 61 `//!` lines: seven
+  duplicated lines out, eleven lines of previously-absent
+  release/debug asymmetry in). Production **code** is unchanged at
+  259 lines, which is the honest reading — a duplicate removed and a
+  fact added, not an argument reduced.
+
+  **Residue, and it is the substance:** the bulk lives in
+  `entries_off_bbox`, `require_swept_rectangle` and `pole_columns` —
+  all guard bodies, all outside #872's scope and inside lane **I-e**'s.
+  This bullet does not leave until that lane records it.
 - (h) `crates/mesh/src/nurbs_cert.rs:374-419` — S29's constant count did
   not go down. `SAFE_ASPECT = 5.0` is unchanged and still sits above its
   own derived √15 ≈ 3.87; `MAX_GRID_RETRIES` is still a bare `6`; the
@@ -15364,17 +15473,19 @@ waits on the other to start.**
 | # | Work | From |
 |---|---|---|
 | **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These four rows are style and stand on their own; the correctness defect is #723's own. | **S60**, **S77**, **S80**, **S81**, S112(d) |
-| **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below). *Amended by* **I-R1**: S64 **lands**, and the PR that lands it opens the S65 question to Evan with both options priced — holding a false sentence in a shipped crate header to preserve a coupling is not what the pairing was for; what it protects is a reader finishing the ε ledger believing the story is closed, and a pointer at the claim site discharges that. | **S64**, **S65** |
+| **I2** | **NARROWED to S65 by #872.** S64 is closed: the ε enumeration was deleted rather than corrected, and three claim sites now point here. **What is left is S65 alone, and it is Evan's** — the question is stated at S65 with three options and option B priced by measurement. It needs a decision, not a lane. | ~~S64~~, **S65** |
 | **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
 | **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
 | **I5** | **S16 unified two of three box constructions; the third's stated reason is retracted at the copy site, and `boxes.rs` cites the retraction as live.** | **S97** |
-| **I6** | Roll-up members in these crates. | S114(f), S115(d), S116(g) |
+| **I6** | **NARROWED by #872.** S115(d) is closed (issue **#868** is its schedule, cited at both of its claim sites). S116(g) is **narrowed, not closed** — its numbers are re-derived and its module-header half is done; the guard bodies that carry the bulk are **I-e**'s scope. S114(f) is untouched. **I6 leaves when I-e records both**, per I-R5. | S114(f), ~~S115(d)~~, S116(g) *(residue)* |
 
 **Lanes, 2026-08-21 — five, and they do not map one-to-one onto these rows.**
 Recorded here so a reader of two PRs does not read them as one row.
 **I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**;
 **I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows);
-**I-c** = I2 plus I6's S115(d) and S116(g) (`mesh/` prose and the ε ledger);
+**I-c** = I2 plus I6's S115(d) and S116(g) (`mesh/` prose and the ε ledger)
+— **LANDED as #872**: S64 and S115(d) closed, S116(g) narrowed to its guard
+bodies (I-e's), S65 equipped and handed to Evan;
 **I-d** = I4 **and** I5 together (`boolean/boxes.rs`'s module doc is one
 header, and I5 is the citation I4's paragraph leans on) — both rows leave
 together; **I-e** = I3 plus I6's S114(f) (`mesh/`'s guards) — **adversarial**,
@@ -15384,12 +15495,16 @@ lands.** The rulings behind each split are `SMELL-I-LOG.md` **I-R1**–**I-R6**;
 **I-R2** and **I-R3** correct cells in this section rather than complying with
 them.
 
-**Evan-only, and I2 asks it rather than stalling on it (I-R1):** **S65** — the #678 watertightness backstop is
-`#[cfg(debug_assertions)]`, so it is **absent from every build that ships a
-mesh**, while the module header presents floor and assert as a pair without
-saying one is absent from release. Either it pays an O(triangles) per-patch
-re-derivation in release — against D9's *never a panic* and against tessellation
-cost — or it stays debug-only and the header says so. **Also S82**, in `props/`:
+**Evan-only, and #872 asked it rather than stalling on it (I-R1):** **S65** —
+the #678 watertightness backstop is `#[cfg(debug_assertions)]`, so it is
+**absent from every build that ships a mesh**. #872 made the header say so at
+all three claim sites and left the decision open. The choice is **three-way**,
+not two: stay debug-only; re-derive in release and **refuse typed** (not
+`assert!` — D9 forbids the panic, which is what the two-option framing named);
+or keep the floor and widen it, since the seam case has no floor in any build.
+Option B is priced at S65 by measurement — **~10–30% of tessellation on an
+all-pole body, exactly zero on a pole-free one**, and most of that is two heap
+allocations per pole patch rather than the re-derivation itself. **Also S82**, in `props/`:
 is the sphere rim predicate's accepting-direction understatement a #723 sibling
 that needs an issue and a row, or conversation input that can wait?
 
