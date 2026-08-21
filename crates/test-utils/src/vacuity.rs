@@ -24,8 +24,6 @@
 //!    the tally is *also* carried in every floor's panic message, which
 //!    is the path CI shows. The numbers that matter on a red run are on
 //!    the red run; the ones on a green run are for whoever goes looking.
-//!    Getting them onto the board is a `ci.yml` question and `ci.yml`
-//!    belongs to another lane.
 //! 3. [`Exposure::require`], [`Exposure::require_each`] and
 //!    [`Exposure::require_nonzero_among`] put a floor under it. Below the
 //!    floor the run is red, and the message carries the whole tally plus
@@ -63,24 +61,9 @@
 //! assert the budget is D9's, genuinely overrun, at a finer-than-default
 //! ε before they announce.
 //!
-//! **This is not yet the tree's only spelling**, and saying so is the
-//! point of the sentence. A grep for `SKIPPED (` / `SKIPPED:` over
-//! `crates/*/{src,tests}` finds **ten** hand-rolled in-row stand-down
-//! `println!`s that predate this module and are not converted:
-//! `geom-brep/tests/review_m5_pr7b_ssi.rs` (3),
-//! `topo/tests/review_m6_2_probes.rs` (3, byte-identical and saying only
-//! *"FitSampleBudget stand-down at this ε"* — which names no coverage),
-//! `topo/tests/m6_2_fitted_at_rest.rs` (3) and
-//! `mesh/tests/fitted_refusals.rs` (1). They are scheduled as **S169 /
-//! D115**, not silently left. A module that claimed to be the one
-//! spelling while ten sites said otherwise would be making this file's
-//! own mistake.
-//!
-//! Four further sites are a **different, already-ratified idiom** and
-//! are not in that count: the whole-binary
-//! `interval_lane_skipped_no_certified_coverage_here` test that
-//! `memories/test-suite-cost.md` names, whose entire body is the
-//! announcement.
+//! **This is not yet the tree's only spelling**: hand-rolled in-row
+//! stand-down `println!`s predate this module and are scheduled for
+//! conversion (S169 / D115).
 
 use std::collections::BTreeMap;
 
@@ -229,8 +212,7 @@ mod tests {
     /// The message is taken from a **panic hook**, not by downcasting
     /// the unwind payload: `downcast_ref` is a second bit channel and
     /// `scripts/gates/bit-identity-punning.sh` forbids it outside
-    /// `geom-core/src/bit_identity.rs` — correctly, and it caught the
-    /// first draft of this file.
+    /// `geom-core/src/bit_identity.rs`.
     fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(|info| {
@@ -260,7 +242,7 @@ mod tests {
     fn add_zero_creates_the_category_so_an_unreached_regime_still_prints() {
         // `review_d18::hammer` depends on this: it pre-adds every
         // operator at 0 so the evidence line shows the ones that never
-        // completed, which is how `kemr` became visible at all.
+        // completed.
         let e = three();
         assert_eq!(e.count("b"), 0);
         assert!(format!("{e}").contains("\"b\": 0"), "{e}");

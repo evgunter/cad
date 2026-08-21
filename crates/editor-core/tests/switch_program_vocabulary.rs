@@ -67,9 +67,7 @@ fn point(x: f64, y: f64) -> ProgramTarget {
 /// variant added to `ProgramStep` will not break it. What forces the
 /// corpus to grow is `Verb::ALL` in the census below, which goes red
 /// when a table verb is unreachable from here. The per-variant
-/// spelling is for reading, not for enforcement, and this comment says
-/// so rather than claiming a construction guarantee the code does not
-/// have.
+/// spelling is for reading, not for enforcement.
 fn chain_steps() -> Vec<ProgramStep> {
     vec![
         ProgramStep::At(pt(0.0, 0.0)),

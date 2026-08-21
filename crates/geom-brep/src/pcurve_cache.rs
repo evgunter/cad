@@ -2670,8 +2670,8 @@ fn run_iso_arc_checks<T: Decide>(
     // most `Δ·stretch_u` in metres. That quantity is DECIDED here and
     // then PAID into the envelope below — never assumed away.
     //
-    // **A posture change, called out** (the first draft did not): this
-    // check used to be an exact `f64` comparison, whose only outcomes
+    // **A posture change, called out.** This check used to be an exact
+    // `f64` comparison, whose only outcomes
     // were "structure holds" and a definite typed refusal. Routing it
     // through `decide` adds a third — a knot deviation inside the
     // ambiguity band ESCALATES rather than refusing definitely. That

@@ -72,3 +72,12 @@ Then, for what survives:
   against it, it is live data: point at the register or the constant
   that re-takes it, the way the index's `K telemetry state` line
   does.
+
+**Code comments (Evan, 2026-08-21).** The same tests apply, with a
+lower bar: keep a comment only if something would go wrong without it.
+The obligation a caller must uphold, why a match is exhaustive, why an
+API is private, why a panic path is absent, what a refusal means, a
+hazard invisible from the code — those stay. The incident that produced
+a rule, a dated timing, a count of call sites, an argument with a
+position nobody holds any more: git history has them. A style pass that
+finds a smell and NARRATES it in place has not fixed it.

@@ -13,9 +13,8 @@ use crate::{BinaryOptions, StlError, facets};
 /// This is the format's **free text**, conventionally the producer,
 /// which is why this default names the writer while the ASCII solid
 /// name defaults to a part. It must not read as the ASCII-STL `solid`
-/// keyword (some parsers sniff that way) — a constraint this constant
-/// used to satisfy by construction and which
-/// [`BinaryHeader::new`](crate::BinaryHeader::new) now **enforces on
+/// keyword (some parsers sniff that way) — a constraint
+/// [`BinaryHeader::new`](crate::BinaryHeader::new) **enforces on
 /// every header**, over the whole class a whitespace-skipping,
 /// case-folding sniffer recognises. Padded to 80 bytes with zeros at
 /// write time.

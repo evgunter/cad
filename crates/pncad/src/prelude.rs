@@ -1,7 +1,7 @@
 //! The curated common surface: `use pncad::prelude::*;`.
 //!
 //! The inventory is *measured*, not chosen by taste. It is what the
-//! eighteen tour scenes, the STEP-export corpus, and the
+//! tour scenes, the STEP-export corpus, and the
 //! document-layer corpus actually import — the authoring vocabulary a
 //! model needs on the way from a coordinate table to an exported
 //! solid. Everything the corpus reaches for less than corpus-wide
@@ -12,13 +12,7 @@
 //! is guarded: `pncad/tests/all.rs` authors the whole ladder — profile,
 //! body, booleans, validate, mesh, export — through the prelude ALONE, so
 //! a name dropped from this list that a journey still needs fails to
-//! compile there. MINIMALITY is not. The corpus-frequency measurement
-//! that chose the cut ("what the corpus reaches for corpus-wide") was
-//! taken once, by hand, and nothing re-takes it: a nineteenth scene, or a
-//! name that quietly stopped being corpus-wide, moves the answer with
-//! nothing going red. That is unguarded rather than unguardable — a
-//! re-run of the import census would guard it — and it is recorded here
-//! rather than deferred silently.
+//! compile there. MINIMALITY is not.
 //!
 //! The shape of it follows the user journey the tour documents:
 //!

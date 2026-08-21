@@ -806,9 +806,7 @@ pub fn nonuniform_loft() -> Body<f64> {
     ];
     let places = lofted_at_z(&[0.0, 1.0, 3.0]);
     // The `t` the doc comment derives above, ASKED rather than
-    // re-derived (LIB-U5 deliverable 1). Two independent hand
-    // derivations of one kernel function used to live in this tree —
-    // this one and the tour's; both now pin against the door.
+    // re-derived (LIB-U5 deliverable 1).
     assert_eq!(
         sweep::loft_parameters(&sections, &places, 2).expect("the sections skin"),
         vec![0.0, NONUNIFORM_T, 1.0],

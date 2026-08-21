@@ -107,8 +107,7 @@
 //!
 //! Both `B_SPLINE_SURFACE_WITH_KNOTS` arms import — the non-rational
 //! simple record and the `RATIONAL_B_SPLINE_SURFACE` complex
-//! instance — retiring the old named M7 frontier by the S9 flip its
-//! refusal text predicted. Wall–wall seams adopt through the
+//! instance. Wall–wall seams adopt through the
 //! **IsoCurve rung** (the carrier bitwise-matched against the
 //! adjacent walls' `boundary_iso_u` columns, certified through the
 //! iso residual lane), cap rims through the conventional rung's
@@ -170,7 +169,7 @@
 //! ring — `topo` has no volume construction for one, so the body
 //! would not be tier-3 valid — and edges the D7 ladder cannot
 //! certify, the same refusal it has always been. Open CASCADE's
-//! seamless periodic band, formerly in this list, NORMALIZES since
+//! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
 //! ([`NormalizationKind::SeamlessPeriodicBand`]); band shapes on
 //! other charts keep a typed refusal naming that re-mint as the
@@ -498,9 +497,7 @@ pub enum StepImport {
         /// invariant is a flux SUM: on a multi-solid body an
         /// inside-out solid can hide behind a right-side-out one.)
         ///
-        /// The M7-3 statement it replaces — "tier-valid to the tier
-        /// its native twin certifies to" — no longer has a case to
-        /// cover: a body whose native twin refuses tier 3 (the
+        /// A body whose native twin refuses tier 3 (the
         /// rational-walled loft, whose volume quadrature names the
         /// banked rational lane) does not arrive here at all; the gate
         /// hands back its verdicts as
@@ -745,8 +742,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             // Consequence, stated plainly: an imported assembly whose
             // parts TOUCH now refuses UNDECLARED at this gate — the
             // census discovers the touch and F1 forbids blessing it —
-            // and certifies WITH the declaration; the tier-3-only
-            // under-checking the M7-7 review pinned is retired. The
+            // and certifies WITH the declaration. The
             // per-solid gates above stay tier 3: contact is an
             // aggregate-body fact, and the aggregate census sweeps
             // every entity of every instance.

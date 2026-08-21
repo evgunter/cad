@@ -102,7 +102,7 @@ fn sphere<T: Real>() -> Surface<T> {
 /// typed stand-down, never an ε literal.
 ///
 /// **Memoized per process.** The trace is the expensive part of the
-/// fixture (~4 s), and the module's own opening line already says the
+/// fixture, and the module's own opening line already says the
 /// fixture is "built once, at any scalar": every caller here restricts
 /// the SAME traced locus, so a second trace re-derives a bit-identical
 /// branch (D9) and buys nothing. INVARIANT: no row asserts that two

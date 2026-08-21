@@ -110,6 +110,19 @@ ONCE in the foreground before arming it. A catch-all retry arm
 (`|| echo retry`) converts a permanent error into silent eternal
 waiting.
 
+**A restart loses the INBOX and keeps the WORKTREE**, and they then
+disagree. A queued orchestrator message is delivered at the lane's next
+tool round; a container restart before that round drops it, while the
+uncommitted work done for it survives on disk. A lane wakes holding a
+change with no traceable authority — and a diff caught MID-TRANSITION
+between two lost instructions reads exactly like work nobody asked for,
+where a coherent one would have read as somebody's finished intention.
+One lane reported itself for fabricating a ruling from Evan on that
+evidence; the rulings were real and both had arrived. **Revert first,
+ask second, do not conclude**: *"I cannot find the authority"* is
+evidence about the records, and after a restart the records are the
+unreliable half.
+
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list` from the
 main checkout, then SendMessage resumes it. Choose **fresh over resume**

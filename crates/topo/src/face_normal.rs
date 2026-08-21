@@ -82,14 +82,7 @@ mod tests {
     /// [`OutwardNormal`] from a chart — which is what a second flip
     /// looks like textually. (The pattern is spelled ONLY in the check
     /// itself: writing it in this comment made the guard's home its own
-    /// first counter-example, which is how this row first went red.)
-    ///
-    /// This row exists because the fix that created this module
-    /// FALSIFIED that invariant once already: routing the boolean's
-    /// `sector_face` through the shared body dropped its call to the
-    /// door and re-derived `from_chart(*normal, sense)` here, which is
-    /// exactly the drift `boolean::reduce`'s invariant forbids and
-    /// nothing in the tree could see.
+    /// first counter-example.)
     ///
     /// **What it cannot match** — four shapes, said plainly:
     ///

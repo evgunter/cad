@@ -1034,14 +1034,12 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
-    /// **The two `Surface::Nurbs` states are told apart** (S9-flipped
-    /// at M6-3: the described state used to be a named frontier
-    /// refusal; it now EXPORTS, and this row pins the surface records
-    /// at byte level exactly as the curve rows above pin theirs —
-    /// both arms, the non-rational simple entity and the RATIONAL
-    /// complex instance, even though the first corpus body is
-    /// non-rational: cheap, and it keeps the arm from being dead
-    /// code).
+    /// **The two `Surface::Nurbs` states are told apart.** This row
+    /// pins the surface records at byte level exactly as the curve
+    /// rows above pin theirs — both arms, the non-rational simple
+    /// entity and the RATIONAL complex instance, even though the first
+    /// corpus body is non-rational: cheap, and it keeps the arm from
+    /// being dead code.
     #[test]
     fn the_nurbs_surface_arms_emit_and_the_placeholder_refuses() {
         let placeholder = Surface::<f64>::nurbs_placeholder();

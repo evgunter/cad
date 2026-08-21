@@ -22,8 +22,7 @@
 //!     audit's attribution block (`demos/README.md` carries it). If a
 //!     pinned failure starts working, add the cell AND extend the
 //!     attribution block per the audit's own instructions, in the
-//!     same change — the path the two onetime tessellation refusals
-//!     took when #284's mesh fix landed (below).
+//!     same change.
 //!
 //! The audit's import-status snapshot ("only 6 import today") predates
 //! the M7-5 band-seam re-mint (#252), which flipped
@@ -34,24 +33,6 @@
 //! block's law: nist_ftc_11 rides the NIST terms, and the CadQuery
 //! file's Apache-2.0 entry follows the audit's explicit extension
 //! instructions.
-//!
-//! **The mesh-lane finding this unit surfaced** (2026-08-08; resolved
-//! by #284): two of the eight importable files — `1982_MPR121` and
-//! `328_2500mAh_battery` — imported first-class (census exact,
-//! volumes measurable) but refused the kernel's own tessellation with
-//! `TessellateError::Triangulation`, on PLAIN RECTANGULAR planar
-//! faces. Mechanism, diagnosed: the files' plane axes carry
-//! translator noise (components like `-3.2e-33` where an exact axis
-//! would have `0.0`), so the planar chart projection of a vertex that
-//! should project to exactly 0 landed at ~1e-67 — nonzero but BELOW
-//! spade 2.15.1's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈
-//! 1.79e-43), and the CDT's `insert` refused the vertex. Own-corpus
-//! bodies never hit this because the kernel authors exact axes. The
-//! kernel-side fix (#284, `mesh::planar`'s module docs): the planar
-//! lane re-derives its chart frame per-face from the boundary itself
-//! (Newell normal + extent-aligned in-plane axes) instead of trusting
-//! the stored axes — well-conditioned by construction, no new
-//! tolerance, no value snapping. Both files are ordinary cells now.
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/wild/`).
 
@@ -85,9 +66,7 @@ struct Cell {
 /// **The pinned cell set.** Derivation (audit table + `wild.rs` + the
 /// tessellation record in the module docs): 13 wild fixtures − 4
 /// stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1 typed import
-/// refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`]) = **8** — the
-/// two onetime tessellation refusals joined the sheet when #284's
-/// boundary-derived chart frame landed.
+/// refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`]) = **8**.
 ///
 /// The derivation's answer is stated once, as this array's own length:
 /// a cell added or dropped without re-deriving is a type error here,
@@ -322,8 +301,7 @@ fn main() {
     // under two captions — silently, and after the first STL had
     // already been clobbered. Checked here, before any cell runs.
     //
-    // This is the whole of what the retired `scenes.len() ==
-    // WILD_CELLS.len()` assertion was reaching for. There is no
+    // There is no
     // separate "every scene got a file" check, because with distinct
     // names there is nothing left for one to catch: `run_cell` writes
     // `{name}.stl` from the same field the manifest then names, and

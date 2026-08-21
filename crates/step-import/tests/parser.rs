@@ -63,12 +63,8 @@ fn minimal_solid_with_surface(surface_record: &str) -> String {
     )
 }
 
-/// Row 5(a), **FLIPPED by M7-3** (the S9 pattern the original row's
-/// text predicted: "NURBS faces arrive with the loft/sweep assembly
-/// unit" — they did, and their import followed their export; the
-/// acceptance rows live in `roundtrip.rs` and `nurbs_import.rs`).
-/// The M7-1 vocabulary refusal this row pinned is retired, so what
-/// stays pinned is the arm's VALIDATION: a
+/// Row 5(a): the arm's VALIDATION (the NURBS-face acceptance rows
+/// live in `roundtrip.rs` and `nurbs_import.rs`). A
 /// `B_SPLINE_SURFACE_WITH_KNOTS` whose knot multiplicities do not
 /// sum to ISO 10303-42's `n + d + 1` refuses typed at the same
 /// pre-allocation budget gate the curve twin owns, naming the
@@ -102,7 +98,7 @@ fn bspline_surface_knot_budget_refuses_typed() {
 /// Row 5(b): truncated / malformed files refuse with typed parse
 /// errors — never panics. Truncation is exercised at **every strict
 /// prefix** of a real fixture (brute force is cheap and leaves no
-/// untested cut point; review MINOR-2 dropped the old 400-byte cap).
+/// untested cut point).
 /// The one prefix that legitimately imports is the cut dropping only
 /// the trailing newline — a semantically complete exchange file.
 #[test]

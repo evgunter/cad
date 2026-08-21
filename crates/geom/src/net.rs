@@ -41,8 +41,7 @@ pub(crate) trait ControlPoint<T: Real>: Copy + Sub<Self, Output = Self::Offset> 
     /// Those two arms are therefore **unguardable by construction**:
     /// no public door reaches them, and a row could only fire them
     /// through a fake `ControlPoint` impl written to lie about
-    /// `CHANNELS` — which would test the fake, not the kernel. They are
-    /// unexecuted code, stated as such rather than left to be noticed.
+    /// `CHANNELS` — which would test the fake, not the kernel.
     fn channel(self, d: usize) -> T;
 
     /// `‖offset‖`.
