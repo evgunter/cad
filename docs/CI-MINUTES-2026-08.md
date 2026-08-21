@@ -138,7 +138,7 @@ exact combination went untested. Pair the retirement with a
 **scheduled full run on main** so integration failures surface in one
 cheap run rather than one per merge.
 
-### F4 — sccache: the local revert does not transfer to CI — RIG LANDED, OFF
+### F4 — sccache: the local revert does not transfer to CI — ON TRIAL
 
 `docs/LOCAL-BUILD-PERF.md:109` reverted sccache locally on a real
 measurement: cold build 156 s → 96 s at a 99.4% hit rate, given up
@@ -159,13 +159,12 @@ evicts — which ci.yml:528 and render.yml:718 both call out, and which
 at opt-2 dominate the two 11–12 minute build jobs. The 156 → 96 s
 local figure does **not** measure that and must not be quoted for it.
 
-**The rig is in the tree and is INERT.**
+**The rig is in the tree and is ON.**
 `.github/actions/install-sccache` installs the pinned 0.16.0 prebuilt
 (the version `local-scripts/gate.sh` already runs locally) and restores
 a per-lane object cache; the two build jobs carry `RUSTC_WRAPPER` and a
-`sccache --show-stats` step. All of it is gated on the repo variable
-**`SCCACHE`**, the same shape as `BUILD_RUNNER`, so nothing changes
-until someone sets it to `1`.
+`sccache --show-stats` step. The kill switch is the repo variable **`SCCACHE`** set to `"0"` — unset
+means enabled, so the trial runs without a variable needing to exist.
 
 Verified locally before landing, on the exact artifacts CI will use:
 the release URL resolves (HTTP 200), the tarball's layout matches the
@@ -175,14 +174,16 @@ cache hit after `cargo clean`** — which is precisely CI's situation,
 since rust-cache restores the deps but not the workspace crates.
 That proves the mechanism, not the size of the win.
 
-**To run the experiment:** set the repo variable `SCCACHE=1`, then
-*discard the first run* — `RUSTC_WRAPPER` is RUST*-prefixed, so
-rust-cache hashes it and the flip buys one cold rebuild (the same trap
-the OPT LEVEL note on the build job warns about). Compare runs 2 and 3
-against main's `build test binaries + archive` step duration, and read
-`sccache --show-stats`: **hits on dependency crates prove nothing** —
-rust-cache already serves those. Only workspace-crate hits on a warm
-run would justify adoption. Unset the variable to revert.
+**How to read it, in a few days' time.** *Discard the first run after
+this landed* — `RUSTC_WRAPPER` is RUST*-prefixed, so rust-cache hashes
+it and the flip buys one cold rebuild (the same trap the OPT LEVEL
+note on the build job warns about). Then compare the `build test
+binaries + archive` step duration against the pre-sccache baseline in
+the table above — **11.90 min (interval) and 11.03 min (default)** —
+and read `sccache --show-stats`: **hits on dependency crates prove
+nothing**, rust-cache already serves those. Only workspace-crate hits
+on a warm run justify keeping it. To revert, set `SCCACHE=0`; to adopt,
+delete the variable check.
 
 ### F5 — volume
 
@@ -214,6 +215,27 @@ one, and is recorded here without a recommendation.
   matrix was paying for the same compile twice. **−4 billed min.**
 * sccache rig, inert behind `vars.SCCACHE` (F4). **0 min until run.**
 
+## The wall-clock cost of the four job merges: zero
+
+Measured, not assumed. The merges add serial work to four jobs, and
+none of them is near the critical path (`build + archive (interval)` at
+12.4 min, then the longest test leg, ending at 13.75):
+
+| merged job | was (parallel max) | now (serial) | on critical path? |
+|---|---|---|---|
+| test (interval) | 20 s | ~40 s | no — ends ~12.9 of 13.75 |
+| rustfmt + rustdoc | 46 s | ~54 s | no — ends ~1.5 |
+| persistence | 80 s | ~85 s | no |
+| band 4 corpus | 78 s | ~82 s | no |
+
+The persistence and corpus figures carry an inferred split: their
+`cargo test` step is 42–47 s of compile *plus* run, and the follow-on
+steps rounded to 0 s, so the added second-ε execution cannot be
+separated from the log. The bound is what matters — the extra ε row
+costs strictly less than the whole 46 s step, so even at the absurd
+worst case those jobs reach ~126 s, still six times under the critical
+path. **The run's wall clock does not move.**
+
 ## Where that leaves a code-tier PR
 
 Roughly **87 → 79 billed minutes** on the pull_request side (the four
@@ -238,7 +260,6 @@ change to `render-hosted.sh`, and whatever F4 measures.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — the mitigation F3's trim is
-  supposed to be paired with. OWED: until it exists, no run ever
-  builds or tests the commit that actually landed.
+* **a scheduled full run on main** — the mitigation F3's trim pairs
+  with; the next PR adds it.
 * **draft-PR skip** — F5. Policy decision.
