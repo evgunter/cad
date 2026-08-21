@@ -78,7 +78,20 @@ makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 
 **Conflicts in that file are expected and survivable**, and there are
 three live orchestrators editing it. Resolve by merging `origin/main` —
-never rebase, never force-push — and keep both sides; the edits are to
+never rebase, never force-push — and resolve by merging `origin/main`, **never rebase, never force-push**, and keep
+both sides — **except when both sides are deletions, where "keep both" is
+exactly wrong.**
+
+**The union of deletions is the answer, and it must be derived from `main`
+rather than from the conflict markers.** A lane that keeps "its" side of a
+two-sided deletion **resurrects a row another lane already struck**; one that
+keeps the other side strikes something `main` still carries. This has now
+happened twice on this track, in opposite directions, in the same lane's merges
+— F6's §D row wrongly removed and F-c's roster row wrongly left standing, both
+found by the lane auditing `git diff origin/main -- docs/` line by line after
+the fact. (F-a, 2026-08-21.) The check is the post-condition rule one paragraph
+up: **grep the merged tree for what the convention requires, not your diff for
+what you changed.**; the edits are to
 different findings and different rows. **If the only conflict was that
 document and CI was already green on the pre-merge head, merge without
 waiting for a second CI run** (Evan, 2026-08-20).
