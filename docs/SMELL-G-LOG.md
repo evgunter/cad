@@ -138,7 +138,8 @@ from the orchestrator.
 | **G-a** | D71, D72 | S127, S128 |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135, S136 free |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| unassigned | D72, D73, D74, D75, D76, D77, D80 | S128, S135, S136 |
+| **G-g** (G8, landed #834) | **D77** and **D80** used | **S171**, **S172** and **S173** used |
+| unassigned | D72, D73, D74, D75, D76 | S128, S135, S136 |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -312,6 +313,10 @@ turned on its own log: **a stale artifact that is still true-looking outlives
 every warning attached to it, and the third lane to trip on it was tripping on
 the warning.**
 
+**Lane-name collision, flagged not resolved.** G8's lane was dispatched as
+**G-g**, which the deleted table also used for G9's lane. Names are the
+orchestrator's; recorded so a reader of two PRs does not read them as one lane.
+
 **Sequenced, not gated:** **G9** waits on G-g because both edit
 `topo/src/chord_join.rs` — G-g's question there is whether a missing
 `sense_sign` flip is a defect, G9's is the top-level-sibling placement argument;
@@ -325,6 +330,14 @@ classified — so the unit's own failure mode is invisible to the gate. G7's thr
 copies go *silently short* rather than wrong, which is a real defect and a
 visible one. That is Evan's criterion (`SMELL-C-LOG` C-R12) applied, not row
 size.
+
+**Gate state, carried forward from the deleted table because these three facts
+are live** (a lane had updated that table on its own branch while this one was
+deleting it — the merge kept the facts and dropped the table): **G9's gate on
+G8 is LIFTED**, G8 having landed as **#834**; **Track C still gates S96**, per
+**G-R4**. **G4 remains gated on Track F's F1, itself gated on Track E's #753**,
+per **G-R7** — Evan's own S87/S88 sequencing ruling, and the one constraint on
+this track that is not the orchestrator's to lift.
 
 ## Reviews
 
@@ -398,6 +411,7 @@ a numbered issue with an owner.
 
 | lane | row | PR | note |
 |---|---|---|---|
+| **G-g** (dispatched under that name; this roster called the G8 lane **G-f**) | **G8** — S67, plus its adversarial sub-unit | **#834** | The three-name list is **computed** by a new `topo` row rather than restated; `reduce.rs`'s third copy points at the one home. **The sub-unit is NOT a defect**: `point_in_loop` is exactly invariant under `n̂ ↦ −n̂`, derived at the site and pinned over four fixtures. **Two corrections to the register**: G-R5's *paraphrase* was a line-number misattribution (the sentence is at `:93-98`), and the finding's own five-site list is off in three places. Raised **S171** / **D77**; discharged S133's `chord_join.rs` obligation (37 marker hits, 36 false positives, one stale marker fixed). **The fix pass then spent the rest of the block**: **S172** / **D80** (five copies of `starts_with("//")` as the answer to *is this line code*, the lane's own instance lifted into `fixtures::code_only` and the class recorded) and **S173** (the curved half of the one door hosted in `boolean/`, recorded not moved — no §D row, scheduling is the orchestrator's). |
 | **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
 
 ### G-b — **G2**, `demos/`, #787
