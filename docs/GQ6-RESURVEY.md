@@ -242,15 +242,80 @@ problem: it is ASM-1's OS-randomness dependency for interactively-
 authored document ids. Verified fix — with `getrandom`'s `wasm_js`
 feature enabled and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`,
 `pncad` and its full dependency closure **check clean on wasm32**.
-(`pncad-py` is out of scope by construction: PyO3 targets a native
-CPython.)
 
-**Unguarded, and it should not be** (§Q6). This table is a reading of
-one tree at one revision on one toolchain, and nothing re-takes it: CI
-builds no wasm32 target, so any dependency bump can turn a `clean` cell
-red while every existing row stays green. The guard is the two `cargo
-check` commands above, run in CI; it is filed as **#807** rather than
-added here because `.github/workflows/` is another track's surface.
+**`pncad-py` crosses too, and the reason it was set aside does not
+apply to the default path** (#807). `pyo3` is an *optional* dependency
+behind that crate's non-default `python` feature, so a default-feature
+check has no Python involvement at all and passes on wasm32 with the
+same backend cfg. "PyO3 targets a native CPython" is true of
+`--features python`/`extension-module`, which is where the exclusion
+belongs; it is not a reason to exclude the crate from a wasm check.
+
+### What CI re-takes from this table, and what it does not (#807)
+
+This table was a reading of one tree at one revision on one toolchain,
+and until #807 nothing re-took any of it: a dependency bump could turn
+a `clean` cell red while every check stayed green. **Rows 1 and 2 are
+now re-taken. Row 3 is not.** This section exists so the table is not
+read as though CI checked all of it.
+
+**The guard is one step**, on every code-tier *pull-request* run (cited
+by step and not by job — see GUI-DESIGN §GQ6):
+
+```
+cargo check --workspace --exclude pncad --exclude pncad-py \
+    --features interval --target wasm32-unknown-unknown
+```
+
+**Row 2 (`geom-core --features interval`) is guarded directly** — it is
+that command.
+
+**Row 1 (the kernel crates plus `editor-core`, default features) is
+guarded transitively**, because `--features interval` compiles a
+superset of what default features compile. Two independent reasons:
+cargo features are purely additive for the **dependency graph** (a
+feature can add crates, never remove them — cargo's design, not ours);
+and `scripts/check-interval-cfg-additive.py` forbids any
+`cfg(not(feature = "interval"))` under `crates/*/{src,tests}`, so no
+source here compiles *only* when the feature is off. That lint runs in
+`discipline`, on the same runs — the premise is checked wherever it is
+relied on. **Evan's ruling, 2026-08-21:** *"do add wasm cross compiling
+for the interval build only. the lint for having interval be purely
+additive suffices."*
+
+**That lint's residual is now this guard's residual.** Its header states
+it: the check is **syntactic**, so it cannot see through a gated `mod`
+whose contents are non-additive, nor a gated impl of a trait with a
+blanket default method that an f64 path then calls. It narrows the
+hole; it does not close it.
+
+**One further hole, outside the lint's scope, measured 2026-08-21.**
+Feature unification can *enable* a feature on a shared **third-party**
+crate, and a crate carrying an internal `#[cfg(not(feature = "f"))]`
+block then compiles *less* of itself under `interval`. A wasm-hostile
+path in such a block would be caught by a default-features check and
+skipped by this one. Diffing `cargo tree -e features` between the two
+configurations for `wasm32-unknown-unknown`: **not one line present
+under default features is absent under `--features interval`** — the
+whole delta is a duplicate-reachability marker. So the hole is
+unoccupied at this dependency set. **That is a property of the current
+graph, not a theorem; re-take it rather than assume it.**
+(`interval-transcendentals` is already in the *default* graph — an
+unconditional dependency of `geom-core`, with the feature gating the
+code that uses it rather than the edge — and `inari`, `gmp` and `rug`
+are in neither.)
+
+**ROW 3 IS NOT GUARDED.** `pncad` and `pncad-py` under
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` — the third row and the
+"verified fix" paragraph above — are **a one-time reading again**. A
+whole-workspace leg carrying that cfg was dropped under the same ruling,
+for the same reason: it is a second whole-target compile on every pull
+request. A dependency bump can falsify that paragraph with every check
+green.
+
+**And what even the guarded rows establish is *compiles clean*:**
+`cargo check` runs no codegen and no linker, so neither of the two
+caveats below is covered by it.
 
 So: **the whole product below the GUI compiles to wasm today,
 certified-interval lane included.** That is a materially different

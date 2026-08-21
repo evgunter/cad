@@ -1,10 +1,13 @@
 //! Shared test scaffolding for the whole tree — the pieces several
 //! suites would otherwise each hand-roll a copy of.
 //!
-//! Two things today:
+//! Three things today:
 //!
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`source`], the shared *"is this text code?"* predicate for the
+//!   guards that pin a claim about the code against the code (S117's
+//!   named way out of five hand-rolled readers).
 //! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
 //!   sampling guard actually exercised, printed every run and asserted,
 //!   so a run that exercised nothing goes red instead of green.
@@ -23,4 +26,5 @@
 //! to create.
 
 pub mod fuzz;
+pub mod source;
 pub mod vacuity;

@@ -248,5 +248,17 @@ mod certified {
             geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
         );
         assert!(lo <= exact && exact <= hi, "Pappus {exact} ∈ [{lo}, {hi}]");
+        // Containment alone is monotone in the degrading direction, so
+        // the enclosure needs a width. The torus takes the CLOSED-FORM
+        // lane, so both quadrature pads are exactly 0 here and the
+        // whole bracket is the `Interval` scalar's own: measured
+        // 5.7e-14 on a 9.87 m³ body (5.8e-15 relative). The ceiling is
+        // 18x that, and it goes red if the scalar's enclosure starts
+        // growing through the revolve.
+        assert!(
+            hi - lo < 1e-12,
+            "the certified bracket is {} m³ wide on a {exact} m³ body",
+            hi - lo
+        );
     }
 }
