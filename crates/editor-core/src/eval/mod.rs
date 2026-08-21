@@ -1609,11 +1609,73 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
     NamingKey(h.finish().0)
 }
 
+/// The content-key tag of an authoring verb — the ONE place a verb's
+/// key identity is chosen, keyed on [`profile::Verb`] rather than on a
+/// [`profile::Step`] arm so the choice is a total function of the
+/// transition table's own verb census and can be checked as one.
+///
+/// Two properties, and only one of them is load-bearing. **No two live
+/// verbs may share a tag**: verb identity is structure, and a shared
+/// tag aliases two programs' digests within a run. **Retired numbers
+/// stay dead** — a cheap way to make a re-used number impossible
+/// rather than merely unlikely, not a compatibility requirement: keys
+/// are process-internal and never persist, so no stored value depends
+/// on one. `verb_tags_are_injective` checks both over
+/// [`profile::Verb::ALL`].
+///
+/// The retired numbers are NOT restated here. `RETIRED_VERB_TAGS`
+/// below is the one list, and it sits next to the test that enforces
+/// it; a second spelling in this comment would be a second spelling of
+/// the rule this function exists to keep single.
+fn verb_tag(verb: profile::Verb) -> u8 {
+    use profile::Verb as V;
+    match verb {
+        V::At => 10,
+        V::Angle => 12,
+        V::Toward => 13,
+        V::Tangent => 14,
+        V::Turn => 15,
+        V::Line => 16,
+        V::LineTo => 17,
+        V::ArcTo => 18,
+        V::TangentArcTo => 21,
+        V::Fillet => 22,
+        V::FarEndTo => 23,
+        V::CloseTo => 24,
+        V::Circle => 26,
+        V::CircleSplit => 27,
+        V::ArcContinue => 28,
+        V::FilletArc => 38,
+        V::ArcFillet => 39,
+        V::ArcFilletArc => 40,
+    }
+}
+
+/// The tag numbers [`verb_tag`] may not use: retired by the §2c
+/// re-spell along with the verbs that held them, and dead for good.
+/// The ONLY list — `verb_tag`'s own doc deliberately does not restate
+/// it.
+#[cfg(test)]
+const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
+    (11, "AtOn"),
+    (19, "ArcVia"),
+    (20, "ArcCenter"),
+    (25, "CloseToOn"),
+    (29, "AtToward"),
+];
+
 /// Feeds one RESOLVED program step into the content key (LIB-SWITCH
 /// §4e): verb tag, structural tags (target kind, winding, the
 /// `circle_split` count), and each continuous arg's resolved-f64 bits
 /// under the float tag — (tag, payload) throughout, so structure can
 /// never alias float data (the retired token stream's rule, kept).
+///
+/// The verb tag is written HERE, from [`verb_tag`]; the match below
+/// feeds payloads only. Both are exhaustive over the transition
+/// table's vocabulary, so a verb the table gains breaks this file at
+/// compile — the loud half of the projection. That a verb the table
+/// gains also reaches the DOCUMENT vocabulary is not compile-checked
+/// and is a census: `tests/switch_program_vocabulary.rs`.
 fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     use profile::{ArcData, ArcSide, ArcSweep, Step, Target};
     fn f(h: &mut KeyHasher, v: f64) {
@@ -1636,13 +1698,9 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             ArcSweep::Cw => 7,
         });
     }
-    // Tags are append-only and NEVER reused (the tag-29 lesson): the
-    // §2c re-spell RETIRED 11 (AtOn), 19 (ArcVia), 20 (ArcCenter),
-    // 25 (CloseToOn) and 29 (AtToward) — those numbers stay dead —
-    // and appended 30–40 below. Verb identity is structure — two verbs
-    // sharing a tag could collide their digests within one run, which
-    // `switch_program_key`'s `verb_tags_are_structure` exists to
-    // forbid. Keys are process-internal, so no migration.
+    // The arc-spec and structural tags. They share one number space
+    // with the verb tags `verb_tag` allocates, and the same
+    // append-only rule: 30–40 were appended by the §2c re-spell.
     fn side(h: &mut KeyHasher, s: ArcSide) {
         h.write_tag(match s {
             ArcSide::Left => 36,
@@ -1692,58 +1750,28 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             }
         }
     }
+    h.write_tag(verb_tag(step.verb()));
     match step {
-        Step::At(p) => {
-            h.write_tag(10);
+        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => {
             f(h, p.x);
             f(h, p.y);
         }
-        Step::Angle(theta) => {
-            h.write_tag(12);
-            f(h, *theta);
-        }
+        Step::Angle(theta) => f(h, *theta),
         Step::Toward { dx, dy } => {
-            h.write_tag(13);
             f(h, *dx);
             f(h, *dy);
         }
-        Step::Tangent => h.write_tag(14),
-        Step::Turn(delta) => {
-            h.write_tag(15);
-            f(h, *delta);
-        }
-        Step::Line(len) => {
-            h.write_tag(16);
-            f(h, *len);
-        }
-        Step::LineTo(t) => {
-            h.write_tag(17);
-            target(h, t);
-        }
-        Step::ArcTo(data) => {
-            h.write_tag(18);
-            spec(h, data);
-        }
-        Step::TangentArcTo(t) => {
-            h.write_tag(21);
-            target(h, t);
-        }
-        Step::ArcContinue(p) => {
-            h.write_tag(28);
-            f(h, p.x);
-            f(h, p.y);
-        }
-        Step::Fillet { radius } => {
-            h.write_tag(22);
-            f(h, *radius);
-        }
+        Step::Tangent | Step::CloseTo => {}
+        Step::Turn(delta) => f(h, *delta),
+        Step::Line(len) => f(h, *len),
+        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::ArcTo(data) => spec(h, data),
+        Step::Fillet { radius } => f(h, *radius),
         Step::FilletArc { radius, spec: sp } => {
-            h.write_tag(38);
             f(h, *radius);
             spec(h, sp);
         }
         Step::ArcFillet { spec: sp, radius } => {
-            h.write_tag(39);
             spec(h, sp);
             f(h, *radius);
         }
@@ -1752,19 +1780,11 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             radius,
             spec2,
         } => {
-            h.write_tag(40);
             spec(h, sp);
             f(h, *radius);
             spec(h, spec2);
         }
-        Step::FarEndTo(p) => {
-            h.write_tag(23);
-            f(h, p.x);
-            f(h, p.y);
-        }
-        Step::CloseTo => h.write_tag(24),
         Step::Circle { centre, radius } => {
-            h.write_tag(26);
             f(h, centre.x);
             f(h, centre.y);
             f(h, *radius);
@@ -1775,13 +1795,12 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             n,
             phase,
         } => {
-            h.write_tag(27);
             f(h, centre.x);
             f(h, centre.y);
             f(h, *radius);
             // Structural int under its own tag (3) — the (tag,
             // payload) discipline holds for every token, review
-            // NOTE-3 (keys are process-internal; no migration).
+            // NOTE-3.
             h.write_tag(3);
             h.write_u64(*n as u64);
             f(h, *phase);
@@ -2109,6 +2128,33 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(39);
             feed_stable_name(h, n);
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod verb_tag_tests {
+    use super::{RETIRED_VERB_TAGS, verb_tag};
+
+    /// [`verb_tag`]'s two properties, computed over the transition
+    /// table's own census rather than reviewed: every live verb gets a
+    /// distinct tag, and none re-uses a retired number. Anchored on
+    /// [`profile::Verb::ALL`], so a verb the table gains is measured
+    /// here the moment `verb_tag` grows an arm for it.
+    #[test]
+    fn verb_tags_are_injective() {
+        let mut seen: Vec<(profile::Verb, u8)> = Vec::new();
+        for verb in profile::Verb::ALL {
+            let tag = verb_tag(*verb);
+            if let Some((_, held_by)) = RETIRED_VERB_TAGS.iter().find(|(t, _)| *t == tag) {
+                panic!("{verb:?} re-uses tag {tag}, retired with {held_by}");
+            }
+            if let Some((other, _)) = seen.iter().find(|(_, t)| *t == tag) {
+                panic!("{verb:?} and {other:?} share content-key tag {tag}");
+            }
+            seen.push((*verb, tag));
+        }
+        assert_eq!(seen.len(), profile::Verb::ALL.len());
     }
 }
 

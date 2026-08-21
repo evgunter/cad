@@ -155,12 +155,53 @@ from the orchestrator.
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135 and S136 later taken by G-d |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
 | ~~**G-g**~~ (G8, landed #834) | **D77** and **D80** used | **S171**, **S172** and **S173** used |
-| unassigned | D73, D74, D75, D76 — **D77 and D80 went to G-g** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); `D113`–`D125` / `S176`–`S181` opened for the fix pass, `D113`, `D114`, `S176` and `S177` taken |
+| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F. Fix pass: **D121** and **S193** |
+| unassigned | D73, D74, D76 — **D77 and D80 went to G-g, D75 to G-f** | **none — the S127–S136 block is spent** (`D72`, `S128`, `S135` and `S136` are G-d's and are used, not returned — #831); the second block is **`D120`–`D139` / `S190`–`S209`** — `D121` and `S193` taken from it by G-f. `D113`, `D114`, `S176` and `S177` were minted under the **retracted** first attempt and stand as issued; the retracted range itself is not restated here, because a withdrawn reservation left standing is what sent a lane looking |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
 — G-a's, G-b's and G-c's — assembled while resolving a merge, from each lane's
 own record. It is the orchestrator's to confirm, not a lane's to assert.
+
+**G-f drew `S169`/`S170` from outside the `S127`–`S136` block**, on the
+orchestrator's assignment — the block is spent. §D's Track G number paragraph
+says so, so a reader of the schedule does not read it as a fourth
+double-allocation.
+
+**`S169` was minted twice, and G-f's finding is `S170`.** Track F's F-d took
+`S169` for the stand-down residue in **#825** and G-f took it for the sixth
+`Step` copy, on branches an hour apart that could not see each other; #825
+merged first, so G-f moved to the other number it already held. Found on the
+pre-landing re-merge of `origin/main`, not by review. **The mechanism is the
+lesson, not the clash**: a reserved block stops exactly this, and drawing from
+*above* the block — which both tracks were told to do once their blocks were
+spent — puts every track back on one unsynchronised sequence. The next
+exhausted block wants a second reservation, not another draw. No `D` number
+collided.
+
+**G-f also holds `S193`/`D121`**, assigned after #836's review raised a second
+finding (the arc-mode vocabulary) out of the unit's own claim site. **Both sit
+inside Track G's second block, `D120`–`D139` / `S190`–`S209`**, re-derived
+against `origin/main` after the merge that published it — per **G-R13**, not
+only at mint time.
+
+**The lane read this wrong once, and the record is worth keeping.** At mint
+time the only block text on this branch was the retracted first attempt, and
+against that text `S193` read as a draw from *above* the reservation — the
+shape that had just produced the `S169` collision. The lane flagged it in both
+ledgers instead of using it quietly, and asked whether `G-R12`/`G-R13` existed
+at all, since neither was in this file. Both questions were answered by the
+merge: the rulings are here, and the block that made `S193` look out of range
+was itself withdrawn. **Raising it was right; the reading was stale**, which is
+precisely what G-R13's post-merge rule exists to catch.
+
+**G-f was dispatched under a lane letter this roster gives to G8.** The brief
+opens *"implementer lane G-f on Track G, row G7, finding S106"*; the wave-2
+roster row for **G-f** is G8/S67 and the wave-3 row for G7/S106 was **G-h**.
+The lane did G7 on branch `smellg/g7-step-vocabulary` and deleted the **G-h**
+row, which is the row for the work it actually did. Recorded rather than
+silently reconciled: two lanes answering to one letter is how a roster row gets
+deleted by the wrong lane.
 
 **G-c's three findings are recorded without §D rows.** S133 routes to lanes
 that already own the files (G-d, G-f, G-g) and says so in its own text, so it
@@ -631,6 +672,51 @@ all five analytic rows are exact. That is a `mesh` question, so it is **issue
 #782** and the lane did **not** re-baseline. The #99 ε pin is armed in `k-lint`;
 the `--bin demo-tour` unit tests are deliberately not, and **S129 stays open**
 until #782 decides them.
+
+### G-f — **G7**/S106, the `Step` vocabulary, #836
+
+**S106's diagnosis held; its mechanism did not, and correcting it was most of
+the unit.** Measured with a probe verb added to `transition_table!`: adding a
+verb breaks the workspace at **exactly two** sites, both exhaustive matches on
+`profile::Step` — `eval::feed_step` and `LoopProgram::from_recorded`
+(`program.rs:1279`, in the same file as `res_step` at `:687`). So the
+finding's *"one breaks loudly and two go silently short"* is wrong in both
+halves: two break loudly, and `WireStep` cannot go short of `ProgramStep` at
+all (`from_step`/`into_step` are exhaustive both ways). The real silence is
+upstream of both — two compile errors dischargeable without the verb reaching
+`ProgramStep`, after which `cargo check --workspace --all-targets` is clean
+over a document, wire, slot and Python vocabulary that never learned it.
+
+- **Closed by a census, not by prose**: `switch_program_vocabulary.rs`,
+  anchored on `profile::Verb::ALL` — the same anchor `profile` uses internally
+  — plus `verb_tag`, which makes the content-key tag a total function of
+  `Verb` and computes the injectivity the old comment asserted and
+  `verb_tags_are_structure` never checked. Both negative-controlled.
+- **`StepArg` is `node.rs:84`**, not `program.rs`, and is a role vocabulary,
+  not a verb one. **The count is six, not five**, and the five S4 names span
+  two crates, not three — **S170**/D75 records the sixth (`pncad-py`'s PATHS
+  surface and its `.pyi`), the only copy with neither compile guard nor
+  census. (Raised as `S169`; renumbered before landing — see the number
+  reservation above.)
+- **The lane's own first pass restated the falsehood one level up**, and the
+  re-audit caught it. The table header's round-9 parenthetical listed *"the
+  wire enum, the replay arms and the tags"* as riding the table for free; the
+  wire enum is `editor-core`'s and hand-written, which is S106 itself. The
+  first fix swapped in `ArcData` — also not generated: the macro body never
+  mentions it, and it is six arc modes written out by hand against the table's
+  eighteen verbs. One non-member for another leaves the sentence as unenforced
+  as it was. It now names the three the macro really expands and says `ArcData`
+  is not among them. **Checked against the macro body, not the prose** — this
+  is the third shape in the standing header, caught by re-deriving rather than
+  re-reading.
+- **Issue #829** raised, not fixed: a hand-built fused step with two
+  `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
+  arrival spec's argument unaddressable. The fix adds variants to a persisted
+  enum, so it is a persistence decision.
+- **G-R6 discharged.** #767 is merged; its head was re-read before
+  `eval/mod.rs` was touched and it neither adds nor removes a `profile::Step`
+  match. Disjointness from the concurrent G-e confirmed by file: G-e is
+  `assembly.rs`/`mate.rs`/`py/{doc,select}.rs`, none of which this unit opens.
 
 ## Incidents
 

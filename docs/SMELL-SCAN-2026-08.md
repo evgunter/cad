@@ -612,7 +612,7 @@ started, and one because sealing MOVED where the coverage gap lives:
 
 | Concept | Copies | Anchor |
 |---|---|---|
-| profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table — **5**, across 3 crates | `program.rs:64`, `persist/wire.rs:255`, `profile/src/path/program.rs:190` |
+| profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table / `pncad-py`'s PATHS lattice + its `.pyi` — **6**. **Was 5 across 3 crates; the five named span TWO crates** (`profile` and `editor-core`), so the three-crate count was only ever true of a copy the row did not name. Corrected by **S170**; the `editor-core` half is closed by **S106** | `profile/src/path/program.rs` — the `transition_table!` invocation (`Step`, `Verb`); `editor-core/src/program.rs` — `pub enum ProgramStep`; `editor-core/src/persist/wire.rs` — `enum WireStep`; `editor-core/src/node.rs` — `pub enum StepArg` (**not** `program.rs`, as this row said until #836); `editor-core/src/eval/mod.rs` — `fn verb_tag`; `pncad-py/src/py/path.rs` + `pncad-py/pncad.pyi`. **Cited by name, not line** — the three numbers this row carried all pointed into text #836 rewrote |
 | `RoleSeg` → `SegTag` | kernel enum → editor-core fieldless mirror → `pncad` re-export → a **second** 40-variant py mirror → 40-arm `to_kernel` → 40-arm inverse tripwire → 1316-line `.pyi` | `pncad-py/src/py/select.rs:82` |
 | node kinds | ~10 parallel match tables; `rg Node::Fillet` → 24 non-test hits in 10 files | `node.rs:423`, `eval/mod.rs:1325` |
 | "which `RoleSeg` args are sub-names" | 4 sites | `resolve/mod.rs:969`, `refactor.rs:540`, `names/select.rs:296`, `eval/mod.rs:2040` |
@@ -10277,23 +10277,147 @@ of `boolean_op::serialize`'s round-trip guard.
 
 **Verdict:**
 
-## S106. The profile `Step` vocabulary was unified inside `profile` only
+## S106. FIXED by #836 — the profile `Step` vocabulary was unified inside `profile` only
 
-S4 named five hand-synced copies across three crates.
-`transition_table!` (`crates/profile/src/path/program.rs`) collapses four
-*profile-local* projections and adds `Verb::ALL` as a census anchor;
-`ProgramStep`, `WireStep` and `StepArg`
-(`crates/editor-core/src/program.rs:64,56`,
-`crates/editor-core/src/persist/wire.rs:252-255`) are not in the diff.
-Nothing was renumbered — `feed_step`
-(`crates/editor-core/src/eval/mod.rs:1565-1730`) still retires
-11/19/20/25/29 and appends 30–40 — and being an exhaustive match on
-`profile::Step` it is the one cross-crate copy that breaks loudly. The
-other three do not: `res_step` matches on `ProgramStep` and
-*constructs* `Step`, so a verb added to the table leaves the wire and
-the expression-slot vocabulary silently short. The module doc's framing
-(*"ONE declaration, FOUR projections"*, *"nothing is written twice"*) is
-accurate within the crate and easy to read as more than it is.
+**The diagnosis was right and the mechanism was wrong, and correcting it
+is most of the fix.** The vocabulary is spelled six times, not five, and
+the silent hop is not where this finding put it.
+
+- **Measured, not read.** A probe verb added to `transition_table!`
+  breaks the workspace at **exactly two** sites, both exhaustive matches
+  on `profile::Step`: `eval::feed_step` and `LoopProgram::from_recorded`
+  (`editor-core/src/program.rs`). With those two discharged,
+  `cargo check --workspace --all-targets` is clean — `ProgramStep`,
+  `WireStep`, `StepArg` and `pncad-py`'s whole PATHS surface all go
+  short in silence.
+- So *"`res_step` matches on `ProgramStep` and constructs `Step`, so a
+  verb added to the table leaves the wire and the expression-slot
+  vocabulary silently short"* is right about `res_step` and wrong about
+  the consequence: `LoopProgram::from_recorded`, six hundred lines
+  below `res_step` in the same file, is the compile guard the finding
+  says is absent. And `WireStep` is not
+  a silent copy at all — `from_step`/`into_step` are exhaustive on
+  `ProgramStep` and on `WireStep`, so the wire cannot go short of the
+  document form. The one real silence is *upstream* of both: two compile
+  errors that can be discharged without the verb ever reaching
+  `ProgramStep`.
+- **`StepArg` is not in `program.rs`.** The finding cites
+  `editor-core/src/program.rs:64,56` for `ProgramStep`, `WireStep` and
+  `StepArg` together; `pub enum StepArg` is in
+  `editor-core/src/node.rs`, and is a role vocabulary rather than a
+  verb one. S4's own row is corrected to cite all six by name.
+- **The count is six.** S4's row names five (`profile::Step`,
+  `ProgramStep`, `WireStep`, `StepArg`, the content-key tag table). The
+  sixth is `pncad-py`'s hand-written PATHS lattice plus its stub — the
+  only one of the six with neither a compile guard nor a census.
+  Recorded as **S170**.
+
+**What was done.**
+
+- **`editor-core/tests/switch_program_vocabulary.rs`** — the census for
+  the hop the compiler cannot see, anchored on `profile::Verb::ALL`:
+  every table verb is reachable as a document program and resolves back
+  to its own verb; every verb and arc-spec mode survives serialization
+  bit-identically; every enumerated slot addresses a distinct expression
+  of its declared dimension. Negative controls run — a probe verb
+  discharged at both compile sites reds the first test, naming the verb.
+- **`eval::verb_tag`** — the content-key verb tag is now a total
+  function of `profile::Verb`, written once, and `feed_step`'s match
+  feeds payloads only. `verb_tags_are_injective` computes over
+  `Verb::ALL` what the old comment asserted and
+  `verb_tags_are_structure` did not check: no two live verbs share a
+  tag, and none re-uses a retired number. Byte-identical — the eighteen
+  tags were re-derived from the pre-change arms, every one of which
+  wrote its tag first.
+- **The claim sites.** `transition_table!`'s *"nothing is written twice
+  and nothing can drift"* now scopes to the four artifacts it is about
+  and says why four is the count; the paragraph beside it states what a
+  new row does and does not reach, and points at the census rather than
+  asserting completeness one level up. `ProgramStep`, `WireStep` and
+  `res_step` each name what holds them, and `WireStep` names that a verb
+  reaching it is a schema bump (v8 and v9 both are).
+
+**Raised, not fixed:** issue **#829** — for a hand-built fused step whose
+two arc specs are the same `Sweep`/`ArcLen`/`Bulge` mode, `slots()`
+enumerates one role twice and both entries address the incoming spec's
+argument, leaving the arrival's unaddressable. Closing it adds variants
+to `StepArg`, which is persisted inside `SlotId`; that is a persistence
+decision, not a style fix.
+
+
+## S170. The PATHS verb vocabulary's sixth copy is the Python surface, and it is the only silent one
+
+`crates/pncad-py/src/py/path.rs` binds the PATHS lattice state for
+state, one `#[pymethods]` block per state, and
+`crates/pncad-py/pncad.pyi` declares the same methods again. The module
+header's *"The Python layer re-implements NOTHING"* is true of the
+BODIES — every verb clones its `PartialPath` and calls the same generic
+Rust method — and false of the vocabulary: which verbs exist at which
+states is written out by hand, twice.
+
+Nothing anchors either copy. Measured: with a probe verb added to
+`transition_table!` and `editor-core`'s two exhaustive matches on
+`profile::Step` discharged, `cargo check --workspace --all-targets` is
+clean, `pncad-py` included. A verb the table gains simply does not exist
+in Python, and no test says so.
+
+S4's `Step`-verb row counted **5, across 3 crates**; with this one it
+is **6**, and its anchor list named no `pncad-py` file. Both are
+corrected at that row, which now cites every copy by name.
+
+The `editor-core` half is closed by S106's census, which cannot reach
+here: `Verb::ALL` is Rust and this surface is a PyO3 binding plus a
+`.pyi`. The shape that would work is the one S4's `RoleSeg` row already
+describes for the same crate — enumerate the Rust vocabulary and assert
+one Python attribute per member — so the first question is whether the
+`Step` mirror and the `RoleSeg` mirror want one census or two.
+
+**Verdict:**
+
+## S193. The arc-mode vocabulary is S106 one level down, and it has no census at all
+
+**Raised by #836 (G7/S106) out of its own claim site.** The verb
+vocabulary now has a table, a `Verb::ALL` and a cross-crate census. The
+**arc-mode** vocabulary — which travels inside the verbs — has none of
+the three, and is spelled four times:
+
+- six standalone spec structs in `profile/src/path/verbs.rs`
+  (`Radius`, `Bulge`, `Via`, `Center`, `Sweep`, `ArcLen`), consumed by
+  the state-keyed trait matrix;
+- restated field-for-field as the six variants of `pub enum ArcData` in
+  `profile/src/path/program.rs`;
+- restated as `pub enum ProgramArcData` in `editor-core/src/program.rs`
+  (the `Expr`-valued document form);
+- restated as `enum WireArcData` in
+  `editor-core/src/persist/wire.rs` (the persisted form).
+
+**There is no `ArcData::ALL`**, so nothing anchors a census the way
+`Verb::ALL` anchors S106's. And the hop that matters is the same one:
+`res_spec` in `editor-core/src/program.rs` **matches `ProgramArcData`
+and constructs `profile::ArcData`** — the constructs-so-the-compiler-
+cannot-see-it shape S106 names as its whole finding.
+
+**What a seventh mode would do.** It would be forced into
+`ProgramArcData`'s and `WireArcData`'s conversions by exhaustiveness,
+and into `spec_slots` — but `spec_arg_access!`'s table ends `_ => None`,
+so the new role would enumerate and **address nothing, silently**.
+S106's bijection test cannot catch it, because that test walks a corpus
+and nothing forces the corpus to grow when a mode is added. The verb
+census escapes this only because `Verb::ALL` forces growth; the mode
+vocabulary has no equivalent.
+
+**The same shape, in three smaller pairs**, all in the same two files
+and all hand-mirrored: `ProgramTarget`/`WireTarget`,
+`ArcSide`/`WireSide`, `ArcSweep`/`WireWinding`.
+
+**Why it is raised rather than fixed.** #836's scope is the verb
+vocabulary, and the fix here is not a comment: it is an `ALL` on the
+mode enum plus a corpus anchored on it, and possibly one shared census
+for all four vocabularies rather than four. That is a unit, not a
+residue. The claim site is fixed in #836 — the `transition_table!`
+header and `PATHS-DESIGN.md` both used to assert that the round-9
+exhaustiveness pressure over `ArcData` rides the verb table for free,
+which would have meant this finding was already solved.
 
 **Verdict:**
 
@@ -14912,7 +15036,33 @@ D81–D100 below, and the lanes holding them were told individually.
 F's block records one section up: the *"take the next unassigned number from the
 orchestrator"* rule was written for lanes inside one track and does not survive
 four concurrent orchestrators drawing on one sequence from branches none of them
-can see.
+can see. **The `S` block is exhausted and the track now draws
+above it** — G7 was issued `S169`/`S170` from outside `S127`–`S136` by the
+orchestrator. A finding number in a Track G row outside that range is therefore
+not a mis-allocation; the allocator is still the one orchestrator.
+
+**`S169` was nonetheless minted twice**, on two branches that could not see each
+other: Track F's F-d took it for the stand-down residue (**#825**, now in
+`main`) and G7 took it for the sixth `Step` copy. Drawing from *outside* a
+reserved block puts two tracks back on one sequence, which is the failure the
+blocks exist to prevent — so what needs extending is the reservation, not the
+draw. **G7's finding is `S170`**, the other number the same orchestrator had
+already given it; F-d's `S169` stands, because it landed first. No `D` number
+collided.
+
+**`S193` and `D121` are G7's too**, assigned after the review of #836 raised a
+second finding out of the same claim site. **Both are inside the second block
+published just below**, `D120`–`D139` / `S190`–`S209`, and were re-derived
+against `origin/main` after the merge that brought that block in — not only at
+mint time, per **G-R13**.
+
+That re-derivation is the point, because the first answer was different. When
+these two numbers were minted, the block visible on this branch was the
+retracted first attempt, and against *that* text `S193` read as a draw from
+above the reservation — which the lane flagged in both ledgers rather than use
+quietly. **The flag was right and the reading was wrong**, and it was wrong for
+exactly the reason G-R13 now states: a number checked once, against whatever
+text a branch happened to carry, is not a number checked.
 
 **Track G's second block is `D120`–`D139` and `S190`–`S209`**, claimed
 2026-08-21 **and published here rather than only in `SMELL-G-LOG.md`, which is
@@ -15000,6 +15150,8 @@ tessellation pin are red on main).
 | **D113** | **Decide what an intra-doc link in a `tests/` file is.** `cargo doc` builds no test targets, so every one of them is inert — never rendered, never resolved, never checked, on any tier; at least nine are already broken. **The census and its definition live at S135 and are not restated here** (S176(b)). Two answers, and the row wants one: the form stops being used under `tests/` (it promises a link that cannot exist, and plain backticks say the same thing honestly — precedents at `geom-core/src/interval.rs:62` and `interval-transcendentals/src/lib.rs:114`), or something is built that resolves them, which rustdoc cannot be asked to do for a test target. **Evan's call** — the shape is S61's ruling (*a gate must be sited where it can fire on its own inputs*) applied to a target kind rather than a root; if the answer is build something, it belongs with Track F's instruments. | **S135** | `scripts/doc-gate.sh`, and whatever the answer names | **ACCEPTED**, unstaffed | style |
 | **D72** | **Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse.** `review_s2.rs`'s `an_uncertifiable_tangent_point_refuses_instead_of_being_returned` builds on the twin crossing of a hairline lens at ε = 1e-9 and 1e-6, so the near-collapsed offset lever it was mined for decides nothing there; #831 turned that from prose into an assertion, which is a tripwire and not a fix. Wanted: a corner whose mirror IS excluded by the harness's bracketing, so the build arm's ulp claim is about the geometry its prose describes. A witness search, not a doc edit. | **S128** | `profile/tests/review_s2.rs` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
+| **D75** | **The PATHS verb vocabulary's sixth copy is `pncad-py`'s, and nothing anchors it.** Fell out of G7: with a probe verb added to `transition_table!` and `editor-core`'s two exhaustive matches discharged, the workspace — `pncad-py --all-targets` included — compiles clean, so the Python surface and its stub simply do not gain the verb. S4's row counts five copies and names no `pncad-py` file. Not a patch: the question is whether the `Step` mirror and the `RoleSeg` mirror share one census. | **S170** | `pncad-py/src/py/path.rs`, `pncad-py/pncad.pyi`, and a test | **ACCEPTED**, unstaffed | style |
+| **D121** | **The arc-mode vocabulary is S106 one level down, with no `ALL` and no census** (**S193**). Six spec structs in `profile/src/path/verbs.rs`, restated as `ArcData`'s six variants, restated as `ProgramArcData`, restated as `WireArcData`; `res_spec` matches the document form and CONSTRUCTS the kernel one, so the compiler cannot see a mode that fails to arrive. A seventh mode is forced into `spec_slots` by exhaustiveness but `spec_arg_access!` ends `_ => None`, so the new role would address nothing **silently** — S106's bijection test walks a corpus nothing forces to grow. Same shape in `ProgramTarget`/`WireTarget`, `ArcSide`/`WireSide`, `ArcSweep`/`WireWinding`. Raised by #836 out of its own claim site; the false sentence that said this was already solved is fixed there. | **S193** | `profile/src/path/{verbs,program}.rs`, `editor-core/src/{program,persist/wire}.rs`, and a census test | **ACCEPTED**, unstaffed | style |
 | **D120** | **S104's own defect one layer upstream, in `topo`.** `census.rs:1018` and `:1962` are `Some(Err(_))` over the CLOSED `ChartRegionError` (ten variants; its own doc says every arm names its recourse), and they decide `CensusEscalated` against `CensusUnsupported` — the discrimination `editor_core::attribute` turns into `AtRest` against `Uncertified`. An eleventh arm becomes an unrefuted frontier. `:1962` is the DECLARED record's confirm pass. Owes the sweep the row names: every `Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and `boolean/`. | **S192** | `topo/src/census.rs`, and the sweep across `topo/src/boolean/` | **ACCEPTED**, unstaffed | **ADVERSARIAL** — the classification decides what the kernel tells a caller about an assembly, and CI cannot tell a right answer from a wrong one |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 
@@ -15017,7 +15169,6 @@ tessellation pin are red on main).
 > worse than none — a reader acting on the paragraph above would open straight
 > into a conflict.
 
-| **G7** | **The `Step` vocabulary was unified inside `profile` only** — of the three cross-crate copies, one breaks loudly and two go silently short. S4 named five copies across three crates; one crate was swept. **Partly collides with Track E's E-e** (`editor-core/src/eval/`) — sequence after it. | **S106** | `profile/src/path/program.rs`, `editor-core/src/{program,persist/wire,eval/mod}.rs` | **ACCEPTED** | style |
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
 | **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. **Five are closed and the ledger G-R2 required is at S112**, re-derived from the tree rather than from any dispatch list: (b)(c) by **#786**, (h) by **#787**, (f)(g) by **#831**. **The row stays for the residue**, which is three members and two of them tracked nowhere else: **(d)** `geom-brep/props/curved.rs` is Track C's and is named at the frozen table (**C-m, C3**); **(e)** `geom-brep/src/ssi/` is Track C's by mechanism and is named by **no live row but this one**; **(a)** `sweep/src/fillet/naming.rs` is Track E's, was routed to **E-g** after dispatch, is not in **#768**, and E-g's row has been struck — see **S177** and **D114**. The original sentence *"three of them are Track C's … the rest are free"* mis-split rather than over-counted: the free five are right, Track C holds two, and the third body in that parenthetical is (e)'s second file. **This row leaves §D when (a) and (e) have live homes**, not when the ledger's closed count rises. | **S112** | the residue only — no member here is Track G's to fix | **ACCEPTED**, re-scoped by **G-R2** and by #831's walk | style |

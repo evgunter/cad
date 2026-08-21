@@ -50,6 +50,10 @@ fn loop_structure_never_aliases_data() {
 
 /// Verb identity is structure: a `circle` program and a `circle_split`
 /// program of the SAME carrier never share a key.
+///
+/// This is one pair, end to end through `evaluate`. That NO two verbs
+/// share a tag is the stronger property and is computed over
+/// `profile::Verb::ALL` by `eval::verb_tag_tests::verb_tags_are_injective`.
 #[test]
 fn verb_tags_are_structure() {
     let a = doc_with(vec![LoopProgram::circle(1.0, 1.0, 0.5).unwrap()]);
