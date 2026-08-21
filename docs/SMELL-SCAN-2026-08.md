@@ -855,6 +855,23 @@ warning.
   compensated by a pin test), and it cannot see a classification written as
   `if let` / `matches!` chains rather than a `match`.
 
+- **`evaluate`'s bound, restated in five places, three of them uncounted.**
+  Raised by **H-g** (2026-08-21) while measuring #883's `CertifiedBounds`
+  cascade. `editor_core::eval::evaluate`'s where-clause and the named
+  `EvalScalar` alias restate the same term list ten lines apart in
+  `eval/mod.rs` — and that pair is **already known and already pinned**, in
+  both directions, by `editor-core/tests/e4_dual_door.rs`. What nothing
+  watches is the other three: **`editor-core/tests/corpus/mod.rs:196`,
+  `topo/tests/fixture/pr4.rs:36`, `editor-core/tests/m5_pr8_bvh_diff.rs:49`**,
+  each a hand-copy of the same list in test support. They surfaced only
+  because a bound change stopped them compiling — S4's usual tell, arriving
+  as a build break rather than as a drift report. **The asymmetry is the
+  row**: the file that exists to detect exactly this drift covers two of the
+  five sites, so its own coverage claim is a member of the finding it
+  detects. `corpus/mod.rs` is `mod`-included by **22** test files, so the
+  single cheapest copy to miss carries the widest blast radius — 78
+  diagnostics from 5 sites, when the cascade was measured.
+
 *One confirmation this report did not cite: the hand-synced tag table has
 already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
 `Step::AtToward`'s memo content-key tag 28 COLLIDED with `ArcContinue`'s
@@ -6718,6 +6735,14 @@ recovered from a bracket after the fact.
 whole guard rather than a deferral. *At least for now* is Evan's own hedge and
 is load-bearing: the door is shut, not nailed shut, and reopening it is a
 decision with a name rather than an impl someone adds in passing.
+
+**The hedge now has a place to be collected (Evan, 2026-08-21).** `DESIGN.md`'s
+**M10** roadmap entry carries it as an open question — *what does a `Dual`
+actually have to do*, and clean up the `Bounds` / `CertifiedEnclosure` split on
+that answer. Recorded there rather than answered anywhere: *at least for now*
+was never given an expiry, and a hedge with no owner is the state this scan's
+own closing rule refuses. **Anything that deletes a guard on the strength of
+this ruling states that exposure rather than resolving it.**
 
 **M10 / E4 remains the plan** — stated because the cheapest reading of "a dual
 may not certify" would have been "so stop paying for duals", and that is not
