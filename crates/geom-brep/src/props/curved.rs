@@ -341,9 +341,11 @@ enum RimLevel<T: Real> {
     /// deviation and reaches `classify` bare.
     Length(T),
     /// Sphere/torus: a dimensionless direction pair — `(sin v, 0)`
-    /// for the sphere, `(sin v, cos v)` for the torus — whose
-    /// componentwise differences need `× arm` (the lever arm, meters)
-    /// to become point deviations.
+    /// for the sphere, `(sin v, cos v)` for the torus. The point
+    /// deviation between two of them is the CHORD `√(Δs² + Δc²)` at
+    /// the level lever arm ([`RimArms::level`], meters); the primary
+    /// component alone is what [`s_f_from_rim`]'s side test reads, at
+    /// the same arm.
     Unit(T, T),
 }
 
@@ -396,8 +398,8 @@ struct RimArms<T> {
 
 impl<T: Real> RimArms<T> {
     /// The three surfaces whose level and azimuth turn about the same
-    /// radius: the cylinder and sphere (`R`) and the cone (the anchor
-    /// rim's own radius).
+    /// radius: the cylinder and sphere (`R`) and the cone (its first
+    /// rim's own radius, [`cone_arm`]).
     fn uniform(r: T) -> Self {
         Self {
             level: r,
