@@ -116,6 +116,32 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
 /// and `'\''`, which a naive scanner reads as opening a string.
 /// Lifetimes are left alone. Every one of those has a row in
 /// [`self::tests`] that reds if it stops being handled.
+///
+/// # The proof, and how to re-run it
+///
+/// The rows in [`self::tests`] are examples. The *proof* is a
+/// differential against **rustc's own lexer**, and it is cheap to
+/// reproduce: generate Rust snippets that plant a call to an undefined
+/// function — `NEEDLE()` — inside every construct in the list above,
+/// compile each one, and take rustc's `E0425 cannot find function
+/// NEEDLE` as ground truth for *"this text is code"*. Agreement with
+/// [`Self::of`] is then mechanical in both directions: a snippet rustc
+/// resolves and the blanker erases is an over-strip, one rustc ignores
+/// and the blanker keeps is the finding S92 was about.
+///
+/// Run against **2,021 generated snippets and 70 hand-built cases at
+/// rustc 1.97.0: agreement everywhere, 0 silent and 0 loud.** Written
+/// down here rather than left in a report because *"I did not prove it
+/// against a grammar"* was this reader's standing caveat, and the
+/// answer is a method someone can re-run rather than an argument
+/// someone has to re-make.
+///
+/// **Two gaps the method also measured, both real and both dormant.**
+/// The blanker does not expand macros, so a `pub fn` inside a
+/// `macro_rules!` body is counted as an item and one inside an
+/// `include!`d file is not seen at all. In `topo/src` today there are
+/// two `macro_rules!`, neither containing a `pub fn`, and no
+/// `include!`.
 pub(crate) struct CodeOnly(String);
 
 impl CodeOnly {
@@ -272,33 +298,96 @@ impl CodeOnly {
             if !is_token(b, kw, 2) || !public_qualifiers_precede(b, kw) {
                 continue;
             }
-            let Some((name, after_name)) = ident_after(code, at) else {
-                continue;
-            };
-            let Some(open) = param_list_start(b, after_name) else {
-                continue;
-            };
-            let Some(close) = matching(b, open, b'(', b')') else {
-                continue;
-            };
-            // A declaration with no body (an `extern` block's, say)
-            // ends at `;` before it ever reaches a brace.
-            let Some(brace) = b[close..]
-                .iter()
-                .position(|c| *c == b'{' || *c == b';')
-                .filter(|r| b[close + r] == b'{')
-                .map(|r| close + r)
-            else {
-                continue;
-            };
-            let Some(end) = matching(b, brace, b'{', b'}') else {
-                continue;
-            };
-            out.push((name, &code[open..close], &code[brace..end]));
-            at = end;
+            // From here the head IS a public `fn`, so every remaining
+            // exit is either a bodiless declaration or a defect. See
+            // `gave_up` below: this scan does not get to skip one
+            // quietly, because skipping one quietly is what it did.
+            let parsed = (|| {
+                let (name, after_name) = ident_after(code, at)?;
+                let open = param_list_start(b, after_name)?;
+                let close = matching(b, open, b'(', b')')?;
+                let brace = body_start(b, close)?;
+                let end = matching(b, brace, b'{', b'}')?;
+                Some((name, open, close, brace, end))
+            })();
+            match parsed {
+                Some((name, open, close, brace, end)) => {
+                    out.push((name, &code[open..close], &code[brace..end]));
+                    at = end;
+                }
+                None if bodiless_declaration(b, at) => {}
+                None => gave_up(code, kw),
+            }
         }
         out
     }
+}
+
+/// The `{` opening the body of a function whose parameter list closes
+/// at `close`, or `None` for a declaration with no body.
+///
+/// **Bracket-aware, because a `;` is not only a statement end.** The
+/// first shape of this took the first `{`-or-`;` after the parameter
+/// list and gave up on a `;` — which silently dropped every
+/// `pub fn … -> [f64; 3]`, array types in return position being house
+/// style in this kernel. `crates/topo/src/null.rs`'s `loops` was one,
+/// live in the tree; a planted mutation door with an array return was
+/// invisible to both guards with **no count moving at all**. Depth is
+/// tracked so only a delimiter at the signature's own level decides.
+fn body_start(b: &[u8], close: usize) -> Option<usize> {
+    let (mut paren, mut bracket) = (0usize, 0usize);
+    for (i, c) in b.iter().enumerate().skip(close + 1) {
+        match c {
+            b'(' => paren += 1,
+            b')' => paren = paren.saturating_sub(1),
+            b'[' => bracket += 1,
+            b']' => bracket = bracket.saturating_sub(1),
+            b';' if paren == 0 && bracket == 0 => return None,
+            b'{' if paren == 0 && bracket == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Whether the public `fn` head whose name starts at `at` is a
+/// declaration with no body — an `extern` block's, or a trait's
+/// default-less method — rather than one this scan failed to read.
+fn bodiless_declaration(b: &[u8], at: usize) -> bool {
+    let (mut paren, mut bracket) = (0usize, 0usize);
+    for (i, c) in b.iter().enumerate().skip(at) {
+        match c {
+            b'(' => paren += 1,
+            b')' => paren = paren.saturating_sub(1),
+            b'[' => bracket += 1,
+            b']' => bracket = bracket.saturating_sub(1),
+            b';' if paren == 0 && bracket == 0 => return true,
+            b'{' if paren == 0 && bracket == 0 => return false,
+            _ => {
+                let _ = i;
+            }
+        }
+    }
+    // Ran off the end without either: not a declaration, a truncated
+    // or unbalanced file.
+    false
+}
+
+/// A public `fn` head this scan recognised and then could not read.
+///
+/// **Loud on purpose.** Every guard built on this walk asserts about
+/// *all* doors, so an item the scan drops is a door with no
+/// classification and no count to notice it — which is the finding
+/// this module exists to close, one layer up. A parse this reader
+/// cannot complete is a defect in the reader, not an item to skip.
+fn gave_up(code: &str, kw: usize) -> ! {
+    let line = code[..kw].bytes().filter(|c| *c == b'\n').count() + 1;
+    let snippet: String = code[kw..].chars().take(80).collect();
+    panic!(
+        "the item scan recognised a public `fn` at line {line} and could not read it: \
+         {snippet:?}. It is not allowed to skip one — a dropped item is a door nothing \
+         classifies and no count moves for.",
+    );
 }
 
 /// Whether the `len` bytes at `i` stand alone as a token.
@@ -544,13 +633,20 @@ mod tests {
         }
     }
 
-    /// **The layer the first fix did not reach.** `code_only` knew
-    /// `'"'`, nested block comments and raw strings; the delimiter
-    /// matcher that carved bodies for it knew none of them, so a door
-    /// containing one was dropped from the walk and the next door's
-    /// body corrupted — silently, and in the direction that costs
-    /// coverage. Every row here is a whole-pipeline read: text in,
-    /// doors out.
+    /// **Both layers the two earlier passes did not reach.** The
+    /// blanker's constructs are the first half; the array-return rows
+    /// (`arr`, `arr_nested`) are the second — a `;` inside `[T; N]`
+    /// used to end the scan of every such signature and drop the item
+    /// whole, with no count anywhere moving. `bodiless` is the case
+    /// the dropped-item rule must still let through.
+    ///
+    /// Both failures were the same shape and neither was visible from
+    /// inside one layer: the blanker knew `'"'`, nested block comments
+    /// and raw strings while the matcher carving bodies for it knew
+    /// none of them, and later the item scan read the blanker's output
+    /// correctly and still threw the item away. **Every row here is a
+    /// whole-pipeline read** — text in, doors out — because that is
+    /// the only altitude at which either was visible.
     #[test]
     fn the_item_scan_survives_what_the_blanker_handles() {
         let src = "
@@ -562,6 +658,9 @@ pub fn plain(&mut self) { let _ = \"pub fn string_decoy(&mut self) {\"; }
 pub const fn qualified(&mut self) { mint_pcurves(&mut b); }
 pub async unsafe fn stacked(&mut self) { mint_pcurves(&mut b); }
 pub fn generic<F: Fn(u32) -> u32>(&mut self, f: F) { mint_pcurves(&mut b); }
+pub fn arr(&mut self) -> [usize; 2] { mint_pcurves(&mut b); }
+pub fn arr_nested(&mut self) -> Result<([u8; 2], u8), E> { mint_pcurves(&mut b); }
+pub fn bodiless(&mut self) -> u8;
 fn private(&mut self) { mint_pcurves(&mut b); }
 pub(crate) fn restricted(&mut self) { mint_pcurves(&mut b); }
 pub fn not_a_door(&self) {}
@@ -578,6 +677,8 @@ pub fn not_a_door(&self) {}
                 "qualified",
                 "stacked",
                 "generic",
+                "arr",
+                "arr_nested",
                 "not_a_door",
             ],
             "the item scan lost, invented or mis-ordered a public fn"
@@ -598,6 +699,8 @@ pub fn not_a_door(&self) {}
                 ("qualified", true),
                 ("stacked", true),
                 ("generic", true),
+                ("arr", true),
+                ("arr_nested", true),
             ],
             "a door was lost, or its body classified from prose"
         );

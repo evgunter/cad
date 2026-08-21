@@ -1683,6 +1683,14 @@ pub(crate) mod staleness_posture {
         // the needle everywhere would leave this guard green over a
         // surface it had stopped reading. The walk's own floor is
         // upstream on `mutation_doors`; this is the needle's.
+        //
+        // **It is exactly one door wide, and that is the whole of it.**
+        // It does not cover the 36 `DECLARED` doors: those land in the
+        // same `else if` arm whether or not their needle survives, so a
+        // declared non-`Maintains` door that STARTS minting while its
+        // call is over-stripped would not reach `mislabelled`. Closing
+        // that needs a second oracle for "does this body call it",
+        // which a source read does not have.
         assert!(
             minting.iter().any(|n| n == "merge_coplanar_faces_declared"),
             "`merge_coplanar_faces_declared` no longer reads as calling `mint_pcurves`. \
