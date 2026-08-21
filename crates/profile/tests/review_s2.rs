@@ -4,13 +4,13 @@
 //! Independent re-derivations: fuzzed tangency residuals for the
 //! offset-carrier construction (F1), an atan2-based bulge oracle (F2),
 //! k_stats sequence invariance and first-candidate attribution (F3),
-//! and enclosing-case (r > R) coverage the original suite lacked. The
+//! and the enclosing (r > R) class the original suite lacked. The
 //! oracles are written from the geometry rather than from `sugar.rs`:
 //! the signed offset radius ρ = R − σ·τ·r is re-derived, the bulge is
 //! checked against an `atan2` sweep, and setback/extent is recomputed
 //! with `rem_euclid`.
 //!
-//! Two notes on adoption:
+//! Three notes on adoption:
 //!
 //! - `overrun_attribution_names_the_authored_corners_candidate` was the
 //!   review's MAJOR-1 *repro* — it asserted the buggy wrap-around
@@ -42,21 +42,41 @@
 //! roughly 8x what the counterexample search itself asks for. The row
 //! paid 8x to STUMBLE ONTO a class it can simply BUILD.
 //!
-//! So the class is built. [`enclosing_tangency_is_constructed_not_stumbled_upon`]
-//! inverts the ρ algebra — ρ = R − σ·τ·r < 0 ⟺ σ·τ = +1 and r > R — and
-//! lays out six corners spanning both sign pairs (σ = τ_in = τ_out = +1
-//! and = −1), equal and unequal leg carriers, and ρ from just past the
-//! sign flip to an order of magnitude past it. Those rows run the SAME
-//! oracle battery the sweep runs: [`check_corner`] is one function
-//! called from both sides, so a fixture cannot quietly assert less than
-//! the fuzz did. The floor is gone and the count is `fuzz::scaled(1_500)`.
+//! So the CORNERS are built instead of stumbled onto — and the
+//! TANGENCY they demand is not, because no shipped door emits it.
+//! `enclosing_cases` inverts the ρ algebra — ρ = R − σ·τ·r < 0 ⟺
+//! σ·τ = +1 and r > R — and lays out six corners spanning both sign
+//! pairs (σ = τ_in = τ_out = +1 and = −1), equal and unequal leg
+//! carriers, and ρ from just past the sign flip to an order of
+//! magnitude past it. Every row DEMANDS the enclosing tangency, and
+//! `the_lattice_door_never_emits_an_enclosing_tangency` pins what the
+//! shipped door answers: **it refuses, on every band**. (The general
+//! boundary is wider than the pin — the door may refuse OR round
+//! without swallowing — but on this table it refuses, and that is what
+//! is pinned; the `Ok` arm checks the non-swallowing property first so
+//! that a moved pin names what got built before it fails.) The class is
+//! unreachable through this door, structurally and on purpose; that
+//! test's own docs carry the argument for why the pair's other crossing
+//! always outranks it. The floor is gone and the count is
+//! `fuzz::scaled(1_500)`.
 //!
-//! Building the class also settled its SHAPE, which sampling never did:
-//! ρ < 0 on one leg forces ρ < 0 on the other, so a swallowed carrier
-//! never appears beside a line leg, an opposite-sense arc, or an arc
-//! bigger than the fillet. Those three are geometrically impossible, not
-//! merely rare, and [`an_enclosing_leg_forces_an_equally_enclosing_partner`]
-//! pins each one's refusal with the inequality that rules it out.
+//! That is also why the sweep's `n_enclosing` line is a coverage report
+//! rather than a floor — through this door the count is 0 structurally,
+//! not rarely. It is not left unasserted, though: `assert_eq!` pins the
+//! 0, which is monotone-safe where the old `>= 1` floor was not, and
+//! goes red exactly when the boundary claim stops being true.
+//!
+//! Building the table also settled the class's SHAPE, which sampling
+//! never did: ρ < 0 on one leg forces ρ < 0 on the other, so a
+//! swallowed carrier never appears beside a line leg, an opposite-sense
+//! arc, or an arc bigger than the fillet. Those three are geometrically
+//! impossible, not merely rare, and
+//! `an_enclosing_leg_forces_an_equally_enclosing_partner` pins each
+//! one's refusal with the inequality that rules it out. (Plain
+//! backticks, not a link: this paragraph was re-authored by the same
+//! PR that measured every `tests/` intra-doc link as inert — S135 — and
+//! converted its three siblings twenty lines up. Leaving one linked in
+//! a line the diff rewrote would be the finding arguing with itself.)
 //!
 //! The principle, since it generalizes past this file: **a witness
 //! belongs in a deterministic fixture, a fuzz belongs on the
@@ -537,10 +557,75 @@ struct CornerCounts {
     major: u64,
 }
 
+/// **The boundary, asserted — the one home of that check.** For a corner
+/// whose geometry demands the enclosing (ρ < 0) tangency, the lattice
+/// door never emits one, so whatever it built must swallow NEITHER
+/// carrier: |P − O| + R stays above r. Called from `check_corner`'s
+/// enclosing arm and from `report_moved_refuse_pin`, which is what both
+/// enclosing pins call; the three copies of this arithmetic and this
+/// message that used to sit at those sites are gone.
+fn assert_swallows_nothing(
+    pf: Point2<f64>,
+    center: Point2<f64>,
+    radius: f64,
+    r: f64,
+    ctx: &dyn Fn() -> String,
+) {
+    let d = (pf.x - center.x).hypot(pf.y - center.y);
+    assert!(
+        d + radius > r - 1e-9,
+        "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the \
+         boundary claim itself has moved — {}",
+        d + radius,
+        ctx()
+    );
+}
+
+/// **What both enclosing pins do with an `Ok` — one function, because
+/// they were one function written twice.**
+/// `the_lattice_door_never_emits_an_enclosing_tangency` (the six-row
+/// table) and `enclosing_fillet_swallows_both_leg_carriers` (the mined
+/// corner) pin the same refusal at the same door, and their `Ok` arms
+/// carried the same `fillet_segment` → `circle_from_bulge` → per-carrier
+/// boundary check → same panic, with neither site naming the other.
+/// Nothing in either declared the copy, which is why no marker
+/// vocabulary could have found it (smell-scan S133).
+///
+/// The boundary check runs BEFORE the panic on purpose: a pin that is
+/// being flipped deliberately should report what got built, and a build
+/// that swallows a carrier is a different and much larger failure than
+/// a build that merely moved the pin.
+fn report_moved_refuse_pin(
+    lp: &ProfileLoop<f64>,
+    r: f64,
+    carriers: &[(Point2<f64>, f64)],
+    what: &str,
+    ctx: &dyn Fn() -> String,
+) -> ! {
+    let (t1, t2, b) = fillet_segment(lp, r, ctx);
+    let (pf, _) = circle_from_bulge(t1, t2, b);
+    for (center, radius) in carriers {
+        assert_swallows_nothing(pf, *center, *radius, r, ctx);
+    }
+    panic!(
+        "{}: the pinned REFUSE branch moved — {what} now BUILDS (a non-swallowing \
+         fillet, verified above); re-pin deliberately",
+        ctx()
+    );
+}
+
 /// **The oracle battery for one constructed fillet corner.** One
-/// function, called by the fuzz for every accepted draw and by the
-/// deterministic fixtures for every hand-built row — so a fixture
-/// literally cannot check fewer properties than the sweep does.
+/// function, so a caller that runs it cannot check fewer properties
+/// than the sweep does. **Its oracle is about the DRAWN corner**, which
+/// decides who may call it: the fuzz, for every accepted draw (it skips
+/// draws whose mirror crossing survives the gates), and
+/// `an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier`,
+/// the one fixture whose built corner is the drawn one. The fixtures
+/// that pin a REFUSAL have no fillet to check and assert against the
+/// typed error instead, and
+/// `an_uncertifiable_tangent_point_refuses_instead_of_being_returned`
+/// builds on a hairline lens's TWIN crossing, so this battery would be
+/// wrong there and it says so at its own site.
 ///
 /// `ctx` is called only when an assertion is about to fail, so the fuzz
 /// can hand it a formatter that names the iteration and the replay
@@ -613,18 +698,17 @@ fn check_corner(
                 let res = leg.center_distance_residual(pf, sigma, r);
                 assert!(res < 1e-9, "|P-O| vs |rho| residual {res} — {}", ctx());
                 if leg.is_enclosing(sigma, r) {
-                    // rho < 0: the fillet swallows this leg's carrier, so
-                    // the tangency is INTERNAL with the carrier inside the
-                    // fillet — |P-O| + R = r, not |P-O| = R + r. Implied by
-                    // the residual above, asserted separately because it is
-                    // the claim the sign of rho is actually making.
+                    // rho < 0 on this leg: the corner's geometry DEMANDS
+                    // the enclosing tangency. What is asserted here is
+                    // the BOUNDARY, not the enclosing algebra — the
+                    // lattice door never emits an enclosing tangency, so
+                    // whatever it built must swallow neither carrier.
+                    // Asserting the enclosing relation instead (the shape
+                    // this arm carried while the raw builder existed)
+                    // would pass on exactly the emission that would mean
+                    // the boundary had moved.
                     counts.enclosing += 1;
-                    let d = (pf.x - center.x).hypot(pf.y - center.y);
-                    assert!(
-                        d + radius < r + 1e-9,
-                        "enclosing leg: |P-O| {d} + R {radius} exceeds r {r} — {}",
-                        ctx()
-                    );
+                    assert_swallows_nothing(pf, center, radius, r, ctx);
                 }
             }
         }
@@ -732,10 +816,11 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     let mut rng = fuzz::start("review_s2::offset_carrier_tangency_and_bulge");
     // The counterexample search, and nothing else. The 12 500 this used
     // to be was set by a WITNESS obligation (the enclosing floor), which
-    // now lives in `enclosing_tangency_is_constructed_not_stumbled_upon`
-    // as built geometry — see the module docs. Nothing forces the count
-    // upward any more, so it is a smoke level like every other sweep's,
-    // and `CAD_FUZZ_EFFORT` buys depth when depth is wanted.
+    // now lives in `enclosing_cases` as built geometry and in
+    // `the_lattice_door_never_emits_an_enclosing_tangency` as the pin on
+    // what the door does with it — see the module docs. Nothing forces
+    // the count upward any more, so it is a smoke level like every other
+    // sweep's, and `CAD_FUZZ_EFFORT` buys depth when depth is wanted.
     let corners = fuzz::scaled(1_500);
     let (mut n_ok, mut n_arc_leg, mut n_arc_arc, mut n_enclosing, mut n_major) =
         (0u64, 0u64, 0u64, 0u64, 0u64);
@@ -803,17 +888,31 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
         "only {n_arc_arc} arc-by-arc corners out of {corners} — {}",
         fuzz::replay()
     );
-    // `n_enclosing` and `n_major` are a COVERAGE REPORT, not a gate.
+    // `n_enclosing` used to be gated by an absolute FLOOR (`>= 1`),
+    // which is what forced this count to 12 500 — a witness search
+    // whose sample count only ever ratchets upward. At the lattice door
+    // the count is structurally 0, so the guard inverts: pinning 0 is
+    // monotone in the safe direction (more draws can only find a
+    // violation, never lose one) and it goes red exactly when the
+    // boundary claim stops being true. A printed number nobody compares
+    // is not a guard — `cargo test` swallows the report line below
+    // without `--nocapture`.
     //
-    // `n_enclosing` used to be gated by an absolute floor, which is what
-    // forced this count to 12 500. At the lattice door the count is
-    // structurally 0 — the door never emits an enclosing tangency (see
-    // `the_lattice_door_never_emits_an_enclosing_tangency`) — so the
-    // report line is the sweep corroborating that boundary, and
-    // nothing has to hold.
-    //
-    // `n_major` comes out 0, which is the fuzz corroborating the bound
-    // `fillet_bulge`'s docs argue for — the corner-side extent gates keep
+    // Note this pins slightly MORE than the boundary: not merely that
+    // the door emits no enclosing tangency (`check_corner`'s enclosing
+    // arm asserts that), but that it builds no corner DEMANDING one at
+    // all. A change that legitimately starts rounding such corners
+    // without swallowing flips this deliberately, as the two enclosing
+    // pins do.
+    assert_eq!(
+        n_enclosing,
+        0,
+        "the lattice door built {n_enclosing} corner(s) whose geometry demands the \
+         enclosing tangency; the boundary this suite pins says it builds none — {}",
+        fuzz::replay()
+    );
+    // `n_major` stays a REPORT. It comes out 0, which is the fuzz
+    // corroborating the bound `fillet_bulge`'s docs argue for — the corner-side extent gates keep
     // every fillet arc below half a turn, so the negative-apothem branch
     // is unreachable through this door and is unit-tested directly
     // instead. Deliberately not asserted either way: a future change that
@@ -930,14 +1029,24 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// an enclosing tangency — the class is unreachable through the
 /// surviving door, and this test pins exactly that: every table corner
 /// still DEMANDS the class (σ, τ and both ρ signs re-derived from the
-/// drawn geometry), and the door answers each with a refusal or with a
-/// fillet that swallows NEITHER carrier.
+/// drawn geometry), and **the door REFUSES every one of them**, on
+/// every shipped band. The wider boundary would also permit a build
+/// that swallows NEITHER carrier; on this table it does not happen, and
+/// the `Ok` arm asserts the non-swallowing property first (via
+/// `report_moved_refuse_pin`, the one home of that arm) so that a moved
+/// pin says what got built
+/// before it fails.
 ///
 /// (The construction machinery underneath — signed offset radii, the
 /// antipodal tangent-point flip — is unchanged and still computes the
-/// enclosing candidates; they lose the ranking. Restoring an authored-
-/// corner door is the only way to emit them, which is a design
-/// question, not a regression this suite can decide.)
+/// enclosing candidates; they lose the ranking. Authoring the corner is
+/// the only way to emit them, and no shipped door authors corners.
+/// Whether one ever should is issue #827 — a capability decision, not a
+/// regression, and not this suite's to make.)
+///
+/// Its mined twin is `enclosing_fillet_swallows_both_leg_carriers`,
+/// which pins the same refusal at the same door on one corner nobody
+/// would author; both `Ok` arms are `report_moved_refuse_pin`.
 #[test]
 fn the_lattice_door_never_emits_an_enclosing_tangency() {
     let cases = enclosing_cases();
@@ -966,30 +1075,19 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             Err(_) => {}
             Ok(lp) => {
                 // A door or harness change that starts building here
-                // must flip this pin deliberately. The assertions
-                // below run FIRST so the failure names what got
-                // built: whatever it is, it must not be the enclosing
-                // tangency (the emitted fillet swallows neither
-                // carrier).
-                let (t1, t2, b) = fillet_segment(&lp, case.r, &|| name.to_string());
-                let (pf, _) = circle_from_bulge(t1, t2, b);
-                for leg in [case.leg_in, case.leg_out] {
+                // must flip this pin deliberately.
+                // `report_moved_refuse_pin` checks the boundary BEFORE
+                // it reports the pin as moved, so the failure names
+                // what got built: whatever it is, it must not be the
+                // enclosing tangency (the emitted fillet swallows
+                // neither carrier).
+                let carriers = [case.leg_in, case.leg_out].map(|leg| {
                     let OracleLeg::Arc { center, radius, .. } = leg else {
                         panic!("{name}: the table is arc x arc by construction");
                     };
-                    let d = (pf.x - center.x).hypot(pf.y - center.y);
-                    assert!(
-                        d + radius > case.r - 1e-9,
-                        "{name}: the door emitted an ENCLOSING tangency \
-                         (|P-O| + R = {} < r = {}) — the boundary claim itself has moved",
-                        d + radius,
-                        case.r
-                    );
-                }
-                panic!(
-                    "{name}: the pinned REFUSE branch moved — the row now BUILDS (a \
-                     non-swallowing fillet, verified above); re-pin deliberately"
-                );
+                    (center, radius)
+                });
+                report_moved_refuse_pin(&lp, case.r, &carriers, "the row", &|| name.to_string());
             }
         }
         saw_ccw |= sigma > 0.0;
@@ -1166,10 +1264,12 @@ fn overrun_attribution_names_the_authored_corners_candidate() {
 ///
 /// Twice retargeted, and the history is the point of keeping it. It was
 /// first returned wrong (2.29e-9 off carrier, reported as success); then
-/// refused, once `fillet_offset_lever` existed; and it now BUILDS with a
-/// residual of **exactly zero**, because `Leg::tangent_point` divides the
-/// spoke by its measured length and the gate was retuned onto the
-/// one-power-of-ρ law that survives that.
+/// refused, once `fillet_offset_lever` existed; and it now BUILDS, with
+/// a residual of **exactly zero** — but on the pair's TWIN crossing,
+/// whose offset signs are the other ones, so the exact residual is not
+/// the collapsed lever surviving the measured-spoke scaling. The body
+/// says what the building bands do and do not exercise, with the
+/// numbers. The mined conditioning is what the ε = 1e-12 leg decides on.
 ///
 /// So the ε key moved rather than went away: |ρ| = 2.89e-4 against a
 /// least supported lever of 7.31e-2 at ε = 1e-12 (short by 253x) but of
@@ -1223,10 +1323,27 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
     // row doing so on the 1e-6 leg once already.
     //
     // So: at a band this corner's conditioning cannot support it must
-    // REFUSE typed; at a band that can support it, it must BUILD — and
-    // then its tangent point must sit on the carrier at the ULP FLOOR,
-    // not merely within the band, because the construction no longer has
-    // any 1/rho amplification left to spend. Both halves are claims.
+    // REFUSE typed; at a band that can support it, it must BUILD, and
+    // the fillet it returns must be tangent to the outgoing carrier at
+    // the ULP FLOOR rather than merely within the band.
+    //
+    // WHAT THE BUILDING BANDS DO NOT CHECK, and it is not a tolerance
+    // question. This pin's two carriers sit within 8.61e-5 of external
+    // tangency (|O1O2| = 2.266 464 1 against R1 + R2 = 2.266 550 2 —
+    // NOT the 3e-4 asserted above, which bounds rho and is a different
+    // quantity), so the pair is a hairline lens whose two crossings are
+    // 1.71e-2 apart, and the harness's bracketing does not exclude the
+    // twin: `mirror_excluded` is FALSE here. The ladder rounds the twin
+    // crossing, where the turn side is the other one — the returned fillet has |P - O_out| =
+    // R_out + r and |P - O_in| = R_in - r, i.e. the opposite offset sign
+    // on BOTH legs from the rho this row re-derives above, which the
+    // build arm now ASSERTS rather than merely recording. So the
+    // collapsed lever is not what the building bands exercise, and
+    // `check_corner`'s battery cannot run here: its oracle speaks about
+    // the DRAWN corner, exactly as the sweep's own mirror-survivor skip
+    // says. The mined conditioning decides the outcome on the REFUSING
+    // band, where the typed error carries `offset_radius` and this row
+    // checks it against rho directly.
     let eps = tol().eps;
     if 2.53e-10 < eps {
         let lp = build_corner(corner, leg_in, leg_out, r).unwrap_or_else(|e| {
@@ -1235,11 +1352,32 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
                  build rather than refuse; got {e:?}"
             )
         });
-        let (_, t2, _) = fillet_segment(&lp, r, &|| "uncertifiable pin".to_string());
+        let (t1, t2, b) = fillet_segment(&lp, r, &|| "uncertifiable pin".to_string());
+        // WHICH fillet came back, asserted rather than described. Every
+        // leg's centre distance is the one the OTHER turn side predicts
+        // — |P - O| = |R - (-sigma)*tau*r| on both — which is the twin
+        // crossing and not this corner's demand. If the ladder ever
+        // returns the drawn corner's own candidate here, this goes red
+        // and the row must be re-mined before its ulp claim means what
+        // its prose says.
+        let (pf, _) = circle_from_bulge(t1, t2, b);
+        for (side, leg) in [("incoming", leg_in), ("outgoing", leg_out)] {
+            let twin = leg.center_distance_residual(pf, -sigma, r);
+            assert!(
+                twin < 1e-9,
+                "at eps = {eps:e} the {side} leg's tangency is no longer the twin \
+                 crossing's (residual {twin:e} against the flipped offset sign)"
+            );
+        }
         let res = leg_out.carrier_residual(corner, t2);
-        // 8 ulps of the ~1 m scene, not `eps`: the measured-spoke scaling
-        // puts this at 0.0, and holding it to the band would be a far
-        // weaker claim than the construction actually supports.
+        // 8 ulps of the ~1 m scene, not `eps`: the measured residual is
+        // 0.0, and holding it to the band would be a far weaker claim
+        // than the construction actually supports. What it is NOT is
+        // evidence about the measured-spoke scaling surviving a
+        // collapsed lever — this crossing's offset radius is R_out + r,
+        // so there is no 1/rho amplification here to survive. The
+        // scaling's regression pin is
+        // `an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier`.
         let bound = 8.0 * f64::EPSILON;
         assert!(
             res <= bound,
@@ -1285,9 +1423,12 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 /// The mined enclosing corner (F1's deterministic pin, coordinates
 /// nobody would author), re-pointed at the lattice-door boundary the
 /// table test pins: the geometry still DEMANDS the enclosing tangency
-/// (both rho < 0, re-derived), and the door must answer with a refusal
-/// or a fillet that swallows neither carrier — never the enclosing
-/// tangency itself.
+/// (both rho < 0, re-derived), and **the door refuses**, on every band.
+/// The wider boundary allows a non-swallowing build as well, so the
+/// `Ok` arm checks that property first — via `report_moved_refuse_pin`,
+/// the one home of that arm — and only then reports the pin as moved.
+/// The table twin is `the_lattice_door_never_emits_an_enclosing_tangency`,
+/// which pins the same refusal over six authored rows.
 #[test]
 fn enclosing_fillet_swallows_both_leg_carriers() {
     let corner = p2(0.4141246232685536, -0.9332926788663134);
@@ -1323,28 +1464,14 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         // shipped band (measured at 1e-6 / 1e-9 / 1e-12).
         Err(_) => {}
         Ok(lp) => {
-            let (t1, t2, b) = fillet_segment(&lp, r, &|| {
-                "enclosing_fillet_swallows_both_leg_carriers".to_string()
-            });
-            let (pf, _) = circle_from_bulge(t1, t2, b);
-            for (o, rl) in [(o1, r1), (o2, r2)] {
-                let d = (pf.x - o.x).hypot(pf.y - o.y);
-                assert!(
-                    d + rl > r - 1e-9,
-                    "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — \
-                     the boundary claim itself has moved",
-                    d + rl
-                );
-            }
-            panic!(
-                "the pinned REFUSE branch moved — the mined corner now BUILDS (a \
-                 non-swallowing fillet, verified above); re-pin deliberately"
-            );
+            let ctx = || "enclosing_fillet_swallows_both_leg_carriers".to_string();
+            report_moved_refuse_pin(&lp, r, &[(o1, r1), (o2, r2)], "the mined corner", &ctx);
         }
     }
 }
 
-/// **The regression pin for [`Leg::tangent_point`]'s measured spoke.**
+/// **The regression pin for `sugar::Leg::tangent_point`'s measured
+/// spoke.**
 ///
 /// A written-down witness, not a seed (the harness's shape 2): the fuzz
 /// above searches, this pins. The corner is the WORST the
