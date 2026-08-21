@@ -608,6 +608,38 @@ renumber off `S210` mid-flight because #875 took it, which is G-R13's rule
 realised **inside one track**: a published block protects against other
 tracks, not against a sibling lane.
 
+### H-R11. Two things to carry, from H-e's close
+
+**1. `S163(d)`'s census was stale-dated before this track touched it — and it is still open.** H-e's own diff falsified two citations, and repointing them
+turned up that one, `interval-square-allowlist.sh:153`, was **already wrong at
+its merge base**, where the site was `:161`. H-e named the site rather than
+renumbering it, and left the member open — the right call, since `D109(d)`'s
+*"14 of 71 `gate_error` call sites are reached by no self-test case"* is a
+**traced** count and this does not touch it. **But a census whose line numbers
+were wrong before anyone edited the file is a census nobody has re-derived**,
+and `D109(d)` is the row that will be read as authoritative when someone
+staffs it. Recorded here so whoever takes (d) re-derives the sites by name
+before trusting the count.
+
+**2. A pattern-match liveness check matches its own command line. This cost
+two false readings today, in opposite directions.** The orchestrator's
+`ps aux | grep "cad-work/smellf"` reported ten live processes in lanes it was
+about to delete — the hits were a backgrounded `du` whose *arguments* were
+every lane path, and, but for a second look, twelve lanes would have been
+kept for a phantom. H-e's `pgrep` reported *"DOC-GATE RUNNING"* against its
+own command line and nearly reported phantom background work at close.
+
+`memories/agent-lane-operations.md` already says **kill** by recorded PIDs and
+never by pattern-matching a lane name. **This is the detection case and it is
+the opposite failure**: pattern-matching does not over-kill here, it reports
+**liveness that is not there** — which stalls a sweep instead of ending one.
+The fix is the same shape and costs nothing: exclude the checking process
+(`grep -v grep`, `pgrep -f` with a pattern that cannot match its own
+invocation), and **when a liveness check is load-bearing for a destructive
+action, confirm with a second signal** — a lock holder via `fuser`, a
+`target/` mtime, a commit timestamp. If this recurs outside Track H it should
+graduate into the memory; one track's log is the right home for it until then.
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
