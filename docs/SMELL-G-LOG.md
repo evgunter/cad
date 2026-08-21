@@ -377,6 +377,17 @@ over a document, wire, slot and Python vocabulary that never learned it.
   surface and its `.pyi`), the only copy with neither compile guard nor
   census. (Raised as `S169`; renumbered before landing — see the number
   reservation above.)
+- **The lane's own first pass restated the falsehood one level up**, and the
+  re-audit caught it. The table header's round-9 parenthetical listed *"the
+  wire enum, the replay arms and the tags"* as riding the table for free; the
+  wire enum is `editor-core`'s and hand-written, which is S106 itself. The
+  first fix swapped in `ArcData` — also not generated: the macro body never
+  mentions it, and it is six arc modes written out by hand against the table's
+  eighteen verbs. One non-member for another leaves the sentence as unenforced
+  as it was. It now names the three the macro really expands and says `ArcData`
+  is not among them. **Checked against the macro body, not the prose** — this
+  is the third shape in the standing header, caught by re-deriving rather than
+  re-reading.
 - **Issue #829** raised, not fixed: a hand-built fused step with two
   `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
   arrival spec's argument unaddressable. The fix adds variants to a persisted
