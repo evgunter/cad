@@ -174,7 +174,7 @@ cache hit after `cargo clean`** — which is precisely CI's situation,
 since rust-cache restores the deps but not the workspace crates.
 That proves the mechanism, not the size of the win.
 
-**How to read it, in a few days' time.** *Discard the first run after
+**Tracked in #853, to be read in a few days' time.** *Discard the first run after
 this landed* — `RUSTC_WRAPPER` is RUST*-prefixed, so rust-cache hashes
 it and the flip buys one cold rebuild (the same trap the OPT LEVEL
 note on the build job warns about). Then compare the `build test
