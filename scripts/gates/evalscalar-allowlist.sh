@@ -19,7 +19,9 @@
 # (`T: EvalScalar` and `+ EvalScalar`), over `lib.sh`'s code-only view:
 # comments and string literals are gone in both directions, where the
 # leading-`//` filter this gate carried stripped neither a trailing
-# comment nor a block one.
+# comment nor a block one — and over the STATEMENT view, because
+# `rustfmt` wraps a long bound list as `T: Clone\n    + EvalScalar,` and
+# a line matcher is blind to the form the formatter produces (S158).
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -27,7 +29,7 @@ set -euo pipefail
 gate() {
   gate_require_crate_sources
   local hits
-  hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
+  hits=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" \
     | grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
     | grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs:' || true)
   if [ -n "$hits" ]; then
@@ -53,6 +55,19 @@ plant_plus_position() {
   printf 'pub fn f<T: Clone + EvalScalar>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+# The same bound as rustfmt leaves a long list.
+plant_plus_wrapped() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub fn f<T>(_t: T)\n'
+    printf 'where\n'
+    printf '    T: Clone\n'
+    printf '        + EvalScalar,\n'
+    printf '{\n'
+    printf '}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
 plant_prose_only() {
   mkdir -p "$1/crates/planted/src"
   {
@@ -70,9 +85,10 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_plus_position
+  gate_selftest_case "$want" plant_plus_wrapped
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_passes "prose, doc comments, a string literal and a longer name starting with EvalScalar" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions and on a bound hidden behind a block comment\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions, on a rustfmt-wrapped plus, and on a bound hidden behind a block comment\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

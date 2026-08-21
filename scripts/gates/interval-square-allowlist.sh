@@ -31,12 +31,16 @@
 # `linalg/mat.rs`'s entry was justified in writing partly by `r *
 # r.transpose()` test hits that were never violations.
 #
-# KNOWN GAP 1: the scan is PRODUCTION CODE ONLY — `#[cfg(test)]` items
-# are dropped, and so is a module file whose `mod` declaration is
-# `#[cfg(test)]`-gated. A `x * x` inside a test cannot poison a shipped
-# enclosure, and scanning them is what produced the false positives
-# above. The cost is that a test-only helper later promoted to
-# production arrives unscanned; the promotion is a diff a human reads.
+# KNOWN GAP 1: the scan is PRODUCTION CODE ONLY — a `#[cfg(test)]` item
+# is dropped, and so is a module file whose `mod` declaration is one. A
+# `x * x` inside a test cannot poison a shipped enclosure, and scanning
+# them is what produced the false positives above. **Only a TEST-ONLY
+# attribute counts**: `any(test, …)` and `not(test)` are both scanned,
+# because an `any(debug_assertions, test, …)` module is every debug
+# build — `topo`'s `test_support_impl` is exactly that, and an earlier
+# draft skipped it. The cost is that a test-only helper later promoted
+# to production arrives unscanned; the promotion is a diff a human
+# reads.
 #
 # KNOWN GAP 2: an operand starting with an uppercase letter is invisible
 # (`SOME_CONST * SOME_CONST`). Deliberate: the ALL-CAPS population in
@@ -47,6 +51,12 @@
 # (`f(t) * f(t)`) are both invisible. The first is a real hole; the
 # second is deliberate, since a repeated call is not obviously one
 # value.
+#
+# THE SCAN IS STATEMENT-SCOPED, not line-scoped, because `rustfmt` wraps
+# a long product: `v.long_field\n    * v.long_field` is one expression
+# and two lines, and a line matcher sees neither operand beside the
+# other. Same ruling as S158's, same reason it is worth stating twice —
+# the wrapped form is what the formatter PRODUCES from the caught one.
 #
 # KNOWN GAP 4: the allowlist is FILE-granular while its reasons are
 # per-seam, so a second unrelated `x * x` added to an allowlisted file
@@ -91,18 +101,24 @@ production_sources() {
   # both the attribute and a `mod` declaration, and only those are read
   # properly. A file that fails the raw narrowing carries no
   # `#[cfg(test)]` text at all, so it cannot carry a gated declaration.
+  #
+  # The declaration is matched over the STATEMENT view, which is what
+  # makes `#[cfg(test)] mod probes;` on ONE line and the same split over
+  # two the same record — the earlier `grep -A1` form saw only the split
+  # one, and cried wolf on the other.
   mapfile -t cands < <(grep -lF '#[cfg(test)]' "${GATE_SOURCE_FILES[@]}" \
-    | xargs -r grep -lE '^[[:space:]]*(pub[[:space:]]+)?mod [a-z_][a-z0-9_]*;' || true)
+    | xargs -r grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' || true)
   if [ "${#cands[@]}" -gt 0 ]; then
     while IFS= read -r decl; do
       [ -n "$decl" ] || continue
       dir=${decl%%:*}; dir=${dir%/*}
       name=${decl##*:}
       excl+=("$dir/$name.rs" "$dir/$name/")
-    done < <(gate_rust_code "${cands[@]}" \
-      | grep -A1 -F '#[cfg(test)]' \
-      | grep -oE '^[^:]*:[0-9]+:[[:space:]]*(pub[[:space:]]+)?mod [a-z_][a-z0-9_]*;' \
-      | sed -E 's/:[0-9]+:.*mod /:/; s/;$//' || true)
+    done < <(gate_rust_code --statements "${cands[@]}" \
+      | grep -E '#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]' \
+      | grep -vE '#\[cfg\([^]]*(any|not)\(' \
+      | grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
+      | sed -E 's/:[0-9]+:.*[[:space:]]mod /:/' || true)
   fi
   if [ "${#excl[@]}" -eq 0 ]; then
     printf '%s\n' "${GATE_SOURCE_FILES[@]}"
@@ -121,7 +137,7 @@ gate() {
     gate_error "$(gate_name): every source under crates/*/src in $PWD is test-only — the gate scanned no production code, which is not a pass"
     exit 1
   fi
-  hits=$(gate_rust_code --skip-cfg-test "${files[@]}" \
+  hits=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
     | grep -P "$SQUARE_RE" \
     | grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
     | grep -vE '^crates/geom-core/src/linalg/(mat|svd|lsq)\.rs:' \
@@ -155,6 +171,35 @@ plant_self_field() {
 plant_nested_field_path() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn sq<T: Real>(s: S<T>) -> T { s.dir.z * s.dir.z }\n' > "$1/crates/planted/src/lib.rs"
+}
+
+# WHAT RUSTFMT MAKES OF A LONG PRODUCT. One expression, two lines, and
+# a line-scoped matcher sees neither operand beside the other.
+plant_wrapped_product() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub fn sq<T: Real>(v: LongTypeName<T>) -> T {\n'
+    printf '    v.some_rather_long_field_name\n'
+    printf '        * v.some_rather_long_field_name\n'
+    printf '}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+# A test-only module declared on ONE line. The `grep -A1` form that
+# preceded the statement view saw only the two-line spelling and cried
+# wolf on this one.
+plant_gated_module_file_one_line() {
+  mkdir -p "$1/crates/planted/src"
+  printf '#[cfg(test)] mod probes;\n' > "$1/crates/planted/src/lib.rs"
+  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
+}
+
+# `any(test, …)` is NOT test-only: an `any(debug_assertions, test, …)`
+# module is every debug build, so its square is production code.
+plant_any_gated_module_file() {
+  mkdir -p "$1/crates/planted/src"
+  printf '#[cfg(any(debug_assertions, test))]\nmod probes;\n' > "$1/crates/planted/src/lib.rs"
+  printf 'pub fn sq<T: Real>(x: T) -> T { x * x }\n' > "$1/crates/planted/src/probes.rs"
 }
 
 # Behind a block comment on one line — the strip has to be real.
@@ -209,9 +254,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_nested_field_path
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_case "$want" plant_ungated_module_file
+  gate_selftest_case "$want" plant_any_gated_module_file
+  gate_selftest_case "$want" plant_wrapped_product
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), and a cfg(test) module" plant_not_squares
   gate_selftest_passes "a square in a module file whose declaration is cfg(test)-gated" plant_gated_module_file
-  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file; fires on a bare identifier, a field path, a `self.` field, a two-level path, a square behind a block comment, and the same module file registered WITHOUT the cfg gate\n' "$(gate_name)"
+  gate_selftest_passes "the same, declared on one line" plant_gated_module_file_one_line
+  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

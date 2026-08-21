@@ -977,21 +977,21 @@ gate_selftest() {
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_unwired
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_commented_out
 
-  # THE CITATION HALF's cases. The mode reaches the gate through argv,
-  # not through this shell: lib.sh's harness runs every case as a REAL
-  # subprocess, so a global set here does not cross into it. It used to,
-  # and that is why these five cases were silently running the CENSUS
-  # half — each one planted a broken citation, the census half passed it,
-  # and the case reported green (S157).
+  # THE CITATION HALF's cases, selected through ARGV. The old harness
+  # ran the gate in a command substitution, and a subshell inherits a
+  # non-exported shell variable, so setting `CENSUS_CITATIONS` here did
+  # reach it. A real subprocess does not inherit it, so these five cases
+  # would have started running the CENSUS half the moment the harness
+  # changed — a hazard this change created and closed in the same commit,
+  # not a defect it found. (An earlier version of this comment, and of
+  # S157's record, claimed the latter; refuted by executing both trees.)
   GATE_SELFTEST_ARGS=(--citations)
-  CENSUS_CITATIONS=true
   gate_selftest_clean
   gate_selftest_case 'no longer names CI' plant_citation_dropped
   gate_selftest_case 'is gone; it cited' plant_citing_file_gone
   gate_selftest_case 'has no step named' plant_step_renamed
   gate_selftest_case 'neither a live claim' plant_undeclared_citation
   gate_plant_clean_exempt_control
-  CENSUS_CITATIONS=false
   GATE_SELFTEST_ARGS=()
 
   printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"

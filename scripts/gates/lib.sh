@@ -137,19 +137,40 @@ gate_ok() {
 #
 # STRING LITERALS are the third direction and the one that decides the
 # interface. A blanket strip that also removed literals would make a
-# gate whose needle IS a string literal vacuous (S117 sorts eleven such
-# guards three ways: code-only, comments-only, and the inverse). Nothing
-# under `scripts/gates/` greps for a Rust string literal today -- every
-# needle here is a bound, a call or an operator -- so this reader builds
-# the CODE-ONLY view and only that one. The other two views have no
-# caller in this directory and are not written here; S117 is the row
-# that needs them.
+# gate whose needle IS a string literal vacuous — S117 sorts eleven
+# source-text guards three ways (code-only, comments-only, and the
+# inverse), and this reader builds the CODE-ONLY view because that is
+# what the six gates converted to it need: their needles are bounds,
+# calls and operators.
 #
-# gate_rust_code [--skip-cfg-test] FILE... emits `FILE:LINE:CODE`, the
-# same shape `grep -rn` emits, so a gate's downstream pipeline (its
-# `cut -d: -f1`, its allowlist filters, its message) is unchanged by the
-# swap. Lines whose code part is empty are dropped; line numbers are the
-# real ones.
+# THAT IS A STATEMENT ABOUT THE CALLERS, NOT ABOUT THE DIRECTORY. There
+# IS a gate here whose needle contains a string literal —
+# `probe-suite-census.sh`'s probe-gate matcher looks for
+# `#[cfg(feature = "probe")]` — and it wants comments stripped and
+# literals KEPT, which is a fourth view this reader does not build. It
+# is not converted, its matcher is anchored at column zero instead, and
+# it carries a prose fixture because of that. Naming it here rather than
+# claiming the directory is uniform: **S163(b)** is the row.
+#
+# THREE VIEWS, one lexer, because two hand-rolled Rust readers under
+# `scripts/gates/` is how the leading-`//` strip got six copies:
+#
+#   (default)      one record per source line
+#   --statements   one record per STATEMENT, cut at `{`, `}` and `;`,
+#                  whitespace collapsed. `rustfmt` wraps a long bound
+#                  list as `T: Real\n    + PartialOrd,`, so a matcher
+#                  anchored on a LINE is blind to the form the formatter
+#                  converges on (S158's ruling). `{}`/`;` is where a
+#                  generic list and its `where` clause end, so the
+#                  statement is the unit those matchers actually mean.
+#   --window N     one record per source line, joined with the next N-1
+#                  code lines, whitespace collapsed — for a needle that
+#                  spans a construct rather than ending at a delimiter
+#                  (`signed-zero-one-home.sh`'s `== 0.0 { 0.0 }`).
+#
+# All three emit `FILE:LINE:TEXT`, the shape `grep -rn` emits, so a
+# gate's downstream pipeline (its allowlist filters, its message) is
+# unchanged by the swap. LINE is the real line the record starts at.
 #
 # WHAT IT CANNOT DO. It is a lexer, not a parser: it knows `//`, `/* */`
 # (nesting NOT handled -- Rust allows nested block comments and the
@@ -158,15 +179,17 @@ gate_ok() {
 # bodies, `include!`d text, or code behind `#[cfg]` other than the
 # `test` skip below.
 gate_rust_code() {
-  local skip_cfg_test=0
+  local skip_cfg_test=0 mode=lines window=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --skip-cfg-test) skip_cfg_test=1; shift ;;
+      --statements) mode=statements; shift ;;
+      --window) mode=window; window=$2; shift 2 ;;
       *) break ;;
     esac
   done
   [ $# -gt 0 ] || return 0
-  awk -v SKIPTEST="$skip_cfg_test" '
+  awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" '
     # A single quote cannot be written inside this program, which is
     # itself single-quoted; CODEBRK is built rather than spelled.
     BEGIN { Q = sprintf("%c", 39); CODEBRK = "[\"" Q "/]" }
@@ -254,17 +277,24 @@ gate_rust_code() {
       }
 
       # `#[cfg(test)]` items, dropped as whole brace-balanced blocks when
-      # the caller asks. `not(test)` is deliberately NOT matched: a gate
-      # scanning code it should have skipped only cries wolf, while one
-      # skipping code it should have scanned goes blind.
+      # the caller asks. ONLY A TEST-ONLY ATTRIBUTE COUNTS: `test` alone
+      # or inside an `all(…)`. `not(test)` marks the most production code
+      # there is, and `any(test, …)` marks an item that also exists under
+      # the other condition: in this tree the topo crate has a
+      # `test_support_impl` module gated on
+      # `any(debug_assertions, test, feature = test-support)`, which is
+      # every debug build. Dropping either would be blind in the one
+      # direction that matters; scanning an item that could have been
+      # skipped only cries wolf.
       # BRACE COUNTING IS PAID FOR ONLY BY THE CALLER THAT ASKED. `gsub`
       # over every line of crates/*/src costs ~8 s on its own, so the
-      # five gates that do not skip test modules never run it.
+      # gates that do not skip test modules never run it.
       if (SKIPTEST == 1) {
         opens = 0; closes = 0
         if (index(out, "{") > 0) opens = gsub(/\{/, "{", out)
         if (index(out, "}") > 0) closes = gsub(/\}/, "}", out)
-        if (skipping == 0 && out ~ /#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]/) {
+        if (skipping == 0 && out ~ /#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]/ &&
+            out !~ /#\[cfg\([^]]*(any|not)\(/) {
           skipping = 1; seen_open = 0; skip_depth = depth
         }
         if (skipping == 1) {
@@ -276,7 +306,56 @@ gate_rust_code() {
         }
         depth += opens - closes
       }
-      if (out != "") print FILENAME ":" FNR ":" out
+      if (out == "") next
+      if (MODE == "lines") { print FILENAME ":" FNR ":" out; next }
+      if (MODE == "window") {
+        # Buffered per file, flushed when the file changes: a window
+        # starting at line i needs the lines after it.
+        if (FILENAME != wfile) { flushwin(); wfile = FILENAME; wn = 0 }
+        wn++; WT[wn] = out; WL[wn] = FNR
+        next
+      }
+      # --- statements ---------------------------------------------
+      # NO CONTIGUITY ASSUMPTION. An earlier version of this joined
+      # records only while their line numbers ran consecutively, which a
+      # blank line or a column-zero block comment silently broke — the
+      # statement reset and the matcher went blind mid-`where` clause.
+      # A statement ends at a delimiter and at nothing else.
+      if (FILENAME != sfile) { flushstmt(); sfile = FILENAME; stmt = ""; sline = 0 }
+      code = out
+      while (length(code) > 0) {
+        if (match(code, /[{};]/)) {
+          cut = RSTART
+          if (stmt == "") sline = FNR
+          stmt = stmt " " substr(code, 1, cut - 1)
+          emitstmt()
+          code = substr(code, cut + 1)
+        } else {
+          if (stmt == "") sline = FNR
+          stmt = stmt " " code
+          code = ""
+        }
+      }
+    }
+    function emitstmt(  t) {
+      t = stmt; stmt = ""
+      gsub(/[ \t]+/, " ", t); sub(/^ /, "", t); sub(/ $/, "", t)
+      if (t != "") print sfile ":" sline ": " t
+      sline = 0
+    }
+    function flushstmt() { if (stmt != "") emitstmt() }
+    function flushwin(  i, j, w) {
+      for (i = 1; i <= wn; i++) {
+        w = WT[i]
+        for (j = i + 1; j <= i + WIN - 1 && j <= wn; j++) w = w " " WT[j]
+        gsub(/[ \t]+/, " ", w); sub(/^ /, "", w); sub(/ $/, "", w)
+        if (w != "") print wfile ":" WL[i] ": " w
+      }
+      wn = 0
+    }
+    END {
+      if (MODE == "statements") flushstmt()
+      else if (MODE == "window") flushwin()
     }
   ' "$@"
 }
@@ -339,6 +418,21 @@ gate_selftest_clean() {
     *) printf 'SELFTEST FAILED: an unreadable --root did not produce a gate diagnosis; a gate that cannot reach its tree must say so:\n%s\n' "$out" >&2
        exit 1 ;;
   esac
+  # AN EMPTY TREE IS NOT A CLEAN TREE, proved on every gate. This file
+  # makes a paragraph of `gate_require_crate_sources` and `gate_require_
+  # file`, and a trace of `gate_error` across all fourteen self-tests
+  # found both of their diagnoses UNREACHED — `gate_plant_clean` always
+  # writes a source file, so no fixture ever asked. `lib.sh` says a guard
+  # never shown to fire is not a guard; that sentence had not been
+  # applied inside this file.
+  tmp=$(mktemp -d)
+  if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED on an EMPTY tree — a gate that scanned nothing is not a pass\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "an empty tree" "$out"
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
@@ -356,20 +450,25 @@ gate_selftest_clean() {
 # scan-target guard, and the diagnostic path.
 gate_selftest_case() {
   local want=$1; shift
+  # The PLANTER name, captured before the planter runs. `$1` after the
+  # shift is the planter, which is what a reader wants in the failure
+  # line — but only until the planter takes arguments, at which point
+  # `$1` starts naming the wrong thing at a distance.
+  local case_name=$1
   local tmp out
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   "$@" "$tmp"
   if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the gate PASSED on a planted violation (%s)\n%s\n' "$1" "$out" >&2
+    printf 'SELFTEST FAILED: the gate PASSED on a planted violation (%s)\n%s\n' "$case_name" "$out" >&2
     exit 1
   fi
   rm -rf "$tmp"
-  gate_selftest_assert_diagnosed "$1" "$out"
+  gate_selftest_assert_diagnosed "$case_name" "$out"
   case "$out" in
     *"$want"*) ;;
-    *) printf 'SELFTEST FAILED (%s): the gate fired with an unexpected message:\n%s\n' "$1" "$out" >&2
+    *) printf 'SELFTEST FAILED (%s): the gate fired with an unexpected message:\n%s\n' "$case_name" "$out" >&2
        exit 1 ;;
   esac
 }
@@ -422,15 +521,6 @@ gate_selftest_without_tool() {
   esac
 }
 
-# The default self-test: one clean fixture, one planted violation. A
-# gate with more than one known evasion overrides this and calls
-# gate_selftest_case once per case.
-gate_selftest() {
-  gate_selftest_clean
-  gate_selftest_case "$@"
-  printf '%s selftest OK: passes a clean fixture, fires on a planted violation\n' "$(gate_name)"
-}
-
 # The common tail: --selftest runs both fixtures and exits; otherwise
 # the gate runs against GATE_ROOT.
 #
@@ -441,7 +531,18 @@ gate_selftest() {
 # statement of what was not decided.
 gate_main() {
   if [ "$GATE_SELFTEST" = true ]; then
-    gate_selftest "$@"
+    # NO DEFAULT SELF-TEST. There used to be one — clean fixture plus a
+    # single planted violation, parameterised through `gate_main`'s
+    # arguments — and every one of the fourteen gates overrode it, while
+    # two still passed it arguments naming a planter that call did not
+    # run. A default that plants only what the matcher was written for
+    # is the shape this whole directory is a reaction to, so a gate with
+    # no self-test is a loud failure rather than a quiet minimum.
+    if ! declare -F gate_selftest >/dev/null 2>&1; then
+      gate_error "$(gate_name): defines no gate_selftest — a guard that has never been shown to fire is not a guard"
+      exit 1
+    fi
+    gate_selftest
     exit 0
   fi
   if ! cd "$GATE_ROOT" 2>/dev/null; then

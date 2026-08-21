@@ -67,41 +67,18 @@ HOME_FILE=crates/step-import/src/signed_zero.rs
 SCAN_DIRS=(crates/step-import/src crates/step-import/tests)
 GATE_SCAN_NOUN='step-import source file'
 
-# One window per source line: comments removed, six lines joined, runs
-# of whitespace collapsed to one space. Emitted as `FILE:LINE: TEXT` so
-# a hit reports where the flush starts.
-flatten() {
-  local f
-  for f in "$@"; do
-    awk -v FILE="$f" '
-      BEGIN { inblock = 0 }
-      {
-        s = $0; out = ""; i = 1
-        while (i <= length(s)) {
-          if (inblock) {
-            p = index(substr(s, i), "*/")
-            if (p == 0) { i = length(s) + 1 } else { inblock = 0; i = i + p + 1 }
-          } else {
-            p = index(substr(s, i), "/*")
-            q = index(substr(s, i), "//")
-            if (q > 0 && (p == 0 || q < p)) { out = out substr(s, i, q - 1); i = length(s) + 1 }
-            else if (p > 0) { out = out substr(s, i, p - 1); i = i + p + 1; inblock = 1 }
-            else { out = out substr(s, i); i = length(s) + 1 }
-          }
-        }
-        line[NR] = out
-      }
-      END {
-        for (i = 1; i <= NR; i++) {
-          w = line[i]
-          for (j = i + 1; j <= i + 5 && j <= NR; j++) w = w " " line[j]
-          gsub(/[ \t]+/, " ", w); sub(/^ /, "", w)
-          if (w != "") print FILE ":" i ": " w
-        }
-      }' "$f"
-  done
-}
-
+# THE WINDOW COMES FROM `lib.sh`. This gate used to carry the second
+# hand-rolled Rust reader in this directory — an awk that knew `//` and
+# `/* */` and nothing else, so a `//` inside a string literal truncated
+# its line and a char literal could desynchronise it. S63 praised it for
+# having a real stripper, which was true relative to the leading-`//`
+# filter and misleading relative to a lexer. `--window 6` is the same
+# six-line join over the shared code-only view, which also knows string,
+# raw-string, byte-string and char literals, and lifetimes.
+#
+# Six lines, because the needle spans a construct rather than ending at
+# a delimiter: `== 0.0 { 0.0 }` has braces in it, so the statement view
+# would cut it in half.
 # Three spellings of one technique. `0.0` as a whole literal each time.
 PAT_BRANCH='== 0\.0 \{ 0\.0 \}'
 PAT_ADD='\+ 0\.0([^0-9]|$)'
@@ -119,7 +96,7 @@ gate() {
     gate_error "$(gate_name): no .rs files under ${SCAN_DIRS[*]} in $PWD — the gate scanned nothing, which is not a pass"
     exit 1
   fi
-  hits=$(flatten "${files[@]}" \
+  hits=$(gate_rust_code --window 6 "${files[@]}" \
     | grep -vE "^$HOME_FILE:" \
     | grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
     | cut -c1-140 || true)
@@ -215,6 +192,20 @@ plant_in_tests() {
 
 # GREEN cases. A gate that fires on these is a gate people route
 # around, so they are asserted, not assumed.
+# A `//` INSIDE A STRING LITERAL. The hand-rolled reader this gate used
+# to carry truncated the line there, so everything after it — including
+# a real flush — was invisible. The shared reader lexes the literal.
+plant_flush_after_a_string_with_slashes() {
+  cat > "$1/crates/step-import/src/adopt.rs" <<'RS'
+fn note() -> &'static str {
+    "http://example.invalid/a//b"
+}
+fn flush(y: f64) -> f64 {
+    y + 0.0
+}
+RS
+}
+
 plant_innocent_literals() {
   cat > "$1/crates/step-import/src/adopt.rs" <<'RS'
 fn pad(t: f64) -> f64 {
@@ -245,6 +236,7 @@ RS
 gate_selftest() {
   gate_selftest_clean
   local want="outside the sanctioned home"
+  gate_selftest_case "$want" plant_flush_after_a_string_with_slashes
   gate_selftest_case "$want" plant_rustfmt_branch
   gate_selftest_case "$want" plant_oneline_branch
   gate_selftest_case "$want" plant_add
@@ -253,7 +245,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_in_tests
   gate_selftest_passes "innocent literals" plant_innocent_literals
   gate_selftest_passes "a comment-only mention" plant_comment_only
-  printf '%s selftest OK: 6 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/); clean fixture, innocent literals and comment-only mentions stay green\n' \
+  printf '%s selftest OK: 7 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, and after a string literal containing `//`); clean fixture, innocent literals and comment-only mentions stay green\n' \
     "$(gate_name)"
 }
 

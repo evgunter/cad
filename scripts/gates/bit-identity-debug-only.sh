@@ -27,9 +27,30 @@
 # GREEN exactly when its subject had moved out from under it.
 # `gate_require_file` turns that case into a loud failure.
 #
-# KNOWN GAP: `#[cfg(any(debug_assertions, …))]` is NOT read as a gate,
+# TWO ENCLOSURES, and both are STRUCTURAL rather than per-line.
+#
+#   * A `cfg(debug_assertions)` ITEM encloses by BRACE DEPTH, so a use
+#     after the item closes is outside it however close it looks.
+#   * A `debug_assert!` encloses by STATEMENT, and the statement ends at
+#     `;`, `{` or `}`. A per-line substring test gets this wrong in both
+#     directions and the first version of this rewrite did:
+#     `{ debug_assert!(a == a); eq_bits(a, b) }` passed — **and printed
+#     the evidence-free sentence this gate was rewritten to stop
+#     printing** — while a rustfmt-wrapped `debug_assert!(\n … \n);`
+#     around a use fired.
+#
+# KNOWN GAP 1: `#[cfg(any(debug_assertions, …))]` is NOT read as a gate,
 # because it is not one — such an item is compiled in whenever the other
-# condition holds. Conservative in the direction that fires.
+# condition holds. Nor is `#[cfg(not(debug_assertions))]`, which is a
+# release-only item. Both are conservative in the direction that fires.
+# The `all(…)` form IS read as a gate, in any operand order: an earlier
+# draft matched `all(debug_assertions, …)` and not the operands swapped,
+# which is S56's order-sensitivity minted fresh in the PR that closes
+# S125.
+#
+# KNOWN GAP 2: a `debug_assert!` whose argument list contains a `;` (a
+# block expression) ends the statement early, so a use after that `;`
+# reads as ungated. Cry-wolf, and no such site exists here.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -43,28 +64,44 @@ GATE_SCAN_NOUN='bit-channel use'
 # item it is in rather than against the file it is in.
 debug_only_report() {
   awk '
+    BEGIN {
+      # A `debug_assert…!` macro, not a function whose name starts the
+      # same way: the `!` is the whole distinction.
+      DBG = "debug_assert[a-z_]*!"
+    }
     {
       p1 = index($0, ":"); r = substr($0, p1 + 1); p2 = index(r, ":")
       if (p1 == 0 || p2 == 0) next
       f = substr($0, 1, p1 - 1); ln = substr(r, 1, p2 - 1)
       code = substr(r, p2 + 1)
-      o = code; opens = 0; closes = 0
-      if (index(o, "{") > 0) opens = gsub(/\{/, "{", o)
-      if (index(o, "}") > 0) closes = gsub(/\}/, "}", o)
-      if (gated == 0 && code ~ /#\[cfg\((all\()?debug_assertions[,)]/) {
+      if (f != FNAME) { FNAME = f; depth = 0; gated = 0; seen = 0; stmt = "" }
+      if (gated == 0 &&
+          code ~ /#\[cfg\(([^]]*[(,][[:space:]]*)?debug_assertions[,)]/ &&
+          code !~ /#\[cfg\([^]]*(any|not)\(/) {
         gated = 1; seen = 0; gdepth = depth
       }
-      if (code ~ /bit_identity::|eq_bits/) {
-        print "USE"
-        if (gated == 0 && code !~ /debug_assert/)
-          print "UNGATED " f ":" ln ":" code
+      # Delimiter-wise, so that the statement a use sits in is the
+      # statement the `debug_assert!` test asks about, and so that brace
+      # depth moves at the brace rather than at the end of the line.
+      while (1) {
+        if (match(code, /[{};]/)) { cut = RSTART; piece = substr(code, 1, cut - 1) }
+        else { cut = 0; piece = code }
+        stmt = stmt " " piece
+        if (piece ~ /bit_identity::|eq_bits/) {
+          print "USE"
+          if (gated == 0 && stmt !~ DBG)
+            print "UNGATED " f ":" ln ":" piece
+        }
+        if (cut == 0) break
+        d = substr(code, cut, 1)
+        if (d == "{") { depth++; if (gated == 1) seen = 1 }
+        else if (d == "}") {
+          depth--
+          if (gated == 1 && seen == 1 && depth <= gdepth) gated = 0
+        } else if (gated == 1 && seen == 0) gated = 0
+        stmt = ""
+        code = substr(code, cut + 1)
       }
-      if (gated == 1) {
-        if (opens > 0) seen = 1
-        depth += opens - closes
-        if (seen == 1 && depth <= gdepth) gated = 0
-        else if (seen == 0 && index(code, ";") > 0) gated = 0
-      } else depth += opens - closes
     }
   '
 }
@@ -122,6 +159,53 @@ plant_after_the_gated_item() {
   } > "$1/$SUBJECT"
 }
 
+# THE SENTENCE THIS GATE EXISTS TO STOP PRINTING. A `debug_assert!`
+# earlier on the LINE is not an enclosure — the statement ended at the
+# `;` — and the per-line substring test that read it as one passed this
+# fixture while printing *"every bit-channel use … is inside a
+# cfg(debug_assertions) item or a debug_assert!"*, which is verbatim the
+# evidence-free sentence S63 recorded against the form this replaced.
+plant_leak_after_debug_assert() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'pub fn leak(a: f64, b: f64) -> bool { debug_assert!(a == a); eq_bits(a, b) }\n' \
+    > "$1/$SUBJECT"
+}
+
+# The same enclosure the other way round: a use in a `debug_assert!`
+# that rustfmt has wrapped over three lines is inside it, and the
+# per-line test called it a violation.
+plant_wrapped_debug_assert() {
+  mkdir -p "$1/crates/topo/src"
+  {
+    printf 'pub fn ok(a: f64, b: f64) {\n'
+    printf '    debug_assert!(\n'
+    printf '        geom_core::bit_identity::eq_bits(&a, &b) == Some(true)\n'
+    printf '    );\n'
+    printf '}\n'
+  } > "$1/$SUBJECT"
+}
+
+# `all(…)` IS a gate, in EITHER operand order. The first version of this
+# rewrite read only `all(debug_assertions, …)` — S56's order-sensitivity,
+# minted fresh in the PR that closes S125.
+plant_all_cfg_swapped() {
+  mkdir -p "$1/crates/topo/src"
+  {
+    printf '#[cfg(all(feature = "probe", debug_assertions))]\n'
+    printf 'pub fn agree(a: f64, b: f64) -> bool { eq_bits(a, b) }\n'
+  } > "$1/$SUBJECT"
+}
+
+# `not(debug_assertions)` is a RELEASE-only item, so a use inside it is
+# a production use.
+plant_not_cfg() {
+  mkdir -p "$1/crates/topo/src"
+  {
+    printf '#[cfg(not(debug_assertions))]\n'
+    printf 'pub fn agree(a: f64, b: f64) -> bool { eq_bits(a, b) }\n'
+  } > "$1/$SUBJECT"
+}
+
 # `any(debug_assertions, …)` is not a debug-only gate.
 plant_any_cfg() {
   mkdir -p "$1/crates/topo/src"
@@ -159,9 +243,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_one_gated_one_leaked
   gate_selftest_case "$want" plant_after_the_gated_item
   gate_selftest_case "$want" plant_any_cfg
+  gate_selftest_case "$want" plant_not_cfg
+  gate_selftest_case "$want" plant_leak_after_debug_assert
   gate_selftest_case "the gate's subject is gone" plant_subject_gone
   gate_selftest_passes "a debug_assert!, prose, a string literal and a gated inner module" plant_permitted_shapes
-  printf '%s selftest OK: passes a clean fixture, a debug_assert!, prose/strings and a gated inner module; fires on a bare use, on a leak BESIDE a properly gated use, on a use after the gated item closes, on an any(debug_assertions, …) item, and on the subject file being gone\n' "$(gate_name)"
+  gate_selftest_passes "a rustfmt-wrapped debug_assert! around the use" plant_wrapped_debug_assert
+  gate_selftest_passes "cfg(all(…)) with debug_assertions as the SECOND operand" plant_all_cfg_swapped
+  printf '%s selftest OK: passes a clean fixture, a debug_assert! (wrapped or not), cfg(all(…)) in either operand order, prose/strings and a gated inner module; fires on a bare use, on a leak BESIDE a properly gated use, on a leak AFTER a debug_assert! on the same line, on a use after the gated item closes, on any(…) and not(debug_assertions) items, and on the subject file being gone\n' "$(gate_name)"
 }
 
 # The subject removed out from under the gate.

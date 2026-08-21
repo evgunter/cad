@@ -65,6 +65,15 @@ set -euo pipefail
 # `gate_require_crate_sources`, since this gate's subject is manifests.
 require_crate_manifests() {
   GATE_SCAN_NOUN="crate manifest"
+  # `find` on a missing `crates/` exits non-zero, and under `pipefail`
+  # that killed the gate AT THIS ASSIGNMENT — the diagnosis below was
+  # unreachable, and nothing could see it because no self-test fixture
+  # ever handed the gate a tree without one. S157, found by the empty-
+  # tree case `lib.sh` now plants for every gate.
+  if [ ! -d crates ]; then
+    gate_error "$(gate_name): no crates/ under $PWD — the gate scanned nothing, which is not a pass"
+    exit 1
+  fi
   GATE_SCAN_FILES=$(find crates -mindepth 2 -maxdepth 2 -name Cargo.toml | wc -l)
   if [ "$GATE_SCAN_FILES" -eq 0 ]; then
     gate_error "$(gate_name): no crates/*/Cargo.toml under $PWD — the gate scanned nothing, which is not a pass"
@@ -197,4 +206,4 @@ gate_selftest() {
 }
 
 gate_parse_args "$@"
-gate_main "a kernel crate depends on serde" plant_inline
+gate_main
