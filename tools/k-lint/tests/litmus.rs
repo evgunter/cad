@@ -30,8 +30,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point2;
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
-use geom_core::{Point2, Tolerance};
 use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample};
 use profile::RawLoop;
 use profile::{Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start, bulge_from_via};
@@ -45,10 +46,10 @@ fn p2(x: f64, y: f64) -> Point2<Probe> {
 /// real predicates at the recording scalar (process ε = the compiled
 /// default, 1e-9, where both variants validate with definite
 /// outcomes).
-fn carrier_line_circle_margin(lp: ProfileLoop<Probe>) -> f64 {
+fn carrier_line_circle_margin(lp: ProfileLoop<Probe>, tol: Tol) -> f64 {
     k_stats::start_recording();
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(tol)
         .expect("bracket profile validates at the default eps");
     let samples = k_stats::take_samples();
     samples
@@ -85,27 +86,27 @@ fn old_bracket_loop() -> ProfileLoop<Probe> {
 /// The shipped bracket loop (post-#100/#101): the fillet constructor
 /// computes the tangent arc exactly and DECLARES both joints (an
 /// undeclared exact tangency would refuse typed — #101 discipline).
-fn fixed_bracket_loop() -> ProfileLoop<Probe> {
+fn fixed_bracket_loop(tol: Tol) -> ProfileLoop<Probe> {
     // The shipped bracket, authored through the lattice: the corner is
     // reached by an exact axis director and the filleted side ends at
     // its authored far vertex, which is the spelling `profile`'s
     // differential suite pins bit-for-bit against the raw chain.
     Open.at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 0.0), tol)
         .unwrap()
-        .line_to(p2(3.0, 1.0))
+        .line_to(p2(3.0, 1.0), tol)
         .unwrap()
-        .toward(Probe(-1.0), Probe(0.0))
+        .toward(Probe(-1.0), Probe(0.0), tol)
         .unwrap()
-        .fillet(Probe(0.5))
+        .fillet(Probe(0.5), tol)
         .expect("bracket fillet fits")
-        .toward(Probe(0.0), Probe(1.0))
+        .toward(Probe(0.0), Probe(1.0), tol)
         .unwrap()
-        .to(p2(1.0, 3.0))
+        .to(p2(1.0, 3.0), tol)
         .unwrap()
-        .line_to(p2(0.0, 3.0))
+        .line_to(p2(0.0, 3.0), tol)
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, tol)
         .unwrap()
         .loop_
 }
@@ -117,14 +118,15 @@ const EPS_ROWS: [(f64, f64); 3] = [(1e-6, 1e-5), (1e-9, 1e-8), (1e-12, 1e-11)];
 
 #[test]
 fn old_bracket_datum_lights_up_at_every_eps_row() {
+    let tol = Tol::witness();
     assert_eq!(
-        Tolerance::get().eps,
+        tol.eps(),
         1e-9,
         "litmus measures at the compiled default eps (run without \
          CAD_TOLERANCE_EPS)"
     );
     // Resurrect the pre-#100 datum: via point rounded to 1.146.
-    let margin = carrier_line_circle_margin(old_bracket_loop());
+    let margin = carrier_line_circle_margin(old_bracket_loop(), tol);
     // Pin the resurrection: the historical margin, re-derived by the
     // #99 review in exact rationals, is 2.315e-6 m.
     assert!(
@@ -172,9 +174,10 @@ fn old_bracket_datum_lights_up_at_every_eps_row() {
 
 #[test]
 fn fixed_bracket_stays_clean_at_every_eps_row() {
+    let tol = Tol::witness();
     // The shipped fix: the constructive fillet (exact tangency,
     // declared by construction).
-    let margin = carrier_line_circle_margin(fixed_bracket_loop());
+    let margin = carrier_line_circle_margin(fixed_bracket_loop(tol), tol);
     assert!(
         margin < 1e-15,
         "the fixed bracket's tangency margin must be rounding noise, \

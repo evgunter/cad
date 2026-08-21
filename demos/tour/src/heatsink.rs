@@ -41,6 +41,7 @@ fn pe(src: &str) -> Expr {
     parse_expr(src, &BTreeMap::new()).expect("tour expression")
 }
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
@@ -53,7 +54,7 @@ struct Recipe {
     pattern: RecipeNodeId,
 }
 
-fn build_doc() -> Recipe {
+fn build_doc(tol: Tol) -> Recipe {
     // v4 (LIB-SWITCH): the document stores the PROGRAM — the polygon
     // chain (`At`, `LineTo`…, `LineTo(Start)`), replayed through the
     // driver at every evaluation.
@@ -82,9 +83,9 @@ fn build_doc() -> Recipe {
             .expect("finite corners"),
         ],
     };
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink");
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }).expect("insert node");
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
@@ -124,7 +125,12 @@ fn build_doc() -> Recipe {
 
 /// Unions the pattern's fin instances into the base — one solid, exact
 /// volume after every union (demo-side; see module docs).
-fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> pncad::topo::BooleanBody<S> {
+fn solidify<S: Scalar>(
+    r: &Recipe,
+    ev: &Evaluation<S>,
+    n: usize,
+    tol: Tol,
+) -> pncad::topo::BooleanBody<S> {
     let base = match &ev.value(r.base_e).expect("base evaluated").payload {
         ValuePayload::Body(b) => (**b).clone(),
         other => panic!("base payload: {other:?}"),
@@ -141,7 +147,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize) -> pncad::topo:
         vol += FIN_GAIN;
         let bb = expect_seamed(
             &format!("fin[{i}] union"),
-            check(try_union(&acc, fin), vol),
+            check(try_union(&acc, fin, tol), vol, tol),
             vol,
         );
         acc = bb.body.clone();
@@ -184,14 +190,14 @@ pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
     out
 }
 
-pub fn stops() -> Vec<Stop> {
-    let r = build_doc();
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
 
     // Evaluate at 5, then EDIT the structural count and re-evaluate
     // against the prior — the memo counters are the demo.
-    let ev5 = evaluate::<f64>(&r.doc, None, &cancel, &opts);
+    let ev5 = evaluate::<f64>(&r.doc, None, &cancel, &opts, tol);
     let names5 = ev5.value(r.pattern).expect("pattern@5").name_table.clone();
 
     let mut doc = r.doc.clone();
@@ -205,10 +211,11 @@ pub fn stops() -> Vec<Stop> {
                 slot: SlotId::Count,
                 expr: pe(&format!("{n}")),
             },
+            tol,
         )
         .expect("count edit");
         doc = applied.doc;
-        let ev = evaluate::<f64>(&doc, Some(&evs[prior_idx].1), &cancel, &opts);
+        let ev = evaluate::<f64>(&doc, Some(&evs[prior_idx].1), &cancel, &opts, tol);
         let caption = format!(
             "count edit -> {n}: recomputed {} node(s), reused {} (downstream-only recompute)",
             ev.recomputed, ev.reused
@@ -251,7 +258,7 @@ pub fn stops() -> Vec<Stop> {
     evs.into_iter()
         .zip(colors)
         .map(|((n, ev, recompute_story), color)| {
-            let bb = solidify(&r, &ev, n);
+            let bb = solidify(&r, &ev, n, tol);
             let name: &'static str = match n {
                 5 => "heatsink5",
                 7 => "heatsink7",

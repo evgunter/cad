@@ -57,6 +57,7 @@ mod tube;
 mod uvdump;
 mod walls;
 
+use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::topo::{Body, ContactRecords};
 
@@ -181,6 +182,7 @@ fn run_body(
     delta: f64,
     outdir: &str,
     dumps: &mut Vec<uvdump::FaceDump>,
+    tol: Tol,
 ) -> ManifestBody {
     let label = &sb.name;
 
@@ -195,12 +197,12 @@ fn run_body(
     // geometric gate (on contact-free bodies the two gates agree).
     match &sb.contacts {
         Some(contacts) => {
-            pncad::topo::validate_pseudomanifold(&sb.body, contacts).unwrap_or_else(|e| {
+            pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol).unwrap_or_else(|e| {
                 panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
             });
         }
         None => {
-            pncad::topo::validate_geometric(&sb.body)
+            pncad::topo::validate_geometric(&sb.body, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
         }
     }
@@ -221,11 +223,11 @@ fn run_body(
     // contribute certified quadrature enclosures: `volume` is then a
     // bracket midpoint with half-width `volume_pad` (0.0 on
     // closed-form bodies).
-    let props = pncad::topo::mass_properties(&sb.body).expect("mass properties");
+    let props = pncad::topo::mass_properties(&sb.body, tol).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
     // against the exact one as an end-to-end sanity ribbon.
-    let mesh = pncad::mesh::tessellate(&sb.body, delta).expect("tessellate");
+    let mesh = pncad::mesh::tessellate(&sb.body, delta, tol).expect("tessellate");
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
@@ -275,6 +277,7 @@ fn run_body(
             product_name: label.clone(),
             ..Default::default()
         },
+        tol,
     ) {
         Ok(doc) => {
             std::fs::write(format!("{outdir}/{step_name}"), doc).expect("write step");
@@ -310,7 +313,7 @@ fn run_body(
     // pass because the pcurve caches are a property of THIS body — a
     // reader that re-imported the STEP would be looking at re-minted
     // ones, which is a different question.
-    let faces = uvdump::emit(label, &sb.body, outdir);
+    let faces = uvdump::emit(label, &sb.body, outdir, tol);
     let refused = faces.iter().filter(|f| f.note.is_some()).count();
     println!(
         "   [{label}] uv: {} face chart(s) dumped to uv/{}",
@@ -338,7 +341,13 @@ fn run_body(
 /// no "this stop is entirely behind a frontier" state to report. A
 /// stop that genuinely could not be drawn would have to say so where
 /// it is built — see the STEP arm in `run_body`.
-fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String, dumps: &mut Vec<uvdump::FaceDump>) {
+fn run_stop(
+    stop: &Stop,
+    outdir: &str,
+    manifest: &mut String,
+    dumps: &mut Vec<uvdump::FaceDump>,
+    tol: Tol,
+) {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -348,7 +357,7 @@ fn run_stop(stop: &Stop, outdir: &str, manifest: &mut String, dumps: &mut Vec<uv
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir, dumps))
+        .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
         .collect();
     manifest.push_str(&scene_json(stop, &bodies));
 }
@@ -407,92 +416,95 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// detached from the stops it belongs to. Building each group as it is
 /// reached also keeps one group's bodies alive at a time, and lets the
 /// project box hand its body to the cutaway exactly as it always has.
-fn walk_tour(visit: &mut dyn FnMut(&Stop)) {
-    for stop in bodies::stops() {
+fn walk_tour(visit: &mut dyn FnMut(&Stop), tol: Tol) {
+    for stop in bodies::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
-    for stop in rocker::stops() {
+    for stop in rocker::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
-    for stop in diefillet::stops() {
+    for stop in diefillet::stops(tol) {
         visit(&stop);
     }
 
     println!(
         "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
     );
-    for stop in lily::stops() {
+    for stop in lily::stops(tol) {
         visit(&stop);
     }
-    lily::wall_probes::<f64>();
+    lily::wall_probes::<f64>(tol);
 
     println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
-    for stop in klein::stops() {
+    for stop in klein::stops(tol) {
         visit(&stop);
     }
-    klein::wall_probes::<f64>();
+    klein::wall_probes::<f64>(tol);
 
     println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
-    for stop in curvedcut::stops() {
+    for stop in curvedcut::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
-    for stop in bossplate::stops() {
+    for stop in bossplate::stops(tol) {
         visit(&stop);
     }
 
-    skinned::narration();
-    for stop in skinned::stops() {
+    skinned::narration(tol);
+    for stop in skinned::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
-    for stop in tube::stops() {
+    for stop in tube::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
-    for stop in bool_bodies::stops() {
+    for stop in bool_bodies::stops(tol) {
         visit(&stop);
     }
-    bool_bodies::voidbox_narration();
+    bool_bodies::voidbox_narration(tol);
 
     println!("\n-- silhouettes (the first `intersect` in the tour) --");
-    for stop in letterforms::stops() {
+    for stop in letterforms::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- A x Z (#93's acceptance case, building since #108) --");
-    for stop in az::stops() {
+    for stop in az::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the cross-lap joint (#90's boolean-of-boolean, made visible) --");
-    for stop in crosslap::stops() {
+    for stop in crosslap::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
-    let (box_stop, box_body) = projectbox::stop();
+    let (box_stop, box_body) = projectbox::stop(tol);
     visit(&box_stop);
 
     println!("\n-- the cutaway (the first `topo::split` in the tour) --");
-    for stop in cutaway::stops(&box_body) {
+    for stop in cutaway::stops(&box_body, tol) {
         visit(&stop);
     }
 
     println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
-    for stop in heatsink::stops() {
+    for stop in heatsink::stops(tol) {
         visit(&stop);
     }
 }
 
 fn main() {
+    // The tour is an entry point: it mints the run's tolerance witness
+    // once, here, and hands it to every scene it walks.
+    let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
@@ -549,14 +561,14 @@ fn main() {
     let mut cells = 0usize;
     let mut run = |stop: &Stop| {
         manifest.clear();
-        run_stop(stop, &outdir, &mut manifest, &mut dumps);
+        run_stop(stop, &outdir, &mut manifest, &mut dumps, tol);
         scenes.push(manifest.clone());
         cells += usize::from(stop.montage);
     };
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
     println!("==========================================================================");
-    walk_tour(&mut run);
+    walk_tour(&mut run, tol);
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

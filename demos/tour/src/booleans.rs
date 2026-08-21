@@ -16,24 +16,34 @@
 use pncad::topo::{Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind};
 
 use crate::scalar::Scalar;
+use pncad::geom_core::Tol;
 
 /// A ∪* B — refusals surface to the caller; every result goes through
 /// the scene builders' exact-volume oracle before it ships.
-pub fn try_union<S: Scalar>(a: &Body<S>, b: &Body<S>) -> Result<BooleanResult<S>, BooleanError> {
-    pncad::topo::union(a, b)
+pub fn try_union<S: Scalar>(
+    a: &Body<S>,
+    b: &Body<S>,
+    tol: Tol,
+) -> Result<BooleanResult<S>, BooleanError> {
+    pncad::topo::union(a, b, tol)
 }
 
 /// A ∖* B (same posture as [`try_union`]).
-pub fn try_subtract<S: Scalar>(a: &Body<S>, b: &Body<S>) -> Result<BooleanResult<S>, BooleanError> {
-    pncad::topo::subtract(a, b)
+pub fn try_subtract<S: Scalar>(
+    a: &Body<S>,
+    b: &Body<S>,
+    tol: Tol,
+) -> Result<BooleanResult<S>, BooleanError> {
+    pncad::topo::subtract(a, b, tol)
 }
 
 /// A ∩* B (same posture as [`try_union`]).
 pub fn try_intersect<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
+    tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
-    pncad::topo::intersect(a, b)
+    pncad::topo::intersect(a, b, tol)
 }
 
 /// A ∪* B with the scene's flush contacts DECLARED (M4 PR 5: the
@@ -42,8 +52,9 @@ pub fn try_intersect<S: Scalar>(
 pub fn try_union_declared<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
+    tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
-    pncad::topo::union_with(a, b, &flush_declarations(a, b))
+    pncad::topo::union_with(a, b, &flush_declarations(a, b, tol), tol)
 }
 
 /// A ∩* B with the scene's flush contacts declared
@@ -51,8 +62,9 @@ pub fn try_union_declared<S: Scalar>(
 pub fn try_intersect_declared<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
+    tol: Tol,
 ) -> Result<BooleanResult<S>, BooleanError> {
-    pncad::topo::intersect_with(a, b, &flush_declarations(a, b))
+    pncad::topo::intersect_with(a, b, &flush_declarations(a, b, tol), tol)
 }
 
 /// Demo-authoring convenience (M4 PR 5, same shape as the kernel test
@@ -61,10 +73,14 @@ pub fn try_intersect_declared<S: Scalar>(
 /// scene author BUILT the contact deliberately; this writes the
 /// intent down. Certification still happens inside the op through
 /// the verified declared rung.
-pub fn flush_declarations<S: Scalar>(a: &Body<S>, b: &Body<S>) -> pncad::topo::BooleanDeclarations {
+pub fn flush_declarations<S: Scalar>(
+    a: &Body<S>,
+    b: &Body<S>,
+    tol: Tol,
+) -> pncad::topo::BooleanDeclarations {
     use pncad::geom_core::k_stats::{decide, decide_flagged};
     use pncad::geom_core::{Margin, Sign};
-    let band = pncad::geom_core::Band::linear().unwrap();
+    let band = pncad::geom_core::Band::linear(tol).unwrap();
     let planes = |body: &Body<S>| -> Vec<(
         pncad::topo::FaceKey,
         pncad::geom_core::Point3<S>,
@@ -142,10 +158,14 @@ pub enum Verdict<S: Scalar> {
     Empty,
 }
 
-pub fn check<S: Scalar>(r: Result<BooleanResult<S>, BooleanError>, expected: f64) -> Verdict<S> {
+pub fn check<S: Scalar>(
+    r: Result<BooleanResult<S>, BooleanError>,
+    expected: f64,
+    tol: Tol,
+) -> Verdict<S> {
     match r {
         Ok(BooleanResult::Body(b)) => {
-            let v = pncad::topo::mass_properties(&b.body)
+            let v = pncad::topo::mass_properties(&b.body, tol)
                 .expect("mass properties")
                 .volume
                 .f();

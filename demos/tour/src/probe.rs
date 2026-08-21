@@ -105,7 +105,7 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
 /// The sweep entry point (`demo-tour k-probe [out.csv]`; stdout when
 /// no path is given).
 pub fn run(out: Option<String>) {
-    let eps = pncad::geom_core::Tolerance::get().eps;
+    let eps = pncad::geom_core::tol.eps();
     let mut csv = String::from("shape,predicate,margin,band_zero,band_escalate,outcome\n");
     let (mut total, mut unnamed) = (0usize, 0usize);
     let s = &mut csv;
