@@ -381,7 +381,8 @@ fn cone_rim_level_margin_scales_linearly_with_model_scale() {
 /// grouping predicate; these rows say it now also holds of the
 /// refusing one, because S58 gave `props_rim_level` the same sphere
 /// representation. It is the file's convention, not something S58
-/// introduced (`min_max`, `require_extent` and `s_f_from_rim` all
+/// introduced (`min_max`, `require_extent` and the rim-side
+/// derivation — now nested inside `linear_rim_side` — all
 /// meter sines at the radius), and the torus — a full `Unit(sin, cos)`
 /// pair — has the exact expression. N7's disposition is unchanged
 /// here: typed-margin conversation input.

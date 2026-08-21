@@ -105,11 +105,15 @@ pub enum MaterialSign {
 /// traversal** says the material lies on — the boundary's own encoding
 /// of the orientation fact `Face::sense` (M5 S10) also encodes. Tier
 /// 3's curved check-6 arm compares the two encodings; this fn re-runs
-/// the exact sub-derivations the flux lanes consume ([`s_f_from_rim`]
-/// for cylinder/cone/rim-bearing sphere, and with it the
-/// iso-rectangle premise that derivation rests on; anchor-rim
-/// traversal × chart orientation for the torus, which rests on no such
-/// premise — see the arm), through the same already-length-metered
+/// the exact sub-derivations the flux lanes consume
+/// ([`linear_rim_side`] for cylinder/cone/rim-bearing sphere,
+/// anchor-rim traversal × chart orientation for the torus) — and with
+/// each of them **the iso-rectangle premise it rests on, on all four
+/// kinds**. The torus is not exempt: its side cancels the anchor-end
+/// choice against `dv/dt` only when the two rims FLANKING the anchor
+/// meridian carry opposite `d_u`, which every corner of a rectangle
+/// gives and a reflex corner does not. All four go through the same
+/// already-length-metered
 /// named decides (`props_rim_side`, `props_rim_level`,
 /// `props_circle_axis_class`, `props_meridian_orient`, …) — no new
 /// comparand, no new margin.
