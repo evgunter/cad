@@ -15209,6 +15209,105 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ---
 
+## Track H — the certification substrate: `geom-core/` and `geom/`
+
+**Defined 2026-08-21 by Track F on closing; unclaimed.** Track C has closed and
+its ground has no orchestrator, so the table below and Track I's are the rows its
+lanes were gating. **They split on the crate boundary, which is where the frozen
+table already split them** — it grouped its rows behind four separate Track C
+lanes, and this is two of those groups against the other two.
+
+**Scope: `crates/geom-core/`, `crates/geom/`.** The scalar, interval and
+certification substrate — the layer everything else measures *with*.
+
+**Gates: none. C-g landed (#804) and C-q landed (#801); C-l was never started.**
+Every row here is takeable today.
+
+| # | Work | From |
+|---|---|---|
+| **H1** | **`CertifiedEnclosure for RingInterval` returns `Some((NaN, NaN))` for a poison ring — the exact laundering the trait doc forbids.** The frozen table marks it *"should not wait for the others"*: **one file and hours of work**, and it is a certification door returning a certificate for garbage. **Take it first.** | **S86** |
+| **H2** | **One merge's residue, and it wants ONE lane, not five rows** — the frozen table says so explicitly. | **S99**–**S103** |
+| **H3** | **The `Bounds` trait's headline still calls it the certification door, and its ledger grew 50% under the fix meant to retarget it.** | **S85** |
+| **H4** | **The one-home fix for the ring crossing minted three local aliases and a hand-counted tally.** | **S89** |
+| **H5** | **The lane-trait collapse, `RingInterval`, and the scalar ladders** — Track C's **C-l**, never started. Expect it to split into two or three lanes; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is **adversarial**, per C-R12. **535 refs across 15 files.** | C7 + **S33** |
+| **H6** | **D1's newly opened sole-`T: Bounds` doors that the sweep's own pattern cannot see** — the `geom` half only; the `profile` half is Track G's **G4**. | **S88** |
+| **H7** | **Reassociate the scaled square** — **ruled YES by Evan** (2026-08-21). `linalg/vec.rs`'s `orthonormal_basis` `b1` is byte-free (`s = ±1` multiplies exactly); `linalg/mat.rs::rotation_about`'s `t·x·x` moves `f64` bytes and re-cuts goldens, which is a chore and not a contract. **Sequencing, non-negotiable: convert the two sites, re-cut what moves, THEN widen the matcher** — widening first reds two ratified sites and greening that by allowlisting is S63's already-realised outcome for the third time. **Extend the `Dual` tangent guard with the change**, not after it. | **D109**(a) |
+| **H8** | Roll-up members in these crates. | S110(f), S116(b) |
+
+**Evan-only, and neighbours will stall on it:** **S90** — the largest D1 residue
+is the only one without a schedule; is that lane owed now, is the written reason
+sufficient, or is the verdict closed?
+
+## Track I — the measuring consumers: `props/`, `mesh/`, `census.rs`
+
+**Defined 2026-08-21 by Track F on closing; unclaimed.**
+
+**Scope: `crates/geom-brep/src/props/`, `crates/mesh/`, `crates/topo/src/census.rs`.**
+The code that *measures and certifies* geometry — the consumers of Track H's
+substrate.
+
+**The edge with Track H is a dependency, not a file overlap.** The two scopes
+share no file. But `geom-brep` and `mesh` depend on `geom` and `geom-core`, so
+**a Track H change to a public signature ripples into Track I's builds.** H
+publishes such changes in its PR body; I re-merges and re-runs rather than
+reasoning about it. That is a sequencing note, not a gate — **neither track
+waits on the other to start.**
+
+| # | Work | From |
+|---|---|---|
+| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE, not a lane**, so this row *inherits* it rather than waits for it — a sphere meridian arc crossing a pole gives a wrong certified volume. Track C's **C-m** (S27, `quad.rs`'s four quadrature engines) is the same files and comes with it: **adversarial** + style, per C-R12. | **S60**, **S77**, **S80**, **S81**, S112(d), **C-m** |
+| **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below) and S64 should not be closed without it. | **S64**, **S65** |
+| **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
+| **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
+| **I5** | **S16 unified two of three box constructions; the third's stated reason is retracted at the copy site, and `boxes.rs` cites the retraction as live.** | **S97** |
+| **I6** | Roll-up members in these crates. | S114(f), S115(d), S116(g) |
+
+**Evan-only, and I2 stalls on it:** **S65** — the #678 watertightness backstop is
+`#[cfg(debug_assertions)]`, so it is **absent from every build that ships a
+mesh**, while the module header presents floor and assert as a pair without
+saying one is absent from release. Either it pays an O(triangles) per-patch
+re-derivation in release — against D9's *never a panic* and against tessellation
+cost — or it stays debug-only and the header says so. **Also S82**, in `props/`:
+is the sphere rim predicate's accepting-direction understatement a #723 sibling
+that needs an issue and a row, or conversation input that can wait?
+
+### What is in NEITHER track, and why
+
+- **C-n / H17** — the rustdoc spec-code remainder, ~1115 lines across 130 files.
+  **Deliberately last, wherever it goes**: it conflicts with every open lane, and
+  that was true when Track C held it and is true now.
+- **C-e / H13** — `sweep/tests/`'s helix orientation coverage. Neither track's
+  files. It needs a home and does not have one.
+- **S70** — Evan-only, and its files (`topo/src/euler.rs`, `docs/DESIGN.md`) are
+  neither track's. It is **S14 one crate over**, and #740 left 46 lookup sites as
+  typed errors because it is open.
+
+### Both tracks, on constitution
+
+**Number blocks, published here rather than claimed in a lane message** — the
+failure Track F committed and recorded: **Track H takes `D140`–`D159` and
+`S210`–`S229`; Track I takes `D160`–`D179` and `S230`–`S249`.** Both are beyond
+every existing reservation and beyond the tree's current maxima (`D139`, `S209`).
+**Re-derive after every merge**: per Track G's G-R13, a block cannot protect
+against a number arriving from another track, only re-checking can.
+
+**Review policy, inherited from Track F and Track C:** **style review on every
+unit**, dispatched by path against `docs/prompts/reviewer-style-lane.md`, carrying
+the two questions the standing brief does not ask — *is the original problem
+completely gone*, and *was it closed in the best way available*. **Adversarial
+only where a wrong answer is reachable**, which on these two tracks is more of
+the rows than it was on Track F: I1, I2, I3 and H5's `Dual` sub-lane at minimum.
+
+**The one thing worth carrying from Track F's record**, because it held for eight
+rows out of eight: **every unit failed its first review the same way — the fix
+minting a fresh instance of the defect it closed** — and three lanes had named
+that exact trap in their own PR bodies beforehand. Naming it was not protection.
+The only thing that reliably found it was an adversary who had not written the
+fix. The standing rules that came out of it are in
+`docs/SMELL-F-LOG.md` and in `memories/agent-lane-operations.md`.
+
+---
+
 ## The second scan's unscheduled table — frozen, and why
 
 > **UNFROZEN AND UNROUTED, 2026-08-21 — this table's own rule now points at a
