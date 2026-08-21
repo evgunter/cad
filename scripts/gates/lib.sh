@@ -56,11 +56,19 @@ gate_parse_args() {
 # One message text serves both halves: hosted CI wants the `::error::`
 # annotation (it surfaces in the Actions UI against the failing step), a
 # local run wants the plain form.
+#
+# STDERR, NOT STDOUT, and it is not a style choice. A gate whose stdout
+# is consumed — `probe-suite-census.sh` emits a crate list and a suite
+# list that CI reads — has one diagnosis path and one data path, and
+# writing the diagnosis into the data corrupts the data. Worse, a
+# `gate_error` inside a command substitution had its message CAPTURED
+# and thrown away: the caller then died at the failed assignment with
+# nothing on screen, which is S157 wearing different clothes.
 gate_error() {
   if [ -n "${GITHUB_ACTIONS:-}" ]; then
-    printf '::error::%s\n' "$*"
+    printf '::error::%s\n' "$*" >&2
   else
-    printf 'ERROR: %s\n' "$*"
+    printf 'ERROR: %s\n' "$*" >&2
   fi
 }
 
@@ -385,6 +393,33 @@ gate_selftest_passes() {
     exit 1
   fi
   rm -rf "$tmp"
+}
+
+# gate_selftest_without_tool TOOL WANT — for a gate that shells out. A
+# reader that fails is the SECOND half of S157: the gate dies at the
+# assignment that captured it, so what a CI reader sees is whatever the
+# tool wrote, with no gate name, no `::error::` framing and no statement
+# of what was not decided. TOOL is shadowed by a stub that exits
+# non-zero; the gate must fail WITH a diagnosis containing WANT.
+gate_selftest_without_tool() {
+  local tool=$1 want=$2
+  local tmp bin out
+  tmp=$(mktemp -d); bin=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  printf '#!/bin/sh\nexit 9\n' > "$bin/$tool"
+  chmod +x "$bin/$tool"
+  if out=$(PATH="$bin:$PATH" "$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp" "$bin"
+    printf 'SELFTEST FAILED: the gate PASSED with %s failing — a gate that cannot read its subject has not cleared it\n%s\n' "$tool" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp" "$bin"
+  gate_selftest_assert_diagnosed "$tool failing" "$out"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s failing): the gate fired with an unexpected message — wanted %s, got:\n%s\n' "$tool" "$want" "$out" >&2
+       exit 1 ;;
+  esac
 }
 
 # The default self-test: one clean fixture, one planted violation. A
