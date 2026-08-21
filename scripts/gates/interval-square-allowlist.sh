@@ -74,6 +74,24 @@
 # other. Same ruling as S158's, same reason it is worth stating twice —
 # the wrapped form is what the formatter PRODUCES from the caught one.
 #
+# KNOWN GAP 5: the SCALED-square branch sees one spelling of the shape
+# and four others go past it. `(k * x) * x` is matched; `(x * k) * x` is
+# not, because the repeated operand must be the group's LAST factor —
+# requiring only that it appear somewhere inside is what starts
+# matching `(x + k) * x`. `((a + b) * x) * x` and `(f(k) * x) * x` are
+# not matched either: the group may contain no nested parenthesis at
+# all, which is the price of not walking past a call. `k * x * m * x`
+# — the same product with a third factor wedged between the operands
+# and no parentheses anywhere — is invisible to both branches, since
+# one needs adjacency and the other needs the paren. And a square split
+# across two statements (`let kx = k * x;` … `kx * x`) is invisible to
+# everything here: the scan's unit is a statement, and that square is
+# two of them. **None of these is believed to be live** — the whole
+# tree was scanned with the widened matcher when this branch landed and
+# the only hit it added was the one the conversion had just removed —
+# but a hole this gate cannot see is a hole whether or not it is
+# occupied today.
+#
 # KNOWN GAP 4: the allowlist is FILE-granular while its reasons are
 # per-seam, so a second unrelated `x * x` added to an allowlisted file
 # inherits the first entry's ratification silently. That is S159/D103's
