@@ -146,9 +146,14 @@
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
 //! The `debug_assert` that re-derives the conclusion over each pole
-//! patch is **debug-only**, so a release build carries the floor and
-//! nothing else; `curved`'s module header states that asymmetry and
-//! points at the open decision (`SMELL-SCAN-2026-08.md` S65).
+//! patch is `#[cfg(debug_assertions)]`, which cargo's release default
+//! compiles out — so whether a release build carries more than the
+//! floor is a manifest setting, and the root `Cargo.toml` currently
+//! sets `debug-assertions = true` for `[profile.release]` (a
+//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
+//! `curved`'s module header states what runs where, and points at the
+//! open decision about what a shipped release should do
+//! (`SMELL-SCAN-2026-08.md` S65, #884).
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole

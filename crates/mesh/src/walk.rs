@@ -991,6 +991,46 @@ pub(crate) fn loop_polygon(
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?
         .sense_sign();
+    // JUNCTIONS ONLY: `t.ids[0]` is a topology vertex's mesh id
+    // (`chords::compute_chords` takes it from `vids`), so it is a
+    // DECLARED vertex; `ids[1..len - 1]` are chord subdivision points,
+    // whose spacing is delta-driven by design and drops under any eps
+    // at a fine enough delta. Comparing the whole id set would fire on
+    // correct input.
+    //
+    // D2 addendum row 5. Two vertices declared separately and placed
+    // within eps of each other can only be read as one by assuming
+    // intent from a numerical coincidence, which this project never
+    // does; so reaching this state is very likely a kernel bug (Evan's
+    // conjecture, #884). It is not observable in a branch — seeing it
+    // takes a re-derivation over every junction PAIR — which is what
+    // makes it a `debug_assert` and not an `unreachable!`.
+    //
+    // Equal ids are skipped rather than compared: one declared vertex
+    // visited twice by one loop (a seam walked both ways) is that
+    // vertex at distance 0, and is legal.
+    let coincident_declared = || -> Option<(u32, u32, f64)> {
+        for (i, a) in travs.iter().enumerate() {
+            for b in &travs[i + 1..] {
+                let (ja, jb) = (a.ids[0], b.ids[0]);
+                if ja == jb {
+                    continue;
+                }
+                let d = (positions[ja as usize] - positions[jb as usize]).norm();
+                if d <= eps {
+                    return Some((ja, jb, d));
+                }
+            }
+        }
+        None
+    };
+    debug_assert!(
+        coincident_declared().is_none(),
+        "face {face:?} loop {lk:?}: two DECLARED vertices lie within eps {eps} of each \
+         other (id, id, separation in metres) {:?}. Intent is never read from a \
+         numerical coincidence, so this is a kernel bug and not a re-declaration.",
+        coincident_declared()
+    );
     let poles = chart.poles();
     let pole_v = |id: u32| -> Option<f64> {
         let p = positions[id as usize];

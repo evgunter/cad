@@ -193,3 +193,28 @@ opt-level = 2
 # record of a rejected alternative and nothing reads them: no stanza below
 # depends on them, so there is nothing for a guard to go red about. They
 # are dated in the same 2026-07-21 reading as the block above.
+
+# Release builds keep their `debug_assert`s. The kernel's fail-loud
+# postconditions are D2-addendum row-5 checks — kernel-bug states
+# detectable only by re-derivation — and cargo's release default compiles
+# every one of them out, so the profile that would run against real parts
+# is the one profile checking nothing. Dev already defaults this ON (see
+# the note above the `[profile.dev.package]` block); this makes release
+# agree. The detached `demos/` workspaces already set this for the same
+# reason; being detached, their stanzas never reached the kernel, and
+# `demos/tour`'s note that it is "the ONLY release build of the kernel
+# in CI" is still true — this stanza adds no release build, it changes
+# what one contains.
+#
+# `overflow-checks` is a SEPARATE knob and is deliberately left at its
+# release default of OFF: cargo emits `-C overflow-checks=off` under
+# release even with `-C debug-assertions=on` (verified in `cargo build
+# --release -v` on 1.97.0), so this stanza does not smuggle in
+# integer-overflow panics. `demos/` sets both because it is claiming
+# parity with the nextest legs; this stanza is not.
+#
+# PRE-PUBLISH: this comes back OUT. `docs/DESIGN.md`'s "Before
+# publishing" list is where that is written down, together with the
+# version numbers.
+[profile.release]
+debug-assertions = true

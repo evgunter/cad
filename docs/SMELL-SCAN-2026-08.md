@@ -8718,6 +8718,24 @@ the line has already moved once under this finding: the original text
 cited `curved.rs:306`, which was `:273` at `68921183` and `:278` after
 #872's header edit.
 
+> **Premise update, 2026-08-21 — the heading's *"every build"* is now
+> false in this tree, and the question is unchanged.** The root
+> `Cargo.toml` gained `[profile.release] debug-assertions = true`
+> (Evan's directive, landed with the `walk` junction guard). `cfg`
+> `debug_assertions` follows that setting, so `curved.rs`'s
+> `#[cfg(debug_assertions)]` block **is compiled in and does run** under
+> `cargo build --release` from this workspace — verified by planting a
+> failing `debug_assert` as the block's first statement and watching a
+> release binary panic inside it, and by the same build running clean
+> with `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`.
+>
+> **This suspends the asymmetry; it does not resolve it.** The stanza is
+> a pre-publish posture and sits on `DESIGN.md`'s *Before publishing*
+> list to come back out, at which point the asymmetry returns. And the
+> flag says nothing about the FAILURE MODE: a `debug_assert` that runs
+> in release still panics, which is the half A/B/C is about. **Nothing
+> below is edited, and none of it is answered.**
+
 `crates/mesh/src/curved.rs` — the re-derivation in `tessellate_curved`'s
 emit pass that catches the #678 class is `#[cfg(debug_assertions)]`. The class #678 named is a
 *silently* non-watertight mesh returned as `Ok`. `tessellate` does not

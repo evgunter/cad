@@ -35,17 +35,26 @@
 //! [`pole_columns`] is what makes that true and carries the argument,
 //! including the one column count that falsifies it.
 //!
-//! **The two things that hold it up are not in the same builds.** The
-//! floor is three lines and runs everywhere. The `debug_assert` in
-//! [`tessellate_curved`]'s emit pass that re-derives the conclusion
-//! over the patch (D2 addendum row 5) is `#[cfg(debug_assertions)]`,
-//! and `tessellate` does not run [`crate::validate::check_mesh`] — so
-//! **in a release build the floor is the entire guard**, for a class
-//! whose failure is a *silently* non-watertight mesh returned as `Ok`.
-//! Read the sentence above as conditional on the floor in every build
-//! and on the re-derivation only in debug. Whether release should pay
-//! it is an open question for Evan, priced at
-//! `SMELL-SCAN-2026-08.md` **S65** and not settled here.
+//! **The two things that hold it up run in different builds, and which
+//! builds is a manifest setting.** The floor is three lines and runs
+//! everywhere. The `debug_assert` in [`tessellate_curved`]'s emit pass
+//! that re-derives the conclusion over the patch (D2 addendum row 5)
+//! is `#[cfg(debug_assertions)]`, which cargo's release default
+//! compiles out — but the root `Cargo.toml`'s `[profile.release]` sets
+//! `debug-assertions = true`, so **every profile this workspace builds
+//! today runs the re-derivation**. That stanza is a pre-publish
+//! posture and is on `DESIGN.md`'s *Before publishing* list to come
+//! back out; with it gone, the floor is the entire guard in release,
+//! for a class whose failure is a *silently* non-watertight mesh
+//! returned as `Ok`. `tessellate` does not run
+//! [`crate::validate::check_mesh`] in any build.
+//!
+//! **The flag is not an answer to S65.** What a SHIPPED
+//! release should do — pay the re-derivation and refuse typed, or keep
+//! the floor — is open for Evan, priced at `SMELL-SCAN-2026-08.md`
+//! **S65** (**#884**), and not settled here: a `debug_assert` that
+//! runs in release still PANICS, and whether panic or typed refusal is
+//! the right mechanism is the part of S65 the flag leaves untouched.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
