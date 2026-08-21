@@ -453,6 +453,36 @@ rigidly coupled through the shared `a_s` (ratio exactly 6.000 at every ε, the
 body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
 — which is a sharper work order than S26's own text ever produced.
 
+### A dangling citation and a false claim keep turning out to be the same defect
+
+**Observed three times on one PR (#877), and the third time a gate found it.**
+Nesting a helper (the S5 fix) took `s_f_from_rim` out of module scope, and
+`boundary_material_sign`'s header still linked it. `-D warnings` turned the
+unresolved intra-doc link into a **CI failure** — and the sentence carrying the
+link read:
+
+> …anchor-rim traversal × chart orientation for the torus, **which rests on no
+> such premise — see the arm**
+
+**That is the MAJOR-1 claim the adversary had refuted by execution, still
+asserted in the public doc of the very function the fix changed.** The lane had
+rewritten the arm and the finding record and not the header.
+
+**The doc gate caught a stale *link*; reading the line caught a stale *claim*.**
+The gate cannot see the second and was never going to — but the two travelled
+together, and they had already travelled together twice on this PR (the
+`validate.rs` comment and the S83 citation, both genuinely falsified rather than
+tidied). The pattern is worth stating as a search strategy rather than as a
+coincidence: **when a symbol moves, the prose that pointed at it is also the
+prose most likely to be asserting something about it that is no longer true** —
+so a retargeting sweep should re-read each sentence, not just re-aim each link.
+
+**And note which references a gate could not have caught**: two of the four —
+`docs/predicate-dimension-audit.md`'s row and a comment in
+`rim_dim_scale_twins.rs` — were prose, so no gate would ever have fired on
+them. The gate found one of four, and the one it found is the one that also
+happened to be in Rust.
+
 ### Disk hit 100% with two lanes live, and the biggest consumer was a finished reviewer
 
 **2026-08-21.** The machine filled to **252K free** mid-run, killing tool output
