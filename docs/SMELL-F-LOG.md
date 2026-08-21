@@ -411,6 +411,23 @@ while it is clean"* is an incentive, not a licence to skip the filter — and *"
 was told to hurry"* is the same shape of lid as *"I tried and could not"*: it
 names a pressure instead of a method. (F-c, 2026-08-20, on its own merge.)
 
+**`git add -A && git commit --no-edit` on a merge ships conflict markers
+silently.** `git add -A` stages a conflicted file **verbatim**, and a merge
+commit needs no message — **so nothing prompts, nothing errors, and the markers
+reach `main`.** It happened here: a lane resolved the conflict in
+`SMELL-SCAN-2026-08.md`, grepped **that file** for markers, saw zero, and
+committed — while `SMELL-F-LOG.md` still held two. *"I checked the file I was
+thinking about, not the tree."* **After any resolution, grep the whole `docs/`
+tree** — `grep -rE '^<<<<<<<|^>>>>>>>' docs/` — not the file you were working in.
+
+**And the markers were the only reason the real defect was caught.** The second
+conflict was a **deletion pair**: `main` had struck a roster row (its *fifth*
+carry-back), the lane had struck its own, and the conflicted region held **both
+live** — the first row resurrected a sixth time, inside a marker. **Resolving
+that by "keeping both sides" would have shipped the resurrection with the
+markers removed, and it would have looked clean.** The visible breakage is what
+surfaced the invisible one; a tidier mistake would have landed silently.
+
 **Verify a post-condition against the artifact, not against your account of what
 you did to it.** Check the *tree*, not your diff: `grep '^| \*\*F-x\*\* |'` on the
 merged result should match exactly the rows the convention allows. **"I deleted
