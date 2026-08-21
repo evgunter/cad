@@ -281,9 +281,18 @@ body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
 meridian arc crosses a pole* — as `completed`, attributed to **#863**, the
 track-definition PR that created Tracks H and I. #863 edits
 `docs/SMELL-SCAN-2026-08.md` **and nothing else**: no arithmetic, no predicate,
-no test. It picked up the close from a closing keyword in §D's own prose about
-the C-m lane — the sentences *"the lane is described in a comment on #723"* and
-*"whoever closes #723 finds C-m waiting there"*.
+no test. It picked up the close from a keyword in **#863's PR body** — not
+from its diff, and not from any of its four commit messages. The operative
+sentence, verbatim:
+
+> Whoever **closes #723** finds the lane waiting there.
+
+**An English sentence *about* somebody closing the issue, parsed as an
+instruction to close it.** `closes #723` is the keyword form regardless of the
+grammar around it — no negation, tense or subject analysis — so *"whoever
+closes"*, *"nobody has closed"* and *"do not close"* all fire identically.
+**#863 was a PR whose entire purpose was to say "do not touch this until #723
+is fixed", and merging it marked #723 fixed.**
 
 **Three schedules were parked behind that register while it read `completed`:**
 Track C's **C-m** (struck *until #723 is fixed*), Track I's **I1** (the style
@@ -297,9 +306,18 @@ pointers that resolved to nothing; this one is a pointer that resolved to
 *success*, which is strictly worse: a reader checking C-m's gate would have
 found it green.
 
-**The generalisation, and it is cheap to act on:** this scan's documents cite
-issue numbers constantly, and §D's own convention is to describe a parked lane
-*at* the issue it waits on. Any of those sentences can close the issue it
-names. Nothing in the repo guards it, and the failure is silent in both
-directions — the issue closes without a fix, and the PR that closed it says
-nothing about having done so.
+**The generalisation, and note where it does NOT bite.** The diff is
+irrelevant: editing the document would not have prevented this and will not
+prevent the next one. What carries the hazard is the **PR body**, and this
+scan's PR bodies narrate parked lanes constantly — *"whoever closes #N
+finds…"*, *"stays open until #N is fixed"*, *"resolves once #N lands"*. Every
+one of those is one word from retiring the register its own lane is waiting on.
+Nothing in the repo guards it, and the failure is silent in both directions:
+the issue closes without a fix, and the PR that closed it says nothing about
+having done so.
+
+**My own first write-up of this got it wrong in exactly the instructive way** —
+I put the keyword in §D's prose, because that is where I had read the sentence,
+and both documents contain a variant of it. The published correction is on
+#723. A wrong diagnosis here is worse than none: it aims the fix at the file
+instead of at the workflow.
