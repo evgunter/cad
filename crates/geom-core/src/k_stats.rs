@@ -60,15 +60,10 @@
 //! UNRESOLVED — left open deliberately at merge (Evan, 2026-08-16), not
 //! overlooked.** The nesting bug itself is not blocked on that choice
 //! and can be fixed directly. Do not add call sites that deepen the
-//! dependency on the current shape. **The `classify` consolidation was
-//! measured against this fence and clears it in the permitted
-//! direction**: the per-decision `VERDICTS` push went from three sites
-//! to one. That is the funnel's share and not the remedy's blast
-//! radius — [`start_verdict_log`] and [`take_verdict_log`] also touch
-//! the thread-local, and either named remedy (verdicts as a returned
-//! value, or an RAII bracket) has to change those two and their callers
-//! as well. The consolidation makes that work smaller by one door pair;
-//! it does not make it small.
+//! dependency on the current shape. [`start_verdict_log`] and
+//! [`take_verdict_log`] also touch the thread-local, and either named
+//! remedy (verdicts as a returned value, or an RAII bracket) has to
+//! change those two and their callers as well.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
@@ -217,22 +212,7 @@ pub fn decide<T: Decide>(
 /// **Standing rule (the debt lane is tracked as issue #214): no new
 /// `decide_flagged` site ships without a ledger row in
 /// `docs/predicate-dimension-audit.md`.** Two assertions in
-/// `flagged_census.rs` carry it over `crates/*/src`, and **only one of
-/// them computes anything**:
-///
-/// - **Self-enforcing:** every site's `ledger_row` must name a row the
-///   audit actually has. The rows are read out of the document at run
-///   time, so a citation to a row that was renumbered or never existed
-///   fails without anyone remembering to look.
-/// - **Hand-synced, and it is the residue:** the site COUNT is compared
-///   against a literal in the test, which is kept level with the audit's
-///   prose by hand. Nothing derives it. That is the *magic count* §S13
-///   names, unfixed; it is stated at the constant rather than covered
-///   over here.
-///
-/// The scan's own pattern says what it cannot see (a renamed import, a
-/// macro-generated call, a block-commented site), because a census whose
-/// blind spot is unstated reads as coverage it does not have. Fixtures
+/// `flagged_census.rs` carry it over `crates/*/src`. Fixtures
 /// and demos are outside the scan and cite a prose reason rather than a
 /// row.
 ///

@@ -538,14 +538,9 @@ pub fn loft_contains(lofted: &Lofted<f64>, q: Point3<f64>) -> SolidContainment {
 // TWO indexes over one set of level rings, deliberately. `LevelIndex`
 // subsumes `loft_contains` — a monotone height has exactly one root —
 // and the corpus's sixteen loft rows could be moved onto it. They are
-// not, in this change: those rows are a merged unit's verification and
-// re-deciding them is a separate act from adding the rows that had no
-// oracle at all. What retires the first index is a pass that moves
-// those rows and re-measures them, and until then the two live in one
-// file so the comparison is a screen apart rather than a file apart.
-// The turning-path rows below assert that index 1 could NOT have run
-// on their fixtures, against the constant index 1 guards with, so the
-// two cannot silently converge either.
+// not. The turning-path rows below assert that index 1 could NOT have
+// run on their fixtures, against the constant index 1 guards with, so
+// the two cannot silently converge either.
 
 /// Level planes sampled along `v`. Two things have to be bought with
 /// this number, and only one of them is argued:

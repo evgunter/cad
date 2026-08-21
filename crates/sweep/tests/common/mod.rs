@@ -16,10 +16,9 @@
 //! A helper one suite uses stays in that suite.
 //!
 //! Section authoring (LIB-U3): loft/sweep sections in the profile
-//! vocabulary, one copy per crate — this half collapses the formerly
-//! byte-identical per-file `quad()`/`chain()` clones. Cross-crate
-//! constant deduplication (the 1/16-offset table relation) is LIB-U6's
-//! territory, deliberately not built here.
+//! vocabulary, one copy per crate. Cross-crate constant deduplication
+//! (the 1/16-offset table relation) is LIB-U6's territory,
+//! deliberately not built here.
 
 #![allow(dead_code)]
 

@@ -39,12 +39,7 @@
 //!
 //! `retired_while_idx`, `retired_last_dedup`, `retired_last_mut` and
 //! `retired_c1_gate` are the deleted scans, copied here on purpose:
-//! S36's reviewer-suite independence exemption. S18's own postmortem
-//! records what that licence costs when nobody writes down when it ends
-//! — *"a deliberate independence exemption needs an expiry — the suites
-//! were never combed back, so a temporary licence became four permanent
-//! copies"* — and this file exists to close a row of that same finding,
-//! so it states its own.
+//! S36's reviewer-suite independence exemption.
 //!
 //! **Retire them when the replaced scans are no longer live anywhere in
 //! the tree's history a bisect would reach** — concretely, once no

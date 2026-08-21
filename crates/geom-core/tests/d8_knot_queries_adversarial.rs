@@ -124,8 +124,8 @@ fn retired_linear_span(knots: &[f64], u: f64) -> usize {
 }
 
 /// `geom-brep/src/props/quad.rs`'s `raw_span`, reproduced: the other
-/// raw-slice span search live in the tree on the merge base. Evidence
-/// for a census note, not a gate on this PR's code.
+/// raw-slice span search live in the tree. Evidence for a census note,
+/// not a gate.
 fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
     let last = count.saturating_sub(1).max(degree);
     let mut span = degree;
@@ -590,7 +590,7 @@ fn check_span(name: &str, kv: &KnotVector) {
                 "{name}: below the domain (or NaN) the retired scan returns its initialiser"
             );
         }
-        // Evidence, not a gate on this PR: `quad.rs`'s raw-slice span
+        // Evidence, not a gate: `quad.rs`'s raw-slice span
         // search is the same function as `find_span` on a valid clamped
         // vector, at every probe including the totality exits.
         assert_eq!(
@@ -905,8 +905,6 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
                 ],
             ),
         ];
-        // The decomposition the extras are allowed to produce, derived
-        // from the contract rather than from the implementation: the
         for (ename, extra) in &extras {
             let out = surface_curve_residual(&s, &pd, &cd, extra).unwrap_or_else(|e| {
                 panic!("{dname}/{ename}: the entry point refused a legal call: {e:?}")

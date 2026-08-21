@@ -63,9 +63,7 @@
 //! - **Expired, and recorded as having expired:** `crates/geom-brep/src/`
 //!   was held by an in-flight lane (#639) that the S5 sector unit was
 //!   told not to collide with. #639 has since landed, so that reason is
-//!   spent and carries no weight here any more. It is left in the list
-//!   rather than deleted because a placement argument that quietly
-//!   drops its weakest premise reads stronger than it was.
+//!   spent and carries no weight here any more.
 //!
 //! **Re-open trigger — FIRED, and it resolves the other way.** The
 //! `sector_face` twins are now unified as [`crate::sector_face`], the
@@ -276,17 +274,11 @@ pub(crate) fn sector_shape<T: Decide>(
 /// The diagnostic for a definite verdict this predicate does not admit
 /// — spelled identically in both lanes before the merge.
 ///
-/// **This is a THIRD byte-identical copy in `topo/src`**, and naming
-/// that is the point of this comment. `census.rs:377` and
-/// `boolean/contain.rs:155` already carry the same four-line body;
-/// `boolean/sectors.rs`'s `invalid_escalation` is a fourth spelling
-/// that wraps the same value into `BooleanError`; and roughly sixty
-/// further sites across four crates construct `Indeterminate {
-/// margin: MarginDiag::Invalid, .. }` inline. The home is
-/// `impl Indeterminate` in `geom-core/src/predicate.rs:724`. Unifying
-/// it is a public-API addition plus a four-crate sweep — deliberately
-/// not folded into the S5 sector unit, and recorded here so the next
-/// pass finds the home rather than the method (smell scan C12).
+/// The home is `impl Indeterminate` in
+/// `geom-core/src/predicate.rs:724`. Unifying it is a public-API
+/// addition plus a four-crate sweep — deliberately not folded into the
+/// S5 sector unit, and recorded here so the next pass finds the home
+/// rather than the method (smell scan C12).
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
     Indeterminate {
         margin: MarginDiag::Invalid,
@@ -498,8 +490,7 @@ mod tests {
         let pooled = [SECTOR_ARM, SECTOR_REFLEX, SECTOR_STRAIGHT];
         // The retired six, each WITH its surrounding quotes — assembled
         // rather than spelled, so this file is subject to the check like
-        // any other. (Writing them out here would make this comment the
-        // guard's own first counter-example, which it briefly was.)
+        // any other.
         let retired: Vec<String> = ["bool", "split"]
             .iter()
             .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))

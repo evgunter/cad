@@ -58,8 +58,8 @@ pub enum ProgramTarget {
 ///
 /// It is a second spelling of a vocabulary `profile` declares once,
 /// and it has to be: a step here carries `Expr`s and serializes, and
-/// G1 layering keeps both out of the kernel crate. What holds the two
-/// in step is not this comment — [`LoopProgram::from_recorded`] below
+/// G1 layering keeps both out of the kernel crate.
+/// [`LoopProgram::from_recorded`] below
 /// is exhaustive on [`profile::Step`], so a verb the transition table
 /// gains breaks this file at compile, and
 /// `tests/switch_program_vocabulary.rs` is the census that makes it

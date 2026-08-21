@@ -69,8 +69,7 @@ use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 /// `revolve::tube`'s four. It over-catches by the doc comments that
 /// name the funnel, which are prose, not calls; that is the price of
 /// having no false negatives. Stated as the command rather than as a
-/// count or a list of names: both of those have already gone stale
-/// here once each, in opposite directions.
+/// count or a list of names.
 pub(crate) fn decide<T: Decide>(
     name: &'static str,
     margin: Margin<T>,

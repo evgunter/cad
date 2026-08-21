@@ -662,11 +662,8 @@ pub trait Enclosure: Copy {
 /// the smaller trait.
 ///
 /// **This blanket impl means [`Dual`](crate::Dual) is an `Enclosure` too,
-/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].** Said out loud
-/// because the sentence above used to read *"usable by CERTIFICATION
-/// helpers"*, and post-#643 that is the wrong word for this trait:
-/// `Enclosure` is a bracket accessor, and the certification door is
-/// [`CertifiedEnclosure`]. Nothing in `crates/*/src` is
+/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].**
+/// Nothing in `crates/*/src` is
 /// `Enclosure`-bounded today (`spline::hull` moved to
 /// [`CertifiedEnclosure`] at #643), so this is not a live hole — but it
 /// is not gated either: `scripts/gates/bounds-allowlist.sh` greps for

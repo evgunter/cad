@@ -1401,12 +1401,6 @@ mod tests {
             feature / ulp > 1e14,
             "the two populations must be separated by orders of magnitude, not tuning"
         );
-        // HISTORICAL, not re-derivable from this tree: the worst such
-        // entry over the pre-#653 sweep in the PR was 1.4985e-15 m,
-        // 6.7e5 inside eps. Recorded as the upper bound the band was
-        // actually shown to clear, and NOT asserted from — the
-        // population it came from is gone.
-        assert!(1.498_5e-15_f64 < e);
     }
 
     /// The counterexample body: a frustum wedge (`revolve` of a
