@@ -386,11 +386,17 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     Band(BandError),
 }
 
-/// The ratified arc-carrier fillet construction (M5 S2), extracted
-/// verbatim from the raw builder's corner door so the twin and
-/// the PATHS algebra lowering share one code path — the
+/// The ratified arc-carrier fillet construction (M5 S2) — the
 /// [`line_line_fillet_trims`] pattern, applied to the offset-carrier
 /// corner.
+///
+/// **One consumer, `path::arc_fillet`'s lowering.** The body was
+/// extracted verbatim from the raw builder's corner door back when
+/// there were two, so that the twin and the PATHS algebra lowering
+/// could not drift apart; the raw builder is gone and the twin with it,
+/// and what the extraction still buys is that the surviving lowering
+/// calls the ratified construction rather than carrying a second copy
+/// of it.
 ///
 /// Runs the arm gate, the turn gate, the offset-carrier intersection and
 /// the per-candidate reach/fit pass, in exactly the shipped order and
