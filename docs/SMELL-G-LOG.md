@@ -470,6 +470,45 @@ longer supports*, invisible until someone stood in an environment the author
 did not have. It is local tooling and not a smell-scan row, so it is recorded
 here and nowhere else.
 
+### The container was reclaimed with five agents live, and one had 7 files uncommitted
+
+**2026-08-21.** The container restarted (`uptime` = 1 min) with **five agents
+running**: lane G-f implementing G7, lane G-d's fix pass, lane G-g's fix pass,
+and three reviewers (two on #833, one on #837). **All five died. The three
+reviewers had produced no output and their work is simply gone.**
+
+**What survived, and why.** Everything pushed. Every lane clone under
+`~/.local/share/cad-work/` — those are on a persistent volume, which is the
+whole reason `memories/agent-lane-operations.md` forbids putting a working clone
+in the session scratchpad. Four of five lanes were clean and fully pushed.
+
+**Lane G-g was not**: **7 modified files, uncommitted**, a substantial fix pass
+including the restored `#NNN` protocol template, the `geom-brep` removal, ~154
+new lines of shared comment-test home in `fixtures.rs`, and ~90 in the
+sign-invariance pin. **Recovered by the orchestrator** and pushed as `a63b05df`
+with an explicit `RECOVERY` message stating it is **UNVERIFIED** — never
+compiled, never tested, never checked against its brief — so a successor audits
+it rather than inheriting it as finished work. (The committed pre-push fmt hook
+rejected the first attempt, correctly, and was satisfied rather than bypassed.)
+
+**The lesson is one the standing header already carries and this proves the cost
+of:** *commit and push at every seam.* G-g committed nothing for the whole pass
+and came within one non-persistent directory of losing all of it. The successor
+briefs now say so **with this incident named**, because an abstract rule did not
+produce the behaviour and a concrete loss might.
+
+**What the orchestrator got right by accident and should do on purpose:** the
+diagnosis started from `uptime` and per-lane `git status`/`@{u}..HEAD` rather
+than from assuming, which is what separated *four lanes fine* from *one lane
+nearly lost*. **On any suspected restart, that sweep comes first** — before
+re-dispatching anything, because a re-dispatch into a dirty clone would have
+silently destroyed the recovery.
+
+**And a dispatch change that outlives this incident:** the two lost implementer
+assignments had been delivered **only as messages** to agents that then died, so
+they died too. Briefs now go to **files** under `~/.local/share/cad-work/`, and
+the message points at the path. A message is not a durable channel.
+
 ### Reviewers were pointed at the orchestrator's own checkout, and one left it detached
 
 **2026-08-20, and the cause is a brief I wrote five times.** Every wave-1 and
