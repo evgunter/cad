@@ -9953,7 +9953,7 @@ roster rows disclosing the blind spot.
 
 ## S176. `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which
 
-**Found by lane G-e** closing S104; **filed as an issue** rather than
+**Found by lane G-e** closing S104; **filed as issue #855** rather than
 fixed, because the fix is `topo`'s. Sharpened by the adversarial
 review, which added the half that matters.
 
