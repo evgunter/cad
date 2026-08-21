@@ -274,7 +274,6 @@ complete; wave 2 is the live one.
 | lane | row | scope | review |
 |---|---|---|---|
 | **G-d** | **G10** (S112, re-scoped by **G-R2**) and **G5/S71** — **both in #831**, open, G5 with its fix pass. **G10's row does NOT leave §D on this PR**: its ledger says three members are open and two are tracked nowhere else (see the G-R2 amendment above) | `profile/src/sugar.rs` (S112(f)), `crates/pncad/src/lib.rs` (S112(g)), plus the eight-member ledger at S112 | style |
-| **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
 
 **Lane-name collision, flagged not resolved.** G8's lane was dispatched as
 **G-g**, which is also this roster's name for G9's lane. Names are the
@@ -454,6 +453,36 @@ the `--bin demo-tour` unit tests are deliberately not, and **S129 stays open**
 until #782 decides them.
 
 ## Incidents
+
+### The Python suite silently exempts every lane on this track
+
+**2026-08-21, lane G-e, found by CI rather than by the lane.**
+`crates/pncad-py/run-python-tests.sh` builds the extension module and then
+looks for the cdylib at a **hard-coded** `$root/target/debug/libpncad_py.so`.
+Every lane on this track exports its own `CARGO_TARGET_DIR` — the standing
+header requires it — so the artifact is never at that path and the script
+exits `no cdylib at …` **before running a single test**.
+
+**It fails loudly and is still a silent exemption**, which is the whole point:
+the message reads as an environment problem, the natural response is to move
+on, and the lane then verifies its Rust and believes it has verified its
+bindings. G-e did exactly that. **CI caught what the lane could have**:
+`test_import_of_garbage_is_a_typed_refusal` pinned `variant == "refused"` — the
+literal #833 replaced — so the row went red on the hosted matrix after the lane
+had run every Rust suite green. Staged by hand, the suite runs in ~20 s and
+**168 rows pass**; the cost of the exemption is that nobody pays those 20 s.
+
+**Not fixed here, deliberately.** The fix is one line — honour
+`CARGO_TARGET_DIR` when it is set, as `with-build-slot.sh` callers all do — but
+the file is under `crates/`, and #833 was green and holding Evan's
+merge-without-a-second-CI-run allowance on a ledger-only conflict. Spending
+that allowance on a tooling one-liner is the wrong trade; the one-liner is
+owed by whoever next opens `pncad-py`, and this row is the work order.
+
+**The general shape, which is this track's own subject one level out:** a
+*"run the suite"* door that cannot run in the environment the standing header
+mandates is a claim the mechanism no longer supports — the `new-lane.sh`
+incident above, in a different file, four weeks later.
 
 ### `new-lane.sh` could not create a lane in this container
 
