@@ -92,12 +92,10 @@ fn sub_arc2(c: &NurbsCurve2<f64>, frac: (f64, f64)) -> Option<NurbsCurve2<f64>> 
 /// A genuinely certified `Pcurve::Fitted` cache (the first quarter of
 /// the traced loop), or `None` on the SSI fit-budget stand-down.
 ///
-/// **No memo, and that is the point.** This used to be wrapped in a
-/// `OnceLock` so "both arms share it" — a claim that was true only
-/// under a same-process runner. nextest is process-per-test, so the
-/// memo shared nothing and each arm paid the whole ~3 s trace. The
-/// two arms are now ONE test (below), so there is exactly one caller
-/// and a memo would be dead weight that reads as if it worked.
+/// **No memo, deliberately.** There is exactly one caller (the single
+/// test below), and under nextest's process-per-test isolation a
+/// `OnceLock` would share nothing across tests anyway — it would be
+/// dead weight that reads as if it worked.
 fn build_fitted_cache() -> Option<PcurveCache<f64>> {
     let slab = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -225,16 +223,11 @@ fn cached_half_edge_on(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -
 ///
 /// # One trace, both arms
 ///
-/// These were two tests until the test-cost audit, and the file's own
-/// note above already said what that cost: nextest runs one process per
-/// test, so the `OnceLock` shared nothing and EACH arm paid the whole
-/// cylinder×sphere trace (~3 s) for ~10 ms of tessellation work — a
-/// dated reading from the test-cost audit that nothing re-measures, and
-/// nothing needs to: it justified a merge that has already happened, and
-/// no assertion below reads it. The
-/// cache is a value, immutable, and each arm attaches its own clone to
-/// its OWN host body, so nothing crosses between them but the cache
-/// itself — which is exactly what the memo was trying to say.
+/// One test, not two: nextest runs one process per test, so a
+/// `OnceLock` would share nothing and each arm would re-pay the whole
+/// cylinder×sphere trace for a little tessellation work. The cache is a
+/// value, immutable, and each arm attaches its own clone to its OWN
+/// host body, so nothing crosses between them but the cache itself.
 ///
 /// What the split bought and a merged row cannot is failure ISOLATION:
 /// the chord pass and the trim walk are two independent failure modes

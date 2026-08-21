@@ -55,18 +55,13 @@
 //! the build. `live::arm` and `live::take` below are the armed half's,
 //! and a default build does not have them to link against.
 //!
-//! **Why the module is `pub` in both configurations, since the
-//! opposite was once argued here.** It used to be `pub(crate)` without
-//! the feature, on the reasoning that `pub` "would leave a permanently
-//! visible surface on the kernel crate whose only consumer is a
-//! diagnostic". That reasoning is answered rather than dropped: the
-//! surface is now two plain-data structs and two `const fn`s that
-//! answer "not in this build", and it is visible **because it is the
-//! contract** — `tools/tess-meter` reads [`FaceMeasure`] to derive
-//! every column of the budget CSV, and it must do so without the
-//! instrument compiled in or depending on it would turn the meter on
-//! for everything that depends on IT. The old objection was to
-//! exporting an *instrument*; what is exported is a *record type*.
+//! **The module is `pub` in both configurations because it is the
+//! contract**, not an instrument: `tools/tess-meter` reads
+//! [`FaceMeasure`] to derive every column of the budget CSV, and it
+//! must do so without the instrument compiled in — depending on it
+//! would turn the meter on for everything that depends on IT. What is
+//! exported unarmed is two plain-data structs and two `const fn`s that
+//! answer "not in this build".
 //!
 //! Armed, nothing here runs in a normal tessellation: arming is
 //! thread-local (tessellation runs on the calling thread, so armed

@@ -12,15 +12,11 @@
 //! so it is CHECKED here rather than assumed —
 //! [`TessellateError::UnsupportedCurvedDomain`], S28.
 //!
-//! The check is BANDED, in metres, not exact. It had to be: an iso
-//! side carried by more than one edge used to be only *analytically*
-//! straight, because each sub-edge derived the side's constant
-//! coordinate from its own carrier point (issue #653). Exactness there
-//! was a claim, it was false, and it false-refused valid parts. #653's
-//! option 2 then made the claim true at the source
-//! (`walk::iso_side_starts`), so the band separates nothing in tree any
-//! more and is kept as a backstop with a synthetic witness — the whole
-//! argument is at `entries_off_bbox`.
+//! The check is BANDED, in metres, not exact. `walk::iso_side_starts`
+//! makes an iso side carried by several edges exactly straight at the
+//! source, so the band separates nothing in tree and is kept as a
+//! backstop with a synthetic witness (#653; the argument is at
+//! `entries_off_bbox`).
 //!
 //! Boundary polyline segments are inserted as CDT **constraints**, so
 //! the triangulation conforms to the shared chord segments in both
@@ -346,9 +342,8 @@ pub(crate) fn tessellate_curved(
 /// own lever arms ([`Chart::radial`] for u — the point's distance from
 /// the axis — and [`Chart::v_lever`] for v), against the run's `eps`,
 /// by calling [`crate::walk::gap_is_noise`] — the crate's ONE ε band,
-/// which the walk's three detectors also call. It used to be spelled
-/// out again here; two spellings of one predicate is how the two halves
-/// of a rule drift apart. The band admits ulp wobble on a straight side
+/// which the walk's three detectors also call — one spelling, so the
+/// two halves of the rule cannot drift. The band admits ulp wobble on a straight side
 /// and nothing else: a genuine re-entrant corner (a keyway, a milled
 /// flat) is a FEATURE width off the box, six or more orders of
 /// magnitude outside ε.
@@ -1386,15 +1381,6 @@ mod tests {
     /// placed on the ε scale and not on either population's scale, so a
     /// future ε change is visible here rather than silently
     /// re-classifying parts.
-    ///
-    /// **On the number that used to be here.** This row read
-    /// `wobble = 1.4985e-15`, the worst entry over the PR's 1524-row
-    /// split × placement sweep. That sweep is not in the tree and its
-    /// population no longer exists — #653 eliminated it — so the
-    /// constant could not be re-derived by anyone reading this, which
-    /// is §C13's `face_box` shape exactly. It is kept below only as a
-    /// labelled historical upper bound, and the live half of the
-    /// argument is an ulp the row computes for itself.
     #[test]
     fn the_band_separates_a_feature_from_an_ulp_by_orders_of_magnitude() {
         let e = eps();

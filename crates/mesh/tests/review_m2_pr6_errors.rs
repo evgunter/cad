@@ -43,15 +43,10 @@ fn survives_delta_fine_but_sane_still_tessellates() {
     // δ small but with counts far below 2^24 must succeed (the cap is
     // a sanity bound, not a usability cliff). NOTE (perf, measured in
     // review): tessellation time scales ≈ quadratically in point count
-    // (spade insertion path) — washer at 1e-4/3e-6/1e-6 takes
-    // 19ms/386ms/1.2s release; δ ≈ 1e-9 (n ≈ 2e5 per rim, well under
-    // the cap) ran > 11 CPU-minutes without completing. The 2^24 cap
-    // bounds allocation, not wall-clock. Those three timings are a
-    // one-time release-build reading with nothing re-taking them; they
-    // can have no guard because the assertion below is about REFUSAL vs
-    // SUCCESS, not about duration, and a timing asserted in the suite
-    // would be box-dependent. The δ this row passes is chosen for the
-    // point-count regime, which the numbers only illustrate.
+    // (spade insertion path): wall-clock grows far faster than the
+    // point count, and a δ well under the cap can fail to complete at
+    // all. The 2^24 cap bounds allocation, not wall-clock. The δ this
+    // row passes is chosen for the point-count regime.
     let body = washer();
     let mesh = tessellate(&body, 1e-6);
     assert!(mesh.is_ok(), "fine-but-sane delta refused");
