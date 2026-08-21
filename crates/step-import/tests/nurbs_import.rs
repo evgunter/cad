@@ -261,7 +261,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
         Tol::witness(),
     )
     .expect("the writer exports the rational-walled body");
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(step_import::StepImport::Solid { body, .. }) => {
             assert!(
                 certified,
@@ -310,7 +310,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // the same already-paid quadrature.
             let reordered = reverse_data_section(&text);
             assert_ne!(reordered, text, "the DATA section really was reordered");
-            let again = match import_step(&reordered, &ImportOptions::default()) {
+            let again = match import_step(&reordered, &ImportOptions::default(), Tol::witness()) {
                 Ok(step_import::StepImport::Solid { body: again, .. }) => again,
                 other => panic!(
                     "reversed-DATA: the reader's fixed point must not depend on entity \
@@ -459,7 +459,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     );
     assert_ne!(text, orig, "the reparameterization applied");
     let step_import::StepImport::Solid { body, .. } =
-        import_step(&text, &ImportOptions::default()).expect("the reparameterized wall imports")
+        import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the reparameterized wall imports")
     else {
         panic!("loft_prism is a solid");
     };

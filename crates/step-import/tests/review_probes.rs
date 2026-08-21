@@ -9,7 +9,7 @@ use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 fn import_text(text: &str) -> Result<StepImport, StepImportError> {
-    import_step(text, &ImportOptions::default())
+    import_step(text, &ImportOptions::default(), Tol::witness())
 }
 
 fn solid(text: &str, what: &str) -> topo::Body<f64> {
@@ -25,7 +25,7 @@ fn solid(text: &str, what: &str) -> topo::Body<f64> {
     } else {
         ImportOptions::default()
     };
-    match import_step(text, &options).unwrap_or_else(|e| panic!("{what}: {e}")) {
+    match import_step(text, &options, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}")) {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }
@@ -550,6 +550,7 @@ fn h8_eps_in_not_consumed() {
                 eps_in: Some(eps),
                 ..ImportOptions::default()
             },
+            Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
         let StepImport::Solid { body, eps_in, .. } = import else {

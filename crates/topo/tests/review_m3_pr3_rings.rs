@@ -127,7 +127,7 @@ fn two_hole_box_split_between_rehomes_both_ways() {
     assert_eq!(validate_closed(&body), Ok(()));
     let rings = |b: &Body<f64>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
     assert_eq!(rings(&body), 4, "top and bottom carry two rings each");
-    let r = split(&body, &plane_x(3.0)).unwrap();
+    let r = split(&body, &plane_x(3.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -153,9 +153,9 @@ fn two_hole_box_split_between_rehomes_both_ways() {
 #[test]
 fn split_through_hole_two_section_polygons() {
     let body = holed_box::<f64>(6.0, &[1.0, 5.0]);
-    let s = topo::plane_section(&body, &plane_x::<f64>(1.0)).unwrap();
+    let s = topo::plane_section(&body, &plane_x::<f64>(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 2, "channel splits the section in two");
-    let r = split(&body, &plane_x(1.0)).unwrap();
+    let r = split(&body, &plane_x(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));

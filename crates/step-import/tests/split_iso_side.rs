@@ -52,7 +52,7 @@ type Rows = Vec<(usize, Result<(), String>)>;
 /// Imports one fixture and tessellates it at two δ, returning the
 /// triangle count and the validator's verdict for each.
 fn meshed(name: &str) -> Rows {
-    let imported = import_step(&fixture(name), &ImportOptions::default())
+    let imported = import_step(&fixture(name), &ImportOptions::default(), Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must import: {e:?}"));
     let StepImport::Solid { body, .. } = imported else {
         panic!("{name} must import as a solid");

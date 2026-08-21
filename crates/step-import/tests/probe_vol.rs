@@ -41,7 +41,7 @@ fn measured_relative_volume_agreement() {
         // fixtures that reached a volume and holds those to the same
         // budget: a real assertion at every ε, rather than either a
         // failure on a documented refusal or a green tick for nothing.
-        let body = match import_step(&text, &ImportOptions::default()) {
+        let body = match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => body,
             Ok(other) => panic!("{name}: a solid, got {other:?}"),
             Err(e) => {

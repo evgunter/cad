@@ -58,7 +58,7 @@ fn cross_volume() -> f64 {
 #[test]
 fn rect_the_control_still_measures_exactly() {
     let Ok(StepImport::Solid { body, .. }) =
-        import_step(&fixture("rect.step"), &ImportOptions::default())
+        import_step(&fixture("rect.step"), &ImportOptions::default(), Tol::witness())
     else {
         panic!("rect.step (the CONTROL) must still import as a solid");
     };
@@ -79,7 +79,7 @@ fn rect_the_control_still_measures_exactly() {
 /// merely moving the refusal) fails this row.
 #[test]
 fn cross_the_649_fixture_refuses_at_import() {
-    let err = match import_step(&fixture("cross.step"), &ImportOptions::default()) {
+    let err = match import_step(&fixture("cross.step"), &ImportOptions::default(), Tol::witness()) {
         Err(e) => e.to_string(),
         Ok(other) => {
             panic!("cross.step imported ({other:?}) — #649's 19%-low certified volume is back")
@@ -98,7 +98,7 @@ fn cross_the_649_fixture_refuses_at_import() {
 #[test]
 fn tee_the_one_sided_variant_still_refuses() {
     assert!(
-        import_step(&fixture("tee.step"), &ImportOptions::default()).is_err(),
+        import_step(&fixture("tee.step"), &ImportOptions::default(), Tol::witness()).is_err(),
         "tee.step must stay refused"
     );
 }
@@ -111,7 +111,7 @@ fn tee_the_one_sided_variant_still_refuses() {
 #[test]
 fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     let Ok(StepImport::Solid { mut body, .. }) =
-        import_step(&fixture("xsplit.step"), &ImportOptions::default())
+        import_step(&fixture("xsplit.step"), &ImportOptions::default(), Tol::witness())
     else {
         panic!("xsplit.step (rectangular sub-faces) must import as a solid");
     };

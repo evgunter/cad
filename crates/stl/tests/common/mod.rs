@@ -122,7 +122,7 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
         origin: Point3::new(0.0, 0.0, 1.25),
         normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };

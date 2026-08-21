@@ -16,7 +16,7 @@ fn box_step() -> String {
 }
 
 fn report(tag: &str, text: &str) {
-    match import_step(text, &ImportOptions::default()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "{tag}: SOLID census (solids,shells,faces,edges,verts)={:?} tier3={:?}",

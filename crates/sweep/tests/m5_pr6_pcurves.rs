@@ -71,7 +71,7 @@ fn tilted_cut() -> (Body<f64>, Body<f64>) {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(a), SplitPart::Body(b)) = (result.above, result.below) else {
         panic!("both sides carry material");
     };
@@ -244,7 +244,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::unit_z(),
     };
-    let result = split(&prism, &plane).unwrap();
+    let result = split(&prism, &plane, Tol::witness()).unwrap();
     for part in [result.above.body(), result.below.body()]
         .into_iter()
         .flatten()
@@ -497,7 +497,7 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
         origin: Point3::new(0.0, 0.3, 0.0),
         normal: Vec3::new(phi.sin(), phi.cos(), 0.0),
     };
-    match split(&tube, &plane) {
+    match split(&tube, &plane, Tol::witness()) {
         Ok(result) => {
             let band = Band::linear(Tol::witness()).unwrap();
             for part in [result.above.body(), result.below.body()]
@@ -540,7 +540,7 @@ fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::new(phi.sin() * rot.cos(), phi.sin() * rot.sin(), phi.cos()),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let band = Band::linear(Tol::witness()).unwrap();
     let mut caches = 0usize;
     for part in [result.above.body(), result.below.body()]

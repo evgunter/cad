@@ -113,7 +113,7 @@ fn both_sided_pinch_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
         let fx = prism::<T>(profile, 1.0);
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
-        match split(&fx.body, &plane_y::<T>(1.0, 1.0)) {
+        match split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()) {
             Ok(r) => {
                 assert!(must_succeed, "BOTH_SIDED unexpectedly split — re-examine");
                 let (va, vb) = (
@@ -157,8 +157,8 @@ fn r1_both_sided_pinch_f64() {
 fn mirror_identity_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0);
-        let rp = split(&fx.body, &plane_y::<T>(1.0, 1.0)).unwrap();
-        let rn = split(&fx.body, &plane_y::<T>(1.0, -1.0)).unwrap();
+        let rp = split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()).unwrap();
+        let rn = split(&fx.body, &plane_y::<T>(1.0, -1.0), Tol::witness()).unwrap();
         // swap(split(S,−n)): its BELOW is our ABOVE.
         let pairs = [
             (body_of(&rp.above), body_of(&rn.below), "above"),

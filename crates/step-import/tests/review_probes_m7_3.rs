@@ -17,7 +17,7 @@ use profile::RawLoop;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn import(text: &str) -> Result<StepImport, step_import::StepImportError> {
-    import_step(text, &ImportOptions::default())
+    import_step(text, &ImportOptions::default(), Tol::witness())
 }
 
 fn solid(text: &str, who: &str) -> topo::Body<f64> {

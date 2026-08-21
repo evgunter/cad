@@ -61,7 +61,7 @@ fn the_tangent_graze_resolves_past_first_order() {
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
     start_verdict_log();
-    let out = split(&body, &plane);
+    let out = split(&body, &plane, Tol::witness());
     let v = take_verdict_log();
     // The second-order lane ran, by name (telemetry from birth).
     for name in [
@@ -107,7 +107,7 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     if let Err(topo::splitting::SplitError::Reduce(
         e @ (SplitReduceError::TangencyUnsupported { .. }
         | SplitReduceError::ConsecutiveOnSectors { .. }),
-    )) = split(&body, &plane)
+    )) = split(&body, &plane, Tol::witness())
     {
         panic!("second order owns the graze: {e}")
     }

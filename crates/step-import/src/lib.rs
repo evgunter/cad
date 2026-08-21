@@ -610,7 +610,7 @@ impl StepImport {
 /// refuses ([`StepImportError::TierInvalid`]). Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
-pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, StepImportError> {
+pub fn import_step(text: &str, options: &ImportOptions, tol: Tol) -> Result<StepImport, StepImportError> {
     if let Some(eps) = options.eps_in
         && !(eps.is_finite() && eps > 0.0)
     {
@@ -653,13 +653,13 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             let mut record = Vec::with_capacity(model.instances.len());
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let one = assemble::build_one_solid(spec, Tol::witness())?;
+                let one = assemble::build_one_solid(spec, tol)?;
                 let one = match instance.placed {
                     Some(entities::Placed {
                         map: Some(map),
                         transform,
                         ..
-                    }) => topo::transform_rigid(&one, &map, Tol::witness())
+                    }) => topo::transform_rigid(&one, &map, tol)
                         .map_err(|source| StepImportError::Placement { transform, source })?,
                     _ => one,
                 };
@@ -669,9 +669,9 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                 // subjects are the same body, so this call is skipped
                 // as an identity, never as an exemption.
                 if model.instances.len() > 1 {
-                    gate(&one, Some(spec.id))?;
+                    gate(&one, Some(spec.id), tol)?;
                 }
-                topo::graft_disjoint(&mut body, &one, Tol::witness()).map_err(|source| {
+                topo::graft_disjoint(&mut body, &one, tol).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,
                         source: Box::new(source),
@@ -748,7 +748,7 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             // aggregate-body fact, and the aggregate census sweeps
             // every entity of every instance.
             let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
-            gate3(&body, &records)?;
+            gate3(&body, &records, tol)?;
             Ok(StepImport::Solid {
                 body,
                 eps_in,
@@ -773,16 +773,16 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
 /// validation logic that could drift from the kernel's (D9 engineering
 /// convention 2). If this function ever grows a condition, the gate has
 /// grown an opinion.
-fn gate(body: &topo::Body<f64>, solid: Option<u64>) -> Result<(), StepImportError> {
-    topo::validate_geometric(body, Tol::witness())
+fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), StepImportError> {
+    topo::validate_geometric(body, tol)
         .map_err(|errors| StepImportError::TierInvalid { solid, errors })
 }
 
 /// The aggregate subject's gate: the tier-3′ form over the resolved
 /// declaration records — the same function a native declared-contact
 /// body's caller runs, with the same no-opinion contract as [`gate`].
-fn gate3(body: &topo::Body<f64>, records: &topo::ContactRecords) -> Result<(), StepImportError> {
-    topo::validate_pseudomanifold(body, records, Tol::witness()).map_err(|errors| {
+fn gate3(body: &topo::Body<f64>, records: &topo::ContactRecords, tol: Tol) -> Result<(), StepImportError> {
+    topo::validate_pseudomanifold(body, records, tol).map_err(|errors| {
         StepImportError::TierInvalid {
             solid: None,
             errors,

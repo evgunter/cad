@@ -58,7 +58,7 @@ fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64
     } else {
         ImportOptions::default()
     };
-    match import_step(text, &options) {
+    match import_step(text, &options, Tol::witness()) {
         Ok(StepImport::Solid {
             body,
             normalizations,
@@ -241,7 +241,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     .expect("the offset square prism exports");
 
     // ---- The half that WORKS: the body is first-class at rest. ----
-    let own = import_step(&text, &ImportOptions::default()).expect("our own dialect imports");
+    let own = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("our own dialect imports");
     let StepImport::Solid {
         body: own_body,
         normalizations,
@@ -282,7 +282,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
         "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0000000000000002));",
     );
     assert_ne!(text, foreign, "the foreign restatement applied");
-    match import_step(&foreign, &ImportOptions::default()) {
+    match import_step(&foreign, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             assert!(
                 eps >= 1e-9,
@@ -395,7 +395,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     .expect("the arc prism exports");
     let eps = geom_core::Tol::witness().get().eps;
 
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         // **First-class, end to end.** The three exactly-planar walls
         // promote, the arc wall stays NURBS under the honest envelope,
         // the seam between them certifies through the declare-and-check
@@ -532,7 +532,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     assert_ne!(text, doctored, "the falsifier applied");
 
     let Err(StepImportError::Adoption { id, attempts }) =
-        import_step(&doctored, &ImportOptions::default())
+        import_step(&doctored, &ImportOptions::default(), Tol::witness())
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
     };

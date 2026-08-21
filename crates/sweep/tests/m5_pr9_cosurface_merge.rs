@@ -57,7 +57,7 @@ fn sub_period_wall_pieces_remerge_structurally() {
         origin: Point3::new(0.2, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
-    let parts = split(&body, &plane).expect("the tilted-cut lane splits it");
+    let parts = split(&body, &plane, Tol::witness()).expect("the tilted-cut lane splits it");
     let mut part = parts.below.body().expect("a below part exists").clone();
     assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
     let vol_before = topo::mass_properties(&part, Tol::witness()).unwrap().volume;

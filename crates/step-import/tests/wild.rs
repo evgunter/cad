@@ -165,7 +165,7 @@ fn oracle(name: &str) -> Oracle {
 }
 
 fn solid(name: &str) -> (topo::Body<f64>, f64) {
-    match import_step(&wild(name), &ImportOptions::default()) {
+    match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, eps_in, .. }) => (body, eps_in),
         Ok(StepImport::Wireframe { .. }) => panic!("{name}: a solid was expected"),
         Err(e) => panic!("{name}: {e}"),
@@ -256,7 +256,7 @@ fn assert_sub_tolerance_obligation(row: &str) {
         .iter()
         .chain(WILD_REFUSALS.iter().map(|(n, _)| n))
     {
-        match import_step(&wild(name), &ImportOptions::default()) {
+        match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
                 assert_eq!(
                     topo::validate(&body),
@@ -448,7 +448,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         let first = step_export::step_string(&body, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         let Ok(StepImport::Solid { body: again, .. }) =
-            import_step(&first, &ImportOptions::default())
+            import_step(&first, &ImportOptions::default(), Tol::witness())
         else {
             panic!("{name}: the re-import must be a solid");
         };
@@ -514,7 +514,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
         if name.contains("dm1-id-214") {
             continue;
         }
-        let err = import_step(&wild(name), &ImportOptions::default())
+        let err = import_step(&wild(name), &ImportOptions::default(), Tol::witness())
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.to_string();
@@ -593,7 +593,7 @@ fn the_band_re_mint_reports_its_normalizations() {
     ];
     for (name, expected) in rows {
         let Ok(StepImport::Solid { normalizations, .. }) =
-            import_step(&wild(name), &ImportOptions::default())
+            import_step(&wild(name), &ImportOptions::default(), Tol::witness())
         else {
             panic!("{name}: the band fixture imports first-class since M7-5");
         };
@@ -727,6 +727,7 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
             eps_in: Some(2.5e-7),
             ..ImportOptions::default()
         },
+        Tol::witness(),
     )
     .expect("imports under an override");
     assert_eq!(overridden.eps_in(), 2.5e-7, "the per-call override wins");

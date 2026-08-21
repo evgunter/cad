@@ -223,7 +223,7 @@ fn assert_sub_tolerance_obligation(row: &str) {
     let eps = geom_core::Tol::witness().get().eps;
     let mut refused = Vec::new();
     for name in FREECAD_FIXTURES {
-        match import_step(&freecad_fixture(name), &ImportOptions::default()) {
+        match import_step(&freecad_fixture(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
                 assert_eq!(
                     topo::validate(&body),
@@ -308,7 +308,7 @@ fn sub_tolerance_geometry_is_refused_not_silently_imported() {
 /// Imports a FreeCAD fixture, panicking on refusal.
 fn import_freecad(name: &str) -> StepImport {
     let text = freecad_fixture(name);
-    import_step(&text, &ImportOptions::default())
+    import_step(&text, &ImportOptions::default(), Tol::witness())
         .unwrap_or_else(|e| panic!("importing FreeCAD fixture {name}: {e}"))
 }
 
@@ -483,7 +483,7 @@ fn cross_dialect_fixed_point() {
         let (body1, _, _) = freecad_body(name);
         let export1 = step_export::step_string(&body1, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
-        let reimport = import_step(&export1, &ImportOptions::default())
+        let reimport = import_step(&export1, &ImportOptions::default(), Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-import of our own dialect: {e}"));
         let StepImport::Solid { body: body2, .. } = reimport else {
             panic!("{name}: re-import lost the solid");
@@ -711,7 +711,7 @@ fn face_bound_orientation_is_honored_independently_of_face_sense() {
             "#142 = FACE_BOUND('',#143,.T.);",
         );
     assert_ne!(text, flattened, "box.step must carry reversed bounds");
-    let err = import_step(&flattened, &ImportOptions::default())
+    let err = import_step(&flattened, &ImportOptions::default(), Tol::witness())
         .expect_err("a cube whose reversed bounds are flattened is not a closed shell");
     assert!(
         matches!(err, step_import::StepImportError::Topology { .. }),
@@ -729,7 +729,7 @@ fn face_bound_orientation_is_honored_independently_of_face_sense() {
     // (The owning face #43 is `.F.`; if the bound flag were redundant
     // with it, this edit would be a no-op.)
     assert!(freecad_fixture("cone_apex").contains("#43 = ADVANCED_FACE('',(#44),#47,.F.);"));
-    let err = import_step(&probe, &ImportOptions::default())
+    let err = import_step(&probe, &ImportOptions::default(), Tol::witness())
         .expect_err("reversing one bound un-closes the shell");
     assert!(
         matches!(err, step_import::StepImportError::Topology { .. }),
@@ -800,7 +800,7 @@ fn ambiguous_outerness_refuses_typed() {
     println!("ambiguity probe anchors on: {anchor}");
     let probe = text.replace("(1.,1.,1.)", "(11.,1.,1.)");
     assert_ne!(text, probe, "the bore placement must actually move");
-    let err = import_step(&probe, &ImportOptions::default())
+    let err = import_step(&probe, &ImportOptions::default(), Tol::witness())
         .expect_err("two disjoint rings have no outer bound");
     assert!(
         matches!(err, step_import::StepImportError::Topology { .. }),
@@ -866,7 +866,7 @@ fn refusals_survive_the_dialect_relaxations() {
     // instead — nothing about the carrier changes, and the box that
     // used to refuse here imports with the same census it has when the
     // same edge is stated `.T.`.
-    let stated = import_step(&freecad_fixture("box"), &ImportOptions::default())
+    let stated = import_step(&freecad_fixture("box"), &ImportOptions::default(), Tol::witness())
         .expect("the unmutated box imports");
     // The same edge, stated from its other end: the vertices swap,
     // the sense goes `.F.`, and each of the two `ORIENTED_EDGE`s that
@@ -886,7 +886,7 @@ fn refusals_survive_the_dialect_relaxations() {
         "#106 = ORIENTED_EDGE('',*,*,#21,.T.);",
         "#106 = ORIENTED_EDGE('',*,*,#21,.F.);",
     );
-    let flipped = import_step(&probe, &ImportOptions::default()).expect("a .F. edge now composes");
+    let flipped = import_step(&probe, &ImportOptions::default(), Tol::witness()).expect("a .F. edge now composes");
     let (StepImport::Solid { body: a, .. }, StepImport::Solid { body: b, .. }) =
         (&stated, &flipped)
     else {
@@ -916,7 +916,7 @@ fn refusals_survive_the_dialect_relaxations() {
         "#28 = VECTOR('',#29,2.);",
     );
     let rescaled =
-        import_step(&probe, &ImportOptions::default()).expect("any positive magnitude now imports");
+        import_step(&probe, &ImportOptions::default(), Tol::witness()).expect("any positive magnitude now imports");
     let StepImport::Solid { body: c, .. } = &rescaled else {
         panic!("a solid");
     };
@@ -929,7 +929,7 @@ fn refusals_survive_the_dialect_relaxations() {
             "#28 = VECTOR('',#29,1.);",
             &format!("#28 = VECTOR('',#29,{bad});"),
         );
-        match import_step(&probe, &ImportOptions::default())
+        match import_step(&probe, &ImportOptions::default(), Tol::witness())
             .expect_err("a non-positive magnitude describes no line")
         {
             E::MalformedRecord { id, .. } => assert_eq!(id, 28, "the refusal names the VECTOR"),
@@ -960,7 +960,7 @@ fn refusals_survive_the_dialect_relaxations() {
     let text = freecad_fixture("twobody_importexport");
     assert!(text.contains("#194 = ITEM_DEFINED_TRANSFORMATION('','',#11,#15);"));
     assert!(text.contains("#225 = ITEM_DEFINED_TRANSFORMATION('','',#11,#19);"));
-    let unplaced = import_step(&text, &ImportOptions::default()).expect("identity transforms");
+    let unplaced = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("identity transforms");
     let StepImport::Solid { body: base, .. } = &unplaced else {
         panic!("a solid");
     };
@@ -982,7 +982,7 @@ fn refusals_survive_the_dialect_relaxations() {
             ),
         )
     };
-    let placed = import_step(&both("5."), &ImportOptions::default())
+    let placed = import_step(&both("5."), &ImportOptions::default(), Tol::witness())
         .expect("one rigid placement over all of the file's content applies");
     let StepImport::Solid { body: moved, .. } = &placed else {
         panic!("a solid");
@@ -1015,7 +1015,7 @@ fn refusals_survive_the_dialect_relaxations() {
         "#15 = AXIS2_PLACEMENT_3D('',#9995,#17,#18);\n\
          #9995 = CARTESIAN_POINT('',(5.,0.,0.));",
     );
-    let split = import_step(&one, &ImportOptions::default())
+    let split = import_step(&one, &ImportOptions::default(), Tol::witness())
         .expect("per-component placement materializes per component");
     let StepImport::Solid { body: split, .. } = &split else {
         panic!("a solid");
@@ -1059,7 +1059,7 @@ fn refusals_survive_the_dialect_relaxations() {
             "#19 = AXIS2_PLACEMENT_3D('',#9996,#21,#22);\n\
              #9996 = CARTESIAN_POINT('',(12.,0.,0.));",
         );
-    let instanced = import_step(&two, &ImportOptions::default())
+    let instanced = import_step(&two, &ImportOptions::default(), Tol::witness())
         .expect("two different component frames materialize as two placed solids");
     let StepImport::Solid {
         body: instanced, ..
@@ -1090,7 +1090,7 @@ fn refusals_survive_the_dialect_relaxations() {
         "#194 = ITEM_DEFINED_TRANSFORMATION('','',#11,#15);",
         "#194 = CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',#13,#14,#12,-1.,$);",
     );
-    match import_step(&operator, &ImportOptions::default())
+    match import_step(&operator, &ImportOptions::default(), Tol::witness())
         .expect_err("a mirroring/scaling operator must refuse")
     {
         E::Structure { id, what } => {
@@ -1115,7 +1115,7 @@ fn refusals_survive_the_dialect_relaxations() {
          #9991 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n\
          #9992 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
     );
-    let scaled = import_step(&inch, &ImportOptions::default())
+    let scaled = import_step(&inch, &ImportOptions::default(), Tol::witness())
         .expect("a conversion-based unit resolves from the file's own factor");
     let StepImport::Solid { body: big, .. } = &scaled else {
         panic!("a solid");
@@ -1134,7 +1134,7 @@ fn refusals_survive_the_dialect_relaxations() {
          #9991 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n\
          #9992 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );",
     );
-    match import_step(&bogus, &ImportOptions::default())
+    match import_step(&bogus, &ImportOptions::default(), Tol::witness())
         .expect_err("a length declared over an angle is not a length")
     {
         E::UnsupportedUnit { id, found } => {
@@ -1154,7 +1154,7 @@ fn refusals_survive_the_dialect_relaxations() {
         "#10 = SHAPE_REPRESENTATION('',(#11,#15,#165),#177);",
         "#10 = SHAPE_REPRESENTATION('',(#11,#15),#177);",
     );
-    match import_step(&probe, &ImportOptions::default()).expect_err("an orphan solid must refuse") {
+    match import_step(&probe, &ImportOptions::default(), Tol::witness()).expect_err("an orphan solid must refuse") {
         E::Structure { id, .. } => assert_eq!(id, 165, "the refusal names the orphan solid"),
         other => panic!("expected Structure naming the orphan, got: {other}"),
     }
@@ -1209,7 +1209,7 @@ fn the_assembly_record_retains_the_occurrence_structure() {
         );
 
     let imported =
-        import_step(&probe, &ImportOptions::default()).expect("three occurrences, two components");
+        import_step(&probe, &ImportOptions::default(), Tol::witness()).expect("three occurrences, two components");
     let StepImport::Solid { ref body, .. } = imported else {
         panic!("a solid");
     };
@@ -1252,7 +1252,7 @@ fn the_assembly_record_retains_the_occurrence_structure() {
     // against the UNPLACED import's own per-solid extents, so the
     // record is metered against the geometry rather than against
     // itself.
-    let base = import_step(&text, &ImportOptions::default()).expect("the unplaced import");
+    let base = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the unplaced import");
     let StepImport::Solid { body: base, .. } = &base else {
         panic!("a solid");
     };
@@ -1285,7 +1285,7 @@ fn the_assembly_record_retains_the_occurrence_structure() {
 #[test]
 fn the_assembly_record_covers_a_file_that_places_nothing() {
     let imported =
-        import_step(&freecad_fixture("compound_two"), &ImportOptions::default()).expect("imports");
+        import_step(&freecad_fixture("compound_two"), &ImportOptions::default(), Tol::witness()).expect("imports");
     let StepImport::Solid { ref body, .. } = imported else {
         panic!("a solid");
     };
@@ -1341,6 +1341,7 @@ fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
                 eps_in: Some(2.5e-8),
                 ..ImportOptions::default()
             },
+            Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(

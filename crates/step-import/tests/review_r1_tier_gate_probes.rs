@@ -140,7 +140,7 @@ fn multi_cube(doctors: &[Doctor<'_>]) -> String {
 #[test]
 fn r1_control_single_inverted_cube_refuses_negative_volume() {
     let text = multi_cube(&[(1000, &invert)]);
-    let e = import_step(&text, &ImportOptions::default()).unwrap_err();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
     let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("want the gate's refusal, got: {e:?}");
     };
@@ -176,7 +176,7 @@ fn r1_multisolid_cannot_smuggle_an_inverted_solid_at_any_position() {
         (vec![(1000, inverted), (3000, normal)], 1000u64),
     ] {
         let text = multi_cube(&doctors);
-        let e = import_step(&text, &ImportOptions::default())
+        let e = import_step(&text, &ImportOptions::default(), Tol::witness())
             .expect_err("an inverted solid must refuse whichever position it occupies");
         let StepImportError::TierInvalid { solid, errors } = &e else {
             panic!("want the gate's typed refusal, got: {e:?}");
@@ -205,7 +205,7 @@ fn r1_multisolid_of_honest_solids_still_imports() {
     let identity: &dyn Fn(&str) -> String = &|l: &str| l.to_owned();
     let text = multi_cube(&[(1000, identity), (3000, normal)]);
     let StepImport::Solid { body, .. } =
-        import_step(&text, &ImportOptions::default()).expect("two honest cubes import")
+        import_step(&text, &ImportOptions::default(), Tol::witness()).expect("two honest cubes import")
     else {
         panic!("expected a solid");
     };
@@ -348,7 +348,7 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
             eps_in: Some(1000.0 * eps),
             ..ImportOptions::default()
         };
-        match import_step(&doctored, &options) {
+        match import_step(&doctored, &options, Tol::witness()) {
             Ok(shipped) => panic!("delta {delta:e}: SHIPPED silently: {shipped:?}"),
             Err(e) => {
                 let dbg = format!("{e:?}");
@@ -575,7 +575,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     let eps = geom_core::Tol::witness().get().eps;
     for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
         let text = sliver_wedge_step(alpha, leg, h);
-        match import_step(&text, &ImportOptions::default()) {
+        match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
                 "alpha={alpha:e}: the in-band wedge SHIPPED as a solid (gate re-run: {:?})",
                 topo::validate_geometric(&body, Tol::witness())
@@ -614,7 +614,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
 fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
     // WITHOUT: the undeclared corner kiss is the census's finding.
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("the undeclared kiss refuses at the shared 3′ gate");
     let StepImportError::TierInvalid { errors, .. } = &err else {
         panic!("expected the gate's refusal, got {err:?}");
@@ -632,7 +632,7 @@ fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
         }],
         ..ImportOptions::default()
     };
-    let StepImport::Solid { body, .. } = import_step(&text, &options).unwrap() else {
+    let StepImport::Solid { body, .. } = import_step(&text, &options, Tol::witness()).unwrap() else {
         panic!("the declared kiss imports as a solid");
     };
     assert_eq!(body.solids().count(), 2, "both kissing solids ship");
@@ -643,7 +643,7 @@ fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
         }],
         ..ImportOptions::default()
     };
-    match import_step(&text, &bad) {
+    match import_step(&text, &bad, Tol::witness()) {
         Err(StepImportError::DeclarationUnresolved { found: 0, .. }) => {}
         other => panic!("an unresolvable anchor must refuse typed, got {other:?}"),
     }
@@ -658,8 +658,8 @@ fn r1_import_is_deterministic_for_a_gated_body() {
         "tests/fixtures/band/band_a.stp",
     ] {
         let text = fixture(rel);
-        let a = import_step(&text, &ImportOptions::default()).unwrap();
-        let b = import_step(&text, &ImportOptions::default()).unwrap();
+        let a = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap();
+        let b = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap();
         let (StepImport::Solid { body: ba, .. }, StepImport::Solid { body: bb, .. }) = (a, b)
         else {
             panic!("{rel}: expected solids");

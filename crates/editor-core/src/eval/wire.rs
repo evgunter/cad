@@ -893,7 +893,7 @@ fn wire_split<T: Decide>(
         origin: *origin,
         normal: *normal,
     };
-    let result = split(&body, &plane).map_err(NodeErrorKind::Split)?;
+    let result = split(&body, &plane, tol).map_err(NodeErrorKind::Split)?;
     // Pass-through descriptions keep their sources (the clone carried
     // them); the split's fresh section planes get THIS node's (D1).
     let side = |part: SplitPart<T>| match part {

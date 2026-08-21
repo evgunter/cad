@@ -709,10 +709,10 @@ fn every_corpus_import_passes_the_shared_gate() {
                 // Off the pinned ambient matrix. The disposition of an
                 // ε-sensitive file is not knowable here, but the gate's
                 // claim still is, and asserting it is not nothing.
-                assert_typed_outcome(&who, import_step(&text, &options));
+                assert_typed_outcome(&who, import_step(&text, &options, Tol::witness()));
                 continue;
             };
-            match (import_step(&text, &options), want) {
+            match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
                         topo::validate_geometric(&body, Tol::witness()),
@@ -813,7 +813,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/band/band_c180.stp"),
     )
     .unwrap();
-    let e = import_step(&text, &ImportOptions::default()).unwrap_err();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
     let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };

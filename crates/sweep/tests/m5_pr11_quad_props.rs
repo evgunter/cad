@@ -43,7 +43,7 @@ fn halves() -> (Body<f64>, Body<f64>) {
         origin: Point3::new(0.0, 0.0, H / 2.0),
         normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
     };
-    let result = split(&cylinder, &plane).expect("the tilted cut splits the cylinder");
+    let result = split(&cylinder, &plane, Tol::witness()).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -229,7 +229,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
         origin: Point3::new(d(0.0), d(0.0), d(H / 2.0)),
         normal: Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(above) = &result.above else {
         panic!("above carries material");
     };

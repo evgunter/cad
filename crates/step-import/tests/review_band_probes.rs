@@ -94,7 +94,7 @@ fn r1_seams_at_rest_on_both_fixtures() {
     ];
     for (name, n, surfs) in rows {
         let Ok(StepImport::Solid { body, .. }) =
-            import_step(&wild(name), &ImportOptions::default())
+            import_step(&wild(name), &ImportOptions::default(), Tol::witness())
         else {
             panic!("{name}: imports first-class");
         };
@@ -154,11 +154,11 @@ fn r1_torus_region_selection_is_real() {
         ),
     ];
     for (text, tag, v_want, cens, n_seams) in rows {
-        let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default())
+        let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default(), Tol::witness())
         else {
             panic!(
                 "{tag}: the band probe solid imports first-class, got {:?}",
-                import_step(&text, &ImportOptions::default()).err()
+                import_step(&text, &ImportOptions::default(), Tol::witness()).err()
             );
         };
         assert_eq!(census(&body), cens, "{tag}: census");
@@ -185,7 +185,7 @@ fn r1_torus_region_selection_is_real() {
 /// region decode happens to lean on gates the whole corpus now runs.
 #[test]
 fn r1_inside_out_torus_band_never_imports_green() {
-    let e = import_step(&band("band_c180.stp"), &ImportOptions::default()).unwrap_err();
+    let e = import_step(&band("band_c180.stp"), &ImportOptions::default(), Tol::witness()).unwrap_err();
     assert!(
         matches!(
             &e,
@@ -209,7 +209,7 @@ fn r1_inside_out_torus_band_never_imports_green() {
 #[test]
 fn r1_inverted_cylinder_band_refuses_pre_body() {
     for name in ["band_d180.stp", "band_d_invcyl.stp"] {
-        let e = import_step(&band(name), &ImportOptions::default()).unwrap_err();
+        let e = import_step(&band(name), &ImportOptions::default(), Tol::witness()).unwrap_err();
         let msg = e.to_string();
         assert!(
             msg.contains("ORIENTATION-INVERTED cylinder band"),
@@ -229,11 +229,11 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
     let pi = std::f64::consts::PI;
     let v_want = (40.0 * pi * pi + 32.0 * pi / 3.0) * 1e-9;
     let Ok(StepImport::Solid { body, .. }) =
-        import_step(&band("band_a.stp"), &ImportOptions::default())
+        import_step(&band("band_a.stp"), &ImportOptions::default(), Tol::witness())
     else {
         panic!(
             "band_a (vertex azimuth 90, torus minted first): {:?}",
-            import_step(&band("band_a.stp"), &ImportOptions::default()).err()
+            import_step(&band("band_a.stp"), &ImportOptions::default(), Tol::witness()).err()
         );
     };
     assert_eq!(census(&body), (1, 1, 2, 6, 4), "band_a census");
@@ -256,11 +256,11 @@ fn r1_washer90_imports_the_true_region() {
     let pi = std::f64::consts::PI;
     let v_true = (400.0 * pi + 40.0 * pi * pi + 32.0 * pi / 3.0) * 1e-9;
     let Ok(StepImport::Solid { body, .. }) =
-        import_step(&band("washer90.stp"), &ImportOptions::default())
+        import_step(&band("washer90.stp"), &ImportOptions::default(), Tol::witness())
     else {
         panic!(
             "washer90: {:?}",
-            import_step(&band("washer90.stp"), &ImportOptions::default()).err()
+            import_step(&band("washer90.stp"), &ImportOptions::default(), Tol::witness()).err()
         );
     };
     assert_eq!(census(&body), (1, 1, 3, 5, 4), "washer90 census");
@@ -288,7 +288,7 @@ fn r1_washer90_imports_the_true_region() {
 /// seams.
 #[test]
 fn r1_off_uref_band_refuses_rather_than_downgrading_its_seam() {
-    let e = import_step(&band("ftc11_uref_off.stp"), &ImportOptions::default()).unwrap_err();
+    let e = import_step(&band("ftc11_uref_off.stp"), &ImportOptions::default(), Tol::witness()).unwrap_err();
     let msg = e.to_string();
     assert!(
         msg.contains("no intensional description certifies") && msg.contains("seam"),

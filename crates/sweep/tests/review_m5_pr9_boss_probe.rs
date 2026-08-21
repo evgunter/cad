@@ -240,7 +240,7 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
         origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
-    let parts = split(&body, &plane).expect("split at x=0");
+    let parts = split(&body, &plane, Tol::witness()).expect("split at x=0");
     let mut below = parts.below.body().expect("below").clone();
     let out = below
         .merge_coplanar_faces(Tol::witness())
@@ -281,7 +281,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
         origin: Point3::new(0.2, 0.0, 0.0),
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
-    let parts = split(&body, &plane).expect("split");
+    let parts = split(&body, &plane, Tol::witness()).expect("split");
     let below = parts.below.body().expect("below").clone(); // NOT merged
     let vol_below = topo::mass_properties(&below, Tol::witness())
         .unwrap()

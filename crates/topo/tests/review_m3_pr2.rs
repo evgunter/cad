@@ -77,7 +77,7 @@ fn r1a_tangent_tip_two_disjoint_copies_with_two_edge_orbits() {
         (0.0, 4.0),
     ];
     let fx = prism::<f64>(&profile, 1.0);
-    let red = split_reduce(&fx.body, &plane_y(2.0, 1.0)).unwrap();
+    let red = split_reduce(&fx.body, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     for z in [0.0, 1.0] {
         let tip = vertex_at(&fx.body, 6.0, 2.0, z);
         let recs: Vec<_> = red
@@ -137,7 +137,7 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
 
     // +n (Above = +y): BOB→ABOVE moves the tip edge to Above copies —
     // physically the above side. One dangling null (wide cap bisector).
-    let red_pos = split_reduce(&fx.body, &plane_y(2.0, 1.0)).unwrap();
+    let red_pos = split_reduce(&fx.body, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     assert!(
         !joins(&red_pos.body, tip_b, tip_t),
         "+n: tip edge left the old vertices (BOB→ABOVE)"
@@ -155,7 +155,7 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
     // −n (frame-Above = physical below): the tip context reads AOA;
     // AOA→BELOW keeps the tip edge on the OLD vertices — which are the
     // frame-below = physically-ABOVE side. Same physical assignment.
-    let red_neg = split_reduce(&fx.body, &plane_y(2.0, -1.0)).unwrap();
+    let red_neg = split_reduce(&fx.body, &plane_y(2.0, -1.0), Tol::witness()).unwrap();
     assert!(
         joins(&red_neg.body, tip_b, tip_t),
         "−n: tip edge stays on old vertices (AOA→BELOW) = physically above"
@@ -188,7 +188,7 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
 fn r2_one_sided_tangency_residue_documented() {
     let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // CCW, apex down
     let fx = prism::<f64>(&profile, 1.0);
-    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0)).unwrap();
+    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 2); // apex bottom + top
     assert_eq!(red.null_edges.len(), 2); // one per apex vertex
     assert!(red.null_edges.iter().all(|r| !r.dangling));
@@ -228,7 +228,7 @@ fn r3_collinear_on_run_all_on_neighborhood() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(&profile, 1.0);
-    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0)).unwrap();
+    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 10);
     assert_eq!(red.null_edges.len(), 8);
     for z in [0.0, 1.0] {
@@ -268,7 +268,7 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
         (0.0, 4.0),
     ];
     let fx = prism::<f64>(&profile, 1.0);
-    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0)).unwrap();
+    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     // Crossings: x=0 wall rims at y=1 (2 of them: z=0, z=1) — plus the
     // two structural ON vertices at (4,1).
     assert_eq!(red.on_vertices.len(), 4);
@@ -317,7 +317,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
     let fx = prism::<f64>(&profile, 1.0);
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
 
-    let red = match split_reduce(&fx.body, &plane) {
+    let red = match split_reduce(&fx.body, &plane, Tol::witness()) {
         Ok(red) => red,
         // At the strictest ε row the certified split_edge lane REFUSES
         // this construction outright: the child-curve re-certification
@@ -409,7 +409,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
     // gate refuses it typed (ScaffoldingOperand). The declared-ON cache
     // in `red.sides` is therefore the only currency downstream — which
     // is exactly the declared-coincidence design, pinned here.
-    match topo::vertex_sides(&red.body, &plane) {
+    match topo::vertex_sides(&red.body, &plane, Tol::witness()) {
         Err(SplitReduceError::ScaffoldingOperand { .. }) => {}
         other => panic!("expected ScaffoldingOperand refusal, got {other:?}"),
     }
@@ -431,7 +431,7 @@ fn r6_band_honesty_both_sides_and_no_conscription() {
         (0.0, 1.0 - 3.0 * eps),
     ];
     let fx = prism::<f64>(&profile, 1.0);
-    match split_reduce(&fx.body, &plane_y(1.0, 1.0)) {
+    match split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { vertex, diag }) => {
             assert!(diag.predicate.is_some());
             let p = point_of(&fx.body, vertex);
@@ -444,7 +444,7 @@ fn r6_band_honesty_both_sides_and_no_conscription() {
     let off = 2.0 * band.escalate();
     let profile = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0 - off), (0.0, 1.0 - off)];
     let fx = prism::<f64>(&profile, 1.0);
-    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0)).unwrap();
+    let red = split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert!(red.on_vertices.is_empty());
     assert!(red.null_edges.is_empty());
     assert!(red.sides.iter().all(|(_, &s)| s == PlaneSide::Below));
@@ -513,8 +513,8 @@ fn r8_determinism_byte_identical_replay() {
         let sides: Vec<_> = red.sides.iter().map(|(k, v)| (k, *v)).collect();
         format!("{sides:?}|{:?}|{:?}", red.on_vertices, red.null_edges)
     };
-    let r1 = split_reduce(&fx.body, &plane_y(2.0, 1.0)).unwrap();
-    let r2 = split_reduce(&fx.body, &plane_y(2.0, 1.0)).unwrap();
+    let r1 = split_reduce(&fx.body, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
+    let r2 = split_reduce(&fx.body, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(dump(&r1), dump(&r2));
 }
 

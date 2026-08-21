@@ -236,7 +236,7 @@ fn reassembly_oracle_generic_cube() {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::new(0.0, 1.0, 0.0),
     };
-    let (red, completed, _fragments) = split_scratch(&operand, &plane).unwrap();
+    let (red, completed, _fragments) = split_scratch(&operand, &plane, tol).unwrap();
     assert_eq!(completed.len(), 1);
     let mut body = red.body;
 

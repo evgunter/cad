@@ -14,7 +14,7 @@ fn fixture(name: &str, _ext: &str) -> String {
 }
 
 fn import(text: &str) -> Result<StepImport, step_import::StepImportError> {
-    import_step(text, &ImportOptions::default())
+    import_step(text, &ImportOptions::default(), Tol::witness())
 }
 
 /// The freecad cylinder with its bottom rim SPLIT into two half-arcs:
@@ -149,7 +149,7 @@ fn conic_trimmed_flip_slips_both_gates() {
         origin: Point3::new(0.0, 0.0, 1.25),
         normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(cut) = &result.above else {
         panic!("above half carries material");
     };

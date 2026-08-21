@@ -87,7 +87,7 @@ fn notched_block_reduction() {
         fixture.body.edges().count(),
         fixture.body.faces().count(),
     );
-    let red = split_reduce(&fixture.body, &plane_y1()).unwrap();
+    let red = split_reduce(&fixture.body, &plane_y1(), Tol::witness()).unwrap();
 
     // Functional: the operand is untouched.
     assert_eq!(
@@ -161,7 +161,7 @@ fn notched_block_reduction() {
     }
 
     // Determinism (D9): a second run reproduces the records exactly.
-    let red2 = split_reduce(&fixture.body, &plane_y1()).unwrap();
+    let red2 = split_reduce(&fixture.body, &plane_y1(), Tol::witness()).unwrap();
     assert_eq!(red.null_edges, red2.null_edges);
     assert_eq!(red.on_vertices, red2.on_vertices);
 }
@@ -175,7 +175,7 @@ fn bucket_entries(
     vertex: VertexKey,
     other: VertexKey,
 ) -> (Vec<PlaneSide>, Vec<PlaneSide>, Vec<PlaneSide>) {
-    let (sides, _) = topo::vertex_sides(body, plane).unwrap();
+    let (sides, _) = topo::vertex_sides(body, plane, Tol::witness()).unwrap();
     let entries = classify_neighborhood(
         body,
         plane,
@@ -224,7 +224,7 @@ fn tangent_edge_aoa_goes_below() {
     // Surgery level: two runs ⇒ two copies; the slant half-edges start
     // at distinct new vertices; the tip edge keeps the old (Below-side)
     // vertices at both ends.
-    let red = split_reduce(&fixture.body, &plane).unwrap();
+    let red = split_reduce(&fixture.body, &plane, Tol::witness()).unwrap();
     for tip in [tip_b, tip_t] {
         let copies: Vec<_> = red
             .null_edges
@@ -270,7 +270,7 @@ fn touching_wedge_bob_goes_above() {
     assert_eq!(edges, vec![PlaneSide::Below, PlaneSide::Below]);
     assert_eq!(dups, vec![PlaneSide::Above]);
 
-    let red = split_reduce(&fixture.body, &plane).unwrap();
+    let red = split_reduce(&fixture.body, &plane, Tol::witness()).unwrap();
     for tip in [tip_b, tip_t] {
         let at_tip: Vec<_> = red
             .null_edges
@@ -372,7 +372,7 @@ fn cube_coplanar_top_both_senses() {
             origin: Point3::new(0.0, 0.0, 1.0),
             normal: Vec3::new(0.0, 0.0, nz),
         };
-        let red = split_reduce(&cube.body, &plane).unwrap();
+        let red = split_reduce(&cube.body, &plane, Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 4);
         assert!(red.null_edges.is_empty(), "one-sided: no separation");
         // Every non-ON vertex is on the material side.
@@ -383,7 +383,7 @@ fn cube_coplanar_top_both_senses() {
         }
         // Entry-level: a top corner's entries all carry the rule-(a)
         // sense; convex corners mint no bisector duplicates.
-        let (sides, on) = topo::vertex_sides(&cube.body, &plane).unwrap();
+        let (sides, on) = topo::vertex_sides(&cube.body, &plane, Tol::witness()).unwrap();
         let entries = classify_neighborhood(
             &cube.body,
             &plane,
@@ -420,7 +420,7 @@ fn sliver_vertex_escalates() {
         (0.0, 1.0 + 3.0 * eps),
     ];
     let fx = prism::<f64>(&profile, 1.0);
-    match split_reduce(&fx.body, &plane_y1()) {
+    match split_reduce(&fx.body, &plane_y1(), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { .. }) => {}
         other => panic!("expected SliverVertex, got {other:?}"),
     }
@@ -447,7 +447,7 @@ fn curved_face_refuses() {
         )
         .unwrap();
     let plane = plane_y1();
-    match split_reduce(&cube.body, &plane) {
+    match split_reduce(&cube.body, &plane, Tol::witness()) {
         Err(
             e @ SplitReduceError::CurvedBooleanUnsupported {
                 face,
@@ -472,7 +472,7 @@ fn curved_face_refuses() {
 #[test]
 fn crossing_split_arrangement() {
     let fx = prism::<f64>(NOTCHED, 1.0);
-    let red = split_reduce(&fx.body, &plane_y1()).unwrap();
+    let red = split_reduce(&fx.body, &plane_y1(), Tol::witness()).unwrap();
     let crossing = *red
         .on_vertices
         .iter()

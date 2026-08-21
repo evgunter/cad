@@ -68,7 +68,7 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         let normalizations = {
             // Re-import through the public door to read the report.
             let step_import::StepImport::Solid { normalizations, .. } =
-                step_import::import_step(&committed, &step_import::ImportOptions::default())
+                step_import::import_step(&committed, &step_import::ImportOptions::default(), Tol::witness())
                     .expect("the fold fixture imports")
             else {
                 panic!("{name}: must import as a solid");
@@ -122,7 +122,7 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         // The promoted one-cycle fixed point (the ruling's re-stated
         // byte pin): from the first re-export on, byte-identical.
         let step_import::StepImport::Solid { body: body2, .. } =
-            step_import::import_step(&out, &step_import::ImportOptions::default())
+            step_import::import_step(&out, &step_import::ImportOptions::default(), Tol::witness())
                 .expect("the promoted re-export re-imports")
         else {
             panic!("{name}: the re-import must be a solid");

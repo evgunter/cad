@@ -392,7 +392,7 @@ fn workspace_error_tags_are_stable() {
 fn step_import_error_tags_are_stable() {
     let opts = pncad::step_import::ImportOptions::default();
     let garbage =
-        pncad::step_import::import_step("not a step file", &opts).expect_err("garbage refuses");
+        pncad::step_import::import_step("not a step file", &opts, Tol::witness()).expect_err("garbage refuses");
     assert_eq!(step_import_error_tag(&garbage), "syntax");
     assert_eq!(
         step_import_error_tag(&pncad::step_import::StepImportError::NothingToImport),

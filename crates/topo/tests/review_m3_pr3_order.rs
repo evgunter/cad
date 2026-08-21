@@ -34,7 +34,7 @@ fn tilted<T: geom_core::Decide>() -> SplitPlane<T> {
 #[test]
 fn tilted_plane_f64_and_replay() {
     let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 1.0);
-    let r = split(&fx.body, &tilted()).unwrap();
+    let r = split(&fx.body, &tilted(), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -47,7 +47,7 @@ fn tilted_plane_f64_and_replay() {
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
     // D9 byte-identical replay under the rotated frame.
-    let again = split(&fx.body, &tilted()).unwrap();
+    let again = split(&fx.body, &tilted(), Tol::witness()).unwrap();
     assert_eq!(format!("{above:?}"), format!("{:?}", body_of(&again.above)));
     assert_eq!(format!("{below:?}"), format!("{:?}", body_of(&again.below)));
 }
@@ -95,8 +95,8 @@ fn orientation_flip_swaps_sides_only() {
         origin: Point3::new(0.0, 1.0, 0.0),
         normal: Vec3::new(0.0, sy, 0.0),
     };
-    let r1 = split(&fx.body, &plane(1.0)).unwrap();
-    let r2 = split(&fx.body, &plane(-1.0)).unwrap();
+    let r1 = split(&fx.body, &plane(1.0), Tol::witness()).unwrap();
+    let r2 = split(&fx.body, &plane(-1.0), Tol::witness()).unwrap();
     let vol = |p: &SplitPart<f64>| mass_properties(body_of(p), Tol::witness()).unwrap().volume;
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);
     assert!((vol(&r1.below) - vol(&r2.above)).abs() < 1e-12);

@@ -32,7 +32,7 @@ fn k3_scale_corruption_old_accepted_new_catches() {
             scaled + "\n"
         })
         .collect();
-    let body = match import_step(&text, &ImportOptions::default()).unwrap() {
+    let body = match import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap() {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("wireframe"),
     };
@@ -86,7 +86,7 @@ fn scale_triple(line: &str, s: f64) -> String {
 #[test]
 fn k6_loft_prism_imports_the_nurbs_frontier_retired() {
     let text = fixture("loft_prism", "step");
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { .. }) => {}
         Ok(StepImport::Wireframe { .. }) => {
             panic!("loft_prism must import as a solid, not a wireframe")

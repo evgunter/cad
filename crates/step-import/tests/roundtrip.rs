@@ -139,7 +139,7 @@ fn fixed_point() {
         } else {
             step_import::ImportOptions::default()
         };
-        let reimport = step_import::import_step(&export1, &reimport_options)
+        let reimport = step_import::import_step(&export1, &reimport_options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-import: {e}"));
         let step_import::StepImport::Solid { body: body2, .. } = reimport else {
             panic!("{name}: re-import lost the solid");

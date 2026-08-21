@@ -194,7 +194,7 @@ fn split_cylinder_half() -> Body<f64> {
         origin: Point3::new(0.0, 0.0, 1.0),
         normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(ref below) = result.below else {
         panic!("the lower side carries material");
     };

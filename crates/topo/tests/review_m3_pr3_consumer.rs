@@ -101,7 +101,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
     );
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 
@@ -117,7 +117,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0);
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 }
@@ -129,7 +129,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
 fn tiny_real_sliver_not_wrongly_refused() {
     let h = 1.0e-4;
     let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (2.0, 1.0 + h)], 1.0);
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -142,7 +142,7 @@ fn tiny_real_sliver_not_wrongly_refused() {
         "sliver volume {va} vs {expect}"
     );
     // And the section query agrees: one tiny positive-area polygon.
-    let s = plane_section(&fx.body, &plane_y(1.0)).unwrap();
+    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 1);
 }
 
@@ -162,7 +162,7 @@ fn in_band_section_escalates_typed_not_misclassified() {
         eprintln!("in-band probe: fixture build refused at ε={eps}");
         return; // build-stage refusal: honest, earlier.
     };
-    match split(&fx.body, &plane_y(1.0)) {
+    match split(&fx.body, &plane_y(1.0), Tol::witness()) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
@@ -182,12 +182,12 @@ fn vertex_only_contact_is_typed_empty() {
         origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
     };
-    let r = split(&fx.body, &plane).unwrap();
+    let r = split(&fx.body, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(below.vertices().count(), fx.body.vertices().count());
-    let s = plane_section(&fx.body, &plane).unwrap();
+    let s = plane_section(&fx.body, &plane, Tol::witness()).unwrap();
     assert!(s.polygons.is_empty());
     assert!(s.u_ref.is_none());
 }
@@ -206,7 +206,7 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
     );
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
     assert!(
@@ -231,7 +231,7 @@ fn single_solid_gate_split_vs_section() {
     add_quad_prism(&mut body, 10.0);
     assert_eq!(body.solids().count(), 2);
     assert_eq!(validate_closed(&body), Ok(()));
-    let err = split(&body, &plane_y(1.0)).unwrap_err();
+    let err = split(&body, &plane_y(1.0), Tol::witness()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -241,7 +241,7 @@ fn single_solid_gate_split_vs_section() {
     );
     // plane_section never reaches the finish gate: it quietly slices
     // BOTH solids (two polygons) — the gate asymmetry, witnessed.
-    let s = plane_section(&body, &plane_y(1.0)).unwrap();
+    let s = plane_section(&body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 2);
 }
 
@@ -264,7 +264,7 @@ fn plane_section_winding_is_consistent() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0);
-    let s = plane_section(&fx.body, &plane_y(1.0)).unwrap();
+    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 3);
     let mut signs = Vec::new();
     for poly in &s.polygons {
