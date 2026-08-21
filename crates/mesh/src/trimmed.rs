@@ -462,6 +462,11 @@ pub(crate) fn tessellate_trimmed(
         // observationally identical. It is what makes the meter cost
         // exactly nothing per triangle when it is disarmed, which is
         // every normal run.
+        // NURBS ONLY, and that is a coverage gap rather than a
+        // subtlety: `cert::cert_cylinder` certifies every cylinder
+        // triangle in BOTH lanes and no build samples one against it.
+        // Recorded as S236 (`docs/SMELL-SCAN-2026-08.md`) because
+        // closing it changes what a `FaceMeasure` means.
         let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
             crate::budget::deviation_samples()
         } else {

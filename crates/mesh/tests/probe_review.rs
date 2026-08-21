@@ -142,6 +142,13 @@ fn z1_per_triangle_certificate_falsification() {
             // face carrying one would come out "smallest" and escape.
             // A loop has no comparator to get wrong, and `!(x <= 1.0)`
             // is true for every NaN of either sign.
+            // MONOTONE THE EASY WAY, and this is the row hosted CI
+            // runs: `worst_ratio` only shrinks as `bound` grows, so a
+            // loose certificate passes this by a WIDER margin than a
+            // tight one. `budget_meter.rs`'s sibling row grew a
+            // measured floor beside its ceiling; this one has not, and
+            // the asymmetry is recorded as **S237**
+            // (`docs/SMELL-SCAN-2026-08.md`), unowned.
             for f in &measures {
                 assert!(
                     f.worst_ratio <= 1.0,

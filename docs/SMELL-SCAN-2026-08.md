@@ -11186,13 +11186,15 @@ for `Lane::Cylinder`, so `cert::cert_cylinder` — which certifies every cylinde
 triangle in BOTH tessellation lanes — is sampled by nothing in this suite. The
 assertion messages now say NURBS and the row's doc says why. Closing it means a
 `FaceMeasure` whose NURBS-only columns have no meaning, i.e. a change to #320's
-consumer contract: **#887 proposes it as a new finding and does not number it.**
+consumer contract — which makes it a decision rather than a chore. **Recorded as
+S236, unowned.**
 
 **The same monotone shape survives one file over**, in
 `crates/mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification`
-— the row hosted CI runs, over four fixtures at two deltas. Outside I-e's file
-set; recorded here with the measurement that makes it actionable (per-face
-maxima 0.363–0.500 across that corpus and all three ε legs).
+— and that is the row hosted CI actually runs as its certificate falsifier,
+while the one fixed here is the row CI runs at default ε only. **Recorded as
+S237, unowned**, with the measurement that makes it actionable (per-face maxima
+0.363–0.500 across that corpus at all three ε legs).
 
 **Verdict:** closed on both halves it named, with the cylinder gap and the
 sibling row routed rather than absorbed.
@@ -16310,6 +16312,109 @@ needs a lane, and does not have one.
 
 ---
 
+## S236. `cert_cylinder` is falsified by nothing, in any build — and closing that is a contract question, not a coverage chore
+
+**Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it, and no
+lane owns it.** `crates/mesh/src/trimmed.rs`'s deviation pass reads
+
+```rust
+let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
+    crate::budget::deviation_samples()
+} else {
+    None
+};
+```
+
+so the per-triangle resampling that produces `worst_ratio` runs on the NURBS
+lane **only**. `cert::cert_cylinder` certifies every cylinder triangle in
+**both** tessellation lanes (`curved.rs`'s `ChartKind::Cylinder` arm and
+`trimmed.rs`'s `Lane::Cylinder` arm), and **nothing anywhere samples a cylinder
+triangle against it** — not the meter, not `probe_review`'s Z1 row, not a unit
+row in `cert.rs`, which has no test module at all. The cylinder certificate is
+the one certificate in this crate with no empirical falsifier in any build.
+
+**What #887 did and deliberately did not do.** It corrected the assertion
+messages, which read as universals about triangles (*"a triangle's samples
+exceeded its own certificate"*), to say NURBS, and stated the gap in
+`the_deviation_pass_samples_and_stays_under_its_certificates`' doc. **That
+makes the limit honest and leaves it in place.**
+
+**Why this is a decision and not a five-minute fix.** The obvious remedy —
+sample the cylinder lane too — means handing `budget::note_face` a
+`FaceMeasure` whose NURBS-only columns have no meaning: `grid_cells`,
+`cells`, `patch_steps`, `muu`/`muv`/`mvv` are all `NurbsCellGrid` and
+`NurbsFaceBound` quantities, and a cylinder face has none of them. That is a
+change to **#320's consumer contract** — `tools/tess-meter` and
+`tools/tess-lint` read those columns per row — so whoever takes it is choosing
+between at least three shapes: a nullable/enum lane discriminant on
+`FaceMeasure` (every consumer grows an arm), a second hand-off channel for
+lanes with no grid (two shapes to keep in step), or a falsifier that is not the
+budget meter at all — a unit row in `cert.rs` sampling synthetic cylinder
+triangles, which needs no contract change and does not measure the tessellation
+lane's real triangles. **The third is the cheap one and the weakest; the row
+exists so that is a decision someone makes rather than a default someone
+falls into.**
+
+**Ownership.** `crates/mesh/` is inside **Track I**'s scope, and this is inside
+I-e's file set — but I-e is a lane that has landed, and a contract change to
+`budget::FaceMeasure` reaches `tools/` which is in no Track I lane. **This row
+needs a lane and does not have one.**
+
+**Verdict:**
+
+---
+
+## S237. The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way
+
+**Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it — it is one
+file outside the lane's set.**
+`crates/mesh/tests/probe_review.rs`'s `z1_per_triangle_certificate_falsification`
+asserts, over four fixtures at two deltas:
+
+```rust
+assert!(f.worst_ratio <= 1.0, ...);
+```
+
+`worst_ratio = d / (bound + eps)`, so **the assertion gets EASIER as `bound`
+grows** — a certificate loose enough to be worth #320's attention passes it by a
+wider margin than a tight one, and the row reports green most confidently
+exactly where the budget question is sharpest. #887 fixed this shape in
+`crates/mesh/tests/budget_meter.rs` by adding a measured **floor** beside the
+ceiling, applied on the faces where the certificate rather than ε is the
+denominator (`worst_cert > eps`).
+
+**State the asymmetry plainly, because it inverts the intuition.** The sibling
+that was FIXED (`budget_meter.rs`) is the one CI runs at **default ε only**.
+The one still monotone (`probe_review.rs`) is **the row hosted CI actually
+runs as its certificate falsifier** — ci.yml's *"mesh budget meter +
+certificate falsifier (feature = budget)"*, mirrored by
+`local-scripts/ci-local.sh`. The weaker check is on the more load-bearing row.
+
+**A floor here is feasible and has a measured starting point.** #887 measured
+this corpus' per-face **maxima** at all three ε legs, on `loft_prism`,
+`nonuniform_loft`, `swept_elbow` and `rational_pie` at δ ∈ {3e-2, 6e-3}:
+**0.363–0.500**, stable to three decimals across the ε legs. What a floor needs
+is the per-face **minima**, which #887 did not take here (it took them on
+`loft_prism` alone, through `budget_meter.rs`: 0.454–0.497 over
+δ ∈ [3e-4, 2e-2]). Whoever takes this row measures the minima over the four
+fixtures and picks one floor, with `worst_cert > eps` as the applicability
+test — `loft_prism`'s planar wall certifies at ~5e-17 and its ratio is decided
+by ε outright (5e-7, 5e-10, 5e-4 at the three legs), which is the case a bare
+floor would red on.
+
+**What a reader should NOT conclude.** Not that the Z1 row is weak — it is the
+row that killed a planted `0.25 -> 0.05` certificate bug empirically. Only that
+it is one-sided, in the direction #320 exists to measure.
+
+**Ownership.** `crates/mesh/tests/probe_review.rs` is in **none of Track I's
+five lanes' file sets** — the same shape as **S231**, and routed the same way:
+not to I-e, because writing a row at a dispatched lane is how a lane's scope
+grows after dispatch. **This row needs a lane and does not have one.**
+
+**Verdict:**
+
+---
+
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
 
 Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
@@ -16590,7 +16695,13 @@ waits on the other to start.**
 | **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These rows are style and stand on their own; the correctness defect is #723's own. **S60 is done** (#873 — lane I-b, ceilings at both `area_pad` sites; its metering half is now issue **#870**), so the row is down to `props/{mod,curved}.rs`. | ~~S60~~, **S77**, **S80**, **S81**, S112(d) |
 | **I2** | **NARROWED to S65 by #872.** S64 is closed: the ε enumeration is **computed and pinned** (`mesh/tests/all.rs`, ruling **I-R8**) rather than recited, and three claim sites now point here. **What is left is S65 alone, and it is Evan's** — the question is stated at S65 with three options and option B priced by measurement. It needs a decision, not a lane. | ~~S64~~, **S65** |
 
-**Raised inside this track and NOT scheduled by it: S231.** I-c's sweep for
+**Raised inside this track and NOT scheduled by it: S231, S236, S237.**
+**S236** (`cert_cylinder` has no falsifier in any build) and **S237** (the
+`worst_ratio` ceiling hosted CI runs is still monotone the easy way) were both
+raised by I-e while closing S109 and are recorded unrouted, for S231's reason:
+S236's remedy changes `budget::FaceMeasure`, whose consumers are in `tools/`
+and in no Track I lane, and S237's file is in none of the five lanes' file
+sets. **Neither is I-e's to fix, and neither has a lane.** I-c's sweep for
 S64's class found the same shape in `crates/mesh/src/chords.rs` — *"These
 tightenings are the only places adjacent surfaces enter chord counts"*, an
 absence claim over a whole module, true today and unfalsifiable by anything in
@@ -16622,9 +16733,10 @@ hand-off moved to a single exit so a refusing face is still measured and the
 falsifier's monotone ceiling given a measured floor, S114(f)'s two comments
 turned into three `debug_assert`s and a row, and S116(g)'s residue closed by
 cutting the three guard docs from 228 doc lines to 158 while their code grew.
-**Both of #887's routed residues are unnumbered by design** — the cylinder lane
-carries no deviation falsifier, and `probe_review.rs`'s `worst_ratio ≤ 1` is the
-same monotone shape one file outside the lane's set.
+#887's two routed residues are **S236** (the cylinder lane carries no deviation
+falsifier, in any build) and **S237** (`probe_review.rs`'s `worst_ratio ≤ 1` is
+the same monotone shape, one file outside the lane's set, and is the row hosted
+CI actually runs) — both recorded unowned rather than absorbed.
 **I-d** held I4 **and** I5 together (I-R4) and **landed as #876**; both rows
 have left the table above.
 **I6's three members are all recorded now** — S115(d) and S116(g)'s header half
