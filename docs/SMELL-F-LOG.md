@@ -538,6 +538,30 @@ easiest to lose under time pressure. And they recorded the run IDs and the
 annotation text in the PR, so the red board reads as an environment fact rather
 than as a verdict on the branch.
 
+### The orchestrator read a doc comment instead of the assertion (2026-08-20)
+
+**F-R5's amendment told F-h:** *run it once, outside the ε loop, because the test
+asserts a **bit-identical replay**, not a margin distribution — there is nothing
+per-ε about it.* That was repeated to Evan as settled.
+
+**It is false.** Both preconditions assert `failures(&ev).is_empty()` — **one-sided
+greenness at `Probe`**, which is tolerance-dependent. Neither compares against an
+f64 run at all. What says *"bit-identical"* is the **docstring**; what the
+assertion does is weaker and ε-dependent.
+
+**The orchestrator read the doc comment and not the assertion** — on a track
+whose subject is guards whose prose outruns their code, after ruling on four
+separate lanes for exactly that. The placement argument was withdrawn and handed
+back to the lane to re-decide on what the tests actually assert.
+
+**Third orchestrator over-claim in one session**, and the family is now clear
+enough to name: S157 (one run generalised to fifteen gates), *"the non-docs diff
+was empty"* (a precondition stated that was never the one verified), and this
+one. **All three are the register asserting at a scope its evidence did not
+reach — the failure this track rules on, in the one document with no reviewer.**
+The gap between those two docstrings and those two assertions is itself a finding
+in S39/S112's class, placed as **S168 / D114**.
+
 ## Standing rules this track derived
 
 ### A verification is valid for the PATHS it verified, not for the SHA it ran on
