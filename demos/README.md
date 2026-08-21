@@ -932,10 +932,14 @@ in `scenes.json` order with captions, for every render path;
 `--montage=NAME` / `--banner=TEXT` give the STEP lane its own filename
 and provenance banner on the same grid.
 
-`manifest.py` is the one reader of `scenes.json`, imported by both
-renderers, the composer and `render.sh`'s scene lister. It holds the
-field names, the walk, and the `view.up` convention — the last of
-these in the world → display direction only, with the display → world
-direction a camera needs *derived* from it, so the two cannot drift
-apart. `python3 manifest.py --selftest` pins both. The UV lane's
-`uv.json` has one reader and is walked inside it.
+`manifest.py` is the one reader of `scenes.json` — imported by both
+renderers and the composer, and run as `manifest.py --scene-names` by
+`render.sh`'s scene loop. It holds the field names, the walk, and the
+`view.up` convention; the last of these in the world → display
+direction only, with the display → world direction a camera needs
+*derived* from it, so the two cannot drift apart. Every field it names
+is read, never defaulted: both producers write all of them for every
+entry, so a missing one refuses (naming the scene, the body and the
+key) instead of rendering something plausible. `python3 manifest.py
+--selftest` pins all of that. The UV lane's `uv.json` has one reader
+(`compose_uv_montage.py`) and is walked there.
