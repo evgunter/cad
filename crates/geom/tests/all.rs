@@ -70,6 +70,8 @@ mod curves_nurbs_differential;
 mod curves_nurbs_interval;
 #[path = "curves/projection.rs"]
 mod curves_projection;
+#[path = "dual_foot_tangent.rs"]
+mod dual_foot_tangent;
 #[path = "curves/r2_lt_probes.rs"]
 mod curves_r2_lt_probes;
 #[path = "curves/review_m5_pr2_e2e.rs"]

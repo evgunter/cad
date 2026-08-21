@@ -98,15 +98,26 @@ macro_rules! nurbs_project {
         /// the consumer re-checks both through its own band machinery;
         /// see the module docs' honesty section).
         ///
-        /// **At `T = Dual`, two of these fields carry a partial
-        /// derivative and not a total one — issue #874.** `t` is
-        /// selected as `f64` and frozen, so `foot` and `orthogonality`
-        /// are differentiated at fixed `t*` and are short by the
-        /// `C′(t*)·dt*/dp` term. `distance` is unaffected: at a
-        /// converged foot the orthogonality condition IS the vanishing
-        /// of that term's coefficient, and at a clamped domain-end foot
-        /// `dt*/dp` is itself zero. Every VALUE channel is the plain-`T`
-        /// run's bit-identically (D9); only the tangents are at stake.
+        /// **At `T = Dual` every `T`-valued field here carries a partial
+        /// derivative rather than a total one — issue #874.** `t` is
+        /// selected as `f64` and frozen (`crate::projection::mid`), so
+        /// each field is differentiated at fixed `t*` and each is short
+        /// by its own `∂/∂t × dt*/dp` term: the coefficient is `C′(t*)`
+        /// for `foot`, `C″·(C − P) + |C′|²` for `orthogonality`, and
+        /// `C′·(C − P)/|C − P|` for `distance`.
+        ///
+        /// **`distance` is the only one the iteration bounds, and it
+        /// bounds it on ONE of the three exits.** Its coefficient is the
+        /// cosine acceptance quantity itself, so on the *cosine* exit
+        /// the dropped term is at most `ε₂·|C′|·|dt*/dp|` — small, not
+        /// zero. The *coincidence* exit returns with no orthogonality
+        /// condition held at all, and *stagnation* fires at any foot
+        /// whose parameter step dies — domain-end feet land there, and
+        /// are not the only ones that do — so on both of those the
+        /// coefficient is bounded only by `|C′|`. Every VALUE channel is
+        /// the plain-`T` run's bit-identically (D9); only the tangents
+        /// are at stake, and `geom/tests/dual_foot_tangent.rs` pins both
+        /// halves of that so this paragraph cannot quietly go stale.
         #[derive(Clone, Copy, Debug)]
         pub struct $Projection<T: Real> {
             /// The foot parameter `t*` (inside the knot domain) —

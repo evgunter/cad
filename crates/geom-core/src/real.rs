@@ -543,16 +543,6 @@ pub trait Real:
 /// `edge_nurbs::lane`), whose signatures carry `CertifiedEnclosure` and
 /// stay uninstantiable at a dual with or without their lanes.
 ///
-/// **What this rule has no instrument for.** Every amendment above
-/// ratifies a **compound** `Decide + Bounds` seam. A **sole** `T: Bounds`
-/// needs no ratification, and `scripts/gates/bounds-allowlist.sh` plants
-/// exactly that as a must-not-fire self-test case — firing on it would
-/// red every certification file in `geom` and `geom-brep`. So the sole
-/// bound is the form this rule governs and no gate sees, and the D1
-/// ruling opened every one of its doors at a dual in one stroke. What
-/// that opened, and which of the doors it is an argument for, is at
-/// `impl Bounds for Dual` in `dual.rs`; one of them is issue **#874**.
-///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
 /// spelled [`CertifiedBounds`] and is therefore a **sole** bound by

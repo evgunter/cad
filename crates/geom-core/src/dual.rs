@@ -784,42 +784,14 @@ where
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
 /// and this impl does not change that: every C9-ring door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
-/// boxes, pruning, and the `f64` margin payloads a typed refusal reports.
-/// Those three share the property that makes delegation sufficient: the
-/// bracket read is **terminal**, so a dual run's answer is the base
-/// scalar's answer and there is nothing further to establish.
-///
-/// **A bracket read that is FED BACK is a fourth kind, and delegation is
-/// not an argument about it.** When the `f64` a bracket yields re-enters
-/// the computation — a selected parameter frozen into the rest of the
-/// program — the value channel is still the plain run's, and the TANGENT
-/// is a partial at the frozen value. Written here because the three-item
-/// list above is what made this class invisible: all three are terminal
-/// reads, into a box, a prune or an error payload, and for those
-/// delegation really is the whole story.
-///
-/// **The census of what this impl opened, for the two crates below the
-/// certification substrate** — derived from the SHAPE rather than from
-/// the word `Dual`, since a door of this class need never mention one.
-/// `geom-core`: **none**. Its one generic bracket consumer,
-/// [`crate::spline::hull`], is [`crate::CertifiedEnclosure`]-bounded and
-/// stays shut. `geom`: **four modules**. `curves::boxes` and
-/// `surfaces::boxes` are terminal and sound by delegation — a dual run's
-/// box IS the base scalar's box — so nothing is owed there and nothing is
-/// written there. `curves::projection` and `surfaces::projection` are fed
-/// back: `mid()` selects the foot parameter and an `f64` field freezes
-/// it, so the returned foot point and orthogonality residuals carry
-/// partial derivatives short by the `C′(t*)·dt*/dp` term. That is a
-/// reachable wrong answer rather than a scope question — issue **#874**,
-/// which carries the measurement and the dispositions. (The distance
-/// residual survives, by the envelope theorem; the two types' own docs
-/// say which field is which.)
-///
-/// One `Decide + Bounds` door *grants* without the `CertifiedEnclosure`
-/// guard (`topo::separation`, sound at a dual by delegation — the
-/// terminal case again); the scope rule in `real.rs` is the home for that
-/// and for the fillet seam's obligation, and records that a sole bracket
-/// bound is the one form it governs that no gate can see.
+/// boxes, pruning, the `f64` margin payloads a typed refusal reports,
+/// and **selections**, which are the ones with a condition on them: a
+/// frozen `f64` choice is free of the tangent only while the quantity
+/// chosen is locally constant in the input. `geom::projection::mid` is
+/// where that condition currently fails, and is issue **#874**.
+/// One `Decide + Bounds` door *grants* without that guard
+/// (`topo::separation`, sound at a dual by delegation); the scope rule in
+/// `real.rs` is the home for both that and the fillet seam's obligation.
 ///
 /// # On the spelling
 ///
