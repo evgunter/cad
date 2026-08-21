@@ -9329,7 +9329,7 @@ record — was false and is withdrawn. Putting them on the board is a
 **Demonstrated red** by the null-out above: 1 of 7 operators reaches a
 mutation phase and the floor fires, naming the census.
 
-## S77. FIXED by #PRNUM — the rimless-sphere exemption now states what the arm establishes, and the arm has rows
+## S77. FIXED by #877 — the rimless-sphere exemption now states what the arm establishes, and the arm has rows
 
 `props/mod.rs`'s *"its whole-latitude-band domain is a rectangle by
 construction"* is gone. The exemption is restated as what it is — the
@@ -9474,7 +9474,7 @@ are already issues:
 
 ---
 
-## S80. FIXED by #PRNUM — the material-side gate runs the premise its derivation rests on
+## S80. FIXED by #877 — the material-side gate runs the premise its derivation rests on
 
 `props/mod.rs`'s second exemption is retired. The argument for it —
 *"running the predicate there could only convert an answer into an
@@ -9517,7 +9517,7 @@ on the parent, verified) and its control
 rotation answers, and all answer the same sign — a gate that refused
 everything would make check 6 vacuous).
 
-## S81. FIXED by #PRNUM — one rule, one metric, one lever, one fail direction
+## S81. FIXED by #877 — one rule, one metric, one lever, one fail direction
 
 `same_level` and `require_rims_at_extremes` both decided *"are these two
 `RimLevel`s the same level"* and disagreed on three axes. Both now call
@@ -10885,7 +10885,7 @@ from the one the census names.
 | **(a)** | `sweep/src/fillet/naming.rs`, the *"What consumes these rows"* header | **NOBODY — open, and its owner has retired** | the sentence stands; `editor-core/src/names/emit_fillet.rs:220-221` still builds `retired_e`/`retired_v` out of `rec.dead` and consults them at `:236-246`, so the defect is intact. Routed to Track E's **E-g** after that lane was dispatched; E-g landed as **#768** and its own §D row says S112(a) is **not in it**, and that row is now struck from §D. See **S177** |
 | **(b)** | `interval-transcendentals/tests/certify.rs` | **#786** (G-a / G1), commit `520f21f1` | the header names `ci.yml`'s `oracle-certify` job, its `ORACLE_PATHS` trigger and `CAD_FUZZ_EFFORT=8` (`:21-24`); `ci.yml` no longer contains *"stays a by-hand gate"* |
 | **(c)** | `interval-transcendentals/src/ops.rs`, `docs/inventory.md` | **#786** (G-a / G1), same commit | `ops.rs:4` now opens *"`copysign` is deliberately NOT here"*; `docs/inventory.md:40` says the same and points at the trait impl. The code did not move and S1 is untouched |
-| **(d)** | `geom-brep/src/props/curved.rs`, `cone_arm`'s doc | **#PRNUM** (I-a), and re-homed off C-m by ruling **I-R3** | the sentence named an ordering that is true at ONE of `cone_arm`'s two call sites and false at the other — `boundary_material_sign` never calls `du_of_rims` at all. Replaced by the invariant both routes establish; **N3 in `docs/predicate-dimension-audit.md` carried the same false claim and is corrected in the same PR**; `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the row |
+| **(d)** | `geom-brep/src/props/curved.rs`, `cone_arm`'s doc | **#877** (I-a), and re-homed off C-m by ruling **I-R3** | the sentence named an ordering that is true at ONE of `cone_arm`'s two call sites and false at the other — `boundary_material_sign` never calls `du_of_rims` at all. Replaced by the invariant both routes establish; **N3 in `docs/predicate-dimension-audit.md` carried the same false claim and is corrected in the same PR**; `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the row |
 | **(e)** | `geom-brep/src/ssi/exhaust.rs:92` | **open — Track C by mechanism, but named in NO live §D row** | `exhaust.rs:92` still says *"The floor used, in meters"* while `ssi.rs`'s `account_chart_plane` call still passes `domain.floor(band) / speed` (cited by expression, per **S176(a)**). The frozen table's C-m/C3 entry lists **S112(d) only**; no row in §D names S112(e) or `geom-brep/src/ssi/`. Its only live mention is G10's own row |
 | **(f)** | `profile/src/sugar.rs` | **#831** (G-d / G10) | below |
 | **(g)** | `crates/pncad/src/lib.rs` | **#831** (G-d / G10) | below |
@@ -10932,7 +10932,7 @@ from the one the census names.
   should ultimately live is part of the `RingInterval`-vs-`Interval`
   question, and this member's fix is only to stop two documents
   promising code that was never there.
-- (d) **FIXED by #PRNUM (I-a) — and the sentence was not fine.**
+- (d) **FIXED by #877 (I-a) — and the sentence was not fine.**
   `cone_arm`'s doc said the `T::one()` fallback *"covers the no-rim
   case, where `du_of_rims` refuses before any margin is metered"*.
   Checked from the inside: `cone_arm` has **two** call sites, and
@@ -15504,7 +15504,7 @@ waits on the other to start.**
 
 | # | Work | From |
 |---|---|---|
-| **I1** | **The `props/` cluster**, NARROWED to its residue: **S60 only**, lane **I-b** (`props/quad.rs` + the two `sweep/tests/` rows). **S77, S80, S81 and S112(d) are CLOSED by #PRNUM** (lane I-a) — the row does not leave until S60 lands too. The cluster's framing stands for what is left: **#723 is an ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). **#723 is presently marked CLOSED on GitHub and is not fixed**: PR #863, which merely *defined* these tracks, auto-closed it, and the tree at `ad21ba11` still takes the sphere's extent from `min_max` over endpoint levels. Reported by I-a; reopening is the orchestrator's. | **S60**; ~~S77~~, ~~S80~~, ~~S81~~, ~~S112(d)~~ |
+| **I1** | **The `props/` cluster**, NARROWED to its residue: **S60 only**, lane **I-b** (`props/quad.rs` + the two `sweep/tests/` rows). **S77, S80, S81 and S112(d) are CLOSED by #877** (lane I-a) — the row does not leave until S60 lands too. The cluster's framing stands for what is left: **#723 is an ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). **#723 is presently marked CLOSED on GitHub and is not fixed**: PR #863, which merely *defined* these tracks, auto-closed it, and the tree at `ad21ba11` still takes the sphere's extent from `min_max` over endpoint levels. Reported by I-a; reopening is the orchestrator's. | **S60**; ~~S77~~, ~~S80~~, ~~S81~~, ~~S112(d)~~ |
 | **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below). *Amended by* **I-R1**: S64 **lands**, and the PR that lands it opens the S65 question to Evan with both options priced — holding a false sentence in a shipped crate header to preserve a coupling is not what the pairing was for; what it protects is a reader finishing the ε ledger believing the story is closed, and a pointer at the claim site discharges that. | **S64**, **S65** |
 | **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
 | **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
@@ -15513,7 +15513,7 @@ waits on the other to start.**
 
 **Lanes, 2026-08-21 — five, and they do not map one-to-one onto these rows.**
 Recorded here so a reader of two PRs does not read them as one row.
-**I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**; **LANDED as #PRNUM** (S77, S80, S81, S112(d); audit note N1 retired with it);
+**I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**; **LANDED as #877** (S77, S80, S81, S112(d); audit note N1 retired with it);
 **I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows);
 **I-c** = I2 plus I6's S115(d) and S116(g) (`mesh/` prose and the ε ledger);
 **I-d** = I4 **and** I5 together (`boolean/boxes.rs`'s module doc is one
