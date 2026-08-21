@@ -6196,17 +6196,27 @@ of the two happened?**
   `Subgroup::Se3 | Subgroup::Empty` without making the match
   non-exhaustive, and moving the structural answer into it keeps one
   place per variant.
-- `same_level`'s structurally-impossible arm manufactures its error by
-  feeding `f64::NAN` into `classify` and letting the funnel escalate —
-  a decision predicate used as a `throw`; `unreachable_zero` returns a
-  4-tuple of NaNs into live flux arithmetic (`props/curved.rs:350`,
-  `:1090`). **STILL OPEN** — D2 (bug-vs-invalid-state) territory, gated
+- The rim-level rule's structurally-impossible arm manufactures its
+  error by feeding `f64::NAN` into `classify` and letting the funnel
+  escalate — a decision predicate used as a `throw`; `unreachable_zero`
+  returns a 4-tuple of NaNs into live flux arithmetic
+  (`props/curved.rs`, `mixed_levels` and `unreachable_zero` — cited by
+  target name per **S176(a)**; **`same_level` no longer exists**, the
+  two rim-level spellings having been unified into `level_coincides`
+  by **#877 / S81**, and this bullet named it). **STILL OPEN** — the
+  idiom survived the unification unchanged, it is now at one site
+  instead of two, and it is D2 (bug-vs-invalid-state) territory gated
   on Wave 0.
 - `Rim` stores the same traversal direction twice (`d_u: T` and
   `d_u_sign: Sign`), and the exact one is compared through the tolerance
   funnel — subtracting two exactly-±1 values and banding a result that
-  is always 0 or ±2 (`props/curved.rs:330`, `:384`). **STILL OPEN** —
-  which of the two representations is authoritative is a design call.
+  is always 0 or ±2 (`props/curved.rs`, `Rim`'s two fields and
+  `du_of_rims`' `props_rim_dir_group` decide — cited by target name per
+  **S176(a)**; the line numbers were written against a tree #877 moved).
+  **STILL OPEN** — which of the two representations is authoritative is
+  a design call. #877 did not touch it: the margin is now levered at
+  `RimArms::azimuth` rather than a bare `arm`, which is the same
+  comparison at a named lever.
 - **FIXED by #627.** Removed, with its `eprintln!` block. Nothing in
   CI, `scripts/`, `local-scripts/` or any manifest enabled it; the only
   other mention was a history note in `review_s1_probes.rs`, reworded so
@@ -7846,8 +7856,9 @@ hand-multiply class (`boolean::solid_contain::face_plane`,
 ---
 ## S58. FIXED IN PART by #714 — "This face's domain is an iso-rectangle" was re-derived per consumer, in three representations, and no two agreed on what it meant
 
-- **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
-  `props_du_consistent`), `crates/mesh/src/curved.rs`
+- **Where**: `crates/geom-brep/src/props/curved.rs` (`du_of_rims` /
+  `props_du_consistent` — by target name per **S176(a)**, the line
+  moved under #877), `crates/mesh/src/curved.rs`
   (`require_swept_rectangle` / `entries_off_bbox`, added by #648),
   `crates/geom-brep/src/props/curved.rs` (`torus()`'s `props_rim_level`)
 - **Importance**: high
@@ -9556,26 +9567,47 @@ record — was false and is withdrawn. Putting them on the board is a
 **Demonstrated red** by the null-out above: 1 of 7 operators reaches a
 mutation phase and the floor fires, naming the census.
 
-## S77. The rimless-sphere exemption is a newly written claim that nothing enforces
+## S77. FIXED by #877 — the rimless-sphere exemption now states what the arm establishes, and the arm has rows
 
-`crates/geom-brep/src/props/mod.rs:96-101` lists the rimless sphere band
-as one of the iso-rectangle predicate's two exemptions because *"its
-whole-latitude-band domain is a rectangle by construction"*.
+`props/mod.rs`'s *"its whole-latitude-band domain is a rectangle by
+construction"* is gone. The exemption is restated as what it is — the
+predicate is **vacuous** on a face with no rims, not satisfied by it —
+and the arm's own two halves are separated at the claim site
+(`curved::sphere`'s rimless branch):
 
-The branch (`props/curved.rs:937-955`) checks only that the meridian
-axes are coplanar, then hardcodes `du = π` and takes `(lo, hi)` from
-`min_max` over meridian *endpoint* latitudes. It never establishes that
-the meridians run pole to pole. `curved_face` is a public key-free door
-that the S58 suite itself drives with hand-built loops and that
-`topo::mass_properties` drives on imported STEP faces.
+* **Established.** Every boundary edge is a meridian great circle at
+  the sphere centre and radius (`props_meridian_great`) and all their
+  carrier axes are parallel (`props_band_coplanar`), so every meridian
+  lies on ONE great circle — which is where `Δu = π` comes from, and
+  it is load-bearing rather than decorative: a lune on two DIFFERENT
+  great circles would take `Δu = π` for a domain of another width.
+* **NOT established: the `v`-extent.** `(lo, hi)` is still `min_max`
+  over meridian ENDPOINT latitudes, and nothing says the arcs run pole
+  to pole.
 
-This is structurally #723's shape: an unstated extent premise asserted
-as established, one `else`-branch away from the arm #714's own review
-broke. The PR's answer to that class was to write the gap down; here it
-wrote the **opposite** down, in the same paragraph, and gave the exempt
-arm no row.
+**The gap is #723's, measured.** Split the same hemisphere at ±π/4
+instead of at its poles and both poles fall in the arcs' interiors:
+`curved_face` accepts and returns `4.442882938e-4` against an exact
+`6.283185307e-4` — **−29.2893%**, at `pad = 0.0` (executed at
+`5d4b88ab` and unchanged by this PR, which is a style pass). That is
+`min_max`-over-endpoints on the sphere, i.e. #723's own mechanism,
+reaching the one arm #723's text does not name because the rimless arm
+has no rim to place. **Recorded at the code and on #723; not fixed
+here** (Evan, 2026-08-21: a style track does not fix the defect #723
+reports — phrased to keep the verb away from the number, because a
+closing keyword adjacent to a bare issue reference is what has already
+shut that issue twice by accident, once from a PR body quoting this
+very sentence).
 
-**Verdict:**
+**The exempt arm now has rows**, in `geom-brep/tests/s58_iso_rectangle.rs`
+where the predicate's own suite is:
+`the_rimless_band_measures_the_hemisphere_it_is_written_for` (exact
+`2πR²`) and `a_lune_on_two_great_circles_is_not_a_rimless_band`
+(refused on `props_band_coplanar`). Neither reds on the parent — they
+are new coverage of an unrowed arm, not a behaviour change — and what
+makes them red is stated: drop or weaken the coplanarity check and the
+lune is accepted at twice its area; change `du = π` or the closed form
+and the hemisphere's area moves.
 
 ## S78. FIXED by #825 — the D2 fuzz corpus now states what it contains, and both gates floor it
 
@@ -9684,42 +9716,183 @@ are already issues:
 
 ---
 
-## S80. `boundary_material_sign` is the sibling the iso-rectangle invariant was not swept into
+## S80. FIXED by #877 — the material-side gate runs the premise its derivation rests on
 
-`crates/geom-brep/src/props/mod.rs:100` exempts this function on the
-argument that *"running the predicate there could only convert an answer
-into an exemption"* — which covers the **error** direction only.
-`props/curved.rs:127,146-152,158-164` re-runs the same boundary parse and
-hands `rims.first()` to `s_f_from_rim`, whose `lo + hi − 2v` test is
-meaningful only on a domain that is actually a rectangle. On a
-plus/staircase domain whose loop happens to begin at an interior rim it
-returns a definite ±1 that is not the material side.
-`crates/topo/src/validate.rs:2285` turns that into `CurvedSenseInverted`,
-and because tier-3 check 7 is gated on `errors.is_empty()`, the wrong
-diagnosis **suppresses** the honest `NotIsoRectangle`.
+`props/mod.rs`'s second exemption is retired. The argument for it —
+*"running the predicate there could only convert an answer into an
+exemption"* — covered the **error** direction only; in the accepting
+direction the derivation returns a definite ±1 that is a property of
+the loop flattening rather than of the face.
 
-**Verdict:**
+**Measured on this branch's parent.** One cylinder face, a
+staircase-plus domain with its arms high in the extent (interior levels
+0.016/0.018 against extremes 0.0/0.020), driven through
+`boundary_material_sign` at all twelve rotations of its own edge cycle:
+**eight rotations answered `Encoded(Positive)` and four answered
+`Encoded(Negative)`** — same face, same geometry, opposite sides — while
+`curved_face` refused the same loop `NotIsoRectangle { props_rim_level }`.
+Tier 3's curved check 6 turns the wrong half into a
+`CurvedSenseInverted`, and check 7 being gated on `errors.is_empty()`,
+that wrong diagnosis suppressed the honest refusal.
 
-## S81. Two spellings of "these two rim levels coincide", 90 lines apart, reconciled by a comment
+**The wrong answer the unit removed, measured.** Twelve rotations of
+one cylinder staircase-plus edge cycle through `boundary_material_sign`
+on the parent: **eight answered `Encoded(Positive)` and four answered
+`Encoded(Negative)`** — same face, same geometry, opposite material
+sides, decided by where the half-edge flattening started — while
+`curved_face` refused the same loop. An independently constructed
+five-step staircase reproduces 8/4 exactly. All twelve now refuse.
 
-`crates/geom-brep/src/props/curved.rs:350` (`same_level`, predicate
-`props_rim_level_group`) and `:455` (`require_rims_at_extremes`,
-predicate `props_rim_level`) both decide whether two `RimLevel`s are the
-same level, and disagree on three axes: the metric (per-component
-`Δsin`/`Δcos` levered vs the Euclidean chord `√(Δs²+Δc²)` levered), the
-lever arm on the torus (`major` vs `minor`, ~4× apart, on consecutive
-lines of `torus()`), and the fail direction (`Ok(false)` vs typed
-refusal). The predicate names differ by one suffix. The fix pass's
-response was a 20-line paragraph in `du_of_rims` (`:508-527`) explaining
-that the two sites are the same rule metered differently — which per Q2
-is the evidence the rule needs one home, not the defence of having two.
+**The fix is structural, not a second call.** `curved::linear_rim_side`
+owns the premise and the side together, and the side derivation is
+**nested inside it**, so there is no module-private door a later arm
+could reach without the premise.
 
-**Verdict:**
+**All four kinds, including the torus — the exemption was wrong.** An
+earlier draft of this fix exempted the torus arm on the argument that
+it derives no side from an extreme: it reads the anchor meridian's
+chart orientation and the rim sharing that meridian's `t0` vertex,
+*"both structural facts about one corner"*. **That argument is false
+and was refuted by execution.** The cancellation it relies on — the
+anchor-end choice flipping together with `dv/dt` — needs the two rims
+FLANKING the anchor meridian to carry opposite `d_u`. Every corner of a
+rectangle does; a **reflex** corner does not. On the L-domain
+`[0,1.1]×[0.2,0.45] ∪ [0,0.5]×[0.45,0.7]` the meridian at the notch is
+flanked by two rims both at `d_u = −1`, and the six rotations answer
+**`+ + − − + +`** while `curved_face` refuses all six. One corner is
+true and not sufficient; the **pair** is what is needed, and only a
+rectangle guarantees the pair. The premise now runs on the torus arm
+too, through the same `torus_ends` derivation the flux lane uses.
+Row: `the_material_side_gate_refuses_a_torus_l_domain_at_every_rotation`.
+
+**What moves in behaviour, with the honest reason.** Faces whose domain
+is not an iso-rectangle stop being *diagnosed* by tier 3's curved check
+6 and become exempt there — the posture its callers already owe an
+error. **No in-tree fixture moved**, and the reason is narrower than
+"nothing reaches the gate": instrumenting the gate's four arms and
+running the workspace gives **35 refusals, 19 of them this PR's own new
+rows (13 linear + the 6 rotations of the torus row) and 16
+pre-existing** — `step-import`'s `tier_gate` (12) and its
+`s58_iso_rectangle` (4), all on `cross.step` and `tee.step` walls. **On
+the parent those 16 got definite answers, split exactly 8 `Positive` /
+8 `Negative`** — one of each per body, which is precisely the
+arbitrariness this row removes. The suites stay green because those
+bodies are refused elsewhere, not because the gate never met them.
+
+**Three facts the torus re-check established, none of them this PR's
+and none blocking — recorded so they are not re-derived.**
+
+1. **The gate's premise is strictly WEAKER than the flux lane's.** The
+   gate runs `require_rims_at_extremes` but neither `props_du_consistent`
+   nor `require_extent`. A self-overlapping ladder (not a valid face)
+   therefore still splits at the gate, identically on the parent. This
+   PR narrowed the gap between the two lanes' premises; it did not
+   close it.
+2. **A v-degenerate torus rectangle**: `curved_face` returns
+   `DegenerateFace` while the gate answers, and at `dv = 0` exactly it
+   answers `Negative` where `dv = 1e-12` answers `Positive` — the
+   `a < b` tie-break picks the other anchor vertex. **Byte-identical on
+   the parent**; a consequence of (1), since `require_extent` is the
+   flux lane's and not the gate's.
+3. **A genuine iso-rectangle whose meridians are each split into two
+   collinear edges** goes accept→refuse at the gate. Pre-existing and
+   not a regression: `curved_face` refuses it on all three trees
+   because `torus_ends` takes the extent from the FIRST half-meridian,
+   so the gate now merely **agrees with the flux lane**. The coverage
+   lost is on a face that was already exempt.
+
+**What the re-check could not break.** An adversary built its own L in
+different coordinates, a mirrored-notch L, ones crossing the `u` seam
+and straddling `v = 0` and `v = π`, and a two-notch comb (parent:
+`+ + − − − − − − + +`): every rotation refuses. Past
+`require_rims_at_extremes`, every rim at exactly the anchor meridian's
+two span-ends **forces a rectangle on a simple domain**, so no second
+shape exists for a valid face. Rectangle control: **480 cases** — seam
+and pole straddles, `dv > π`, full `u`-ring, tiny `dv`, split rims, all
+four carrier-axis-flip variants, `R/r` from `1e3` to `1.0000005` —
+**0 refused, 0 split, areas bit-equal.**
+
+**The coverage given up, written down.** Twelve face-instances lose
+check-6 coverage: `cross.step` and `tee.step`'s cylinder walls are now
+exempt from the sense-vs-boundary gate at every ε row. That is the
+correct consequence of a correct fix — an answer that depended on
+flattening order was never coverage — but it is a real loss and it is
+recorded at `ValidationError::CurvedSenseInverted`'s own doc, which now
+enumerates the exempt set in full. **The only in-tree face that reaches the
+TORUS arm on a non-rectangle is the row this PR adds** — no fixture
+does — so that half of the fix is guarded by that row alone.
+
+## S81. FIXED by #877 — one rule, one metric, one lever, and one answer where they used to differ
+
+`same_level` and `require_rims_at_extremes` both decided *"are these two
+`RimLevel`s the same level"* and disagreed on three axes. Both now call
+one function, `curved::level_coincides`, and each axis was decided
+rather than averaged:
+
+* **Metric — the Euclidean chord wins.** `√(Δs² + Δc²)` is the point
+  deviation a direction-pair difference induces; deciding the two
+  components separately decides a different quantity (it admits a pair
+  up to `√2` further apart). The grouping site had the components; the
+  predicate had the chord.
+* **Lever — `minor` wins on the torus.** A `RimLevel::Unit` pair is a
+  pair of minor-circle directions and turns about the minor radius.
+  `major` is the AZIMUTHAL lever, correct for a Δu angle and a ±1
+  traversal difference — which `du_of_rims` still meters at `major`,
+  through the new `RimArms { level, azimuth }`. One scalar doing both
+  jobs is what let the two sites drift; two named fields cannot.
+* **Fail direction — refusal wins, and this is narrower than it
+  sounds.** What was unified is the **mixed-representation** arm: it
+  refuses at both sites now, where `same_level` answered `Ok(false)`
+  and let a caller that only groups carry on. The ORDINARY fail
+  direction is still `Err` at the predicate and `Ok(false)` at the
+  grouping, correctly — "these are different levels" is an answer when
+  you are grouping and a refusal when you are requiring.
+
+**This changes decisions, and here is the one that moved.** On a
+1 m / 1 mm gasket (`major/minor = 1000`) a band face whose bottom rim
+arrives as two arcs split at a vertex **0.5 nm off level — half of
+ε = 1e-9 m** — was metered at `major` as 0.5 µm, grouped apart, and
+refused `NotIsoRectangle { props_du_consistent }`. It now measures, and
+measures exactly. The floor in the other direction is a row too: at ten
+ε the same face is still refused, so the merge is not a rule that
+groups everything. `geom-brep/tests/s81_one_rim_level_rule.rs`, in a
+suite CI runs.
+
+**Audit note N1 is retired**, not deferred again — its own text said
+the unification was the thing to do "when typed margins land", and
+eight months of that left two spellings 90 lines apart. The reconciling
+paragraph in `du_of_rims` is gone; what is left states the split of
+arms, which is a fact about the code rather than a defence of a
+duplicate. **The two predicate NAMES stay** (`props_rim_level`,
+`props_rim_level_group`): they are the funnel's recording channels,
+separately audited in `docs/predicate-dimension-audit.md` and
+`docs/K-REPORT.md`, and one rule reported on two channels is not two
+rules. That is said at `level_coincides`, and two in-file rows red on any
+re-split: `a_pair_the_component_rule_calls_one_level_is_not_grouped`
+and its floor `a_pair_inside_the_band_by_its_chord_is_one_level`.
+**Both take their offsets from the run's own `Band`, not from an
+ε-literal** — the first draft of the first one used a literal, passed at
+the default ε for the wrong reason (both components were outside the
+band too, so it asserted nothing about the chord) and was caught red by
+CI's `eps = 1e-6` row. Every fixture this PR adds is band-derived for
+that reason, and both behaviour-change rows are verified red on the
+parent at **all three** matrix ε.
+
+**S82 is untouched and is Evan's.** The sphere's own lever
+(`RimLevel::Unit(sin v, 0)` at `R`, understating toward the poles in
+the ACCEPTING direction) is a decision, not a drift. This fix makes it
+**cheaper** to answer: that lever is now one field at one site
+(`RimArms::uniform(radius)`) feeding one rule, where before it was a
+scalar two functions metered two ways.
 
 ## S82. N7 now governs a refusal in the accepting direction, unscheduled and unrowed
 
 Carrying the rim rule to the sphere carried `RimLevel::Unit(sin v, 0)`
-with it (`props/curved.rs:963-972`, `:472-481`), so the predicate's
+with it (`props/curved.rs`, `sphere_boundary`'s rim arm — the
+`level: RimLevel::Unit(sin_v, T::zero())` push — and `RimLevel::Unit`'s
+own doc; **cited by target name per S176(a)**, because #877 moved 200+
+lines of this file and the two line ranges these were written against
+now land in unrelated code), so the predicate's
 margin is `R·|Δ sin v|` — the axial separation, which collapses as
 `cos v̄ → 0`. Two genuinely distinct near-polar rims therefore decide
 `Zero` and the predicate **passes** a non-rectangular domain.
@@ -9747,8 +9920,11 @@ nothing in the workspace names `MarchTolMismatch`; and the MARCH-TOL
 acceptance row (`tests/m5_pr7_ssi.rs:309`) asserts an identity
 `seam_tol` has already forced.
 
-Note the contrast **inside the same batch**: `du_of_rims`' new doc
-(`props/curved.rs:531-543`) worries at length that an unreachable
+Note the contrast **inside the same batch**: `du_of_rims`' doc
+(`props/curved.rs`, the *"`props_du_consistent`'s reachability is
+`unsure`"* paragraph — cited by target name per **S176(a)**; the line
+range moved under #877, which left the paragraph itself verbatim)
+worries at length that an unreachable
 `require_zero` is *"a value computation wearing a typed-refusal
 costume"*. The SSI seam is that shape and got no such treatment.
 
@@ -11423,7 +11599,7 @@ finding exists to reject. All of them were re-executed by the review.
   retired"* comment true of today's surgery; the hole S15 named is
   unchanged, asserted only over two fixtures.
 
-## S112. Prose that describes a world the code has left (roll-up) — **five of eight closed, and the ledger is the deliverable**
+## S112. Prose that describes a world the code has left (roll-up) — **six of eight closed, and the ledger is the deliverable**
 
 **The class ledger, per G-R2**, which re-scoped **G10** to *"(g) plus the
 class ledger"* and made the row's retirement turn on the ledger rather than
@@ -11443,7 +11619,7 @@ from the one the census names.
 | **(a)** | `sweep/src/fillet/naming.rs`, the *"What consumes these rows"* header | **NOBODY — open, and its owner has retired** | the sentence stands; `editor-core/src/names/emit_fillet.rs:220-221` still builds `retired_e`/`retired_v` out of `rec.dead` and consults them at `:236-246`, so the defect is intact. Routed to Track E's **E-g** after that lane was dispatched; E-g landed as **#768** and its own §D row says S112(a) is **not in it**, and that row is now struck from §D. See **S177** |
 | **(b)** | `interval-transcendentals/tests/certify.rs` | **#786** (G-a / G1), commit `520f21f1` | the header names `ci.yml`'s `oracle-certify` job, its `ORACLE_PATHS` trigger and `CAD_FUZZ_EFFORT=8` (`:21-24`); `ci.yml` no longer contains *"stays a by-hand gate"* |
 | **(c)** | `interval-transcendentals/src/ops.rs`, `docs/inventory.md` | **#786** (G-a / G1), same commit | `ops.rs:4` now opens *"`copysign` is deliberately NOT here"*; `docs/inventory.md:40` says the same and points at the trait impl. The code did not move and S1 is untouched |
-| **(d)** | `geom-brep/src/props/curved.rs:886-890` | **open — Track C**, and tracked live at §D's frozen table (**C-m, C3**) | `cone_arm`'s doc still says the `T::one()` fallback *"covers the no-rim case, where `du_of_rims` refuses before any margin is metered"* |
+| **(d)** | `geom-brep/src/props/curved.rs`, `cone_arm`'s doc | **#877** (I-a), and re-homed off C-m by ruling **I-R3** | the sentence named an ordering that is true at ONE of `cone_arm`'s two call sites and false at the other — `boundary_material_sign` never calls `du_of_rims` at all. Replaced by the invariant both routes establish; **N3 in `docs/predicate-dimension-audit.md` carried the same false claim and is corrected in the same PR**; `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the row |
 | **(e)** | `geom-brep/src/ssi/exhaust.rs:92` | **open — Track C by mechanism, but named in NO live §D row** | `exhaust.rs:92` still says *"The floor used, in meters"* while `ssi.rs`'s `account_chart_plane` call still passes `domain.floor(band) / speed` (cited by expression, per **S176(a)**). The frozen table's C-m/C3 entry lists **S112(d) only**; no row in §D names S112(e) or `geom-brep/src/ssi/`. Its only live mention is G10's own row |
 | **(f)** | `profile/src/sugar.rs` | **#831** (G-d / G10) | below |
 | **(g)** | `crates/pncad/src/lib.rs` | **#831** (G-d / G10) | below |
@@ -11462,12 +11638,15 @@ from the one the census names.
    over-count in *"the rest are free"*; the tree puts it in *"three of them are
    Track C's"*.** The ruling's conclusion — the sentence is wrong by one, the
    rides-along paragraph is right, (a) is not this row's — is unaffected.
-2. **This row cannot retire on this ledger.** Three members are open, and only
-   one of the three ((d)) is named by a live §D row. (a) and (e) would become
-   untracked the moment G10's row left the table, which is the half-fix shape
-   G-R2 invoked to require the ledger in the first place. **G10 stays in §D**,
-   re-scoped to the residue; the general form is **S177**, and **D124** is the
-   row that re-homes (a).
+2. **This row cannot retire on this ledger.** As the walk found it, three
+   members were open and only one of the three ((d)) was named by a live §D
+   row. **(d) closed at #877** (Track I, lane I-a), which leaves **(a) and (e)
+   open and NEITHER named by a live §D row** — the half-fix shape G-R2 invoked
+   to require the ledger in the first place, now with the one tracked member
+   gone. **G10 stays in §D**, re-scoped to the residue; the general form is
+   **S177**, and **D124** is the row that re-homes (a). (e) — `ssi/exhaust.rs`'s
+   *"The floor used, in meters"* against a chart-unit store — still has no row
+   anywhere, and Track I's scope does not reach `geom-brep/src/ssi/`.
 
 - (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
   rows"* — *"`editor-core`'s
@@ -11490,12 +11669,19 @@ from the one the census names.
   should ultimately live is part of the `RingInterval`-vs-`Interval`
   question, and this member's fix is only to stop two documents
   promising code that was never there.
-- (d) `crates/geom-brep/src/props/curved.rs:886-890` — `cone_arm`'s doc
-  still says its `T::one()` fallback *"covers the no-rim case, where
-  `du_of_rims` refuses before any margin is metered"*. After the
-  reorder, `require_rims_at_extremes` runs first. Nothing is wrong yet
-  because it is vacuous on an empty rim list; the sentence describes an
-  ordering the diff changed, fifteen lines from the code.
+- (d) **FIXED by #877 (I-a) — and the sentence was not fine.**
+  `cone_arm`'s doc said the `T::one()` fallback *"covers the no-rim
+  case, where `du_of_rims` refuses before any margin is metered"*.
+  Checked from the inside: `cone_arm` has **two** call sites, and
+  `boundary_material_sign`'s cone arm never calls `du_of_rims` — it
+  computes the arm, then refuses on `rims.first()`. So the sentence
+  named a route that exists at the flux lane and does not exist at the
+  gate. It is now the invariant both routes establish — the fallback IS
+  reached (both callers compute the arm before they know whether there
+  is a rim) and is **never metered against**, because every route from
+  it to a margin refuses on the empty rim list first. Audit note **N3**
+  carried the stronger and also-wrong form (*"the `T::one()` fallback is
+  unreachable"*) and is corrected with it.
 - (e) `crates/geom-brep/src/ssi/exhaust.rs:92` / `ssi.rs`'s
   `account_chart_plane` call (**cited by expression, per S176(a)** — the
   line moved by 13 under a merge) — `Exhaustiveness::floor`'s public
@@ -16184,6 +16370,100 @@ and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
 this got here. **Row: D122.**
 
+## S233. FIXED by #877 — a band stated in prose, in a file that decides against the ambient one
+
+**Found by being bitten.** A lane read
+`crates/geom-brep/tests/rim_dim_scale_twins.rs`'s header — *"the
+ε = 1e-7 band `Band { zero 1e-7, escalate 1e-6 }"* — took it for the
+run's tolerance, and built a row on it. `DEFAULT_EPS` is **`1e-9`**,
+and has been since the commit that introduced it. The row passed at
+the default **for the wrong reason** (its comparands were outside the
+band on both sides of a test about which side they were on) and fired
+on CI's `eps = 1e-6` leg. Recorded here because the next reader is one
+`git grep` away from the same sentence.
+
+**`1e-7` is not fabricated, and that is what makes it durable.** It is
+the ε of the *incident the file narrates* — the M7 in-band K landing
+was found on the hosted sweep's `CAD_TOLERANCE_EPS=1e-7` leg, and
+`step-import/tests/probe_review.rs` still guards two rows with
+`if eps != 1e-7 { SKIP }`. The file carried the incident's ε forward
+and wrote it where the *run's* ε belongs. Nine sites, and **four of
+them are assert messages**, so a failing run prints a band it does not
+have.
+
+**It is a latent wrong test, not a comment defect — executed.** On the
+tree at `e2534c5f`,
+`rim_dim_scale_twins::an_interior_rim_inside_the_band_measures_and_outside_it_refuses`
+asserts that an interior rim `1e-9 m` from the extreme MEASURES,
+against the stated `Band { zero 1e-7 }`. At **ε = 1e-12 it is already
+red** — `1e-9` is a thousand ε there, so it refuses — and it prints
+*"(Band { zero 1e-7, escalate 1e-6 })"* while doing it. Nothing
+observed this, because the suite is off CI's roster.
+
+**Off-roster is registered; the constant inside is not.** That is the
+finding rather than the staleness.
+`scripts/gates/probe-suite-census.sh` requires every probe-gated suite
+either to be rostered in `RUN_FLOOR` as executed or to declare
+`NO TEST IN THIS FILE IS EXECUTED BY CI` in its own header, and this
+file declares it, with its reason. The gate keeps the *disposition*
+honest and has nothing to say about a **band literal decided against
+the ambient one** inside a file it has just certified as unrun. A
+suite whose non-execution is properly registered is exactly where this
+defect survives longest.
+
+**The class has been fixed three times in this crate already, each
+time locally.** All three fixes are recorded at their own sites, none
+of them swept:
+
+- `rim_dim_review_probes.rs` — *"derived from the AMBIENT ε (fix pass:
+  originally hardcoded at the default ε = 1e-9, which inverted both
+  probes on the hosted 1e-6/1e-12 rows)"*. **This is the immediate
+  sibling of the file above** — same unit, same adoption-by-merge,
+  same subject — and the sweep stopped at the file it started in.
+- `m5_pr7_ssi.rs`'s floor-clamp fixture — *"A literal multiplier
+  states a different width at every ε"*; now stated in metres through
+  `SsiDomain::floor_scale_for(…, band())`.
+- `review_m5_pr7_adversarial.rs` — the same clamp, with the arithmetic:
+  *"the `1.0e8` this row carried is 0.1 m at the compiled default and
+  1e-4 m at ε = 1e-12, which is below the 0.008 m cylinder's tube
+  radius."*
+
+**Fixed here**, out of this lane's scope and deliberately: leaving a
+known-false constant in the tree after it has just produced a wrong
+test is worse than the scope impurity, and the lane that established
+the right value is the cheapest one to write it. Every band literal in
+`rim_dim_scale_twins.rs` now comes from `band()` — the two `> 1e-6`
+floors, the accepting/refusing offsets, and the assert messages, which
+print the run's own thresholds. The remaining `1e-7`s name the M7
+sweep leg explicitly and are true as history. **The suite now passes at
+all three matrix ε** (`default`, `1e-6`, `1e-12`), where before it
+passed at two.
+
+**What the pattern could not match.** The sweep was
+*a band or ε constant restated in prose or in an assert message, in a
+file that decides against the ambient band*, over
+`crates/geom-brep/tests/` — one hit (above), three prior fixes, and
+four honest per-leg statements (`intersect_table.rs`,
+`m7_8_plane_nurbs_edge.rs`, `pcurve_parameter_finding.rs`,
+`review_m5_pr7b_ssi.rs`, each of which names the leg it is about or
+says the ambient band is not its input). It could **not** match: a
+band restated without any of `ε`/`eps`/`Band`/`1e-` — a prose
+threshold like *"a tenth of a micron"*; a constant restated in a
+**non-comment** channel other than an assert message (a `const` named
+for a value it no longer has, a fixture filename); the same shape in
+**any other crate's** tests, which was not swept at all and where the
+three prior fixes suggest it exists; and anything in
+`docs/`, where the same `Band { 1e-7, 1e-6 }` appears in `K-REPORT.md`
+correctly, as the incident's band.
+
+**Verdict:** FIXED. The class is not closed — the sweep was one
+crate's test tree — and a **gate** is the answer if it recurs: the
+census script already walks every probe-gated suite, and a rule that
+no suite may name a band literal it does not read from `Band` would
+have caught all four instances. Not built here; that is a decision
+about a gate, not a lane's patch.
+---
+
 ## S230. Certified widths with no ceiling, in crates no live track owns
 
 **Raised by lane I-b while closing S60 (#873).** The parent is **S26**, and
@@ -16692,7 +16972,6 @@ waits on the other to start.**
 
 | # | Work | From |
 |---|---|---|
-| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These rows are style and stand on their own; the correctness defect is #723's own. **S60 is done** (#873 — lane I-b, ceilings at both `area_pad` sites; its metering half is now issue **#870**), so the row is down to `props/{mod,curved}.rs`. | ~~S60~~, **S77**, **S80**, **S81**, S112(d) |
 | **I2** | **NARROWED to S65 by #872.** S64 is closed: the ε enumeration is **computed and pinned** (`mesh/tests/all.rs`, ruling **I-R8**) rather than recited, and three claim sites now point here. **What is left is S65 alone, and it is Evan's** — the question is stated at S65 with three options and option B priced by measurement. It needs a decision, not a lane. | ~~S64~~, **S65** |
 
 **Raised inside this track and NOT scheduled by it: S231, S236, S237.**
@@ -16715,7 +16994,11 @@ shows it rather than the finding sitting alone.
 
 **Lanes, 2026-08-21 — five, and they do not map one-to-one onto these rows.**
 Recorded here so a reader of two PRs does not read them as one row.
-**I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**;
+**I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**,
+**LANDED as #877**: S77, S80, S81 and S112(d) closed, audit note **N1 retired**
+with them, and **S233** minted and fixed out of scope (a band a probe file states
+against the one it decides with). Its combined review refuted the fix's own
+torus exemption by execution, and the premise now runs on all four gate arms;
 **I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows) —
 **landed**, its kernel half went to issue **#870** rather than into the diff
 (I-R2), and its unrouted residue is **S230**;
