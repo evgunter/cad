@@ -244,14 +244,26 @@ mod tests {
     /// an input that can tell the two apart.
     ///
     /// `t = 1 − cos θ` is arbitrary, so the two spellings differ by a
-    /// rounding on most oblique axes; unlike `vec.rs`'s `±1`-scaled
-    /// twin, this one is not free and nothing else in the tree notices
-    /// it. Every committed artifact rotates about an axis with
-    /// components in `{0, ±1}`, where `(t·0)·0 = t·(0²) = 0` and
-    /// `(t·1)·1 = t·(1²) = t` make the two identical — so a silent
-    /// re-association back would move `f64` output for real callers and
-    /// **no golden, render or export would object.** This test is the
-    /// only thing that would.
+    /// rounding on most oblique axes — unlike `vec.rs`'s `±1`-scaled
+    /// twin, which is exact either way.
+    ///
+    /// **DO NOT DELETE THIS AS REDUNDANT. It is the only thing in the
+    /// tree that objects.** Every committed artifact — every golden,
+    /// render, STEP export and k-lint row — rotates about an axis whose
+    /// components are `0` or `±1`, and there
+    /// `(t·0)·0 = t·(0²) = 0` and `(t·1)·1 = t·(1²) = t` make the two
+    /// associations identical. So re-associating this diagonal back
+    /// would move `f64` output for real callers with an **oblique**
+    /// axis while the entire committed corpus stayed byte-identical and
+    /// green. That was measured, not assumed: the conversion that
+    /// introduced this test changed 34.6% of random (θ, axis) diagonals
+    /// and re-cut no golden anywhere.
+    ///
+    /// The tree's one other oblique-axis bit-exact rotation row
+    /// (`editor-core/tests/asm2a_instantiate.rs`) cannot help: its
+    /// oracle re-spells the caller's own expression and so moves with
+    /// the code. That is smell-scan **S215**, and this doc comment is
+    /// the reason it is only a finding rather than a hole.
     ///
     /// **The angles are swept, not hand-picked.** Whether a given θ
     /// separates the two spellings depends on libm's `sin_cos` to the
@@ -271,10 +283,13 @@ mod tests {
         for k in 1..=64u32 {
             let theta = f64::from(k) * 0.05;
             let r = Mat3::rotation_about(axis, theta);
-            // `Real::sin_cos`, NOT std's inherent `f64::sin_cos`: the
-            // kernel's is two separate libm calls and the two disagree
-            // by an ulp at some angles, which at this precision is the
-            // whole test. (Also caught by this test, in this test.)
+            // `Real::sin_cos`, NOT std's inherent `f64::sin_cos`. The
+            // kernel routes transcendentals through the pure-Rust `libm`
+            // crate BECAUSE the platform libm differs in the last ulp
+            // (D9; `real.rs`'s `libm_vs_std_divergence_census` measures
+            // it at ~3% of samples, max 1 ulp). At this precision that
+            // difference is the whole test, so std's method is the wrong
+            // oracle here — as this test demonstrated by rejecting it.
             let (_, c) = <f64 as Real>::sin_cos(theta);
             let t = 1.0 - c;
             let got = [r.c0.x, r.c1.y, r.c2.z];

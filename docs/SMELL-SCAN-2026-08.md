@@ -14290,11 +14290,32 @@ postcondition does not say. `Brk` is the one that may need more than a
 doc link: it is a bracket carrier with no certified door, so the question
 of whether it should have one is a design question, not a doc edit.
 
-## S213. The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation
+## S215. The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation
 
 **Raised by H-e (#885) on closing D109(a)**, out of Track H's `S210`–`S229`
-block; **re-derived against `main` at merge time** (S210–S212 taken, so S213).
-Not scheduled — recorded, not claimed.
+block. **Renumbered `S213` → `S215` by the Track H orchestrator before merge,
+and the reason is worth more than the number.** Not scheduled — recorded, not
+claimed.
+
+**Why the collision happened, since re-deriving did not prevent it.** This was
+minted as `S213` after re-deriving against `main`, where `S210`–`S212` were
+taken and `S213` was free. **`smellh/h-g-doors` (#886) had already minted its
+own `S213` about two hours earlier**, and `S214` was open on the orchestrator's
+own branch. Both lanes checked correctly and both were wrong, because **neither
+branch was merged**: `main` cannot show a number that only exists on a sibling's
+unmerged branch. G-R13's fourth rule — *re-derive against `main` after every
+merge* — caught `H-a`'s collision this morning only because the colliding PR
+(**#875**) had already **landed**. Here nothing had, so the rule that saved
+`H-a` could not fire at all.
+
+**The published block is the wrong instrument for this.** `S210`–`S229` protects
+Track H from other tracks; between two open branches *inside* Track H it does
+nothing, because a reservation the reserver alone can see is not one — which is
+G-R13(b) stated about a block instead of a lane. **The disposition: the Track H
+orchestrator now allocates numbers on request and publishes each reservation in
+`docs/SMELL-H-LOG.md`, which lands on `main` far more often than any lane branch
+does.** That moves the reservation to where the other party actually looks,
+which is the only thing that could have prevented this.
 
 `editor-core/tests/asm2a_instantiate.rs:1051` —
 `r1_the_placement_frame_matches_the_transform_node_bit_for_bit` — sweeps four
