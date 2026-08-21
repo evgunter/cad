@@ -8312,9 +8312,38 @@ path-shaped matcher can reach. And **mirror citations resolve**: `ci-local.sh`
 carries
 `# HOSTED MIRROR: <job> / <step name>` markers, each of which must name a step
 `ci.yml` carries under that job, with a floor so deleting the markers is not a
-pass. The drifted prose this finding recorded — *"the `k-lint` job's 'demos
+pass. The prose this finding recorded — *"the `k-lint` job's 'demos
 render provenance' step"* for what is `render provenance (demos)` in
 **`discipline`** — is corrected, and reds as a marker.
+
+**CORRECTION, from #837 (Track G, G11), and it sharpens the class rather
+than the count: that sentence never drifted, because it was never true.**
+Re-derived commit by commit, and the origin is tighter than a drift story
+allows: **one commit wrote both halves, and they disagreed on arrival.**
+`480539d9` (2026-08-06, the render-provenance guard's own commit) added the
+step to `ci.yml` **inside `discipline`** and, in the same diff, added
+`# \`k-lint\` job's "demos render provenance" step.` to the local half. The
+step name has been added exactly once in the file's whole history and
+removed never, so it has never lived in another job; `ba5b3bba`
+(2026-08-11) only moved the comment from `scripts/` to `local-scripts/`
+with the rest of the split. The sentence described no state of the tree at
+any point in its life. **And it propagated**: #837 wrote a mirror comment
+for its own new row by copying the shape of the one above it, reproducing
+the wrong job — so the file carried two false citations, one five days
+old and one five minutes old, and neither was a drift.
+
+That is the whole arc of this class in one line — **a claim that was false
+when written, copied by a later pass that had no way to check it, and ended
+only when the population was *derived* rather than read.** #837's own sweep
+re-derived all **sixteen** `Mirror:` / `Hosted mirror:` cross-references in
+`ci-local.sh` against a job→step map parsed out of `ci.yml`: **fourteen
+true, two false, both of them the pair above** — including the historical
+*"NO HOSTED MIRROR ANY MORE"* note at `:250`, which is accurate (the retired
+`uv sheet drift (demos)` row really was `k-lint`'s, confirmed at
+`11f55a27^`). The count is #837's, not this finding's original scan, which
+saw six. **The two false ones are exactly the two that predate the marker
+format**, which is the argument for the format: a prose citation is
+invisible to the checker that would have caught it.
 
 **The `0644` blind spot is closed.** Re-confirmed by planting first: on the merge
 base, a mode-0644 `zz-unwired-nonexec.sh` beside fourteen wired gates left
@@ -13516,7 +13545,7 @@ scope cell, and the honest fix is an editorial pass over that whole
 section — the half of it that can only be restated has to say at the
 site why. A partial recount is §C13's half-fix. **Row: D111.**
 
-## S176. Twelve `# noqa` markers for three linters, none of which the repo runs
+## S192. Twelve `# noqa` markers for three linters, none of which the repo runs
 
 **Raised by G11 / #837**, whose own fix pass added two of them before
 checking whether anything reads them.
@@ -13556,7 +13585,7 @@ namespaces, and `scripts/`+`demos/`+`crates/**/tests/*.py` is a small
 surface) and the markers start meaning something; or they are deleted
 and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
-this got here. **Row: D113.**
+this got here. **Row: D120.**
 
 ---
 
@@ -13639,7 +13668,7 @@ are recorded FIXED at their own bullets, and the lane raised **S129**
 `demos/tour`'s tessellation pin are red on main). **S114(c)** was the design
 question it was always going to be: Evan closed it on 2026-08-20 and the
 ordinary work it left behind landed as **G11 / #837**, which raised **S174**
-and **S176**.
+and **S192**.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
@@ -13669,7 +13698,7 @@ and **S176**.
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 | **D111** | **`demos/README.md`'s uv-lane numbers, which S113(a) is recorded as having swept.** Five figures the FIXED record itself names are still standing in the file that fix pass edited — 982 faces, 879 checkable, a 9e-16 worst gap that is 9.93e-16, 238 curved faces — plus two more that no run prints and cannot simply be recounted. The work is #787's own rule applied to the prose: **compute or delete, never restate**, and say at the site why for the half that can only be restated. | **S174** | `demos/README.md` (the uv-lane section) | **proposed: ACCEPT** | style |
-| **D113** | **Twelve `# noqa` markers for three linters the repo does not run** — pycodestyle, pyflakes and ruff's bandit/blind-except rules, none installed, configured or invoked anywhere. A cost decision, not a patch: run one Python linter over `scripts/`+`demos/`+`crates/**/tests/*.py` and let the markers mean something, or delete them and leave the reasons in the prose that already carries them. **Not half.** | **S176** | `demos/render_freecad.py`, `scripts/{ci-filter,step_import_check}.py`, `crates/{pncad-py,step-export,step-import}` test scripts, and wherever the linter would be configured | **proposed: ACCEPT** | style |
+| **D120** | **Twelve `# noqa` markers for three linters the repo does not run** — pycodestyle, pyflakes and ruff's bandit/blind-except rules, none installed, configured or invoked anywhere. A cost decision, not a patch: run one Python linter over `scripts/`+`demos/`+`crates/**/tests/*.py` and let the markers mean something, or delete them and leave the reasons in the prose that already carries them. **Not half.** | **S192** | `demos/render_freecad.py`, `scripts/{ci-filter,step_import_check}.py`, `crates/{pncad-py,step-export,step-import}` test scripts, and wherever the linter would be configured | **proposed: ACCEPT** | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
