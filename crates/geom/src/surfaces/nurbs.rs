@@ -125,11 +125,11 @@ pub struct SurfaceJet3<T: Real> {
 /// to its knot vector. A window built from surface A and used to
 /// evaluate surface B is in-range-but-wrong if B's control counts are
 /// at least A's, and panics (loudly, correctly) otherwise. Every
-/// consumer today builds the window from the surface it evaluates,
-/// through one of [`NurbsSurface::window`], [`NurbsSurface::window_at`]
-/// or [`NurbsSurface::window_of`]; making that a type-level fact needs
-/// an invariant-lifetime brand, the same one `Span` deliberately does
-/// not pay for yet.
+/// consumer builds the window from the surface it evaluates, through
+/// [`NurbsSurface::window`] or [`NurbsSurface::window_at`] — the two
+/// public mints, both of which take indices or parameters rather than
+/// spans. Making that a type-level fact needs an invariant-lifetime
+/// brand, the same one `Span` deliberately does not pay for yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SurfaceWindow {
     span_u: Span,
@@ -263,9 +263,9 @@ impl<T: Real> NurbsSurface<T> {
         (self.knots_u.control_count(), self.knots_v.control_count())
     }
 
-    /// The [`SurfaceWindow`] for an ALREADY-VALIDATED span pair — the
-    /// one primitive constructor; [`Self::window`] and
-    /// [`Self::window_at`] are the two ways of producing the `Span`s.
+    /// The [`SurfaceWindow`] for a span pair already validated against
+    /// THIS surface's own knot vectors — the one primitive
+    /// constructor, behind [`Self::window`] and [`Self::window_at`].
     ///
     /// The stride is taken from THIS surface, never from the caller,
     /// so a window can never disagree with the net it indexes (see the
@@ -273,12 +273,13 @@ impl<T: Real> NurbsSurface<T> {
     /// spans drawn from a DIFFERENT surface's knot vectors).
     ///
     /// The **argument order is load-bearing** and nothing checks it: a
-    /// `Span` carries no direction, so `window_of(span_v, span_u)`
-    /// typechecks and builds a window that is wrong rather than
-    /// refused (in range whenever the two directions' counts allow it).
-    /// This is the same unbranded-pairing hazard one dimension up —
-    /// see issue #475 for the two shapes that would close it.
-    pub fn window_of(&self, span_u: Span, span_v: Span) -> SurfaceWindow {
+    /// `Span` carries no direction, so the two arguments are
+    /// interchangeable to the type system and a swap builds a window
+    /// that is wrong rather than refused. That obligation is not one a
+    /// caller can be handed, which is why this is private: it is
+    /// discharged here, at each mint, against the vector each span was
+    /// drawn from.
+    fn window_of(&self, span_u: Span, span_v: Span) -> SurfaceWindow {
         let stride = self.knots_v.control_count();
         SurfaceWindow {
             span_u,
