@@ -394,9 +394,9 @@ seam.
 | **H-b** | H2 (+H8) | **S99**–**S103**, **S116(b)** | `geom/src/{net,scalar_lift,surfaces,azimuth}.rs`, `curves/nurbs.rs`, `surfaces/nurbs.rs`, `geom-brep/src/nurbs_iso.rs` | **adversarial** + style | — |
 | **H-c** | H3 + H4 | **S85**, **S89** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom-brep/src/ssi/enclose.rs`, `topo/src/props.rs`, `geom-core/tests/decoration_seam.rs` | style | — |
 | **H-d** | H6 | **S88** (`geom` half), **S210**, **S211** minted | `geom/src/{projection,curves/*,surfaces/*}.rs`, `geom-core/src/dual.rs`, `geom/tests/dual_foot_tangent.rs` | style | **LANDED #875** 2026-08-21, after one fix pass |
-| **H-e** | H7 | **D109(a)** | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/`, whatever goldens move | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-e`, branch `smellh/h-e` |
+| **H-e** | H7 | **D109(a)**, **S215** minted | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/{interval-square-allowlist,lib}.sh` | **adversarial** + style | **LANDED #885** 2026-08-21, after one fix pass. No golden moved. |
 | **H-f** | H5 | **C7** (+ S44 residue, S55), **S33** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom/src/{curves,surfaces}.rs`, +11 | style; **`Dual` sub-lane adversarial** | — |
-| **H-g** | **H-R4** (new) | **S90**'s implementation, **#874**'s structural half | `geom/src/{projection,curves/projection,surfaces/projection}.rs`, `topo/src/chart_region.rs`, `sweep/src/fillet/{build,surgery,battery}.rs`, `geom-core/src/real.rs`, `scripts/gates/bounds-allowlist.sh` | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-g`, branch `smellh/h-g` |
+| **H-g** | **H-R4** (new) | **S90**'s implementation, **S213**, **S216**; **#874**'s structural half | PR 2: `geom/src/{projection,curves/projection,surfaces/projection}.rs`, `topo/src/chart_region.rs`, `geom-core/src/real.rs`, `bounds-allowlist.sh`. PR 1: `sweep/src/fillet/*` | **adversarial** + style | **PR 2 LANDED #886**; **PR 1 = #883, DRAFT, frozen on Evan's fillet fork** |
 
 **Why each adversarial row is adversarial**, since the criterion is
 narrower than "load-bearing":
