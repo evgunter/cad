@@ -74,6 +74,11 @@
 # other. Same ruling as S158's, same reason it is worth stating twice —
 # the wrapped form is what the formatter PRODUCES from the caught one.
 #
+# KNOWN GAP 4: the allowlist is FILE-granular while its reasons are
+# per-seam, so a second unrelated `x * x` added to an allowlisted file
+# inherits the first entry's ratification silently. That is S159/D103's
+# class and it is not closed here.
+#
 # KNOWN GAP 5: the SCALED-square branch sees one spelling of the shape
 # and four others go past it. `(k * x) * x` is matched; `(x * k) * x` is
 # not, because the repeated operand must be the group's LAST factor —
@@ -86,16 +91,18 @@
 # one needs adjacency and the other needs the paren. And a square split
 # across two statements (`let kx = k * x;` … `kx * x`) is invisible to
 # everything here: the scan's unit is a statement, and that square is
-# two of them. **None of these is believed to be live** — the whole
-# tree was scanned with the widened matcher when this branch landed and
-# the only hit it added was the one the conversion had just removed —
-# but a hole this gate cannot see is a hole whether or not it is
-# occupied today.
+# two of them.
 #
-# KNOWN GAP 4: the allowlist is FILE-granular while its reasons are
-# per-seam, so a second unrelated `x * x` added to an allowlisted file
-# inherits the first entry's ratification silently. That is S159/D103's
-# class and it is not closed here.
+# NONE OF THESE IS LIVE, AND A CLEAN RUN OF THIS GATE IS NOT WHY. These
+# five spellings are exactly what this matcher cannot see, so its own
+# green says nothing about them; only a differently-shaped sweep can.
+# One was run: separate patterns per spelling, plus a two-statement
+# `let`-binding scan over 52,471 production statements. `(x * k) * x`
+# and the nested-paren forms: 0. The three-factor and two-statement
+# forms: 21 + 3 candidates, every one either in an already-allowlisted
+# file, a `Mat3<f64>` projector conjugation, or a Taylor term over an
+# already-tight `.sqr()` value. A hole this gate cannot see is still a
+# hole, so it is written down rather than closed.
 #
 # Allowlist rationale, per file:
 #  - geom-core real.rs / ring_interval.rs — the scalar implementations
@@ -288,6 +295,15 @@ plant_ungated_module_file() {
 # THE NEAR MISSES, bundled: in the must-NOT-fire direction any one line
 # firing fails the case, so a bundle is strictly stronger than separate
 # fixtures. Every line here is correct code, or prose, or test-only.
+#
+# EACH LINE MUST BE KILLABLE BY ONE DEFECT, or it is decoration. The two
+# branch-2 guards are independent, so a near-miss excluded by BOTH tests
+# neither: `libm::sin(t) * t` sat here and its group `(t)` has no `*`,
+# so removing either guard alone left it green. The rows below are
+# split so each dies to exactly one: `libm::sin(a * b) * b` and
+# `foo(a * b) * b` fire if the `(?<!\w)` call lookbehind goes (the
+# first in its `::`-qualified spelling), and `(a + b) * b` fires if the
+# group-must-contain-`*` rule goes.
 plant_not_squares() {
   mkdir -p "$1/crates/planted/src"
   {
@@ -300,7 +316,7 @@ plant_not_squares() {
     printf 'pub fn c<T: Real>(v: V<T>) -> T { v.x * v.x.abs() }\n'
     printf 'pub fn d<T: Real>(v: V<T>) -> T { v.norm() * v.norm() }\n'
     printf 'pub fn e<T: Real>(x: T) -> T { x.powi(2) }\n'
-    printf 'pub fn f<T: Real>(t: T) -> T { libm::sin(t) * t }\n'
+    printf 'pub fn f<T: Real>(a: T, b: T) -> T { libm::sin(a * b) * b }\n'
     printf 'pub fn g<T: Real>(a: T, b: T) -> T { foo(a * b) * b }\n'
     printf 'pub fn h<T: Real>(a: T, b: T) -> T { (a + b) * b }\n'
     printf 'pub fn i<T: Real>(a: T, b: T, c: T) -> T { (a * b) * c }\n'

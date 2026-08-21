@@ -306,10 +306,22 @@ impl<T: Real> Vec3<T> {
     /// direction near an equator — acquires a spurious negative lower
     /// bound. `b1`'s square carries a `±1` scale, so writing it as
     /// `s·(n.x²)` is a reassociation of `(s·n.x)·n.x` rather than a
-    /// square substitution; it is exact at `f64` (the scale is a sign
-    /// bit and round-to-nearest-even is sign-symmetric) and strictly
-    /// tighter at `Interval`, where a `n.z` enclosure straddling zero
-    /// makes `s` the interval `[−1, 1]`.
+    /// square substitution. It is exact at `f64` — the scale is a sign
+    /// bit and round-to-nearest-even is sign-symmetric.
+    ///
+    /// **Where the reassociation narrows, stated precisely.** It
+    /// narrows when `s` is a *definite* `±1` (a sign-definite `n.z`
+    /// enclosure) and the `n.x` enclosure straddles zero: then
+    /// `(s·n.x)·n.x` spans `[−M², M²]` where `s·(n.x²)` gives one
+    /// sign's half. It does **not** narrow when `n.z` straddles zero —
+    /// `s` is then `[−1, 1]` and both spellings give the same symmetric
+    /// interval — and that case is academic anyway, since
+    /// `a = −1/(s + n.z)` is unbounded there. Nor is `powi(2)`
+    /// unconditionally narrower: on this backend it is 1 ulp wider on
+    /// each side once the square falls below `2^-960`, i.e.
+    /// `|n.x| < 2^-480`, which no unit direction reaches
+    /// (`scripts/gates/interval-square-allowlist.sh` carries the
+    /// measurement).
     ///
     /// **Discontinuity, documented honestly:** the frame flips across
     /// the equator `n.z = 0` (`s` jumps) — the construction is
@@ -717,10 +729,19 @@ mod tests {
         ///
         /// **`b1.x` is covered here because it is the component both
         /// production callers consume** (`newell.rs` and `recognize.rs`
-        /// discard `b2`), and because it is a scaled square: the
-        /// derivative is where a reassociation of `(s·n.x)·n.x` into
-        /// `s·(n.x²)` can go wrong even when the value channel cannot
-        /// see it.
+        /// discard `b2`), and because a closed form is the only way to
+        /// check a derivative at all: `f64` has no tangent to compare
+        /// against, so the value-channel test above cannot reach this.
+        ///
+        /// **What this test is NOT: a guard on the square's spelling.**
+        /// With `s` exactly `±1`, `Dual::mul`'s `x'·x + x·x'` and
+        /// `Dual::powi`'s `(2·x)·x'` both collapse to `±2·fl(x·x')` —
+        /// 0 bit differences over 300,000 samples in the live regime —
+        /// so writing `b1.x`'s square either way leaves this green. It
+        /// is a **correctness guard against a wrong closed form**: it
+        /// reds on a wrong power, a dropped `s`, or a swapped factor.
+        /// Worth having, and worth not mistaking for the other thing
+        /// given where it sits.
         ///
         /// **The tangents are NOT 1.** `Dual::variable` gives every
         /// input a tangent of `1.0`, and at `ty = 1` the product rule
@@ -763,25 +784,52 @@ mod tests {
             }
         }
 
-        /// The arithmetic identity `b1.x`'s spelling rests on: for a
-        /// scale that is exactly `±1`, `(s·x)·x` and `s·(x²)` are
-        /// bit-identical at `f64`. `s·x` is a sign-bit flip, exact for
-        /// every finite `x`, and round-to-nearest-even is symmetric
-        /// under negation, so the rounding of the remaining product is
-        /// the same one in both associations.
+        /// The one thing `b1.x`'s spelling adds over the already-pinned
+        /// `powi(2) == x * x`: the **±1 scale may cross the square**.
+        /// `s·x` is a sign-bit flip, exact, and round-to-nearest-even is
+        /// symmetric under negation, so the same rounding survives in
+        /// both associations.
         ///
-        /// This is what makes the constructor's square free of `f64`
-        /// consequence — and it is a property of the ±1 scale alone.
-        /// `mat.rs::rotation_about`'s diagonal carries an arbitrary
-        /// `t = 1 − cos θ` and does NOT have it; that association moves
-        /// bytes, deliberately.
+        /// **`powi(2) == x * x` at `f64` is NOT re-derived here** — it
+        /// is pinned over the full edge set (subnormals, `±0`, `±∞`,
+        /// `MAX`, NaN) by
+        /// `sweep/tests/review_m2_pr4.rs::survives_powi2_bitwise_equals_mul_at_f64`.
+        /// This test is only the scale half, and it is a property of the
+        /// `±1` scale alone: `mat.rs::rotation_about`'s diagonal carries
+        /// an arbitrary `t = 1 − cos θ`, does NOT have it, and is
+        /// guarded separately by
+        /// `mat.rs::tests::rotation_diagonal_takes_the_square_before_the_scale`.
         #[test]
         fn unit_scale_square_reassociates_exactly(x in -1e6f64..1e6) {
+            // The generator reaches none of the interesting magnitudes —
+            // it will essentially never draw a subnormal or a signed
+            // zero and cannot draw a non-finite — so the edge set is
+            // enumerated rather than sampled.
+            let edges = [
+                0.0f64,
+                -0.0,
+                f64::MIN_POSITIVE,
+                f64::MIN_POSITIVE / 4.0,
+                5.0e-324,
+                1.0e160,
+                f64::MAX,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for v in core::iter::once(x).chain(edges) {
+                for s in [1.0f64, -1.0] {
+                    prop_assert_eq!(
+                        ((s * v) * v).to_bits(),
+                        (s * <f64 as Real>::powi(v, 2)).to_bits(),
+                        "s = {}, x = {:e}",
+                        s,
+                        v
+                    );
+                }
+            }
             for s in [1.0f64, -1.0] {
-                prop_assert_eq!(
-                    ((s * x) * x).to_bits(),
-                    (s * <f64 as Real>::powi(x, 2)).to_bits()
-                );
+                prop_assert!(((s * f64::NAN) * f64::NAN).is_nan());
+                prop_assert!((s * <f64 as Real>::powi(f64::NAN, 2)).is_nan());
             }
         }
     }

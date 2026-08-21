@@ -239,6 +239,67 @@ mod tests {
         }
     }
 
+    /// The diagonal is `(t·nᵢ²) + c`, **bit-exactly and not
+    /// `((t·nᵢ)·nᵢ) + c`** — the association the doc comment states, at
+    /// an input that can tell the two apart.
+    ///
+    /// `t = 1 − cos θ` is arbitrary, so the two spellings differ by a
+    /// rounding on most oblique axes; unlike `vec.rs`'s `±1`-scaled
+    /// twin, this one is not free and nothing else in the tree notices
+    /// it. Every committed artifact rotates about an axis with
+    /// components in `{0, ±1}`, where `(t·0)·0 = t·(0²) = 0` and
+    /// `(t·1)·1 = t·(1²) = t` make the two identical — so a silent
+    /// re-association back would move `f64` output for real callers and
+    /// **no golden, render or export would object.** This test is the
+    /// only thing that would.
+    ///
+    /// **The angles are swept, not hand-picked.** Whether a given θ
+    /// separates the two spellings depends on libm's `sin_cos` to the
+    /// last ulp, so a hardcoded pair is a fixture that can silently
+    /// stop discriminating under a libm bump. The sweep asserts
+    /// instead that *some* angle in it discriminates each of the three
+    /// diagonals, which fails loudly if that ever stops being true.
+    #[test]
+    fn rotation_diagonal_takes_the_square_before_the_scale() {
+        // The RAW axis goes in: `rotation_about` normalizes internally,
+        // so handing it a pre-normalized vector normalizes twice and the
+        // expectation below would be modelling a different axis. (This
+        // test caught exactly that mistake being made in it.)
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let mut discriminating = [false; 3];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let r = Mat3::rotation_about(axis, theta);
+            // `Real::sin_cos`, NOT std's inherent `f64::sin_cos`: the
+            // kernel's is two separate libm calls and the two disagree
+            // by an ulp at some angles, which at this precision is the
+            // whole test. (Also caught by this test, in this test.)
+            let (_, c) = <f64 as Real>::sin_cos(theta);
+            let t = 1.0 - c;
+            let got = [r.c0.x, r.c1.y, r.c2.z];
+            for (i, ni) in [n.x, n.y, n.z].into_iter().enumerate() {
+                let want = t * <f64 as Real>::powi(ni, 2) + c;
+                assert_eq!(
+                    got[i].to_bits(),
+                    want.to_bits(),
+                    "diagonal {i} at theta={theta}: {} vs documented t*n^2+c {}",
+                    got[i],
+                    want
+                );
+                if want.to_bits() != ((t * ni) * ni + c).to_bits() {
+                    discriminating[i] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating,
+            [true; 3],
+            "no angle in the sweep separates ((t*n)*n)+c from (t*n^2)+c for \
+             every diagonal — this test no longer guards the association"
+        );
+    }
+
     proptest! {
         /// transpose ∘ transpose is the identity *bit-exactly*: transpose
         /// is pure field shuffling, no arithmetic anywhere.

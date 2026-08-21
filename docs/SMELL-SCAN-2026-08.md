@@ -8583,11 +8583,13 @@ exists.
 
 **And the converted line is the one nobody reads.** Both production
 callers of `orthonormal_basis` (`newell.rs`, `recognize.rs`) are
-`let (u_ref, _) = …` — they discard `b2` — so the conversion cannot
-move shipped certified output today, while the **consumed** `b1` still
-carries the unconverted scaled square of **S163(a)** — **ruled
-admissible** (Evan, 2026-08-21: D9 is determinism at one kernel, not a
-pin on last year's output), and scheduled rather than done here.
+`let (u_ref, _) = …` — they discard `b2` — so the conversion could not
+move shipped certified output. The **consumed** `b1` carried the
+unconverted scaled square of **S163(a)**, **ruled admissible** (Evan,
+2026-08-21: D9 is determinism at one kernel, not a pin on last year's
+output) and scheduled rather than done here; **it was converted by
+#885**, so this paragraph is the record of what F3 left, not a live
+residue.
 
 **The `scripts/ci-filter.py` half of this finding is NOT closed and is
 relocated to S164**, not dropped: closing it needs a `ci.yml` edit,
@@ -13725,7 +13727,7 @@ accepting file granularity and saying so at each entry.
 
 **Verdict:**
 
-## S163. What the F3 sweep left open in `scripts/gates/`, and one member is live in production `Interval` code
+## S163. What the F3 sweep left open in `scripts/gates/` — the member that was live in production `Interval` code is FIXED by #885; four remain open
 
 Raised by lane **F-g** while closing S63 and S157, and **grown by that
 PR's style and adversarial reviews from three members to five** — the
@@ -13776,10 +13778,16 @@ rotation feeding a committed artifact in this tree turns out to be, so
 the full hosted matrix — three ε values, the interval feature, k-lint,
 all four render lanes, the byte-golden STEP corpus — came back green
 with no re-cut. The change is nonetheless real: 34.6% of random
-(θ, axis) pairs give a different diagonal entry. At `Interval` both
-sites tighten, which is the point — the old order treats the two
-factors as independent, so an enclosure straddling zero acquires a
-spurious sign range that the scaled square does not.
+(θ, axis) pairs give a different diagonal entry. **At `Interval` both
+sites narrow, but conditionally, and #885 states the condition rather
+than the slogan**: the old order treats the two factors as independent,
+so an enclosure straddling zero acquires a spurious sign range that the
+scaled square does not — *provided the scale is sign-definite*. Where
+`n.z` straddles zero `s` is `[−1, 1]` and the two spellings are
+algebraically identical; and `powi(2)` is 1 ulp wider on each side
+below `|x| < 2^-480`, per the third rider on the ruling. `mat.rs`'s
+`t = 1 − cos θ` is nonneg by construction, so its narrowing is
+unconditional.
 
 **(b) `bounds-allowlist.sh` is the one gate still on the leading-`//`
 comment filter, the one still keeping a self-test helper that runs
@@ -13831,7 +13839,7 @@ empty-tree case does not produce) and `lib.sh`'s *"defines no
 `gate_selftest`"* guard, unreachable while every gate defines one;
 `gate-roster.sh` × 3; `probe-suite-census.sh` × 3 (including the
 nested-suite diagnosis inside the command substitution that motivated
-the stdout→stderr move); `interval-square-allowlist.sh`'s *"every source … is test-only"* guard (cited as `:153` when the member was written and `:161` at that commit — named rather than numbered here, per **G-R13**),
+the stdout→stderr move); `interval-square-allowlist.sh`'s *"every source … is test-only"* guard (**named, not numbered, per G-R13** — the member originally cited a line number, which was already stale when written and moved twice more inside #885 alone; the guard is the one reached only when the production-source set is empty),
 `kernel-serde-free.sh:79`, `signed-zero-one-home.sh:96`,
 `test-aggregation.sh:67`, `test-features-dev-only.sh:271,277`.
 **`lib.sh` says a guard never shown to fire is not a guard**; this is
@@ -14281,6 +14289,55 @@ that duplicate it — keeping each site's *own* argument for anything the
 postcondition does not say. `Brk` is the one that may need more than a
 doc link: it is a bracket carrier with no certified door, so the question
 of whether it should have one is a design question, not a doc edit.
+
+## S213. The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation
+
+**Raised by H-e (#885) on closing D109(a)**, out of Track H's `S210`–`S229`
+block; **re-derived against `main` at merge time** (S210–S212 taken, so S213).
+Not scheduled — recorded, not claimed.
+
+`editor-core/tests/asm2a_instantiate.rs:1051` —
+`r1_the_placement_frame_matches_the_transform_node_bit_for_bit` — sweeps four
+axes including `[1.0, 2.0, 3.0]`, *"non-unit, oblique"*, and asserts
+`to_bits()` equality. It reads exactly like a pin on `Mat3::rotation_about`'s
+output at an oblique axis, and **it is the only such row in the tree.** It is
+not one. Its expected side is `eval::wire::wire_transform`'s expression
+re-spelled — *"verbatim"*, in its own comment — so it calls
+`Mat3::rotation_about(unit, angle)` itself and both sides move together. Any
+change **inside** the rotation is invisible to it.
+
+**How this was found, which is the part worth keeping.** #885 reassociated
+`rotation_about`'s diagonal from `((t·nᵢ)·nᵢ) + c` to `(t·(nᵢ²)) + c` — an
+`f64`-visible change on 34.6% of random (θ, axis) pairs — and the entire tree
+stayed green. Part of that is genuine (every rotation on a committed
+artifact's path has axis components in `{0, ±1}`, where the two associations
+are identical). But **the one test positioned to catch the rest could not**,
+and its name, its axis list and its `to_bits()` assertions all say otherwise.
+
+**The test is not wrong and should not be deleted.** It correctly pins what it
+says in its heading — that `Frame::rotate_then_translate` and the `Transform`
+node agree bit for bit, including for a non-unit axis, *"the case the claim
+used to get wrong"*. That is an **agreement** property between two callers, and
+for that job re-spelling the callee is the right construction. The finding is
+that the row reads as a **value** pin and is shelved among value pins.
+
+**This is `S110`'s class** — a suite that cannot go red for the defect it
+appears to cover — **in the one place where it mattered for this change.**
+`S110`'s existing members are about assertions too weak to discriminate; this
+one is about an oracle that is a copy of the subject, which is the sharper
+form: no strengthening of the tolerance would help.
+
+**What the work is.** Either say at the site that the oracle is a re-spelling
+and therefore blind to the callee (cheap, and enough to stop the next reader
+mistaking it), or add a genuine value pin for `rotation_about` at an oblique
+axis. **#885 added the second for the diagonal specifically**
+(`mat.rs::tests::rotation_diagonal_takes_the_square_before_the_scale`, which
+reds on the reverted association), so what remains here is the off-diagonals
+and the doc note — not the whole gap.
+
+**Ownership.** `editor-core/` is in **neither Track H's nor Track I's scope**,
+so this row has no home track today — the same shape as `S230`/`S231`. Recorded
+rather than taken.
 
 # §A. Where I would start
 
@@ -17013,7 +17070,7 @@ decisions* table above rather than any track.
 **The work, for a taker.** Compilation is already paid by the `compile and list every probe-gated test target` step, so the marginal cost is execution only. **Turn all fourteen on at once.** An earlier draft of this row advised landing them in batches *"so a failure is attributable"* — **that reason does not survive inspection and is retracted**: CI names the failing test, so attribution is free either way, and batching buys nothing while costing extra round trips. What is true and worth knowing is only that **none has ever executed, so expect reds, and a red is as likely to be a kernel finding as a harness one** — a kernel fix is a different lane from a harness fix, and one run over the whole set tells you which you have. F8's floor (`probe-suite-census.sh --check-executed`, keyed on tests that **ran** and on the `plain.ignored == ignored.passed` complement) is the mechanism to extend as each batch lands. |
 | **The scaled square — RULED YES (Evan, 2026-08-21)** | **Raised by Track F's F-g (#849), which stopped at the boundary rather than deciding it.** The interval-square gate forbids `x * x` because the general multiply must consider four endpoint products and cannot exploit `x·x ≥ 0`; the tight square is never wider and is **strictly tighter when the enclosure straddles zero**. F-g converted `linalg/vec.rs`'s `orthonormal_basis` `b2` (`self.y.powi(2)`) on exactly that ground — bit-identical at `f64`, tighter at `Interval`, still containing the truth. **One line above sits `b1`'s `((s * self.x) * self.x)` — a *scaled* square, invisible to any matcher of this shape, and deliberately left alone**, because tightening it means rewriting `(s·n.x)·n.x` as `s·(n.x²)` and the doc says *"each component exactly as parenthesized"*. **The question: may a D9-fixed evaluation order be reassociated when the reassociation is strictly tighter at `Interval` and bit-identical at `f64`?** It is not a matcher question and must not be answered by widening one — **it decides two ratified sites**: `orthonormal_basis`'s `b1`, and `linalg/mat.rs`, whose interval-square allowlist entry is justified by *"`rotation_about`'s evaluation order"*. A taker who treats it as a sweep will red both. Note `memories/output-stability-as-justification.md` does **not** settle it: it says byte-preservation may choose among equivalent implementations but never justify keeping code, and the live claim here is that the *order itself* is the ratified thing. **RULED: YES — reassociate.** Evan, 2026-08-21, on two grounds. **(1) Moving output is not on its own a reason not to act.** `memories/output-stability-as-justification.md` names *arithmetic association* as exactly the kind of thing output stability may decide, and is explicit that committed bytes are *"usually a golden, and regenerating a golden is a chore, not a contract"*. The orchestrator had offered the `f64` byte-move at `mat.rs` as a downside **while citing that same memory two paragraphs earlier**, which is the error the memory exists to prevent. **(2) The memory's carve-out does not reach this.** It preserves *"the D2/D9 determinism contract itself (bit-identical replay, byte-identical export)"* — and Evan: **D9 is determinism at one kernel, not pinning the same output forever.** So the same document evaluated twice must agree; it need not agree with last year. `u_ref` is stored as data per D2, so existing documents keep their frames.
 
-**D109(a) is CLOSED by #885** and what follows is the record of the prediction it tested. **The exact-scalar test predicted COST, not permission**: `orthonormal_basis`'s `b1` has `s = ±1`, so `(s·x)·x` and `s·(x²)` are bit-identical at `f64` (round-to-nearest-even is sign-symmetric) and strictly tighter at `Interval` — free, and #885 pins that with a proptest. `mat.rs::rotation_about`'s `t * x * x` has `t = 1 − cos θ`, arbitrary, so it **moves `f64` bytes** — 34.6% of random θ/axis pairs — **and re-cut no golden at all**, because the reassociation is exact for axis components in `{0, ±1}` and that is every rotation on a committed artifact's path here. The prediction's first half held; its second half was right about the arithmetic and wrong about the chore.
+**D109(a) is CLOSED by #885** and what follows is the record of the prediction it tested. **The exact-scalar test predicted COST, not permission**: `orthonormal_basis`'s `b1` has `s = ±1`, so `(s·x)·x` and `s·(x²)` are bit-identical at `f64` (round-to-nearest-even is sign-symmetric) — free, and #885 pins that with a proptest. **The *"strictly tighter at `Interval`"* half of the original prediction is the one thing here that does not survive checking**: it narrows only where the scale is a definite `±1` and `n.x` straddles zero, it is exactly a wash where `n.z` straddles zero (`s = [−1, 1]`), and the ruling's own third rider already forbade stating the width absolutely. `mat.rs::rotation_about`'s `t * x * x` has `t = 1 − cos θ`, arbitrary, so it **moves `f64` bytes** — 34.6% of random θ/axis pairs — **and re-cut no golden at all**, because the reassociation is exact for axis components in `{0, ±1}` and that is every rotation on a committed artifact's path here. The prediction's first half held; its second half was right about the arithmetic and wrong about the chore.
 
 **Three conditions ride with it, none of them a reason to decline.** The **`Dual<f64>` tangent changes and nothing tests it** — `Dual::mul` is `x'·x + x·x'`, `Dual::powi` is `(2·x)·x'`; 6,388 of 3,000,000 inputs differ at the last ulp of a subnormal tangent and `x = (1e308, 1e-308)` gives old `1.9999999999999998`, new `inf`, while the in-tree guard asserts only the **value** channel. Extend the guard **with** the change, not after. *"Strictly tighter"* has an exception: `powi(2)` is **1 ulp wider** below `|x| < 2^-480` (the *"never wider"* claim cited inari, which has not been the backend since M5 PR 1) — unreachable in the live regime, 0 widenings in 3M samples over `|x| ∈ [1e-60, 1e60]`, but do not state it absolutely. And **the gate cannot see scaled squares at all**, so this authorises a manual sweep rather than producing one; a taker who reaches for a matcher widening will red two ratified sites.
 
