@@ -18,11 +18,11 @@ Usage: python compose_montage.py <outdir> <renderdir>
            [--montage=NAME] [--banner=TEXT] [--title=TEXT]
 """
 
-import json
 import sys
 import textwrap
 from pathlib import Path
 
+import manifest
 import matplotlib
 
 matplotlib.use("Agg")
@@ -78,21 +78,17 @@ def main():
         else:
             pos.append(a)
     outdir, renderdir = Path(pos[0]), Path(pos[1])
-    scenes = [
-        s
-        for s in json.loads((outdir / "scenes.json").read_text())
-        if s.get("montage", True)
-    ]
+    scenes = [s for s in manifest.read_scenes(outdir) if s.montage]
     rows = -(-len(scenes) // COLS)
     fig = plt.figure(figsize=(3.4 * COLS, 3.1 * rows), dpi=120)
     for i, scene in enumerate(scenes, start=1):
         ax = fig.add_subplot(rows, COLS, i)
-        png = renderdir / f"{scene['name']}.png"
+        png = renderdir / f"{scene.name}.png"
         if png.exists():
             ax.imshow(trim(plt.imread(png)))
         else:
-            placeholder(ax, scene["name"], renderdir)
-        ax.set_title(scene["caption"], fontsize=11, pad=3)
+            placeholder(ax, scene.name, renderdir)
+        ax.set_title(scene.caption, fontsize=11, pad=3)
         ax.set_axis_off()
     if banner:
         fig.suptitle(title, fontsize=15, y=0.995, va="top")
