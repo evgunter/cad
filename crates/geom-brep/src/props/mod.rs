@@ -114,30 +114,38 @@
 //!   still `min_max` over meridian ENDPOINT latitudes — #723's
 //!   mechanism, reaching the one arm #723's text does not name) is
 //!   stated at `curved::sphere`, at the arm.
-//! * **[`boundary_material_sign`] runs it too**, on its three
-//!   linearly-leveled arms, because they reach the same rim-side
-//!   derivation and it rests on the same premise. It was listed here
-//!   as a second exemption, on the argument that *"running the
-//!   predicate there could only convert an answer into an
-//!   exemption"* — which covers the ERROR direction only. It derives
-//!   a side from `lo + hi − 2v`, *which extreme is this rim at*, and
-//!   on a domain that is not a rectangle that returns a definite ±1
-//!   depending on where the owning body's loop flattening started
-//!   rather than on the face: two rotations of one edge cycle, two
-//!   opposite signs. Tier 3's curved check 6 turned the wrong one into
-//!   a `CurvedSenseInverted`, and check 7 being gated on
+//! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
+//!   because every one of them reaches a side derivation that rests
+//!   on this premise. It was listed here as a second exemption, on the
+//!   argument that *"running the predicate there could only convert an
+//!   answer into an exemption"* — which covers the ERROR direction
+//!   only. The three linearly-leveled arms derive a side from
+//!   `lo + hi − 2v`, *which extreme is this rim at*, and on a domain
+//!   that is not a rectangle that returns a definite ±1 depending on
+//!   where the owning body's loop flattening started rather than on
+//!   the face: two rotations of one edge cycle, two opposite signs.
+//!   Tier 3's curved check 6 turned the wrong one into a
+//!   `CurvedSenseInverted`, and check 7 being gated on
 //!   `errors.is_empty()`, the wrong diagnosis SUPPRESSED the honest
 //!   `NotIsoRectangle` the flux lane raises on the same face. The
 //!   premise and the side now travel together
 //!   (`curved::linear_rim_side`), so what its callers must treat as
 //!   exempt is what such a face now produces.
 //!
-//!   Its **torus arm alone stays exempt**, for a different reason than
-//!   the retired one: it derives no side from an extreme. It reads the
-//!   anchor meridian's chart orientation and the rim sharing that
-//!   meridian's `t0` vertex — two facts about one CORNER of the
-//!   boundary — so the global inference the premise underwrites is not
-//!   on that path. Stated at the arm.
+//!   **The torus arm is not exempt either, and the argument that it
+//!   was is retired here rather than restated.** That argument said
+//!   the arm reads only the anchor meridian's chart orientation and
+//!   the rim sharing that meridian's `t0` vertex — *two facts about
+//!   one CORNER* — so no global inference is on the path. It is
+//!   false. The anchor-end choice cancels against `dv/dt` only when
+//!   the two rims FLANKING that meridian carry opposite `d_u`. Every
+//!   corner of a rectangle gives that; a **reflex** corner does not,
+//!   and on an L-shaped domain the six rotations of one cycle answer
+//!   `+ + − − + +` while the flux lane refuses all six. One corner is
+//!   true and not sufficient — the PAIR is what the premise buys, and
+//!   only a rectangle guarantees it. The arm runs
+//!   `require_rims_at_extremes` on the same `torus_ends` extremes the
+//!   flux lane uses.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it**. The

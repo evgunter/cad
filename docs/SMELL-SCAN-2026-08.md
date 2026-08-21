@@ -9770,13 +9770,47 @@ is not an iso-rectangle stop being *diagnosed* by tier 3's curved check
 6 and become exempt there — the posture its callers already owe an
 error. **No in-tree fixture moved**, and the reason is narrower than
 "nothing reaches the gate": instrumenting the gate's four arms and
-running the workspace gives **29 refusals, 13 of them this PR's own new
-rows and 16 pre-existing** — `step-import`'s `tier_gate` (12) and its
+running the workspace gives **35 refusals, 19 of them this PR's own new
+rows (13 linear + the 6 rotations of the torus row) and 16
+pre-existing** — `step-import`'s `tier_gate` (12) and its
 `s58_iso_rectangle` (4), all on `cross.step` and `tee.step` walls. **On
 the parent those 16 got definite answers, split exactly 8 `Positive` /
 8 `Negative`** — one of each per body, which is precisely the
 arbitrariness this row removes. The suites stay green because those
 bodies are refused elsewhere, not because the gate never met them.
+
+**Three facts the torus re-check established, none of them this PR's
+and none blocking — recorded so they are not re-derived.**
+
+1. **The gate's premise is strictly WEAKER than the flux lane's.** The
+   gate runs `require_rims_at_extremes` but neither `props_du_consistent`
+   nor `require_extent`. A self-overlapping ladder (not a valid face)
+   therefore still splits at the gate, identically on the parent. This
+   PR narrowed the gap between the two lanes' premises; it did not
+   close it.
+2. **A v-degenerate torus rectangle**: `curved_face` returns
+   `DegenerateFace` while the gate answers, and at `dv = 0` exactly it
+   answers `Negative` where `dv = 1e-12` answers `Positive` — the
+   `a < b` tie-break picks the other anchor vertex. **Byte-identical on
+   the parent**; a consequence of (1), since `require_extent` is the
+   flux lane's and not the gate's.
+3. **A genuine iso-rectangle whose meridians are each split into two
+   collinear edges** goes accept→refuse at the gate. Pre-existing and
+   not a regression: `curved_face` refuses it on all three trees
+   because `torus_ends` takes the extent from the FIRST half-meridian,
+   so the gate now merely **agrees with the flux lane**. The coverage
+   lost is on a face that was already exempt.
+
+**What the re-check could not break.** An adversary built its own L in
+different coordinates, a mirrored-notch L, ones crossing the `u` seam
+and straddling `v = 0` and `v = π`, and a two-notch comb (parent:
+`+ + − − − − − − + +`): every rotation refuses. Past
+`require_rims_at_extremes`, every rim at exactly the anchor meridian's
+two span-ends **forces a rectangle on a simple domain**, so no second
+shape exists for a valid face. Rectangle control: **480 cases** — seam
+and pole straddles, `dv > π`, full `u`-ring, tiny `dv`, split rims, all
+four carrier-axis-flip variants, `R/r` from `1e3` to `1.0000005` —
+**0 refused, 0 split, areas bit-equal.**
 
 **The coverage given up, written down.** Twelve face-instances lose
 check-6 coverage: `cross.step` and `tee.step`'s cylinder walls are now
@@ -9784,9 +9818,9 @@ exempt from the sense-vs-boundary gate at every ε row. That is the
 correct consequence of a correct fix — an answer that depended on
 flattening order was never coverage — but it is a real loss and it is
 recorded at `ValidationError::CurvedSenseInverted`'s own doc, which now
-enumerates the exempt set in full. **Zero in-tree fixtures reach the
-TORUS arm on a non-rectangle**, so that half of the fix is guarded only
-by the row this PR adds.
+enumerates the exempt set in full. **The only in-tree face that reaches the
+TORUS arm on a non-rectangle is the row this PR adds** — no fixture
+does — so that half of the fix is guarded by that row alone.
 
 ## S81. FIXED by #877 — one rule, one metric, one lever, and one answer where they used to differ
 
