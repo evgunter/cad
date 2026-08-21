@@ -134,11 +134,39 @@ else
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+
+# --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
+# INPUTS (Evan, 2026-08-20, on S61). These read prose, documentation and this
+# file — inputs whose change sets classify TIER=docs, which is exactly what the
+# early exit below returns on. Placed ABOVE it, because a check the tier
+# selection can skip is not a check, and because siting them below would
+# reproduce in the local half the defect the hosted half was fixed for.
+# No cargo, no build slot: greps over three files, milliseconds.
+# `gate-roster.sh` runs again inside the discipline loop on a building change
+# set; running a grep twice is cheaper than a second hand-written roster.
+# HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
+# HOSTED MIRROR: mirror / probe type-check loop citations
+# HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+tier_blind_rows() {
+  local rc=0
+  scripts/gates/gate-roster.sh --selftest || rc=1
+  scripts/gates/gate-roster.sh || rc=1
+  scripts/gates/probe-suite-census.sh --citations || rc=1
+  python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
+  python3 scripts/check-ci-mirror-parity.py || rc=1
+  return $rc
+}
+echo
+echo "=== [tier-blind rows] (run on every tier, including docs)"
+if tier_blind_rows; then TIER_BLIND_RC=0; else TIER_BLIND_RC=1; fi
+
 if [ "$TIER" = docs ]; then
   echo "=== documentation-only change set: nothing to build."
-  echo "=== (hosted CI gates such a PR on the 'docs-only ok' marker job.)"
+  echo "=== (hosted CI gates such a PR on the 'docs-only ok' marker job and"
+  echo "===  on the 'mirror' job, which carries no if: and runs on every tier.)"
   echo "=== re-run with --full to force the whole matrix anyway."
-  exit 0
+  [ "$TIER_BLIND_RC" -eq 0 ] || echo "=== TIER-BLIND ROWS FAILED"
+  exit "$TIER_BLIND_RC"
 fi
 
 # Anything past here builds and runs tests: take the machine-wide build
@@ -180,23 +208,35 @@ run_row_if() {
 # checks it against this directory. The ratified allowlist prose lives
 # WITH each gate — read the script before touching a membership.
 #
-# `lib.sh` is sourced, not run, and is mode 0644: the -x test skips it.
+# `lib.sh` is sourced, not run, and is skipped BY NAME. It used to be
+# skipped by `[ -x "$g" ] || continue`, which made the executable bit
+# the registration mechanism: a gate landing mode 0644 was silently
+# skipped here and equally silently skipped by `gate-roster.sh`, so it
+# ran nowhere while being counted among "all N gates". A member of that
+# directory that cannot be executed is a failure now, not a skip.
 # Each gate runs its `--selftest` first, as the sibling python gate
 # does — a guard that has never been shown to fire is not a guard.
 discipline() {
   local rc=0 g
   for g in scripts/gates/*.sh; do
-    [ -x "$g" ] || continue
+    [ "$(basename "$g")" = lib.sh ] && continue
+    if [ ! -x "$g" ]; then
+      echo "ERROR: $g is not executable — a gate in scripts/gates/ that no half can run is registered nowhere" >&2
+      rc=1
+      continue
+    fi
     "$g" --selftest || rc=1
     "$g" || rc=1
   done
   # The k-probe sweep's `run_dump` guards, proved against a stub cargo —
-  # milliseconds, no build. Mirrors ci.yml's step of the same subject.
+  # milliseconds, no build.
+  # HOSTED MIRROR: discipline / k-probe sweep guard selftest (run_dump)
   scripts/rundump-guard-selftest.sh || rc=1
-  # The `interval` feature must stay purely additive — mirror of ci.yml's
-  # step of the same name, calling the SAME script. This is what makes it
-  # sound for the interval rows below to run only the tests that feature
-  # ADDS; read the script's header before touching either half.
+  # The `interval` feature must stay purely additive, calling the SAME
+  # script the hosted step calls. This is what makes it sound for the
+  # interval rows below to run only the tests that feature ADDS; read
+  # the script's header before touching either half.
+  # HOSTED MIRROR: discipline / interval-feature additivity (gates the interval run legs)
   if ! (python3 scripts/check-interval-cfg-additive.py --selftest \
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
@@ -213,10 +253,8 @@ discipline() {
 # stamp. Stdlib-only python3 (no venv, no
 # FreeCAD, milliseconds) — hence an always-run row, not a filtered one:
 # a guard that a tier selection can skip is not a guard. Runs its own
-# self-test first (the guard must be shown to fire). Hosted mirror:
-# ci.yml's "render provenance (demos)" step, in the `discipline` job —
-# where all three demos tripwires live, because it is the job with no
-# toolchain and no cargo.
+# self-test first (the guard must be shown to fire).
+# HOSTED MIRROR: discipline / render provenance (demos)
 render_provenance() {
   python3 demos/check_render_provenance.py --selftest && \
     python3 demos/check_render_provenance.py
@@ -229,6 +267,7 @@ render_provenance() {
 # and a silent drop is precisely what this lane exists to prevent. Its
 # self-test pins those, plus the fail-loud on a cell that does not match
 # the emitter's root-tag contract. Stdlib-only python3, milliseconds.
+# HOSTED MIRROR: discipline / uv composer selftest (demos)
 uv_composer_selftest() {
   python3 demos/compose_uv_montage.py --selftest
 }
@@ -239,8 +278,8 @@ uv_composer_selftest() {
 # proves the display -> world direction really is the inverse of the
 # world -> display one it derives from, and pins that a manifest
 # missing `transparency` or `montage` REFUSES rather than defaulting.
-# Stdlib-only python3, milliseconds. Hosted mirror: ci.yml's "scene
-# manifest reader selftest (demos)" step, in the `discipline` job.
+# Stdlib-only python3, milliseconds.
+# HOSTED MIRROR: discipline / scene manifest reader selftest (demos)
 manifest_selftest() {
   python3 demos/manifest.py --selftest
 }
@@ -360,6 +399,7 @@ doc_tests() { cargo test --doc $SCOPE; }
 # and for why it is sound (the feature is additive, and
 # check-interval-cfg-additive.py above gates that it stays so).
 INTERVAL_SEL="target/ci-local/interval-selection.txt"
+# HOSTED MIRROR: test-interval / derive the interval-only test selection
 # shellcheck disable=SC2086
 interval_selection() {
   mkdir -p target/ci-local \
@@ -512,13 +552,16 @@ demos_eps_pin() {
 klint_tool() {
   (cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 }
-# Mirror of hosted's `compile and list every probe-gated test target`
-# step, both commands: the build covers what the feature instantiates
+# HOSTED MIRROR: k-lint / compile and list every probe-gated test target
+# Both commands: the build covers what the feature instantiates
 # (`--all-targets` reaches the lib's own `#[cfg(test)]` modules, which
 # `--test all` never builds), and the listing asks which counted suites
 # were actually built.
-# The census half needs no mirror: it is `scripts/gates/`, so the
-# discipline loop above already runs it and its --selftest.
+# The census half needs no mirror row of its own: it is `scripts/gates/`, so
+# the discipline loop above runs it and its --selftest in DEFAULT mode. That
+# argument is about the file and not the mode — the loop passes no flags, so
+# `--citations` is not covered by it and has its own row above the docs exit.
+# `check-ci-mirror-parity.py`'s claim 2 is what keeps that distinction checked.
 #
 # `crates` is BOUND FIRST, not expanded inside the `for` list: a command
 # substitution in a `for` list is not subject to `set -e` and would leave
@@ -566,8 +609,9 @@ tesslint_tool() {
       cargo doc --no-deps --document-private-items && \
     cargo test)
 }
-# The meter's CONSUMER half (mirrors ci.yml's row of the same name):
-# the CSV schema, the counterfactual schedules and the split optimizer
+# The meter's CONSUMER half.
+# HOSTED MIRROR: k-lint / tess-meter tool fmt + clippy + doc + tests
+# The CSV schema, the counterfactual schedules and the split optimizer
 # live here, outside the kernel, and so do their tests.
 tessmeter_tool() {
   # `cargo doc` too: scripts/doc-gate.sh is `cargo doc --workspace` and
@@ -580,7 +624,8 @@ tessmeter_tool() {
       cargo doc --no-deps --document-private-items && \
     cargo test)
 }
-# The meter's kernel half (mirrors ci.yml's row of the same name).
+# The meter's kernel half.
+# HOSTED MIRROR: k-lint / mesh budget meter + certificate falsifier (feature = budget)
 # `mesh::budget` is gated at its module boundary, so every row above
 # runs the INERT half — the live half needs its own row or it rots.
 #
@@ -593,6 +638,8 @@ budget_meter() {
   cargo clippy -p mesh --all-targets --features budget -- -D warnings && \
     cargo test -p mesh --features budget
 }
+# HOSTED MIRROR: k-lint / tessellation-budget sweep (every tour scene, per face)
+# HOSTED MIRROR: k-lint / tessellation-budget lint (gate — a grown budget fails this row)
 # `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
 # the sizing columns, never `worst_dev`, so the default sweep's
 # per-triangle resampling (tens of millions of surface evaluations)

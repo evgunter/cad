@@ -60,8 +60,12 @@ concurrency:
 #
 #   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive;
 #   PR #177 then collapsed 251 of those 263 binaries into 12 aggregators —
-#   see any crates/*/tests/all.rs header — so the per-binary constant now
-#   multiplies 24 binaries, not 263):
+#   see any crates/*/tests/all.rs header for the pattern — so the
+#   per-binary constant now multiplies one aggregated target per crate
+#   rather than 263. The count itself is NOT restated here:
+#   `scripts/gates/test-aggregation.sh` derives it from `cargo metadata`
+#   on every merge and prints it, and a number copied out beside a claim
+#   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
 #   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
@@ -72,10 +76,12 @@ concurrency:
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
-# the basis is gone. #179 and #387 took this workspace to 14 test targets
-# (`scripts/gates/test-aggregation.sh` asserts the count), so the
-# per-binary link constant mold attacks now multiplies 14, not 261. Two
-# independent readings say it no longer pays:
+# the basis is gone. #179 and #387 took this workspace to ONE test target
+# per crate — `scripts/gates/test-aggregation.sh` enforces that invariant
+# and prints the resulting total; it does not assert a particular number,
+# so no number is copied here — and the per-binary link constant mold
+# attacks now multiplies that handful, not 261. Two independent readings
+# say it no longer pays:
 #   * LOCAL, measured 2026-08-11 at today's target count:
 #     189 s baseline vs 186 s with mold — noise. That measurement is
 #     written up in docs/LOCAL-BUILD-PERF.md, which reverted mold locally
@@ -227,6 +233,62 @@ jobs:
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
+  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Evan,
+  # 2026-08-20). `discipline` below is `if: run_build == 'true'`, and a
+  # change set of only .md / memories/ / local-scripts/ / .claude/ is
+  # TIER=docs, so it does not run. That posture is deliberate and cheap
+  # docs CI stays — but it left two guards whose inputs are EXACTLY that
+  # change class unable to fire on it: the citation guard (prose in two
+  # crate headers, the K-REPORT runbook and the local half) and the gate
+  # roster (whose local half is local-scripts/ci-local.sh). They are
+  # sited here.
+  #
+  # THIS JOB HAS NO `if:`, so it runs on every tier — including the
+  # docs-only runs where every other job carrying one is skipped.
+  # (`filter` and `docs-only` also carry no `if:`; neither runs a check.)
+  # No toolchain, no cargo, no cache: greps and a stdlib python reader
+  # over the two CI halves, the workflow directory, and the citing files.
+  # Measured on three docs-tier runs: 8, 9 and 12 s wall clock, finishing
+  # before `filter`, so the added critical-path latency on a docs PR is
+  # zero and the cost is one extra billed job-minute.
+  #
+  # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
+  # exception is the reason it exists: its subject IS the agreement
+  # between the hosted half and local-scripts/ci-local.sh, so it has to
+  # see both. Nothing here can be moved by a developer's machine — the
+  # tree is read, never sourced or executed.
+  # `ci-mirror-parity.sh` checks that this stays exactly one job.
+  mirror:
+    name: CI half parity + gate wiring (every tier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gate roster parity (both halves run every gate)
+        run: |
+          scripts/gates/gate-roster.sh --selftest
+          scripts/gates/gate-roster.sh
+      # Every check OUTSIDE scripts/gates/ is named by hand in both
+      # halves, so nothing detected a lost row on either side. Two
+      # separate enumerations of that population each missed a member,
+      # and the second was found by another track by accident — so the
+      # population is derived here rather than listed. It also checks
+      # THE SITING RULE ITSELF: without that, hollowing this job and
+      # moving these three steps back into `discipline` restores the
+      # exact state S61 recorded with nothing firing. Python, not bash:
+      # its subject is which job a step belongs to and whether that job
+      # carries an `if:`, and the bash version read that with a regex
+      # that could not see an uppercase job name.
+      - name: CI half parity (both halves name the same checks)
+        run: |
+          python3 scripts/check-ci-mirror-parity.py --selftest
+          python3 scripts/check-ci-mirror-parity.py
+      # The claims in the tree about what CI does to probe-gated suites.
+      # Prose is this guard's input, so this is where it can fire.
+      - name: probe type-check loop citations
+        run: |
+          scripts/gates/probe-suite-census.sh --selftest
+          scripts/gates/probe-suite-census.sh --citations
+
   discipline:
     name: discipline (evaluation-code)
     runs-on: ubuntu-latest
@@ -256,18 +318,11 @@ jobs:
       # local-scripts/ (this job deletes that tree).
       #
       # This job is the ONLY hand-written gate roster in the repo, and
-      # it is checked rather than trusted: local-scripts/ci-local.sh
-      # runs scripts/gates/ in a loop, so it has no list to drift, and
-      # the roster gate below fails unless ci.yml wires a step for every
-      # gate in that directory. Each step runs the gate's `--selftest`
-      # first — a guard that has never been shown to fire is not a
-      # guard, and the roster gate enforces that too. What it checks is
-      # WIRING, not execution: it is a grep, so a step disabled by an
-      # `if:` condition still satisfies it (see that script's header).
-      - name: gate roster parity (ci.yml names every gate)
-        run: |
-          scripts/gates/gate-roster.sh --selftest
-          scripts/gates/gate-roster.sh
+      # it is checked rather than trusted — but NOT here. The roster
+      # gate reads local-scripts/ci-local.sh, which this job deletes
+      # above, and its other input is a file class that classifies
+      # TIER=docs, on which this job does not run at all. It is sited in
+      # the `mirror` job, which runs on every tier and keeps that tree.
       - name: Bounds compound-bound allowlist (ratified 2026-07-29)
         run: |
           scripts/gates/bounds-allowlist.sh --selftest
@@ -315,7 +370,11 @@ jobs:
       # roster-enforced like its siblings, its `--selftest` proves the
       # guards fire, and the local half reaches it through the loop that
       # runs this whole directory instead of a hand-written mirror row.
-      - name: probe-suite census + citation guard
+      # The CITATION half is not here: its inputs are prose, and a change
+      # set of only prose classifies TIER=docs, so this job could not
+      # fire on the only change class that breaks it. It runs in
+      # `mirror`, as `--citations`.
+      - name: probe-suite census (crates + floor)
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh
@@ -505,7 +564,8 @@ jobs:
     # OPT LEVEL — reverses the #52/#53 verdict, because both of its
     # premises expired. That decision ("blanket opt 2 is net-slower on
     # core-crate PRs") was measured when this workspace had 261 test
-    # binaries and compile dominated the run. #179/#387 took that to 14,
+    # binaries and compile dominated the run. #179/#387 took that to one
+    # per crate (`scripts/gates/test-aggregation.sh` prints the total),
     # and test EXECUTION is now ~79% of run wall (measured 2026-08-12:
     # compile jobs ~220 s of a ~1060 s critical path). Re-measured on the
     # same box, whole workspace, `--all-targets`:
@@ -1890,10 +1950,11 @@ jobs:
       # THE PROBE TEST SURFACE. `probe` is an opt-in feature, so a
       # `tests/*.rs` behind `#![cfg(feature = "probe")]` is invisible to
       # every default row in this file: it can rot into a build error, or
-      # out of existence, with the whole matrix green. Sixteen such
-      # suites exist across five crates and only editor-core's two were
-      # ever compiled — as a side effect of the sweep below, not by
-      # anything that meant to.
+      # out of existence, with the whole matrix green. Before this loop
+      # the only ones ever compiled were `editor-core`'s, as a side
+      # effect of the sweep below rather than by anything that meant to.
+      # How many there are is not written here: the census gate derives
+      # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
       # `release-corruption` above would suggest. That job is separate
@@ -1964,6 +2025,25 @@ jobs:
       # rides beside the linted CSV rather than inside it. A type-check
       # would not have caught what that harness actually did: it compiled
       # perfectly and panicked, unnoticed, for 26 days.
+      #
+      # IT ALSO RUNS THE DEFAULT SELECTION, once per rostered suite and
+      # outside the ε loop, and FLOORS WHAT IT RAN. `--ignored` runs only
+      # `#[ignore]`d tests, so every plain `#[test]` in a probe suite was
+      # unreachable from this job — including one inside a module the
+      # sweep already named. Once and not per ε because the property
+      # those tests assert (one-sided greenness at `Probe`) is already
+      # swept at three ε by the dump's own `run_doc`; what the default
+      # selection adds is that the bodies execute, and the count of
+      # `#[ignore]`d tests they skipped.
+      #
+      # THE FLOOR (`probe-suite-census.sh --check-executed`, called by the
+      # script) reads the runner's own passed and ignored counts, never
+      # which suites a filter could have matched: a filter naming a suite
+      # of plain `#[test]`s selects the module and runs none of it, so
+      # reachability and execution are different questions here. The
+      # skipped count is what closes the set — it must equal what the
+      # `--ignored` half ran, so a suite cannot grow a test no selection
+      # reaches.
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)

@@ -117,6 +117,13 @@ cannot gate; it is evidence for a reviewer at the time. See
 [[review-and-dependency-policy]] — reviewer suites are a seam to mine,
 and this is the class to drop first.
 
+**A one-shot comparison artefact expires with its comparison.** A probe
+written to be diffed between two revisions — a printed hash, a recorded
+stream, a pinned draw feeding a cross-build differential — is a
+permanent cost with no consumer once that diff has been taken. Delete
+it, or name in-file the future comparison that schedules it. Re-scoping
+its doc to keep it is how one becomes permanent.
+
 **Silent skips are the escape-hatch shape.** A bare `return` at some ε
 reports green having asserted nothing. Use the tree's NAMED loud-skip
 idiom (`interval_lane_skipped_no_certified_coverage_here`) so the
