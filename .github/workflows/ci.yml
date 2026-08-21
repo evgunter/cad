@@ -508,7 +508,9 @@ jobs:
       - name: uv composer selftest (demos)
         run: python3 demos/compose_uv_montage.py --selftest
 
-  # rustfmt, the rustdoc gate AND the wasm32 guard, in one job.
+  # rustfmt, the rustdoc gate AND the wasm32 guard, in one job — and the
+  # job NAME says all three, because a name narrower than its contents
+  # is how a red run gets read as the wrong failure.
   #
   # rustfmt + rustdoc merged 2026-08-20 (minutes audit, #852): separately
   # these billed two minutes to do ~50 s of work — 33 s and 46 s measured
@@ -539,7 +541,7 @@ jobs:
   # `clippy` is the counter-example and stays out: it IS the filter's
   # per-closure row.
   fmt:
-    name: rustfmt + rustdoc (gate)
+    name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
     needs: filter
     if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'

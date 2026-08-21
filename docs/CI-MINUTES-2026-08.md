@@ -225,6 +225,14 @@ none of them is near the critical path (`build + archive (interval)` at
 |---|---|---|---|
 | test (interval) | 20 s | ~40 s | no — ends ~12.9 of 13.75 |
 | rustfmt + rustdoc | 46 s | ~54 s | no — ends ~1.5 |
+
+(The `rustfmt + rustdoc` row moved again with **#840**, which sites the
+#807 wasm32 guard in that same job: `fmt` is now `rustfmt + rustdoc
+(gate) + wasm32` and its serial figure is measured there, not here. It
+stays off the critical path by the same margin — the guard is ~50 s
+against a 12.4 min `build + archive (interval)`. The billed cost of
+that choice, and why a step rather than a job of its own, is #840's
+subject.)
 | persistence | 80 s | ~85 s | no |
 | band 4 corpus | 78 s | ~82 s | no |
 
