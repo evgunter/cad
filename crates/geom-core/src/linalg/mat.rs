@@ -293,8 +293,7 @@ mod tests {
             }
         }
         assert_eq!(
-            discriminating,
-            [true; 3],
+            discriminating, [true; 3],
             "no angle in the sweep separates ((t*n)*n)+c from (t*n^2)+c for \
              every diagonal — this test no longer guards the association"
         );
