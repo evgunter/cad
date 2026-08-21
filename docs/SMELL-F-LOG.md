@@ -395,7 +395,9 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 |---|---|---|---|---|---|
 | **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
-| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued — F-f's row is carried by #798 (open) |
+
+**F-h's PR is open** (#844) and its roster row left the table above per the
+recording convention; the landing is recorded below.
 
 **F-f's PR is open** (#798); its roster row left the table above per the
 recording convention, which the landing PR carries.
@@ -739,6 +741,50 @@ when the review lands, which is why it trails.
 
 
 ## Landings
+
+- **F-h — F8 / D84 + D85 (and S110(a))**, PR **#844**, opened 2026-08-20;
+  awaiting style review. The executed probe-suite set has a floor keyed on
+  **tests that ran** — `k_probe_sweep.sh` records the runner's own `N passed`
+  line per invocation and `probe-suite-census.sh --check-executed` floors it
+  against a `RUN_FLOOR` roster — and the two corpus preconditions
+  (`m5_pr5_corpus_probe::cut_cylinder_replays_at_probe` and
+  `m4_pr8_k_probe::corpus_evaluates_green_at_probe`) run **once, before the ε
+  loop**, per F-R5 as amended. **Every censused suite now declares its
+  disposition** — rostered as executed, or `CI COMPILES THIS SUITE AND DOES NOT
+  RUN IT` in its own header — and the gate refuses a suite on neither side or
+  on both, which is what makes the next drift visible.
+
+  **Three things the lane re-derived rather than transcribed, all of which move
+  the record.**
+
+  1. **F-R5's *"thirteen `--ignored` dump harnesses"* is not the population.**
+     Of 17 censused probe suites, exactly **two** contain any `#[ignore]`d
+     test — `editor-core::m4_pr8_k_probe` and `sweep::k_report` — and **both
+     are on the executed side**. Every unexecuted suite is a plain `#[test]`,
+     and several are the Probe-lane halves of ordinary suites rather than dump
+     harnesses. The ruling's *dispositions* survive; its stated *criterion*
+     does not, and Evan may want to re-rule on that basis. Placed as **D111**,
+     not decided in lane.
+  2. **A second instance sat inside the suite everyone counted as executed.**
+     `m4_pr8_k_probe.rs` has two `#[test]`s and one `#[ignore]`, so the filter
+     that reaches the module the sweep DOES name ran the dump and never
+     `corpus_evaluates_green_at_probe` — whose docstring says *"Runs in the
+     normal (non-ignored) suite."* → **S165**, fixed here. This is why the
+     roster's key carries the **selection**, not just the module.
+  3. **This brief's own routing cell did not resolve.** It said to strike D84
+     and D85 from the *E-a table*; both live in **Track E's `### The rows`
+     table**, and the E-a table holds D104 alone. Both rewritten in place as
+     `FIXED by #844` per the convention that table already uses for D23.
+
+  **D85 split two-and-two** (`24 binaries` survives, `12 aggregators` is
+  history, the `all.rs` header pointer collapses, `test-aggregation.sh`'s two
+  are dated history), with a **fourth instance not in the row and sharper than
+  any of them** → **S166**: `ci.yml` cited `test-aggregation.sh` as *asserting*
+  a target count it does not assert, and the count was wrong. The design call
+  the row closed on is answered **no**, with D23's own verdict (c) as the
+  reason.
+
+  **D112 was reserved and is unused**; returned.
 
 - **F-e — F1 / S59**, PR **#791**, opened 2026-08-20; **CLEARED 2026-08-20**
   after a style review (NOT CLEARED → F-R10, F-R11) and a targeted
