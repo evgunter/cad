@@ -191,12 +191,19 @@ pub enum ArcData<T: Real> {
 /// none of those four is written twice and no two of them can drift: a
 /// missing row is missing from all four, consistently and loudly, and
 /// an inconsistent pair is unwritable because there is no second place
-/// to write it. The round-9 exhaustiveness pressure rides the same
-/// table for free — the [`Step`] variants, the replay arms and the
-/// tags enumerate its rows by construction, so a site that must handle
-/// every [`ArcData`] mode is generated rather than kept in step by
-/// hand. [`ArcData`] itself is written out above and is not one of the
-/// four.
+/// to write it. Those four are the whole of what the macro expands.
+///
+/// **The round-9 exhaustiveness pressure does NOT ride this table.**
+/// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
+/// this table is over the VERB vocabulary. `ArcData` is written out
+/// above by hand and has no `ALL`; every site that must handle each of
+/// its modes is hand-written too, including `do_arc_to_point`,
+/// `do_arc_to_directed` and the fused dispatchers below this
+/// invocation, none of which the macro produces. The pressure is real
+/// — rustc enforces it at each of those matches — but it is bought by
+/// hand at every site, not projected from one declaration. That the
+/// two vocabularies are unified to different depths is smell-scan
+/// **S193**.
 ///
 /// # What the table does not reach
 ///

@@ -1617,12 +1617,16 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
 /// Two properties, and only one of them is load-bearing. **No two live
 /// verbs may share a tag**: verb identity is structure, and a shared
 /// tag aliases two programs' digests within a run. **Retired numbers
-/// stay dead** — the §2c re-spell retired 11 (`AtOn`), 19 (`ArcVia`),
-/// 20 (`ArcCenter`), 25 (`CloseToOn`) and 29 (`AtToward`) — which no
-/// stored value depends on, because keys are process-internal and
-/// never persist; it is kept as a cheap way to make a re-used number
-/// impossible rather than merely unlikely. `verb_tags_are_injective`
-/// below checks both over [`profile::Verb::ALL`].
+/// stay dead** — a cheap way to make a re-used number impossible
+/// rather than merely unlikely, not a compatibility requirement: keys
+/// are process-internal and never persist, so no stored value depends
+/// on one. `verb_tags_are_injective` checks both over
+/// [`profile::Verb::ALL`].
+///
+/// The retired numbers are NOT restated here. `RETIRED_VERB_TAGS`
+/// below is the one list, and it sits next to the test that enforces
+/// it; a second spelling in this comment would be a second spelling of
+/// the rule this function exists to keep single.
 fn verb_tag(verb: profile::Verb) -> u8 {
     use profile::Verb as V;
     match verb {
@@ -1648,9 +1652,17 @@ fn verb_tag(verb: profile::Verb) -> u8 {
 }
 
 /// The tag numbers [`verb_tag`] may not use: retired by the §2c
-/// re-spell, and dead for good.
+/// re-spell along with the verbs that held them, and dead for good.
+/// The ONLY list — `verb_tag`'s own doc deliberately does not restate
+/// it.
 #[cfg(test)]
-const RETIRED_VERB_TAGS: &[u8] = &[11, 19, 20, 25, 29];
+const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
+    (11, "AtOn"),
+    (19, "ArcVia"),
+    (20, "ArcCenter"),
+    (25, "CloseToOn"),
+    (29, "AtToward"),
+];
 
 /// Feeds one RESOLVED program step into the content key (LIB-SWITCH
 /// §4e): verb tag, structural tags (target kind, winding, the
@@ -2118,10 +2130,9 @@ mod verb_tag_tests {
         let mut seen: Vec<(profile::Verb, u8)> = Vec::new();
         for verb in profile::Verb::ALL {
             let tag = verb_tag(*verb);
-            assert!(
-                !RETIRED_VERB_TAGS.contains(&tag),
-                "{verb:?} re-uses retired tag {tag}"
-            );
+            if let Some((_, held_by)) = RETIRED_VERB_TAGS.iter().find(|(t, _)| *t == tag) {
+                panic!("{verb:?} re-uses tag {tag}, retired with {held_by}");
+            }
             if let Some((other, _)) = seen.iter().find(|(_, t)| *t == tag) {
                 panic!("{verb:?} and {other:?} share content-key tag {tag}");
             }

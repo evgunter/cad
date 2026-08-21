@@ -77,11 +77,10 @@ set -euo pipefail
 gate() {
   gate_require_crate_sources
   local hits
-  hits=$(grep -rPn '\benv::vars?(_os)?\s*\(' crates/*/src --include='*.rs' \
-    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-    | cut -d: -f1 | sort -u \
-    | grep -vE '^crates/geom-core/src/tolerance\.rs$' \
-    | grep -vE '^crates/test-utils/src/fuzz\.rs$' || true)
+  hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
+    | grep -P '\benv::vars?(_os)?\s*\(' \
+    | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
+    | grep -vE '^crates/test-utils/src/fuzz\.rs:' || true)
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
@@ -96,5 +95,34 @@ plant() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_after_block_comment() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn armed() -> bool { /* why */ std::env::var("PLANTED_PROBE").is_ok() }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+# THE NEAR MISSES, and the fourth line is the one that matters: the call
+# is spelled inside a STRING LITERAL, which is how a doc constant names
+# the back channel it forbids. A gate reading literals as code reds on
+# its own documentation.
+plant_prose_only() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf '//! Never call env::var here - arm it by an explicit call.\n'
+    printf '/*\n * Nor std::env::var_os inside a block comment.\n */\n'
+    printf 'pub const WHY: &str = "env::var(NURBS_PROBE)";\n'
+    printf 'pub fn ok(a: f64) -> f64 { a } // nor env::vars() in a trailing one\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+gate_selftest() {
+  local want="a kernel crate reads the environment at runtime"
+  gate_selftest_clean
+  gate_selftest_case "$want" plant
+  gate_selftest_case "$want" plant_after_block_comment
+  gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
+  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment\n' "$(gate_name)"
+}
+
 gate_parse_args "$@"
-gate_main "a kernel crate reads the environment at runtime" plant
+gate_main

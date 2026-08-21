@@ -133,8 +133,9 @@ from the orchestrator.
 | **G-a** | D71, D72 | S127, S128 |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135, S136 free |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F |
-| unassigned | D72, D73, D74, D76, D77, D80 | S128, S135, S136 |
+| **G-g** (G8, landed #834) | **D77** and **D80** used | **S171**, **S172** and **S173** used |
+| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F. Second block: **D121**, **S193** |
+| unassigned | D72, D73, D74, D76 | S128, S135, S136 |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -156,6 +157,13 @@ lesson, not the clash**: a reserved block stops exactly this, and drawing from
 spent — puts every track back on one unsynchronised sequence. The next
 exhausted block wants a second reservation, not another draw. No `D` number
 collided.
+
+**G-f also holds `S193`/`D121`**, assigned after #836's review raised a second
+finding (the arc-mode vocabulary) out of the unit's own claim site. Both were
+checked free against the tree — highest `S` in the scan doc `S173`, highest `D`
+row `D115`. **`G-R12` and `G-R13`, which the assignment cites, are not in this
+file**; they are the orchestrator's to record, and the lane is noting the gap
+rather than paraphrasing rulings it has not read.
 
 **G-f was dispatched under a lane letter this roster gives to G8.** The brief
 opens *"implementer lane G-f on Track G, row G7, finding S106"*; the wave-2
@@ -284,13 +292,17 @@ complete; wave 2 is the live one.
 |---|---|---|---|
 | **G-d** | **G5** (S71) + **G10** (S112, re-scoped by **G-R2**) | `profile/tests/review_s2.rs`, `profile/src/sugar.rs` (re-read for G5, edited for S112(f)), `crates/pncad/src/lib.rs` | style |
 | **G-e** | **G6** (S104) | `editor-core/src/assembly.rs`, `pncad-py/src/py/doc.rs`, plus `editor-core/src/mate.rs` and `pncad-py/src/py/select.rs`, which the scan did not read | **ADVERSARIAL** |
-| **G-f** | **G8** (S67) | `topo/src/face_normal.rs` (docs), `topo/src/chord_join.rs` (the real question) | style **+ one ADVERSARIAL sub-unit**, not folded together |
+
+**Lane-name collision, flagged not resolved.** G8's lane was dispatched as
+**G-g**, which is also this roster's name for G9's lane. Names are the
+orchestrator's; recorded here so a reader of two PRs does not read them as one
+lane.
 
 **Wave 3 — gated, and on what.**
 
 | lane | row | gated on | why |
 |---|---|---|---|
-| **G-g** | **G9** (S95, S96) | **G-f**, and Track C for S96 | **G-R4** — file overlap on `chord_join.rs`; and S96's imports reach `splitting/rules.rs`, which §D says to confirm with Track C before touching |
+| **G-g** | **G9** (S95, S96) | ~~G-f~~ **LIFTED** (G8 landed as #834); Track C still gates S96 | **G-R4** — the `chord_join.rs` overlap is gone. S96's imports still reach `splitting/rules.rs`, which §D says to confirm with Track C before touching. G9 also inherits **S171** and the `chord_join.rs` half of **S133**, both already discharged by G8's PR |
 | **G-j** | **G4** (S87, S88's `profile` half) | Track F's **F1** ← Track E's **#753** | **G-R7** — Evan's S87/S88 ruling, recorded in `SMELL-F-LOG`; two tracks deep and none of it Track G's to move |
 
 ---
@@ -303,6 +315,7 @@ complete; wave 2 is the live one.
 
 | lane | row | PR | note |
 |---|---|---|---|
+| **G-g** (dispatched under that name; this roster called the G8 lane **G-f**) | **G8** — S67, plus its adversarial sub-unit | **#834** | The three-name list is **computed** by a new `topo` row rather than restated; `reduce.rs`'s third copy points at the one home. **The sub-unit is NOT a defect**: `point_in_loop` is exactly invariant under `n̂ ↦ −n̂`, derived at the site and pinned over four fixtures. **Two corrections to the register**: G-R5's *paraphrase* was a line-number misattribution (the sentence is at `:93-98`), and the finding's own five-site list is off in three places. Raised **S171** / **D77**; discharged S133's `chord_join.rs` obligation (37 marker hits, 36 false positives, one stale marker fixed). **The fix pass then spent the rest of the block**: **S172** / **D80** (five copies of `starts_with("//")` as the answer to *is this line code*, the lane's own instance lifted into `fixtures::code_only` and the class recorded) and **S173** (the curved half of the one door hosted in `boolean/`, recorded not moved — no §D row, scheduling is the orchestrator's). |
 | **G-a** | **G1** — S72 + S110(h), S111(c), S112(b)(c), S114(a)(d), S116(r)(t) | **#786** | Fence published per **G-R3**: `ci.yml` hunks confined to the `interval-backend` job's header comment, ~790 lines from #753's. **NOT CLEARED on first review; fix pass landed in the same PR** — the tightness ceiling had reproduced S72's own defect (a max over a sample set the degradation empties), and the structural derivation beside it was wrong in the crate's favour (`4·pad+1`, not `2·pad+1`). One member came back correcting its finding: **S114(d)**'s decoration idiom is five sites, not six. **S111(c)'s first write-up over-corrected and is withdrawn** — the diagnostic was right about the code, only the remedy was wrong; see **G-R8** as amended. New findings taken: **S127**/D71, **S134**/D78. |
 
 ### G-b — **G2**, `demos/`, #787

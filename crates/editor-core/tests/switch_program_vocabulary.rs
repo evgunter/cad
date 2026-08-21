@@ -60,8 +60,16 @@ fn point(x: f64, y: f64) -> ProgramTarget {
 }
 
 /// Every chain verb and every arc-spec mode, once each, with the two
-/// target forms and both spec positions represented. Verb-granular by
-/// construction: one arm per `ProgramStep` variant.
+/// target forms and both spec positions represented — one entry per
+/// `ProgramStep` chain variant.
+///
+/// **Nothing in this function forces that**: it is a `Vec`, and a
+/// variant added to `ProgramStep` will not break it. What forces the
+/// corpus to grow is `Verb::ALL` in the census below, which goes red
+/// when a table verb is unreachable from here. The per-variant
+/// spelling is for reading, not for enforcement, and this comment says
+/// so rather than claiming a construction guarantee the code does not
+/// have.
 fn chain_steps() -> Vec<ProgramStep> {
     vec![
         ProgramStep::At(pt(0.0, 0.0)),
@@ -135,15 +143,48 @@ fn corpus() -> ProfileProgram {
     }
 }
 
+/// The leading identifier of a `Debug` rendering — the variant name.
+/// `ProgramStep`'s chain variants and `Verb`'s are named identically
+/// because the transition table names both, so comparing the two
+/// strings compares the authored verb against the lifted one.
+fn variant_name(debug: &str) -> String {
+    debug
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect()
+}
+
 /// **The census.** Every verb the transition table declares is
 /// reachable as a document program and resolves back to ITS OWN verb —
 /// so a table verb that never reached `ProgramStep`, and a lifting arm
 /// that launders one verb into another, both go red here.
+///
+/// Two clauses, because the set alone is not enough: a subset check
+/// stays green when two arms SWAP their verbs, since the set of verbs
+/// seen is still complete. The position-by-position clause is what
+/// catches the swap, and it is the one that makes the laundering
+/// promise above true.
 #[test]
 fn every_table_verb_is_a_document_program() {
+    let authored = chain_steps();
     let resolved = corpus()
         .resolve(&ParamEnv::default())
         .expect("the corpus resolves at f64");
+
+    let chain: Vec<Verb> = resolved[0].iter().map(profile::Step::verb).collect();
+    assert_eq!(
+        chain.len(),
+        authored.len(),
+        "the chain loop lifted {} steps from {} authored ones",
+        chain.len(),
+        authored.len()
+    );
+    for (step, verb) in authored.iter().zip(chain.iter()) {
+        let from = variant_name(&format!("{step:?}"));
+        let to = variant_name(&format!("{verb:?}"));
+        assert_eq!(to, from, "ProgramStep::{from} lifted to Verb::{to}");
+    }
+
     let seen: Vec<Verb> = resolved
         .iter()
         .flat_map(|loop_| loop_.iter().map(profile::Step::verb))
