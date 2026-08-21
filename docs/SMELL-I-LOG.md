@@ -241,9 +241,65 @@ consolidates and the fix comes first. The lane is described in a comment on
 
 | lane | PR | lanes | state |
 |---|---|---|---|
+| **I-c** | **#872** (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
 | **I-b** | **#873** (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
 
 ## Landings
+
+### I-c — **S64**, the mesh ε ledger, #872
+
+**The ε roster was DELETED, not corrected and not computed** — and the reason
+is written at the claim site rather than in the PR body. `Tol` no longer says
+*"ε reaches three places from here and no more"*; it says what an ε read may
+**do**, in two kinds: bars that refuse or report, and bars that **classify**,
+whose answer picks which `f64` an emitted entry carries. A list can go stale; a
+taxonomy of what a read can be cannot go stale the same way.
+
+**Computing it was rejected on a checked reachability fact**, which is what
+makes the rejection a finding rather than a preference: `topo`'s shared
+`fixtures::code_only` walk is `pub(crate)` and does not reach `mesh`, so the
+only computed form available was a private copy — **S117's thirteenth
+hand-rolled source reader**, in a PR whose subject is unmechanized claims.
+
+**The residue is disclosed and is real**: a new ε read still has to be
+classified by hand. What changed is that **no claim in the crate can be
+falsified by a list going stale** — which is weaker than a mechanism and was
+the best available.
+
+**The diagnosis of the headline sentence is the sharpest thing in the unit.**
+`lib.rs`'s false claim was not a wrong fact; it was **the em-dash**. *"ε is
+never read for sizing — mesh structure is a function of (body, δ) alone"* reads
+the second clause as a restatement of the first, and only the first is true.
+Two claims now, with the second scoped to *"every body this build can mint"* —
+empirical, and labelled as such.
+
+**S65 was equipped rather than taken (I-R1), and the question was CORRECTED
+before it was priced.** The finding framed release enforcement as *"an
+O(triangles) re-derivation against D9's never a panic"* — but **D9 forbids that
+panic outright**, so the real option is a **typed refusal**, which is a
+behaviour change rather than a cost: bodies that today return `Ok` with a
+silently non-manifold mesh would start refusing. The original question was
+unanswerable as posed. Priced by **making the guard real in release** rather
+than by modelling it: **+10–30% of tessellation time on bodies whose curved
+faces all carry a pole, and exactly 0 on a pole-free body** (the block is inside
+`if has_pole`) — and most of that is two heap allocations per pole patch, so
+**the table is an upper bound on the option, not its floor.**
+
+**S116(g) was narrowed, not fixed, and the lane said so** rather than writing
+`FIXED` over a residue — §C13 resisted at the one moment it is tempting.
+Residue routed to I-e by **I-R7**.
+
+**Corrections it published, including to me.** The finding's line counts had
+drifted *downward* (**681/404/259**, not 712/429); the guard functions carry
+**146 doc over 44 code**, not ~180/~55; the sharpest ratio in the file is one
+the finding never named, **`pole_columns` at 82 doc lines over a 3-line body**;
+and **the 1,630 in my own dispatch brief was the test half, not the argument**.
+All four went into the document rather than into a report only I read.
+
+**Raised on the way: `S231`** (`chords.rs`, recorded unowned) and issue
+**#868** (the missing typed warning channel, which S115(d) had disclosed and
+nobody had filed) — plus **a second copy of that same disclosure** at
+`closing_column` that no finding had noticed.
 
 ### I-b — **S60**, the area enclosure's acceptance rows, #873
 
