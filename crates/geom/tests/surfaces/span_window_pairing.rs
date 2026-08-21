@@ -344,12 +344,21 @@ fn a_window_whose_spans_both_admit_is_still_refused_on_stride() {
 }
 
 /// Same degrees and the same **v** control count — so the stride
-/// compare and both degree compares pass — and only `span_u.index() <=
-/// last_span()` separates the pair. Without it, a window from the
-/// 4×3 net puts `row(2) + 2` at flat index 11 in the 3×3 net's
-/// 9-element arrays.
+/// compare and both degree compares pass — and what separates the pair
+/// is the u span index, which the 3×3 net does not have. Without it a
+/// window from the 4×3 net puts `row(2) + 2` at flat index 11 in the
+/// 3×3 net's 9-element arrays.
+///
+/// **This row cannot isolate `index <= last_span()` from
+/// `span_is_nonempty(index)`, and no row can**: on a clamped vector the
+/// second implies the first. Every index above `last_span()` lands in
+/// the trailing run of `degree + 1` equal knots, where
+/// `knots[i] == knots[i+1]`, so it is empty; and `KnotVector` has no
+/// unclamped constructor. The two compares inside `KnotVector::admits`
+/// are therefore one separable fact here, and the row goes red when
+/// either both are deleted or the surviving one is.
 #[test]
-fn an_index_that_only_the_index_compare_catches() {
+fn a_span_index_past_the_target_is_refused() {
     let shared_v = || clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2);
     let tall = surface(
         clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
@@ -373,6 +382,37 @@ fn an_index_that_only_the_index_compare_catches() {
         0.5,
         "u span index past the shorter vector",
     );
+}
+
+/// An admitted-shape window whose u span is EMPTY on the target is
+/// refused too, and the compare that does it is **#846's third**, which
+/// `KnotVector::admits` gained on review after this lane's first pass.
+/// It is not needed for the index bound — nothing here is out of range
+/// — but it is what stops the surface dividing by a zero knot
+/// difference and returning a plausible answer over a window its own
+/// basis never reads. The row is here so the inheritance is pinned
+/// rather than assumed.
+#[test]
+fn an_admitted_shape_with_an_empty_target_span_is_refused() {
+    let shared_v = || clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2);
+    let source = surface(
+        clamped(vec![0.0, 0.0, 0.0, 1.0, 1.5, 2.0, 2.0, 2.0], 2),
+        shared_v(),
+    );
+    let target = surface(
+        clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2),
+        shared_v(),
+    );
+    assert_eq!(source.control_counts(), target.control_counts());
+
+    let win = source.window(3, 2).expect("nonempty in the source");
+    // Shape agrees in every respect this lane's own compares can see.
+    assert_eq!(win.stride(), target.knots_v().control_count());
+    assert_eq!(win.span_u().degree(), target.knots_u().degree());
+    assert!(win.span_u().index() <= target.knots_u().last_span());
+    // And span 3 is empty on the target, so it is refused anyway.
+    assert!(!target.knots_u().span_is_nonempty(win.span_u().index()));
+    all_three_doors_refuse(&target, win, 1.2, 0.5, "empty span on the target");
 }
 
 /// The residue, pinned so it is a decision rather than an oversight:

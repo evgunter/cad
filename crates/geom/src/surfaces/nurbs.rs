@@ -170,20 +170,20 @@ fn poison_jet3<T: Real>() -> SurfaceJet3<T> {
 ///
 /// [`NurbsSurface::admits`] is [`geom_core::spline::KnotVector::admits`]
 /// in both directions plus `stride == knots_v.control_count()`, and
-/// what those three compares establish is exactly this: an admitted
+/// what those three tests establish is exactly this: an admitted
 /// window is **bit-identical to the one this surface would have minted
 /// for the same span pair**, so every `row(i) + j` the evaluators read
 /// is inside this net.
 ///
 /// **What they do not establish**, stated rather than implied away:
 /// they relate the window to this surface's *shape*, never to its knot
-/// values. A window from a different surface of the same two degrees
-/// and the same two control counts is admitted, and evaluation against
-/// it is a **wrong answer rather than a refusal** — including when its
-/// spans are empty here, which no compare re-checks. That is the same
-/// species of residue [`geom_core::spline::KnotVector::admits`] leaves
-/// one dimension down, and closing it wants the invariant-lifetime
-/// brand `Span` deliberately does not pay for either. Every consumer
+/// values. A window from a different surface whose two degrees, two
+/// control counts and two span indices are all nonempty-and-in-range
+/// here is admitted, and evaluation against it is a **wrong answer
+/// rather than a refusal**. That is the same species of residue
+/// [`geom_core::spline::KnotVector::admits`] leaves one dimension
+/// down, and closing it wants the invariant-lifetime brand `Span`
+/// deliberately does not pay for either. Every consumer
 /// in this workspace still builds the window from the surface it
 /// evaluates, through [`NurbsSurface::window`] or
 /// [`NurbsSurface::window_at`] — the two public mints, both of which
@@ -353,8 +353,10 @@ impl<T: Real> NurbsSurface<T> {
     /// ([`geom_core::spline::KnotVector::admits`]) and its row-major
     /// stride is this surface's v control count.
     ///
-    /// Three integer compares, and they are exactly what the tensor
-    /// indexing needs. The three `_in_span` doors read
+    /// Three tests — two [`geom_core::spline::KnotVector::admits`] calls
+    /// and one integer compare, seven integer compares in all — and
+    /// they are exactly what the tensor indexing needs. The three
+    /// `_in_span` doors read
     /// `base + i·stride + j` for `(i, j) ∈ [0, pu] × [0, pv]`, where
     /// `pu`/`pv` are THIS surface's degrees (the basis rows are sized
     /// from `self.knots_*`, never from the window), so the highest
@@ -369,6 +371,17 @@ impl<T: Real> NurbsSurface<T> {
     /// term with no one-dimensional analogue and it is **not** implied
     /// by the other two: a window whose spans both fit but whose stride
     /// came from a wider net walks past the end of a shorter row.
+    /// Nonemptiness rides along inside
+    /// [`geom_core::spline::KnotVector::admits`] — it is not needed for
+    /// the bound above, and it is what stops an admitted foreign span
+    /// dividing by a zero knot difference here. It also **subsumes**
+    /// that predicate's index compare for any vector this crate can
+    /// build: every index above `last_span()` sits in the trailing run
+    /// of `degree + 1` equal knots a clamped vector ends with, so it is
+    /// empty. The index compare is what makes the bound argument
+    /// legible and what would still carry it if an unclamped
+    /// `KnotVector` ever became constructible; it is not a second
+    /// independent filter today.
     ///
     /// Equivalently, and this is the whole guarantee: an admitted
     /// window is bit-identical to `self`'s own window for that span
@@ -413,7 +426,7 @@ impl<T: Real> NurbsSurface<T> {
     /// patch), unchanged.
     pub fn eval_in_span(&self, win: SurfaceWindow, u: T, v: T) -> Point3<T> {
         // The pairing check, before any indexing — see `admits` for
-        // why these three compares are what the arithmetic below needs.
+        // why these three tests are what the arithmetic below needs.
         if !self.admits(win) {
             return net::poison_point::<T, Point3<T>>();
         }
