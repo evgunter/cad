@@ -670,16 +670,13 @@ mod tests {
         /// future edits introducing a scalar-specific path).
         ///
         /// **The VALUE channel only, and the name says so on purpose.**
-        /// The tangent channel has its own test below, because it is not
-        /// covered by this one and cannot be: `f64` has no tangent to be
-        /// identical to. That gap was live long enough for a change to
-        /// pass through it — replacing `n.y * n.y` with `n.y.powi(2)`
-        /// moves the tangent (product rule `y'·y + y·y'` becomes
-        /// `(2·y)·y'`) while leaving the value alone, and every fixture
-        /// here builds its duals with `Dual::variable`, whose tangent is
-        /// `1.0`, where `y + y` and `2·y` are equal exactly. So this
-        /// test could not have seen it, and neither could any test in
-        /// the tree.
+        /// `f64` has no tangent to be identical to, so this test cannot
+        /// reach the derivative channel at all — that is
+        /// [`orthonormal_basis_dual_tangent_matches_closed_form`]'s job,
+        /// and the two together are what covers the construction. A
+        /// fixture built with `Dual::variable` also cannot distinguish
+        /// spellings of a square: its tangent is `1.0`, and `y + y` and
+        /// `2·y` are equal exactly there.
         #[test]
         fn orthonormal_basis_dual_value_channel_bit_identical(v in vec3()) {
             use crate::dual::Dual;
