@@ -63,8 +63,14 @@ fn door_certifies<T: CertifiedEnclosure>(tag: &str, x: T) -> bool {
 /// Both halves must be reached, or the sweep proves nothing.
 #[track_caller]
 fn assert_non_vacuous(what: &str, certified: usize, refused: usize) {
-    assert!(certified > 0, "{what}: nothing certified — the sweep is vacuous");
-    assert!(refused > 0, "{what}: nothing refused — the sweep is vacuous");
+    assert!(
+        certified > 0,
+        "{what}: nothing certified — the sweep is vacuous"
+    );
+    assert!(
+        refused > 0,
+        "{what}: nothing refused — the sweep is vacuous"
+    );
 }
 
 // ---------------------------------------------------------------- f64
@@ -73,7 +79,15 @@ fn assert_non_vacuous(what: &str, certified: usize, refused: usize) {
 /// them — `0/0`, `∞−∞` and `sqrt(−1)` are how NaN actually arrives at
 /// this lane, and none of them is written down as a NaN.
 fn f64_corpus() -> Vec<(String, f64)> {
-    let seeds = [0.0, -0.0, 1.0, -1.0, 1e308, f64::INFINITY, f64::NEG_INFINITY];
+    let seeds = [
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+        1e308,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ];
     let mut out: Vec<(String, f64)> = seeds.iter().map(|&a| (format!("{a}"), a)).collect();
     for &a in &seeds {
         out.push((format!("sqrt({a})"), a.sqrt()));
@@ -121,7 +135,10 @@ fn ring_corpus() -> Vec<(String, RingInterval)> {
         ("[0,0]", RingInterval::point(0.0)),
         ("[1,2]", RingInterval::from_bounds(1.0, 2.0)),
         ("[-1,1]", RingInterval::from_bounds(-1.0, 1.0)),
-        ("[-inf,0]", RingInterval::from_bounds(f64::NEG_INFINITY, 0.0)),
+        (
+            "[-inf,0]",
+            RingInterval::from_bounds(f64::NEG_INFINITY, 0.0),
+        ),
         ("[0,inf]", RingInterval::from_bounds(0.0, f64::INFINITY)),
         ("poison", RingInterval::poison()),
         ("inverted", RingInterval::from_bounds(1.0, -1.0)),
@@ -178,7 +195,10 @@ fn the_ring_door_refuses_exactly_its_poison() {
 #[test]
 fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
     let derived = [
-        ("[1,2]/[0,0]", RingInterval::from_bounds(1.0, 2.0) / RingInterval::point(0.0)),
+        (
+            "[1,2]/[0,0]",
+            RingInterval::from_bounds(1.0, 2.0) / RingInterval::point(0.0),
+        ),
         (
             "[0,0]*[0,inf]",
             RingInterval::point(0.0) * RingInterval::from_bounds(0.0, f64::INFINITY),
@@ -267,8 +287,14 @@ mod interval_lane {
         let (mut certified, mut refused) = (0, 0);
         let mut corpus: Vec<(String, Interval)> = Vec::new();
         for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0, 4.0] {
-            corpus.push((format!("sqrt([{a}, 4])"), Interval::from_bounds(a, 4.0).sqrt()));
-            corpus.push((format!("sqrt([-4, {a}])"), Interval::from_bounds(-4.0, a).sqrt()));
+            corpus.push((
+                format!("sqrt([{a}, 4])"),
+                Interval::from_bounds(a, 4.0).sqrt(),
+            ));
+            corpus.push((
+                format!("sqrt([-4, {a}])"),
+                Interval::from_bounds(-4.0, a).sqrt(),
+            ));
         }
         corpus.push(("NaI".to_string(), Interval::from_f64(f64::NAN)));
         corpus.push((
