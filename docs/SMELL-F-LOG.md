@@ -78,7 +78,20 @@ makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 
 **Conflicts in that file are expected and survivable**, and there are
 three live orchestrators editing it. Resolve by merging `origin/main` —
-never rebase, never force-push — and keep both sides; the edits are to
+never rebase, never force-push — and resolve by merging `origin/main`, **never rebase, never force-push**, and keep
+both sides — **except when both sides are deletions, where "keep both" is
+exactly wrong.**
+
+**The union of deletions is the answer, and it must be derived from `main`
+rather than from the conflict markers.** A lane that keeps "its" side of a
+two-sided deletion **resurrects a row another lane already struck**; one that
+keeps the other side strikes something `main` still carries. This has now
+happened twice on this track, in opposite directions, in the same lane's merges
+— F6's §D row wrongly removed and F-c's roster row wrongly left standing, both
+found by the lane auditing `git diff origin/main -- docs/` line by line after
+the fact. (F-a, 2026-08-21.) The check is the post-condition rule one paragraph
+up: **grep the merged tree for what the convention requires, not your diff for
+what you changed.**; the edits are to
 different findings and different rows. **If the only conflict was that
 document and CI was already green on the pre-merge head, merge without
 waiting for a second CI run** (Evan, 2026-08-20).
@@ -289,7 +302,44 @@ sub-block, from the orchestrator.
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
 | **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
-| unassigned (2nd block) | D108 | S162, S165, S166 |
+| unassigned (2nd block) | **none — the block is spent** | **none — the block is spent** |
+
+**Both blocks are exhausted, verified against the tree rather than against this
+table** (2026-08-21): `D108` is S162's row, `S162` is the concurrency finding,
+and `S165`/`S166` are F-h's — all four appear in `docs/SMELL-SCAN-2026-08.md`,
+so the line that called them unassigned was wrong when written. **A reservation
+table is a claim like any other**, and this one had drifted three times: once
+into a merge conflict, once into the conflict markers that reached `main`, and
+once here. **There is no third block, and saying there was is the orchestrator's own rule
+failing on the orchestrator** (2026-08-21). `D111`–`D120` / `S167`–`S176` was
+claimed in a lane message and in this table and **never landed in §D**, where
+the other orchestrators read. Another track has since taken **S171, S172 and
+S173** — entirely legitimately, because from `main` those numbers were free.
+
+**The sentence this violates is the one Track F wrote when it claimed block 2:**
+*"a block that has not landed is not a reservation"* — recorded there as the
+lesson from Track E issuing `D61`–`D70` to five of its own lanes while Track F
+held them unmerged. **Written down, published, and then not applied to the very
+next block by the author.**
+
+**Corrected 2026-08-21, and the correction matters because the first version
+over-claimed in a note about over-claiming.** *"No collision occurred"* is too
+strong. **No collision reached the tree** — `S167` and `S168` each have exactly
+one definition on `main`, both Track F's. **But a collision did occur in
+issuance**: Track G's orchestrator reports that its first block attempt was
+derived from *the highest number in use anywhere* rather than read off §D's
+published reservations, **which drove it through `S157`–`S168` and put `S167`
+and `S168` into the hands of a Track G lane while Track F findings already
+occupied them.** It was caught before landing. Two orchestrators reached for the
+same two numbers and the tree survived on timing.
+
+Track F spent **S167** (merging kills in-flight
+checks), **S168** (the bit-identity docstrings) and **S169** (the loud-stand-down
+class) before the space was contested, and `D113`/`D114`/`D115` alongside them.
+**S170 and S174–S176 are not Track F's** and this track claims nothing further:
+all eight rows are closed and it does not need more numbers. A successor wanting
+one takes it from beyond the highest in the tree **and lands the claim before
+using it.**
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -389,6 +439,64 @@ Filtering first satisfies both.
 while it is clean"* is an incentive, not a licence to skip the filter — and *"I
 was told to hurry"* is the same shape of lid as *"I tried and could not"*: it
 names a pressure instead of a method. (F-c, 2026-08-20, on its own merge.)
+
+**`git add -A && git commit --no-edit` on a merge ships conflict markers
+silently.** `git add -A` stages a conflicted file **verbatim**, and a merge
+commit needs no message — **so nothing prompts, nothing errors, and the markers
+reach `main`.** It happened here: a lane resolved the conflict in
+`SMELL-SCAN-2026-08.md`, grepped **that file** for markers, saw zero, and
+committed — while `SMELL-F-LOG.md` still held two. *"I checked the file I was
+thinking about, not the tree."* **After any resolution, grep the whole `docs/`
+tree** — `grep -rE '^<<<<<<<|^>>>>>>>' docs/` — not the file you were working in.
+
+**And the markers were the only reason the real defect was caught.** The second
+conflict was a **deletion pair**: `main` had struck a roster row (its *fifth*
+carry-back), the lane had struck its own, and the conflicted region held **both
+live** — the first row resurrected a sixth time, inside a marker. **Resolving
+that by "keeping both sides" would have shipped the resurrection with the
+markers removed, and it would have looked clean.** The visible breakage is what
+surfaced the invisible one; a tidier mistake would have landed silently.
+
+**Verify a post-condition against the artifact, not against your account of what
+you did to it.** Check the *tree*, not your diff: `grep '^| \*\*F-x\*\* |'` on the
+merged result should match exactly the rows the convention allows. **"I deleted
+the row" is not checkable; "one match remains and it is the reservation" is.**
+
+**The route this arrived by is new and worth knowing.** A lane's roster row
+survived its own landing because the row existed in **two** tables — the wave-2
+*gated* table where it lived when the lane opened, and the *dispatched* table the
+orchestrator added later. The landing PR deleted the one in its brief; four
+subsequent `origin/main` merges auto-merged the other back in, and **every
+conflict the lane resolved was in the other tables, so that line never presented
+itself for a decision.** Nobody ignored it; nothing ever asked.
+
+**It is the echo structure in a different medium** (F-d's own reading): *"I
+verified my record edits against my own diff four times, and each check was
+reading the previous check rather than the tree."* Not a claim wider than its
+evidence — **a post-condition verified against the diff instead of against the
+tree.** A row you never touched cannot appear in your diff, which is precisely
+why the diff cannot tell you whether it should have been touched.
+
+**When your claim is about what an assertion checks, quote the assertion — not
+the sentence above it.** This is the operative form of the session's structural
+failure and it is deliberately narrower than *"read the code"*, which is
+unfalsifiable advice. Quoting the assertion is **checkable by a reviewer**;
+reading carefully is not. (F-d, 2026-08-20, which proposed it after committing
+the failure and having it committed at it.)
+
+**Two instances in one session, same shape, different artifact.** A lane
+dismissed a sibling site by reading the **row's name** (*"refuses typed"*) when
+the premise was in the body. The orchestrator ruled — and relayed to Evan as
+settled — that two tests assert a bit-identical replay, because that is what
+their **docstrings** say; the assertions test one-sided greenness. In both cases
+**the prose was the artifact consulted and the code was three lines away.**
+
+**And the propagation is the dangerous half, not the original error.** The
+docstring claim survived a finding, an orchestrator ruling, an amendment, a
+relay to Evan and a lane brief — **five reads by three parties, none of which
+opened the test body** — because each was reading the previous read. **A claim
+restated four times is not four times corroborated; it is one claim with three
+echoes.**
 
 **If you run mutations, read your own diff before you open.** `git diff
 origin/main...HEAD --name-only -- ':(exclude)docs'` — two seconds. A lane here
@@ -666,6 +774,73 @@ easiest to lose under time pressure. And they recorded the run IDs and the
 annotation text in the PR, so the red board reads as an environment fact rather
 than as a verdict on the branch.
 
+### The orchestrator read a doc comment instead of the assertion (2026-08-20)
+
+**F-R5's amendment told F-h:** *run it once, outside the ε loop, because the test
+asserts a **bit-identical replay**, not a margin distribution — there is nothing
+per-ε about it.* That was repeated to Evan as settled.
+
+**It is false.** Both preconditions assert `failures(&ev).is_empty()` — **one-sided
+greenness at `Probe`**, which is tolerance-dependent. Neither compares against an
+f64 run at all. What says *"bit-identical"* is the **docstring**; what the
+assertion does is weaker and ε-dependent.
+
+**The orchestrator read the doc comment and not the assertion** — on a track
+whose subject is guards whose prose outruns their code, after ruling on four
+separate lanes for exactly that. The placement argument was withdrawn and handed
+back to the lane to re-decide on what the tests actually assert.
+
+**Third orchestrator over-claim in one session**, and the family is now clear
+enough to name: S157 (one run generalised to fifteen gates), *"the non-docs diff
+was empty"* (a precondition stated that was never the one verified), and this
+one. **All three are the register asserting at a scope its evidence did not
+reach — the failure this track rules on, in the one document with no reviewer.**
+The gap between those two docstrings and those two assertions is itself a finding
+in S39/S112's class, placed as **S168 / D114**.
+
+### Five reads, none of which opened the test body (2026-08-20)
+
+The claim *"the probe preconditions assert a bit-identical replay"* originated in
+a **docstring**. The assertions test one-sided greenness at `Probe` and compare
+nothing against `f64`.
+
+**That false premise then survived, in order: a finding, an orchestrator ruling
+(F-R5), an amendment to that ruling, a relay to Evan as settled, and a lane
+brief.** Five reads by three parties, every one of whom had reason to check, and
+none of which opened the test body. It was caught by a **style reviewer** reading
+the assertion.
+
+**This is §S38's class — prose outrunning code — at the scale the class is
+actually dangerous.** Each read was reasonable in isolation: each was reading the
+*previous read*, and the chain never touched the source. **A claim that has been
+restated four times is not four times corroborated; it is one claim with three
+echoes** — the same shape recorded earlier today when one wrong count reached
+four documents.
+
+**And it is why a false claim in an assertion *message* outranks one in a
+docstring** (F-h, closing S168): `run_doc`'s failure text asserts bit-identity to
+`f64` — read under time pressure by someone already confused, and pointing them
+at the wrong lane.
+
+### The complement rule: when a floor keeps failing, look for the conservation law
+
+**F-h, on the third attempt at F8's floor.** A floor answers *did enough run*,
+which is **always defeatable by growth** — a new test, a new suite, a new
+selection, and the floor is satisfied while the new thing runs nothing. Its
+replacement answers *is anything unaccounted for*: every rostered suite is
+invoked under the default selection, and **the `#[ignore]`d count it reports
+skipped must equal what `--ignored` ran**. A grown `#[ignore]`d test parts the
+numbers and reds.
+
+**The generalisation is worth more than the instance.** Two Track F rows —
+F6's tolerance box and F8's coverage floor — each failed twice as a *threshold*
+and closed once restated as a *relation*. When a floor keeps failing one level
+in, the next floor is usually not the answer.
+
+*And the uncomfortable coda, which is the lane's own:* the complement was only
+available because the runner already printed both halves. **The numbers were in
+the log the whole time** — which is this row's own subject.
+
 ## Standing rules this track derived
 
 ### A verification is valid for the PATHS it verified, not for the SHA it ran on
@@ -885,6 +1060,58 @@ lands either. The `## Reviews` section here is the orchestrator's and is written
 when the review lands, which is why it trails.
 
 
+
+## Track F — CLOSED, 2026-08-21
+
+**All eight rows landed.** F1 (#791), F2 (#798), F3 (#849), F4 (#825), F5 (#788),
+F6 (#783), F7 (#790), F8 (#844). §D's Track F table is empty.
+
+**Every row was returned NOT CLEARED on its first review**, and in every case the
+central work survived while the fix had minted a fresh instance of the defect it
+closed. Three lanes named that trap in their own PR body and it caught them
+anyway. **The only thing that reliably found it was an adversary who did not
+write the fix** — six style reviews and five adversarial or verification passes,
+every one of which found something, including the one row where the verification
+was dispatched hours late because the orchestrator set the lane up and forgot to
+send it.
+
+### What Track F leaves placed, and for whom
+
+**Ruled and waiting on work, not on a decision:** **D109**(a) — reassociate the
+scaled square at `orthonormal_basis`'s `b1` and `mat.rs::rotation_about`; ruled
+YES by Evan, with the sequencing rule *convert the two sites, re-cut what moves,
+then widen the matcher* recorded at S163(a), at D109 and in the gate header.
+**D105 / S160** — pin the split scan's continuous objective, with the lane's
+measurements written into the row so its taker inherits the argument.
+**D106** — split the ratification ledger out of `scripts/gates/`' scripts
+(131 → 157 → 195 lines is the evidence). **D114** — the one-document differential
+S168 implies. **D115 / S169**, **D61 / S117**, **D63/D64**, **D68**, **D102/D103**,
+**D107/S161**, **D110**, **D113**.
+
+**Waiting on Evan:** **D111** — the fourteen unrun probe suites. F-R5's ruled
+population does not exist, so they are undecided rather than decided-as-posture;
+the entry is in §D's *Decisions only Evan can make*.
+
+**Not Track F's:** **D104** (the two hand-run diff artefacts, a test-suite-cost
+question) and **S127/D71** (`oracle-certify`'s missing local mirror, Track G's).
+
+### The three findings worth carrying past this track
+
+**S162 and S167 are one shape on both sides of a merge:** *the record of a
+verification can be destroyed by the act of landing it.* On `main` a code merge's
+run is **cancelled** and a docs-tier successor goes green over it having run two
+jobs; on the branch the run is **killed at checkout**, stays red forever, and the
+retry reproduces it — manufacturing corroborating evidence for the wrong
+conclusion.
+
+**S157's mechanism** — a gate can die under `errexit` before its own error
+message, and the self-test harness suppressed exactly that condition, so fifteen
+passing self-tests were never able to fail this way.
+
+**S117** — twelve source-text guards and five hand-rolled Rust readers, no two
+lexing the same language, **the twelfth arriving during the row's own review**
+from a lane that could not reach the reader that already existed. It closes on a
+decision about reachability, not on a list.
 
 ## Landings
 
