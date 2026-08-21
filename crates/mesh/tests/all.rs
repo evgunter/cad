@@ -144,17 +144,22 @@ fn every_suite_file_is_aggregated() {
 /// - **`sizing.rs` — 1.** The `Tol::eps` field declaration. This
 ///   module computes every step and count in the crate and reads ε in
 ///   none of them.
-/// - **`curved.rs` — 7.** Two hand-offs out of `Tol`
+/// - **`curved.rs` — 6.** Two hand-offs out of `Tol`
 ///   (`walk::loop_polygon`, `require_swept_rectangle`), two `eps`
 ///   parameters, one hand-off to `entries_off_bbox`, and
-///   `entries_off_bbox`'s own two `gap_is_noise` calls — the banded
+///   `entries_off_bbox`'s own single `gap_is_noise` call — the banded
 ///   swept-rectangle domain guard, which REFUSES a face and moves no
-///   coordinate. 2 + 2 + 1 + 2 = 7.
+///   coordinate. 2 + 2 + 1 + 1 = 6. It was **7** until #887 gave the
+///   guard a degenerate-lever arm and the two axes' calls became one
+///   closure applied twice; the read's KIND did not change, and the
+///   guard is still ONE of the four `gap_is_noise` call sites below.
 /// - **`trimmed.rs` — 1.** `d / (bound + tol.eps)` in the deviation
 ///   probe. **Not a bar**: ε is a continuous addend in a denominator,
 ///   so it scales `worst_ratio` — a `pub` measurement field — at every
 ///   call, monotonically. The block is absent from a default build
-///   (`budget` feature).
+///   (`budget` feature). Counted after a cut since #887, which gave
+///   the file its first test module; the total did not move, because
+///   that module reads no ε.
 /// - **`walk.rs` — 12.** **Four** `eps` parameters (`gap_is_noise`,
 ///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
 ///   hand-offs (`closing_column`'s and `loop_polygon`'s two
@@ -176,6 +181,15 @@ fn every_suite_file_is_aggregated() {
 /// hand-written narrative that did not add up, in the doc of the pin
 /// that replaced a hand-written list for going stale.
 ///
+/// **That has now happened twice.** #887 moved `curved.rs` from 7 to
+/// 6, re-pinned the total, and left this doc's breakdown of it summing
+/// to the old number — the pin stayed GREEN while its own account of
+/// what it counted went false, which is the failure mode the pin
+/// exists to make impossible one level down. The arithmetic above is
+/// the only thing standing between a reader and that, and it is
+/// hand-run. **Whoever next changes an ε read re-runs every sum on
+/// this list, not just the file they touched.**
+///
 /// # What this cannot match, and it is a work order
 ///
 /// 1. **A read that does not spell `eps`.** `Tolerance::get().eps`
@@ -192,8 +206,11 @@ fn every_suite_file_is_aggregated() {
 ///    crude and its failure modes are not symmetric.** It is the first
 ///    line equal to `#[cfg(test)]` at column 0; the row asserts there
 ///    is at most one, so the cut is unambiguous. A file with no such
-///    line counts WHOLE (`tessellate.rs` and `trimmed.rs` today) —
-///    conservative, so it over-counts rather than under-counts. An
+///    line counts WHOLE — conservative, so it over-counts rather than
+///    under-counts. `tessellate.rs` is the crate's only such file now;
+///    `trimmed.rs` was one until #887 gave it a test module, which is
+///    why this sentence states the RULE and treats the roster as
+///    perishable. An
 ///    INDENTED `#[cfg(test)]` does not cut at all (`nurbs_cert.rs` has
 ///    two, gating items inside a module) — also conservative. The one
 ///    unsound direction is **production code placed after a trailing
