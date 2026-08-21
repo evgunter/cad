@@ -170,20 +170,35 @@ pub enum MatePrimitive {
 impl MatePrimitive {
     /// **Every LENGTH this primitive authors**, in metres — the one
     /// home for "what does a primitive carry that has a scale", read
-    /// by both doors that must account for one: [`Alignment::lever_arm`],
-    /// where a length left out LOOSENS the mate's angular threshold
-    /// (a smaller lever admits a bigger angle for the same induced
-    /// gap), and [`Alignment::is_finite`], where one left unchecked
-    /// lets a non-finite datum past the edit door. Both are the
-    /// unsound direction, and neither has a row that goes red.
+    /// by the THREE doors that must account for one:
+    ///
+    /// - [`Alignment::lever_arm`], where a length left out LOOSENS the
+    ///   mate's angular threshold (a smaller lever admits a bigger
+    ///   angle for the same induced gap);
+    /// - [`Alignment::is_finite`], where one left unchecked lets a
+    ///   non-finite datum past the edit door;
+    /// - the evaluation's content key (`eval`'s `feed_alignment`),
+    ///   where one left unhashed makes two documents differing ONLY in
+    ///   that length share a memo entry.
+    ///
+    /// All three are the unsound direction, and none of them has a row
+    /// that goes red.
     ///
     /// The match is EXHAUSTIVE and the array is as wide as the widest
-    /// variant: a primitive that grows an authored length is listed
-    /// here or the compile breaks, and listing it here gives it to
-    /// both readers at once. `None` means this variant carries fewer
-    /// lengths than the widest does — never a zero standing in for a
-    /// length that is not there.
-    fn authored_lengths(self) -> [Option<f64>; 1] {
+    /// variant, so a primitive that grows a length cannot arrive here
+    /// unnoticed. **What that buys is a forced VISIT, not a correct
+    /// answer** — `[None]` still compiles for a variant that does
+    /// carry one, and nothing here can tell. What it does guarantee is
+    /// that the answer is given ONCE, so the three readers cannot
+    /// disagree about it; three hand-kept lists disagreeing is the
+    /// state this replaced.
+    ///
+    /// The width lives in this list rather than in the type: a bare
+    /// `Option<f64>` would say "at most one" in every reader's
+    /// signature, and a two-length variant would then move all three.
+    /// `None` means this variant carries fewer lengths than the widest
+    /// does — never a zero standing in for a length that is not there.
+    pub(crate) fn authored_lengths(self) -> [Option<f64>; 1] {
         match self {
             Self::PlanarRest { offset } => [Some(offset)],
             // Pure pose relations: their whole datum is the two mate
