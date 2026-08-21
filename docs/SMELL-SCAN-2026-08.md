@@ -2485,6 +2485,13 @@ spans, so evaluation is a wrong answer rather than a refusal. That is
 the same species as `hull::span_indices`'s length-only `coeffs` check
 one line away, and it is stated at the type rather than implied away.
 
+**The `Where` citations below are the ORIGINAL ones and they no longer
+resolve to what they quoted** — #846 rewrote all three module docs,
+including `hull.rs:80`'s self-declared panic, which was this row's own
+evidence. Re-derived at #846's head, the row's surviving half is
+`crates/geom/src/surfaces/nurbs.rs:124-131` (`SurfaceWindow`'s
+not-branded concession) and its three `_in_span` doors at `:316`,
+`:347`, `:423`.
 
 - **Where**: `crates/geom-core/src/spline/knots.rs:166`,
   `crates/geom-core/src/spline/hull.rs:74`,
