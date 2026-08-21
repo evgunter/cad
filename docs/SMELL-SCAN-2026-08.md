@@ -10932,8 +10932,107 @@ boolean to do it. A reader who trusts the block will add the
 inheritance that is already there, or will avoid a split that is
 already safe.
 
+**The replacement sentence must stay CONDITIONAL, and here is why**
+(re-derived on this branch after #834's style review raised it). A
+corrected block saying *"splitting inherits"* unqualified would be the
+next false sentence, on two counts:
+
+- `splitting/finish.rs:280` promotes a section ring through
+  `mfkrh(ring, FaceSurface::New(plane_for(ring_side)))` on a **live**
+  path — a new surface, so `mint_face_surface_and_sense` returns
+  `true` and the promoted face is stamped, correctly, rather than
+  inherited. Inheritance is conditioned on the fragment keeping the
+  parent's surface, and this path deliberately does not.
+- of the block's two named sites, `splitting/reassembly.rs` is a
+  **test-only** oracle (`reassembly.rs:1`: *"The reassembly oracle
+  (test-only)"*), so naming it beside `chord_join.rs` reads as two live
+  re-mints when it is one.
+
+So the fix is *"splitting inherits the parent bit whenever the fragment
+keeps the parent surface, and mints `true` when it mints a new one —
+`finish.rs`'s section promotion is the live case of the latter"*, not a
+flat retraction.
+
 **Scope:** `topo/src/attach.rs` and `topo/src/entity.rs`, plus the two
 `§C`/`§B` citations of `attach.rs:119` in this document. **Row: D77.**
+
+## S172. Five spellings of "is this line code", beside seven guards that already share the walk
+
+**[verified]** Raised by #834's style review over its own new guard.
+The textual guards that walk a crate's own sources each carry their own
+answer to *is this text code or comment* — `trim_start().starts_with("//")`
+— and each inherits the same blind spots: a `/* … */` block, a
+`#[doc = "…"]` attribute, the needle inside a string literal or a
+`macro_rules!` body, and any code that FOLLOWS a comment on the same
+line. Four instances:
+
+- `topo/src/face_normal.rs` — **FIXED by #834**, the instance this row
+  was raised from. Its predicate now comes from
+  `topo::fixtures::code_only`, which blanks comments and literal bodies
+  while preserving byte offsets and line structure, and is pinned on
+  all four shapes above plus the one a naive quote scanner breaks on (a
+  lifetime, `&'a str`, which must not open a char literal).
+- `topo/src/review_d18_probes.rs:263`
+- `geom-core/tests/flagged_census.rs:182`
+- `step-import/tests/tier_gate.rs:787`
+
+**The class is the finding, and the walk was already consolidated.**
+Seven guards in `topo/src` share `fixtures::crate_sources()`
+(`chord_join.rs:2490`, `pcurves.rs:1621`,
+`review_m1_pr5_internal.rs:323`, `sector_shape.rs:508`,
+`review_d18_probes.rs:252`, and two rows in `face_normal.rs`) — the
+style review counted eight; it is seven, and its `chord_join` line
+number is six lines off. `fixtures.rs:74` says outright that *"a guard
+against duplication should not be the next copy of its own walk"*, which
+is the argument for the predicate as much as for the walk. **A home
+existed and the comment test is the part that kept being copied
+instead.**
+
+**Why it is not cosmetic.** A guard whose comment test is wrong is
+green for the wrong reason. `face_normal.rs`'s inventory pins that file
+at **zero** reads of `Face::sense_sign` while the file names the method
+five times in `//!`/`///` prose — the whole zero rested on one prefix
+test, so a single block comment in that file would have reddened its
+own guard.
+
+**Scope:** the three remaining instances, in three crates. `topo`'s is
+a lift into `fixtures::code_only`; the other two are in crates with no
+such shared home, and whether one is minted or the predicate is copied
+twice more is the scheduling question, not the lane's. **Row: D80.**
+
+## S173. The curved generalization of the one door lives inside `boolean/`, which is what the door's own header argues against
+
+**[verified]** Raised by #834's style review; recorded rather than
+acted on, because the fix is a move, not a sentence.
+
+`face_normal`'s module header spends nine lines (`face_normal.rs:14-24`)
+on why the planar sense flip moved to the crate root: when
+`sector_face` became a crate-root module shared with the splitting
+lane, a door inside `boolean/` could no longer be the one door, because
+*"a crate-root module importing from `boolean/` would be the same
+wrong-way edge, pointed the other way."*
+
+`boolean::rest::face_carrier` (`rest.rs:510`) is documented at its own
+site (`rest.rs:502-504`) as *"the curved generalization of
+[`face_plane`], folding the face's sense into the material side exactly
+as that door does (S10)"*. It is `pub`, re-exported from the crate root
+(`topo/src/lib.rs:258`), and folds the `±1` itself (`rest.rs:512`). So
+the curved half of the one door sits inside the consumer the planar
+half was deliberately moved out of, and reaches the crate root by
+re-export rather than by living there.
+
+**Not a defect today, which is why it is a row and not a fix.**
+`face_carrier` has no consumer outside `boolean/`, so the wrong-way
+edge the header warns about does not exist yet; what exists is a
+placement contradicting a stated argument next door, and that argument
+is load-bearing — it is why `face_normal.rs` exists at all. The
+question is whether the two halves want one home, which is issue
+**#695**'s territory (where `face_outward_normal`'s own placement
+question is already banked) rather than a prose fix.
+
+**Scope:** `topo/src/boolean/rest.rs`, `topo/src/face_normal.rs`. **No
+§D row** — scheduling is the orchestrator's call and it may want this
+to ride #695 instead.
 
 ---
 
@@ -12953,7 +13052,8 @@ tessellation pin are red on main).
 | **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
-| **D77** | **The S11 sense-inheritance hazard is discharged and three comments still say it is open.** `mef` inherits the parent's sense whenever the fragment keeps the parent surface (S12, `mint_face_surface_and_sense`), and `set_face_sense`'s **KNOWN HAZARD** block still says splitting stamps `true` — a block a reader consults before touching orientation. `chord_join`'s copy is fixed by G8; `attach.rs` and `entity.rs` are not, and §C and §B each cite the block as an exemplar, so the row also owns those two citations. `entity.rs` needs the QUALIFIER, not deletion: `mvfs` still mints `true`, and so does `mef` on a new surface. | **S171** | `topo/src/attach.rs`, `topo/src/entity.rs`, and this document's two `attach.rs:119` citations | proposed: **ACCEPT** | style |
+| **D77** | **The S11 sense-inheritance hazard is discharged and three comments still say it is open.** `mef` inherits the parent's sense whenever the fragment keeps the parent surface (S12, `mint_face_surface_and_sense`), and `set_face_sense`'s **KNOWN HAZARD** block still says splitting stamps `true` — a block a reader consults before touching orientation. `chord_join`'s copy is fixed by G8; `attach.rs` and `entity.rs` are not, and §C and §B each cite the block as an exemplar, so the row also owns those two citations. `entity.rs` needs the QUALIFIER, not deletion: `mvfs` still mints `true`, and so does `mef` on a new surface. **So does the corrected block**: `splitting/finish.rs:280` promotes a section ring through `mfkrh(ring, FaceSurface::New(…))` on a LIVE path and correctly stamps `true`, and the block's second named site (`splitting/reassembly.rs`) is a **test-only** oracle — a flat *"splitting inherits"* would be the next false sentence. S171 carries the wording. | **S171** | `topo/src/attach.rs`, `topo/src/entity.rs`, and this document's two `attach.rs:119` citations | proposed: **ACCEPT** | style |
+| **D80** | **Five spellings of "is this line code", beside seven guards that already share the walk.** Raised by #834's style review over the guard #834 itself added: each source-walking guard carries its own `trim_start().starts_with("//")`, blind to `/* … */`, to `#[doc = "…"]`, to a needle inside a string literal, and to code FOLLOWING a comment on one line. `topo/src/face_normal.rs`'s instance is **fixed** — lifted into `fixtures::code_only` beside the walk those guards already share, pinned on all five shapes. Three remain, in three crates. **The class is the deliverable, not the instance** (§C13): `topo`'s is a lift into the existing home; `geom-core` and `step-import` have no such home, and whether to mint one or copy the predicate twice more is the scheduling question this row asks. | **S172** | `topo/src/review_d18_probes.rs`, `geom-core/tests/flagged_census.rs`, `step-import/tests/tier_gate.rs` | proposed: **ACCEPT** | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
