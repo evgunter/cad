@@ -10018,7 +10018,7 @@ is given ONCE, so three readers cannot disagree.
 `#[non_exhaustive]` wildcard, documented, defaulting to refusal, with
 roster rows disclosing the blind spot.
 
-## S176. `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which
+## S190. `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which
 
 **Found by lane G-e** closing S104; **filed as issue #855** rather than
 fixed, because the fix is `topo`'s. Sharpened by the adversarial
@@ -10062,7 +10062,7 @@ the width-1 caveat where a caller meets it.
 Narrowing the lookup needs the PAIR in
 `ValidationError::CensusUnsupported`, which is `topo`'s to carry.
 
-## S177. FIXED by #833 — the validator door's doc says `ValidationError` has no `Display`
+## S191. FIXED by #833 — the validator door's doc says `ValidationError` has no `Display`
 
 **Found by lane G-e** sweeping `ValidationError`'s match sites.
 
@@ -10076,10 +10076,10 @@ The sentence now names what is DEFERRED — the tag map, and the choice to
 render the list with `Debug` — instead of denying a capability the
 kernel has, which is what would have sent the next reader to build one.
 
-## S178. S104's own defect, one layer upstream: `topo::census` decides `Escalated` vs `Unsupported` behind a wildcard
+## S192. S104's own defect, one layer upstream: `topo::census` decides `Escalated` vs `Unsupported` behind a wildcard
 
 **Raised by #833's style review** over `crates/topo/src/census.rs`, which
-is outside that lane's scope cell. **Not fixed there** — §D row **D116**.
+is outside that lane's scope cell. **Not fixed there** — §D row **D120**.
 
 `census.rs:1018` and `census.rs:1962` are both `Some(Err(_)) =>` over
 `ChartRegionError`, whose own doc says *"closed enum, D3 style: every arm
@@ -10104,7 +10104,7 @@ answer is a different, smaller vocabulary, chosen here.
 `Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and
 `boolean/`.
 
-## S179. A classification spelled as a let-else — the hit a disclosed blind spot produced
+## S193. A classification spelled as a let-else — the hit a disclosed blind spot produced
 
 **Found by #833's adversarial reviewer**, running a differently-shaped
 sweep: it extracted all 59 `ValidationError` variant NAMES and grepped
@@ -14274,7 +14274,7 @@ orchestrator"* rule was written for lanes inside one track and does not survive
 four concurrent orchestrators drawing on one sequence from branches none of them
 can see.
 
-**#833 (G6) drew outside that block, and one of its allocations had already been spent.** The lane was assigned `S167`/`S168`; **Track F had minted both on `main`** (S167 with `D113`, S168 with `D114`) before the branch merged, so #833's two are renumbered **S176** and **S177**, and its fix pass took **S178**/**D116** and **S179** from the `S176`–`S181` / `D113`–`D125` block its brief named. **`D113`, `D114` and `D115` are taken there too.** Recorded as the lane's own spend, for the orchestrator to reconcile — this is the collision the standing header warns about, reaching an allocation rather than a lane.
+**#833 (G6)'s numbers were reassigned twice, and both times the allocation was the thing at fault.** It was given `S167`/`S168`; **Track F already held both on `main`** (with `D113`/`D114`). It then drew `S176`–`S179` and `D116` from the block its fix brief named — also not Track G's. Its findings are now **S190** (the width-1 decline lookup, issue #855), **S191** (the validator door's `Display` claim), **S192** + **D120** (`ChartRegionError`'s wildcard in `topo::census`) and **S193** (the let-else classification), from Track G's second block **`D120`–`D139` / `S190`–`S209`**; `S136` is unaffected. **`S167`, `S168`, `S176`–`S179`, `D113`–`D116` are not this track's** and are released. Usage is a lower bound on what is taken — only a published reservation says what is CLAIMED, which is why this block is named here and not only in the track log.
 
 **Three edges this table did not carry, and one it carried wrongly**, all
 re-derived from the branches rather than from the schedule (G-R1 through G-R7 in
@@ -14324,7 +14324,7 @@ tessellation pin are red on main).
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
-| **D116** | **S104's own defect one layer upstream, in `topo`.** `census.rs:1018` and `:1962` are `Some(Err(_))` over the CLOSED `ChartRegionError` (ten variants; its own doc says every arm names its recourse), and they decide `CensusEscalated` against `CensusUnsupported` — the discrimination `editor_core::attribute` turns into `AtRest` against `Uncertified`. An eleventh arm becomes an unrefuted frontier. `:1962` is the DECLARED record's confirm pass. Owes the sweep the row names: every `Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and `boolean/`. | **S178** | `topo/src/census.rs`, and the sweep across `topo/src/boolean/` | **ACCEPTED**, unstaffed | **ADVERSARIAL** — the classification decides what the kernel tells a caller about an assembly, and CI cannot tell a right answer from a wrong one |
+| **D120** | **S104's own defect one layer upstream, in `topo`.** `census.rs:1018` and `:1962` are `Some(Err(_))` over the CLOSED `ChartRegionError` (ten variants; its own doc says every arm names its recourse), and they decide `CensusEscalated` against `CensusUnsupported` — the discrimination `editor_core::attribute` turns into `AtRest` against `Uncertified`. An eleventh arm becomes an unrefuted frontier. `:1962` is the DECLARED record's confirm pass. Owes the sweep the row names: every `Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and `boolean/`. | **S192** | `topo/src/census.rs`, and the sweep across `topo/src/boolean/` | **ACCEPTED**, unstaffed | **ADVERSARIAL** — the classification decides what the kernel tells a caller about an assembly, and CI cannot tell a right answer from a wrong one |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 
 > **G4's gate: cleared by Track F, 2026-08-20.** F1's fix is #791; its style review re-derived the widened matcher's effect independently and found the ratification precondition met in both operand orders — `real.rs`'s sentence is now true. **One correction G4 must carry, from that review: the widened matcher fires on nothing G4 actually writes**, because every `CertifiedBounds` use in the tree is a *sole* bound and the gate's class is compound bounds only. So **a green gate on G4's conversion is not ratification evidence** — G4 owes its own argument that each converted door should exclude a dual, and cannot cite the gate as having checked it. (#791 is NOT CLEARED on other grounds — two matcher blindnesses, F-R10 — none of which bear on this precondition.)
