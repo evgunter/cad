@@ -86,7 +86,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
 - [Findings raised by the Track F lanes](#findings-raised-by-the-track-f-lanes-2026-08-20) (S117–S126, S157–S168) — each track's lanes append here as they land
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only, in tracks: **A**, **B** and **D** complete; **C** (`docs/SMELL-C-LOG.md`), **E** (`docs/SMELL-E-LOG.md`), **F** (`docs/SMELL-F-LOG.md`) and **G** (`docs/SMELL-G-LOG.md`) running; the unscheduled table is the second scan's and frozen
+- [§D. The schedule](#d-the-schedule) — live rows only. **Tracks A–I are all closed** (A, B, D and I completed; C, E, F, G and H stopped with rows outstanding), and everything they left is repartitioned into **[Tracks J–X](#tracks-jx--the-repartition-2026-08-21)**, twelve tracks fenced by file territory so no branch waits on another. The tracks' own logs (`docs/SMELL-{C,E,F,G,H,I}-LOG.md`) are the historical execution record; the unscheduled table below them is the second scan's and is not maintained
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -14818,6 +14818,16 @@ but about which questions look most worth answering first.
 
 # §D. The schedule
 
+> **READ THIS FIRST — 2026-08-21. Every track A–I is closed, and what they
+> left is repartitioned into [Tracks J–X](#tracks-jx--the-repartition-2026-08-21).**
+> A, B, D and I completed. C closed its session with most of its table
+> unstarted; F closed on landing its eight rows; **E, G and H stopped with rows
+> outstanding**. The track sections below are kept as the record of what each
+> ran and what it left — **they are no longer the schedule, and a row in one of
+> them is live only if Tracks J–X carry it.** 114 open items are carried there,
+> partitioned by file territory so that no two tracks edit one file and no
+> branch waits on, fences against, or re-derives another's scope.
+
 **Live rows only.** Completed work is **not** listed here — every finished
 unit is recorded at its own finding as a bolded `FIXED by #740` lead, which is
 the one home for it. A row leaves this section when it lands. What follows is
@@ -14950,7 +14960,10 @@ and these are the transferable part:
 
 ---
 
-## Track C — claimed, one live orchestrator (`docs/SMELL-C-LOG.md`)
+## Track C — CLOSED, session ended with most of its table unstarted (`docs/SMELL-C-LOG.md`)
+
+**Its open rows are now Tracks J, K, R, T, U, V, W and X's** — see the
+repartition. What follows is the record of what this track ran.
 
 It is listed separately because neither track has capacity for it now, and
 because several rows want a decision inside them that the taker should expect
@@ -15962,7 +15975,10 @@ other `props/` work.
 
 ---
 
-## Track E — everything left, and the two rows that were scheduled but never staffed
+## Track E — CLOSED, four lanes unstarted and ~26 rows unstaffed
+
+**Its open rows are now Tracks J, K, M, N, P, Q, T, U, V, W and X's** — see the
+repartition. What follows is the record of what this track ran.
 
 **Constituted 2026-08-20.** Track A, Track B and Track D are complete; **Track C
 is the only track with a live orchestrator**. What remained after that was an
@@ -16232,7 +16248,10 @@ have caught.
 
 ---
 
-## Track F — the instruments: what this project uses to know things, and what those cannot see
+## Track F — CLOSED, all eight rows landed; its PLACED rows outlived it
+
+**The rows its lanes placed are now Tracks J, K, T and W's** — see the
+repartition. What follows is the record of what this track ran.
 
 **The thesis, in the second scan's own words:** *"several of the mechanisms this
 project uses to know things do not fire, and until they are done a green board
@@ -17164,7 +17183,10 @@ grows after dispatch. **This row needs a lane and does not have one.**
 
 ---
 
-## Track G — the ground no track owns, and the passes that deleted their own evidence
+## Track G — CLOSED, two rows and thirteen placements outstanding
+
+**Its open rows are now Tracks J, K, P, Q, V, W and X's** — see the
+repartition. What follows is the record of what this track ran.
 
 Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
 `profile/` and `sweep/src/` outside `fillet/` are the second scan's *new ground*
@@ -17380,7 +17402,11 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ---
 
-## Track H — the certification substrate: `geom-core/` and `geom/`
+## Track H — CLOSED, three of ten rows landed
+
+**Its open rows are now Tracks M, N, Q and W's** — see the repartition, and note
+that **#883 is parked** on Track M's ground. What follows is the record of what
+this track ran.
 
 **Defined 2026-08-21 by Track F on closing. CLAIMED 2026-08-21 — one live
 orchestrator, `docs/SMELL-H-LOG.md`**, which holds lane state, rulings, review
@@ -17581,6 +17607,354 @@ that exact trap in their own PR bodies beforehand. Naming it was not protection.
 The only thing that reliably found it was an adversary who had not written the
 fix. The standing rules that came out of it are in
 `docs/SMELL-F-LOG.md` and in `memories/agent-lane-operations.md`.
+
+---
+
+## Tracks J–X — the repartition (2026-08-21)
+
+**Every track A–I is now closed.** A, B, D and I completed; C closed its
+session with most of its table unstarted; F closed on landing its eight rows;
+**E, G and H are dead too** — E left four unstarted lanes and ~26 unstaffed
+rows, G left two rows and thirteen placements, and H landed three of its ten
+rows and stopped. What each of them left behind did not stop being work when
+its orchestrator stopped, and §C3 says a deferral that lands nowhere that
+executes is the failure this document keeps re-finding. **This section is the
+one register for all of it.**
+
+**114 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+partition rule is the only one that matters here: **no two tracks may edit the
+same file**, so no branch waits on, fences against, or re-derives another's
+scope. Dependencies *inside* a track are its own orchestrator's to sequence —
+that is what an orchestrator is for — and there are no dependencies *between*
+tracks that any lane must honour. A track can be claimed the day it is read.
+
+**What this repartition is not.** It is not a re-verdict. Every item keeps the
+row number, finding number and disposition it already had; three items that
+were announced in prose and never given a table row (`D105`, `D108`, and the
+row `S167` was told to take, which collided with Track G's `D113`) are given
+one here. Nothing below is closed, re-scoped or re-argued by being moved.
+
+## The rules this partition runs on
+
+1. **The fence is the file, not the subject.** A track owns paths. If a row's
+   work reaches a path another track owns, the reaching half is **filed as a
+   row on the owning track** and the first track lands without it. No lane
+   ever edits across the fence, and no lane ever waits for the other side —
+   filing the row *is* the handoff.
+2. **Number blocks are published here, before any lane is given a number**
+   (Track G's rule, learned the expensive way). Blocks are clear of every
+   existing reservation and of the tree's maxima (`D179`, `S249`).
+   **Re-derive after every merge anyway**: a block cannot stop a number
+   arriving from another track, only re-checking can.
+3. **A row leaves this section when it lands**, and its record becomes the
+   bolded `FIXED by #NNN` lead at its own finding, with the original problem
+   statement removed. Every landing PR therefore edits this file, and they
+   conflict by construction — **merge one at a time, within a track**. Across
+   tracks the conflicts are this section's tables only.
+4. **Review policy, inherited unchanged from Tracks F, H and I:** style review
+   on every unit against `docs/prompts/reviewer-style-lane.md`, carrying the
+   two questions the standing brief does not ask — *is the original problem
+   completely gone*, and *was it closed in the best way available*.
+   **Adversarial only where a wrong answer is reachable**; the items that
+   carry it are marked **ADV** below.
+5. **The one thing every closed track agreed on**, and it held eight units out
+   of eight on Track F and every unit on Track G: **the fix mints a fresh
+   instance of the defect it closes**, and naming that trap in your own PR body
+   does not prevent it. Only a reader who did not write the fix has ever caught
+   it. Standing rules: `docs/SMELL-F-LOG.md`, `memories/agent-lane-operations.md`.
+6. **Not in any track, and deliberately:** `L1` (S36, comb-and-rename per
+   suite), `L2` (S38, comment trimming), `C2`/`H17` (S37's rustdoc remainder,
+   ~1115 lines across 130 files) and `C21` (two workspace-wide comment
+   populations, read per item). All four are cross-cutting comment or naming
+   sweeps that would collide with **every** track on this list, which is the
+   same reason they were last before. They go after this section empties.
+7. **Not work at all:** the *Open decisions — Evan only* table above, plus the
+   second scan's `S65`, `S70`, `S82`, `S90`, `S107` and `S116(p)`. No lane may
+   resolve one by implementing something. Where a track holds the work that
+   *follows* a decision, its row says so and the row is not takeable until the
+   decision lands.
+
+## The twelve territories
+
+| Track | Territory (the fence) | Block | Items |
+|---|---|---|---|
+| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 12 |
+| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 11 |
+| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 6 |
+| **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 8 |
+| **P** | `crates/topo/src/{euler*.rs,split,attach,movefac,revert,live,merge_faces,seqgen,validate}.rs` | `D260`–`D279` / `S330`–`S349` | 10 |
+| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 10 |
+| **R** | `crates/geom-brep/src/props/`, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 10 |
+| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
+| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 10 |
+| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 11 |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 12 |
+| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 4 |
+
+**Two seams are stated rather than left to be discovered**, because both are
+places where a reasonable reader would think the fence ambiguous:
+
+- **`crates/*/tests/` is W's, in every crate, without exception.** A track that
+  owns a crate's `src/` does **not** own its `tests/`. Where a src change needs
+  a test, W is not in the way: the test belongs to the PR that makes the change,
+  and W's rows are about the *test-side mechanisms* named in them — the guards,
+  the doctests, the stand-downs, the fixtures, the probe-gated suites. W files a
+  row on the owning track when a mechanism reaches into `src/`, and vice versa.
+- **Every `*.py` in the repo is J's**, including the fixtures under
+  `crates/*/tests/` and the renderer under `demos/`. There are 12 Python files
+  in the tree outside `.venv`, one class of question is open across them
+  (`D122`), and splitting them four ways to match the Rust fences would put four
+  tracks in one 12-file population.
+
+## Track J — what CI actually runs
+
+**Fence:** `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`,
+`scripts/gates/{gate-roster,probe-suite-census}.sh`, every `*.py`, and root
+`Cargo.toml`'s `[workspace.lints]`. **Block:** `D180`–`D199` / `S250`–`S269`.
+
+| # | What | Was |
+|---|---|---|
+| **D40** | `scripts/doc-gate.sh` is the repo's only rustdoc gate and has never been shown to fire — the sole guard for lints `cargo check` and `clippy` are both silent about | Track E |
+| **D41** | The rustdoc gate covers workspace MEMBERS; `tools/k-lint`, `demos/tour`, `demos/wild` and `interval-transcendentals` run no `cargo doc` anywhere | Track E |
+| **C17** | Two excluded roots carry a hand-copied `cargo doc` step and nothing gates the copies against drift — `D41`'s other half, and they must land together | Track C |
+| **D58** | `probe-suite-census.sh`'s citation half is docs-tier-conditional, so it cannot fire on the only change class that breaks it (ruled: re-site) | Track F |
+| **D59** | The executable bit is the registration mechanism — a gate landing mode `0644` is invisible to `gate-roster.sh`, confirmed by planting | Track F |
+| **D71** | The local gate has no `oracle-certify` mirror and nothing enforces `ci.yml` ↔ `ci-local.sh` job parity (S127). Two decisions inside it, both this track's | Track G |
+| **D110** | `scripts/ci-filter.py` decides whether any gate runs at all and is the one script here with no test (S164) | Track F |
+| **D108** | A code merge's full run is cancelled by the docs-tier pushes behind it, and the board goes green having run two jobs (S162) — **row announced in prose and never tabled; tabled here** | Track F |
+| **D180** | Merging a PR destroys its in-flight checks and the wreckage is permanently unreproducible (S167) — **the row S167 was given was `D113`, which is Track G's; renumbered here** | Track F |
+| **D24** | A `pub` item dead workspace-wide is invisible to every mechanical check the repo runs; `[workspace.lints]` has no `unreachable_pub`. **Closes on a chosen mechanism that runs in CI** | Track E |
+| **D99** | `indexing_slicing` was deferred in M0 *with* a revisit point, the log carrying it was deleted, and the deferral is now permanent by accident | Track E |
+| **D122** | Twelve `# noqa` markers for three linters the repo does not run (S196). A cost decision — run one Python linter over all 12 files, or delete the markers. **Not half.** If the answer is "run one", the CI wiring is this track's too | Track G |
+
+## Track K — the instruments, and what they cannot see
+
+**Fence:** `scripts/gates/` less the two scripts J names, `tools/`,
+`docs/K-REPORT.md`. **Block:** `D200`–`D219` / `S270`–`S289`.
+
+| # | What | Was |
+|---|---|---|
+| **D102** | The compound-`Bounds` gate anchors on `+`, which is not how Rust expresses a compound bound — `where T: A, T: B` is silent, and so is the multi-line form `rustfmt` converges on (S158) | Track F |
+| **D103** | The allowlist is file-granular while its justifications are per-seam, so a second unrelated bound in an allowlisted file inherits the first's ratification silently (S159) | Track F |
+| **D106** | `bounds-allowlist.sh` is a 204-line header in front of a 20-line function, grown three times for three honest reasons — split the ratification ledger out of the script | Track F |
+| **D68** | `ArcCarrierScalar`'s 49 use sites are a compound bound no grep gate can see (S124). **A VISIBILITY row: Track V's `G4` changes what the alias is bound to and leaves the 49 sites exactly as invisible** | Track F |
+| **D109** | What the F3 sweep left open in `scripts/gates/` (S163) — four live members; (a) is CLOSED by #885 | Track F |
+| **D63** | `k-lint` admits `NaN`, `inf` and negative floats and scores the row clean (S119) | Track F |
+| **D64** | What the tessellation and K instruments still cannot see after F6 (S120, four members) — including a fallback inside a comparison having two sides | Track F |
+| **D105** | The split scan's constants can be guarded, on the continuous objective, which the cell count is not (S160) — `tools/tess-meter`. **Row announced in prose and never tabled; tabled here** | Track F |
+| **C15** | `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL, so a reorder compares two unrelated faces or drops one with no finding (#746) | Track C |
+| **D114** | The recording scalar is asserted to be a wrapper by no test and three sites say otherwise (S168). **The differential test is this track's; a `geom-core/src` change it turns up is Track M's row** | Track F |
+| **S98** | `K-REPORT.md`'s dated M3 crop was back-filled against its own twice-stated rule and its arithmetic no longer closes | unrowed |
+
+## Track M — the scalar and certification traits
+
+**Fence:** `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`,
+`interval-transcendentals/`, `crates/bvh/`. **Block:** `D220`–`D239` /
+`S290`–`S309`. **Six items, and it is the smallest track by count and the
+largest by blast radius** — `H5` alone is 535 refs across 15 files and is
+expected to split into two or three sub-lanes inside the track.
+
+| # | What | Was |
+|---|---|---|
+| **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12) | Track H |
+| **H3+H4** | The `Bounds` trait's headline still calls it the certification door and its ledger grew 50% under the fix meant to retarget it (S85); the one-home fix for the ring crossing minted three local aliases and a hand-counted tally (S89). **One lane — both sit on `real.rs` and `from_certified`** | Track H |
+| **H10** | A rule with no instrument (S210): `real.rs`'s `Bounds` scope rule governs the sole-`T: Bounds` class and the allowlist gate cannot see it. **Carries `S211`'s unowned `bvh` member.** The gate-side half is Track K's `D68`/`D103` and is not this row | Track H |
+| **S213** | `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one | unrowed |
+| **D78** | What is still one-directional in the interval backend after G1 — `powi`'s tightness ceiling, the oracle tier's scale-free ratio, and `interval.rs:135-143`'s consumer-side caveat (S134) | Track G |
+| **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **NOT TAKEABLE until Evan rules `S90`** (#867) — the row exists so the work is visible, not so it is started | Track H |
+
+## Track N — `geom`, and the spline and linalg substrate
+
+**Fence:** `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}`.
+**Block:** `D240`–`D259` / `S310`–`S329`.
+
+| # | What | Was |
+|---|---|---|
+| **H2** | One merge's residue, six findings, and it wants ONE lane — `S99`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
+| **H9** | `geom`'s box constructors claim a loose box *"never prunes"* — false for three of the four doors those boxes feed, and the claim appears six times (S232) | Track H |
+| **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
+| **D97** | `KnotVector::from_algebra`'s debug arm carries row 5's classification and none of row 5's mechanism — no assert, no log, nothing observed | Track E |
+| **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
+| **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
+| **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
+| **S215** | The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation. **The named test file is this row's, by exception to W's fence** | Track H |
+
+## Track P — `topo`'s Euler surgery, liveness and the generator
+
+**Fence:** `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs}`.
+**Block:** `D260`–`D279` / `S330`–`S349`.
+
+| # | What | Was |
+|---|---|---|
+| **D49** | The literal liveness-check block `D25` named survives ~9 times, for the five arenas #755 did not touch | Track E |
+| **D50** | `Live`'s unforgeability is guarded by nothing the repo runs — a `compile_fail` doctest cannot name a `pub(crate)` type, so the test that would try the forge cannot be written where the claim is | Track E |
+| **D88** | A fourth spelling of the discard idiom, and the one site `D21` found that cannot meet #720's standard: `absorb` drops every ring of an absorbed face and returns `Ok`. **ADV** | Track E |
+| **D38** | `merge_coplanar_faces` runs two incompatible failure regimes on one door, and the one that `format!`s is cited in the tree as the precedent for the other | Track E |
+| **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV** | Track E |
+| **D77** | The S11 sense-inheritance hazard is discharged and three comments still say it is open, including a **KNOWN HAZARD** block a reader consults before touching orientation | Track G |
+| **D20** | D5's +46% on the `seqgen` lane is real and, after #722 excluded the candidate it was charged to, unattributed. **Closes on an attribution off hosted CI — a number, or a written finding that it is inherent** | Track E |
+| **S68** | The W2c discard sweep stopped inside the function it was editing | unrowed |
+| **S69** | `kfmrh`'s shell-fusion form is outside the fuzz catalog, and the `Ledger` counts solids, so it cannot notice | unrowed |
+| **S93** | The S15 fix minted two new prose-held caller obligations, at `mev`'s fan site and `kev`'s fan merge | unrowed |
+
+*(`S94`'s two hand-maintained `VARIANTS` ladders sit in `euler.rs` and
+`validate.rs` — both this track's files. It is folded into whichever lane opens
+`validate.rs` first and is not a separate row.)*
+
+## Track Q — `topo`'s boolean, census and charts, and the predicate ledger
+
+**Fence:** `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`,
+`crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`,
+`docs/predicate-dimension-audit.md`. **Block:** `D280`–`D299` / `S350`–`S369`.
+
+| # | What | Was |
+|---|---|---|
+| **G9** | Two operand gates with different admitted kind sets and a doc that describes only one (S95), plus `chord_join`'s placement argument contradicted by its own imports from `splitting/` (S96). **Both sides of the old Track C fence are inside this track now** | Track G |
+| **S173** | The curved generalization of the one door lives inside `boolean/`, which is exactly what the door's own header argues against. The fix is a move, not a sentence | unrowed |
+| **D120** | S104's own defect one layer upstream: `census.rs` decides `CensusEscalated` against `CensusUnsupported` behind a wildcard over a CLOSED ten-variant enum, so an eleventh arm becomes an unrefuted frontier | Track G |
+| **H11** | A postcondition stated in four voices, one normative (S212) — `CertifiedEnclosure`'s *"a `Some` never carries a NaN end"* has a home and at least three doors re-derive it, two of them here | Track H |
+| **S234** | The door inventory computes the roster's KEYS and none of its content — the direction column, which is the whole argument the guarded header makes | unrowed |
+| **D95** | `boolean/combine.rs` now answers one proof two ways: two sites converted to `unreachable!` and six structurally identical siblings in the same function left as they were | Track E |
+| **D57** | Nine names carry the K predicate vocabulary in refusal diagnostics while never reaching the funnel | Track E |
+| **D46** | Twenty-three funnel-reaching predicate names in `geom-brep` and `topo` have no dimensional verdict anywhere, and three of their eight homes are files the audit has never named | Track E |
+| **S83** | `seam_tol` / `MarchTolMismatch` cannot be reached and has no row; `MarchTol` is public with no possible caller | unrowed |
+| **D36** | `PcurveCertifyError::UnsupportedCarrier` is payload-free and means three different things across 22 construction sites, beside a sibling that names its class at every site | Track E |
+
+## Track R — the measuring consumers: `props/` and `mesh/`
+
+**Fence:** `crates/geom-brep/src/props/`, `crates/mesh/`. **Block:**
+`D300`–`D319` / `S370`–`S389`. Track I completed the rest of this ground; what
+is here is what it left plus what Track C never started.
+
+| # | What | Was |
+|---|---|---|
+| **C3** | `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block (S27). **NOT TAKEABLE until #723 is fixed** — a wrong certified volume lives in the file this row consolidates, and consolidating first bakes it in or moves it away from its reproduction. The lane is described in a comment on #723 | Track C |
+| **D30** | `quad.rs` holds a second span search and a second index clamp, because `KnotVector` cannot represent what the module needs. **Same file as `C3` and gated with it** | Track C |
+| **C11** | #726 and #727 — fold the iso-rectangle SHAPE question onto the named predicate, and decide which door owns the refusal now that `mesh` and the boolean are protected only transitively | Track C |
+| **S26** | The certified area enclosure is never metered against anything, now measured: 7.8e-3 relative on an ordinary loft where the same body's volume bracket is 1.2e-14 (#870). **Wants a written proposal, not a patch** | Track C |
+| **S28** | Three tessellation lanes are parallel pipelines with no shared core — the duplication half, now that #648/#674 have settled the ordering and column questions | Track C |
+| **S231** | `chords.rs`'s *"the only places adjacent surfaces enter chord counts"* is S64's shape: an absence claim over a whole module, true today and unfalsifiable by anything in the tree | Track I |
+| **S236** | `cert_cylinder` is falsified by nothing, in any build — and closing it changes `budget::FaceMeasure`, whose consumers are in `tools/`. **The `tools/` half is Track K's row** | Track I |
+| **S237** | The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one | Track I |
+| **C22** | A crate's sizing vocabulary is `pub` in three places and `pub(crate)` in seven, and nothing consumed the public three when #803 wrote them | Track C |
+| **C23** | One rational refinement schedule hand-synced across a crate boundary — `mesh`'s `RATIONAL_CERT_SPLITS` and `geom`'s `RATIONAL_METER_SPLITS`. **The `geom` constant is one line and is this row's, by exception to N's fence** | Track C |
+
+*(`S65` — the watertightness backstop absent from every shipping build — is
+**Evan's decision**, not this track's row. Its equipped statement, the three
+options and the measured price are at `S65`; issues #896 and #897 carry what
+#872 could route. When it is ruled, the implementation is this track's.)*
+
+## Track T — `sweep/`
+
+**Fence:** `crates/sweep/` (both `src/` and, by exception to W's fence, the four
+`sweep/tests/` files its own rows name). **Block:** `D320`–`D339` /
+`S390`–`S409`.
+
+| # | What | Was |
+|---|---|---|
+| **D124** | Re-home the findings E-g's retirement left untracked — `S111(a)(b)(d)`, `S112(a)` and `S75` were routed to a lane that landed without them and whose row is struck (S177). Three re-derived from the tree and standing | Track G |
+| **S75** | The recourse-contract guard's central assertion is a tautology, and two suites defer their completeness obligation to it | Track F routing |
+| **D96** | Thirteen `unreachable!` arms are row-0 candidates — states a type change could stop spelling, `EmptyChain`'s exact shape. **Ten are this track's**; the remainder are filed as rows on the tracks that own their files | Track E |
+| **D91** | `map_err(\|_\| …)` is D29's own disclosed blind spot and D29 never ran it inside its own crate — two hits, both in `loft.rs` | Track E |
+| **S131** | A unification declares *"one home"* while self-declared hand-copies of the same rule stand inside its own scope — 13 hits in `sweep/src` outside `fillet/` | unrowed |
+| **S132** | `strut_spec` — one name, two different rules, in one crate, sharing nothing but the name | unrowed |
+| **C20** | Every turning-path swept or lofted chart shape that is NOT a quarter-turn arc or a constant-pitch helix is unpinned for orientation — including the one the tree itself authors a ROLL on | Track C |
+| **C25** | One swept body built from scratch six times across three crates, enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is | Track C |
+| **D104** | The two hand-run diff artefacts `S110` could not place — a printed `Debug` hash with no assertion, and pinned seeds licensed for a digest half that is printed and never asserted | Track F |
+| **C-e/H13** | `sweep/tests/`'s helix orientation coverage — the row §D twice records as having no home. **Verify against #779 before staffing**: Track C recorded H13 FIXED by that PR and the H/I handover recorded it open, and both statements are in this document | neither |
+
+## Track U — the exchange surface and the bindings
+
+**Fence:** `crates/step-import/`, `crates/step-export/`, `crates/stl/`,
+`crates/pncad-py/`, `crates/pncad/`. **Block:** `D340`–`D359` / `S410`–`S429`.
+
+| # | What | Was |
+|---|---|---|
+| **E-m / #711** | The recognizer's *"unreachable"* arm is reachable and the spec sentence has no document — **PR #784 is open and red on this ground**; the track inherits it | Track E |
+| **C13** | ε has no type of its own, so `StepOptions::uncertainty_m` and two bare `f64`s restate `Tolerance::init`'s finite-and-strictly-positive rule by hand (#741). **Wants a plan signed off before implementation** — cross-crate public API | Track C |
+| **C14** | The STEP writer hardcodes two Part 21 header fields the standard assigns to the user (#742). **Same signed-off-plan caveat** | Track C |
+| **C16** | The Python STEP door exposes one of `StepOptions`' six fields, silently (#730) | Track C |
+| **C19** | `assemble.rs`'s `build`/`build_one_solid` pair — dead code rather than a stale claim | Track C |
+| **C26** | The sizing-vocabulary rule is violated verbatim one crate outside the fence it was written for, by the same question — `const STEPS: usize = 16` | Track C |
+| **D94** | The discard idiom does not stop at `crates/topo`, and `D21`'s crate clause was a scope of work rather than a finding about the class. **The sharpest instance answers the same question two incompatible ways five lines apart** | Track E |
+| **D37** | `pncad-py`'s tag map re-derives a discriminant that belongs on the kernel error, and its field-projection deferral has no owner | Track E |
+| **D47** | The *"never a `Debug` dump"* rule has two remaining violations, both blocked on kernel types with no `Display` — **the `Display` impls themselves are Track V's rows** | Track E |
+| **D48** | The compensating alarm for the one non-exhaustive tag map cannot fire, and two source comments say it can. **Closes on a verdict plus two comments matching it, not on a guard** | Track E |
+
+*(`D37`, `D47` and `D48` are one crate and one class, and `D37(a)` shares a
+mechanism with Track V's `D121`. Taking them as one lane is cheaper than any of
+them alone.)*
+
+## Track V — `editor-core` and `profile`
+
+**Fence:** `crates/editor-core/`, `crates/profile/`. **Block:** `D360`–`D379` /
+`S430`–`S449`.
+
+| # | What | Was |
+|---|---|---|
+| **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**; both of its old gates have fallen (#791, #801). The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
+| **D121** | The arc-mode vocabulary is S106 one level down, with no `ALL` and no census (S195) — six spec structs restated three times, and `res_spec` CONSTRUCTS the kernel form so the compiler cannot see a mode that fails to arrive | Track G |
+| **D75** | The PATHS verb vocabulary's sixth copy is the Python surface and it is the only silent one (S170). **The `pncad-py` stub edit is this row's, by exception to U's fence** | Track G |
+| **D54** | Six refusal arms render prose over a payload they hold, and the blocker on every one is the same — four of the crate's OWN types have no `Display`. **This row unblocks Track U's `D47`** | Track E |
+| **D81** | A typed payload with a `Display`, rendered by `Debug` at a composing layer — eight live sites, six of them one-liners, including the very `Display` #767 corrected bypassed one layer up in the same crate | Track E |
+| **D89** | `DocEdit::DeleteNode` proves the node live, then eleven lines later defaults its input list to empty on a `None` that cannot happen — and the value is handed straight to `roots::on_delete` | Track E |
+| **D39** | A typed refusal degrades to `String` at the edit door because two derive sets do not meet, and a test in the tree is already substring-matching prose to get the class back. **Both sides of it — `EditError` and `profile::PathError` — are inside this track** | Track E |
+| **C12** | `editor-core`'s remaining classification residues from #731's style review — three things, including a test oracle that under-reports silently through a `_ => false` arm | Track C |
+| **S105** | The shared refusal ladder retired one duplication and minted a documented hand-synced one | unrowed |
+| **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which | unrowed |
+| **C6** | W2f remainder / S4 — `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core. **Genuinely blocked**, each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format); kept as a row so the block is visible rather than forgotten | Track C |
+
+## Track W — the test targets: guards, doctests, fixtures and stand-downs
+
+**Fence:** `crates/*/tests/` in every crate, and `crates/test-utils/`.
+**Block:** `D380`–`D399` / `S450`–`S469`. **This track owns test-side
+mechanisms, not test coverage for other tracks' changes** — a src change carries
+its own tests in its own PR, as always.
+
+| # | What | Was |
+|---|---|---|
+| **D61** | Twelve source-text guards, five hand-rolled Rust readers, and no two of them lex the same language (S117). The count went 7 → 9 → 11 → 12 in one session, each step a differently-*shaped* sweep. **Build the shared home here; a reader living in another track's `src/` is converted by that track, on a row this one files** | Track E |
+| **D80** | Five spellings of *"is this line code"*, beside seven guards that already share the walk (S172) — blind to block comments, to `#[doc = "…"]`, to a needle in a string literal. **Same class as `D61` and the same home; one lane** | Track G |
+| **D113** | Decide what an intra-doc link in a `tests/` file is (S135): `cargo doc` builds no test targets, so every one is inert on every tier and nine are already broken. **Closes on a decision plus its mechanism** | Track G |
+| **H12** | Eleven `compile_fail` doctests in `geom-core/tests/` have never been collected (S214) — each asserts the compiler rejects a specific program, so each is a negative proof no tier has ever run | Track H |
+| **S216** | The repo has ~39 `compile_fail` rows and not one verifies what it claims — 28 of the 36 collected ones carry an error code that is never compared to anything. **The generalisation of `H12`, and the two want one lane** | unrowed |
+| **D111** | Fourteen probe-gated suites are compiled and never run. **RULED by Evan (2026-08-21): run all fourteen; the two collection runs stay.** Compilation is already paid, so the marginal cost is execution — turn them all on at once. Whatever reds is filed as a row on the track that owns the file | Track F |
+| **D70** | The silent whole-row stand-down: a population of 13 — a FLOOR, not an enumeration — in three files (S126) | Track F |
+| **D115** | The loud stand-down's ten hand-rolled spellings (S169), against a home that already exists in `test_utils::vacuity`. Three of the ten are the actual finding | Track F |
+| **D107** | `review_d18`'s `kemr` reaches no mutation phase in either hammer row (S161), so the arms below it are attacked by nothing. Scoped work: a fixture whose ring-merge form gets it past its plan phase | Track F |
+| **D72** | Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse (S128) — #831 turned the defect into an assertion, which is a tripwire and not a fix | Track G |
+| **C18** | Three residues of H12's own enumeration, left open by #734 — a tests-only unit, so all three are coverage or prose | Track C |
+| **S230** | Certified widths with no ceiling, in crates no live track owned — `editor-core/tests/`, `pncad-py`'s and three in `sweep/tests/`. **All four sites are test targets and therefore this track's** | Track I |
+
+## Track X — `demos/`, and the design doc's companion table
+
+**Fence:** `demos/` (Rust and Markdown; its Python is Track J's),
+`docs/DESIGN.md`'s companion table. **Block:** `D400`–`D419` / `S470`–`S489`.
+**Four items — the smallest track, and it is small because its ground is
+small.** It shares no file with anything above, so it can be taken alongside
+another track by one orchestrator without breaking the partition.
+
+| # | What | Was |
+|---|---|---|
+| **D79** | `lily.rs`, read end to end for the first time — six members, no owner: an orphaned comment block whose live number is wrong, a shadow tuple vector algebra beside `Vec3` (whose *reason* is #796), two carrier extractors with different rigor, and a partly-vacuous agreement check | Track G |
+| **S129** | `demos/` has assertions and no runner — nothing runs `cargo test` under `demos/`, and **two rows of the tessellation pin are red on `main`** (#782) | Track G |
+| **D123** | `demos/README.md`'s uv-lane numbers, which `S113(a)` is recorded as having swept: five figures the FIXED record itself names are still standing in the file that fix pass edited, plus two no run prints. **#787's own rule applied to the prose — compute or delete, never restate** | Track G |
+| **D51** | `DESIGN.md`'s companion table describes the dimensional audit's open findings as they stood two retirements ago, naming as open a residue the audit's own disposition list records as closed | Track E |
+
+## What this partition leaves out, said explicitly
+
+- **The `Open decisions — Evan only` table** above, plus `S65`, `S70`, `S82`,
+  `S90`, `S107`, `S116(p)` and the C-namespace collision. Seven of the twelve
+  tracks hold work that one of these gates; each such row says so.
+- **`L1`, `L2`, `C2`/`H17` and `C21`** — the four cross-cutting comment and
+  naming sweeps, which collide with every track here and go after it.
+- **`L3`** — the remaining `S35` roll-up rows, lowest value density, several of
+  which will be resolved incidentally by the tracks above.
+- **The unscanned crates**, which are a scanning input rather than a work item:
+  §B2 never scoped `crates/step-import/`, `step-export/`, `stl/`, `bvh/`,
+  `quantity/`, `pncad-py/` or `profile/`. Tracks **U**, **V** and **M** now own
+  that ground, so a scan of it is theirs to commission and no longer collides
+  with a live lane.
 
 ---
 
