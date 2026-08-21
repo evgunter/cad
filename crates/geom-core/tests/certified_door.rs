@@ -273,7 +273,7 @@ fn the_f64_crossing_admits_exactly_the_finite() {
 
 #[cfg(feature = "interval")]
 mod interval_lane {
-    use geom_core::{CertifiedEnclosure, Interval};
+    use geom_core::{Interval, Real};
 
     use super::{assert_non_vacuous, door_certifies};
 

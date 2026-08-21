@@ -128,14 +128,17 @@ fn the_certified_door_refuses_a_violated_decoration() {
         Some((1.0, 2.0)),
         "a certified enclosure must hand over its own endpoints unchanged"
     );
-    // `f64` has no domain-violation channel, so it always certifies —
-    // the lane's numbers are exactly what they were.
+    // The other two lanes read their poison off the value itself rather
+    // than off a decoration, and refuse on it. `certified_door.rs` sweeps
+    // both; these two pairs are here so this row's `Def` threshold is not
+    // mistaken for the only way the door can refuse.
     assert_eq!(2.5_f64.certified_bracket(), Some((2.5, 2.5)));
-    // The ring likewise: two states, no decorations.
+    assert!(f64::NAN.certified_bracket().is_none());
     assert_eq!(
         RingInterval::from_bounds(-1.0, 1.0).certified_bracket(),
         Some((-1.0, 1.0))
     );
+    assert!(RingInterval::poison().certified_bracket().is_none());
 }
 
 /// The C9 hull bound over a two-coefficient degree-1 spline whose first
