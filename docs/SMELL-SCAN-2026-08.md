@@ -12528,6 +12528,48 @@ scope cell, and the honest fix is an editorial pass over that whole
 section — the half of it that can only be restated has to say at the
 site why. A partial recount is §C13's half-fix. **Row: D111.**
 
+## S176. Twelve `# noqa` markers for three linters, none of which the repo runs
+
+**Raised by G11 / #837**, whose own fix pass added two of them before
+checking whether anything reads them.
+
+`git grep noqa -- '*.py'` returns **twelve markers in six files**, and
+`git grep -il 'ruff|flake8|pycodestyle|black|pylint'` over `.github/`,
+`local-scripts/`, `scripts/` and every `*.toml`/`*.cfg` returns
+**nothing**. No Python linter is installed, configured or invoked
+anywhere in this repo.
+
+The markers are not one tool's, either — they name rules from three
+separate namespaces, so no single install would even make them all
+meaningful:
+
+- **`E402`** (module import not at top) ×6 and **`E731`** (lambda
+  assignment) ×1 — pycodestyle, all in `demos/render_freecad.py`,
+  where the imports genuinely cannot move (the notification-area wedge
+  must run before `FreeCADGui` loads) and the lambda genuinely reads
+  better than a `def`.
+- **`F401`** (imported but unused) ×3 — pyflakes, in the three FreeCAD
+  probe scripts, where `import Part` is imported for its side effect
+  of registering the workbench.
+- **`S102`** (`exec` used) ×1 and **`BLE001`** (blind `except`) ×1 —
+  flake8-bandit and flake8-blind-except, i.e. **ruff's** extended set.
+
+**Why it is a finding rather than dead decoration.** Each marker is a
+claim that a specific check exists and was consciously overridden, and
+in every one of these cases the *reason* is the load-bearing part —
+`render_freecad.py:48` sits above a fifty-line comment explaining why
+the import order is what it is, and the `# noqa: E402` is doing none of
+that work. A reader who greps for the linter to see what else it says
+finds nothing at all.
+
+**Two dispositions, and it is a small decision rather than a patch.**
+Either the repo runs one Python linter (ruff would cover all three
+namespaces, and `scripts/`+`demos/`+`crates/**/tests/*.py` is a small
+surface) and the markers start meaning something; or they are deleted
+and the reasons they gesture at stay in the prose that already carries
+them. **Do not do half** — deleting some and keeping others is how
+this got here. **Row: D113.**
+
 ---
 
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
@@ -12608,7 +12650,8 @@ are recorded FIXED at their own bullets, and the lane raised **S129**
 (nothing runs an assertion under `demos/`) and **issue #782** (two rows of
 `demos/tour`'s tessellation pin are red on main). **S114(c)** was the design
 question it was always going to be: Evan closed it on 2026-08-20 and the
-ordinary work it left behind landed as **G11 / #837**, which raised **S174**.
+ordinary work it left behind landed as **G11 / #837**, which raised **S174**
+and **S176**.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
@@ -12638,6 +12681,7 @@ ordinary work it left behind landed as **G11 / #837**, which raised **S174**.
 | **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. Three of them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are **Track C's and must be left**; the rest are free. | **S112** | scattered; the free members only | **ACCEPTED** | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 | **D111** | **`demos/README.md`'s uv-lane numbers, which S113(a) is recorded as having swept.** Five figures the FIXED record itself names are still standing in the file that fix pass edited — 982 faces, 879 checkable, a 9e-16 worst gap that is 9.93e-16, 238 curved faces — plus two more that no run prints and cannot simply be recounted. The work is #787's own rule applied to the prose: **compute or delete, never restate**, and say at the site why for the half that can only be restated. | **S174** | `demos/README.md` (the uv-lane section) | **proposed: ACCEPT** | style |
+| **D113** | **Twelve `# noqa` markers for three linters the repo does not run** — pycodestyle, pyflakes and ruff's bandit/blind-except rules, none installed, configured or invoked anywhere. A cost decision, not a patch: run one Python linter over `scripts/`+`demos/`+`crates/**/tests/*.py` and let the markers mean something, or delete them and leave the reasons in the prose that already carries them. **Not half.** | **S176** | `demos/render_freecad.py`, `scripts/{ci-filter,step_import_check}.py`, `crates/{pncad-py,step-export,step-import}` test scripts, and wherever the linter would be configured | **proposed: ACCEPT** | style |
 
 **Rides along, and is not a new row:** S111(a)(b)(d) and S112(a) are
 `sweep/src/fillet/` and belong to Track E's **E-g**, which is already ADVERSARIAL
