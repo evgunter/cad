@@ -288,12 +288,8 @@ sub-block, from the orchestrator.
 | **F-d** | D70, **D107**, **D115** — all used | S126, **S161**, **S169** — all used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
-<<<<<<< HEAD
 | **F-g** | **D109, D110 — both used** | **S163, S164 — both used** |
-| unassigned (2nd block) | D107, D108 | S161, S162, S165, S166 |
-=======
-| unassigned (2nd block) | D108–D110 | S162–S166 |
->>>>>>> origin/main
+| unassigned (2nd block) | D108 | S162, S165, S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -452,24 +448,22 @@ a hand-rolled clone silently lacks.
 **disk and by `scripts/gates/` overlap**, not by dependency: F1, F2 and F3 all
 live in that directory and two of them share `scripts/ci-filter.py`.
 
-| lane | row | branch | scope | review | state |
-|---|---|---|---|---|---|
-<<<<<<< HEAD
-| **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
-=======
-| **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
->>>>>>> origin/main
+**Wave 2's table is empty: every row in it has landed or is in review**, and
+each is accounted for in the paragraphs below. The header is gone with the rows
+rather than left standing over nothing.
 
-**F-d landed** (#825, merge `335f267e`); its roster row left the table above per
-the recording convention, and the landing is recorded below. **It left late**:
-the row was deleted from the *gated* wave-2 table in the landing PR, then
-reappeared in the *dispatched* table above when wave 2 opened, and four
-`origin/main` merges carried it back in without the lane noticing. Removed here.
+**F-d landed** (#825, merge `335f267e`); its roster row left the wave-2 table
+per the recording convention, and the landing is recorded below. **It left
+late**: the row was deleted from the *gated* wave-2 table in the landing PR,
+then reappeared in the *dispatched* table when wave 2 opened, and four
+`origin/main` merges carried it back in without the lane noticing. Removed in
+#851 — **and carried back a fifth time, by #849's merge**; see the incident
+below.
 
-**F-h's PR is open** (#844) and its roster row left the table above per the
+**F-h's PR is open** (#844) and its roster row left the wave-2 table per the
 recording convention; the landing is recorded below.
 
-**F-f's PR is open** (#798); its roster row left the table above per the
+**F-f's PR is open** (#798); its roster row left the wave-2 table per the
 recording convention, which the landing PR carries.
 
 **F-g's PR is open** (#849), **NOT CLEARED on its first style review and
@@ -506,7 +500,7 @@ rounds deep on its own scope.
 
 It carries **F3 (S63)**, **S157** (the harness — F-f's
 row, never placed in §D as `D101`, so there was no row to strike) and
-**S125/D69**. Its row left the table above. **It crossed into three files F1/F2
+**S125/D69**. Its row left the wave-2 table. **It crossed into three files F1/F2
 had just landed, and every crossing was forced by the harness fix rather than
 chosen** — reported here because the brief said to stop and report:
 `gate-roster.sh` (its `gate_selftest_real` was written to be lifted, and lifting
@@ -594,6 +588,43 @@ re-deriving the escalated part. And **the sharpest reviewer of a finding is the
 lane that raised it**: F-f had the run open, knew what its own gate printed, and
 said so against a document that had just credited it. That is worth more than
 the finding was.
+
+### #849's merge committed two conflict markers into this file (2026-08-21)
+
+**`main` carried literal `<<<<<<< HEAD` / `>>>>>>> origin/main` in
+`docs/SMELL-F-LOG.md` for one merge**, introduced by `5e91eeb5` — an
+`origin/main` merge inside lane F-g — and shipped by `39d2753f`. Found by the
+lane itself, immediately after merging, by grepping the **merged tree** for what
+the recording convention requires instead of reading its own diff. Repaired
+here.
+
+**How a conflicted file gets committed.** The lane resolved the conflict in
+`docs/SMELL-SCAN-2026-08.md`, checked *that file* for markers, saw zero, and ran
+`git add -A && git commit --no-edit`. `git add -A` stages a conflicted file
+verbatim, and a merge commit needs no message, so nothing asked. **The check was
+run on the file the lane was thinking about, not on the tree**, which is the
+same shape as the finding one paragraph up: a claim checked against the thing
+the author had in mind rather than against the artefact.
+
+**And one of the two conflicts was the deletion-union case, so the marker hid a
+resurrection.** Both sides had struck a roster row — `origin/main` struck F-d's
+in #851, F-g struck its own — and the conflicted region therefore contained
+*both* rows, F-d's live again after #851 had just removed it for the fifth time.
+**A conflict between two deletions cannot be resolved by keeping a side.** The
+standing instruction to *keep both sides* is right for two additions to
+different findings and wrong here; the answer is the union of the deletions,
+**derived from `main` rather than from the markers**, since the markers show
+what each side kept and not what either side meant to remove.
+
+**Two rules, both cheap:**
+
+1. **After any conflict resolution, grep the whole `docs/` tree for markers**,
+   not the file you resolved. One command, and it would have caught this before
+   the push, let alone before the merge.
+2. **After merging, check the post-condition against the merged tree**: grep for
+   the rows the convention requires to be gone. The lane did this and it is the
+   only reason the defect is one merge old rather than however long it takes the
+   next reader to notice.
 
 ### Two more register defects, found by a verifier reading the log itself (2026-08-20)
 
@@ -1369,8 +1400,10 @@ review reproduced the finding's own defect one layer beneath the fix: the
 delimiter matcher that carved bodies for the blanker knew none of the three
 constructs the blanker was written for, so a door carrying `'"'` was dropped
 from the walk and the next one's body corrupted. `CodeOnly` is now the crate's
-only lexer and the item scan is a method on it, so nothing can run it over
-un-blanked text. Demonstrated on named trees: the pre-fix scanner extracted
+only reader for this walk and the item scan is a method on it, so nothing can
+run it over un-blanked text. (**Not** the crate's only reader: G-g landed a
+second `code_only` in `fixtures.rs` during this unit's review, and the two met
+in its merge — S117/D61's twelfth member, recorded there.) Demonstrated on named trees: the pre-fix scanner extracted
 from `6a2d237a` and run standalone loses the `'"'`-carrying door and finds only
 the door after it; the current one finds both. The review also found two
 over-strip defects (byte raw strings, char-literal escapes), that
@@ -1397,17 +1430,17 @@ was the lane's own standing caveat and the answer is a method, not an argument.
 The verification also confirmed, rather than broke, the lane's own narrowing:
 the pcurve by-name pin is **exactly one door wide**, and the site now says so.
 
-**Residue: S117 / D61**, **eleven** further source-text guards, not the seven
-this lane first wrote — the count moved **7 → 9 → 11 in a single session**,
-twice under the lane and once under its review, each step a differently-*shaped*
+**Residue: S117 / D61**, **twelve** further source-text guards, not the seven
+this lane first wrote — the count moved **7 → 9 → 11 → 12 in a single session**,
+twice under the lane, once under its review, and once by a member *arriving*, each step a differently-*shaped*
 sweep (`include_str!` was the spelling all six of the lane's patterns missed).
-**Eleven stays written as a floor and the row carries the count's history**, on
+**Twelve stays written as a floor and the row carries the count's history**, on
 the orchestrator's instruction: a number that has moved three times is better
 evidence of the population's shape than any single value of it. The sharper framing came with the third sweep:
 **four hand-rolled Rust readers exist in this workspace and no two lex the same
 language**, and `pncad/tests/all.rs`'s `code_without_comments` carries the same
 `'"'` defect this lane's review found, worked around in a comment rather than
-fixed. Of the eleven, **seven** are served by `CodeOnly` as shipped, **three**
+fixed. Of the twelve, **seven** are served by `CodeOnly` as shipped, **three**
 need a comments-only variant and one needs the inverse; five are outside `topo`,
 so the row's real question is whether this warrants a test-support crate.
 `topo/src/{face_normal,chord_join}.rs` are Track G's G8/G9 and

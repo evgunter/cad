@@ -9,10 +9,16 @@
 //! file, split ~900 lines apart with a *"Not fixtures:"* hedge doing a
 //! module boundary's work.
 //!
-//! # One lexer
+//! # One lexer, for this walk
 //!
-//! [`CodeOnly`] is the only thing here that knows Rust's lexical
-//! grammar. Everything else — the item scan, the mutation-door walk,
+//! [`CodeOnly`] is the only thing **in this module** that knows Rust's
+//! lexical grammar, and the only reader the mutation-door walk uses.
+//! It is **not** the only one in the crate: [`crate::fixtures`] has a
+//! `code_only` of its own, serving `face_normal`'s re-fork guard, whose
+//! own docs record that it does not model raw strings. Two readers of
+//! different competence in one crate is S117/D61's subject, and the
+//! two arrived in the same merge — this module does not get to claim
+//! otherwise. Everything else — the item scan, the mutation-door walk,
 //! every consumer's search — runs over its output, in which every
 //! comment, string literal and char literal has been blanked to
 //! spaces with byte positions preserved. That is a structural rule,
@@ -106,9 +112,11 @@ pub(crate) fn crate_sources() -> Vec<std::path::PathBuf> {
 /// and each input byte is either copied or blanked, so a multi-byte
 /// character is never half-erased.
 ///
-/// **The only lexer in this crate**, by construction: the item scan is
-/// [`Self::public_fns`], a method, so nothing can run it over raw
-/// text. See the module docs for why that is a rule.
+/// **The only lexer this walk uses**, by construction: the item scan
+/// is [`Self::public_fns`], a method, so nothing can run it over raw
+/// text. See the module docs for why that is a rule — and for the
+/// second reader in [`crate::fixtures`], which this one does not
+/// replace and which S117/D61 owns.
 ///
 /// Handled: line comments; block comments, which nest in Rust; string
 /// literals plain, raw, byte and C-string (`"…"`, `r#"…"#`, `b"…"`,
