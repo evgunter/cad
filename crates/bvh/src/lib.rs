@@ -3,8 +3,7 @@
 //! One tree, several duties — **one of them wired so far**:
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
-//!   M5 PR 8 (`topo::boolean::reduce`), and as of 2026-08-14 the only
-//!   `Bvh::build` call site in the workspace.
+//!   M5 PR 8 (`topo::boolean::reduce`).
 //! - **SSI seeding / C3 exhaustiveness subdivision** — INTENDED, not
 //!   yet wired. `geom_brep::ssi::exhaust` still enumerates cells by
 //!   recursive bisection with a linear scan over tubes, and says so
@@ -12,10 +11,6 @@
 //!   that module's already-merged differential suite when profiling
 //!   asks for it. Nothing in the C3 contract changes when it does.
 //! - **Viewport picking** — INTENDED, blocked on there being a GUI.
-//!
-//! Stated this way because the list used to read as a description of
-//! what the crate serves, and a reader could reasonably conclude SSI
-//! was already pruned by it. It is not.
 //!
 //! # The conservative-superset contract (load-bearing)
 //!
@@ -62,11 +57,9 @@
 //!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!
-//! The seam was written against PR 7 and PR 7 shipped without it:
-//! `geom-brep` does not depend on this crate, and the marcher
-//! subdivides with its own boxes. So the deferral is live and has no
-//! date — recorded rather than deleted, because a flat present-tense
-//! sentence here would erase the only marker that something is owed.
+//! The seam is unwired: `geom-brep` does not depend on this crate,
+//! and the marcher subdivides with its own boxes. The deferral is
+//! live and has no date.
 //!
 //! Items are addressed by dense input index, so any payload (entity
 //! keys today; C3 subdivision cells carrying C9 enclosures if the seam

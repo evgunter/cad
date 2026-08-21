@@ -228,7 +228,6 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         //   `NonFinitePlacement`), which `persist::load` runs the log
         //   through — so they are guarded, but by a door this function
         //   deliberately does not rely on for the rest of its list.
-        //   That asymmetry is the reason this comment enumerates.
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
         DocEdit::InsertNode { .. }

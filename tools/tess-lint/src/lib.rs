@@ -194,10 +194,9 @@ impl Row {
 /// domain and the trim box is a non-degenerate sub-box of it, so some
 /// cell overlaps, and a face whose box is degenerate has no triangles
 /// and no row. **A zero there would therefore be drift, and refusing
-/// it is the point**: under the reading this replaced it was a
-/// guaranteed pass, and a loud harness failure naming the column is
-/// the outcome to prefer if the geometric argument ever turns out to
-/// have a case in it.
+/// it is the point**: a loud harness failure naming the column is the
+/// outcome to prefer if the geometric argument ever turns out to have
+/// a case in it.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A grid cell count: finite, at least one.

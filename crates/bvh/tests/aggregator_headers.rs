@@ -1,13 +1,10 @@
 //! The twelve `tests/all.rs` headers state the no-restated-count rule in
 //! ONE spelling, and none of them carries the retired one.
 //!
-//! WHY THIS EXISTS. Eleven of those headers used to end *"this one binary
-//! replaces what were N separate test targets"*, and nine of the eleven
-//! Ns had drifted from the suite count they read as. The fix was to
-//! delete the number rather than refresh it — a count of a set the
-//! compiler already knows is a second, unchecked copy — and what is left
-//! to protect is not the number but the **uniformity**: twelve
-//! paraphrases of one rule is the same defect one level up.
+//! WHY THIS EXISTS. A count of a set the compiler already knows is a
+//! second, unchecked copy — and what is left to protect is not the
+//! number but the **uniformity**: twelve paraphrases of one rule is the
+//! same defect one level up.
 //!
 //! WHY IT LIVES IN `bvh`. Its subject is workspace-wide, so no crate owns
 //! it and any home is arbitrary; this is the cheapest test binary in the
@@ -28,9 +25,7 @@
 //!
 //! **Both patterns are keyed on names, which is the class they hunt**, so
 //! the pool they produce is a floor and never a census: an enumeration
-//! spelled without a numeral or a quantifier does not appear in it. That
-//! is stated here rather than in a PR body because the next taker needs
-//! the blind spot as much as the patterns.
+//! spelled without a numeral or a quantifier does not appear in it.
 
 // A read failure here is a broken checkout, not a test outcome: this suite's
 // subject is the content of files that must exist.

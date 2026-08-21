@@ -620,15 +620,9 @@ fn the_band_re_mint_reports_its_normalizations() {
 /// must come back with a *result*: imported or refused, never a
 /// panic, never a hang.
 ///
-/// This is the row the corpus exists for. The triage that chose these
-/// files measured 0 imports and 28 typed refusals across 28 foreign
-/// files with zero panics — a one-time reading over a 28-file candidate
-/// set that no longer exists in the tree, so nothing can re-take it and
-/// no guard is available for it; what survives the triage is the 13
-/// committed fixtures, and the INVARIANT below is their guard. That
-/// outcome is the fail-loud contract
-/// meeting data nobody here wrote, and it is worth an assertion that
-/// can never be quietly dropped as the subset widens.
+/// This is the row the corpus exists for: the fail-loud contract
+/// meeting data nobody here wrote, worth an assertion that can never
+/// be quietly dropped as the subset widens.
 /// **Two cells, because in-window the corpus is already swept.**
 ///
 /// INVARIANT: every one of the 13 committed fixtures goes through

@@ -22,12 +22,12 @@ fn fnv(bytes: &[u8]) -> u64 {
 /// writers under test are pure functions of the mesh, so one build
 /// serves every claim made about them.
 ///
-/// **No memo, and that is the point.** This used to be a `OnceLock`
-/// "tessellated once per process". nextest is process-per-test, so the
-/// memo shared nothing across tests and each row that touched it paid
-/// the whole eleven-body tessellation. The rows that share it are now
-/// ONE test, which binds this list once; the only other caller is the
-/// `#[ignore]`d hash printer, which runs in its own process anyway.
+/// **No memo, and that is the point.** nextest is process-per-test, so
+/// a memo would share nothing across tests and every row that touched
+/// it would pay the whole eleven-body tessellation. The rows that
+/// share it are ONE test, which binds this list once; the only other
+/// caller is the `#[ignore]`d hash printer, which runs in its own
+/// process anyway.
 fn meshes() -> Vec<(&'static str, mesh::Mesh)> {
     common::acceptance_bodies()
         .into_iter()
@@ -141,36 +141,26 @@ fn parse_ascii(text: &str) -> Vec<[f32; 12]> {
 }
 
 /// **The writer laws that share one tessellation of the acceptance
-/// set.** Four rows until the test-cost audit:
-///
-/// - `ascii_and_binary_triangle_sets_identical` → the `AGREE` block;
-/// - `normals_are_unit_and_outward_consistent` → the `NORMAL` / `FLUX`
-///   blocks;
-/// - `binary_header_is_constant_and_not_solid` → the `HEADER` block,
-///   and the `SOLID NAME` / `NAME/OPTIONS` blocks that pin the ASCII
-///   name's shipped default and its caller-settable path;
-/// - `repeated_export_is_byte_identical` → the `BYTE-IDENTITY` block.
+/// set**: the `AGREE` block; the `NORMAL` / `FLUX` blocks; the
+/// `HEADER` block, with the `SOLID NAME` / `NAME/OPTIONS` blocks that
+/// pin the ASCII name's shipped default and its caller-settable path;
+/// and the `BYTE-IDENTITY` block.
 ///
 /// # One tessellation of eleven bodies, every law on it
 ///
-/// All four read the same acceptance meshes, and the `OnceLock` that
-/// was supposed to share them shares nothing under nextest, which runs
-/// one process per test — so the eleven-body tessellation (the donut's
-/// quadratic CDT included) ran four times per ε row. It runs once here.
-/// The header row had already been narrowed to build `l_prism` and
-/// `ball` DIRECTLY to dodge that cost; with the corpus in hand it takes
-/// those two rows straight out of it, which is the same two meshes
-/// (`common::acceptance_bodies` rows 0 and 2, both δ = 1e-2) with no
-/// build at all.
+/// They all read the same acceptance meshes, and nextest runs one
+/// process per test — so as separate rows the eleven-body
+/// tessellation (the donut's quadratic CDT included) would be paid
+/// once per row per ε row. It runs once here.
 ///
 /// The `BYTE-IDENTITY` block still rebuilds every body from its recipe
 /// and retessellates — that second build is the CONTENT of the claim,
 /// not duplicated setup, and merging must never remove it.
 ///
-/// What the split bought and a merged row cannot is failure ISOLATION,
-/// so every assertion NAMES its law — `AGREE`, `NORMAL`, `FLUX`,
-/// `HEADER`, `NAME`, `NAME/OPTIONS`, `BYTE-IDENTITY` — and the message
-/// alone says which one broke.
+/// What a merged row cannot buy is failure ISOLATION, so every
+/// assertion NAMES its law — `AGREE`, `NORMAL`, `FLUX`, `HEADER`,
+/// `NAME`, `NAME/OPTIONS`, `BYTE-IDENTITY` — and the message alone
+/// says which one broke.
 #[test]
 fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // THE one tessellation. INVARIANT: nothing below may call

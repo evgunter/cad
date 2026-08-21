@@ -15,9 +15,9 @@
 //! its own crate root.
 //!
 //! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link — measured at 494 of the 514 s of the workspace build job
-//! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
-//! are small; the per-binary constant was the bill.
+//! codegen+link (see the LINK/DEBUGINFO note in
+//! .github/workflows/ci.yml). The suites are small; the per-binary
+//! constant was the bill.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not

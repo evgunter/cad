@@ -100,9 +100,7 @@
 //! cross-shaped domain and certified a 19%-low volume with `pad = 0.0`
 //! (#649).
 //!
-//! **What the predicate is and is not, stated exactly** (#714's
-//! review; the loose version of this paragraph asserted the premise
-//! outright):
+//! **What the predicate is and is not, stated exactly**:
 //!
 //! * Every **flux/area closed form** runs it before integrating —
 //!   cylinder, cone, rim-bearing sphere, torus — with **one

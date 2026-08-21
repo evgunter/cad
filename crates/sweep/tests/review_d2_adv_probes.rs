@@ -44,15 +44,12 @@
 //! Gating: these are written against `crates/sweep/src/fillet`; run
 //! them when that directory changes.
 //!
-//! **The dial is `test_utils::fuzz`, not one of this suite's own.** As
-//! promoted, this file read `D2_ADV_EFFORT` and `D2_ADV_SEED` and
-//! carried its own splitmix64 — a second spelling of a mechanism the
-//! repo already has one home for, which is the finding the PR that
-//! promoted it exists to close. `scripts/gates/no-ambient-env.sh`
-//! greps `crates/*/src` and would not have caught it here; the reason
-//! to use the ratified dial is not the gate's reach but that
-//! `CAD_FUZZ_EFFORT` scales this row with every other randomized sweep
-//! in the workspace from one place.
+//! **The dial is `test_utils::fuzz`, not one of this suite's own.**
+//! `scripts/gates/no-ambient-env.sh` greps `crates/*/src` and would
+//! not have caught a suite-local dial here; the reason to use the
+//! ratified one is not the gate's reach but that `CAD_FUZZ_EFFORT`
+//! scales this row with every other randomized sweep in the workspace
+//! from one place.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
@@ -417,8 +414,7 @@ const RADII: [f64; 6] = [1e-6, 1e-3, 0.02, 0.05, 0.12, 0.9];
 fn d2_no_input_reaches_a_panic() {
     let mut rng = fuzz::start("d2_no_input_reaches_a_panic");
     // ONE corpus, not two: minting it runs several booleans and a
-    // revolve, and the printed census is the same information the
-    // per-body line used to carry.
+    // revolve.
     let bodies = corpus();
     census_corpus(&bodies);
     let hook = std::panic::take_hook();

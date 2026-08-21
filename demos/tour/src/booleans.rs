@@ -7,12 +7,9 @@
 //! f64 tour and the Probe K-telemetry sweep; oracles compare through
 //! the exact `f()` extraction.
 //!
-//! Tier-3 posture: RETIRED as a workaround. Boolean results validate
-//! as they are, via `validate_pseudomanifold` with the op's own
-//! declared `contacts` (M3 PR 6a's 3′ contract) — see
-//! `crate::run_body`. The `upgrade_edges_to_intersections` clone hack
-//! that used to live here (a PR 3-era description-gap workaround) is
-//! deleted; the kernel caught up.
+//! Tier-3 posture: boolean results validate as they are, via
+//! `validate_pseudomanifold` with the op's own declared `contacts`
+//! (M3 PR 6a's 3′ contract) — see `crate::run_body`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

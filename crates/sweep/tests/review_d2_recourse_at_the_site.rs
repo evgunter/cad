@@ -15,13 +15,6 @@
 //!
 //! So these rows drive `fillet_edges` and read what a caller would
 //! actually see.
-//!
-//! A fourth row shipped with this suite when it was written: a
-//! duplication detector asserting that `FilletEntity` and
-//! `topo::EntityId` rendered identically. It was retired the moment it
-//! went green for the right reason — the duplicate type is gone and
-//! these refusals carry `topo::EntityId` — because a detector for a
-//! type that no longer exists is not a guard.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

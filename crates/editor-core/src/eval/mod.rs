@@ -1622,11 +1622,6 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
 /// are process-internal and never persist, so no stored value depends
 /// on one. `verb_tags_are_injective` checks both over
 /// [`profile::Verb::ALL`].
-///
-/// The retired numbers are NOT restated here. `RETIRED_VERB_TAGS`
-/// below is the one list, and it sits next to the test that enforces
-/// it; a second spelling in this comment would be a second spelling of
-/// the rule this function exists to keep single.
 fn verb_tag(verb: profile::Verb) -> u8 {
     use profile::Verb as V;
     match verb {
@@ -1653,8 +1648,6 @@ fn verb_tag(verb: profile::Verb) -> u8 {
 
 /// The tag numbers [`verb_tag`] may not use: retired by the §2c
 /// re-spell along with the verbs that held them, and dead for good.
-/// The ONLY list — `verb_tag`'s own doc deliberately does not restate
-/// it.
 #[cfg(test)]
 const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (11, "AtOn"),

@@ -1,39 +1,9 @@
 //! REVIEW-ONLY probes (review/m6-6). Not in the `all` aggregator.
 //!
-//! RETIRED 2026-08-13 ([[review-and-dependency-policy]]'s retirement
-//! licence — a row that asserts nothing is never a gate), each with the
-//! permanent row that now owns its claim:
-//!
-//! - `census_bits` printed each corpus body's volume/area bits. Its own
-//!   doc said its use was "compare across merge-base vs tip", i.e. a
-//!   differential a reviewer reads — not a gate. The volume claim is
-//!   owned by `kernel_sidecars::kernel_sidecar_fields_match_live_kernel`,
-//!   which asserts, over the SAME `common::fixture_corpus()`, the five
-//!   KERNEL_* census counts byte-equal to the live kernel and (at the
-//!   corpus ε) `KERNEL_VOLUME_MM3` / `KERNEL_VOLUME_PAD_MM3` byte-equal
-//!   to `fmt_real`'s output — the bit-exact round-trip, i.e. strictly
-//!   MORE than the bits this probe printed — with the cross-ε enclosure
-//!   overlap asserted on every other ε row.
-//! - `truth_table_full` printed the single-face flip verdict for every
-//!   face of every corpus body. `m6_6_sense_gate.rs` IS that table
-//!   asserted: its module docs call it "the pin matrix from the executed
-//!   substrate truth table", and it pins honest-green plus
-//!   `CurvedSenseInverted`-naming-the-flipped-face per surface kind AND
-//!   per sense direction (cylinder T→F and F→T, cone T→F and F→T,
-//!   rim-bearing sphere T→F and F→T, torus T→F), with the planar arm's
-//!   `LoopRoleInverted` control and the two documented residuals (the
-//!   rimless ball band, the conic-trimmed wall) pinned AS residuals.
-//! - `whole_body_inversion_die_pips_notched` printed the CSI/LRI counts
-//!   of whole-body inversions. `m6_6_sense_gate::whole_body_inversions_
-//!   refuse` asserts the refusal (`expect_err` + `CurvedSenseInverted`)
-//!   for washer/cone/donut/lily_lantern, with
-//!   `whole_body_inverted_ball_stays_negative_volume` and
-//!   `cut_cylinder_conic_trim_residual_stays_green` pinning the two
-//!   bodies whose inversion is deliberately NOT a CSI refusal.
-//!
-//! `review_pad_probe.rs` (`print_enclosures`) went the same way, to
-//! `kernel_sidecars.rs`'s byte-exact volume AND pad pins over the same
-//! fixtures.
+//! The print-only rows were retired 2026-08-13
+//! ([[review-and-dependency-policy]]'s retirement licence — a row that
+//! asserts nothing is never a gate); their claims are owned by
+//! `kernel_sidecars.rs` and `m6_6_sense_gate.rs`.
 //!
 //! What remains here ASSERTS.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

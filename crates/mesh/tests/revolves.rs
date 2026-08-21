@@ -124,12 +124,8 @@ fn apex_wedges_never_size_to_a_single_azimuth_column() {
 /// `grep Revolution::Partial crates/mesh/tests` finds washers, cones,
 /// silos and half-discs, and not one of them lands a sphere pole face
 /// on `nu == 2`; deleting `pole_columns` from `curved::grid_counts`'s
-/// SPHERE arm left the whole suite green, while that arm is 49 of the
-/// 57 measured mesh-output changes. The first half of that sentence is
-/// **guarded by this row**: the deletion it describes now goes red here.
-/// The 49-of-57 split is not, and cannot be — it is a one-time mutation
-/// reading, nothing re-takes it, and no assertion below reads it; it
-/// sizes the arm rather than binding it.
+/// SPHERE arm left the whole suite green. **This row guards that
+/// deletion**: it now goes red here.
 ///
 /// This face is `nu = 2, nv = 8` before the floor — seven interior
 /// column vertices, an overlap that could hold six edges — and it is

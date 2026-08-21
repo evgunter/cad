@@ -6,8 +6,7 @@
 //! **refuses that key typed**, so the arm is not reachable through the
 //! API.
 //!
-//! **What already existed, stated precisely because a looser version
-//! of this sentence was wrong twice.** The attach doors DO have
+//! **What already existed, stated precisely.** The attach doors DO have
 //! error-path coverage, in `topo/tests/` and `sweep/tests/`, and
 //! `review_m2_pr3.rs`'s setter row already pairs a typed refusal with
 //! a body-untouched snapshot — including one on `set_face_surface`,

@@ -2,18 +2,10 @@
 //! frontier closed at M6-3), narration **and, since the montage
 //! refresh, the skin scenes**.
 //!
-//! # The narration's frontier, fully retired
-//!
-//! The §10.3 skin and the §10.4 sweep are real geometry; since M6-3
-//! the loft BODY assembles and validates at tier 3, and the
-//! retire-on-closure panic that pinned that frontier fired as
-//! designed. The half still outstanding — "the full `Stop` with a
-//! `SceneBody`", i.e. the curved-wall RENDER through the trimmed-face
-//! tessellation of NURBS patches — lands HERE, as [`stops`]. The
-//! narration stays beside the scenes: it is the *geometry* layer
-//! (`loft_geometry` / `sweep_geometry` — control nets, weights, the
-//! MEASURED interpolation claim, the not-ruled claim), which no
-//! render can show.
+//! The narration stays beside the scenes ([`stops`]): it is the
+//! *geometry* layer (`loft_geometry` / `sweep_geometry` — control
+//! nets, weights, the MEASURED interpolation claim, the not-ruled
+//! claim), which no render can show.
 //!
 //! # The scenes and the corpus (montage-v2 curation)
 //!
@@ -29,9 +21,8 @@
 //!   (`common/mod.rs::nonuniform_loft()`, #210/#207) keeps its
 //!   z = 0/1/3 spacing, but at that spacing the pair's silhouettes
 //!   are nearly indistinguishable — bulge peak at 48.8% vs 50% of
-//!   height, peak half-width 1.415 vs 1.375, MEASURED (and Evan
-//!   could not see the difference on the #218 sheet, which is the
-//!   review this curation answers). The SCENE re-places the same
+//!   height, peak half-width 1.415 vs 1.375, MEASURED. The SCENE
+//!   re-places the same
 //!   sections at z = 0/0.15/2 — same sections, same total height,
 //!   ONLY the middle placement moves — driving the bulge to
 //!   half-width 1.646 at 32.6% of height: silhouette-obvious.
@@ -212,8 +203,7 @@ pub fn narration() {
 // load-bearing rather than asserted in prose — `stops` checks the
 // prism body against the volume `sweep/tests/m6_loft_body.rs` DERIVES
 // for the fixture, and `loft_parameters` is ASKED rather than
-// re-derived. Byte-equality of the source was never checkable from
-// here and is no longer claimed.
+// re-derived.
 
 /// A closed four-line quad section (one loop) — the plainest
 /// INTEGRAL profile: unit weights, no arc anywhere.
@@ -357,8 +347,6 @@ pub fn stops() -> Vec<Stop> {
     // rather than re-derived: the note below narrates
     // t = 3√29/(3√29 + √5701) and every number downstream of it, so
     // the derivation is pinned against the kernel's own answer here.
-    // Before this door existed the note's algebra was the only record
-    // of what `skin_parameters` had chosen.
     let params = pncad::sweep::loft_parameters(&prism_sections(), &nonuniform_places, 2)
         .expect("the non-uniform sections skin");
     assert_eq!(
@@ -375,11 +363,11 @@ pub fn stops() -> Vec<Stop> {
     // sampled at 17 exact points and interpolated at degree 3 (the
     // sweep machinery consumes any NurbsCurve3, #210). Tangent runs
     // +z → +y → +z; never reversed, so the path-following frame is
-    // total. Evan's follow-up question was exactly right, though: as
-    // a SHAPE the S solid is two glued partial revolves (each planar
-    // circular-arc sweep of the square IS a partial revolve's orbit,
-    // and the halves glue at the inflection), so the cell showed a
-    // one-op construction, not an unreachable shape class. The
+    // total. As a SHAPE the S solid is two glued partial revolves
+    // (each planar circular-arc sweep of the square IS a partial
+    // revolve's orbit, and the halves glue at the inflection), so the
+    // cell shows a one-op construction, not an unreachable shape
+    // class. The
     // unreachable class needs a NON-PLANAR spine — `twisted_duct`
     // below, the sheet's sweep cell since montage-v2. The QUARTER-ARC
     // elbow stays the corpus/suite constant
@@ -550,18 +538,8 @@ pub fn stops() -> Vec<Stop> {
     // the degree-3 interpolant through 33 exact points). A revolve's
     // spine is a planar circular arc; gluing revolves concatenates
     // planar arcs — nothing glued from revolves has a spine with
-    // nonzero torsion. MEASURED path-vocabulary context, RE-MEASURED
-    // at M8-14 (#222): full helix turns BUILD AND CERTIFY now —
-    // half-turn, full-turn and two-turn helical sweeps pass the tier
-    // ladder against a Pappus A·L oracle (sweep's
-    // m8_14_long_turn_sweep suite). The montage-v2 refusal this
-    // paragraph used to record (the corner-path chord meter —
-    // nurbs_span_meter — collapsing when the frame's near-antipodal
-    // roll makes a corner path double back against its global chord)
-    // retired when the integral speed meter went per-span; the
-    // twisted cubic stays as THIS cell because it is the
-    // mathematically definitive nonzero-torsion demonstration, no
-    // longer merely the strongest reachable one.
+    // nonzero torsion. The twisted cubic is THIS cell because it is
+    // the mathematically definitive nonzero-torsion demonstration.
     let (tc_a, tc_b, tc_c) = (2.2, 1.3, 1.5);
     let cubic_points: Vec<Point3<f64>> = (0..=32)
         .map(|k| {

@@ -152,8 +152,7 @@ pub(crate) mod face_normal;
 pub(crate) mod fixtures;
 // This crate's own sources, read as source. A sibling of `fixtures`
 // rather than a section of it: that module's subject is canonical
-// bodies, this one's is a Rust reader, and the two were one file with
-// ~900 lines of fixtures between the halves. Non-doc comment for the
+// bodies, this one's is a Rust reader. Non-doc comment for the
 // same rustdoc reason as the sector modules below.
 pub mod geometry;
 #[cfg(test)]

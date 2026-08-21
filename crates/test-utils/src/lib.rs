@@ -15,12 +15,8 @@
 //! # DEV-ONLY, by convention
 //!
 //! Nothing depends on this crate outside `[dev-dependencies]`, and
-//! nothing should. It used to live inside `geom-core` behind a
-//! `fuzz-support` feature reached through a self dev-dependency —
-//! machinery that existed *only* because the host crate was a shipping
-//! one. A standalone crate needs neither: a crate that no production
-//! manifest names cannot be reached from a production build path, which
-//! is the same guarantee the feature bought, with none of the wiring.
+//! nothing should: a crate that no production manifest names cannot be
+//! reached from a production build path.
 //!
 //! Being a LEAF with ZERO dependencies is the other half of the point.
 //! `interval-transcendentals/` is its own workspace root and is

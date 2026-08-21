@@ -1398,15 +1398,14 @@ transition_table! {
 /// A closing verb's result: the lowered loop AND the program that
 /// produced it.
 ///
-/// Closing verbs used to return [`ProfileLoop`] directly; they return
-/// this pair now so that one chain yields both consumers' values
+/// Closing verbs return this pair so that one chain yields both
+/// consumers' values
 /// (PROFILES-V2 §V1: "one authoring surface, two consumers"). Kernel-
 /// direct call sites that only want the geometry adapt with
 /// [`From`]/`.into()` or by reading [`ClosedLoop::loop_`].
 #[derive(Clone, Debug)]
 pub struct ClosedLoop<T: Real> {
-    /// The lowered loop — bit-for-bit what the closing verb returned
-    /// before this pair existed.
+    /// The lowered loop.
     pub loop_: ProfileLoop<T>,
     /// The recorded program: replaying it reproduces `loop_` exactly.
     pub program: Vec<Step<T>>,

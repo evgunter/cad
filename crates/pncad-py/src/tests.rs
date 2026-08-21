@@ -49,7 +49,7 @@ fn a_quantity_operator_mismatch_carries_structure_not_prose() {
 /// Every class name is pinned, and the pin cannot go stale: the
 /// expected spelling comes from a SECOND exhaustive match, so a new
 /// [`ErrorClass`] variant stops this test compiling rather than
-/// slipping past a list someone forgot to extend (`Frame` did).
+/// slipping past a list someone forgot to extend.
 #[test]
 fn error_classes_name_the_python_hierarchy() {
     fn expected(class: ErrorClass) -> &'static str {
@@ -141,10 +141,8 @@ fn select_refusal_tags_are_stable() {
 /// arm and the compile-time drift alarm is unavailable — an unknown
 /// class refuses typed (`unclassified`) at the crossing instead.
 ///
-/// That forced wildcard has a cost this pin now pays: a wildcarded
-/// alarm cannot fire, so `Tangent` sat in the kernel for a whole PR
-/// while the mirror still spelled only `Rest` and nothing went red.
-/// So the pin ENUMERATES what the mirror claims to speak, one line
+/// That forced wildcard has a cost this pin pays: a wildcarded alarm
+/// cannot fire, so the pin ENUMERATES what the mirror speaks, one line
 /// per class, and a class added to the kernel without a line here is
 /// visible as an absence in a list rather than invisible behind a
 /// wildcard.
@@ -460,10 +458,9 @@ fn toml_table(source: &str, header: &str) -> BTreeMap<String, String> {
 ///
 /// This crate cannot inherit `[workspace.lints]` (see the Cargo.toml
 /// header: `unsafe_code = "forbid"` versus PyO3's macro-generated
-/// `unsafe impl`), so the table is restated by hand — and an earlier
-/// revision of this file silently dropped four clippy lints while
-/// claiming it had kept them all. This test turns that claim into an
-/// enforced invariant: adding a lint to `[workspace.lints]` breaks
+/// `unsafe impl`), so the table is restated by hand — and this test
+/// makes the equality an enforced invariant rather than a claim:
+/// adding a lint to `[workspace.lints]` breaks
 /// this crate's build until it is mirrored, LOUDLY, on the default
 /// (no-Python) path hosted CI takes.
 #[test]

@@ -197,8 +197,7 @@ fn both_row_shapes_have_the_headers_width() {
 ///
 /// It is a real pin and it is ugly: it parses Rust string
 /// continuations out of a sibling crate's `lib.rs`, and it breaks if
-/// that declaration is reformatted rather than changed. It replaces a
-/// comment asking a human to check, which could not break at all.
+/// that declaration is reformatted rather than changed.
 #[test]
 fn the_lints_expected_header_is_this_one() {
     let lint = include_str!("../../tess-lint/src/lib.rs");

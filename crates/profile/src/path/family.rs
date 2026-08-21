@@ -120,7 +120,7 @@
 //! the sharp arc leg from both the Point tip (`Bulge`/`Via`/`Center`,
 //! [`PointLeg`]) and the Directed tip (`Sweep`/`ArcLen`,
 //! [`TangentIncoming`]); the fused verbs take their incoming mode the
-//! same way. There are no retired-name doors left.
+//! same way.
 
 use geom_core::{Point2, Real, Sign, Tolerance};
 

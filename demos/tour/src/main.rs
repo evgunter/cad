@@ -63,16 +63,15 @@ use pncad::topo::{Body, ContactRecords};
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
 /// boolean result — tier 3′ then runs `validate_pseudomanifold` with
-/// the op's OWN declared contacts (the M3 PR 6a contract; the old
-/// `upgrade_edges_to_intersections` clone hack is retired).
+/// the op's OWN declared contacts (the M3 PR 6a contract).
 struct SceneBody {
     name: String,
     body: Body<f64>,
     contacts: Option<ContactRecords>,
     /// Base RGB for the render manifest.
     color: [f64; 3],
-    /// Render transparency, 0–100 (0 = opaque, the default every
-    /// scene had before the Klein bottle). Carried in the manifest so
+    /// Render transparency, 0–100 (0 = opaque, the default). Carried
+    /// in the manifest so
     /// it is a property of the SCENE rather than of a renderer: a
     /// shape whose point is what happens INSIDE it (a neck entering a
     /// body wall) cannot be read from an opaque render at any camera.
@@ -289,7 +288,7 @@ fn run_body(
         // because it says something different: reaching it means a
         // tour SCENE grew past the writer, not that the writer broke.
         // Either way the body does not go silently into the manifest
-        // without its STEP — which is what #91 review M2 asked for.
+        // without its STEP.
         Err(
             e @ (pncad::step_export::StepExportError::UnsupportedSurface { .. }
             | pncad::step_export::StepExportError::UnsupportedCurve { .. }

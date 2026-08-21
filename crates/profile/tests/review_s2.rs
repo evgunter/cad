@@ -10,16 +10,15 @@
 //! checked against an `atan2` sweep, and setback/extent is recomputed
 //! with `rem_euclid`.
 //!
-//! Three notes on adoption:
+//! Notes on adoption:
 //!
 //! - `overrun_attribution_names_the_authored_corners_candidate` was the
 //!   review's MAJOR-1 *repro* — it asserted the buggy wrap-around
 //!   setback. It is inverted here into the regression pin for the fix.
 //! - the corner fuzz draws from `test_utils::fuzz`: a fresh seed per run
 //!   (logged unconditionally) and a corner count that is a multiple of
-//!   `CAD_FUZZ_EFFORT`. It no longer keeps the review's fixed 20k
-//!   corners — a pinned seed made this a replay corpus rather than a
-//!   fuzzer. `CAD_FUZZ_EFFORT` restores that depth and more.
+//!   `CAD_FUZZ_EFFORT`. A pinned seed would make this a replay corpus
+//!   rather than a fuzzer.
 //! - F3's gate-sequence invariance probe records at `Probe`, so it lives
 //!   in `review_s2_probe.rs` behind the `probe` feature; the rest of the
 //!   suite is f64 and runs in the default build.
@@ -34,54 +33,30 @@
 //! ever ratchets upward, and it can fail for a reason that has nothing
 //! to do with the code under test.
 //!
-//! This file carried exactly that mistake. The enclosing (ρ < 0)
-//! tangency was claimed by an absolute floor, `n_enclosing >= 1`. Those
-//! corners occur ~1 per 1 000 random draws (measured 58/60 000,
-//! 60/60 000, 56/60 000) even though one corner in five is already drawn
-//! under `enclosing_bias`, so the floor forced the count to 12 500 —
-//! roughly 8x what the counterexample search itself asks for. The row
-//! paid 8x to STUMBLE ONTO a class it can simply BUILD.
+//! **A witness belongs in a deterministic fixture, a fuzz belongs on
+//! the counterexample search.** Mixing them makes one sample count
+//! carry two obligations, and only one of the two is safe to cut.
 //!
-//! So the CORNERS are built instead of stumbled onto — and the
-//! TANGENCY they demand is not, because no shipped door emits it.
+//! So the enclosing (ρ < 0) corners are built, not sampled for:
 //! `enclosing_cases` inverts the ρ algebra — ρ = R − σ·τ·r < 0 ⟺
-//! σ·τ = +1 and r > R — and lays out six corners spanning both sign
-//! pairs (σ = τ_in = τ_out = +1 and = −1), equal and unequal leg
-//! carriers, and ρ from just past the sign flip to an order of
-//! magnitude past it. Every row DEMANDS the enclosing tangency, and
+//! σ·τ = +1 and r > R — and every row DEMANDS the enclosing tangency.
 //! `the_lattice_door_never_emits_an_enclosing_tangency` pins what the
-//! shipped door answers: **it refuses, on every band**. (The general
-//! boundary is wider than the pin — the door may refuse OR round
-//! without swallowing — but on this table it refuses, and that is what
-//! is pinned; the `Ok` arm checks the non-swallowing property first so
-//! that a moved pin names what got built before it fails.) The class is
-//! unreachable through this door, structurally and on purpose; that
-//! test's own docs carry the argument for why the pair's other crossing
-//! always outranks it. The floor is gone and the count is
-//! `fuzz::scaled(1_500)`.
+//! shipped door answers on that table: it refuses, on every band. The
+//! general boundary is wider than the pin — the door may refuse OR
+//! round without swallowing — so the `Ok` arm checks the non-swallowing
+//! property first, and a moved pin names what got built before it
+//! fails.
 //!
-//! That is also why the sweep's `n_enclosing` line is a coverage report
-//! rather than a floor — through this door the count is 0 structurally,
-//! not rarely. It is not left unasserted, though: `assert_eq!` pins the
-//! 0, which is monotone-safe where the old `>= 1` floor was not, and
-//! goes red exactly when the boundary claim stops being true.
+//! The sweep's `n_enclosing` line is therefore a coverage report, not a
+//! floor: through this door the count is 0 structurally. `assert_eq!`
+//! pins that 0 — monotone-safe where a `>= 1` floor was not, and red
+//! exactly when the boundary claim stops being true.
 //!
-//! Building the table also settled the class's SHAPE, which sampling
-//! never did: ρ < 0 on one leg forces ρ < 0 on the other, so a
-//! swallowed carrier never appears beside a line leg, an opposite-sense
-//! arc, or an arc bigger than the fillet. Those three are geometrically
-//! impossible, not merely rare, and
+//! ρ < 0 on one leg forces ρ < 0 on the other, so a swallowed carrier
+//! never appears beside a line leg, an opposite-sense arc, or an arc
+//! bigger than the fillet — geometrically impossible, not merely rare.
 //! `an_enclosing_leg_forces_an_equally_enclosing_partner` pins each
-//! one's refusal with the inequality that rules it out. (Plain
-//! backticks, not a link: this paragraph was re-authored by the same
-//! PR that measured every `tests/` intra-doc link as inert — S135 — and
-//! converted its three siblings twenty lines up. Leaving one linked in
-//! a line the diff rewrote would be the finding arguing with itself.)
-//!
-//! The principle, since it generalizes past this file: **a witness
-//! belongs in a deterministic fixture, a fuzz belongs on the
-//! counterexample search.** Mixing them makes one sample count carry two
-//! obligations, and only one of the two is safe to cut.
+//! one's refusal with the inequality that rules it out.
 //!
 //! The floors that remain (accepted corners, arc-by-arc corners) are
 //! FRACTIONS of the corner count, so they scale with `CAD_FUZZ_EFFORT`

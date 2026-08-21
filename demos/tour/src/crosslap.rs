@@ -4,8 +4,7 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! M5 S1 status (the crosslap wire FIRED and was retired): the
-//! declared mated union now BUILDS through the join-stage
+//! M5 S1 status: the declared mated union BUILDS through the join-stage
 //! declared-REST zip — the contact patches (notch floor/ceiling and
 //! the four flush walls) are removed as interior and the seam is
 //! fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop ships the

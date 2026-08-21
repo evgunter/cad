@@ -271,9 +271,8 @@ impl<T: SpanLocate> Surface<T> {
     ///
     /// **Each analytic arm's point expression is written twice** — once
     /// here and once in [`Surface::jet`] — and that is a duplication
-    /// this method's own collapse of the derivative accessors created,
-    /// stated here rather than left for a reader to find. The
-    /// alternative is making `eval` a projection of the jet, which
+    /// this method's own collapse of the derivative accessors created.
+    /// The alternative is making `eval` a projection of the jet, which
     /// costs [`Surface::Nurbs`] an order-2 basis pass on the workspace's
     /// hottest evaluation door to spare five short analytic
     /// expressions; the copies are the cheaper trade. They are not

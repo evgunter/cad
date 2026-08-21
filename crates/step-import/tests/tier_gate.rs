@@ -53,10 +53,8 @@
 //! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
 //! unit (one of them, `band_c180`, at the gate itself — the inside-out
 //! torus band, refusing now through the general mechanism that
-//! replaced its band-only backstop), and one file is a wireframe. The
-//! previously-'importing' body that turns out to have been invalid all
-//! along — #260's "arguably the point" — is NOT in the committed
-//! corpus; the one body class the gate newly refuses is the
+//! replaced its band-only backstop), and one file is a wireframe.
+//! The one body class the gate newly refuses is the
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
 //!

@@ -275,8 +275,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
 /// **Representative, not exhaustive**, and nothing makes it
 /// exhaustive: `NodeErrorKind` cannot be enumerated at runtime and a
 /// hand-kept roster of arms is the very shape this repo keeps
-/// retiring. [`forwarding_cases`] is the roster — **eight** arms,
-/// `profile` x1, `sweep` x5, `topo` x2 — and a new arm wrapping a new
+/// retiring. [`forwarding_cases`] is the roster, and a new arm wrapping a new
 /// kernel error is not covered by it; the module comment on the
 /// `Display` impl is what states the rule for such an arm.
 #[test]

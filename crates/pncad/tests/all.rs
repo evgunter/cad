@@ -9,27 +9,21 @@
 //!
 //! # How the pin is enforced, precisely
 //!
-//! An earlier version of this comment claimed the absence of
-//! dev-dependencies made this binary "physically incapable" of naming
-//! a kernel crate. **That was false**, and review falsified it by
-//! execution: adding `use topo as _;` here compiles clean. Cargo
-//! passes `--extern` for a crate's ordinary dependencies to its test
-//! targets as well as its dev-dependencies, so every crate this one
-//! depends on is in scope here regardless of what the manifest's
-//! dev-dependency section says. (The count of them is not written out:
-//! it was `twelve` and the manifest lists thirteen, `getrandom` being
-//! the one a kernel-crate reading of the list drops.) An empty dev-dependency list is good hygiene; it is
-//! not an enforcement mechanism, and this file no longer pretends it
-//! is.
+//! The absence of dev-dependencies does NOT make this binary
+//! incapable of naming a kernel crate: adding `use topo as _;` here
+//! compiles clean. Cargo passes `--extern` for a crate's ordinary
+//! dependencies to its test targets as well as its dev-dependencies,
+//! so every crate this one depends on is in scope here regardless of
+//! what the manifest's dev-dependency section says. An empty
+//! dev-dependency list is good hygiene; it is not an enforcement
+//! mechanism.
 //!
 //! What enforces the pin instead is the guard test at the bottom of
 //! this file: it reads THIS FILE'S OWN SOURCE at compile time and
 //! fails if any kernel crate is named outside a `pncad::` path, or if
 //! any `use` statement has a root other than the façade or the
 //! standard library. That is a source-level check executed as a test,
-//! not a link-level impossibility — honest about its own strength,
-//! and it does catch the exact regression the false claim pretended
-//! to prevent.
+//! not a link-level impossibility — honest about its own strength.
 //!
 //! The remaining tests are compile-level pins: functions that
 //! destructure each cross-crate payload and hand it to a monomorphic
@@ -197,11 +191,7 @@ fn step_import_payload(e: &StepImportError) {
     }
 }
 
-// The rows a first audit pass missed, added after review. Each was a
-// genuine gap in the AUDIT, not in the property: all three were
-// already nameable, which is why nothing had to change to pin them.
-
-// `ContainError` is the sharpest of the three: it carries a
+// `ContainError` is the sharpest of these: it carries a
 // cross-crate `Indeterminate`, and it is re-exported by its own
 // crate's `boolean` module but NOT lifted to that crate's root — so
 // it is reachable only by module path, exactly the shape that made
@@ -226,10 +216,8 @@ fn adoption_payload(a: &pncad::step_import::AdoptionAttempt) {
     named::<&pncad::step_import::AdoptionCandidate>(&a.candidate);
 }
 
-// Two more the audit had wrong rather than missing: the mesh
-// validator's error lives below its crate root, and the surfaces
-// crate does define an error type (the first audit said it defined
-// none).
+// The mesh validator's error lives below its crate root, and the
+// surfaces crate does define an error type.
 fn mesh_validate_and_surface_projection_are_nameable() {
     named::<Option<&pncad::mesh::validate::MeshError>>(None);
     named::<Option<&pncad::geom::SurfaceProjectionInconclusive>>(None);
@@ -383,10 +371,8 @@ fn a_boolean_result_validates_at_tier_3_prime() {
     // pair of faces is coincident. That matters: the kernel never
     // infers coincidence from values, so two boxes merely TOUCHING on
     // a shared plane refuse with `UndeclaredCoincidence` until the
-    // author declares the contact. (An earlier draft of this test did
-    // exactly that and was correctly refused — fail-loud working as
-    // designed. Declared-contact unions are the corpus's own subject;
-    // this test wants the plain seamed path.)
+    // author declares the contact. (Declared-contact unions are the
+    // corpus's own subject; this test wants the plain seamed path.)
     let base = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.0)); // 6.0
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0)); // 1.5, of which 0.5 is inside
 
