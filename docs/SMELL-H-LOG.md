@@ -332,7 +332,7 @@ seam.
 
 | Lane | Row | Findings | Files | Review | State |
 |---|---|---|---|---|---|
-| **H-a** | H1 | **S86** | `geom-core/src/ring_interval.rs` | **adversarial** + style | **dispatched** 2026-08-21, lane `smellh-a`, branch `smellh/h-a` |
+| **H-a** | H1 | **S86** | `geom-core/src/{ring_interval,real,k_stats}.rs`, `geom-brep/src/ssi/enclose.rs`, +3 test files | **adversarial** + style | **#880 open, CI green; review dispatched** 2026-08-21 |
 | **H-b** | H2 (+H8) | **S99**–**S103**, **S116(b)** | `geom/src/{net,scalar_lift,surfaces,azimuth}.rs`, `curves/nurbs.rs`, `surfaces/nurbs.rs`, `geom-brep/src/nurbs_iso.rs` | **adversarial** + style | — |
 | **H-c** | H3 + H4 | **S85**, **S89** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom-brep/src/ssi/enclose.rs`, `topo/src/props.rs`, `geom-core/tests/decoration_seam.rs` | style | — |
 | **H-d** | H6 | **S88** (`geom` half only) | `geom/src/projection.rs`, `curves/projection.rs`, `surfaces/projection.rs`, `curves/boxes.rs`, `bvh/src/aabb.rs` | style | **dispatched** 2026-08-21, lane `smellh-d`, branch `smellh/h-d` |
@@ -418,6 +418,35 @@ rather than at session end.
 Both edit `docs/SMELL-SCAN-2026-08.md`. Conflicts there are expected;
 see the recording convention above for how they resolve and when a merge
 may precede a green run.
+
+### H-R6. `S86` under-counted: the laundering was at three implementors, not one
+
+**H-a swept rather than fixed the named site**, and the finding was one
+of four. `certified_bracket` returned a `Some` without consulting a poison
+state at **`RingInterval`** (the finding), at **`f64`** — whose doc carried
+*the same* rejected-downstream-by-accident argument S86 condemns — and at
+**`Probe`**. **`Interval` was already correct** and is now swept rather
+than trusted. The trait's own Implementors list had asserted the
+laundering of three of them.
+
+**The postcondition is the durable half**: a `Some` never carries a NaN
+end, stated at the trait so a generic `T: CertifiedEnclosure` consumer can
+rely on it — which is precisely what S86 said no consumer was told.
+
+**Not taken, on a ratified line:** `±∞` still certifies at `f64`. D4's Q1
+residue ratifies *"∞ is not `f64` poison"* and `[−∞, ∞]` is a sound
+bracket; `from_bounds` is what stops it one step later, and a test row now
+pins **which** of the two stops **what**.
+
+**Roster correction, and it lands on H-c.** H-a's row read
+`ring_interval.rs` alone; the sweep made it **four source files across two
+crates**. `real.rs`, `ssi/enclose.rs` and `tests/decoration_seam.rs` are
+all rostered to **H-c** (wave 2) as well. Wave 2 waits on wave 1 by
+construction, so this is **a re-merge for H-c, not a fence** — but H-c's
+brief must say so, because a lane that finds three of its files already
+edited by an unannounced hand reads it as a rogue actor, which is the
+lane-takeover courtesy `memories/agent-lane-operations.md` exists to
+prevent.
 
 ## Incidents
 
