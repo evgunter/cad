@@ -8631,17 +8631,32 @@ drifted; the rows are `:596-616` and `:623-635`): with `face_box` returning
 `[-1e300, 1e300]` on every arm that has a box, **`boxes.rs`'s own six rows pass,
 and so does the whole `topo` lib suite — 448 rows**. Five rows in `topo/tests/`
 red, all at that catastrophic magnitude, none inside the module whose contract
-it is. Four rows — one per arm,
-`the_*_arms_box_is_exactly_the_construction_its_rule_states` — state each
-arm's box as a **formula in the fixture's own parameters** — the construction
-the rule's own docs state, written out — and pins `face_box` to it on all six
-faces in both directions. It reds on `[-1e300, 1e300]`; it also reds on one
-extra radius of axial widening, **#862's own magnitude**, while every locus row
+it is. **Four rows, one per arm** —
+`the_*_arms_box_is_exactly_the_construction_its_rule_states` — each state their
+arm's box as a **formula in the fixture's own parameters**, the construction the
+rule's own docs state written out, and pin `face_box` to it on all six faces in
+**both** directions. One row per arm so a red names its arm before the message
+does. They red on `[-1e300, 1e300]`; the cylinder row also reds on one extra
+radius of axial widening — **#862's own magnitude** — while every locus row
 stays green.
 
-**Two over-widths are spelled out as named terms with #862 on them** rather than
-folded into the formula, so tightening either is loud at a named line:
-`axial_overwidth = r`, and `amplitude = r·(|cos φ| + |sin φ|)`.
+**The tests module's own header said the opposite**, and that was the half that
+would have made this finding read as closed: it certified the locus family as
+*"the assertion that degrades correctly"*, which is precisely the reassurance
+S66 refutes, forty lines above a suite that #876 had just proved inadequate. It
+now states **two** contracts needing opposite assertions, says in as many words
+that a locus suite is not an adequate guard for this module, and says which
+family checks the rule against the geometry and which checks the code against
+the rule.
+
+**Three terms are deviations rather than construction, and each is named as one**
+— `axial_overwidth`, `redundant_axial_pad` (the arm pads the axial range and
+`padded` pads every coordinate again, so the axial one carries the pad twice)
+and `overwide_half_extent`. All three are **#862**'s, all three are stated at
+their rule so the rows transcribe the RULE and not an implementation detail, and
+each reds at a named line the day it is fixed. A term called `amplitude` would
+have read as the quantity's proper name; the idiom only works when the term's
+name carries the accusation.
 
 **A second over-width was found in the same module and reported to #862, and
 it is the sharper of the two.** `EdgeBoxRule::ConicAmplitude`'s per-coordinate
@@ -8664,13 +8679,17 @@ plane×cylinder rim inherits the cylinder surface's own `u_ref`
 (`geom-brep/src/intersect.rs:602`), and the plane×sphere circle derives one
 from the seam or polar candidate (`:716`) — neither axis-aligned in general.
 
-**The exact box already exists one crate down and has no production caller.**
-`geom::curves::boxes::circle_arc_aabb` computes `Aᵢ = √(uᵢ² + vᵢ²)`
+**The exact box already EXISTS and SHIPS, and has no production caller.**
+`geom::curves::boxes::circle_arc_aabb` computes `Aᵢ = √((û_i·a)² + (v̂_i·b)²)`
 outward-bracketed **and** restricts to the certified span — tighter on both
-counts — and takes the two params `EdgeCurve::params()` already has at
-`edge_box`. Its only callers today are `geom`'s own tests. Taking it is a
-TIGHTENING and carries the obligation the NURBS arm already states, so it is
-#862's decision, not this unit's.
+counts — is `pub`, and takes the two params `EdgeCurve::params()` already hands
+`edge_box`. `git grep` finds its callers in `crates/geom/tests/` and nowhere
+else. So this is not *"someone should write the tight version"*: the tight
+version ships while production calls the hand-derived one. **Recorded as its own
+row, `S235`**, because it outlives #862 — after both tightenings land, *why were
+there two constructions and why was the correct one the unused one* is still
+unanswered, and that is S16's subject at the curve level, a fourth instance
+never counted.
 
 **"Looseness is free" is a claim about a DOOR, and the finding's count was low.**
 Not two of three: **four** doors read a box from this module and **three** read
@@ -8679,15 +8698,33 @@ over-width as a refusal — `separation.rs` (non-overlap IS the grant),
 the sphere-extent fallback's cylinder arm, which the finding did not count. Only
 `boolean/reduce.rs`'s C10 tree prunes. The header now states the property rather
 than the roster, and the roster is **computed**:
-`every_door_that_reads_a_box_is_inventoried` walks `topo/src` and pins the
-call sites of BOTH rules per file — face and edge, because the header's claim
-is about *a box* and the conic over-width lives on the edge rule with the direction each reads, four blind spots
-disclosed — including that it pins *where* the doors are, not what each does
-with looseness.
+`every_door_that_reads_a_box_is_inventoried` walks `topo/src` and pins, per
+file, the call sites of **both** rules — face **and** edge. That matters: the
+header's claim is about *a box*, the sharper over-width lives on the EDGE rule,
+and `edge_box` has doors of its own including a refusing one
+(`boolean/ops.rs:1421`, the extent scan's near-boundary test). A face-only walk
+would have attributed the conic arm's cost to a list computed for a different
+function and let an edge-box-only door land green.
 
-**Raised on the way: S232**, the same *"never prunes"* sentence six times over
-in `crates/geom/src/{surfaces,curves}/boxes.rs`, one crate below the same four
-doors — **routed to Track H**, whose scope those files are.
+**Raised on the way: `S232`, `S234`, `S235`.** `S232` is the same
+*"never prunes"* sentence six times over in
+`crates/geom/src/{surfaces,curves}/boxes.rs`, one crate below the same doors —
+**routed to Track H**, whose scope those files are. `S235` is the unused exact
+box above. **`S234` is this unit's own**: the door inventory computes the
+roster's KEYS and recites its direction column, which is the whole content of
+the header's argument — S66's shape one level up, inside the fix for S66 — and
+it is a row rather than a disclosure because per Q4/Q6 a deviation owes an
+owner.
+
+**The module contract itself carried no caveat, and a consumer recited it as
+live.** `boxes.rs`'s one-sentence contract (*"every box this module returns
+contains the entity's whole locus"*) was unqualified while #862 holds cases
+where it is false under `Interval`, and `separation.rs:20-22` restated it as the
+premise of its certificate — **at the one door where non-overlap is a GRANT**.
+That is S97's second sub-case at a citation site the prose sweep had not
+covered: the over-width half had been given the treatment the unsoundness half
+had not. Both ends now carry #862, and `separation`'s door states what
+over-width costs it as well.
 
 **Nothing in this file separated in z.** `s16_box_soundness.rs`'s counter-row
 separates at `cx = 3.0` in **x**, the axis the widening does not touch;
