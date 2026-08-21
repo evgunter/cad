@@ -521,7 +521,7 @@ fn main() {
     // literally named "k-probe".
     #[cfg(feature = "probe")]
     if outdir == "k-probe" {
-        probe::run(std::env::args().nth(2));
+        probe::run(std::env::args().nth(2), tol);
         return;
     }
     #[cfg(not(feature = "probe"))]
@@ -542,7 +542,11 @@ fn main() {
     if outdir == "tess-budget" {
         let rest: Vec<String> = std::env::args().skip(2).collect();
         let deviation = rest.iter().any(|a| a == "--deviation");
-        tessbudget::run(rest.into_iter().find(|a| !a.starts_with("--")), deviation);
+        tessbudget::run(
+            rest.into_iter().find(|a| !a.starts_with("--")),
+            deviation,
+            tol,
+        );
         return;
     }
     #[cfg(not(feature = "budget"))]

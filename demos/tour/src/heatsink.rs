@@ -164,12 +164,12 @@ fn solidify<S: Scalar>(
 /// it — otherwise a default build trips `dead_code` under CI's
 /// `-D warnings`.
 #[cfg(feature = "probe")]
-pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
-    let r = build_doc();
+pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<pncad::topo::BooleanBody<S>> {
+    let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
-    let ev5 = evaluate::<S>(&r.doc, None, &cancel, &opts);
-    let mut out = vec![solidify(&r, &ev5, 5)];
+    let ev5 = evaluate::<S>(&r.doc, None, &cancel, &opts, tol);
+    let mut out = vec![solidify(&r, &ev5, 5, tol)];
     let mut doc = r.doc.clone();
     let mut prior = ev5;
     for n in [7usize, 9] {
@@ -180,11 +180,12 @@ pub(crate) fn probe_solids<S: Scalar>() -> Vec<pncad::topo::BooleanBody<S>> {
                 slot: SlotId::Count,
                 expr: pe(&format!("{n}")),
             },
+            tol,
         )
         .expect("count edit");
         doc = applied.doc;
-        let ev = evaluate::<S>(&doc, Some(&prior), &cancel, &opts);
-        out.push(solidify(&r, &ev, n));
+        let ev = evaluate::<S>(&doc, Some(&prior), &cancel, &opts, tol);
+        out.push(solidify(&r, &ev, n, tol));
         prior = ev;
     }
     out
