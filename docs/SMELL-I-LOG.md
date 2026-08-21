@@ -229,7 +229,7 @@ I-e starts from that merge with the guard bodies exactly as it found them.
 | lane | rows | scope | review | state |
 |---|---|---|---|---|
 | **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | dispatching |
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
+| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **in review as #887.** All four findings recorded in §D and both §D rows (I3, I6) are gone. **This roster row is deliberately still here**: it leaves in the landing commit, not while the PR is under review (I-a's incident). |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
