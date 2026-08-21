@@ -349,4 +349,41 @@ may precede a green run.
 
 ## Incidents
 
-*(none yet)*
+### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)
+
+**Disk hit the 15G WARN.** Track F is closed and its twelve lanes were
+stale, so `local-scripts/clean-lanes.sh` was pointed at nine of them.
+**It refused one** — `smellf-a`, on branch `smellf/f5-door-registries`,
+whose HEAD was pushed and in sync but whose **working tree carried 1,483
+uncommitted lines**: an sccache CI action, a 381-line `ci.yml` change,
+`docs/CI-MINUTES-2026-08.md`, two rebuild-latency perf artefacts, and
+**392 lines of `docs/SMELL-G-LOG.md`** — another track's log, on a
+Track F branch.
+
+**Nothing was lost.** The sccache work is on `main` (14 hits in
+`ci.yml`, and `install-sccache/action.yml` is byte-identical to
+`origin/main`), so the tree held a **stale snapshot of a main that had
+already absorbed it**, not unpushed work. The eight clean lanes were
+deleted; **`smellf-a` was left in place.**
+
+**Three things worth keeping.**
+
+1. **The refusal is the only instrument that looks.** Nothing else in
+   the pipeline reads a terminated lane's working tree. A closed track
+   publishes its rows, its log and its incidents — and says nothing
+   about the state of the clones it abandons.
+2. **"Pushed and in sync" describes the branch, not the lane.**
+   `git status -sb` showed the branch clean against its remote while
+   1,483 lines sat uncommitted beside it. A liveness or handoff check
+   that reads the branch answers a different question than the one being
+   asked.
+3. **It was not deleted, and that is the ruling.** Establishing that the
+   content had landed took four commands; establishing that *nothing
+   else* in it was unique would have taken considerably more, and the
+   reclaim was 3G out of a budget that the other eight lanes had already
+   returned 13G to. **Deleting a tree you cannot fully account for to
+   reclaim space you do not need is the trade the restart rule warns
+   about**, one actor removed: there, a lane must not conclude about
+   work whose record is missing; here, an orchestrator must not delete
+   it. Whoever next sweeps `cad-work/` inherits this note rather than a
+   mystery.
