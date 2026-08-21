@@ -333,6 +333,26 @@ the qualifier that makes a claim exactly true, and scope your evidence out
 loud: a green `-p onecrate` run is evidence about one crate. **A measurement is
 a measurement of a tree** — name which tree each number came from.
 
+**Filter the check runs, then merge — never merge on `MERGEABLE / UNSTABLE`.**
+`UNSTABLE` means *some check is not green and this word will not tell you which*:
+a status whose method is hidden, which is why it reads as settled. Two commands,
+seconds: `gh api …/check-runs`, reject anything whose `conclusion` is not
+`success`.
+
+**This resolves a real tension in these instructions, and both halves are
+correct.** *Do not sit CONFLICTING* — such a PR runs **no** checks at all, a
+silent CI outage — pulls toward merging the moment a PR is clean. *Do not merge
+with checks in flight* pulls the other way, because **merging deletes
+`refs/pull/<n>/merge` and any running check dies at checkout** (S167/D113) —
+permanently, since a `pull_request` run can never check that ref out again, so
+the retry reproduces the failure and corroborates the wrong conclusion.
+Filtering first satisfies both.
+
+**If you are told to hurry, that is not a method.** The orchestrator's *"take it
+while it is clean"* is an incentive, not a licence to skip the filter — and *"I
+was told to hurry"* is the same shape of lid as *"I tried and could not"*: it
+names a pressure instead of a method. (F-c, 2026-08-20, on its own merge.)
+
 **If you run mutations, read your own diff before you open.** `git diff
 origin/main...HEAD --name-only -- ':(exclude)docs'` — two seconds. A lane here
 shipped a planted mutation into `geom-core` production code because it ran
