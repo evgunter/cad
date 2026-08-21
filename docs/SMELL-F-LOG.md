@@ -420,7 +420,7 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 **F-f's PR is open** (#798); its roster row left the table above per the
 recording convention, which the landing PR carries.
 
-**F-g's PR is open** (#PR), carrying **F3 (S63)**, **S157** (the harness — F-f's
+**F-g's PR is open** (#849), carrying **F3 (S63)**, **S157** (the harness — F-f's
 row, never placed in §D as `D101`, so there was no row to strike) and
 **S125/D69**. Its row left the table above. **It crossed into three files F1/F2
 had just landed, and every crossing was forced by the harness fix rather than

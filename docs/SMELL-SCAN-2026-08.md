@@ -8302,7 +8302,7 @@ exclude `lib.sh` — a filename problem solved with a permission bit. It is a
 filename problem again: **both halves skip `lib.sh` by name, and a member of that
 directory that is not executable is a failure, not a skip.**
 
-## S63. FIXED by #PR — the three grep gates fire on the spellings they forbade, and the leading-`//` strip is gone from the directory
+## S63. FIXED by #849 — the three grep gates fire on the spellings they forbade, and the leading-`//` strip is gone from the directory
 
 **Closed by Track F lane F-g.** Every claim below was executed: the
 gate was planted into the live tree, watched go red, and the near miss
@@ -11087,7 +11087,7 @@ close in.
 
 **Verdict:**
 
-## S125. FIXED by #PR — `no-extra-real-bounds.sh` is order-insensitive and name-shaped, and the one live hit is ratified as a line
+## S125. FIXED by #849 — `no-extra-real-bounds.sh` is order-insensitive and name-shaped, and the one live hit is ratified as a line
 
 **Closed by Track F lane F-g with S63**, whose scope already held this
 file. The matcher no longer anchors on the operand order — or on the
@@ -12753,7 +12753,7 @@ than from the schedule** (F-R1, F-R2 in the track log):
   C's open #734 edits.** F4 waits on it as a whole rather than splitting, since
   its four members are one missing idiom and closing three of four is §C13.
 
-**F3 — FIXED by #PR** (lane F-g), together with **S157** (the self-test
+**F3 — FIXED by #849** (lane F-g), together with **S157** (the self-test
 harness) and **S125/D69**. The three grep gates fire on the spellings they
 forbade, `scripts/gates/lib.sh` carries the shared code-only Rust reader and a
 self-test harness whose every case is a real subprocess, and two live `x*x`
@@ -12999,7 +12999,7 @@ a general gate; each names its sites.
 
 ---
 
-## S157. FIXED by #PR — every self-test case in `scripts/gates/` is a real subprocess, so a diagnosis lost to `errexit` fails the self-test
+## S157. FIXED by #849 — every self-test case in `scripts/gates/` is a real subprocess, so a diagnosis lost to `errexit` fails the self-test
 
 **Closed by Track F lane F-g**, which owns `scripts/gates/lib.sh`.
 Raised by F-f (#798) and narrowed by that lane's own refutation of the
