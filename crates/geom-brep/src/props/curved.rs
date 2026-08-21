@@ -398,9 +398,7 @@ fn same_level<T: Decide>(
 /// `(lo, hi)`: `w ≡ Δu`, which is what the closed forms assume ABOUT
 /// `w`. (`du_of_rims` supplies the `Δu` value and, once this holds,
 /// its span-sum agreement is a genuine rectangle test rather than a
-/// proxy for one.) This paragraph used to be headed *"why the level
-/// rule is sufficient"*; it is not sufficient, and the next one says
-/// what is missing.
+/// proxy for one.)
 ///
 /// **What this does NOT establish — open at #723.** The rule gives
 /// `w ≡ Δu` on `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)`

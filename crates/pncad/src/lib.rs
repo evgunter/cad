@@ -57,15 +57,6 @@
 //! form (`Profile::new` then `Profile::validate`) the demo corpus
 //! wrote by hand at every scene.
 //!
-//! (Stated as a shape, not a count, on purpose. The previous wording
-//! said "six of the seven", which had been wrong since the `polygon`
-//! door was removed — a stale count in the sentence whose job is to
-//! say what is true. The shape is guarded:
-//! `the_authoring_seam_roster_is_what_the_crate_doc_claims` in
-//! `tests/all.rs` reads `authoring.rs` and fails if a seam is added
-//! or removed, or if a second one chains a follow-up kernel call, so
-//! this sentence cannot rot the same way twice.)
-//!
 //! **[`workspace`] is not that, deliberately.** It is a real
 //! subsystem: it scans a directory of save files, reads each one's
 //! `id:` header, refuses a duplicate id naming both claimants,

@@ -63,18 +63,6 @@
 //! The mode pins are the only genuinely shared work, and the two
 //! cell-budget rows now share one helper rather than one call.
 //!
-//! The cost is not free and is not hidden. Measured single-threaded at
-//! the default ε on the merged tree: the block is **3.0 s** against
-//! **2.9 s** for this file's other nineteen rows, so it roughly
-//! doubles the file. Two rows are all of it — the chart-lane cell
-//! budget at 1.36 s and the infinite-chart-speed row at 1.38 s — and
-//! what they buy is the door itself: both enumerate the full 200,000
-//! cells before `SSI_MAX_CELLS` fires, which is what the budget is.
-//! The other four total under 0.3 s. The infinite-chart-speed row is
-//! the one whose price is arguable, because it covers no cell of the
-//! grid; it is kept as the executable record of an open source defect,
-//! and the trade is stated at the row.
-//!
 //! Every ε stand-down in this file is LOUD **and PROVED**: the run
 //! prints, by name ([`test_utils::vacuity::stood_down`]), the coverage it
 //! did not deliver, and it first asserts that the excuse is the one it
@@ -90,8 +78,7 @@
 //! literal `floor_scale` names a different width at every ε. Every floor
 //! fixture in this file states its width and converts through
 //! [`SsiDomain::floor_scale_for`] — the inverse of `SsiDomain::floor`,
-//! which is where the identity lives rather than in a comment. Four
-//! sites, one spelling.
+//! which is where the identity lives rather than in a comment.
 
 #![allow(
     clippy::unwrap_used,

@@ -1,13 +1,10 @@
 //! The twelve `tests/all.rs` headers state the no-restated-count rule in
 //! ONE spelling, and none of them carries the retired one.
 //!
-//! WHY THIS EXISTS. Eleven of those headers used to end *"this one binary
-//! replaces what were N separate test targets"*, and nine of the eleven
-//! Ns had drifted from the suite count they read as. The fix was to
-//! delete the number rather than refresh it — a count of a set the
-//! compiler already knows is a second, unchecked copy — and what is left
-//! to protect is not the number but the **uniformity**: twelve
-//! paraphrases of one rule is the same defect one level up.
+//! WHY THIS EXISTS. A count of a set the compiler already knows is a
+//! second, unchecked copy — and what is left to protect is not the
+//! number but the **uniformity**: twelve paraphrases of one rule is the
+//! same defect one level up.
 //!
 //! WHY IT LIVES IN `bvh`. Its subject is workspace-wide, so no crate owns
 //! it and any home is arbitrary; this is the cheapest test binary in the

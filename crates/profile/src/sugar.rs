@@ -308,8 +308,7 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// the shorter leg on its own channel.
     LegDegenerate {
         /// The incoming leg's lever arm. Construction diagnostic: the
-        /// surviving door reads only `arm` (the raw builder's mapper,
-        /// which named the shorter leg, retired with #377).
+        /// surviving door reads only `arm`.
         #[allow(dead_code)]
         leg_in_arm: T,
         /// The outgoing leg's lever arm (same status).
@@ -390,13 +389,8 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
 /// [`line_line_fillet_trims`] pattern, applied to the offset-carrier
 /// corner.
 ///
-/// **One consumer, `path::arc_fillet`'s lowering.** The body was
-/// extracted verbatim from the raw builder's corner door back when
-/// there were two, so that the twin and the PATHS algebra lowering
-/// could not drift apart; the raw builder is gone and the twin with it,
-/// and what the extraction still buys is that the surviving lowering
-/// calls the ratified construction rather than carrying a second copy
-/// of it.
+/// **One consumer, `path::arc_fillet`'s lowering**, which calls this
+/// ratified construction rather than carrying a second copy of it.
 ///
 /// Runs the arm gate, the turn gate, the offset-carrier intersection and
 /// the per-candidate reach/fit pass, in exactly the shipped order and
