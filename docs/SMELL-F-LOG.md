@@ -562,6 +562,49 @@ reach — the failure this track rules on, in the one document with no reviewer.
 The gap between those two docstrings and those two assertions is itself a finding
 in S39/S112's class, placed as **S168 / D114**.
 
+### Five reads, none of which opened the test body (2026-08-20)
+
+The claim *"the probe preconditions assert a bit-identical replay"* originated in
+a **docstring**. The assertions test one-sided greenness at `Probe` and compare
+nothing against `f64`.
+
+**That false premise then survived, in order: a finding, an orchestrator ruling
+(F-R5), an amendment to that ruling, a relay to Evan as settled, and a lane
+brief.** Five reads by three parties, every one of whom had reason to check, and
+none of which opened the test body. It was caught by a **style reviewer** reading
+the assertion.
+
+**This is §S38's class — prose outrunning code — at the scale the class is
+actually dangerous.** Each read was reasonable in isolation: each was reading the
+*previous read*, and the chain never touched the source. **A claim that has been
+restated four times is not four times corroborated; it is one claim with three
+echoes** — the same shape recorded earlier today when one wrong count reached
+four documents.
+
+**And it is why a false claim in an assertion *message* outranks one in a
+docstring** (F-h, closing S168): `run_doc`'s failure text asserts bit-identity to
+`f64` — read under time pressure by someone already confused, and pointing them
+at the wrong lane.
+
+### The complement rule: when a floor keeps failing, look for the conservation law
+
+**F-h, on the third attempt at F8's floor.** A floor answers *did enough run*,
+which is **always defeatable by growth** — a new test, a new suite, a new
+selection, and the floor is satisfied while the new thing runs nothing. Its
+replacement answers *is anything unaccounted for*: every rostered suite is
+invoked under the default selection, and **the `#[ignore]`d count it reports
+skipped must equal what `--ignored` ran**. A grown `#[ignore]`d test parts the
+numbers and reds.
+
+**The generalisation is worth more than the instance.** Two Track F rows —
+F6's tolerance box and F8's coverage floor — each failed twice as a *threshold*
+and closed once restated as a *relation*. When a floor keeps failing one level
+in, the next floor is usually not the answer.
+
+*And the uncomfortable coda, which is the lane's own:* the complement was only
+available because the runner already printed both halves. **The numbers were in
+the log the whole time** — which is this row's own subject.
+
 ## Standing rules this track derived
 
 ### A verification is valid for the PATHS it verified, not for the SHA it ran on
