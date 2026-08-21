@@ -1378,8 +1378,11 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
             SegKind::Arc(g) => {
                 let theta = four * s.bulge.atan();
                 // Circular-segment correction: (r²/2)(θ − sin θ),
-                // doubled here since we accumulate 2A.
-                twice_area = twice_area + g.radius * g.radius * (theta - theta.sin());
+                // doubled here since we accumulate 2A. `r²` is the tight
+                // square: the plain product treats the factors as
+                // independent, which widens the enclosure whenever the
+                // radius is not a definite-sign singleton.
+                twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
                 perimeter = perimeter + g.radius * theta.abs();
             }
         }

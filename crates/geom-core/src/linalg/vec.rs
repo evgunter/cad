@@ -299,8 +299,16 @@ impl<T: Real> Vec3<T> {
     /// Evaluation order (fixed, D9): `s = 1.copysign(n.z)`,
     /// `a = −1/(s + n.z)`, `b = (n.x·n.y)·a`, then
     /// `b1 = (1 + ((s·n.x)·n.x)·a, s·b, −(s·n.x))` and
-    /// `b2 = (b, s + (n.y·n.y)·a, −n.y)`, each component exactly as
-    /// parenthesized.
+    /// `b2 = (b, s + (n.y²)·a, −n.y)`, each component exactly as
+    /// parenthesized. `n.y²` is the tight square (`powi(2)`), not the
+    /// product `n.y·n.y`: at `Interval` the product treats the two
+    /// factors as independent, so an enclosure of `n.y` straddling zero
+    /// — every direction near the equator of the y-axis — acquires a
+    /// spurious negative lower bound. `b1`'s `(s·n.x)·n.x` is a
+    /// different shape: it is scaled BEFORE the second factor, so
+    /// tightening it would reassociate a D9-fixed order rather than
+    /// replace a square, and that is a design change (the same
+    /// distinction `linalg/mat.rs` is allowlisted for).
     ///
     /// **Discontinuity, documented honestly:** the frame flips across
     /// the equator `n.z = 0` (`s` jumps) — the construction is
@@ -323,7 +331,7 @@ impl<T: Real> Vec3<T> {
         let a = -T::one() / (s + self.z);
         let b = (self.x * self.y) * a;
         let b1 = Self::new(T::one() + ((s * self.x) * self.x) * a, s * b, -(s * self.x));
-        let b2 = Self::new(b, s + (self.y * self.y) * a, -self.y);
+        let b2 = Self::new(b, s + self.y.powi(2) * a, -self.y);
         (b1, b2)
     }
 }
