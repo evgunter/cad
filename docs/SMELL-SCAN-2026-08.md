@@ -8555,12 +8555,13 @@ so a reader finishing this ledger does not read the crate's
 ## S65. The #678 watertightness backstop is compiled out of every build that ships a mesh
 
 **[verified]** **OPEN — Evan's decision, and #872 equipped it rather
-than taking it (I-R1).** The citations below are re-derived at
-`68921183`; the finding originally cited `curved.rs:306`, which is
-`:273`.
+than taking it (I-R1).** Cited by NAME rather than by line, because
+the line has already moved once under this finding: the original text
+cited `curved.rs:306`, which was `:273` at `68921183` and `:278` after
+#872's header edit.
 
-`crates/mesh/src/curved.rs:273` — the re-derivation that catches the
-#678 class is `#[cfg(debug_assertions)]`. The class #678 named is a
+`crates/mesh/src/curved.rs` — the re-derivation in `tessellate_curved`'s
+emit pass that catches the #678 class is `#[cfg(debug_assertions)]`. The class #678 named is a
 *silently* non-watertight mesh returned as `Ok`. `tessellate` does not
 run `check_mesh`, and `rg check_mesh` finds no consumer outside
 `crates/mesh`, `stl`, `topo` and `sweep` tests — no demo or tour row
@@ -8568,8 +8569,8 @@ runs it either. So in a release build the entire guard for the class is
 `pole_columns`' three-line `if has_pole && nu == 2`.
 
 Two narrowings compound it. The filter is
-`poles.contains(&a) || poles.contains(&b)`, but
-`crates/mesh/src/trimmed.rs:456-468` names **two** sources of "one
+`poles.contains(&a) || poles.contains(&b)`, but `crates/mesh/src/trimmed.rs`
+(the degenerate-triangle note in the trim CDT harvest) names **two** sources of "one
 repeated mesh id at two distinct UV locations" — chart singularities
 and the full-2π seam double-traversal — and the seam case, held off by
 an arithmetic argument (`nu >= 8` from the π/4 sagitta cap) rather than
