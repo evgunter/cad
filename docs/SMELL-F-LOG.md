@@ -790,8 +790,7 @@ when the review lands, which is why it trails.
   (`m5_pr5_corpus_probe::cut_cylinder_replays_at_probe` and
   `m4_pr8_k_probe::corpus_evaluates_green_at_probe`) run **once, before the ε
   loop**, per F-R5 as amended. **Every censused suite now declares its
-  disposition** — rostered as executed, or `CI COMPILES THIS SUITE AND DOES NOT
-  RUN IT` in its own header — and the gate refuses a suite on neither side or
+  disposition** — rostered as executed, or `NOT EXECUTED BY CI` in its own header — and the gate refuses a suite on neither side or
   on both, which is what makes the next drift visible.
 
   **Three things the lane re-derived rather than transcribed, all of which move

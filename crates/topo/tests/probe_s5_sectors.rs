@@ -21,7 +21,7 @@
 //! claim — a reordering of decisions shows up even when the multiset is
 //! preserved — so the rows are NOT sorted.
 //!
-//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** CI's `k-lint` job has
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** CI's `k-lint` job has
 //! a step named *"compile and list every probe-gated test target"*
 //! (`scripts/gates/probe-suite-census.sh` derives the crate set; the step
 //! builds each one `--features probe --all-targets` and feeds the listing

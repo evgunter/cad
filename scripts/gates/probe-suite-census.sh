@@ -109,50 +109,71 @@ CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:1 topo:5)
 # probe suite can be censused, listed, and still assert nothing on any
 # merge. What nothing asserted was the SET OF CALLS the sweep makes.
 #
-# THIS FLOOR IS KEYED ON TESTS THAT RAN, NEVER ON REACHABILITY, and the
-# distinction is the whole point. The obvious floor — every censused
-# suite is named by some filter the sweep passes — is unsound here, and
-# unsound in a way that reproduces the defect it would close:
-# `k_probe_sweep.sh`'s `run_dump` passes `--ignored`, so a filter naming
-# a suite whose tests carry no `#[ignore]` SELECTS it and runs NOTHING.
-# Reachability would score such a suite covered while it is inert. So
-# the input here is the test runner's own `N passed` line, one row per
-# invocation, written by the sweep as it runs.
+# KEYED ON TESTS THAT RAN, NEVER ON REACHABILITY, and the distinction is
+# the whole point. The obvious floor — every censused suite is named by
+# some filter the sweep passes — is unsound here, and unsound in a way
+# that reproduces the defect it would close: `k_probe_sweep.sh`'s
+# `run_dump` passes `--ignored`, so a filter naming a suite whose tests
+# carry no `#[ignore]` SELECTS it and runs NOTHING. Reachability would
+# score such a suite covered while it is inert.
 #
-# THE MODE IS PART OF THE KEY for the same reason. `--ignored` and the
-# default selection run DISJOINT halves of a suite, so a roster keyed on
-# the module alone cannot tell "the dump ran" from "the pins ran", and
-# the pins were the half that never ran. `ignored` and `plain` are the
-# two selections the sweep makes; a suite may appear under either or
-# both.
+# THE MODE IS PART OF THE KEY, for the same reason one level down.
+# `--ignored` and the default selection run DISJOINT halves of a suite,
+# so a roster keyed on the module alone cannot tell "the dump ran" from
+# "the pins ran" — and the pins were the half that never ran.
 #
-# `<mode>:<crate>:<module>:<tests>` — the probe suites CI executes, and
+# AND A FLOOR ALONE STILL LEAVES THE SAME HOLE ONE STEP FURTHER IN. It
+# catches a suite that stops running; it cannot catch a suite that GROWS
+# a test no rostered selection reaches — append a plain `#[test]` to a
+# module rostered only under `ignored` and every count stays met while
+# the new test never runs. So the roster is not the whole check: see
+# THE COMPLEMENT RULE in `census_check_executed`, which closes the set
+# exactly, from the runner's own skipped-test count.
+#
+# `<mode>:<crate>:<module>:<tests>` — the probe suites CI executes and
 # the number of tests each ran under that selection when its execution
-# was argued for.
+# was argued for. A FLOOR, deliberately: growth is caught by the
+# complement rule, not here, so these do not have to be maintained
+# upward. Every rostered suite needs a `plain` row even when that
+# selection runs nothing, because that row is what reports the
+# complement.
 RUN_FLOOR=(
   ignored:editor-core:m4_pr8_k_probe:1
   ignored:sweep:k_report:1
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
+  plain:sweep:k_report:0
 )
 
 # EVERY CENSUSED SUITE DECLARES WHICH SIDE IT IS ON. What the executed
 # set was missing was never only a floor: a suite's disposition was
 # decided by a filter nobody read, and both dispositions are defensible
 # while being decided by accident is not. So a censused suite is either
-# in `RUN_FLOOR` above or says this sentence in its own header, and never
-# both — a new probe suite has to pick a side, and a reader learns which
-# from the file rather than from an invocation two directories away.
-# Matched only in a `//!` line, for the reason the cfg predicate above is
+# in `RUN_FLOOR` above or says so in its own header, and never both.
+#
+# TWO SENTENCES, BECAUSE THE CENSUS COUNTS FILES AND A DISPOSITION IS A
+# PROPERTY OF TESTS. Most probe suites carry a whole-file `#![cfg(…)]`,
+# so nothing in them runs. Two do not: `topo/tests/review_m3_pr2.rs`
+# gates one block inside one of ten tests and
+# `geom-core/tests/k_stats_doors.rs` gates one test of two — their
+# ungated halves run on EVERY merge, and a blanket "this suite is not
+# executed" is flatly false in them. The gate therefore picks the
+# sentence by the cfg FORM it found and refuses the other one, so the
+# false blanket cannot be written rather than merely being fixed once.
+FILE_NOT_RUN_MARKER='NO TEST IN THIS FILE IS EXECUTED BY CI'
+ITEM_NOT_RUN_MARKER='ITS PROBE-GATED CODE IS NOT EXECUTED BY CI'
+# Matched only in a `//!` line, for the reason the cfg predicate below is
 # matched only as an attribute: the claim is what the FILE SAYS TO A
 # READER, and a string literal or an inline comment mentioning the
-# sentence is not that. It has no regex metacharacters, so it doubles as
-# its own pattern.
-NOT_RUN_MARKER='CI COMPILES THIS SUITE AND DOES NOT RUN IT'
+# sentence is not that. Neither has regex metacharacters, and neither is
+# a substring of the other, so each doubles as its own pattern and the
+# wrong one is detectable.
 
 # The sweep's own wiring. Without it the floor above is removable by
-# deleting one line from a script no gate reads — which is the shape of
-# every hole this file already guards.
+# deleting one line from a script no gate reads — or, worse, by putting a
+# `#` in front of it, which is why the call is matched against the script
+# with its comment lines stripped. An unstripped grep is the same defect
+# the census predicate above was hardened against, one file over.
 SWEEP_SCRIPT=scripts/k_probe_sweep.sh
 SWEEP_CHECK_RE='probe-suite-census\.sh[^|]*--check-executed'
 
@@ -321,15 +342,15 @@ census_citations() {
 # RAN is the only reading that can tell a covered suite from a selected
 # and inert one, which is the case a reachability floor gets wrong.
 census_check_executed() {
-  local rc=0 tally bad entry mode crate module want rows have row_crate row_module row_mode
+  local rc=0 tally bad entry mode crate module want rows have suite ign ran_ign
   tally=$(cat)
   if [ -z "${tally//[[:space:]]/}" ]; then
     gate_error "$(gate_name): the executed-set tally is EMPTY — the sweep recorded no invocation at all. A sweep that ran nothing produces exactly this, so it is a failure and not a clean run"
     exit 1
   fi
-  bad=$(printf '%s\n' "$tally" | awk -F'\t' 'NF && (NF != 4 || $4 !~ /^[0-9]+$/) { printf "  line %d: %s\n", NR, $0 }')
+  bad=$(printf '%s\n' "$tally" | awk -F'\t' 'NF && (NF != 5 || $4 !~ /^[0-9]+$/ || $5 !~ /^[0-9]+$/) { printf "  line %d: %s\n", NR, $0 }')
   if [ -n "$bad" ]; then
-    gate_error "$(gate_name): the executed-set tally has unreadable rows; the shape is \`<mode><TAB><crate><TAB><module><TAB><passed>\`"
+    gate_error "$(gate_name): the executed-set tally has unreadable rows; the shape is \`<mode><TAB><crate><TAB><module><TAB><passed><TAB><ignored>\`"
     printf '%s\n' "$bad" >&2
     exit 1
   fi
@@ -338,41 +359,84 @@ census_check_executed() {
     mode=${entry%%:*}; entry=${entry#*:}
     crate=${entry%%:*}; entry=${entry#*:}
     module=${entry%%:*}; want=${entry##*:}
-    rows=$(printf '%s\n' "$tally" | awk -F'\t' -v m="$mode" -v c="$crate" -v s="$module" 'NF==4 && $1==m && $2==c && $3==s' | wc -l | tr -d ' ')
+    rows=$(census_tally_rows "$tally" "$mode" "$crate" "$module" | wc -l | tr -d ' ')
     if [ "$rows" -eq 0 ]; then
-      gate_error "$(gate_name): the sweep never invoked $crate's \`$module\` under the \`$mode\` selection, so nothing in it ran. The roster in RUN_FLOOR is the executed set; a call dropped from $SWEEP_SCRIPT reads exactly like this. Restore the call, or drop the row from RUN_FLOOR and give the suite its \`$NOT_RUN_MARKER\` sentence"
+      gate_error "$(gate_name): the sweep never invoked $crate's \`$module\` under the \`$mode\` selection, so nothing in it ran. RUN_FLOOR is the executed set; a call dropped from $SWEEP_SCRIPT reads exactly like this. Restore the call, or drop the row from RUN_FLOOR and give the suite its unrun declaration"
       rc=1
       continue
     fi
-    have=$(printf '%s\n' "$tally" | awk -F'\t' -v m="$mode" -v c="$crate" -v s="$module" 'NF==4 && $1==m && $2==c && $3==s { if ($4+0 > x) x = $4+0 } END { print x+0 }')
+    have=$(census_tally_max "$tally" "$mode" "$crate" "$module" 4)
     if [ "$have" -lt "$want" ]; then
       gate_error "$(gate_name): $crate's \`$module\` was SELECTED under the \`$mode\` selection and executed $have test(s), below the $want its execution was argued for. Selection is not execution: a \`--ignored\` filter over a suite whose tests carry no \`#[ignore]\` matches the module and runs none of it, and a floor that read reachability would have called this covered"
       rc=1
     fi
   done
 
+  # THE COMPLEMENT RULE, which is what closes the SET rather than pinning
+  # its floor. Every rostered suite is invoked once under the DEFAULT
+  # selection, which runs all of its plain `#[test]`s and reports how many
+  # `#[ignore]`d ones it skipped. That skipped count must equal what the
+  # `--ignored` selection actually ran. So:
+  #
+  #   plain.passed   — every non-ignored test in the suite, by construction
+  #   plain.ignored  — exactly the ones the default selection did not run
+  #   ignored.passed — what the `--ignored` invocation did run
+  #
+  # and `plain.ignored == ignored.passed` says the two halves cover the
+  # suite with nothing left over. WITHOUT IT A FLOOR IS NOT ENOUGH: append
+  # a plain `#[test]` to a module rostered only under `ignored` and every
+  # floor stays met while the new test never runs — this row's own defect,
+  # one selection further in. Neither number comes from a predicate over
+  # the source; both are the runner's own.
+  while IFS= read -r suite; do
+    [ -n "$suite" ] || continue
+    crate=${suite%%/*}; module=${suite#*/}
+    rows=$(census_tally_rows "$tally" plain "$crate" "$module" | wc -l | tr -d ' ')
+    if [ "$rows" -eq 0 ]; then
+      gate_error "$(gate_name): $crate's \`$module\` is rostered as executed but the sweep never invoked it under the DEFAULT selection, so nothing knows which of its tests the \`--ignored\` half left behind. Every rostered suite owes a \`plain\` row — that row is where the complement is counted, even when it runs no test"
+      rc=1
+      continue
+    fi
+    ign=$(census_tally_max "$tally" plain "$crate" "$module" 5)
+    ran_ign=$(census_tally_max "$tally" ignored "$crate" "$module" 4)
+    if [ "$ign" -ne "$ran_ign" ]; then
+      gate_error "$(gate_name): $crate's \`$module\` has $ign \`#[ignore]\`d test(s) the default selection skipped, and the \`--ignored\` selection ran $ran_ign of them. A test in a rostered suite that no rostered selection reaches is exactly the state this floor exists to end — add the missing invocation to $SWEEP_SCRIPT and its row to RUN_FLOOR, or drop the \`#[ignore]\`"
+      rc=1
+    fi
+  done < <(printf '%s\n' "${RUN_FLOOR[@]}" | awk -F: '{ print $2"/"$3 }' | sort -u)
+
   # THE OTHER DIRECTION, so the roster is a roster and not a sample. A
-  # suite CI executes but does not roster can be dropped again silently,
-  # and it also carries the not-run sentence, which is then false.
-  while IFS=$'\t' read -r row_mode row_crate row_module _; do
-    [ -n "$row_crate" ] || continue
+  # suite CI executes but does not roster can be dropped again silently.
+  while IFS=$'\t' read -r mode crate module _; do
+    [ -n "$crate" ] || continue
     for entry in "${RUN_FLOOR[@]}"; do
-      [ "${entry%:*}" = "$row_mode:$row_crate:$row_module" ] && continue 2
+      [ "${entry%:*}" = "$mode:$crate:$module" ] && continue 2
     done
-    gate_error "$(gate_name): the sweep executed $row_crate's \`$row_module\` under the \`$row_mode\` selection, and RUN_FLOOR does not roster it. An execution nobody rostered is one nobody will notice the loss of — add it with the count it runs today"
+    gate_error "$(gate_name): the sweep executed $crate's \`$module\` under the \`$mode\` selection, and RUN_FLOOR does not roster it. An execution nobody rostered is one nobody will notice the loss of — add it with the count it runs today"
     rc=1
-  done < <(printf '%s\n' "$tally" | awk -F'\t' 'NF==4 && $4+0 > 0' | sort -u)
+  done < <(printf '%s\n' "$tally" | awk -F'\t' 'NF==5 && $4+0 > 0' | sort -u)
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=${#RUN_FLOOR[@]}
   GATE_SCAN_NOUN='rostered probe-suite execution'
-  gate_ok "every rostered probe-suite execution ran at or above its floor, counted from the test runner's own passed line rather than from what a filter could have matched"
+  gate_ok "every rostered probe-suite execution ran at or above its floor and the two selections cover each suite with nothing left over, counted from the test runner's own passed and ignored lines rather than from what a filter could have matched"
+}
+
+# The tally rows for one invocation, and the largest value of one column
+# across them — the ε loop repeats an `--ignored` invocation three times,
+# so a maximum is the count that invocation achieves.
+census_tally_rows() {
+  printf '%s\n' "$1" | awk -F'\t' -v m="$2" -v c="$3" -v s="$4" 'NF==5 && $1==m && $2==c && $3==s'
+}
+census_tally_max() {
+  census_tally_rows "$1" "$2" "$3" "$4" |
+    awk -F'\t' -v k="$5" '{ if ($k+0 > x) x = $k+0 } END { print x+0 }'
 }
 
 gate() {
   local files tally rc=0 entry want n have silenced hosted
   local suite crate rest listed missing suites
-  local rostered dcrate dmod marked rmod
+  local rostered dcrate dmod marked mismarked rmod want_marker other_marker shape sweep_live
 
   if [ "$CENSUS_CITATIONS" = true ]; then
     census_citations
@@ -480,20 +544,39 @@ gate() {
   # which side it is on. It is checked here rather than left to prose
   # because a new probe suite otherwise inherits the unrun side in
   # silence, which is the state this gate exists to end.
+  #
+  # WHICH SENTENCE IS OWED IS DECIDED BY THE CFG FORM, not by the author.
+  # A whole-file `#![cfg(…)]` means no test in the file runs; a per-item
+  # one means the file's OTHER tests run on every merge, and the blanket
+  # sentence would be a false claim that this gate then enforces. The
+  # wrong sentence is refused in both directions.
   rostered=$(printf '%s\n' "${RUN_FLOOR[@]}" | awk -F: '{ print $2"/"$3 }' | sort -u)
   while IFS= read -r suite; do
     [ -n "$suite" ] || continue
     dcrate=${suite#crates/}; dcrate=${dcrate%%/*}
     rest=${suite#crates/*/tests/}; dmod=${rest%.rs}
-    marked=false
-    grep -qE "^//!.*$NOT_RUN_MARKER" "$suite" && marked=true
+    if grep -qE '^[[:space:]]*#!\[cfg\(.*feature = "probe".*\)\][[:space:]]*$' "$suite"; then
+      want_marker=$FILE_NOT_RUN_MARKER; other_marker=$ITEM_NOT_RUN_MARKER
+      shape='every test in it is behind a whole-file `#![cfg(feature = "probe")]`'
+    else
+      want_marker=$ITEM_NOT_RUN_MARKER; other_marker=$FILE_NOT_RUN_MARKER
+      shape='only part of it is `probe`-gated, so its other tests DO run on every merge'
+    fi
+    marked=false; mismarked=false
+    grep -qE "^//!.*$want_marker" "$suite" && marked=true
+    grep -qE "^//!.*$other_marker" "$suite" && mismarked=true
     if grep -qxF "$dcrate/$dmod" <<<"$rostered"; then
-      if [ "$marked" = true ]; then
-        gate_error "$(gate_name): $suite is rostered in RUN_FLOOR as a suite CI EXECUTES and its header also says \`$NOT_RUN_MARKER\`. One of the two is false; decide which"
+      if [ "$marked" = true ] || [ "$mismarked" = true ]; then
+        gate_error "$(gate_name): $suite is rostered in RUN_FLOOR as a suite CI EXECUTES and its header also declares that it is not run. One of the two is false; decide which"
         rc=1
       fi
+      continue
+    fi
+    if [ "$mismarked" = true ]; then
+      gate_error "$(gate_name): $suite carries the WRONG unrun declaration: $shape, so the sentence it owes is \`$want_marker\` and not \`$other_marker\`. The census counts FILES and a disposition is a property of TESTS; a blanket sentence over a partly-gated file tells a reader that live tests are not gates"
+      rc=1
     elif [ "$marked" = false ]; then
-      gate_error "$(gate_name): $suite is a probe-gated suite that nothing in $SWEEP_SCRIPT runs, and its header does not say so. Either roster it in RUN_FLOOR and have the sweep run it, or write \`$NOT_RUN_MARKER\` into its header with the reason. A disposition decided by a filter two directories away is how this suite's siblings came to be compiled-and-inert without anyone choosing it"
+      gate_error "$(gate_name): $suite is a probe-gated suite that nothing in $SWEEP_SCRIPT runs, and its header does not say so. Either roster it in RUN_FLOOR and have the sweep run it, or write \`$want_marker\` into its header with the reason ($shape). A disposition decided by a filter two directories away is how this suite's siblings came to be compiled-and-inert without anyone choosing it"
       rc=1
     fi
   done <<<"$files"
@@ -507,12 +590,16 @@ gate() {
       { gate_error "$(gate_name): RUN_FLOOR rosters \`${rmod#*/}\` in ${rmod%%/*} as an executed probe suite, but no such probe-gated file is censused under $PWD"; rc=1; }
   done <<<"$rostered"
 
-  # THE WIRING. The floor above is enforced by a call in the sweep, and
-  # a call is deletable. `gate-roster.sh` keeps this gate in both halves
-  # of CI; nothing else keeps the sweep pointed at it.
+  # THE WIRING. The floor above is enforced by a call in the sweep, and a
+  # call is both deletable and commentable-out. MATERIALISED WITH COMMENT
+  # LINES STRIPPED, exactly as the clippy-row check below is: an
+  # unstripped grep passes on `# DISABLED: … --check-executed …`, which is
+  # the "prose satisfies the floor" mistake this file's own predicate was
+  # hardened against.
   if [ -f "$SWEEP_SCRIPT" ]; then
-    grep -qE "$SWEEP_CHECK_RE" "$SWEEP_SCRIPT" ||
-      { gate_error "$(gate_name): $SWEEP_SCRIPT no longer feeds its executed-set tally to \`$(gate_name).sh --check-executed\`. That call is the only thing that turns a sweep which selected everything and ran nothing into a failure; restore it, or re-argue the floor here"; rc=1; }
+    sweep_live=$(grep -vE '^[[:space:]]*#' "$SWEEP_SCRIPT" || true)
+    grep -qE "$SWEEP_CHECK_RE" <<<"$sweep_live" ||
+      { gate_error "$(gate_name): $SWEEP_SCRIPT no longer feeds its executed-set tally to \`$(gate_name).sh --check-executed\` in a live line. That call is the only thing that turns a sweep which selected everything and ran nothing into a failure; restore it, or re-argue the floor here"; rc=1; }
   else
     gate_error "$(gate_name): $SWEEP_SCRIPT does not exist under $PWD — the executed-set floor has no producer"
     rc=1
@@ -556,17 +643,28 @@ gate_plant_clean() {
     c=${entry%%:*}; n=${entry##*:}
     mkdir -p "$t/crates/$c/tests"
     for ((i = 0; i < n; i++)); do
-      # Unrostered, so each declares its own disposition.
-      printf '//! %s\n#![cfg(feature = "probe")]\n' "$NOT_RUN_MARKER" \
+      # Unrostered, so each declares its own disposition, in the
+      # whole-file form because that is the shape it has.
+      printf '//! %s\n#![cfg(feature = "probe")]\n' "$FILE_NOT_RUN_MARKER" \
         > "$t/crates/$c/tests/probe_$i.rs"
     done
   done
-  # The rostered suites, which must NOT carry the sentence.
+  # The rostered suites, which must carry NO unrun sentence. They sit ON
+  # TOP of each crate's floor rather than counting toward it, so that
+  # deleting one exercises the ROSTER check — which is that case's
+  # subject — instead of tripping the floor first.
   for entry in "${RUN_FLOOR[@]}"; do
     c=$(printf '%s' "$entry" | cut -d: -f2); m=$(printf '%s' "$entry" | cut -d: -f3)
     mkdir -p "$t/crates/$c/tests"
     printf '#![cfg(feature = "probe")]\n' > "$t/crates/$c/tests/$m.rs"
   done
+  # AN ITEM-GATED SUITE, in a crate with no floor so the counts above are
+  # undisturbed. The clean fixture has to carry both shapes: the census
+  # counts files, the disposition belongs to tests, and a fixture with
+  # only whole-file gates cannot show the gate telling them apart.
+  mkdir -p "$t/crates/itemgated/tests"
+  printf '//! %s\n#[cfg(feature = "probe")]\n#[test]\nfn gated() {}\n#[test]\nfn ungated() {}\n' \
+    "$ITEM_NOT_RUN_MARKER" > "$t/crates/itemgated/tests/probe_item.rs"
   mkdir -p "$t/scripts/gates"
   printf '#!/usr/bin/env bash\nscripts/gates/probe-suite-census.sh --check-executed < "$ran"\n' \
     > "$t/$SWEEP_SCRIPT"
@@ -619,12 +717,25 @@ plant_exempt_citation() {
 plant_disposition_undeclared() {
   printf '#![cfg(feature = "probe")]\n' > "$1/crates/topo/tests/probe_new_suite.rs"
 }
+# THE BLANKET SENTENCE OVER A PARTLY-GATED FILE — the false declaration
+# this gate would otherwise have required, and the one this lane's own
+# first pass wrote.
+plant_blanket_over_item_gate() {
+  printf '//! %s\n#[cfg(feature = "probe")]\n#[test]\nfn gated() {}\n#[test]\nfn ungated() {}\n' \
+    "$FILE_NOT_RUN_MARKER" > "$1/crates/itemgated/tests/probe_item.rs"
+}
+# And the mirror: the partial sentence on a file where nothing runs,
+# which understates rather than overstates and is still a false claim.
+plant_partial_over_file_gate() {
+  printf '//! %s\n#![cfg(feature = "probe")]\n' "$ITEM_NOT_RUN_MARKER" \
+    > "$1/crates/topo/tests/probe_0.rs"
+}
 # The sentence on a suite the sweep DOES run: the claim is then false in
 # the other direction, and the file is the thing a reader believes.
 plant_disposition_both() {
   local c m
   c=$(printf '%s' "${RUN_FLOOR[0]}" | cut -d: -f2); m=$(printf '%s' "${RUN_FLOOR[0]}" | cut -d: -f3)
-  printf '//! %s\n#![cfg(feature = "probe")]\n' "$NOT_RUN_MARKER" > "$1/crates/$c/tests/$m.rs"
+  printf '//! %s\n#![cfg(feature = "probe")]\n' "$FILE_NOT_RUN_MARKER" > "$1/crates/$c/tests/$m.rs"
 }
 # The roster naming a suite the census cannot see.
 plant_roster_orphan() {
@@ -634,12 +745,19 @@ plant_roster_orphan() {
 }
 # The one line that connects the floor to its producer, deleted.
 plant_sweep_unwired() { printf '#!/usr/bin/env bash\necho sweeping\n' > "$1/$SWEEP_SCRIPT"; }
+# THE SAME CALL, COMMENTED OUT. A grep with no comment strip reports the
+# wiring intact and the floor is dead — the mistake this file's own
+# predicate was hardened against, reproduced in its newest guard.
+plant_sweep_commented_out() {
+  printf '#!/usr/bin/env bash\n# DISABLED: scripts/gates/probe-suite-census.sh --check-executed < "$ran"\necho sweeping\n' \
+    > "$1/$SWEEP_SCRIPT"
+}
 # The sentence present, but not where a reader of the file's header would
 # find it — the case a bare substring match cannot tell from a real
 # declaration, and the same mistake the cfg predicate above already
 # refuses from the other side.
 plant_disposition_not_a_doc_comment() {
-  printf '// %s\n#![cfg(feature = "probe")]\n' "$NOT_RUN_MARKER" \
+  printf '// %s\n#![cfg(feature = "probe")]\n' "$FILE_NOT_RUN_MARKER" \
     > "$1/crates/topo/tests/probe_0.rs"
 }
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
@@ -647,7 +765,7 @@ plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
 plant_clippy_undenied() { sed -i 's/ -- -D warnings//' "$1/.github/workflows/ci.yml"; }
 # The lint silenced at the site instead.
 plant_cfg_lint_allowed() {
-  printf '//! %s\n#![allow(unexpected_cfgs)]\n#![cfg(feature = "probe")]\n' "$NOT_RUN_MARKER" \
+  printf '//! %s\n#![allow(unexpected_cfgs)]\n#![cfg(feature = "probe")]\n' "$FILE_NOT_RUN_MARKER" \
     > "$1/crates/topo/tests/probe_0.rs"
 }
 # THE BEHAVIOURAL HALF, BOTH DIRECTIONS. Its subject is a listing, so its
@@ -723,7 +841,7 @@ selftest_compound_counted() {
   local tmp out
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
-  printf '//! %s\n#![cfg(all(feature = "probe", not(miri)))]\n' "$NOT_RUN_MARKER" \
+  printf '//! %s\n#![cfg(all(feature = "probe", not(miri)))]\n' "$FILE_NOT_RUN_MARKER" \
     > "$tmp/crates/sweep/tests/probe_0.rs"
   if ! out=$(cd "$tmp" && gate 2>&1); then
     rm -rf "$tmp"
@@ -739,85 +857,89 @@ selftest_compound_counted() {
 # state `editor-core`'s corpus replay was in and which a floor keyed on
 # reachability scores as covered.
 gate_tally_clean() {
-  local entry mode c m n
+  local entry mode c m n other
   for entry in "${RUN_FLOOR[@]}"; do
     IFS=: read -r mode c m n <<<"$entry"
-    printf '%s\t%s\t%s\t%s\n' "$mode" "$c" "$m" "$n"
+    if [ "$mode" = plain ]; then
+      # The complement the default selection would report: whatever the
+      # `--ignored` row for the same suite claims to run, or none.
+      other=$(printf '%s\n' "${RUN_FLOOR[@]}" |
+        awk -F: -v c="$c" -v s="$m" '$1=="ignored" && $2==c && $3==s { print $4 }')
+      printf 'plain\t%s\t%s\t%s\t%s\n' "$c" "$m" "$n" "${other:-0}"
+    else
+      printf 'ignored\t%s\t%s\t%s\t0\n' "$c" "$m" "$n"
+    fi
   done
 }
 
-selftest_executed() {
-  local tmp out tally
+# One --check-executed case: PLANT is a filter over the clean tally.
+executed_case() {
+  local want=$1 what=$2; shift 2
+  local tmp out
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
-  tally=$(gate_tally_clean)
+  if out=$(cd "$tmp" && gate_tally_clean | "$@" | CENSUS_CHECK_EXECUTED=true gate 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the executed-set floor PASSED on %s\n%s\n' "$what" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s): the floor fired with an unexpected message:\n%s\n' "$what" "$out" >&2
+       exit 1 ;;
+  esac
+}
 
-  if ! out=$(cd "$tmp" && printf '%s\n' "$tally" | CENSUS_CHECK_EXECUTED=true gate 2>&1); then
+selftest_executed() {
+  local tmp out
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if ! out=$(cd "$tmp" && gate_tally_clean | CENSUS_CHECK_EXECUTED=true gate 2>&1); then
     rm -rf "$tmp"
     printf 'SELFTEST FAILED: the executed-set floor FAILED on a tally meeting every row\n%s\n' "$out" >&2
     exit 1
   fi
+  rm -rf "$tmp"
 
   # SELECTED AND INERT. The invocation happened, matched the module, and
   # executed nothing — a `--ignored` filter over a suite with no
   # `#[ignore]`. Reachability cannot see this; a passed count can.
-  if out=$(cd "$tmp" && printf '%s\n' "$tally" | sed "1s/\t[0-9]*$/\t0/" |
-             CENSUS_CHECK_EXECUTED=true gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the executed-set floor PASSED a suite that was selected and executed 0 tests\n%s\n' "$out" >&2
-    exit 1
-  fi
-  case "$out" in
-    *'executed 0 test(s)'*) ;;
-    *) rm -rf "$tmp"
-       printf 'SELFTEST FAILED: the selected-and-inert case fired with an unexpected message:\n%s\n' "$out" >&2
-       exit 1 ;;
-  esac
-
+  executed_case 'executed 0 test(s)' 'a suite that was selected and executed 0 tests' \
+    sed '1s/\t[0-9]*\t\([0-9]*\)$/\t0\t\1/'
   # THE CALL DROPPED ALTOGETHER.
-  if out=$(cd "$tmp" && printf '%s\n' "$tally" | tail -n +2 |
-             CENSUS_CHECK_EXECUTED=true gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the executed-set floor PASSED with a rostered invocation missing\n%s\n' "$out" >&2
-    exit 1
-  fi
-  case "$out" in
-    *'never invoked'*) ;;
-    *) rm -rf "$tmp"
-       printf 'SELFTEST FAILED: the dropped-call case fired with an unexpected message:\n%s\n' "$out" >&2
-       exit 1 ;;
-  esac
-
-  # A SWEEP THAT RECORDED NOTHING AT ALL looks exactly like a clean one
-  # to anything that only reads rows.
-  if out=$(cd "$tmp" && printf '' | CENSUS_CHECK_EXECUTED=true gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the executed-set floor PASSED on an EMPTY tally\n%s\n' "$out" >&2
-    exit 1
-  fi
-
-  # AN EXECUTION NOBODY ROSTERED, which is how the roster would go stale.
-  if out=$(cd "$tmp" && { printf '%s\n' "$tally"; printf 'plain\ttopo\tprobe_0\t3\n'; } |
-             CENSUS_CHECK_EXECUTED=true gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the executed-set floor PASSED an execution absent from RUN_FLOOR\n%s\n' "$out" >&2
-    exit 1
-  fi
-  case "$out" in
-    *'does not roster it'*) ;;
-    *) rm -rf "$tmp"
-       printf 'SELFTEST FAILED: the unrostered-execution case fired with an unexpected message:\n%s\n' "$out" >&2
-       exit 1 ;;
-  esac
-
+  executed_case 'never invoked' 'a rostered invocation missing' tail -n +2
+  # A SWEEP THAT RECORDED NOTHING looks exactly like a clean one to
+  # anything that only reads rows.
+  executed_case 'is EMPTY' 'an empty tally' head -0
+  # AN EXECUTION NOBODY ROSTERED, which is how a roster goes stale.
+  executed_case 'does not roster it' 'an execution absent from RUN_FLOOR' \
+    sed '$a\plain\ttopo\tprobe_0\t3\t0'
   # A TALLY THE SWEEP COULD NOT HAVE WRITTEN.
-  if out=$(cd "$tmp" && printf 'plain editor-core m4_pr8_k_probe 1\n' |
-             CENSUS_CHECK_EXECUTED=true gate 2>&1); then
+  executed_case 'unreadable rows' 'a malformed tally' tr '\t' ' '
+  # THE COMPLEMENT, which is the case a floor cannot reach: a suite grows
+  # an `#[ignore]`d test, every rostered count is still met, and the new
+  # test is executed by nothing. The default selection reports it as
+  # skipped and no `--ignored` invocation accounts for it.
+  executed_case 'the `--ignored` selection ran' 'an `#[ignore]`d test no selection runs' \
+    awk -F'\t' 'BEGIN{OFS="\t"} $1=="plain" && NR==3 {$5=$5+1} {print}'
+  # AND THE ROW THAT MAKES THE COMPLEMENT KNOWABLE. A suite rostered
+  # under `--ignored` alone reports no skipped count at all, so nothing
+  # can tell whether its plain tests run.
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if out=$(cd "$tmp" && printf 'ignored\tsweep\tk_report\t1\t0\n' |
+             { RUN_FLOOR=(ignored:sweep:k_report:1); CENSUS_CHECK_EXECUTED=true; gate; } 2>&1); then
     rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the executed-set floor PASSED a malformed tally\n%s\n' "$out" >&2
+    printf 'SELFTEST FAILED: a suite rostered under `--ignored` alone PASSED with no default-selection row\n%s\n' "$out" >&2
     exit 1
   fi
   rm -rf "$tmp"
+  case "$out" in
+    *'owes a `plain` row'*) ;;
+    *) printf 'SELFTEST FAILED: the missing-plain-row case fired with an unexpected message:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
 }
 
 gate_selftest() {
@@ -834,9 +956,12 @@ gate_selftest() {
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
   gate_selftest_case 'does not say so' plant_disposition_undeclared
   gate_selftest_case 'does not say so' plant_disposition_not_a_doc_comment
+  gate_selftest_case 'carries the WRONG unrun declaration' plant_blanket_over_item_gate
+  gate_selftest_case 'carries the WRONG unrun declaration' plant_partial_over_file_gate
   gate_selftest_case 'One of the two is false' plant_disposition_both
   gate_selftest_case 'no such probe-gated file is censused' plant_roster_orphan
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_unwired
+  gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_commented_out
 
   # THE CITATION HALF's cases. `gate` reads CENSUS_CITATIONS as a
   # global and lib.sh's harness runs it in a subshell, so setting it
@@ -850,7 +975,7 @@ gate_selftest() {
   gate_plant_clean_exempt_control
   CENSUS_CITATIONS=false
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution and a malformed row; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted

@@ -17,14 +17,16 @@ root=$(pwd)
 # The guarded functions verbatim from the script under test — extracted
 # rather than copied so a change to one cannot leave this selftest
 # testing a fossil. `run_dump` selects `--ignored` tests and dumps CSV;
-# `run_plain` selects the default set and asserts; both share the
-# passed-count reader and the tally both write.
+# `run_plain` selects the default set; both end in `finish_run`, which
+# reads the runner's own counts, writes the tally row the executed-set
+# floor reads, and refuses a selection that neither ran nor skipped
+# anything.
 extract_fn() {
   sed -n "/^$1() {/,/^}/p" "$root/scripts/k_probe_sweep.sh"
 }
 extract_guards() {
   local f
-  for f in passed_count record_ran run_dump run_plain; do
+  for f in result_field record_ran finish_run run_dump run_plain; do
     if [ -z "$(extract_fn "$f")" ]; then
       echo "SELFTEST FAILED: no $f() found in scripts/k_probe_sweep.sh" >&2
       exit 1
@@ -32,6 +34,15 @@ extract_guards() {
     extract_fn "$f"
   done
 }
+# The stated ε `run_plain` pins, extracted for the same reason: a
+# constant copied here would let the two drift.
+extract_const() {
+  grep -E "^$1=" "$root/scripts/k_probe_sweep.sh" | head -1
+}
+if [ -z "$(extract_const PLAIN_EPS)" ]; then
+  echo "SELFTEST FAILED: no PLAIN_EPS in scripts/k_probe_sweep.sh" >&2
+  exit 1
+fi
 extract_guards >/dev/null
 
 # stub cargo: $STUB_PASSED rows "passed"; writes $CAD_K_REPORT_OUT only
@@ -47,7 +58,7 @@ if [ -n "${STUB_ROWS:-}" ] && [ -n "${CAD_K_REPORT_OUT:-}" ]; then
     for _ in $(seq 1 "$STUB_ROWS"); do echo "s,p,1,0,0,ok"; done
   } > "$CAD_K_REPORT_OUT"
 fi
-echo "test result: ok. ${STUB_PASSED:-1} passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+echo "test result: ok. ${STUB_PASSED:-1} passed; 0 failed; ${STUB_IGNORED:-0} ignored; 0 measured; 0 filtered out; finished in 0.00s"
 STUB
   chmod +x "$d/cargo"
 }
@@ -78,8 +89,9 @@ drive_plain() {
   set +e
   ( set -euo pipefail
     export PATH="$t/bin:$PATH" RAN_TALLY="$t/ran.tsv"
+    eval "$(extract_const PLAIN_EPS)"
     eval "$(extract_guards)"
-    run_plain selftest somepkg some_module
+    run_plain somepkg some_module
   ) >/dev/null 2>&1
   rc=$?
   set -e
@@ -91,7 +103,7 @@ drive_plain() {
 expect() {
   local want=$1 got=$2 what=$3
   if [ "$got" != "$want" ]; then
-    echo "SELFTEST FAILED ($what): run_dump exited $got, expected $want" >&2
+    echo "SELFTEST FAILED ($what): got \`$got\`, expected \`$want\`" >&2
     exit 1
   fi
 }
@@ -126,9 +138,15 @@ expect 1 "$(STUB_PASSED=1 drive "$tmp/hdr.csv")" 'header only, no sample rows'
 #    because `run_dump`'s `--ignored` runs ONLY `#[ignore]`d tests, so a
 #    filter naming a suite of plain `#[test]`s selects the module and
 #    executes none of it. That is the case a reachability floor scores as
-#    covered, so the row `run_plain` writes must say 0 and the guard must
-#    exit non-zero — the tally is the executed-set floor's only evidence.
-expect '0|plain somepkg some_module 1' "$(STUB_PASSED=1 drive_plain)" 'plain: one test ran, tally records it'
-expect '1|plain somepkg some_module 0' "$(STUB_PASSED=0 drive_plain)" 'plain: module selected, zero tests executed'
+#    covered. The row `run_plain` writes carries BOTH counts, because the
+#    floor reconciles the skipped half against what `--ignored` ran; the
+#    tally is that floor's only evidence, so it is asserted here too.
+expect '0|plain somepkg some_module 1 0' "$(STUB_PASSED=1 drive_plain)" 'plain: one test ran, tally records it'
+# THE COMPLEMENT the executed-set floor reads: the default selection ran
+# nothing and SKIPPED two, which is a legitimate all-`#[ignore]`d suite —
+# it must pass here and be reconciled against the `--ignored` run there.
+expect '0|plain somepkg some_module 0 2' "$(STUB_PASSED=0 STUB_IGNORED=2 drive_plain)" 'plain: all-ignored suite, complement recorded'
+# Neither ran nor skipped: the module matched nothing at all.
+expect '1|plain somepkg some_module 0 0' "$(STUB_PASSED=0 drive_plain)" 'plain: module matched no test at all'
 
-echo 'rundump-guard selftest OK: run_dump passes a clean dump and fires on an empty selection, an absent CSV, and a header-only CSV; run_plain passes a live selection and fires on one that matched the module and executed nothing, recording the executed count either way' >&2
+echo 'rundump-guard selftest OK: run_dump passes a clean dump and fires on an empty selection, an absent CSV, and a header-only CSV; run_plain passes a live selection and an all-ignored suite, fires on a module that matched no test at all, and records the executed and skipped counts in every case' >&2

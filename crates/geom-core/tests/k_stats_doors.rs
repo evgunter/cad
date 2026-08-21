@@ -15,11 +15,13 @@
 //! be run against a tree where the doors carry three separate bodies and
 //! against one where they delegate, and the two compared.
 //!
-//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** The probe suites CI
-//! executes are rostered in `scripts/gates/probe-suite-census.sh`
-//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this one is on
-//! neither list, so nothing here can go red on a merge and its assertions
-//! are evidence for a reader rather than a gate. By hand:
+//! **ITS PROBE-GATED CODE IS NOT EXECUTED BY CI**, and its sibling IS
+//! executed: `every_door_names_its_own_sample_for_the_recording_scalar`
+//! carries the feature gate and no CI row passes it, while the ungated test
+//! here runs on every merge. The probe suites CI runs are rostered in
+//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run by
+//! `scripts/k_probe_sweep.sh`; this file is on neither list, so the
+//! name-channel claim is evidence for a reader rather than a gate. By hand:
 //! `cargo test -p geom-core --features probe --test all -- k_stats_doors::`.
 
 #![allow(clippy::unwrap_used, clippy::panic)]

@@ -43,11 +43,11 @@
 //! says what the band means: an interior rim inside the band is
 //! ACCEPTED and one outside it is REFUSED, so ε buys a real length.
 //!
-//! **CI COMPILES THIS SUITE AND DOES NOT RUN IT.** The probe suites CI
-//! executes are rostered in `scripts/gates/probe-suite-census.sh`
-//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this one is on
-//! neither list, so nothing here can go red on a merge and its assertions
-//! are evidence for a reader rather than a gate. By hand:
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
 //! `cargo test -p geom-brep --features probe --test all -- rim_dim_scale_twins::`.
 
 #![cfg(feature = "probe")]
