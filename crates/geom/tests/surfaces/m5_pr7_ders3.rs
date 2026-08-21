@@ -15,10 +15,14 @@
 //!    jet, on a genuinely **rational** patch — non-unit weights, so the
 //!    Eq. 4.20 correction terms are all live. FD is the reference here
 //!    precisely because it shares no code with the formula under test.
-//! 3. **Totality.** There is no invalid input left to poison for:
-//!    `ders3_in_span` takes a validated [`geom::SurfaceWindow`],
-//!    so "invalid span pair" is not a representable argument. What
-//!    survives is the totality of the two constructors — checked below.
+//! 3. **Totality.** `ders3_in_span` takes a [`geom::SurfaceWindow`],
+//!    whose two spans are validated against the surface that MINTED
+//!    it — which is a fact about that surface, not about the value, so
+//!    a window from another surface is still a representable argument
+//!    and is answered with an all-poison jet
+//!    (`geom::NurbsSurface::admits`; pinned in
+//!    `tests/surfaces/span_window_pairing.rs`, not here). What this
+//!    suite checks is the totality of the two constructors — below.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -147,10 +151,11 @@ fn third_partials_of_a_bilinear_patch_vanish_exactly() {
     }
 }
 
-/// The row `invalid_span_pair_poisons_rather_than_panicking` became:
-/// the poison return it pinned is gone because its input is gone.
-/// `window` REFUSES what used to poison, and `window_at` is total, so
-/// every `SurfaceWindow` that reaches an evaluator is in range.
+/// The row `invalid_span_pair_poisons_rather_than_panicking` split in
+/// two. `window` REFUSES an out-of-range or empty span pair outright,
+/// which is this row; a window that is in range for the surface that
+/// minted it and NOT for the one it is handed to is still poisoned
+/// rather than indexed, which is `span_window_pairing.rs`'s.
 #[test]
 fn an_invalid_span_pair_has_no_window_at_all() {
     let s = rational_patch();

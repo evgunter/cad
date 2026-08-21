@@ -519,29 +519,42 @@ jobs:
       - name: scene manifest reader selftest (demos)
         run: python3 demos/manifest.py --selftest
 
-  # rustfmt AND the rustdoc gate, in one job (2026-08-20, minutes audit).
-  # Separately these billed two minutes to do ~50 s of work — 33 s and
-  # 46 s measured (run 32425890937), each rounded up, and most of each
-  # was the runner setup they now share. Together they land inside one
-  # billed minute.
+  # rustfmt, the rustdoc gate AND the wasm32 guard, in one job — and the
+  # job NAME says all three, because a name narrower than its contents
+  # is how a red run gets read as the wrong failure.
   #
-  # BOTH KEEP THEIR OWN STEP, with the step names unchanged, because
-  # that is what a failure is read by: a red run still says `rustfmt`
-  # or `rustdoc (gate)`, matching the rows of the same names in
-  # local-scripts/ci-local.sh. Neither is on the critical path (they
-  # finished at 1.4 min of a 13.6 min run), so the serialisation costs
-  # nothing.
+  # rustfmt + rustdoc merged 2026-08-20 (minutes audit, #852): separately
+  # these billed two minutes to do ~50 s of work — 33 s and 46 s measured
+  # (run 32425890937), each rounded up, and most of each was the runner
+  # setup they now share.
   #
-  # NOT MERGED IN, deliberately: `discipline`, whose ~23 s would push
-  # the total past the minute boundary and buy nothing; and
+  # EACH KEEPS ITS OWN STEP, with the step names unchanged, because that
+  # is what a failure is read by: a red run still says `rustfmt` or
+  # `rustdoc (gate)`, matching the rows of the same names in
+  # local-scripts/ci-local.sh. None of the three is on the critical path,
+  # which is `build + archive (interval)` at ~88% of a ~13 min run, so the
+  # serialisation costs no wall-clock for the run as a whole. The measured
+  # figures live at the wasm32 step.
+  #
+  # NOT MERGED IN, deliberately: `discipline`, whose ~30 s buys nothing
+  # here and would eat the headroom this job keeps under its billing
+  # boundary; and
   # `docs-only`, which carries no `if` because it is the green check a
   # docs-tier run reports when every other job skips — the opposite
   # condition to this job's.
   #
   # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
-  # expect exactly one cold run here and warm thereafter.
+  # expect exactly one cold run after any change here and warm thereafter.
+  #
+  # WHY THESE THREE AND NOT SOME OTHER SET. All three are UNSCOPED
+  # workspace-wide ratchets: `cargo fmt --all`, doc-gate's fixed crate
+  # list, and a `--workspace` cross-compile. They do not read
+  # `cargo_scope`, so they behave identically in tier `all` and tier
+  # `closure` — which is what makes them shareable in one job at all.
+  # `clippy` is the counter-example and stays out: it IS the filter's
+  # per-closure row.
   fmt:
-    name: rustfmt + rustdoc (gate)
+    name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
     needs: filter
     if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
@@ -562,6 +575,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: rustfmt
         run: cargo fmt --all --check
+      # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
+      # comment can silently stop rendering with the gate green. The
+      # command, the flags, and the shrinking exclusion list all live in
+      # scripts/doc-gate.sh — one implementation, called from here and
+      # from local-scripts/ci-local.sh, the ci-filter.py arrangement.
+      # NOT scoped by the filter, deliberately: it is a workspace-wide
+      # ratchet over a fixed crate set, so scoping it to the change
+      # closure would trade the ratchet's meaning for no measurable
+      # time. It still respects the docs tier via this job's run_build.
+      #
       # Runs even when rustfmt failed: formatting and doc coverage are
       # independent verdicts, and the matrix-free merge must not turn
       # two findings into one. `!cancelled()` rather than `always()` so
@@ -569,6 +592,161 @@ jobs:
       - name: rustdoc (gate)
         if: '!cancelled()'
         run: scripts/doc-gate.sh
+
+      # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
+      #
+      # docs/GUI-DESIGN.md §GQ6 and docs/GQ6-RESURVEY.md §4 both state, as
+      # a MEASURED fact that a ratified toolkit row rests on, that the
+      # kernel plus `editor-core` compiles to wasm32-unknown-unknown,
+      # `--features interval` included. Nothing re-took that reading:
+      # before this step no CI row named a wasm target at all, so a
+      # dependency bump could falsify the sentence with every other row
+      # green — a transitive crate growing a `std::os::unix`, `getrandom`
+      # or `mmap` path is enough, and the documents would still read as
+      # checked fact.
+      #
+      # ONE LEG, and it is the interval one. Evan's ruling, 2026-08-21:
+      # *"do add wasm cross compiling for the interval build only. the
+      # lint for having interval be purely additive suffices."* The
+      # default-features leg and a whole-workspace `wasm_js` leg were both
+      # dropped to that ruling. What each one guarded, and what now
+      # guards it, is written at both claim sites — a claim whose guard
+      # goes away needs a written reason where the claim is, not silence.
+      #
+      # WHY ONE LEG COVERS THE DEFAULT BUILD, i.e. why this is subsumption
+      # and not a narrowing. `--features interval` compiles a SUPERSET of
+      # what default features compile, for two independent reasons:
+      #
+      #   1. Cargo features are purely additive for the DEPENDENCY GRAPH.
+      #      Enabling a feature can add crates and features; it cannot
+      #      remove them. That is cargo's design, not this repo's.
+      #   2. `scripts/check-interval-cfg-additive.py` forbids any
+      #      `cfg(not(feature = "interval"))` under crates/*/{src,tests},
+      #      so no source in this repo compiles ONLY when the feature is
+      #      off. That gate runs in `discipline`, on the same code-tier
+      #      pull-request runs as this step — the premise is checked
+      #      wherever it is relied on.
+      #
+      # THE LINT'S OWN RESIDUAL IS NOW THIS GUARD'S RESIDUAL, and its
+      # header states it: the check is SYNTACTIC. It cannot see through a
+      # gated `mod` whose contents are non-additive, nor a gated impl of a
+      # trait with a blanket default method that an f64 path then calls.
+      # It narrows the hole; it does not close it. Read it there before
+      # relying on this comment.
+      #
+      # THE THIRD-PARTY HOLE, MEASURED 2026-08-21 — the one direction the
+      # subsumption above can fail, and it is outside the lint's scope
+      # because the lint reads only this repo's crates. Feature
+      # unification can ENABLE a feature on a shared third-party crate,
+      # and a crate carrying an internal `#[cfg(not(feature = "f"))]`
+      # block then compiles LESS of itself under `interval` than under
+      # default features. A wasm-hostile path living in such a block
+      # would be exercised by a default-features check and skipped here.
+      #
+      #   $ cargo tree --workspace --exclude pncad --exclude pncad-py \
+      #       --target wasm32-unknown-unknown -e features [--features interval]
+      #
+      #   Diffed between the two configurations: NOT ONE LINE present
+      #   under default features is absent under `--features interval`.
+      #   The entire delta is one duplicate-reachability marker.
+      #
+      # So the hole is UNOCCUPIED at this dependency set. That is a
+      # property of the current graph, not a theorem — RE-TAKE IT with the
+      # command above if this guard ever looks like it is missing
+      # something, and do not weaken the claim without re-taking it.
+      #
+      # (`interval-transcendentals` is already in the DEFAULT graph: it is
+      # an unconditional dependency of `geom-core`, and the feature gates
+      # the code that USES it rather than the edge. So this leg is not
+      # pulling in a subtree the default build lacks; it is adding this
+      # repo's gated source over the same crates. `inari`, `gmp` and `rug`
+      # appear in NEITHER graph — the gmp-backed oracle is a
+      # dev-dependency of a path dependency and never enters either.)
+      #
+      # WHAT IS NOW UNGUARDED, stated because §Q6's whole subject is
+      # claims nothing re-takes: the `pncad`/`pncad-py` façade under
+      # `--cfg getrandom_backend="wasm_js"`. GQ6-RESURVEY §4's third table
+      # row and its "verified fix" paragraph are a one-time reading again,
+      # and §4 now says so at the row. Same ruling, same reason.
+      #
+      # SITED IN THIS JOB, not in one of its own (Evan's earlier
+      # constraint: the guard must not add runner time). Actions bills PER
+      # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so
+      # billed minutes are the currency, not seconds.
+      #
+      # MEASURED, hosted (ubuntu-latest, 2 vCPU), tier `all`. TWO
+      # readings, and they do not agree on the billed cost — read both:
+      #
+      #   run 32452728742, COLD (this job's cache key had just rotated):
+      #     install 3 s + check 17 s = 20 s of guard. Job 64 s without,
+      #     84 s with. Both round to 2 billed minutes, so +0.
+      #   run 32452924083, WARM: install 2 s + check 11 s = 13 s of guard.
+      #     Job 53 s without, 66 s with. That is 1 billed minute without
+      #     and 2 with, so +1.
+      #
+      # SO THE BILLED COST IS 0 OR 1, NOT RELIABLY 0. This job's baseline
+      # STRADDLES the 60 s boundary — `rustdoc (gate)` alone swings 22-34 s
+      # between runs — so which side it lands on decides the guard's
+      # billed cost, and a warm run is the common case. Do not quote a
+      # flat +0 from here.
+      #
+      # A job of its own would pay set-up, checkout, toolchain and cache
+      # restore again (26 s measured on this workflow's light jobs), i.e.
+      # 39-46 s = 1 billed minute ALWAYS, plus a concurrent runner slot.
+      # So the step is 0 or 1 against a job's flat 1: never worse, and
+      # free on a cold run. That is the whole of the siting argument now —
+      # it is narrower than it was with three legs, and honestly so.
+      #
+      # WORTH KNOWING, because it is counter-intuitive: cutting this guard
+      # from three legs to one did NOT reduce its billed cost. With three
+      # legs the job was 103-110 s against a 61-62 s baseline — both sides
+      # over the boundary, so +0 on both readings. One leg is ~25 s
+      # cheaper in WALL-CLOCK and can be +1 in BILLED minutes. The two
+      # currencies disagree here; the ruling that chose one leg was about
+      # the interval build's coverage, not about this number.
+      #
+      # Locally, from an empty CARGO_TARGET_DIR on a 4-vCPU container, the
+      # same command is 23.5 s cold and 2.5 s warm.
+      #
+      # NOT on the critical path either way: the job finishes inside two
+      # minutes against `build + archive (interval)`, which is ~88% of a
+      # ~13 min run, so this is billed runner minutes and ZERO extra
+      # wall-clock for the run as a whole.
+      #
+      # This job rather than `clippy` because the guard is an UNSCOPED
+      # workspace-wide ratchet and so are this job's other two rows, while
+      # `clippy` runs `${{ needs.filter.outputs.cargo_scope }}` and is the
+      # filter's per-closure row — see this job's header.
+      #
+      # SITING (S61): the inputs are the kernel crates and the dependency
+      # graph, so the gate has to fire on the change that would break it.
+      # Cargo.toml and Cargo.lock are not `_is_docs` paths, so a dependency
+      # bump classifies TIER=all and this job runs. The only change class
+      # that skips it is a docs-tier one (`*.md`, `memories/`,
+      # `local-scripts/`, `.claude/`), none of which can move a wasm build
+      # — plus, since #852, a push to main, which runs no gate at all and
+      # is a property of the workflow rather than of this step's siting.
+      #
+      # `check`, NOT `build`: the guarded sentence is "compiles clean".
+      # This step runs no codegen and no linker, and therefore establishes
+      # nothing about whether a wasm artifact links, loads or runs — see
+      # the two caveats GQ6-RESURVEY §4 already flags (threads, and
+      # `mul_add` lowering).
+      #
+      # Target install goes through `rustup target add` rather than the
+      # toolchain action's `targets:` input on purpose: rust-toolchain.toml
+      # pins 1.97.0, and `rustup` resolves that directory override, so the
+      # std artifacts land on the toolchain cargo will actually use.
+      #
+      # `!cancelled()` on both, for this job's stated reason: a formatting
+      # or a rustdoc failure is a different verdict from a wasm one, and
+      # the matrix-free merge must not turn two findings into one.
+      - name: install the wasm32 target (pinned toolchain)
+        if: '!cancelled()'
+        run: rustup target add wasm32-unknown-unknown
+      - name: wasm32 check (kernel + editor-core, --features interval)
+        if: '!cancelled()'
+        run: cargo check --workspace --exclude pncad --exclude pncad-py --features interval --target wasm32-unknown-unknown
 
   clippy:
     name: clippy
@@ -599,16 +777,6 @@ jobs:
       # `-p <closure>` list in tier `closure`.
       - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
-  # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
-  # comment can silently stop rendering with the gate green. The command,
-  # the flags, and the shrinking exclusion list all live in
-  # scripts/doc-gate.sh — one implementation, called by this job and by
-  # local-scripts/ci-local.sh, the ci-filter.py arrangement.
-  #
-  # NOT scoped by the filter, deliberately: the gate is a workspace-wide
-  # ratchet over a fixed crate set, and it runs in ~15 s cold, so scoping
-  # it to the change closure would trade the ratchet's meaning for no
-  # measurable time. It still respects the docs tier via run_build.
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
