@@ -228,6 +228,54 @@ the census pass and does not disturb H-R3. **The same check is owed at
 the `geom` doors and is the lane's first task**, since a door called from
 inside a mixed pass cannot be tightened without breaking the pass.
 
+### H-R5. `S210` is a Track H row, scheduled AFTER `H-g` — and a hypothesis it should test first
+
+Lane H-d closed `S88` and minted **`S210`** for the part it could not
+close: **nothing watches this class.** `scripts/gates/bounds-allowlist.sh`
+**cannot** see a sole `T: Bounds` bound — that is its planted
+*must-not-fire* case, because firing would red every certification file in
+`geom` and `geom-brep`. So the sole bound is the form the rule
+**prescribes**, and no instrument watches the form the rule prescribes.
+H-d costed two closures — a whole-tree trait walk plus grep, accurate only
+at its merge base; or a **resolved**-bound-set query via a `rustc` driver
+or `rust-analyzer`, which stays true — and **minted no schedule row**,
+handing placement here. That was right: the class spans Track G's ground,
+Track C's abandoned ground, Track I's, and `bvh/`, and no lane should
+place a row across four tracks from inside one.
+
+**It is Track H's**, because the rule it enforces has exactly two homes and
+both are in this track's ground: `real.rs`'s `Bounds` scope rule and
+`scripts/gates/bounds-allowlist.sh`. **It is scheduled after `H-g`**,
+because H-g changes the population it would measure: a door tightened to
+`CertifiedBounds` is structurally safe and drops out of the class, so
+building the instrument first would census a set that is about to shrink.
+
+**A hypothesis the taker should test before paying for a `rustc` driver —
+recorded as a hypothesis, not a finding, because I have not checked it.**
+H-d's distinction is *terminal* versus *fed-back* bracket reads. There may
+be a cheaper type-level proxy: the defect in `project` is not that it
+decides with a bracket, it is that it returns a **`T`-valued output whose
+tangent is wrong** — the foot, computed through a frozen `f64` parameter.
+By contrast `project_seed` returns `f64`, the box constructors return
+non-generic boxes, and a door that merely *decides* is safe by delegation
+(a dual takes the value channel's branch, which is the base scalar's).
+**If that holds, the signal is "sole `T: Bounds` **and** `T` in the return
+type", which a grep can approximate and a trait walk can confirm** — far
+short of resolved bound sets.
+
+**I have not verified it and it may well be wrong**; the obvious stressor
+is a door that returns a non-`T` classification but reaches it through a
+`T` it computed badly. **The taker tests the hypothesis first and reports
+it as false if it is false** — that is a cheap experiment against an
+expensive tool, and enshrining it as an instruction is exactly the
+dispatcher failure `docs/REVIEW-STYLE-DISPATCH.md` §3 names.
+
+**`S211` needs no ruling** — H-d minted and fixed it in the same PR: two
+`geom` box modules called themselves *"allowlisted `Bounds` seams"* while
+being on no list and unable to be on one. Its third member,
+`bvh/src/lib.rs:56-61`, is in no track's ground and is named in the record
+rather than taken.
+
 ---
 
 ## Sequencing
