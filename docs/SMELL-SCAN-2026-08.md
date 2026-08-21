@@ -8312,9 +8312,53 @@ path-shaped matcher can reach. And **mirror citations resolve**: `ci-local.sh`
 carries
 `# HOSTED MIRROR: <job> / <step name>` markers, each of which must name a step
 `ci.yml` carries under that job, with a floor so deleting the markers is not a
-pass. The drifted prose this finding recorded — *"the `k-lint` job's 'demos
+pass. The prose this finding recorded — *"the `k-lint` job's 'demos
 render provenance' step"* for what is `render provenance (demos)` in
 **`discipline`** — is corrected, and reds as a marker.
+
+**CORRECTION, from #837 (Track G, G11), and it sharpens the class rather
+than the count: that sentence never drifted, because it was never true.**
+Re-derived commit by commit, and the origin is tighter than a drift story
+allows: **one commit wrote both halves, and they disagreed on arrival.**
+`480539d9` (2026-08-06, the render-provenance guard's own commit) added the
+step to `ci.yml` **inside `discipline`** and, in the same diff, added
+`# \`k-lint\` job's "demos render provenance" step.` to the local half. The
+step name has been added exactly once in the file's whole history and
+removed never, so it has never lived in another job; `ba5b3bba`
+(2026-08-11) only moved the comment from `scripts/` to `local-scripts/`
+with the rest of the split. The sentence described no state of the tree at
+any point in its life. **And it propagated**: #837 wrote a mirror comment
+for its own new row by copying the shape of the one above it, reproducing
+the wrong job — so the file carried two false citations, one five days
+old and one five minutes old, and neither was a drift.
+
+That is the whole arc of this class in one line — **a claim that was false
+when written, copied by a later pass that had no way to check it, and ended
+only when the population was *derived* rather than read.** #837's own sweep
+re-derived all **sixteen** `Mirror:` / `Hosted mirror:` cross-references in
+`ci-local.sh` against a job→step map parsed out of `ci.yml`: **fourteen
+true, two false, both of them the pair above** — including the historical
+*"NO HOSTED MIRROR ANY MORE"* note, which is accurate (the retired
+`uv sheet drift (demos)` row really was `k-lint`'s, confirmed at
+`11f55a27^`). The count is #837's, not this finding's original scan, which
+saw six.
+
+**And the sharpest part is not the correction, it is which two were
+wrong. The two false citations are exactly the two that predate the
+`# HOSTED MIRROR:` marker format** — every citation written *as a marker*
+resolves, and both written *as prose* did not. #837's own wrong line was
+invisible to this checker for exactly that reason: **prose is not a
+marker**, so the gate could not see it to red it. That is the whole
+argument for computed claims over careful ones, demonstrated rather than
+asserted — and it is why the remedy here was never "read the comment more
+carefully" but "put the claim in a shape a checker can reach."
+
+**A note on citing this finding by line number: do not.** #837 re-derived
+its sweep after a mid-lane merge of `main` and **every line number in it
+had moved** — the two false citations alone shifted by roughly forty lines.
+The job/step pair is the stable key and the one the gate uses; a line
+number in this document is a claim with a shorter half-life than the
+document.
 
 **The `0644` blind spot is closed.** Re-confirmed by planting first: on the merge
 base, a mode-0644 `zz-unwired-nonexec.sh` beside fourteen wired gates left
@@ -10747,7 +10791,7 @@ from the one the census names.
    one of the three ((d)) is named by a live §D row. (a) and (e) would become
    untracked the moment G10's row left the table, which is the half-fix shape
    G-R2 invoked to require the ledger in the first place. **G10 stays in §D**,
-   re-scoped to the residue; the general form is **S177**, and **D114** is the
+   re-scoped to the residue; the general form is **S177**, and **D124** is the
    row that re-homes (a).
 
 - (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
@@ -10915,100 +10959,74 @@ Beyond S64, S67, S74 and S98:
   **Not this unit**: the byte-identical three-way `fn quad` across
   `sweep/`, `mesh/` and `step-export/` test-commons lives in three
   crates' test trees, not in `demos/`.
-- (c) The demo manifest and UV cell formats have no definition: three
-  hand-rolled JSON emitters, four readers, one field
-  (`transparency`) written by one producer and `.get(…, 0)`-defaulted by
-  both readers; `View.up` re-encoded in the inverse direction across
-  `render.py:51-57` and `render_freecad.py:105-133`;
-  `compose_uv_montage.py`'s six-entry `LEGEND` mirroring
-  `uvdump.rs:81-91` **unverified** while the cell size is verified.
-  `check_render_provenance.py:104,112` announces the shape outright —
-  *"Kept in sync with render.sh's `--montage=` arguments"*, *"keep the
-  three spellings in sync"* (there are two).
+- (c) **FIXED by #837** (the design question was closed by Evan,
+  2026-08-20; the schema framing was refused and the emitter half
+  ruled *no shared type*). **The duplication was in the READERS**, and
+  the fix is one: `demos/manifest.py`, which owns the walk, the field
+  names and the `view.up` convention. `render.py`,
+  `render_freecad.py`, `compose_montage.py` and `render.sh`'s scene
+  lister all read through it. **No schema, no serde type, no
+  validation layer and no new crate edge.**
 
-  **Still open, and deliberately.** #787 (Track G, G2) produced the
-  full producer/consumer census this row asks for — three emitters,
-  five readers, field by field, each disagreement with both sides'
-  `file:line` — and stopped there rather than inventing a schema; the
-  census is that PR's report.
+  **The `view.up` convention is now written once, in the world →
+  display direction only**, as a signed permutation; the display →
+  world direction a camera needs is *derived* by inverting it. The two
+  hand-written maps that were exact inverses by coincidence
+  (`render.py:51-57`, `render_freecad.py:105-133`) cannot disagree
+  because there is no longer a second one to disagree with. Its
+  selftest pins the convention against both spellings it replaced and
+  pins that the derivation really is an inverse, in both compositions.
 
-  **The question this row was going to ask was mis-framed, and Evan
-  refused the framing** (2026-08-20): *"the inconsistencies seem like
-  they're a problem with not having shared render code or something, and
-  that seems unifiable without writing the demos to match a specific
-  schema?"* He is right, and the correction is most of the answer.
+  **Both defaults are gone, and gone by being unnecessary rather than
+  by being unified.** `transparency` and `montage` are now read, not
+  `.get`-defaulted, because both producers write both keys for every
+  body and every scene — so a producer that stopped would fail the
+  first render instead of rendering something plausible. `step` KEEPS
+  its defensive posture and says why: it is nullable in fact (the wild
+  generator writes `null` for every cell, because its STEP is an input
+  fixture rather than something the pipeline exported), and the one
+  reader that opens it names its own producer at the site.
 
-  **A schema is powerless against the sharpest item.** `render.py:51`
-  and `render_freecad.py:105` are two independent implementations of
-  *what `up: "y"` means* — one mapping world→display
-  (`(x,y,z) ↦ (x,−z,y)`), one display→world (`(a,b,c) ↦ (a,c,−b)`),
-  neither citing the other, exact inverses by coincidence. A schema
-  declares `up: "y" | "z"` and says **nothing** about the transform. The
-  same holds for the defaulting: both readers walk `bodies`, `stl`,
-  `color`, `name`, `view` independently, which is *why* `transparency`
-  is defaulted twice and `montage` is `.get(…, True)`-defaulted twice.
-  **The duplication is in the READERS**, and one shared reader module
-  closes those four with no schema, no serde types and no new crate
-  dependency edge.
+  **The eight `uv.json` fields nothing read are deleted** — `scene`,
+  `half_edges`, `cached`, `area`, `sense`, `winding_ok`, `gap`,
+  `chart_jump` — after re-deriving the claim rather than trusting it:
+  seven are consumed Rust-side by `draw_face` *before* serialisation
+  and stay in `FaceStats`, drawn into each cell's own SVG; only
+  `FaceDump::scene` was dead end to end and it is gone with its
+  plumbing. The corpus-wide aggregates of the same numbers are printed
+  by the run that measures them, from the in-memory dumps, so nothing
+  that was computed became uncomputable. Every field `uv.json` still
+  carries is read by `compose_uv_montage.py`.
 
-  **The framing error underneath: `demos/*.py` are not demos.** The
-  demos are the Rust that drives the kernel through its public API —
-  that is the evidence about what using this library is like.
-  `memories/demo-purpose.md`'s *"write it the way a user would"* governs
-  **that**, not the harness we use to look at the output. So the tension
-  the question was built on — that unifying moves *a demo* toward
-  *a demo with a schema library* — does not apply to the readers at all.
-  A user wiring two renderers would share the camera code.
+  **The wild emitter now writes the tour's field set** (`transparency`
+  added; `step` stays `null`, which is the fact and not a placeholder)
+  — **independently, and both sites say the agreement is deliberate
+  and unenforced**: no shared type, no dependency edge, nothing
+  comparing the two emitters. That is the ruling, verbatim: *"seems
+  fine to make the two renders line up 'coincidentally' on step and
+  transparency. sharing for just those two fields is overengineered
+  even ignoring the realism concern."*
 
-  **What is left is the EMITTER half, and it is small.** The tour writes
-  `transparency` and a `String` `step`; the wild generator omits the
-  field and writes `null`. Sharing a Rust type there **would** need a
-  dependency edge from `demos/wild` to `demos/tour` or to a third crate
-  — and *that* is a genuine demo-purpose question, because two
-  independent example programs sharing a type is itself a claim about
-  how a user works. It is answerable in a sentence and does not need a
-  four-option fork.
+  **Measured, on this tree.** No committed artifact moved. All 35 tour
+  frames and all 8 wild cells render byte-identical old-vs-new
+  (including the four `up: "y"` scenes and the transparent `klein`),
+  the tour montage sheet is byte-identical, the scene lister returns
+  the same 35/20 names, and `renders-uv/montage-uv.svg` regenerates
+  clean. `freecadcmd` is not installed on the lane box, so
+  `camera_rotation` was checked locally by extracting both revisions
+  and comparing the camera basis under an `App.Vector` shim over 151
+  views — 43 from the two committed manifests, 108 synthetic, 50
+  through the straight-down fallback (2 of them committed scenes) —
+  bit-identical throughout. **Hosted CI is the verification of record
+  for that lane and does run it**: `ci.yml`'s `render lanes` job calls
+  `render.yml` through its `workflow_call` entry, all four lanes, on
+  every PR the change filter marks as building (`run_k_lint`) — so not
+  on a docs-only one — and reports render drift.
 
-  **ANSWERED (Evan, 2026-08-20). No shared type; the two emitters line
-  up by agreeing, not by being made to agree.** Verbatim: *"seems fine
-  to make the two renders line up 'coincidentally' on step and
-  transparency. sharing for just those two fields is overengineered even
-  ignoring the realism concern."* So the wild emitter writes the same
-  field set the tour does, independently, and **no dependency edge is
-  created between `demos/wild`, `demos/tour` or a third crate.** Note
-  what the ruling does *not* say: it is not *"leave them disagreeing"*.
-  The disagreement goes away; the mechanism that would enforce its
-  absence does not get built, because two fields do not pay for a shared
-  type — and that holds **even setting the demo-realism argument
-  aside**, which is the stronger form of the answer and the one that
-  makes it a cost judgement rather than a doctrine.
-
-  **S114(c) is closed as a design question in full.** What remains is
-  ordinary work, scheduled as §D's **G11**: one home for the `View.up`
-  convention deriving both directions, one shared manifest walk for the
-  two Python readers, the eight unread `uv.json` fields deleted, and the
-  wild emitter's field set brought level with the tour's. **No schema,
-  no serde types, no new crate edge** — the instrument the original
-  question proposed was aimed at the emitters when the duplication was
-  in the readers.
-  Two things did NOT wait for it, because they are wrong under every
-  schema anyone might pick: **(h)** above (a guard against a state no
-  producer emits), and the two sync claims at
-  `check_render_provenance.py:104,112`, which are now COMPUTED — the
-  selftest reads the sheet names back out of `render.sh` /
-  `render-wild.sh` / `compose_montage.py` and the wild Author string
-  out of `render-wild.sh`, and compares — with `render-wild.sh:54`'s own
-  end of that pair rewritten to say it is read rather than to ask for
-  hand-syncing. *"The three spellings"* was two, and is now two that are
-  checked. **The third pair the finding names is checked too**, after
-  review caught it left silent: `compose_uv_montage.py`'s
-  `legend_colors_in_emitter()` reads `uvdump.rs`, and its selftest
-  asserts every `LEGEND` swatch is a stroke the emitter actually
-  writes. That immediately caught two: the "derived pcurve" row's grey
-  `#777777`, which appears nowhere in a cell (a derived pcurve is
-  dashed in its own FORM's colour), and `#333333` against the emitter's
-  `#333`. Both corrected and the committed sheet re-baselined — two
-  legend lines, nothing else.
+  **What is not enforced, stated.** Nothing compares the two emitters'
+  field sets; that is the ruling's choice, not an oversight. What
+  exists instead is that the shared reader *reads* rather than
+  defaults, so a drift surfaces at the first render.
 - (d) **FIXED by #786** — `sin`/`cos` share one `sinusoid` body
   parameterized by the libm entry point and the two extremum phase
   offsets; `asin`/`acos` share `clamp_to_unit` (propagate, full-miss
@@ -12343,7 +12361,7 @@ five-member sentence was written.
 
 **Not swept.** This finding names one instance because G10's ledger walked
 into it. Every other struck row on every track has the same exposure and
-none of them were checked; that is a sweep with an owner, which is **D114**.
+none of them were checked; that is a sweep with an owner, which is **D124**.
 
 **Verdict:**
 
@@ -14995,6 +15013,91 @@ re-measure this and belongs with it — that gate structurally cannot see a
 degraded scan, so if the answer is a scheduled re-measure, this is the
 quantity it would measure. **Row: D105.**
 
+## S174. S113(a)'s sweep stopped one paragraph short, in the file it edited
+
+**Raised by G11 / #837 while regenerating the uv lane to check for
+drift.** S113(a) is recorded FIXED by #787 and its record names the
+exact corrections — *"982 → 1049 faces, 879 → 946 checkable, and
+`9.4e-16` → `9.93e-16` for the worst 3-D loop gap"* — and says the
+sweep reached `demos/README.md:346`. **Five of those same numbers are
+still standing in `demos/README.md`, above and below the line the
+sweep fixed**, measured on a tour run from this tree (35 scenes, 1049
+face charts, 946 checkable / 103 branch-jumped / 0 disagree, worst 3-D
+loop gap 9.93e-16 m, 285 curved faces, 48 sheet cells):
+
+- `:176-177` *"879 of the 982 M7 faces are checkable … all 879
+  agree"* → **946 of 1049**, and all 946 agree (`0 disagree`).
+- `:186-187` *"103 of the 982 M7 faces show such a jump"* — **103 is
+  right, 982 is not** (1049).
+- `:188-189` *"the true closure gap never exceeds 9e-16 m anywhere in
+  the corpus"* — **false as stated**: the measured worst is
+  9.93e-16 m, and this is the same number S113(a) corrected at
+  `uvdump.rs:294`.
+- `:218` *"982 at M7"* and `:224` *"all 982 SVGs stay in `out/uv/`"* →
+  **1049**, a number the composer PRINTS on every run.
+- `:232` *"Of the 238 curved faces"* → **285**.
+
+**Not claimed:** `:196`'s *"3 of 36 on the sheet"* and `:232`'s
+*"234 have boundaries built entirely from iso-curves … only 4 do not"*
+are almost certainly stale too — the sheet carries 48 cells now — but
+neither is derivable from anything a run prints or `uv.json` carries,
+so this finding does not put a number on them. Deciding what they
+should say is part of the work, not part of the evidence.
+
+**The disposition is #787's own rule, not a recount:** *compute or
+delete, never restate.* The tour's closing lines already print every
+figure in the first four bullets and the composer prints the fifth, so
+the prose should point at the run and state the RULE, exactly as
+`uvdump.rs` and `compose_uv_montage.py` now do. A corrected number
+here is a number that drifts again on the next scene.
+
+**Why it is not fixed in #837:** `demos/README.md` is outside G11's
+scope cell, and the honest fix is an editorial pass over that whole
+section — the half of it that can only be restated has to say at the
+site why. A partial recount is §C13's half-fix. **Row: D123.**
+
+## S196. Twelve `# noqa` markers for three linters, none of which the repo runs
+
+**Raised by G11 / #837**, whose own fix pass added two of them before
+checking whether anything reads them.
+
+`git grep noqa -- '*.py'` returns **twelve markers in six files**, and
+`git grep -il 'ruff|flake8|pycodestyle|black|pylint'` over `.github/`,
+`local-scripts/`, `scripts/` and every `*.toml`/`*.cfg` returns
+**nothing**. No Python linter is installed, configured or invoked
+anywhere in this repo.
+
+The markers are not one tool's, either — they name rules from three
+separate namespaces, so no single install would even make them all
+meaningful:
+
+- **`E402`** (module import not at top) ×6 and **`E731`** (lambda
+  assignment) ×1 — pycodestyle, all in `demos/render_freecad.py`,
+  where the imports genuinely cannot move (the notification-area wedge
+  must run before `FreeCADGui` loads) and the lambda genuinely reads
+  better than a `def`.
+- **`F401`** (imported but unused) ×3 — pyflakes, in the three FreeCAD
+  probe scripts, where `import Part` is imported for its side effect
+  of registering the workbench.
+- **`S102`** (`exec` used) ×1 and **`BLE001`** (blind `except`) ×1 —
+  flake8-bandit and flake8-blind-except, i.e. **ruff's** extended set.
+
+**Why it is a finding rather than dead decoration.** Each marker is a
+claim that a specific check exists and was consciously overridden, and
+in every one of these cases the *reason* is the load-bearing part —
+`render_freecad.py:48` sits above a fifty-line comment explaining why
+the import order is what it is, and the `# noqa: E402` is doing none of
+that work. A reader who greps for the linter to see what else it says
+finds nothing at all.
+
+**Two dispositions, and it is a small decision rather than a patch.**
+Either the repo runs one Python linter (ruff would cover all three
+namespaces, and `scripts/`+`demos/`+`crates/**/tests/*.py` is a small
+surface) and the markers start meaning something; or they are deleted
+and the reasons they gesture at stay in the prose that already carries
+them. **Do not do half** — deleting some and keeping others is how
+this got here. **Row: D122.**
+
 ---
 
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
@@ -15152,10 +15255,12 @@ of that enumeration, and the finding named one.
 
 **`demos/` has left this table.** Its row (G2, nine roll-up members) landed as
 **#787**, G-R1 included: S110(g)(j), S112(h), S113(a)(b), S114(b) and S116(d)
-are recorded FIXED at their own bullets, S114(c) stays open as the design
-question it was always going to be, and the lane raised **S129** (nothing runs
-an assertion under `demos/`) and **issue #782** (two rows of `demos/tour`'s
-tessellation pin are red on main).
+are recorded FIXED at their own bullets, and the lane raised **S129**
+(nothing runs an assertion under `demos/`) and **issue #782** (two rows of
+`demos/tour`'s tessellation pin are red on main). **S114(c)** was the design
+question it was always going to be: Evan closed it on 2026-08-20 and the
+ordinary work it left behind landed as **G11 / #837**, which raised **S174**
+and **S196**.
 
 | # | Work | From | Scope | Proposed verdict | Review |
 |---|---|---|---|---|---|
@@ -15183,18 +15288,19 @@ tessellation pin are red on main).
 > into a conflict.
 
 | **G9** | **Two operand gates with different admitted kind sets and a doc that describes only one** (S95), and **`chord_join`'s top-level-sibling placement argument contradicted by its own imports from `splitting/`** (S96). S96's imports reach `splitting/rules.rs`, which is Track C's — **confirm with Track C before touching it**. | S95, S96 | `topo/src/boolean/{ops,reduce}.rs`, `topo/src/chord_join.rs` | **ACCEPTED** on both | style; S95 escalates only if the drift ever admits a kind |
-| **G11** | **The demo manifest inconsistencies are duplicated READER code.** From S114(c), **closed as a design question by Evan 2026-08-20** — the schema framing was refused and the emitter half ruled *no shared type*. Four pieces, none a schema: **(i)** one home for the `View.up` convention, deriving world→display and display→world from it, so `render.py:51` and `render_freecad.py:105` cannot drift — they are exact inverses today **by coincidence of two independently-written idioms, checked by nothing**, and either is individually "fixable" by someone reading only one; **(ii)** one shared manifest walk for the two Python readers, which is what makes `transparency` and `montage` get defaulted twice; **(iii)** the eight `uv.json` fields written and read by nothing, deleted; **(iv)** the wild emitter's field set brought level with the tour's, **by agreeing rather than by a shared type**. `demos/*.py` are the render harness, not demos — `memories/demo-purpose.md` governs the Rust that drives the kernel, not the tooling that looks at its output. | **S114(c)** | `demos/render.py`, `demos/render_freecad.py`, `demos/wild/src/main.rs`, `demos/tour/src/uvdump.rs` | **RULED — closed** | style |
-| **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. **Five are closed and the ledger G-R2 required is at S112**, re-derived from the tree rather than from any dispatch list: (b)(c) by **#786**, (h) by **#787**, (f)(g) by **#831**. **The row stays for the residue**, which is three members and two of them tracked nowhere else: **(d)** `geom-brep/props/curved.rs` is Track C's and is named at the frozen table (**C-m, C3**); **(e)** `geom-brep/src/ssi/` is Track C's by mechanism and is named by **no live row but this one**; **(a)** `sweep/src/fillet/naming.rs` is Track E's, was routed to **E-g** after dispatch, is not in **#768**, and E-g's row has been struck — see **S177** and **D114**. The original sentence *"three of them are Track C's … the rest are free"* mis-split rather than over-counted: the free five are right, Track C holds two, and the third body in that parenthetical is (e)'s second file. **This row leaves §D when (a) and (e) have live homes**, not when the ledger's closed count rises. | **S112** | the residue only — no member here is Track G's to fix | **ACCEPTED**, re-scoped by **G-R2** and by #831's walk | style |
-| **D114** | **Re-home the findings that E-g's retirement left untracked, and check whether any other struck row did the same.** E-g's own §D row records S111(a)(b)(d), S112(a) and S75 as routed to it after dispatch and **not in #768**; the row is struck, the lane is DONE, and §D's rides-along paragraph still points at it in the present tense. Three of the five re-derived from the tree and standing (**S177**). Two pieces: give those five a live home (they are all `sweep/src/fillet/`, so one lane, and it is **Track E's ground, not Track G's** — this track's constitution excludes `sweep/src/fillet/`), and sweep the other struck rows for the same shape, which nobody has looked at. **Holder: the orchestrators** — re-dispatching another track's findings is not a lane's act, which is why this is a row and not a fix. | **S177** | `docs/SMELL-SCAN-2026-08.md`'s §D and every struck lane row; then `sweep/src/fillet/{naming,surgery,mod}.rs` for the five | proposed: **ACCEPT**, unstaffed | style |
+| **G10** | **Prose describing a world the code has left** — eight members, the cleanest class in Tier 3, scattered by file. **Five are closed and the ledger G-R2 required is at S112**, re-derived from the tree rather than from any dispatch list: (b)(c) by **#786**, (h) by **#787**, (f)(g) by **#831**. **The row stays for the residue**, which is three members and two of them tracked nowhere else: **(d)** `geom-brep/props/curved.rs` is Track C's and is named at the frozen table (**C-m, C3**); **(e)** `geom-brep/src/ssi/` is Track C's by mechanism and is named by **no live row but this one**; **(a)** `sweep/src/fillet/naming.rs` is Track E's, was routed to **E-g** after dispatch, is not in **#768**, and E-g's row has been struck — see **S177** and **D124**. The original sentence *"three of them are Track C's … the rest are free"* mis-split rather than over-counted: the free five are right, Track C holds two, and the third body in that parenthetical is (e)'s second file. **This row leaves §D when (a) and (e) have live homes**, not when the ledger's closed count rises. | **S112** | the residue only — no member here is Track G's to fix | **ACCEPTED**, re-scoped by **G-R2** and by #831's walk | style |
+| **D124** | **Re-home the findings that E-g's retirement left untracked, and check whether any other struck row did the same.** E-g's own §D row records S111(a)(b)(d), S112(a) and S75 as routed to it after dispatch and **not in #768**; the row is struck, the lane is DONE, and §D's rides-along paragraph still points at it in the present tense. Three of the five re-derived from the tree and standing (**S177**). Two pieces: give those five a live home (they are all `sweep/src/fillet/`, so one lane, and it is **Track E's ground, not Track G's** — this track's constitution excludes `sweep/src/fillet/`), and sweep the other struck rows for the same shape, which nobody has looked at. **Holder: the orchestrators** — re-dispatching another track's findings is not a lane's act, which is why this is a row and not a fix. | **S177** | `docs/SMELL-SCAN-2026-08.md`'s §D and every struck lane row; then `sweep/src/fillet/{naming,surgery,mod}.rs` for the five | proposed: **ACCEPT**, unstaffed | style |
 | **D79** | **`lily.rs`, read end to end for the first time — six members, no owner.** Raised by #787's review over free ground §B2 had flagged as the scan's highest-yield unread file: an orphaned comment block whose live number is wrong (38° vs 28.6°), a shadow tuple vector algebra beside `Vec3` (whose *reason* is issue **#796**), two carrier extractors with different rigor plus a partly-vacuous agreement check, an existential-over-two cap assert, an unchecked arity beside a hard `== 8`, and 41% comment with a 137-line header. **All six sit inside `mod review_probes`' orbit, which no gate runs (S129, #782)** — so the row's first question is whether it waits on that or precedes it. | **S130** | `demos/tour/src/lily.rs` | proposed: **ACCEPT**, after or with S129 | style |
 | **D77** | **The S11 sense-inheritance hazard is discharged and three comments still say it is open.** `mef` inherits the parent's sense whenever the fragment keeps the parent surface (S12, `mint_face_surface_and_sense`), and `set_face_sense`'s **KNOWN HAZARD** block still says splitting stamps `true` — a block a reader consults before touching orientation. `chord_join`'s copy is fixed by G8; `attach.rs` and `entity.rs` are not, and §C and §B each cite the block as an exemplar, so the row also owns those two citations. `entity.rs` needs the QUALIFIER, not deletion: `mvfs` still mints `true`, and so does `mef` on a new surface. **So does the corrected block**: `splitting/finish.rs:280` promotes a section ring through `mfkrh(ring, FaceSurface::New(…))` on a LIVE path and correctly stamps `true`, and the block's second named site (`splitting/reassembly.rs`) is a **test-only** oracle — a flat *"splitting inherits"* would be the next false sentence. S171 carries the wording. | **S171** | `topo/src/attach.rs`, `topo/src/entity.rs`, and this document's two `attach.rs:119` citations | proposed: **ACCEPT** | style |
 | **D80** | **Five spellings of "is this line code", beside seven guards that already share the walk.** Raised by #834's style review over the guard #834 itself added: each source-walking guard carries its own `trim_start().starts_with("//")`, blind to `/* … */`, to `#[doc = "…"]`, to a needle inside a string literal, and to code FOLLOWING a comment on one line. `topo/src/face_normal.rs`'s instance is **fixed** — lifted into `fixtures::code_only` beside the walk those guards already share, pinned on all five shapes. Three remain, in three crates. **The class is the deliverable, not the instance** (§C13): `topo`'s is a lift into the existing home; `geom-core` and `step-import` have no such home, and whether to mint one or copy the predicate twice more is the scheduling question this row asks. | **S172** | `topo/src/review_d18_probes.rs`, `geom-core/tests/flagged_census.rs`, `step-import/tests/tier_gate.rs` | proposed: **ACCEPT** | style |
+| **D123** | **`demos/README.md`'s uv-lane numbers, which S113(a) is recorded as having swept.** Five figures the FIXED record itself names are still standing in the file that fix pass edited — 982 faces, 879 checkable, a 9e-16 worst gap that is 9.93e-16, 238 curved faces — plus two more that no run prints and cannot simply be recounted. The work is #787's own rule applied to the prose: **compute or delete, never restate**, and say at the site why for the half that can only be restated. | **S174** | `demos/README.md` (the uv-lane section) | **proposed: ACCEPT** | style |
+| **D122** | **Twelve `# noqa` markers for three linters the repo does not run** — pycodestyle, pyflakes and ruff's bandit/blind-except rules, none installed, configured or invoked anywhere. A cost decision, not a patch: run one Python linter over `scripts/`+`demos/`+`crates/**/tests/*.py` and let the markers mean something, or delete them and leave the reasons in the prose that already carries them. **Not half.** | **S196** | `demos/render_freecad.py`, `scripts/{ci-filter,step_import_check}.py`, `crates/{pncad-py,step-export,step-import}` test scripts, and wherever the linter would be configured | **proposed: ACCEPT** | style |
 
-**Rides along, and is not a new row — NO LONGER TRUE, see D114.** S111(a)(b)(d)
+**Rides along, and is not a new row — NO LONGER TRUE, see D124.** S111(a)(b)(d)
 and S112(a) are `sweep/src/fillet/` and were routed to Track E's **E-g** while it
 was open on those files. **E-g landed as #768 without them, said so in its own
 row, and that row is struck** — so this paragraph stopped being a schedule and
-became the thing this track scans for. The re-home is **D114**, the class is
+became the thing this track scans for. The re-home is **D124**, the class is
 **S177**, and both came out of #831's G10 ledger walk. S115(e) is E-e's; S115(f) and S116(e) are `topo/src/euler.rs`,
 now landed under #755. S116(m)(n)(o) are E-a's.
 
@@ -15210,7 +15316,160 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ---
 
+## Track H — the certification substrate: `geom-core/` and `geom/`
+
+**Defined 2026-08-21 by Track F on closing; unclaimed.** Track C has closed and
+its ground has no orchestrator, so the table below and Track I's are the rows its
+lanes were gating. **They split on the crate boundary, which is where the frozen
+table already split them** — it grouped its rows behind four separate Track C
+lanes, and this is two of those groups against the other two.
+
+**Scope: `crates/geom-core/`, `crates/geom/`.** The scalar, interval and
+certification substrate — the layer everything else measures *with*.
+
+**Gates: none. C-g landed (#804) and C-q landed (#801); C-l was never started.**
+Every row here is takeable today.
+
+| # | Work | From |
+|---|---|---|
+| **H1** | **`CertifiedEnclosure for RingInterval` returns `Some((NaN, NaN))` for a poison ring — the exact laundering the trait doc forbids.** The frozen table marks it *"should not wait for the others"*: **one file and hours of work**, and it is a certification door returning a certificate for garbage. **Take it first.** | **S86** |
+| **H2** | **One merge's residue, and it wants ONE lane, not five rows** — the frozen table says so explicitly. | **S99**–**S103** |
+| **H3** | **The `Bounds` trait's headline still calls it the certification door, and its ledger grew 50% under the fix meant to retarget it.** | **S85** |
+| **H4** | **The one-home fix for the ring crossing minted three local aliases and a hand-counted tally.** | **S89** |
+| **H5** | **The lane-trait collapse, `RingInterval`, and the scalar ladders** — Track C's **C-l**, never started. Expect it to split into two or three lanes; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is **adversarial**, per C-R12. **535 refs across 15 files.** | C7 + **S33** |
+| **H6** | **D1's newly opened sole-`T: Bounds` doors that the sweep's own pattern cannot see** — the `geom` half only; the `profile` half is Track G's **G4**. | **S88** |
+| **H7** | **Reassociate the scaled square** — **ruled YES by Evan** (2026-08-21). `linalg/vec.rs`'s `orthonormal_basis` `b1` is byte-free (`s = ±1` multiplies exactly); `linalg/mat.rs::rotation_about`'s `t·x·x` moves `f64` bytes and re-cuts goldens, which is a chore and not a contract. **Sequencing, non-negotiable: convert the two sites, re-cut what moves, THEN widen the matcher** — widening first reds two ratified sites and greening that by allowlisting is S63's already-realised outcome for the third time. **Extend the `Dual` tangent guard with the change**, not after it. | **D109**(a) |
+| **H8** | Roll-up members in these crates. | S110(f), S116(b) |
+
+**Evan-only, and neighbours will stall on it:** **S90** — the largest D1 residue
+is the only one without a schedule; is that lane owed now, is the written reason
+sufficient, or is the verdict closed?
+
+## Track I — the measuring consumers: `props/`, `mesh/`, `census.rs`
+
+**Defined 2026-08-21 by Track F on closing; unclaimed.**
+
+**Scope: `crates/geom-brep/src/props/`, `crates/mesh/`, `crates/topo/src/census.rs`.**
+The code that *measures and certifies* geometry — the consumers of Track H's
+substrate.
+
+**The edge with Track H is a dependency, not a file overlap.** The two scopes
+share no file. But `geom-brep` and `mesh` depend on `geom` and `geom-core`, so
+**a Track H change to a public signature ripples into Track I's builds.** H
+publishes such changes in its PR body; I re-merges and re-runs rather than
+reasoning about it. That is a sequencing note, not a gate — **neither track
+waits on the other to start.**
+
+| # | Work | From |
+|---|---|---|
+| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These four rows are style and stand on their own; the correctness defect is #723's own. | **S60**, **S77**, **S80**, **S81**, S112(d) |
+| **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below) and S64 should not be closed without it. | **S64**, **S65** |
+| **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
+| **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
+| **I5** | **S16 unified two of three box constructions; the third's stated reason is retracted at the copy site, and `boxes.rs` cites the retraction as live.** | **S97** |
+| **I6** | Roll-up members in these crates. | S114(f), S115(d), S116(g) |
+
+**Evan-only, and I2 stalls on it:** **S65** — the #678 watertightness backstop is
+`#[cfg(debug_assertions)]`, so it is **absent from every build that ships a
+mesh**, while the module header presents floor and assert as a pair without
+saying one is absent from release. Either it pays an O(triangles) per-patch
+re-derivation in release — against D9's *never a panic* and against tessellation
+cost — or it stays debug-only and the header says so. **Also S82**, in `props/`:
+is the sphere rim predicate's accepting-direction understatement a #723 sibling
+that needs an issue and a row, or conversation input that can wait?
+
+### Struck from the schedule: C-m, until #723 is fixed
+
+**Track C's C-m — S27, `props/quad.rs`'s four independent quadrature engines
+with a triplicated convergence block — is NOT scheduled here.** Never started,
+Track C has closed, and it is **not** picked up by Track I.
+
+**Won't do here: it needs a correctness fix first, and it is scheduled after
+that.** #723 reports a **wrong certified volume** in the very file C-m
+consolidates. Consolidating first would either bake the defect into the shared
+engine or move it somewhere the reproduction no longer points at — and the
+consolidation's own review would be reasoning about code known to be wrong.
+**Fix the defect, then consolidate.**
+
+*An earlier draft of I1 said this row should "inherit #723 rather than wait for
+it". That was wrong — a correctness defect does not get fixed in a style pass —
+and the correction is Evan's.*
+
+**The lane is described in a comment on #723**, including what the fix can settle
+cheaply on its way past: which engine is authoritative afterwards, whether the
+triplicated convergence block needs the same change in all three, and whether
+`QUAD2_AREA_PIECES = 64` is load-bearing for the fix. **A row struck with a
+pointer, not a row deleted** — whoever closes #723 finds C-m waiting there.
+
+### What is in NEITHER track, and why
+
+- **C-n / H17** — the rustdoc spec-code remainder, ~1115 lines across 130 files.
+  **Deliberately last, wherever it goes**: it conflicts with every open lane, and
+  that was true when Track C held it and is true now.
+- **C-e / H13** — `sweep/tests/`'s helix orientation coverage. Neither track's
+  files. It needs a home and does not have one.
+- **S70** — Evan-only, and its files (`topo/src/euler.rs`, `docs/DESIGN.md`) are
+  neither track's. It is **S14 one crate over**, and #740 left 46 lookup sites as
+  typed errors because it is open.
+
+### Both tracks, on constitution
+
+**Number blocks, published here rather than claimed in a lane message** — the
+failure Track F committed and recorded: **Track H takes `D140`–`D159` and
+`S210`–`S229`; Track I takes `D160`–`D179` and `S230`–`S249`.** Both are beyond
+every existing reservation and beyond the tree's current maxima (`D139`, `S209`).
+**Re-derive after every merge**: per Track G's G-R13, a block cannot protect
+against a number arriving from another track, only re-checking can.
+
+**Review policy, inherited from Track F and Track C:** **style review on every
+unit**, dispatched by path against `docs/prompts/reviewer-style-lane.md`, carrying
+the two questions the standing brief does not ask — *is the original problem
+completely gone*, and *was it closed in the best way available*. **Adversarial
+only where a wrong answer is reachable**, which on these two tracks is more of
+the rows than it was on Track F: I1, I2, I3 and H5's `Dual` sub-lane at minimum.
+
+**The one thing worth carrying from Track F's record**, because it held for eight
+rows out of eight: **every unit failed its first review the same way — the fix
+minting a fresh instance of the defect it closed** — and three lanes had named
+that exact trap in their own PR bodies beforehand. Naming it was not protection.
+The only thing that reliably found it was an adversary who had not written the
+fix. The standing rules that came out of it are in
+`docs/SMELL-F-LOG.md` and in `memories/agent-lane-operations.md`.
+
+---
+
 ## The second scan's unscheduled table — frozen, and why
+
+> **UNFROZEN AND UNROUTED, 2026-08-21 — this table's own rule now points at a
+> closed track.** It says a row that unfreezes *"goes to Track F or G by its
+> mechanism, **not back to nobody**."* **Track F is closed** (all eight rows
+> landed), and **Track G's ground is `demos/`, `profile/`,
+> `interval-transcendentals/` and `sweep/src/` outside `fillet/`** — none of
+> which is where these findings live. So the routing sentence resolves to
+> nothing, which is the exact outcome it was written to prevent (§C3).
+>
+> **And the gates have largely fallen.** C-g landed as **#804**, C-q as **#801**,
+> C-j and C-k are discharged — so the `geom/`, `geom-core/` and `mesh/` clusters
+> are unfrozen **now**. **C-m alone is still gated.** **Track C has closed its
+> session**, so the ground these sit on has no orchestrator.
+>
+> **All 21 findings below are still open** — none carries a `FIXED` lead:
+> S60, S64, S65, S66, S77, S80, S81, S82, S85, S86, S88, S89, S90, S97,
+> S99–S103, S108, S109. Track C also left **C-e**, **C-l**, **C-m** and **C-n**
+> unstarted or gated.
+>
+> **Three things a taker should read first**, on this table's own assessments:
+> **S66** is *"the largest correctness exposure in the scan"*; the `props/`
+> cluster is *"the largest cluster … and the one with the most reachable wrong
+> answers"*; and **S86** is marked *should not wait for the others* — a poison
+> ring laundered into `Some((NaN, NaN))`, *"the exact laundering the trait doc
+> forbids"*, one file and hours of work. **S65, S70, S82 and S90 are Evan-only
+> decisions, not work**, and neighbours of theirs will stall on them. **C-n stays
+> last wherever it goes** — 130 files, held back precisely because it conflicts
+> with every open lane.
+>
+> *Recorded by Track F on closing, because a survey that lives only in a
+> conversation is the failure this document keeps finding.*
 
 **Nothing here is unimportant.** Every row is a real finding, and several are
 the sharpest in the scan. They are unscheduled because **their files are Track

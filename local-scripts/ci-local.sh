@@ -272,6 +272,18 @@ uv_composer_selftest() {
   python3 demos/compose_uv_montage.py --selftest
 }
 
+# The one reader of demos/out/scenes.json, shared by both renderers,
+# the montage composer and render.sh's scene lister. Its self-test
+# pins the `view.up` convention against the two spellings it replaced,
+# proves the display -> world direction really is the inverse of the
+# world -> display one it derives from, and pins that a manifest
+# missing `transparency` or `montage` REFUSES rather than defaulting.
+# Stdlib-only python3, milliseconds.
+# HOSTED MIRROR: discipline / scene manifest reader selftest (demos)
+manifest_selftest() {
+  python3 demos/manifest.py --selftest
+}
+
 # Drift gate for the committed UV sheet: regenerate it and diff. The two
 # PNG lanes cannot be gated (they need FreeCAD), so this is the only
 # render lane CI can reproduce — and an ungated committed artifact rots.
@@ -660,6 +672,7 @@ wasm_check() {
 run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
+run_row "scene manifest reader (demos)" manifest_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here

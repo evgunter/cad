@@ -508,6 +508,17 @@ jobs:
       - name: uv composer selftest (demos)
         run: python3 demos/compose_uv_montage.py --selftest
 
+      # The scene manifest has one reader, shared by both renderers,
+      # the montage composer and render.sh's scene lister. What its
+      # self-test pins is the part no render lane can fail on: the
+      # `view.up` convention, and that the display -> world direction
+      # is the derived inverse of the world -> display one rather than
+      # a second hand-written map. A camera that disagrees renders a
+      # plausible wrong picture. Same cheap-tripwire posture, stdlib
+      # only. Mirror: ci-local's "scene manifest reader (demos)" row.
+      - name: scene manifest reader selftest (demos)
+        run: python3 demos/manifest.py --selftest
+
   # rustfmt, the rustdoc gate AND the wasm32 guard, in one job — and the
   # job NAME says all three, because a name narrower than its contents
   # is how a red run gets read as the wrong failure.
