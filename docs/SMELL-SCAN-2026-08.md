@@ -11287,9 +11287,12 @@ see §C.
   **Numbers re-derived at `68921183`** (`curved.rs` byte-identical to
   `5d4b88ab`), production half = lines 1–681, everything above
   `#[cfg(test)]`. They had drifted, and **downward**: the production
-  half is **681 lines, 404 comment (59%), 259 code** — not 712/429,
-  and 31 lines *fewer* than the finding recorded. The file's 1 630
-  lines are mostly the **test** half (950 lines), not the argument.
+  half is **681 lines, 404 comment (59%), 259 code** — **not 712/429**,
+  and 31 lines *fewer* than the finding recorded. **The dispatch brief
+  for I-c was wrong the same way and it is corrected here rather than
+  only in a report**: it cited *"the file is now 1630 lines"* as the
+  drift, and 1 630 is the whole file — **950 of those are the TEST
+  half**. The argument this bullet is about did not grow; it shrank.
   The two guard functions carry **146 doc lines over 44 lines of
   code** (`entries_off_bbox` 52/20, `require_swept_rectangle` 94/24),
   not ~180/~55. And the finding **missed the sharpest ratio in the
@@ -11309,8 +11312,11 @@ see §C.
 
   **Residue, and it is the substance:** the bulk lives in
   `entries_off_bbox`, `require_swept_rectangle` and `pole_columns` —
-  all guard bodies, all outside #872's scope and inside lane **I-e**'s.
-  This bullet does not leave until that lane records it.
+  all guard bodies, all outside #872's scope and inside lane **I-e**'s,
+  **routed there by ruling I-R7** (`SMELL-I-LOG.md`) because they are
+  I-e's function bodies and a reviewer reading that code has both
+  questions in front of them at once. This bullet does not leave until
+  that lane records it.
 - (h) `crates/mesh/src/nurbs_cert.rs:374-419` — S29's constant count did
   not go down. `SAFE_ASPECT = 5.0` is unchanged and still sits above its
   own derived √15 ≈ 3.87; `MAX_GRID_RETRIES` is still a bare `6`; the
@@ -15259,6 +15265,66 @@ this got here. **Row: D122.**
 
 ---
 
+## S231. `chords.rs`'s "the only places adjacent surfaces enter chord counts" is S64's shape, and no lane owns the file
+
+**[verified]** **Found by I-c (#872) while sweeping for S64's class;
+I-c is NOT fixing it, and as of this row no lane owns it.**
+`crates/mesh/src/chords.rs`'s module header lists four chord-count
+rules — line carriers, circle carriers, the adjacent-torus tightening,
+the adjacent-NURBS tightening — and then closes the list with:
+
+> These tightenings are the only places adjacent surfaces enter chord
+> counts — chord points remain a pure function of (carrier + interval,
+> endpoint points, adjacent surface parameters, δ).
+
+**The claim is load-bearing.** The clause after the dash is the
+memo-key contract's chord half, restated in `mesh/lib.rs`'s crate
+header as *"the chord points themselves are a pure function of (edge
+carrier + interval, endpoint vertex points, the adjacent faces' surface
+parameters, δ) — adjacent surfaces enter only through the torus and
+trimmed-NURBS boundary-step requirements, documented on [`chords`]"*.
+So the claim exists at **two** sites, one of which delegates to the
+other, and neither is checked.
+
+**Why it cannot be falsified as written.** It is an absence claim over
+a whole module: not *"these four rules are the four"* — which a reader
+settles against the list directly above it — but *"nothing else in this
+file reads an adjacent surface when it sizes a chord"*. A fifth
+tightening added anywhere in the module's ~550 production lines makes
+the sentence false and nothing in the tree goes red. It is **exactly
+S64's shape** — the crate's other absence claim about what a value may
+reach — and S64's remedy does not transfer: `Tol` could delete its
+roster because ε's reads sort into two KINDS that are stated per kind
+and argued at each site, and this is not a roster of sites at all, it
+is a claim about a module's whole surface. Whatever closes it has to
+be a different answer.
+
+**What a reader should NOT conclude from this row.** Not that the
+sentence is false — it was checked at `acfbfb9c` (`chords.rs`
+unchanged since `5d4b88ab`) and it is **TRUE**: the file reads an
+adjacent face's surface at exactly two sites, the `Circle` arm's
+`torus_step` call in `compute_chords` and `nurbs_tighten`, which are
+the two the sentence names.
+Not that it is a duplicate of S64: S64 is closed, this is a different
+file, a different value, and a different remedy. And not that anyone
+is working on it. The row exists so that *"S64 is fixed"* cannot be
+read as *"the `mesh` crate's unmechanized absence claims are dealt
+with"*, which is precisely what a scan closing one instance of a class
+invites.
+
+**Ownership, stated because a row with no owner reads as one with an
+implicit one.** `crates/mesh/` is inside **Track I**'s scope, but
+`chords.rs` is in **none of Track I's five lanes' file sets** — I-c is
+`{lib,sizing,walk}.rs` plus `curved.rs`'s header, I-e is `curved.rs`'s
+guard bodies plus `{trimmed,planar,budget}.rs`. It is deliberately
+**not** routed to I-e: widening a running lane's brief by writing a row
+at it is how a lane discovers its scope grew after dispatch. This row
+needs a lane, and does not have one.
+
+**Verdict:**
+
+---
+
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
 
 Two things bind this track. **One:** `interval-transcendentals/`, `demos/`,
@@ -15545,6 +15611,18 @@ waits on the other to start.**
 | **I5** | **S16 unified two of three box constructions; the third's stated reason is retracted at the copy site, and `boxes.rs` cites the retraction as live.** | **S97** |
 | **I6** | **NARROWED by #872.** S115(d) is closed (issue **#868** is its schedule, cited at both of its claim sites). S116(g) is **narrowed, not closed** — its numbers are re-derived and its module-header half is done; the guard bodies that carry the bulk are **I-e**'s scope. S114(f) is untouched. **I6 leaves when I-e records both**, per I-R5. | S114(f), ~~S115(d)~~, S116(g) *(residue)* |
 
+**Raised inside this track and NOT scheduled by it: S231.** I-c's sweep for
+S64's class found the same shape in `crates/mesh/src/chords.rs` — *"These
+tightenings are the only places adjacent surfaces enter chord counts"*, an
+absence claim over a whole module, true today and unfalsifiable by anything in
+the tree. The file is inside Track I's crate scope and inside **none of its
+five lanes' file sets**. It is deliberately **not** routed to I-e: **I-R7**
+moved S116(g)'s residue there because those are already I-e's function bodies,
+and that reasoning does not reach `chords.rs`, which is in nobody's brief —
+writing a row at a dispatched lane is how a lane's scope grows after dispatch.
+**S231 needs a lane and does not have one** — recorded here so the schedule
+shows it rather than the finding sitting alone.
+
 **Lanes, 2026-08-21 — five, and they do not map one-to-one onto these rows.**
 Recorded here so a reader of two PRs does not read them as one row.
 **I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**;
@@ -15554,10 +15632,11 @@ Recorded here so a reader of two PRs does not read them as one row.
 bodies (I-e's), S65 equipped and handed to Evan;
 **I-d** = I4 **and** I5 together (`boolean/boxes.rs`'s module doc is one
 header, and I5 is the citation I4's paragraph leans on) — both rows leave
-together; **I-e** = I3 plus I6's S114(f) (`mesh/`'s guards) — **adversarial**,
-and sequenced behind I-c because both read `mesh/src/curved.rs`.
+together; **I-e** = I3 plus I6's S114(f) **and S116(g)'s residue** (`mesh/`'s
+guards; the residue routed by **I-R7**) — **adversarial**, and sequenced behind
+I-c because both read `mesh/src/curved.rs`.
 **I6 leaves when all three of its members are recorded, not when one lane
-lands.** The rulings behind each split are `SMELL-I-LOG.md` **I-R1**–**I-R6**;
+lands.** The rulings behind each split are `SMELL-I-LOG.md` **I-R1**–**I-R7**;
 **I-R2** and **I-R3** correct cells in this section rather than complying with
 them.
 
