@@ -384,16 +384,37 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   What that looseness costs is the door's, not the box's — the
 ///   module docs list the four and their directions.
 ///
-///   **`|û_i|·a + |v̂_i|·b` is not the full conic's extent either**,
-///   and it is not invariant under how the carrier is NAMED: the
-///   conic's own half-extent is `√((û_i·a)² + (v̂_i·b)²)`, so a
-///   CIRCLE of radius `r` named from a `u_ref` at 45° to a coordinate
-///   axis is claimed `r√2` wide along it instead of `r`. Two carriers
-///   describing the same circle get different boxes, and the split
-///   lane does mint rotated `u_ref`s. Over-width, not unsoundness —
-///   same class as the cylinder arm's axial one, and reported on
-///   **#862**. The ceiling row below spells the current formula out
-///   so tightening it is loud.
+///   **`|û_i|·a + |v̂_i|·b` is not a function of the LOCUS**, and that
+///   is a sharper defect than being loose. The conic's own
+///   half-extent is `√((û_i·a)² + (v̂_i·b)²)`; this sum is the
+///   triangle-inequality bound over it, and what it returns depends
+///   on how the carrier is NAMED rather than on where the conic is.
+///   Two `Curve3::Circle` values describing the SAME circle — same
+///   centre, axis and radius, `u_ref` rotated within the plane — get
+///   boxes as far apart as `r√2` against `r`. The module contract is
+///   one-sided (*"contains the entity's whole locus"*), so nothing
+///   here is unsound; but a box rule that reads its own
+///   parameterization is not a rule about the entity, and three of
+///   the four doors pay the difference in refusals rather than in
+///   work.
+///
+///   **In-tree bodies already take the wide branch** — this is not
+///   reachable-but-unexercised. The plane×cylinder rim inherits the
+///   cylinder surface's own `u_ref`, and the plane×sphere circle
+///   derives one from the seam or polar candidate; neither is
+///   axis-aligned in general, and an extruded arc profile mints
+///   rotated ones directly.
+///
+///   **The exact box already exists one crate down and is unused.**
+///   `geom::curves::boxes::circle_arc_aabb` (and its ellipse twin)
+///   computes `Aᵢ = √(uᵢ² + vᵢ²)` outward-bracketed AND restricts to
+///   the certified span, so it is tighter on both counts; it takes
+///   the two params [`geom_brep::EdgeCurve::params`] already has here,
+///   and today its only callers are `geom`'s own tests. Taking it is
+///   a TIGHTENING, so it carries the same obligation the NURBS arm
+///   states: it would start pruning pairs that are examined today.
+///   All of this is **#862**'s; the ceiling row below spells the
+///   current formula out so tightening it is loud.
 /// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
 ///   edge whose carrier is null scaffolding. Nothing is certified
 ///   about the locus, so nothing is claimed; the chord is NOT a bound
@@ -980,15 +1001,20 @@ mod tests {
     /// it; so does narrowing, which the locus rows see only once it
     /// crosses the locus.
     ///
-    /// **The cylinder arm's formula carries the axial over-width as
-    /// its own term, with the issue on it.** `+ AXIAL_OVERWIDTH` is
-    /// the full radius added along the axis, where the boundary
-    /// already bounds the extent exactly — issue **#862**. It is
-    /// spelled separately rather than folded into the slab so that
-    /// the day #862 lands this row goes red at a named line and
-    /// whoever fixes it deletes the term and this paragraph together.
-    /// Pinned here rather than fixed here: a correctness defect does
-    /// not get fixed in a style pass.
+    /// **Two formulas below carry an over-width, and both name it as
+    /// one.** `axial_overwidth` is the full radius the cylinder arm
+    /// adds along its own axis, where the boundary already bounds the
+    /// extent exactly. `overwide_half_extent` is what the conic arm
+    /// claims per coordinate in place of the circle's true half
+    /// extent. Both are issue **#862**, and both are spelled as their
+    /// own named terms rather than folded into the construction, so a
+    /// reader can tell which quantities are the rule and which are
+    /// the bug — a term whose name did not say it was wrong would
+    /// ratify the very thing this row exists to flag. The day either
+    /// lands, this row goes red at a named line and whoever fixes it
+    /// deletes the term and its sentence together. Pinned here rather
+    /// than fixed here: a correctness defect does not get fixed in a
+    /// style pass.
     #[test]
     fn no_arm_claims_more_than_the_construction_its_rule_states() {
         let pad = pad();
@@ -999,31 +1025,33 @@ mod tests {
         // not recovered — and the two radii chords lie inside it.
         // Flat in z.
         //
-        // `AMPLITUDE` is that arm's per-coordinate reach written out:
-        // `|û_i|·a + |v̂_i|·b`, which for a CIRCLE named from a `u_ref`
-        // at φ is `r·(|cos φ| + |sin φ|)` — the true half-extent `r`
-        // only at the axis-aligned φ, and up to `r√2` at 45°. So the
-        // box a rim gets depends on which reference direction its
-        // carrier happens to carry, which is the same over-width
-        // class as the cylinder arm's axial one and is reported on
-        // **#862**. Spelled out here rather than folded away, for the
-        // same reason: the day it is tightened this row goes red at a
-        // named line.
+        // The circle's TRUE half extent is `r` in every coordinate.
+        // `overwide_half_extent` is what the arm claims instead —
+        // `|û_i|·a + |v̂_i|·b`, which for a circle named from a
+        // `u_ref` at φ is `r·(|cos φ| + |sin φ|)`: equal to `r` only
+        // at an axis-aligned φ, and `r√2` at 45°. A function of the
+        // NAME, not of the locus, and #862's. The φ sweep is what
+        // makes this row see it at all — at φ = 0 the two agree and
+        // the arm looks tight.
         for &r in &[0.001, 1.0, 250.0] {
             for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
                     let phi = phi_deg.to_radians();
-                    let amplitude = r * (phi.cos().abs() + phi.sin().abs());
+                    let overwide_half_extent = r * (phi.cos().abs() + phi.sin().abs());
+                    assert!(
+                        overwide_half_extent >= r,
+                        "the over-width term must never claim less than the true half extent"
+                    );
                     let (body, face) = arc_sector_from(r, span_deg.to_radians(), phi);
                     let b = face_box(&body, face, pad).unwrap();
                     agrees_with_the_rule(
                         &b,
                         &Aabb {
-                            min_x: -amplitude - pad,
-                            min_y: -amplitude - pad,
+                            min_x: -overwide_half_extent - pad,
+                            min_y: -overwide_half_extent - pad,
                             min_z: -pad,
-                            max_x: amplitude + pad,
-                            max_y: amplitude + pad,
+                            max_x: overwide_half_extent + pad,
+                            max_y: overwide_half_extent + pad,
                             max_z: pad,
                         },
                         r,
@@ -1037,7 +1065,7 @@ mod tests {
 
         // **CylinderSlab.** The axial range is the boundary's own,
         // padded once inside the arm and once by the final `padded`;
-        // the radial half-width is the radius. `AXIAL_OVERWIDTH` is
+        // the radial half-width is the radius. `axial_overwidth` is
         // #862's — the same radius added along the axis, where the
         // boundary already bounds the extent exactly.
         for &r in &[0.002, 1.0, 40.0] {

@@ -121,6 +121,7 @@ apart doing exactly that.
 
 | number | spent by | for |
 |---|---|---|
+| **S232** | **I-d** (#876) | `crates/geom/src/{surfaces,curves}/boxes.rs`'s *"looser is conservative"* / *"the poison box, which never prunes"* — six instances, one crate below the four doors `face_box` feeds, **three of which do not prune**. **Routed to Track H** (§D: Track H's scope is `crates/geom-core/` and `crates/geom/`), which is live on #865. The row carries I-d's corrected door count as the reason the sentence is false there too: `geom`'s copies inherit S66's *"two of three consumers"* arithmetic, and `boolean/ops.rs:1486` is the refusing door nobody counted. **A row that names its owner**, unlike S230 and S231 |
 | **S231** | **I-c** (#872) | `mesh/src/chords.rs`'s *"These tightenings are the only places adjacent surfaces enter chord counts"* — S64's shape, in a file inside Track I's crate scope but in **none** of its five lanes' file sets. **Recorded unowned**, and deliberately not routed to I-e: widening a running lane's brief by writing a row at it is how a lane discovers its scope grew after dispatch |
 | **S230** | **I-b** (#873) | S60's class, two live members outside every live track's ground: a containment-only `volume_pad` row on the same tilted-cut fixture that never reads `area_pad`, and a python row bounding `volume_pad` at 1e-6 while saying nothing about an `area_pad` measured at **0.199 m²** on the same loft. **Recorded as unrouted, and it says so** |
 

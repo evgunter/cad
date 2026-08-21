@@ -8642,13 +8642,34 @@ stays green.
 folded into the formula, so tightening either is loud at a named line:
 `axial_overwidth = r`, and `amplitude = r·(|cos φ| + |sin φ|)`.
 
-**A second over-width was found in the same module and reported to #862.**
-`EdgeBoxRule::ConicAmplitude`'s per-coordinate `|û_i|·a + |v̂_i|·b` is the
-triangle-inequality bound, not the conic's extent `√((û_i·a)² + (v̂_i·b)²)`.
+**A second over-width was found in the same module and reported to #862, and
+it is the sharper of the two.** `EdgeBoxRule::ConicAmplitude`'s per-coordinate
+`|û_i|·a + |v̂_i|·b` is the triangle-inequality bound over the conic's extent
+`√((û_i·a)² + (v̂_i·b)²)` — so **the box is not a function of the LOCUS**.
 Measured: a **unit circle** named from a `u_ref` at 45° gets `x ∈ [−1.414,
-1.414]` where the same circle named from `u_ref = x̂` gets `[−1.000, 1.000]`.
-**Two carriers describing the same circle get different boxes**, and the split
-lane does mint rotated `u_ref`s — `boxes.rs`'s own `cyl_wall` fixture is one.
+1.414]` where the same circle — same centre, axis, radius — named from
+`u_ref = x̂` gets `[−1.000, 1.000]`. A box rule that reads its own
+parameterization is not a rule about the entity, and the module's one-sided
+contract (*"contains the entity's whole locus"*) is silent in exactly the
+direction that hides it.
+
+**In-tree bodies already take the wide branch — not reachable-but-unexercised.**
+Measured on `s16_box_soundness.rs`'s `cylinder()`, built through the public API
+(`Profile` → `extrude`): **four of its six circle carriers** carry
+`u_ref = (∓0.5, ±0.866, 0)`, a widening factor of **1.366** in both x and y, so
+its cap faces' `BoundaryHull` claims `x, y ∈ [−0.683, 0.683]` against a true
+`[−0.5, 0.5]`. The mint sites make it structural rather than incidental: the
+plane×cylinder rim inherits the cylinder surface's own `u_ref`
+(`geom-brep/src/intersect.rs:602`), and the plane×sphere circle derives one
+from the seam or polar candidate (`:716`) — neither axis-aligned in general.
+
+**The exact box already exists one crate down and has no production caller.**
+`geom::curves::boxes::circle_arc_aabb` computes `Aᵢ = √(uᵢ² + vᵢ²)`
+outward-bracketed **and** restricts to the certified span — tighter on both
+counts — and takes the two params `EdgeCurve::params()` already has at
+`edge_box`. Its only callers today are `geom`'s own tests. Taking it is a
+TIGHTENING and carries the obligation the NURBS arm already states, so it is
+#862's decision, not this unit's.
 
 **"Looseness is free" is a claim about a DOOR, and the finding's count was low.**
 Not two of three: **four** doors read a box from this module and **three** read
@@ -8661,6 +8682,10 @@ than the roster, and the roster is **computed**:
 four call sites per file with the direction each reads, four blind spots
 disclosed — including that it pins *where* the doors are, not what each does
 with looseness.
+
+**Raised on the way: S232**, the same *"never prunes"* sentence six times over
+in `crates/geom/src/{surfaces,curves}/boxes.rs`, one crate below the same four
+doors — **routed to Track H**, whose scope those files are.
 
 **Nothing in this file separated in z.** `s16_box_soundness.rs`'s counter-row
 separates at `cx = 3.0` in **x**, the axis the widening does not touch;
@@ -13222,6 +13247,46 @@ does.
 stronger claim as unasserted, and say that greenness is ε-dependent. **What is
 NOT fixed is the gap itself** — the wrapper property is still checked by
 nothing. That is **D114**.
+
+
+## S232. `geom`'s box constructors say a loose box "never prunes" — one crate below four doors, three of which do not prune
+
+**Raised by I-d (#876) while fixing the same sentence in
+`topo/src/boolean/boxes.rs`; ROUTED TO TRACK H**, whose scope is
+`crates/geom-core/` and `crates/geom/` (§D, in those words) and which is
+live. Not a wandering row: it has an owner and this line is it.
+
+**The claim, six times over.** `crates/geom/src/surfaces/boxes.rs:22-24` —
+*"looser is conservative"* and *"the poison box, **which never prunes**"*, on
+`nurbs_surface_aabb`. `crates/geom/src/curves/boxes.rs` says it three more
+times (`:16` for the whole module's poison rule, `:175` on `circle_arc_aabb`,
+`:373-375` on `nurbs_curve_aabb` with its own *"looser is conservative"*), and
+`:98` adds *"Slack only ever includes more extrema, so it errs outward (a
+looser box)"* as though outward were free.
+
+**Why it is false, with the count I-d had to correct to see it.** These boxes
+are not consumed by a pruner. `nurbs_surface_aabb` is what
+`topo::boolean::boxes::face_box`'s `ControlNet` arm returns, and `face_box`
+feeds **four** doors — `boolean/reduce.rs`'s C10 tree, `separation.rs`,
+`boolean/ops.rs:1486`'s sphere-extent fallback, and (through the shared
+`FaceBoxRule`) `census.rs`'s arm 2. **Only the first prunes.** At the other
+three, box non-overlap is the answer being sought, so a looser box is a
+REFUSAL: a placement pair that is genuinely separated stops being certifiable,
+a separated cyl×sphere pair becomes `FallbackExtentUnsupported`, and an
+instance genuinely outside another becomes `CensusUndecidable` — the
+interference class.
+
+**The count is the load-bearing part.** S66 itself said *"two of its three
+consumers"*; I-d established the doors are four and that `ops.rs:1486` is a
+third refusing one nobody had counted. `geom`'s copies of the sentence inherit
+that error rather than merely repeating a phrase — they are false for the same
+reason and by the same arithmetic, which is why this is one finding and not a
+grep hit. `geom` also cannot see its consumers (`topo` depends on it, not the
+reverse), so the honest fix is almost certainly to state the CONTRACT (a
+superset, erring outward) and stop characterising what looseness costs, rather
+than to recite a door list one crate below the doors.
+
+**Not fixed by #876**, which is Track I's and does not edit `crates/geom/`.
 
 
 # §A. Where I would start
