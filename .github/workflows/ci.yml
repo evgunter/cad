@@ -526,9 +526,10 @@ jobs:
   # serialisation costs no wall-clock for the run as a whole.
   #
   # NOT MERGED IN, deliberately: `discipline`, whose ~30 s would push the
-  # 103 s total past the 2-minute boundary and buy nothing; and `docs-only`, which
-  # carries no `if` because it is the green check a docs-tier run reports
-  # when every other job skips — the opposite condition to this job's.
+  # 103 s total past the 2-minute boundary and buy nothing; and
+  # `docs-only`, which carries no `if` because it is the green check a
+  # docs-tier run reports when every other job skips — the opposite
+  # condition to this job's.
   #
   # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
   # expect exactly one cold run after any change here and warm thereafter.
