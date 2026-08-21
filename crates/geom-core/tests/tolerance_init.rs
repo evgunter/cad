@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Tolerance, ToleranceError};
 
 /// The real assertions. `#[ignore]`d because it is only valid as the sole
@@ -33,7 +34,7 @@ fn explicit_init_probe() {
 
     // get() returns the explicitly installed value (env vars, if any, are
     // never consulted on this path)...
-    assert_eq!(Tolerance::get(), tolerance);
+    assert_eq!(Tol::witness().get(), tolerance);
     // ...and no env error is recorded.
     assert!(Tolerance::env_init_errors().is_empty());
 
@@ -48,7 +49,7 @@ fn explicit_init_probe() {
     );
 
     // The committed value is unchanged.
-    assert_eq!(Tolerance::get(), tolerance);
+    assert_eq!(Tol::witness().get(), tolerance);
     println!("TOLERANCE_INIT_PROBE_OK");
 }
 

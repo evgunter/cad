@@ -49,6 +49,7 @@ use crate::chord_join::{
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// One completed section polygon: the null face and its role loops
 /// (mirrors the body's [`NullFacePair`] record; carried separately so
@@ -75,6 +76,7 @@ pub struct CompletedSection {
 pub(super) fn split_connect<T: Decide>(
     red: &mut SplitReduction<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<(Vec<CompletedSection>, FragmentRows), SplitJoinError> {
     let exact = order::exact_band().map_err(SplitJoinError::Band)?;
 
@@ -132,7 +134,7 @@ pub(super) fn split_connect<T: Decide>(
                 let Sweep {
                     joiner, section, ..
                 } = &mut st;
-                joiner.join(&mut red.body, end, half, JoinLane::Split(section))?;
+                joiner.join(&mut red.body, end, half, JoinLane::Split(section), tol)?;
                 joined[slot] = true;
                 // Retire the consumed end's edge if its other half is
                 // no longer loose.

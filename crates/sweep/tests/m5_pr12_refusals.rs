@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{
@@ -20,18 +21,18 @@ use sweep::fillet::{CornerConfig, FilletError, FilletSite, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
-fn tol() -> Tolerance {
-    Tolerance::get()
+fn tol() -> Tol {
+    Tol::witness()
 }
 
 fn band() -> Band {
-    Band::new(tol().eps, tol().k * tol().eps).unwrap()
+    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a
 /// classification (the S2 trio idiom).
 fn in_band() -> f64 {
-    5.0 * tol().eps
+    5.0 * tol().eps()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -48,7 +49,9 @@ fn boxy() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A cylinder: a three-arc circle extruded. Its rim edges are
@@ -68,7 +71,9 @@ fn cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A "D" prism: a square with one side replaced by a circular arc,
@@ -85,7 +90,9 @@ fn dee() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below

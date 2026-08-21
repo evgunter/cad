@@ -7,7 +7,8 @@
 //! and validates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -34,7 +35,7 @@ fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, 
 fn mismatched_radius_continuation() {
     let closed = Open
         .at(p2(5.05, -1.6))
-        .toward(2.1_f64, 0.8)
+        .toward(2.1_f64, 0.8, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
@@ -43,6 +44,7 @@ fn mismatched_radius_continuation() {
                 winding: ArcSweep::Ccw,
                 p: p2(8.5, 0.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         // A different r than the arrival carrier's: a legal NEW tangent
@@ -53,15 +55,16 @@ fn mismatched_radius_continuation() {
                 side: ArcSide::Left,
             },
             0.5,
+            Tol::witness(),
         )
         .expect("a mismatched r names a sound construction")
-        .at(p2(4.05, 1.35))
+        .at(p2(4.05, 1.35), Tol::witness())
         .unwrap()
-        .toward(-4.1, 0.3)
+        .toward(-4.1, 0.3, Tol::witness())
         .unwrap()
-        .line(1.0)
+        .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .expect("the chain closes");
     let lp = &closed.loop_;
     // The arrival emitted ITS OWN run to the hard anchor (8.5, 0),
@@ -97,7 +100,7 @@ fn mismatched_radius_continuation() {
     );
     // The defect class is gone structurally: the loop validates.
     Profile::new(SketchPlane::xy(), vec![lp.clone()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("every authored r is sound under the dissolution");
 }
 
@@ -110,7 +113,7 @@ fn mismatched_radius_continuation() {
 fn sharp_after_arc_arrival() {
     let closed = Open
         .at(p2(5.05, -1.6))
-        .toward(2.1_f64, 0.8)
+        .toward(2.1_f64, 0.8, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
@@ -119,14 +122,15 @@ fn sharp_after_arc_arrival() {
                 winding: ArcSweep::Ccw,
                 p: p2(8.5, 0.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         // The arrival tip's tangent is +y; 2.6 rad is a genuine corner.
-        .angle(2.6)
+        .angle(2.6, Tol::witness())
         .unwrap()
-        .line(1.0)
+        .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .expect("the sharp continuation closes");
     let lp = &closed.loop_;
     // The authored anchor is a VERTEX (the hard-anchor rule) and its
@@ -164,6 +168,6 @@ fn sharp_after_arc_arrival() {
         "the leg departs the anchor on the authored heading; got {heading}"
     );
     Profile::new(SketchPlane::xy(), vec![lp.clone()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the restored junction validates");
 }

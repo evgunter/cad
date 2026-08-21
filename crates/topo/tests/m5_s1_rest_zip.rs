@@ -29,6 +29,7 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
     subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
@@ -46,7 +47,9 @@ fn glue<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
     a: &Body<T>,
     b: &Body<T>,
 ) -> BooleanBody<T> {
-    match union_with(a, b, &flush_declarations(a, b)).expect("declared REST union builds") {
+    match union_with(a, b, &flush_declarations(a, b), Tol::witness())
+        .expect("declared REST union builds")
+    {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
     }
@@ -58,8 +61,11 @@ fn glue<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
 /// no scalar equality by design — NaI ≠ NaI).
 fn assert_glued<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(g: &BooleanBody<T>) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
-    assert_eq!(validate_geometric(&g.body), Ok(()));
-    assert_eq!(validate_pseudomanifold(&g.body, &g.contacts), Ok(()));
+    assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()),
+        Ok(())
+    );
     assert!(
         g.contacts.vv.is_empty() && g.contacts.a_on_b.is_empty() && g.contacts.b_on_a.is_empty(),
         "REST records are consumed into seam structure: {:?}",
@@ -75,7 +81,7 @@ fn stacked_plates_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
 {
     let bot = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let top = brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
-    let err = union(&bot, &top).unwrap_err();
+    let err = union(&bot, &top, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
         "undeclared stacked union must refuse at the coincidence door: {err:?}"
@@ -95,7 +101,7 @@ fn stacked_plates_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
 fn stacked_plates_full_face_rest() {
     let g = stacked_plates_scenario::<f64>();
     assert_eq!(
-        mass_properties(&g.body).unwrap().volume,
+        mass_properties(&g.body, Tol::witness()).unwrap().volume,
         8.0,
         "exact dyadic volume additivity"
     );
@@ -111,10 +117,16 @@ fn three_plate_chain() {
     let p3 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
     let g12 = glue(&p1, &p2);
     assert_glued(&g12);
-    assert_eq!(mass_properties(&g12.body).unwrap().volume, 8.0);
+    assert_eq!(
+        mass_properties(&g12.body, Tol::witness()).unwrap().volume,
+        8.0
+    );
     let g123 = glue(&g12.body, &p3);
     assert_glued(&g123);
-    assert_eq!(mass_properties(&g123.body).unwrap().volume, 12.0);
+    assert_eq!(
+        mass_properties(&g123.body, Tol::witness()).unwrap().volume,
+        12.0
+    );
     assert_eq!(g123.body.faces().count(), 6, "still a plain brick");
 }
 
@@ -127,7 +139,7 @@ fn corner_flush_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>()
 -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
-    let err = union(&slab, &corner).unwrap_err();
+    let err = union(&slab, &corner, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
         "undeclared corner-flush union must refuse at the coincidence door: {err:?}"
@@ -137,7 +149,7 @@ fn corner_flush_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>()
     // ∖ disposition: pure REST subtract classifies structurally — the
     // whole of A survives (never a join refusal; SPEC §1 note).
     let decls = flush_declarations(&slab, &corner);
-    match subtract_with(&slab, &corner, &decls).unwrap() {
+    match subtract_with(&slab, &corner, &decls, Tol::witness()).unwrap() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
             (g, sub)
@@ -149,8 +161,14 @@ fn corner_flush_scenario<T: Decide + geom_core::Bounds + topo::PropsQuadLane>()
 #[test]
 fn corner_flush_rest_union_builds() {
     let (g, sub) = corner_flush_scenario::<f64>();
-    assert_eq!(mass_properties(&g.body).unwrap().volume, 18.0);
-    assert_eq!(mass_properties(&sub.body).unwrap().volume, 16.0);
+    assert_eq!(
+        mass_properties(&g.body, Tol::witness()).unwrap().volume,
+        18.0
+    );
+    assert_eq!(
+        mass_properties(&sub.body, Tol::witness()).unwrap().volume,
+        16.0
+    );
 }
 
 /// The contradiction row: a FALSE REST declaration (two definitely
@@ -171,7 +189,7 @@ fn false_rest_declaration_contradicts_at_the_lane() {
         bot.bottom_face,
         top.top_face,
     ));
-    let err = union_with(&bot.body, &top.body, &decls).unwrap_err();
+    let err = union_with(&bot.body, &top.body, &decls, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
         "false REST declaration must contradict, naming the class and the margin: {err:?}"
@@ -188,14 +206,14 @@ fn annular_rest_contact_refuses_typed() {
     let tube = |z0: f64, z1: f64| -> Body<f64> {
         let outer = brick::<f64>((0.0, 3.0), (0.0, 3.0), (z0, z1));
         let hole = brick::<f64>((1.0, 2.0), (1.0, 2.0), (z0 - 1.0, z1 + 1.0));
-        match subtract(&outer, &hole).expect("tube subtract") {
+        match subtract(&outer, &hole, Tol::witness()).expect("tube subtract") {
             BooleanResult::Body(b) => b.body,
             BooleanResult::Empty => panic!("tube is not empty"),
         }
     };
     let bot = tube(0.0, 1.0);
     let top = tube(1.0, 2.0);
-    let err = union_with(&bot, &top, &flush_declarations(&bot, &top)).unwrap_err();
+    let err = union_with(&bot, &top, &flush_declarations(&bot, &top), Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::RestZipUnsupported { .. }),
         "annular REST contact must refuse the typed sub-frontier: {err:?}"
@@ -227,7 +245,8 @@ fn rest_subtract_and_intersect_resolve_structurally() {
         0.25,
         0.75,
     );
-    let BooleanResult::Body(a) = subtract(&beam_a.body, &cut_a.body).unwrap() else {
+    let BooleanResult::Body(a) = subtract(&beam_a.body, &cut_a.body, Tol::witness()).unwrap()
+    else {
         panic!("notch A yields a body");
     };
     let beam_b = prism_z::<f64>(
@@ -240,20 +259,24 @@ fn rest_subtract_and_intersect_resolve_structurally() {
         -0.25,
         0.25,
     );
-    let BooleanResult::Body(b) = subtract(&beam_b.body, &cut_b.body).unwrap() else {
+    let BooleanResult::Body(b) = subtract(&beam_b.body, &cut_b.body, Tol::witness()).unwrap()
+    else {
         panic!("notch B yields a body");
     };
     let decls = flush_declarations(&a.body, &b.body);
-    match subtract_with(&a.body, &b.body, &decls).unwrap() {
+    match subtract_with(&a.body, &b.body, &decls, Tol::witness()).unwrap() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
-            assert_eq!(mass_properties(&sub.body).unwrap().volume, 0.9375);
+            assert_eq!(
+                mass_properties(&sub.body, Tol::witness()).unwrap().volume,
+                0.9375
+            );
         }
         BooleanResult::Empty => panic!("A ∖ B keeps A's material"),
     }
     assert!(
         matches!(
-            topo::intersect_with(&a.body, &b.body, &decls).unwrap(),
+            topo::intersect_with(&a.body, &b.body, &decls, Tol::witness()).unwrap(),
             BooleanResult::Empty
         ),
         "disjoint interiors intersect to the typed Empty"
@@ -275,7 +298,7 @@ fn stacked_rerun_is_bit_identical() {
     assert_eq!(g1.naming.vertex_merges, g2.naming.vertex_merges);
     assert_eq!(g1.naming.merge_groups, g2.naming.merge_groups);
     let stl_of = |g: &BooleanBody<f64>| {
-        let mesh = mesh::tessellate(&g.body, 1e-2).expect("tessellate");
+        let mesh = mesh::tessellate(&g.body, 1e-2, Tol::witness()).expect("tessellate");
         mesh::validate::check_mesh(&mesh).expect("watertight");
         let mut buf = Vec::new();
         stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut buf).expect("stl");

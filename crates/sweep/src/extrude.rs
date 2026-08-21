@@ -66,7 +66,7 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
@@ -425,8 +425,9 @@ struct LoopBase {
 pub fn extrude<T: Decide>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
+    tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
-    let band = Band::linear().map_err(ExtrudeError::Band)?;
+    let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
     let place = profile.plane().placement;
     let normal = place.linear.c2;
 
@@ -490,6 +491,7 @@ pub fn extrude<T: Decide>(
         },
         qs[1 % n],
         placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n]),
+        tol,
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -501,6 +503,7 @@ pub fn extrude<T: Decide>(
             },
             qs[j],
             placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j]),
+            tol,
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -526,6 +529,7 @@ pub fn extrude<T: Decide>(
         },
         placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0]),
         FaceSurface::New(bottom_plane),
+        tol,
     )?;
     hes.push(close.he_plus);
     let top_face = seed.face;
@@ -548,6 +552,7 @@ pub fn extrude<T: Decide>(
                 he2: anchor,
             },
             hq[0],
+            tol,
         )?;
         let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
         // Grow the hole chain inside the ring loop.
@@ -556,6 +561,7 @@ pub fn extrude<T: Decide>(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
             placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m]),
+            tol,
         )?;
         hole_hes.push(first.he_plus);
         let mut prev = first;
@@ -567,6 +573,7 @@ pub fn extrude<T: Decide>(
                 },
                 hq[j],
                 placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j]),
+                tol,
             )?;
             hole_hes.push(mv.he_plus);
             prev = mv;
@@ -580,6 +587,7 @@ pub fn extrude<T: Decide>(
             },
             placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0]),
             FaceSurface::Shared(bottom_surface),
+            tol,
         )?;
         hole_hes.push(close.he_plus);
         // Consume the disc: its loop becomes the bottom cap's ring —
@@ -596,7 +604,7 @@ pub fn extrude<T: Decide>(
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         let qs = &points[li];
         let swept = sweep_loop(
-            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band,
+            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol,
         )?;
         side_faces.push(swept.faces);
         strut_edges.push(swept.struts);
@@ -642,6 +650,7 @@ pub fn extrude<T: Decide>(
                 li,
                 segs[j].chord.canonical_segment,
                 band,
+                tol,
             )?;
             upgrade_rim(
                 &mut body,
@@ -653,6 +662,7 @@ pub fn extrude<T: Decide>(
                 li,
                 segs[j].chord.canonical_segment,
                 band,
+                tol,
             )?;
         }
     }
@@ -692,6 +702,7 @@ fn sweep_loop<T: Decide>(
     w: Vec3<T>,
     w_norm: T,
     band: Band,
+    tol: Tol,
 ) -> Result<LoopSwept, ExtrudeError> {
     let n = segs.len();
 
@@ -729,6 +740,7 @@ fn sweep_loop<T: Decide>(
             },
             qs[j] + w,
             strut_spec(segs[j].chord.a, place, qs[j], w, w_norm),
+            tol,
         )?;
         struts.push(m);
     }
@@ -761,6 +773,7 @@ fn sweep_loop<T: Decide>(
             },
             placed_segment_spec(&segs[j], top_place, normal, top_q_from, top_q_to),
             surface,
+            tol,
         )?;
         if j == 0 {
             first_top = Some(mef.he_plus);
@@ -823,7 +836,7 @@ fn sweep_loop<T: Decide>(
                     param_start: T::zero(),
                     param_end: w_norm,
                 };
-                body.set_edge_curve(struts[j].edge, spec)?;
+                body.set_edge_curve(struts[j].edge, spec, tol)?;
             }
             Ok(DihedralClass::Smooth) => {
                 // OQ7's must-carry, applied at construction (M5 PR 9):
@@ -856,7 +869,7 @@ fn sweep_loop<T: Decide>(
                             param_start: T::zero(),
                             param_end: w_norm,
                         };
-                        body.set_edge_curve(struts[j].edge, spec)?;
+                        body.set_edge_curve(struts[j].edge, spec, tol)?;
                     }
                     Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {}
                     Err(source) => {
@@ -1001,6 +1014,7 @@ fn upgrade_rim<T: Decide>(
     loop_index: usize,
     segment_index: usize,
     band: Band,
+    tol: Tol,
 ) -> Result<(), ExtrudeError> {
     let curve_key = body
         .get_edge(edge)
@@ -1047,7 +1061,7 @@ fn upgrade_rim<T: Decide>(
                 param_start: t0,
                 param_end: t1,
             };
-            body.set_edge_curve(edge, spec)?;
+            body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
         // Believed unreachable for a normal extrusion (the cap plane is

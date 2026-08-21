@@ -80,6 +80,7 @@ use crate::names::{
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use crate::witness::WitnessBifurcation;
+use geom_core::Tol;
 
 /// Typed resolution failure — N5 VERBATIM (spec D1: the block is
 /// normative, not indicative). Data in results, never a panic and
@@ -920,6 +921,7 @@ pub fn apply_with_names<T: Decide>(
     doc: &Doc<ProfileProgram>,
     edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     let mut names: Vec<&StableName> = Vec::new();
@@ -962,7 +964,7 @@ pub fn apply_with_names<T: Decide>(
             return Err(EditError::NameUnresolvedInEvaluation { name: name.clone() });
         }
     }
-    crate::edit::apply(doc, edit)
+    crate::edit::apply(doc, edit, tol)
 }
 
 /// The nodes a name's derivation passes through: its minting node,

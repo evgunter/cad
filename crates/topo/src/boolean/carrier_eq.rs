@@ -378,9 +378,10 @@ fn data_rungs<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {

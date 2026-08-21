@@ -18,6 +18,7 @@
 use super::{euler_poincare_holds, face_polygon, signed_area, start_xyz};
 use crate::{Body, LoopBoundary, MefSite, MevSite, validate};
 use geom_core::Point3;
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -25,6 +26,7 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 
 #[test]
 fn independent_cube_full_verification() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
 
     // Seed at A'.
@@ -39,6 +41,7 @@ fn independent_cube_full_verification() {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 1.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -50,6 +53,7 @@ fn independent_cube_full_verification() {
                 he2: h0.he_minus,
             },
             pt(1.0, 1.0, 1.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -61,6 +65,7 @@ fn independent_cube_full_verification() {
                 he2: h1.he_minus,
             },
             pt(0.0, 1.0, 1.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -75,10 +80,13 @@ fn independent_cube_full_verification() {
     // he_plus (A'->D') and the minus halves: A'->D'->C'->B' -- the
     // "everything else" lamina side.
     let f_top = body
-        .mef_chord(MefSite::Chords {
-            he1: h0.he_plus,
-            he2: h2.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: h0.he_plus,
+                he2: h2.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -100,7 +108,7 @@ fn independent_cube_full_verification() {
     //   C': h1.he_minus (C'->B'),  B': h0.he_minus (B'->A').
     let strut = |body: &mut Body<f64>, at, x, y| {
         let c = body
-            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, 0.0))
+            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, 0.0), tol)
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         c
@@ -116,7 +124,7 @@ fn independent_cube_full_verification() {
     //  s_c- (C->C'), h1- (C'->B'), s_b+ (B'->B), s_b- (B->B'),
     //  h0- (B'->A')].
     let side = |body: &mut Body<f64>, he1, he2| {
-        let c = body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        let c = body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
         assert_eq!(validate(body), Ok(()));
         c
     };

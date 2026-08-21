@@ -13,6 +13,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point3, Real};
 use topo::{Body, MefSite, MevSite, validate, validate_closed, validate_geometric};
 
@@ -40,14 +41,21 @@ fn interval_cube_builds_and_validates_at_both_tiers() {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let strut = |body: &mut Body<Interval>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(
+            MevSite::Fan { he1: at, he2: at },
+            pt(x, y, z),
+            Tol::witness(),
+        )
+        .unwrap()
+    };
+    let mef = |body: &mut Body<Interval>, he1, he2| {
+        body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
             .unwrap()
     };
-    let mef =
-        |body: &mut Body<Interval>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
@@ -97,7 +105,7 @@ fn interval_geometric_cube_passes_tier3() {
     assert_eq!(validate_closed(&t.body), Ok(()));
     let mut body = t.body;
     common::describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     // Certification records are genuine enclosures: max residual
     // brackets are finite, tiny, and contain no poison.
     for (_, curve) in body.curves() {
@@ -114,5 +122,5 @@ fn interval_cube_upgrades_to_intersections() {
     let t = common::geometric_cube::<Interval>();
     let mut body = t.body;
     common::describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }

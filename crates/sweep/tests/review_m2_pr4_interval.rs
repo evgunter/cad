@@ -11,7 +11,8 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Bounds, Interval, Point2, Point3, Real, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Bounds, Interval, Point2, Point3, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -44,12 +45,17 @@ fn interval_reversed_l_profile_all_tiers() {
         p2(0.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(-1.5))).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance(Interval::from_f64(-1.5)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     assert_eq!(t.body.vertices().count(), 12);
     let strut = t.strut_edges[0][0];
     let he = t.body.get_edge(strut).unwrap().he_plus;
@@ -81,12 +87,17 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
     ]);
     let hole = square(0.5, 0.5, 0.25);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     let v = t.body.vertices().count() as isize;
     let e = t.body.edges().count() as isize;
     let f = t.body.faces().count() as isize;
@@ -115,12 +126,17 @@ fn fixed_interval_diagonal_bridge_builds_tier_valid() {
     let outer = square(0.0, 0.0, 1.0);
     let hole = square(0.25, 0.25, 0.5);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     // Genus 1: the ring path ran end to end at the interval scalar.
     let v = t.body.vertices().count() as isize;
     let e = t.body.edges().count() as isize;
@@ -157,11 +173,16 @@ fn fixed_interval_rotated_placement_builds_tier_valid() {
     );
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     assert_eq!(t.body.vertices().count(), 8);
 }

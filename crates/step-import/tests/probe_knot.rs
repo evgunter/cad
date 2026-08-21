@@ -20,6 +20,7 @@
 
 use std::time::{Duration, Instant};
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImportError, import_step};
 
 fn box_step() -> String {
@@ -38,7 +39,7 @@ fn run(tag: &str, text: &str) -> Result<f64, StepImportError> {
     let t = Instant::now();
     let owned = text.to_owned();
     let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        import_step(&owned, &ImportOptions::default()).map(|i| i.eps_in())
+        import_step(&owned, &ImportOptions::default(), Tol::witness()).map(|i| i.eps_in())
     }));
     let took = t.elapsed();
     assert!(out.is_ok(), "{tag}: PANICKED in {took:?}");

@@ -103,6 +103,7 @@ use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
+use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
 /// between the two documents' node id spaces.
@@ -806,6 +807,7 @@ pub fn split(
     doc: &ProfileDoc,
     cut: &BTreeSet<RecipeNodeId>,
     part_id: DocumentId,
+    tol: Tol,
 ) -> Result<SplitOutcome, SplitError> {
     if cut.is_empty() {
         return Err(SplitError::EmptyCut);
@@ -992,13 +994,13 @@ pub fn split(
         .collect();
 
     // ---- The part document, as recorded edits from empty ----
-    let mut part = Doc::empty(part_id);
+    let mut part = Doc::empty(part_id, tol);
     let mut part_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let part_apply = |part: &mut ProfileDoc,
                       edits: &mut Vec<DocEdit<ProfileProgram>>,
                       edit: DocEdit<ProfileProgram>|
      -> Result<(), SplitError> {
-        *part = apply(part, &edit)
+        *part = apply(part, &edit, tol)
             .map_err(|error| SplitError::PartEdit {
                 error: Box::new(error),
             })?
@@ -1092,7 +1094,7 @@ pub fn split(
             DocEdit::SetRoots { roots: part_roots },
         )?;
     }
-    let pin = content_pin(&part).map_err(|error| SplitError::Pin {
+    let pin = content_pin(&part, tol).map_err(|error| SplitError::Pin {
         error: Box::new(error),
     })?;
 
@@ -1160,7 +1162,7 @@ pub fn split(
                      edits: &mut Vec<DocEdit<ProfileProgram>>,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
-        let applied = apply(remainder, &edit).map_err(|error| SplitError::RemainderEdit {
+        let applied = apply(remainder, &edit, tol).map_err(|error| SplitError::RemainderEdit {
             error: Box::new(error),
         })?;
         *remainder = applied.doc;
@@ -1289,6 +1291,7 @@ pub fn inline(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
     resolver: &dyn PartResolver,
+    tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
@@ -1308,7 +1311,7 @@ pub fn inline(
         }
     }
     let part = resolver
-        .resolve(doc_ref)
+        .resolve(doc_ref, tol)
         .map_err(|failure| InlineError::Unresolved { failure })?;
     if part.epsilon().to_bits() != doc.epsilon().to_bits() {
         return Err(InlineError::EpsilonSeam {
@@ -1379,7 +1382,7 @@ pub fn inline(
                 edits: &mut Vec<DocEdit<ProfileProgram>>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> {
-        *current = apply(current, &edit)
+        *current = apply(current, &edit, tol)
             .map_err(|error| InlineError::Edit {
                 error: Box::new(error),
             })?

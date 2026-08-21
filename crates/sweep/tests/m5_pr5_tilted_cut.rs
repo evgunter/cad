@@ -14,7 +14,8 @@
 
 use geom::Curve3;
 use geom_brep::EdgeGeometry;
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
@@ -34,12 +35,14 @@ fn disc() -> ValidatedProfile<f64> {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0)).unwrap().body
+    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Every certified `Ellipse` edge of a body, with its curve.
@@ -69,7 +72,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -82,7 +85,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
         // quadrature enclosure's bounds (construction row, the S9
         // flip pattern; the enclosure itself is pinned in
         // `m5_pr11_quad_props.rs`).
-        if let Err(errs) = validate_geometric(part) {
+        if let Err(errs) = validate_geometric(part, Tol::witness()) {
             panic!("tier 3 passes end to end since PR 11: {errs:?}");
         }
         // The section boundary: exactly two ellipse arcs (one per wall
@@ -133,13 +136,13 @@ fn perpendicular_cut_stays_rung_1_circles() {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::unit_z(),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
     for part in [above, below] {
         assert_eq!(validate_closed(part), Ok(()));
-        assert_eq!(validate_geometric(part), Ok(()));
+        assert_eq!(validate_geometric(part, Tol::witness()), Ok(()));
         assert!(ellipse_edges(part).is_empty(), "no ellipse minted");
         // The section boundary circles sit at z = 0.5 with radius 0.5.
         let mut section_circles = 0;
@@ -169,13 +172,13 @@ fn axis_parallel_cut_splits_through_rim_crossings() {
         origin: Point3::origin(),
         normal: Vec3::unit_x(),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
     for part in [above, below] {
         assert_eq!(validate_closed(part), Ok(()));
-        assert_eq!(validate_geometric(part), Ok(()));
+        assert_eq!(validate_geometric(part, Tol::witness()), Ok(()));
         assert!(ellipse_edges(part).is_empty(), "ruling sections are lines");
     }
 }
@@ -194,7 +197,7 @@ fn seam_coincident_cut_splits_along_the_seams() {
         origin: Point3::origin(),
         normal: Vec3::unit_y(),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
         assert_eq!(part.faces().count(), 4, "wall + two half caps + section");
@@ -213,7 +216,7 @@ fn tilted_cut_replays_bit_identically() {
             origin: Point3::new(0.0, 0.0, 0.5),
             normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
         };
-        let result = split(&body, &plane).unwrap();
+        let result = split(&body, &plane, Tol::witness()).unwrap();
         let SplitPart::Body(above) = result.above else {
             panic!("above side carries material");
         };
@@ -242,7 +245,7 @@ fn tangent_plane_refuses_typed() {
         origin: Point3::new(0.5, 0.0, 0.0),
         normal: Vec3::unit_x(),
     };
-    let err = split(&body, &plane).unwrap_err();
+    let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = format!("{err}");
     assert!(
         msg.contains("tangent") || msg.contains("Tangen") || msg.contains("degenerate"),
@@ -256,6 +259,7 @@ fn tangent_plane_refuses_typed() {
 #[cfg(feature = "interval")]
 mod interval {
     use super::*;
+    use geom_core::Tol;
     use geom_core::{Bounds, Interval, Real};
 
     #[test]
@@ -266,15 +270,17 @@ mod interval {
             ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
         ]);
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
-        let body = extrude(&vp, Extrusion::Distance(iv(1.0))).unwrap().body;
+        let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
+            .unwrap()
+            .body;
         let phi = 0.3f64;
         let plane = SplitPlane {
             origin: Point3::new(iv(0.0), iv(0.0), iv(0.5)),
             normal: Vec3::new(iv(phi.sin()), iv(0.0), iv(phi.cos())),
         };
-        let result = split(&body, &plane).unwrap();
+        let result = split(&body, &plane, Tol::witness()).unwrap();
         let SplitPart::Body(above) = result.above else {
             panic!("above side carries material");
         };
@@ -325,7 +331,7 @@ fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, B
     for part in [above, below] {
         assert_eq!(validate(part), Ok(()));
         assert_eq!(validate_closed(part), Ok(()));
-        if let Err(errs) = validate_geometric(part) {
+        if let Err(errs) = validate_geometric(part, Tol::witness()) {
             panic!("tier 3 passes end to end since PR 11: {errs:?}");
         }
     }
@@ -344,7 +350,7 @@ fn even_crossing_recovers_the_sliver() {
         origin: Point3::new(0.0, 0.25, 0.0),
         normal: Vec3::unit_y(),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     // The above body IS the recovered sliver: every vertex at
     // y ≥ 0.25 − ε, at least one strictly beyond (the rim apex band).
@@ -465,7 +471,7 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
         origin: Point3::new(0.0, 0.1, 0.5),
         normal: Vec3::new(0.0, 2.0 * n, n),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
         // Four section arcs per side: the two short ones per wall
@@ -489,7 +495,7 @@ fn tilted_belly_cut_mints_wall_contained_section_arcs() {
         rows.sort();
         rows
     };
-    let again = split(&body, &plane).unwrap();
+    let again = split(&body, &plane, Tol::witness()).unwrap();
     let (above2, below2) = assert_two_sided(&again);
     assert_eq!(rows(&above), rows(&above2));
     assert_eq!(rows(&below), rows(&below2));
@@ -515,7 +521,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
         origin: Point3::new(c * o0.x - s * o0.y, s * o0.x + c * o0.y, o0.z),
         normal: Vec3::new(c * n0.x - s * n0.y, s * n0.x + c * n0.y, n0.z),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     for part in [&above, &below] {
         let spans = wall_contained_ellipse_spans(part, 1.0);
@@ -556,7 +562,7 @@ fn rotated_belly_cut_is_seam_placement_independent() {
 /// and for each side prints every certified `Curve3::Ellipse` edge's
 /// `params()` span, the min/max `z` of `carrier().eval` over a dense
 /// sweep of that interval, `topo::pcurves::validate_pcurves(part,
-/// Band::linear())`, and `topo::mint_pcurves(&mut part.clone())`.
+/// Band::linear(Tol::witness()))`, and `topo::mint_pcurves(&mut part.clone())`.
 /// It reports, per side:
 ///
 ///   * two section-arc edges, each span 5.8957988 rad
@@ -580,7 +586,7 @@ fn on_endpoint_belly_cut_splits() {
         origin: Point3::new(0.5, 0.0, 0.0),
         normal: n,
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
     // The mixed section carries ellipse arcs on both sides, and every
     // one of them stays on the finite wall over its stored interval.
@@ -612,15 +618,15 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
         origin: Point3::new(0.0, 0.1, 0.5),
         normal: Vec3::new(0.0, 2.0 * n, n),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (above, below) = assert_two_sided(&result);
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for part in [above, below] {
         // The split's own caches re-validate at rest.
         assert!(topo::pcurves::validate_pcurves(&part, band).is_empty());
         // And a fresh mint over the same body is accepted and clean.
         let mut again = part.clone();
-        topo::mint_pcurves(&mut again).unwrap();
+        topo::mint_pcurves(&mut again, Tol::witness()).unwrap();
         assert!(topo::pcurves::validate_pcurves(&again, band).is_empty());
         // The curved wall pieces really do carry caches (the row would
         // be vacuous on an all-planar body).
@@ -651,9 +657,11 @@ fn even_crossing_belly_cut_at_interval() {
         profile::ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
     ]);
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(iv(1.0))).unwrap().body;
+    let body = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness())
+        .unwrap()
+        .body;
     // The tilted-belly even-crossing configuration (both rims crossed
     // twice + both seams once). Axis-parallel even-crossing planes put
     // crossing-vertex PAIRS at equal in-plane u (vertically aligned),
@@ -701,7 +709,7 @@ fn even_crossing_belly_cut_at_interval() {
         (rows, sum)
     };
     let run = || {
-        let result = split(&body, &plane).unwrap();
+        let result = split(&body, &plane, Tol::witness()).unwrap();
         let (SplitPart::Body(above), SplitPart::Body(below)) = (result.above, result.below) else {
             panic!("both sides carry material at Interval");
         };
@@ -751,7 +759,7 @@ fn root_at_endpoint_inserts_nothing() {
         origin: Point3::origin(),
         normal: Vec3::unit_y(),
     };
-    let red = topo::splitting::split_reduce(&body, &plane).unwrap();
+    let red = topo::splitting::split_reduce(&body, &plane, Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 4);
     for v in &red.on_vertices {
         assert!(originals.contains(v), "no crossing vertex minted");
@@ -768,7 +776,7 @@ fn definite_roots_mint_four_crossings() {
         origin: Point3::new(0.0, 0.25, 0.0),
         normal: Vec3::unit_y(),
     };
-    let red = topo::splitting::split_reduce(&body, &plane).unwrap();
+    let red = topo::splitting::split_reduce(&body, &plane, Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 4);
     for v in &red.on_vertices {
         assert!(!originals.contains(v), "all four are minted crossings");
@@ -781,12 +789,12 @@ fn definite_roots_mint_four_crossings() {
 #[test]
 fn near_graze_escalates_typed() {
     let body = cylinder_body();
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.5 + 3.0 * eps, 0.0),
         normal: Vec3::unit_y(),
     };
-    let err = split(&body, &plane).unwrap_err();
+    let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = format!("{err}");
     assert!(msg.contains("split_conic_belly_graze"), "{msg}");
     assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
@@ -803,7 +811,7 @@ fn exact_graze_refuses_typed() {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::unit_y(),
     };
-    match split(&body, &plane) {
+    match split(&body, &plane, Tol::witness()) {
         Ok(r) => panic!(
             "a tangent graze must not produce a two-sided split: above={:?} below={:?}",
             matches!(r.above, SplitPart::Body(_)),

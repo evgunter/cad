@@ -117,7 +117,7 @@
 //! [`Body::kef`] kills `he`'s edge and **the face of `he`'s loop** —
 //! `he`'s side dies, the exact inverse of `mef`'s "`he1`'s side becomes
 //! the new face" (a `mef` is undone by `kef(created.he_minus)`, the half
-//! it placed in the new loop). The dying loop's remnant merges into the
+//! it placed in the new loop, tol). The dying loop's remnant merges into the
 //! mate's loop. The edge must border two DISTINCT faces and the dying
 //! face must be RING-FREE (move rings off with [`Body::ring_move`]
 //! first, mirroring `kfmrh` — or kill the mate's side if that one is
@@ -215,7 +215,7 @@
 //!
 //! and in the kill∘make direction the re-make sites are derived from the
 //! pre-kill neighborhood (`kev` ↔ `mev(Fan{next(he), next(mate(he))})`
-//! etc.). The make∘kill direction is exact for every site; the
+//! etc., tol). The make∘kill direction is exact for every site; the
 //! kill∘make direction is exact for every site EXCEPT two subcases with
 //! no single-op re-make (the roundtrip property tests skip exactly
 //! these — precise statement and proof sketch in the seqgen
@@ -237,14 +237,17 @@
 //!
 //! ```
 //! use geom_core::Point3;
+//! use geom_core::Tol;
 //! use topo::{Body, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! // kev(he_plus) kills end(he_plus) — the far vertex — and the edge:
 //! // the loop is empty again, holding the seed vertex.
@@ -1122,6 +1125,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
@@ -1161,6 +1165,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         (body, seed, seg)
@@ -1177,6 +1182,7 @@ mod tests {
                     he2: seg.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         (body, seed, seg, strut)
@@ -1251,9 +1257,12 @@ mod tests {
         );
         // Two faces: kill the edge back and split instead.
         body.kev(seg.he_plus).unwrap();
-        body.mef_chord(MefSite::Lone {
-            r#loop: seed.r#loop,
-        })
+        body.mef_chord(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         assert_err_deep_unchanged(
             &mut body,
@@ -1384,6 +1393,7 @@ mod tests {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            Tol::witness(),
         )
         .unwrap();
         assert_eq!(canonical_form(&body), with_segment);
@@ -1451,6 +1461,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         let strut_at = |body: &mut Body<f64>, x: f64| {
@@ -1460,6 +1471,7 @@ mod tests {
                     he2: a.he_plus,
                 },
                 p(x),
+                Tol::witness(),
             )
             .unwrap()
         };
@@ -1487,6 +1499,7 @@ mod tests {
                     he2: d.he_plus,
                 },
                 p(5.0),
+                Tol::witness(),
             )
             .unwrap();
         let result = body.kev(split.he_plus).unwrap();
@@ -1521,13 +1534,17 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let before = canonical_form(&body);
         let fan = body
@@ -1537,6 +1554,7 @@ mod tests {
                     he2: split.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         // The new halves landed in different loops (pinned by PR 2's
@@ -1583,9 +1601,12 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let circ = body
-            .mef_chord(MefSite::Lone {
-                r#loop: seed.r#loop,
-            })
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_err_deep_unchanged(
             &mut body,
@@ -1655,10 +1676,13 @@ mod tests {
     fn ops_pillow() -> (Body<f64>, MvfsCreated, MevCreated, MefCreated) {
         let (mut body, seed, seg) = segment();
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         (body, seed, seg, split)
     }
@@ -1673,10 +1697,13 @@ mod tests {
         // Split the new face (loop [he_minus, seg.he_plus]) between its
         // two vertices.
         let cut = body
-            .mef_chord(MefSite::Chords {
-                he1: split.he_minus,
-                he2: seg.he_plus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: split.he_minus,
+                    he2: seg.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let result = body.kef(cut.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1713,10 +1740,13 @@ mod tests {
             .unwrap()
             .face;
         let cut = body
-            .mef_chord(MefSite::Chords {
-                he1: split.he_minus,
-                he2: seg.he_plus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: split.he_minus,
+                    he2: seg.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(old_face, split.face, "the mef split the new pillow face");
         let result = body.kef(cut.he_plus).unwrap();
@@ -1733,10 +1763,13 @@ mod tests {
         let (mut body, _seed, seg) = segment();
         let before = canonical_form(&body);
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_minus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let result = body.kef(circ.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1752,10 +1785,13 @@ mod tests {
         // re-make exists for this kill; validity is the contract.)
         let (mut body, seed, seg) = segment();
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_minus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let old_face = body.get_loop(seed.r#loop).unwrap().face;
         let result = body.kef(circ.he_plus).unwrap();
@@ -1781,9 +1817,12 @@ mod tests {
         let before = canonical_form(&body);
         let before_counts = arena_snapshot(&body);
         let circ = body
-            .mef_chord(MefSite::Lone {
-                r#loop: seed.r#loop,
-            })
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let result = body.kef(circ.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1830,7 +1869,7 @@ mod tests {
             prov(),
         );
         body.get_solid_mut(solid).unwrap().shells.push(shell);
-        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
+        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0), Tol::witness()));
         let edge = body.add_edge(
             Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -1903,6 +1942,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -1932,6 +1972,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -2005,7 +2046,7 @@ mod tests {
         // kfmrh ∘ mfkrh on the genus-1 acceptance body: promoting the
         // demoted membrane loop back to a face takes genus 1 → 0, and
         // re-killing it restores the canonical form.
-        let t = ops_holed_box();
+        let t = ops_holed_box(Tol::witness());
         let mut body = t.body;
         let before = canonical_form(&body);
         let bottom_face = t.box_mefs[0].face;
@@ -2070,7 +2111,7 @@ mod tests {
 
     #[test]
     fn cube_tears_down_to_the_empty_body() {
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let mut body = t.body;
         // Undo the five mefs in reverse: each kef(created.he_minus)
         // kills the face that mef made.
@@ -2138,10 +2179,13 @@ mod tests {
         let run = || {
             let (mut body, _seed, seg, split) = ops_pillow();
             let cut = body
-                .mef_chord(MefSite::Chords {
-                    he1: split.he_minus,
-                    he2: seg.he_plus,
-                })
+                .mef_chord(
+                    MefSite::Chords {
+                        he1: split.he_minus,
+                        he2: seg.he_plus,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap();
             body.kef(cut.he_minus).unwrap();
             body.kev(seg.he_plus).unwrap(); // pillow → circular-edge body

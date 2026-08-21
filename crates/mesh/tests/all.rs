@@ -115,7 +115,7 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
-/// **The ε inventory — `sizing::Tol`'s ledger written as a gate rather
+/// **The ε inventory — `sizing::SizingTols`'s ledger written as a gate rather
 /// than as a sentence.**
 ///
 /// Every `eps` identifier in the PRODUCTION half of `crates/mesh/src`
@@ -124,7 +124,7 @@ fn every_suite_file_is_aggregated() {
 /// below, so a new ε read cannot land without either appearing in this
 /// table or turning it red.
 ///
-/// **Why a gate and not a list.** `sizing::Tol` used to carry a list —
+/// **Why a gate and not a list.** `sizing::SizingTols` used to carry a list —
 /// *"ε reaches three places from here and no more"* — and it was short
 /// by one for two milestones: `walk::iso_side_starts` reads ε to decide
 /// whether a traversal opens an iso side or repeats its predecessor's
@@ -139,7 +139,7 @@ fn every_suite_file_is_aggregated() {
 /// on; a **terminal read** compares or adds it.
 ///
 /// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
-///   else: `Tolerance::get().eps` (two tokens on one line) and the
+///   else: `Tol::witness().get().eps` (two tokens on one line) and the
 ///   `Tol` field initialiser.
 /// - **`sizing.rs` — 1.** The `Tol::eps` field declaration. This
 ///   module computes every step and count in the crate and reads ε in
@@ -200,7 +200,7 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What this cannot match, and it is a work order
 ///
-/// 1. **A read that does not spell `eps`.** `Tolerance::get().eps`
+/// 1. **A read that does not spell `eps`.** `Tol::witness().get().eps`
 ///    bound to another name, or ε reached through a helper that
 ///    already applied it, is invisible here. The mechanism that would
 ///    close that is a TYPE — ε as a newtype whose only operations are
@@ -312,7 +312,7 @@ fn the_eps_inventory_is_pinned() {
     assert_eq!(
         found, pinned,
         "the ε inventory moved. That is not a failure to silence: a read was added, \
-         removed or renamed, and `sizing::Tol`'s ledger plus this row's per-file \
+         removed or renamed, and `sizing::SizingTols`'s ledger plus this row's per-file \
          breakdown both owe an update. Classify the new read at its site — does it \
          REFUSE, CLASSIFY, or SCALE a number? — then re-pin."
     );

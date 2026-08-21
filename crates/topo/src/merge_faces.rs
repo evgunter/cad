@@ -38,7 +38,7 @@
 use std::collections::BTreeMap;
 
 use geom::Surface;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -342,8 +342,11 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
-    pub fn merge_coplanar_faces(&mut self) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
-        self.merge_coplanar_faces_declared(&[])
+    pub fn merge_coplanar_faces(
+        &mut self,
+        tol: Tol,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+        self.merge_coplanar_faces_declared(&[], tol)
     }
 
     /// [`Body::merge_coplanar_faces`] with declared coincident
@@ -367,6 +370,7 @@ impl<T: Decide> Body<T> {
     pub fn merge_coplanar_faces_declared(
         &mut self,
         declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
@@ -397,7 +401,7 @@ impl<T: Decide> Body<T> {
         } else {
             Some(DeclaredCtx {
                 eq,
-                band: Band::linear().map_err(|error| MergeCoplanarError::Band { error })?,
+                band: Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?,
             })
         };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
@@ -482,11 +486,11 @@ impl<T: Decide> Body<T> {
                     .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
             });
             if !licensed && !curved {
-                outcome.groups.push(work.merge_group(&members)?);
+                outcome.groups.push(work.merge_group(&members, tol)?);
                 continue;
             }
             let mut trial = work.clone();
-            match trial.merge_group(&members) {
+            match trial.merge_group(&members, tol) {
                 Ok(group) => match validate_closed(&trial) {
                     Ok(()) => {
                         work = trial;
@@ -534,7 +538,7 @@ impl<T: Decide> Body<T> {
         // when the fitted route joins the mint pass, this site
         // inherits the fix for free.
         if !self.pcurves.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work)
+            crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
         *self = work;
@@ -731,7 +735,11 @@ impl<T: Decide> Body<T> {
 
     /// Merges one group into its first member (see the public op's
     /// docs for order and refusals). Runs on the staged clone.
-    fn merge_group(&mut self, members: &[FaceKey]) -> Result<MergedGroup, MergeCoplanarError> {
+    fn merge_group(
+        &mut self,
+        members: &[FaceKey],
+        tol: Tol,
+    ) -> Result<MergedGroup, MergeCoplanarError> {
         let rep = members[0];
         let mut group = MergedGroup {
             kept: rep,
@@ -860,7 +868,7 @@ impl<T: Decide> Body<T> {
                 )
             };
             let survivor = survivor.clone();
-            if let Some(i) = self.merged_outline_ring(rep, &survivor)? {
+            if let Some(i) = self.merged_outline_ring(rep, &survivor, tol)? {
                 let Some(fm) = self.faces.get_mut(rep) else {
                     unreachable!(
                         "merge_group: `rep` resolved a few lines above and the winding \
@@ -980,8 +988,9 @@ impl<T: Decide> Body<T> {
         &self,
         face: FaceKey,
         survivor: &crate::entity::Face,
+        tol: Tol,
     ) -> Result<Option<usize>, MergeCoplanarError> {
-        let band = Band::linear().map_err(|error| MergeCoplanarError::Band { error })?;
+        let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every

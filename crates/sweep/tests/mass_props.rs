@@ -18,6 +18,7 @@ use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate_geometric};
 
+use geom_core::Tol;
 use revolve_common::{axis_y, full_pappus_y, p2, validated};
 
 /// Tight relative tolerance for closed-form-vs-closed-form agreement.
@@ -31,8 +32,9 @@ fn assert_close(what: &str, got: f64, expect: f64) {
 }
 
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
-    validate_geometric(body).expect("acceptance body must be tier-3 valid (incl. +V)");
-    let props = mass_properties(body).expect("mass properties must compute");
+    validate_geometric(body, Tol::witness())
+        .expect("acceptance body must be tier-3 valid (incl. +V)");
+    let props = mass_properties(body, Tol::witness()).expect("mass properties must compute");
     assert_close(&format!("{what} volume"), props.volume, volume);
     assert_close(&format!("{what} area"), props.surface_area, area);
 }
@@ -49,9 +51,13 @@ fn l_prism_matches_closed_forms() {
         p2(1.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    let body = extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
-        .unwrap()
-        .body;
+    let body = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     // Profile area 3, perimeter 8, height 1.
     check(&body, "L-prism", 3.0, 2.0 * 3.0 + 8.0);
 }
@@ -65,9 +71,13 @@ fn square_with_two_vertex_hole_matches_closed_forms() {
         ProfileVertex::new(p2(1.0, 0.0), 1.0),
         ProfileVertex::new(p2(-1.0, 0.0), 1.0),
     ]);
-    let body = extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0))
-        .unwrap()
-        .body;
+    let body = extrude(
+        &validated(vec![outer, hole]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     // V = (16 − π)·1; A = 2(16 − π) + 16 + 2π = 48.
     check(&body, "holed prism", 16.0 - PI, 48.0);
 }
@@ -77,11 +87,17 @@ fn square_with_two_vertex_hole_matches_closed_forms() {
 #[test]
 fn washer_matches_closed_forms() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     // V = π(2² − 1²)·1 = 3π; A = 4π + 2π + 2·3π = 12π.
     check(&t.body, "washer", 3.0 * PI, 12.0 * PI);
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body).unwrap().volume;
+    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "washer Pappus cross-check: exact {v} vs quadrature {pappus}"
@@ -94,10 +110,16 @@ fn ball_matches_closed_forms() {
         ProfileVertex::new(p2(0.0, -1.0), 1.0),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body).unwrap().volume;
+    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "ball Pappus: {v} vs {pappus}"
@@ -107,11 +129,17 @@ fn ball_matches_closed_forms() {
 #[test]
 fn cone_matches_closed_forms() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     // r = h = 1: V = π/3; A = πr√(r²+h²) + πr² = π(√2 + 1).
     check(&t.body, "cone", PI / 3.0, PI * (SQRT_2 + 1.0));
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body).unwrap().volume;
+    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "cone Pappus: {v} vs {pappus}"
@@ -124,11 +152,17 @@ fn donut_matches_closed_forms() {
         ProfileVertex::new(p2(2.0, -0.5), 1.0),
         ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     // R = 2, r = 1/2: V = 2π²Rr² = π²; A = 4π²Rr = 4π².
     check(&t.body, "donut", PI * PI, 4.0 * PI * PI);
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body).unwrap().volume;
+    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "donut Pappus: {v} vs {pappus}"
@@ -142,6 +176,7 @@ fn partial_wedge_matches_theta_scaled_closed_forms() {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap();
     // θ = π/2 (quarter): V = 3π/4; A = θ-scaled walls + 2 meridian
@@ -156,6 +191,7 @@ fn axis_touching_wedge_matches_closed_forms() {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap();
     // Quarter cylinder: V = θr²h/2 = π/4; A = θrh + 2·θr²/2 + 2·1
@@ -169,7 +205,13 @@ fn near_full_wedge_matches_theta_scaled_closed_forms() {
     // family's territory, exercised here on the exact side).
     let theta = TAU - 0.01;
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta)).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap();
     let s = theta / TAU;
     check(
         &t.body,
@@ -191,6 +233,7 @@ fn holed_wedge_matches_theta_scaled_closed_forms() {
         &validated(vec![outer, hole]),
         axis_y(),
         Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap();
     // Pappus, θ-scaled, and every term is the hole's as well as the

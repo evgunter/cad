@@ -1994,6 +1994,7 @@ mod tests {
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Surface;
+    use geom_core::Tol;
     use geom_core::Vec3;
 
     fn band() -> Band {
@@ -2082,6 +2083,7 @@ mod tests {
                 },
                 p10,
                 bottom,
+                Tol::witness(),
             )
             .unwrap();
         let e_r = body
@@ -2091,6 +2093,7 @@ mod tests {
                     he2: e_b.he_minus,
                 },
                 p11,
+                Tol::witness(),
             )
             .unwrap();
         let top = rim(body, z1, false);
@@ -2102,6 +2105,7 @@ mod tests {
                 },
                 p01,
                 top,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -2115,6 +2119,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(p01, p00),
                 FaceSurface::Shared(cyl),
+                Tol::witness(),
             )
             .unwrap()
             .face;
@@ -2127,7 +2132,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
     }
 
@@ -2220,7 +2225,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
             let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
-            crate::pcurves::mint_pcurves(&mut body).unwrap();
+            crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             census_and_certify(&body, &ContactRecords::default(), band())
                 .into_iter()
                 .filter_map(|e| match e {
@@ -2272,7 +2277,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
             face_a: w1,
@@ -2299,7 +2304,7 @@ mod tests {
         // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band());
         assert!(
             arm.iter()
@@ -2351,7 +2356,7 @@ mod tests {
         // Same locus, next periodic branch; u-nested and z-nested so
         // no strut/vertex coincidences muddy the face-pair question.
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band());
         assert!(
             arm.iter().any(|e| matches!(
@@ -2383,7 +2388,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
             face_a: w1,

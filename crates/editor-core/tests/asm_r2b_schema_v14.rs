@@ -28,6 +28,7 @@ use editor_core::{
     InterfaceRecord, Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, RecipeNodeId, RoleSeg,
     SCHEMA_VERSION, StableName, apply, load, save,
 };
+use geom_core::Tol;
 
 /// The prior live golden, kept as the REFUSAL fixture: a break nobody
 /// can demonstrate is a break nobody can trust.
@@ -52,7 +53,7 @@ fn the_checked_in_older_goldens_are_really_older() {
 /// version supported, and the step that does not exist.
 #[test]
 fn v13_refuses_too_old() {
-    match load(V13) {
+    match load(V13, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -72,7 +73,7 @@ fn v13_refuses_too_old() {
 #[test]
 fn the_refusal_carries_the_regenerate_recourse() {
     for (label, bytes) in [("v13", V13), ("v12", V12)] {
-        let msg = match load(bytes) {
+        let msg = match load(bytes, Tol::witness()) {
             Err(e) => e.to_string(),
             Ok(_) => panic!("{label} must refuse"),
         };
@@ -101,10 +102,11 @@ fn doc_with_a_crossing() -> ProfileDoc {
         }],
     };
     apply(
-        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema")),
+        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness()),
         &DocEdit::InsertNode {
             node: Node::instantiate_part_with(doc_ref, record),
         },
+        Tol::witness(),
     )
     .expect("an instance with a record inserts")
     .doc
@@ -116,7 +118,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
 #[test]
 fn an_inhabited_interface_record_round_trips_at_v14() {
     let doc = doc_with_a_crossing();
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert_eq!(
         text.lines().next(),
         Some(&format!("schema: {SCHEMA_VERSION}")[..]),
@@ -131,7 +133,7 @@ fn an_inhabited_interface_record_round_trips_at_v14() {
         "the class rides the SAME stable spelling a Declare pair's and a \
          Mate's do: {text}"
     );
-    let back = load(&text).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the record round-trips bit for bit");
 }
 
@@ -145,14 +147,15 @@ fn an_empty_record_stays_absent_from_the_wire() {
         pin: ContentPin([9u8; 32]),
     };
     let doc = apply(
-        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty")),
+        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
             node: Node::instantiate_part(doc_ref),
         },
+        Tol::witness(),
     )
     .expect("an instance inserts")
     .doc;
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(
         !text.contains("crossings"),
         "an authored instance crosses nothing, and says nothing: {text}"

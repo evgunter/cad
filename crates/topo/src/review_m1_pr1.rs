@@ -22,6 +22,7 @@ use crate::{
     LoopKey, Provenance, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
+use geom_core::Tol;
 
 fn prov() -> Provenance {
     Provenance::Primordial { op: "e2e-review" }
@@ -68,7 +69,7 @@ struct Cube {
     solid: SolidKey,
 }
 
-fn build_cube() -> Cube {
+fn build_cube(tol: Tol) -> Cube {
     let n = 4;
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -118,7 +119,7 @@ fn build_cube() -> Cube {
         .collect();
 
     let mk_edge = |body: &mut Body<f64>| {
-        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
         body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -261,7 +262,8 @@ fn build_cube() -> Cube {
 
 #[test]
 fn cube_by_hand_validates() {
-    let c = build_cube();
+    let tol = Tol::witness();
+    let c = build_cube(tol);
     assert_eq!(validate(&c.body), Ok(()));
     assert_eq!(c.body.vertices().count(), 8);
     assert_eq!(c.body.edges().count(), 12);
@@ -271,6 +273,7 @@ fn cube_by_hand_validates() {
 
 #[test]
 fn cube_orbit_direction_matches_hand_derivation() {
+    let tol = Tol::witness();
     // Hand derivation at t1 = (1,0,1). Looking at the corner from
     // outside (viewer up-and-out along ~(1,-1,2)... any outside vantage
     // of the corner), the three half-edges leaving t1 are:
@@ -284,7 +287,7 @@ fn cube_orbit_direction_matches_hand_derivation() {
     // to b1" then "toward t0" (derived by projecting the three
     // directions; see review report). next(mate(.)) must produce
     // exactly that order.
-    let c = build_cube();
+    let c = build_cube(tol);
     assert_eq!(
         c.body.vertex_orbit(c.top[1]),
         Some(vec![c.top[1], c.s_dn[1], c.s_t[0]])
@@ -307,7 +310,8 @@ fn cube_orbit_direction_matches_hand_derivation() {
 
 #[test]
 fn cube_mate_is_involution_and_antiparallel() {
-    let c = build_cube();
+    let tol = Tol::witness();
+    let c = build_cube(tol);
     for (he_key, he) in c.body.half_edges() {
         let mate = c.body.mate(he_key).unwrap();
         assert_ne!(mate, he_key);
@@ -327,6 +331,7 @@ fn cube_mate_is_involution_and_antiparallel() {
 /// = other half of circle 1. v2 e2 f3 r1: v-e+f = 3 = 2(s-h)+r = 2+1.
 #[test]
 fn ring_face_body_validates() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
     let solid = body.add_solid(Solid { shells: vec![] }, prov());
@@ -353,7 +358,7 @@ fn ring_face_body_validates() {
     let v1 = lone(&mut body, 1.0);
 
     let mk_edge = |body: &mut Body<f64>| {
-        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
         body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -450,11 +455,12 @@ fn ring_face_body_validates() {
 
 #[test]
 fn two_disjoint_solids_in_one_body_validate() {
+    let tol = Tol::witness();
     // Two hand-built strut bodies (the mev-after-mvfs state), each its
     // own solid, in one Body. Also covers: tier-1 legality of struts.
     let mut body = Body::<f64>::new();
     for k in 0..2 {
-        add_strut_solid(&mut body, f64::from(k));
+        add_strut_solid(&mut body, f64::from(k), tol);
     }
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(body.solids().count(), 2);
@@ -465,7 +471,7 @@ fn two_disjoint_solids_in_one_body_validate() {
 /// One solid+shell+face whose outer loop is the 2-cycle of a single
 /// edge's two halves (a strut: v0 -> v1 -> v0) — the state `mev` on the
 /// mvfs body produces. Both halves of the edge in the SAME loop.
-fn add_strut_solid(body: &mut Body<f64>, offset: f64) -> SolidKey {
+fn add_strut_solid(body: &mut Body<f64>, offset: f64, tol: Tol) -> SolidKey {
     let null_he = HalfEdgeKey::default();
     let solid = body.add_solid(Solid { shells: vec![] }, prov());
     let shell = body.add_shell(
@@ -492,7 +498,7 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64) -> SolidKey {
         },
         prov(),
     );
-    let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+    let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
     let e = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -607,7 +613,8 @@ fn mvfs_skeletal_state_validates_externally() {
 /// breaks antiparallelism and must be caught.
 #[test]
 fn mate_swap_across_parallel_edges_is_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     // et[0] claims (top[0], s_t[2]); et[2] claims (top[2], s_t[0]);
     // patch backpointers so the bijection LOOKS clean.
     c.body.get_edge_mut(c.et[0]).unwrap().he_minus = c.s_t[2];
@@ -624,6 +631,7 @@ fn mate_swap_across_parallel_edges_is_caught() {
 /// local check passes; only orbit closure can catch it.
 #[test]
 fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
+    let tol = Tol::witness();
     // Digon pillow by hand: v0,v1; e0, e1 both v0->v1; face A cycle
     // [a0: v0->v1, a1: v1->v0], face B cycle [b0: v1->v0, b1: v0->v1].
     // Correct pairing: e0=(a0,b0), e1=(a1,b1). Adversarial pairing:
@@ -656,7 +664,7 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
         prov(),
     );
     let mk_edge = |body: &mut Body<f64>| {
-        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+        let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
         body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -744,7 +752,8 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
 /// cycle, which itself claims a third loop — a chain of confusions.
 #[test]
 fn parent_loop_chain_confusion_is_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     // top[0]'s parent_loop -> loop_side[0], whose first (s_b[0]) is in
     // the side-0 cycle, whose members claim loop_side[0]... then also
     // repoint loop_side[0].first at top[1] (in the TOP cycle).
@@ -761,7 +770,8 @@ fn parent_loop_chain_confusion_is_caught() {
 /// An Empty loop whose vertex also starts half-edges elsewhere.
 #[test]
 fn empty_loop_vertex_with_incidence_is_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     let surface = c
         .body
         .add_surface(crate::fixtures::test_surface(Point3::origin()));
@@ -792,7 +802,8 @@ fn empty_loop_vertex_with_incidence_is_caught() {
 /// A half-edge referenced by two edges.
 #[test]
 fn half_edge_claimed_by_two_edges_is_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     c.body.get_edge_mut(c.eb[0]).unwrap().he_minus = c.top[0];
     let errors = validate(&c.body).unwrap_err();
     assert!(!errors.is_empty());
@@ -802,7 +813,8 @@ fn half_edge_claimed_by_two_edges_is_caught() {
 /// Ownership double-count: face A's outer listed among face B's rings.
 #[test]
 fn outer_of_one_face_as_ring_of_another_is_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     let lt = c.loop_top;
     c.body.get_face_mut(c.face_side[0]).unwrap().rings.push(lt);
     let errors = validate(&c.body).unwrap_err();
@@ -813,7 +825,8 @@ fn outer_of_one_face_as_ring_of_another_is_caught() {
 /// Self-referential next inside a longer cycle.
 #[test]
 fn self_referential_next_is_caught_without_hanging() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     let he = c.top[2];
     c.body.get_half_edge_mut(he).unwrap().next = he;
     let errors = validate(&c.body).unwrap_err();
@@ -825,7 +838,8 @@ fn self_referential_next_is_caught_without_hanging() {
 /// (outer + a bogus ring arrangement) — via next-splice corruption.
 #[test]
 fn next_splice_across_loops_is_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     // Splice the top loop and side-0 loop into one big next-cycle while
     // leaving both Loop records claiming their old firsts.
     let top0_next = c.body.get_half_edge(c.top[0]).unwrap().next;
@@ -841,6 +855,7 @@ fn next_splice_across_loops_is_caught() {
 /// promptly (bounded walks) and report errors.
 #[test]
 fn long_corrupted_chain_terminates() {
+    let tol = Tol::witness();
     // Build a large ngon-pillow-like body externally: two n-gon faces.
     let n = 3000;
     let mut body = Body::<f64>::new();
@@ -868,7 +883,7 @@ fn long_corrupted_chain_terminates() {
         .collect();
     let es: Vec<_> = (0..n)
         .map(|_| {
-            let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+            let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
             body.add_edge(
                 Edge {
                     he_plus: null_he,
@@ -980,7 +995,8 @@ fn long_corrupted_chain_terminates() {
 
 #[test]
 fn null_keys_are_none_everywhere_no_panics() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     let b = &c.body;
     assert!(b.get_solid(SolidKey::default()).is_none());
     assert!(b.get_shell(ShellKey::default()).is_none());
@@ -1011,10 +1027,11 @@ fn null_keys_are_none_everywhere_no_panics() {
 
 #[test]
 fn foreign_keys_resolve_arbitrarily_as_documented() {
+    let tol = Tol::witness();
     // Same construction history => same keys (lineage determinism);
     // a foreign key from an identically-built body resolves.
-    let c1 = build_cube();
-    let c2 = build_cube();
+    let c1 = build_cube(tol);
+    let c2 = build_cube(tol);
     assert!(c2.body.get_vertex(c1.t[0]).is_some());
     // And a key from a DIFFERENT history may or may not resolve — it
     // must never panic.
@@ -1039,7 +1056,8 @@ fn foreign_keys_resolve_arbitrarily_as_documented() {
 /// per shell) and by nothing else. The construction is verbatim.
 #[test]
 fn cross_shell_face_move_gap_probe_now_caught() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     let solid2 = c.body.add_solid(Solid { shells: vec![] }, prov());
     let shell2 = c.body.add_shell(
         Shell {
@@ -1095,7 +1113,8 @@ fn cross_shell_face_move_gap_probe_now_caught() {
 /// emanating; the result must validate.
 #[test]
 fn lmev_strut_surgery_sketch_validates() {
-    let mut c = build_cube();
+    let tol = Tol::witness();
+    let mut c = build_cube(tol);
     let v = c.t[1];
     // Find the half-edge in loop_top starting at v (consumer idiom:
     // read the loop, walk its cycle, filter by start).
@@ -1121,7 +1140,7 @@ fn lmev_strut_surgery_sketch_validates() {
     );
     let curve = c
         .body
-        .add_curve(crate::fixtures::test_curve(Point3::origin()));
+        .add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
     let ne = c.body.add_edge(
         Edge {
             he_plus: HalfEdgeKey::default(),

@@ -45,16 +45,14 @@ self-intersection and to compute tolerance stackups.
 
 ## The central commitment
 
-> **A model is a pure, replayable function from a parameter vector to a
-> solid.** `fn build(params: &Params) -> Result<Solid, ModelError>` —
-> deterministic, no hidden state. The B-rep is a derived value, never a
-> mutated-in-place object.
+> **A model is a pure, replayable function from a parameter vector and a
+> tolerance to a solid.** `fn build(params: &Params, tol: Tol) ->
+> Result<Solid, ModelError>` — deterministic, no hidden state. The B-rep is
+> a derived value, never a mutated-in-place object.
 
-**Not quite: there is one exception, and only one — ε.** No signature
-carries it and every predicate reads it, so a model is a pure function of
-its parameters *and* of ε, which is committed once per process before the
-first predicate and cannot be changed after (D4). Determinism is over the
-pair: the same parameters at the same ε give the same solid.
+Determinism is over the pair: the same parameters at the same ε give the
+same solid. ε is one value per run, committed once and never changed after
+— see D4 ¶1.
 
 Everything else follows from holding this invariant from day one:
 

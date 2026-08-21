@@ -20,9 +20,16 @@ use editor_core::{
     evaluate,
 };
 use fixture::{desc, insert, len, scl, step};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
@@ -31,6 +38,7 @@ fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
         Some(prior),
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     )
 }
 
@@ -79,7 +87,7 @@ fn block(
 /// The PR 3 genuine-tie fixture: a U cutter through one wall; both
 /// B-cap prong fragments tie. Returns (doc, subtract node).
 fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook");
+    let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, p) = insert(
         doc,
@@ -121,7 +129,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
 /// The operand→final gap fixture (PR 7 review A1): operand `a`'s top
 /// cap painted, `a` consumed by a union. Returns (doc, a, uni, cap).
 fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
-    let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook");
+    let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness());
     // Decoupled overlap (M4 PR 5: the original y/z-flush variant now
     // demands a Declare and MERGES the caps — the A1 ergonomics this
     // fixture pins are the plain wrapping-derivation kind).
@@ -197,7 +205,7 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
 #[test]
 fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -236,7 +244,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     // (empty structural candidates) enriches to the pinned
     // StructuralParam diagnosis plus the last-good tombstone.
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -332,7 +340,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     // Poisoned: operand A degenerates, the union is poisoned through
     // it, and enrichment preserves the indeterminate verdict (not
     // Vanished — same vocabulary on both sides of the hook).
-    let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook");
+    let doc = ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness());
     // Decoupled overlap (M4 PR 5: coincident planes now demand a
     // Declare; this test wants a plain transversal union).
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
@@ -388,7 +396,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
 
     // Canceled: the not-evaluated arm, with the node made explicit.
     let (doc2, ext) = block(
-        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -398,7 +406,13 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     let doc2 = set(doc2, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();
-    let ev2 = evaluate::<f64>(&doc2, None, &cancel, &EvalOptions::default());
+    let ev2 = evaluate::<f64>(
+        &doc2,
+        None,
+        &cancel,
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     assert_eq!(ev2.appearance.losses.len(), 1);
     let loss2 = &ev2.appearance.losses[0];
     assert_eq!(loss2.cause, AppearanceLossCause::TargetNotEvaluated);
@@ -455,10 +469,13 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     // attribute rides the name) and is presentation-only here — no
     // Declare pair moved, nothing recomputes.
     let applied = doc
-        .apply(&DocEdit::Rebind {
-            from: cap.clone(),
-            to: target.clone(),
-        })
+        .apply(
+            &DocEdit::Rebind {
+                from: cap.clone(),
+                to: target.clone(),
+            },
+            Tol::witness(),
+        )
         .expect("an appearance key is a rebind site");
     assert!(!applied.record.structural);
     assert!(applied.doc.appearance_of(&cap).is_none());
@@ -486,10 +503,13 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     let target = union_suggestion(&suggestions, &cap, uni);
     assert!(
-        doc.apply(&DocEdit::Rebind {
-            from: cap,
-            to: target
-        })
+        doc.apply(
+            &DocEdit::Rebind {
+                from: cap,
+                to: target
+            },
+            Tol::witness()
+        )
         .is_ok()
     );
 }
@@ -504,10 +524,13 @@ fn rebind_appearance_collision_is_refused_typed() {
     // survives would be an auto-pick — refused loudly.
     let doc = set(doc, target.clone(), Attr::Color(Rgba8::opaque(1, 2, 3)));
     assert_eq!(
-        doc.apply(&DocEdit::Rebind {
-            from: cap.clone(),
-            to: target.clone(),
-        })
+        doc.apply(
+            &DocEdit::Rebind {
+                from: cap.clone(),
+                to: target.clone(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
             name: target.clone(),
@@ -525,10 +548,13 @@ fn rebind_appearance_collision_is_refused_typed() {
     );
     let doc = set(doc, cap.clone(), Attr::Label("lid".into()));
     let applied = doc
-        .apply(&DocEdit::Rebind {
-            from: cap,
-            to: target.clone(),
-        })
+        .apply(
+            &DocEdit::Rebind {
+                from: cap,
+                to: target.clone(),
+            },
+            Tol::witness(),
+        )
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
@@ -540,7 +566,7 @@ fn suggestion_map_is_total_over_the_store() {
     // A terminal node's cap: nothing wraps it, and the map still
     // carries the key (empty offers, never a dropped row).
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr4_appearance_hook"),
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,

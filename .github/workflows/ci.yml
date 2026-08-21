@@ -379,6 +379,10 @@ jobs:
         run: |
           scripts/gates/no-ambient-env.sh --selftest
           scripts/gates/no-ambient-env.sh
+      - name: the tolerance witness is not an ambient read
+        run: |
+          scripts/gates/witness-not-ambient.sh --selftest
+          scripts/gates/witness-not-ambient.sh
       - name: kernel crates are serde-free
         run: |
           scripts/gates/kernel-serde-free.sh --selftest

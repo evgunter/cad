@@ -21,6 +21,7 @@ mod fixture;
 use editor_core::{
     CancelToken, EvalOptions, NodeResult, ProfileDoc, SplitSide, ValuePayload, evaluate, load, save,
 };
+use geom_core::Tol;
 use topo::Body;
 
 /// Every body in an evaluation, with its node, in evaluation order.
@@ -62,7 +63,13 @@ fn cache_dump(bodies: &[Body<f64>]) -> Vec<String> {
 }
 
 fn evaluated(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The shape (i) corpus document (`cut_cylinder`) really does carry
@@ -88,8 +95,8 @@ fn a_round_trip_re_derives_bit_identical_caches() {
 
     // The SNAPSHOT shape (empty log): `load` replays the log ON TOP of
     // the snapshot, so passing both would evaluate the document twice.
-    let bytes = save(&doc.doc, &[]).unwrap();
-    let loaded = load(&bytes).unwrap();
+    let bytes = save(&doc.doc, &[], Tol::witness()).unwrap();
+    let loaded = load(&bytes, Tol::witness()).unwrap();
     let after = cache_dump(&bodies(&evaluated(&loaded.doc)));
 
     assert_eq!(before, after, "caches must replay bit-identically");
@@ -102,7 +109,7 @@ fn a_round_trip_re_derives_bit_identical_caches() {
 #[test]
 fn the_persisted_bytes_carry_nothing_pcurve_shaped() {
     let doc = corpus::cut_cylinder::document();
-    let text = save(&doc.doc, &doc.edits).unwrap();
+    let text = save(&doc.doc, &doc.edits, Tol::witness()).unwrap();
     for needle in ["pcurve", "Pcurve", "Harmonic", "chart"] {
         assert!(
             !text.contains(needle),

@@ -39,44 +39,49 @@ use std::io::Write as _;
 use pncad::mesh::budget::{self, Mode};
 
 use crate::walk_tour;
+use pncad::geom_core::Tol;
 
 /// Runs the sweep, writing CSV to `path` (stdout when `None`).
-pub fn run(path: Option<String>, deviation: bool) {
+pub fn run(path: Option<String>, deviation: bool, tol: Tol) {
     let mut out = String::from(tess_meter::CSV_HEADER);
     out.push('\n');
     let mut faces = 0usize;
     let mut triangles = 0usize;
-    walk_tour(&mut |stop| {
-        for sb in &stop.bodies {
-            let scene = format!("{}/{}", stop.name, sb.name);
-            budget::arm(if deviation {
-                Mode::Deviation {
-                    samples_per_edge: tess_meter::DEV_SAMPLES,
+    walk_tour(
+        &mut |stop| {
+            for sb in &stop.bodies {
+                let scene = format!("{}/{}", stop.name, sb.name);
+                budget::arm(if deviation {
+                    Mode::Deviation {
+                        samples_per_edge: tess_meter::DEV_SAMPLES,
+                    }
+                } else {
+                    Mode::Sizing
+                });
+                // The mesh is what the rows are ABOUT: a face's chart and
+                // triangle count are already in it, so the meter is not
+                // asked to report them.
+                let mesh = pncad::mesh::tessellate(&sb.body, stop.delta, tol).unwrap_or_else(|e| {
+                    panic!("{scene}: tessellate at delta {}: {e:?}", stop.delta)
+                });
+                let measures = budget::take();
+                let rows = tess_meter::face_rows(stop.delta, &sb.body, &mesh, &measures);
+                for row in &rows {
+                    triangles += row.triangles;
+                    out.push_str(&row.csv_row(&scene));
+                    out.push('\n');
                 }
-            } else {
-                Mode::Sizing
-            });
-            // The mesh is what the rows are ABOUT: a face's chart and
-            // triangle count are already in it, so the meter is not
-            // asked to report them.
-            let mesh = pncad::mesh::tessellate(&sb.body, stop.delta)
-                .unwrap_or_else(|e| panic!("{scene}: tessellate at delta {}: {e:?}", stop.delta));
-            let measures = budget::take();
-            let rows = tess_meter::face_rows(stop.delta, &sb.body, &mesh, &measures);
-            for row in &rows {
-                triangles += row.triangles;
-                out.push_str(&row.csv_row(&scene));
-                out.push('\n');
+                faces += rows.len();
+                println!(
+                    "   [{scene}] delta = {:.0e}: {} faces, {} triangles",
+                    stop.delta,
+                    rows.len(),
+                    rows.iter().map(|r| r.triangles).sum::<usize>()
+                );
             }
-            faces += rows.len();
-            println!(
-                "   [{scene}] delta = {:.0e}: {} faces, {} triangles",
-                stop.delta,
-                rows.len(),
-                rows.iter().map(|r| r.triangles).sum::<usize>()
-            );
-        }
-    });
+        },
+        tol,
+    );
     println!("tess-budget: {faces} face rows, {triangles} triangles total");
     match path {
         Some(p) => {

@@ -8,13 +8,13 @@
 use std::collections::BTreeMap;
 
 use geom_core::Real;
-use geom_core::tolerance::Tolerance;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
+use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
 #[derive(
@@ -162,7 +162,7 @@ impl<P> Doc<P> {
     /// committed earlier) — replay's origin (spec D7). The id is
     /// authored data (ASM-1 D-1): there is no id-less document and no
     /// ambient-randomness default.
-    pub fn empty(id: DocumentId) -> Self {
+    pub fn empty(id: DocumentId, tol: Tol) -> Self {
         Self {
             id,
             next_id: 0,
@@ -171,7 +171,7 @@ impl<P> Doc<P> {
             roots: Vec::new(),
             placements: BTreeMap::new(),
             params: BTreeMap::new(),
-            epsilon: Tolerance::get().eps,
+            epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
@@ -181,8 +181,8 @@ impl<P> Doc<P> {
     /// The empty document under a label-derived identity —
     /// [`Self::empty`] ∘ [`DocumentId::derive`], the deterministic
     /// spelling corpus/demos/tests use.
-    pub fn empty_derived(label: &str) -> Self {
-        Self::empty(DocumentId::derive(label))
+    pub fn empty_derived(label: &str, tol: Tol) -> Self {
+        Self::empty(DocumentId::derive(label), tol)
     }
 
     /// The document's stable identity.

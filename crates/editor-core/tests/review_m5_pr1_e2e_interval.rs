@@ -39,6 +39,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, desc, insert, len, scl};
+use geom_core::Tol;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::{Bounds, Interval, Real};
 use topo::{mass_properties, validate, validate_closed};
@@ -46,7 +47,7 @@ use topo::{mass_properties, validate, validate_closed};
 #[test]
 fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // ---- body 1: dyadic cube minus embedded pip; volume EXACTLY 8 - 1/128.
-    let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval");
+    let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval", Tol::witness());
     let (doc, cube_p) = insert(
         doc,
         Node::Profile(desc(
@@ -106,7 +107,13 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         },
     );
 
-    let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &ev
         .value(sub)
         .expect("subtract evaluated at Interval")
@@ -116,7 +123,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body).unwrap().volume;
+    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
     // Interior rotated cuboid 0.5 x 0.5 x 1.0 => volume exactly 8 - 0.25.
     let oracle = 8.0 - 0.25;
     assert!(
@@ -186,7 +193,7 @@ fn a_non_finite_dimension_cannot_enter_the_document() {
 /// so instead of guessing.
 #[test]
 fn a_degenerate_document_refuses_typed_end_to_end() {
-    let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval");
+    let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval", Tol::witness());
     let (doc, prof) = insert(
         doc,
         Node::Profile(desc(
@@ -203,7 +210,13 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
             distance: len(0.0),
         },
     );
-    let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     assert!(
         ev.value(degenerate).is_none(),
         "a zero-distance extrude must refuse at Interval, got {:?}",

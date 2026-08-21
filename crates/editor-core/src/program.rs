@@ -39,6 +39,7 @@ use profile::{ArcSweep, SketchPlane, Step, Target};
 
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{SlotId, StepArg};
+use geom_core::Tol;
 
 /// Where a target-taking step ends: an authored point (two Length
 /// expressions) or the entry vertex (`Start` — structural; targeting it
@@ -266,7 +267,7 @@ pub trait ProfilePayload {
     /// under the CURRENT parameter environment, refusing typed at the
     /// edit door. The evaluation-time twin re-checks under every
     /// binding that is ever evaluated.
-    fn check(&self, _env: &ParamEnv<f64>) -> Result<(), ProgramRefusal> {
+    fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
         Ok(())
     }
 }
@@ -868,13 +869,13 @@ impl ProfileProgram {
     /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
     /// pins). Used by the edit door; evaluation re-runs the same
     /// ladder per binding with full typed errors.
-    pub fn check(&self, env: &ParamEnv<f64>) -> Result<(), ProgramRefusal> {
+    pub fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         let resolved = self
             .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
         let mut loops = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let lp = profile::replay(steps).map_err(|e| match e.kind {
+            let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
                         loop_: li as u32,
@@ -892,7 +893,7 @@ impl ProfileProgram {
             loops.push(lp);
         }
         profile::Profile::new(self.plane, loops)
-            .validate(geom_core::Tolerance::get())
+            .validate(tol)
             .map(|_| ())
             .map_err(ProgramRefusal::Validate)
     }
@@ -1111,8 +1112,8 @@ impl ProfilePayload for ProfileProgram {
         self.loops.get_mut(loop_ as usize)?.expr_mut(step, arg)
     }
 
-    fn check(&self, env: &ParamEnv<f64>) -> Result<(), ProgramRefusal> {
-        ProfileProgram::check(self, env)
+    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        ProfileProgram::check(self, env, tol)
     }
 }
 

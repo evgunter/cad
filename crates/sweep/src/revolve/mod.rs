@@ -101,7 +101,7 @@ mod upgrade;
 use core::fmt;
 
 use geom_brep::NewellError;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
@@ -266,23 +266,25 @@ impl From<ReadbackError> for WedgeCapsError {
 /// [`topo::readback::face_pose`] refusal.
 ///
 /// ```
-/// use geom_core::{Point2, Tolerance, Vec2};
+/// use geom_core::{Point2, Tol, Vec2};
 /// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Revolution, RevolveAxis, revolve, revolved_caps};
 ///
+/// let tol = Tol::witness();
 /// // A quarter tube: a small circle a distance 5 from the axis,
 /// // revolved a quarter turn about the sketch frame's +v.
-/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
+/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).expect("a positive radius");
 /// // The complete-loop primitives answer with a `ClosedLoop` (the
 /// // lowered loop plus its program); `Profile` takes the loop.
 /// let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
-///     .validate(Tolerance::get())
+///     .validate(tol)
 ///     .expect("the circle validates");
 /// let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: Vec2::new(0.0, 1.0) };
 /// let quarter = revolve::<f64>(
 ///     &sketch,
 ///     axis,
 ///     Revolution::Partial(std::f64::consts::FRAC_PI_2),
+///     tol,
 /// )
 /// .expect("the tube revolves");
 ///
@@ -625,8 +627,9 @@ pub fn revolve<T: Decide>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,
     revolution: Revolution<T>,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
-    let band = Band::linear().map_err(RevolveError::Band)?;
+    let band = Band::linear(tol).map_err(RevolveError::Band)?;
     let place = profile.plane().placement;
     let frame = axis::AxisFrame::build(place, &axis, band)?;
 
@@ -667,15 +670,15 @@ pub fn revolve<T: Decide>(
     }
 
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes, theta, band)
+        full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes, theta, reverse, band)
+        partial::build_partial(&frame, &loops, &classes, theta, reverse, band, tol)
     }?;
     // Final pass (M6-3, walk row 4): every revolve face's chart now
     // mints — cone/sphere/torus walls exactly as cylinder ones — so a
     // revolve output carries its stored certified pcurves at rest,
     // the same posture as boolean/split/loft outputs.
-    topo::mint_pcurves(&mut out.body).map_err(RevolveError::Pcurve)?;
+    topo::mint_pcurves(&mut out.body, tol).map_err(RevolveError::Pcurve)?;
     Ok(out)
 }
 

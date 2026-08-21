@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Dual64, Point3, Vec3};
 
@@ -132,7 +133,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
 /// Nurbs carrier with the pinned typed error.
 #[test]
 fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     // Analytic line edge certifies.
     let p0 = Point3::new(0.25, -1.0, 2.0);
     let p1 = Point3::new(1.25, 0.5, 3.5);

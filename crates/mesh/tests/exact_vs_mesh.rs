@@ -13,13 +13,14 @@
 
 mod common;
 
+use geom_core::Tol;
 use mesh::tessellate;
 use mesh::validate::signed_volume;
 use topo::mass_properties;
 
 fn check_at(body: &topo::Body<f64>, what: &str, delta: f64) {
-    let props = mass_properties(body).expect("mass properties must compute");
-    let mesh = tessellate(body, delta).expect("tessellation must succeed");
+    let props = mass_properties(body, Tol::witness()).expect("mass properties must compute");
+    let mesh = tessellate(body, delta, Tol::witness()).expect("tessellation must succeed");
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{what}: mesh volume must be positive");
     let bound = 3.0 * delta * props.surface_area;

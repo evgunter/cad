@@ -19,11 +19,12 @@ use geom::Surface;
 use geom_brep::{
     EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane, tangent_jet,
 };
-use geom_core::{Band, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 

@@ -51,6 +51,7 @@ use crate::EulerOpError;
 use crate::entity::EntityId;
 use crate::euler::FaceSurface;
 use crate::fixtures::{deep_snapshot, ops_cube};
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -68,7 +69,8 @@ fn a_plane() -> Surface<f64> {
 /// it guards (`f.surface = new`) never runs on an unproven key.
 #[test]
 fn d21_set_face_surface_refuses_a_stale_face_typed() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut body = cube.body;
     // A removed face, not a null key: the generation check is what
     // must refuse, and a null slot would not exercise it.
@@ -96,7 +98,8 @@ fn d21_set_face_surface_refuses_a_stale_face_typed() {
 /// guards (`e.curve = new`) never runs on an unproven key.
 #[test]
 fn d21_set_edge_curve_refuses_a_stale_edge_typed() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut body = cube.body;
     let dead = cube.mevs[0].edge;
     body.edges.remove(dead);
@@ -105,6 +108,7 @@ fn d21_set_edge_curve_refuses_a_stale_edge_typed() {
         .set_edge_curve(
             dead,
             EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)),
+            tol,
         )
         .unwrap_err();
     assert_eq!(
@@ -127,12 +131,13 @@ fn d21_set_edge_curve_refuses_a_stale_edge_typed() {
 /// plan-proven respectively; this row pins the one that is neither.
 #[test]
 fn d21_split_edge_refuses_a_stale_edge_typed() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut body = cube.body;
     let dead = cube.mevs[0].edge;
     body.edges.remove(dead);
     let before = deep_snapshot(&body);
-    let err = body.split_edge(dead, 0.5).unwrap_err();
+    let err = body.split_edge(dead, 0.5, tol).unwrap_err();
     assert_eq!(
         err,
         EulerOpError::StaleKey {
@@ -157,7 +162,8 @@ fn d21_split_edge_refuses_a_stale_edge_typed() {
 /// shell, which is the shape the walk is the only guard against.
 #[test]
 fn d21_movefac_refuses_a_dead_face_reached_by_the_walk_typed() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut body = cube.body;
     let shell = cube.seed.shell;
     let dead = body.get_shell(shell).unwrap().faces[0];
@@ -189,7 +195,8 @@ fn d21_movefac_refuses_a_dead_face_reached_by_the_walk_typed() {
 /// would resurface as a wrong key elsewhere.
 #[test]
 fn d21_a_cloned_body_resolves_every_key_of_the_original() {
-    let body = ops_cube().body;
+    let tol = Tol::witness();
+    let body = ops_cube(tol).body;
     let out = body.clone();
     assert!(
         !body.half_edges.is_empty(),

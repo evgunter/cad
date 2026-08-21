@@ -15,6 +15,7 @@ use crate::{
     MevSite, Provenance, Vertex, validate,
 };
 use geom_core::Point3;
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -25,6 +26,7 @@ fn p(x: f64) -> Point3<f64> {
 
 #[test]
 fn degenerate_ladder_with_euler_poincare_ledger() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
 
     // mvfs: v1 e0 f1 r0 s1 h0 -> 1-0+1-0 = 2(1-0). Ledger OK.
@@ -39,6 +41,7 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -52,6 +55,7 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
                 he2: seg.he_minus,
             },
             p(2.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -65,10 +69,13 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
     // Self-loop mef (Chords he1==he2) at the strut tip: v3 e3 f2 ->
     // 3-3+2 = 2. One-edge circular face.
     let circ = body
-        .mef_chord(MefSite::Chords {
-            he1: strut.he_minus,
-            he2: strut.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: strut.he_minus,
+                he2: strut.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
@@ -87,13 +94,17 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
 
 #[test]
 fn lone_mef_circular_edge_ledger() {
+    let tol = Tol::witness();
     // Lone mef straight from the mvfs state: v1 e1 f2 -> 1-1+2 = 2.
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let circ = body
-        .mef_chord(MefSite::Lone {
-            r#loop: seed.r#loop,
-        })
+        .mef_chord(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
@@ -116,12 +127,16 @@ fn lone_mef_circular_edge_ledger() {
 /// between old and new. Hand-derived; v2 e2 f2 afterwards.
 #[test]
 fn fan_mev_across_a_circular_edge() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let circ = body
-        .mef_chord(MefSite::Lone {
-            r#loop: seed.r#loop,
-        })
+        .mef_chord(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(
         body.vertex_orbit(circ.he_plus),
@@ -134,6 +149,7 @@ fn fan_mev_across_a_circular_edge() {
                 he2: circ.he_minus,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -156,6 +172,7 @@ fn fan_mev_across_a_circular_edge() {
 /// the same vertex; the loop splits; the vertex orbit stays one cycle.
 #[test]
 fn self_loop_chord_between_distinct_half_edges() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let g = body
@@ -164,6 +181,7 @@ fn self_loop_chord_between_distinct_half_edges() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let t = body
@@ -173,6 +191,7 @@ fn self_loop_chord_between_distinct_half_edges() {
                 he2: g.he_plus,
             },
             p(2.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -183,10 +202,13 @@ fn self_loop_chord_between_distinct_half_edges() {
         Some(vec![g.he_plus, g.he_minus, t.he_plus, t.he_minus])
     );
     let cut = body
-        .mef_chord(MefSite::Chords {
-            he1: g.he_plus,
-            he2: t.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: g.he_plus,
+                he2: t.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
@@ -213,6 +235,7 @@ fn self_loop_chord_between_distinct_half_edges() {
 /// mef-splits the RING and checks the ring stays on the old face.
 #[test]
 fn ring_split_mef_keeps_the_ring_on_the_old_face() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
@@ -221,13 +244,17 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Face A := the OLD face (seed.face, outer loop seed.r#loop).
@@ -253,8 +280,8 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
         },
         prov(),
     );
-    let cu2 = body.add_curve(crate::fixtures::test_curve(p(10.0)));
-    let cu3 = body.add_curve(crate::fixtures::test_curve(p(11.0)));
+    let cu2 = body.add_curve(crate::fixtures::test_curve(p(10.0), tol));
+    let cu3 = body.add_curve(crate::fixtures::test_curve(p(11.0), tol));
     let e2 = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -336,7 +363,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
 
     // Split the RING loop: he1 = r0, he2 = r1.
     let cut = body
-        .mef_chord(MefSite::Chords { he1: r0, he2: r1 })
+        .mef_chord(MefSite::Chords { he1: r0, he2: r1 }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Ledger after: v4 e5 f4 r1 -> 4-5+4-1 = 2. OK.
@@ -360,6 +387,7 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
 /// faces wind CCW viewed from outside (Newell normal vs centroid ray).
 #[test]
 fn tetrahedron_by_ops_with_orientation() {
+    let tol = Tol::witness();
     let a = pt(0.0, 0.0, 0.0);
     let b = pt(1.0, 0.0, 0.0);
     let c = pt(0.5, 1.0, 0.0);
@@ -373,6 +401,7 @@ fn tetrahedron_by_ops_with_orientation() {
                 r#loop: seed.r#loop,
             },
             b,
+            tol,
         )
         .unwrap();
     let bc = body
@@ -382,6 +411,7 @@ fn tetrahedron_by_ops_with_orientation() {
                 he2: ab.he_minus,
             },
             c,
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -390,10 +420,13 @@ fn tetrahedron_by_ops_with_orientation() {
     // start(he1) = A->C; new loop [A->C, C->B, B->A] -- the BOTTOM
     // (CCW from below).
     let tri = body
-        .mef_chord(MefSite::Chords {
-            he1: bc.he_minus,
-            he2: ab.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: bc.he_minus,
+                he2: ab.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -406,6 +439,7 @@ fn tetrahedron_by_ops_with_orientation() {
                 he2: ab.he_plus,
             },
             d,
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -414,20 +448,26 @@ fn tetrahedron_by_ops_with_orientation() {
     // Face (A,B,D): run [s- (D->A), ab+ (A->B)) -> he1 = s.he_minus,
     // he2 = bc.he_plus (B->C). New edge D->B.
     let f_abd = body
-        .mef_chord(MefSite::Chords {
-            he1: s.he_minus,
-            he2: bc.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: s.he_minus,
+                he2: bc.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Old loop now [tri+ (C->A), s+ (A->D), f_abd+ (D->B), bc+ (B->C)].
     // Face (C,A,D): run [tri+ (C->A), s+ (A->D)) -> he1 = tri.he_plus,
     // he2 = f_abd.he_plus (D->B). New edge C->D.
     let f_cad = body
-        .mef_chord(MefSite::Chords {
-            he1: tri.he_plus,
-            he2: f_abd.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: tri.he_plus,
+                he2: f_abd.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -467,6 +507,7 @@ fn tetrahedron_by_ops_with_orientation() {
 /// Fresh triangular prism: 1 mvfs + 5 mev + 4 mef, v6 e9 f5.
 #[test]
 fn triangular_prism_by_ops_with_orientation() {
+    let tol = Tol::witness();
     // Bottom A B C at z=0, top A' B' C' at z=1.
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
@@ -476,6 +517,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let bc = body
@@ -485,6 +527,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he2: ab.he_minus,
             },
             pt(0.5, 1.0, 0.0),
+            tol,
         )
         .unwrap();
     // Close bottom: he1 = bc.he_minus (C->B), he2 = ab.he_plus (A->B):
@@ -492,10 +535,13 @@ fn triangular_prism_by_ops_with_orientation() {
     // shoelace of A(0,0) C(.5,1) B(1,0) in (x,y) is negative => CW from
     // above = CCW from below.
     let bot = body
-        .mef_chord(MefSite::Chords {
-            he1: bc.he_minus,
-            he2: ab.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: bc.he_minus,
+                he2: ab.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -508,6 +554,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he2: ab.he_plus,
             },
             pt(0.0, 0.0, 1.0),
+            tol,
         )
         .unwrap();
     let sb = body
@@ -517,6 +564,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he2: bc.he_plus,
             },
             pt(1.0, 0.0, 1.0),
+            tol,
         )
         .unwrap();
     let sc = body
@@ -526,6 +574,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he2: bot.he_plus,
             },
             pt(0.5, 1.0, 1.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -536,28 +585,37 @@ fn triangular_prism_by_ops_with_orientation() {
     // [sa- (A'->A), ab+ (A->B), sb+ (B->B')) -- he1 = sa.he_minus,
     // he2 = sb.he_minus (B'->B). New edge A'->B'.
     let f_ab = body
-        .mef_chord(MefSite::Chords {
-            he1: sa.he_minus,
-            he2: sb.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: sa.he_minus,
+                he2: sb.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Side face B,C,C',B': run [sb- (B'->B), bc+ (B->C), sc+ (C->C')) --
     // he1 = sb.he_minus, he2 = sc.he_minus. New edge B'->C'.
     let f_bc = body
-        .mef_chord(MefSite::Chords {
-            he1: sb.he_minus,
-            he2: sc.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: sb.he_minus,
+                he2: sc.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Side face C,A,A',C': run [sc- (C'->C), tri+ (C->A), sa+ (A->A'))
     // -- he1 = sc.he_minus, he2 = f_ab.he_plus (A'->B'). New edge C'->A'.
     let f_ca = body
-        .mef_chord(MefSite::Chords {
-            he1: sc.he_minus,
-            he2: f_ab.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: sc.he_minus,
+                he2: f_ab.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -601,18 +659,22 @@ fn triangular_prism_by_ops_with_orientation() {
 /// Two disjoint solids built in ONE Body via two mvfs chains.
 #[test]
 fn two_disjoint_solids_in_one_body() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
 
     // Solid 1: digon pillow at the origin.
     let s1 = body.mvfs(p(0.0)).unwrap();
     let seg1 = body
-        .mev_line(MevSite::Lone { r#loop: s1.r#loop }, p(1.0))
+        .mev_line(MevSite::Lone { r#loop: s1.r#loop }, p(1.0), tol)
         .unwrap();
     let _ = body
-        .mef_chord(MefSite::Chords {
-            he1: seg1.he_plus,
-            he2: seg1.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg1.he_plus,
+                he2: seg1.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -620,13 +682,16 @@ fn two_disjoint_solids_in_one_body() {
     let s2 = body.mvfs(p(100.0)).unwrap();
     assert_eq!(validate(&body), Ok(()));
     let seg2 = body
-        .mev_line(MevSite::Lone { r#loop: s2.r#loop }, p(101.0))
+        .mev_line(MevSite::Lone { r#loop: s2.r#loop }, p(101.0), tol)
         .unwrap();
     let _ = body
-        .mef_chord(MefSite::Chords {
-            he1: seg2.he_plus,
-            he2: seg2.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg2.he_plus,
+                he2: seg2.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 

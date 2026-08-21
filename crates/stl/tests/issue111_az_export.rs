@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, triangle_count};
 use profile::RawLoop;
@@ -39,9 +40,7 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 }
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
-    Profile::new(plane, loops)
-        .validate(Tolerance::get())
-        .unwrap()
+    Profile::new(plane, loops).validate(Tol::witness()).unwrap()
 }
 
 /// A (counter-hole variant) × Z, the #93 acceptance body.
@@ -56,6 +55,7 @@ fn az_counter() -> Body<f64> {
             vec![lp(&A_OUTLINE), lp(&A_COUNTER)],
         ),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -80,10 +80,11 @@ fn az_counter() -> Body<f64> {
             ])],
         ),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .unwrap()
     .body;
-    match topo::intersect(&a, &z) {
+    match topo::intersect(&a, &z, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("A×Z intersect did not produce a body ({other:?})"),
     }
@@ -91,7 +92,7 @@ fn az_counter() -> Body<f64> {
 
 #[test]
 fn survives_az_intersect_exports_watertight_stl() {
-    let mesh = tessellate(&az_counter(), 1e-2).expect("tessellate A×Z");
+    let mesh = tessellate(&az_counter(), 1e-2, Tol::witness()).expect("tessellate A×Z");
     assert_eq!(
         check_mesh(&mesh),
         Ok(()),

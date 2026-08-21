@@ -15,6 +15,7 @@ use pncad::topo::splitting::{SplitPart, SplitPlane, split};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// The narration numbers `build` reports alongside the halves:
 /// (v_above, v_below, v_box, gap).
@@ -24,6 +25,7 @@ pub(crate) type SectionNumbers = (f64, f64, f64, f64);
 /// returns the two moved halves and the [`SectionNumbers`].
 pub(crate) fn build<S: Scalar>(
     boxbody: &pncad::topo::Body<S>,
+    tol: Tol,
 ) -> ((pncad::topo::Body<S>, pncad::topo::Body<S>), SectionNumbers) {
     // A tilted section plane through the box interior: normal
     // (0.75, 0.1875, 1) — no axis alignment, crosses walls, bosses,
@@ -33,21 +35,21 @@ pub(crate) fn build<S: Scalar>(
         origin: Point3::new(S::from_f64(1.5), S::from_f64(1.0), S::from_f64(0.75)),
         normal,
     };
-    let res = split(boxbody, &plane).expect("split of the boolean-result box");
+    let res = split(boxbody, &plane, tol).expect("split of the boolean-result box");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&res.above, &res.below) else {
         panic!("the section plane crosses the box: both sides must be bodies");
     };
 
     // Volumes: the two halves partition the box exactly.
-    let v_box = pncad::topo::mass_properties(boxbody)
+    let v_box = pncad::topo::mass_properties(boxbody, tol)
         .expect("box props")
         .volume
         .f();
-    let v_above = pncad::topo::mass_properties(above)
+    let v_above = pncad::topo::mass_properties(above, tol)
         .expect("above props")
         .volume
         .f();
-    let v_below = pncad::topo::mass_properties(below)
+    let v_below = pncad::topo::mass_properties(below, tol)
         .expect("below props")
         .volume
         .f();
@@ -60,15 +62,15 @@ pub(crate) fn build<S: Scalar>(
     // Pull the halves apart along the (unnormalized) section normal:
     // rigid transforms re-mint every moved witness (#84).
     let n = normal * (S::from_f64(0.75) / normal.norm());
-    let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n))
+    let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n), tol)
         .expect("translate above half");
-    let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n))
+    let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n), tol)
         .expect("translate below half");
     ((moved_above, moved_below), (v_above, v_below, v_box, gap))
 }
 
-pub fn stops(boxbody: &pncad::topo::Body<f64>) -> Vec<Stop> {
-    let ((moved_above, moved_below), (v_above, v_below, v_box, gap)) = build(boxbody);
+pub fn stops(boxbody: &pncad::topo::Body<f64>, tol: Tol) -> Vec<Stop> {
+    let ((moved_above, moved_below), (v_above, v_below, v_box, gap)) = build(boxbody, tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
          normal (0.75, 0.1875, 1) — tilted, no axis alignment; minted section faces \

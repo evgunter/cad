@@ -23,6 +23,7 @@ mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, tol};
 use geom_core::Sign;
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 
 #[test]
@@ -88,7 +89,7 @@ fn probe_records_margin_distributions_without_changing_decisions() {
 
 #[test]
 fn probe_records_the_near_tangent_escalation() {
-    let eps = tol().eps;
+    let eps = tol().eps();
     k_stats::start_recording();
     let outcome = lift::<Probe>(&near_tangent_hole(eps)).validate(tol());
     let samples = k_stats::take_samples();
@@ -130,7 +131,7 @@ fn probe_records_every_arc_fillet_gate() {
     // gates. The corner (2, 0) is the +x ray from (0, 0) meeting the
     // carrier about the origin through (0, 2).
     Open.at(pp(0.0, 0.0))
-        .toward(pr(1.0), pr(0.0))
+        .toward(pr(1.0), pr(0.0), Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet_arc(
             pr(0.5),
@@ -139,6 +140,7 @@ fn probe_records_every_arc_fillet_gate() {
                 winding: ArcSweep::Ccw,
                 p: pp(0.0, 2.0),
             },
+            Tol::witness(),
         )
         .expect("the line×arc fillet constructs at Probe");
     // arc×arc: the vesica of two radius-2 carriers whose centres are
@@ -155,6 +157,7 @@ fn probe_records_every_arc_fillet_gate() {
             winding: ArcSweep::Ccw,
             p: pp(-1.0, 0.0),
         },
+        Tol::witness(),
     )
     .expect("the arc×arc fillet constructs at Probe");
     let samples = k_stats::take_samples();

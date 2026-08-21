@@ -24,7 +24,7 @@
 //!   retire (the S9 flip pattern: every refusal is re-pinned as its
 //!   construction row);
 //! - **multi-ε honesty**: every probe offset is derived from the
-//!   RESOLVED band (`Tolerance::get().eps`), never a literal, so the
+//!   RESOLVED band (`Tol::witness().get().eps`), never a literal, so the
 //!   rows mean the same thing in each ε lane.
 //!
 //! The Interval lane lives in `m5_pr9c_sphere_doors_interval.rs`.
@@ -33,7 +33,8 @@
 
 mod revolve_common;
 
-use geom_core::{Point3, Tolerance};
+use geom_core::Point3;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
@@ -52,17 +53,19 @@ fn half_disc() -> ProfileLoop<f64> {
 /// The unit ball: two half-sphere bands on ONE sphere surface.
 fn ball() -> topo::Body<f64> {
     let vp = validated(vec![half_disc()]);
-    revolve(&vp, axis_y(), Revolution::Full).unwrap().body
+    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn band() -> geom_core::Band {
-    geom_core::Band::linear().unwrap()
+    geom_core::Band::linear(Tol::witness()).unwrap()
 }
 
 /// The probe offset: a multiple of the RESOLVED band, so each ε lane
 /// probes at its own scale rather than at a hard-coded distance.
 fn away() -> f64 {
-    (1e6 * Tolerance::get().eps).max(0.25)
+    (1e6 * Tol::witness().get().eps).max(0.25)
 }
 
 #[test]
@@ -75,7 +78,7 @@ fn sphere_door_classifies_the_ball_interior_exterior_and_boundary() {
 
     // Interior: the centre.
     assert_eq!(
-        point_in_solid(&body, Point3::origin(), b).unwrap(),
+        point_in_solid(&body, Point3::origin(), b, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     // Interior: a band-scaled step inside the wall, off every axis so
@@ -83,20 +86,20 @@ fn sphere_door_classifies_the_ball_interior_exterior_and_boundary() {
     let inside = 1.0 - away();
     let d = inside / 3.0_f64.sqrt();
     assert_eq!(
-        point_in_solid(&body, Point3::new(d, d, d), b).unwrap(),
+        point_in_solid(&body, Point3::new(d, d, d), b, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     // Exterior: the same direction, a band-scaled step outside.
     let outside = 1.0 + away();
     let e = outside / 3.0_f64.sqrt();
     assert_eq!(
-        point_in_solid(&body, Point3::new(e, e, e), b).unwrap(),
+        point_in_solid(&body, Point3::new(e, e, e), b, Tol::witness()).unwrap(),
         SolidContainment::Out
     );
     // Far exterior: the at-infinity side, reached with no crossing at
     // all on some schedule members.
     assert_eq!(
-        point_in_solid(&body, Point3::new(10.0, 7.0, 3.0), b).unwrap(),
+        point_in_solid(&body, Point3::new(10.0, 7.0, 3.0), b, Tol::witness()).unwrap(),
         SolidContainment::Out
     );
     // ON the sphere: the boundary pre-pass, before any ray is cast.
@@ -106,7 +109,7 @@ fn sphere_door_classifies_the_ball_interior_exterior_and_boundary() {
         Point3::new(0.0, 0.0, -1.0),
     ] {
         assert_eq!(
-            point_in_solid(&body, p, b).unwrap(),
+            point_in_solid(&body, p, b, Tol::witness()).unwrap(),
             SolidContainment::OnBoundary,
             "on-sphere probe {p:?}"
         );
@@ -130,11 +133,11 @@ fn sphere_pierce_reads_the_material_side_from_the_discriminant() {
     let inner = Point3::origin() + unit * (1.0 - r);
     let outer = Point3::origin() + unit * (1.0 + r);
     assert_eq!(
-        point_in_solid(&body, inner, b).unwrap(),
+        point_in_solid(&body, inner, b, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     assert_eq!(
-        point_in_solid(&body, outer, b).unwrap(),
+        point_in_solid(&body, outer, b, Tol::witness()).unwrap(),
         SolidContainment::Out
     );
 }
@@ -151,9 +154,11 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
         &vp,
         axis_y(),
         Revolution::Partial(std::f64::consts::FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap();
-    let err = point_in_solid(&t.body, Point3::new(0.1, 0.1, 0.1), band()).unwrap_err();
+    let err =
+        point_in_solid(&t.body, Point3::new(0.1, 0.1, 0.1), band(), Tol::witness()).unwrap_err();
     let PointInSolidError::PartialSphereFace { .. } = err else {
         panic!("expected PartialSphereFace, got {err:?}");
     };
@@ -199,7 +204,7 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
 fn curved_revert_reverts_the_ball_instead_of_refusing() {
     let body = ball();
     let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
 
     let rev = body.revert().expect("M5 S12 wired the curved arm");
     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
@@ -221,11 +226,14 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     // volume bit-negated, and a bitwise involution.
     assert_eq!(topo::validate_closed(&rev), Ok(()));
     assert_eq!(
-        topo::validate_geometric(&rev),
+        topo::validate_geometric(&rev, Tol::witness()),
         Err(vec![topo::ValidationError::NegativeVolume])
     );
     assert_eq!(
-        topo::mass_properties(&rev).unwrap().volume.to_bits(),
+        topo::mass_properties(&rev, Tol::witness())
+            .unwrap()
+            .volume
+            .to_bits(),
         (-v).to_bits()
     );
     assert_eq!(format!("{:?}", rev.revert().unwrap()), format!("{body:?}"));
@@ -261,11 +269,11 @@ fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
         p2(2.0, 2.0),
         p2(-2.0, 2.0),
     ])]);
-    let a = sweep::extrude(&slab, sweep::Extrusion::Distance(1.0))
+    let a = sweep::extrude(&slab, sweep::Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
     let b = ball();
-    let err = topo::boolean::subtract(&a, &b).unwrap_err();
+    let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
     let topo::BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the extent scan's tangency arm, got {err:?}");
     };
@@ -294,7 +302,10 @@ fn tangent_schedule_ray_grazes_and_the_retry_answers() {
     let q = Point3::new(-3.0, 1.0, 0.0);
     // The verdict still resolves — a later schedule member is not
     // tangent — and it is the right one.
-    assert_eq!(point_in_solid(&body, q, b).unwrap(), SolidContainment::Out);
+    assert_eq!(
+        point_in_solid(&body, q, b, Tol::witness()).unwrap(),
+        SolidContainment::Out
+    );
 }
 
 /// NOTE row (PR 9c review, F4): a MULTI-SHELL sphere body. Two
@@ -312,9 +323,10 @@ fn two_ball_body_classifies_each_shell_independently() {
     let b = topo::transform_rigid(
         &a,
         &geom_core::Affine3::translation(geom_core::Vec3::new(4.0, 0.0, 0.0)),
+        Tol::witness(),
     )
     .unwrap();
-    let result = topo::boolean::union(&a, &b).unwrap();
+    let result = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let topo::BooleanResult::Body(bb) = result else {
         panic!("two disjoint balls union to a real body");
     };
@@ -323,15 +335,15 @@ fn two_ball_body_classifies_each_shell_independently() {
     let bd = band();
     // Inside ball A, inside ball B, and in the gap between them.
     assert_eq!(
-        point_in_solid(&body, Point3::origin(), bd).unwrap(),
+        point_in_solid(&body, Point3::origin(), bd, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     assert_eq!(
-        point_in_solid(&body, Point3::new(4.0, 0.0, 0.0), bd).unwrap(),
+        point_in_solid(&body, Point3::new(4.0, 0.0, 0.0), bd, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     assert_eq!(
-        point_in_solid(&body, Point3::new(2.0, 0.0, 0.0), bd).unwrap(),
+        point_in_solid(&body, Point3::new(2.0, 0.0, 0.0), bd, Tol::witness()).unwrap(),
         SolidContainment::Out
     );
 }

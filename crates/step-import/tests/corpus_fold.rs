@@ -33,6 +33,7 @@
 mod common;
 
 use common::{fixture, import_body};
+use geom_core::Tol;
 use step_import::{NormalizationKind, PromotedKind};
 
 /// One fold fixture's promotion pin: the fixture name, its two
@@ -66,10 +67,12 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         let (body, _eps) = import_body(name);
         let normalizations = {
             // Re-import through the public door to read the report.
-            let step_import::StepImport::Solid { normalizations, .. } =
-                step_import::import_step(&committed, &step_import::ImportOptions::default())
-                    .expect("the fold fixture imports")
-            else {
+            let step_import::StepImport::Solid { normalizations, .. } = step_import::import_step(
+                &committed,
+                &step_import::ImportOptions::default(),
+                Tol::witness(),
+            )
+            .expect("the fold fixture imports") else {
                 panic!("{name}: must import as a solid");
             };
             normalizations
@@ -99,7 +102,7 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
             product_name: name.to_owned(),
             ..step_export::StepOptions::default()
         };
-        let out = step_export::step_string(&body, &options).expect("re-export");
+        let out = step_export::step_string(&body, &options, Tol::witness()).expect("re-export");
         let count = |s: &str, pat: &str| s.matches(pat).count();
         assert_eq!(
             (
@@ -121,12 +124,13 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         // The promoted one-cycle fixed point (the ruling's re-stated
         // byte pin): from the first re-export on, byte-identical.
         let step_import::StepImport::Solid { body: body2, .. } =
-            step_import::import_step(&out, &step_import::ImportOptions::default())
+            step_import::import_step(&out, &step_import::ImportOptions::default(), Tol::witness())
                 .expect("the promoted re-export re-imports")
         else {
             panic!("{name}: the re-import must be a solid");
         };
-        let out2 = step_export::step_string(&body2, &options).expect("second re-export");
+        let out2 =
+            step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
         assert_eq!(out, out2, "{name}: fixed point from the first re-export on");
     }
 }

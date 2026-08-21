@@ -559,7 +559,7 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// which `f64` the entries of a side carry. A reader taking the four
 /// consumers above for the crate's ε ledger would be short by three:
 /// this list is `gap_is_noise`'s callers and nothing wider.
-/// [`crate::sizing::Tol`] says what an ε read may DO; the inventory of
+/// [`crate::sizing::SizingTols`] says what an ε read may DO; the inventory of
 /// where they are is computed by `mesh/tests/all.rs`'s
 /// `the_eps_inventory_is_pinned`.
 ///

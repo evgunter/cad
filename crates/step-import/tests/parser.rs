@@ -6,6 +6,7 @@
 mod common;
 
 use common::fixture;
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// Row 4: the curve-only fixture parses; the rational quadratic
@@ -18,7 +19,8 @@ use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 #[test]
 fn nurbs_wireframe_disposition() {
     let text = fixture("nurbs_wireframe", "step");
-    let import = import_step(&text, &ImportOptions::default()).expect("the wireframe imports");
+    let import = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("the wireframe imports");
     let StepImport::Wireframe { curves, eps_in, .. } = import else {
         panic!("a curve-only file must take the wireframe disposition, not claim a body");
     };
@@ -81,7 +83,7 @@ fn bspline_surface_knot_budget_refuses_typed() {
          #97 = CARTESIAN_POINT('', (0.0, 0.0, 0.0));\n\
          #98 = CARTESIAN_POINT('', (1.0, 0.0, 0.0))",
     );
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("a NURBS surface with a broken knot budget must refuse");
     match err {
         StepImportError::MalformedRecord { id, expected } => {
@@ -106,7 +108,7 @@ fn truncations_refuse_without_panicking() {
     let text = fixture("cube", "step");
     for cut in 0..text.len() {
         let truncated = &text[..cut];
-        let result = import_step(truncated, &ImportOptions::default());
+        let result = import_step(truncated, &ImportOptions::default(), Tol::witness());
         if cut + 1 == text.len() {
             assert!(
                 result.is_ok(),
@@ -121,7 +123,7 @@ fn truncations_refuse_without_panicking() {
     }
     // A structurally malformed record: garbage where a record belongs.
     let garbage = "ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n#1 = ;\nENDSEC;\nEND-ISO-10303-21;\n";
-    match import_step(garbage, &ImportOptions::default()) {
+    match import_step(garbage, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::Syntax { line, .. }) => assert_eq!(line, 5),
         other => panic!("expected a syntax refusal, got: {other:?}"),
     }
@@ -132,7 +134,7 @@ fn truncations_refuse_without_panicking() {
 fn dangling_reference_refuses_named() {
     let text =
         fixture("cube", "step").replace("#13 = LINE('', #10, #12);", "#13 = LINE('', #10, #9999);");
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("a dangling reference must refuse");
     match err {
         StepImportError::DanglingReference { from, to } => {
@@ -162,11 +164,15 @@ fn prefixed_unit_scales_instead_of_refusing() {
     );
     assert_ne!(metres, millimetres, "the unit record must actually differ");
     let of = |text: &str| -> (f64, f64) {
-        let import = import_step(text, &ImportOptions::default()).expect("the cube imports");
+        let import =
+            import_step(text, &ImportOptions::default(), Tol::witness()).expect("the cube imports");
         let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("expected a solid");
         };
-        (topo::mass_properties(&body).unwrap().volume, eps_in)
+        (
+            topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+            eps_in,
+        )
     };
     let (v_m, eps_m) = of(&metres);
     let (v_mm, eps_mm) = of(&millimetres);
@@ -196,11 +202,12 @@ fn prefixed_unit_scales_instead_of_refusing() {
 fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
     let plain = fixture("cube", "step");
     let volume = |text: &str| {
-        let StepImport::Solid { body, .. } = import_step(text, &ImportOptions::default()).unwrap()
+        let StepImport::Solid { body, .. } =
+            import_step(text, &ImportOptions::default(), Tol::witness()).unwrap()
         else {
             panic!("a solid")
         };
-        topo::mass_properties(&body).unwrap().volume
+        topo::mass_properties(&body, Tol::witness()).unwrap().volume
     };
     // The same metre unit, re-declared as an inch OVER that metre.
     let inch = plain.replace(
@@ -233,7 +240,8 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
     );
     assert!(
         matches!(
-            import_step(&dangling, &ImportOptions::default()).expect_err("no factor"),
+            import_step(&dangling, &ImportOptions::default(), Tol::witness())
+                .expect_err("no factor"),
             StepImportError::DanglingReference { to: 9990, .. }
         ),
         "a conversion whose factor entity is missing refuses typed"
@@ -243,7 +251,7 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
         "#9990 = PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.0254), #9993);\n\
          #9993 = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($, .RADIAN.) );",
     );
-    let err = import_step(&angular, &ImportOptions::default())
+    let err = import_step(&angular, &ImportOptions::default(), Tol::witness())
         .expect_err("a length declared over an angle is not a length");
     assert!(
         matches!(err, StepImportError::UnsupportedUnit { .. }),
@@ -256,7 +264,7 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
 #[test]
 fn eps_in_declared_and_overridable() {
     let text = fixture("cube", "step");
-    let declared = import_step(&text, &ImportOptions::default()).expect("imports");
+    let declared = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("imports");
     assert_eq!(
         declared.eps_in(),
         1e-9,
@@ -268,6 +276,7 @@ fn eps_in_declared_and_overridable() {
             eps_in: Some(2.5e-7),
             ..ImportOptions::default()
         },
+        Tol::witness(),
     )
     .expect("imports under an override");
     assert_eq!(overridden.eps_in(), 2.5e-7, "the per-call override wins");
@@ -278,6 +287,7 @@ fn eps_in_declared_and_overridable() {
             eps_in: Some(0.0),
             ..ImportOptions::default()
         },
+        Tol::witness(),
     )
     .expect_err("a non-positive override refuses");
     assert!(matches!(

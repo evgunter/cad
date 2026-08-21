@@ -14,6 +14,7 @@
 mod common;
 
 use common::prism_z;
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
@@ -38,14 +39,15 @@ fn dump_full_census() {
         k_stats::start_recording();
         let a1 = bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b1 = bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-        let r = match subtract(&a1, &b1).expect("corner") {
+        let r = match subtract(&a1, &b1, Tol::witness()).expect("corner") {
             BooleanResult::Body(b) => b,
             other => panic!("corner: {other:?}"),
         };
-        topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default()).expect("census");
+        topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), Tol::witness())
+            .expect("census");
         let a2 = bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
         let b2 = bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-        subtract(&a2, &b2).expect("pocket");
+        subtract(&a2, &b2, Tol::witness()).expect("pocket");
         for s in k_stats::take_samples() {
             println!(
                 "CEN {} {} {:?} {:?}",

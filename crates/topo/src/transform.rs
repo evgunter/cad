@@ -55,6 +55,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
 
@@ -347,8 +348,9 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 pub fn transform_rigid<T: Decide>(
     body: &Body<T>,
     map: &Affine3<T>,
+    tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let band = Band::linear().map_err(TransformError::Band)?;
+    let band = Band::linear(tol).map_err(TransformError::Band)?;
     check_rigid(map, band)?;
     let mut out = body.clone();
 
@@ -466,7 +468,7 @@ pub fn transform_rigid<T: Decide>(
     // runs when the operand actually carried caches, so transform never
     // MINTS caches a body did not have.
     if out.pcurves().next().is_some() {
-        crate::pcurves::mint_pcurves(&mut out)
+        crate::pcurves::mint_pcurves(&mut out, tol)
             .map_err(|source| TransformError::Pcurve { source })?;
     }
     Ok(out)

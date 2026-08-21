@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, Section, WedgeCapsError, extrude, loft_body, revolve,
@@ -29,9 +30,10 @@ fn unit_square() -> Profile<f64> {
 #[test]
 fn face_pose_reads_an_extruded_cap_plane() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
-    let block = extrude::<f64>(&profile, Extrusion::Distance(1.0)).expect("it extrudes");
+    let block =
+        extrude::<f64>(&profile, Extrusion::Distance(1.0), Tol::witness()).expect("it extrudes");
 
     // The top cap sits on the sketch plane translated by the
     // extrusion — z = 1, normal along +z. No literal was transcribed
@@ -48,9 +50,10 @@ fn face_pose_reads_an_extruded_cap_plane() {
 #[test]
 fn vertex_point_reads_every_corner_of_a_block() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
-    let block = extrude::<f64>(&profile, Extrusion::Distance(1.0)).expect("it extrudes");
+    let block =
+        extrude::<f64>(&profile, Extrusion::Distance(1.0), Tol::witness()).expect("it extrudes");
 
     let mut zs: Vec<f64> = block
         .body
@@ -64,9 +67,10 @@ fn vertex_point_reads_every_corner_of_a_block() {
 #[test]
 fn edge_pose_reads_a_line_without_inventing_a_perpendicular() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
-    let block = extrude::<f64>(&profile, Extrusion::Distance(1.0)).expect("it extrudes");
+    let block =
+        extrude::<f64>(&profile, Extrusion::Distance(1.0), Tol::witness()).expect("it extrudes");
 
     // Every edge of a block is straight: a direction, and honestly no
     // reference perpendicular.
@@ -80,9 +84,10 @@ fn edge_pose_reads_a_line_without_inventing_a_perpendicular() {
 #[test]
 fn both_extrusion_caps_read_off_the_result_s_own_handles() {
     let profile = unit_square()
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the unit square validates");
-    let block = extrude::<f64>(&profile, Extrusion::Distance(2.0)).expect("it extrudes");
+    let block =
+        extrude::<f64>(&profile, Extrusion::Distance(2.0), Tol::witness()).expect("it extrudes");
 
     let bottom = face_pose(&block.body, block.bottom).expect("a planar cap");
     let top = face_pose(&block.body, block.top).expect("a planar cap");
@@ -108,7 +113,7 @@ fn both_loft_caps_read_off_the_result_s_own_handles() {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    let loft = loft_body::<f64>(&sections, &places, 2).expect("it lofts");
+    let loft = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("it lofts");
 
     let bottom = face_pose(&loft.body, loft.bottom).expect("a planar cap");
     let top = face_pose(&loft.body, loft.top).expect("a planar cap");
@@ -122,15 +127,17 @@ fn both_loft_caps_read_off_the_result_s_own_handles() {
 
 #[test]
 fn a_full_revolve_has_no_caps_to_read() {
-    let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
+    let circle =
+        profile::circle(Point2::new(5.0, 0.0), 0.5, Tol::witness()).expect("a positive radius");
     let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the circle validates");
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let torus = revolve::<f64>(&sketch, axis, Revolution::Full).expect("the torus revolves");
+    let torus = revolve::<f64>(&sketch, axis, Revolution::Full, Tol::witness())
+        .expect("the torus revolves");
 
     assert!(
         matches!(revolved_caps(&torus), Err(WedgeCapsError::NoCaps)),

@@ -52,12 +52,13 @@ unchanged. Convexity is reserved and unbuilt.
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 // v4: the profile payload is its PROGRAM.
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
-let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
+let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -82,7 +83,7 @@ let (next, ground) = insert(
 );
 doc = next;
 
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let params = doc.param_env::<f64>();
 let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
 let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
@@ -94,6 +95,7 @@ let straight = select_where(
     &ev, cube, &edges,
     &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
     &params,
+    tol,
 ).expect("exact atoms cannot refuse");
 assert_eq!(straight, select(&ev, cube, &edges));
 assert_eq!(straight.len(), 12);
@@ -106,6 +108,7 @@ assert!(select_where(
         SurfaceKindSet::just(SurfaceKind::Sphere),
     )],
     &params,
+    tol,
 ).expect("total").is_empty());
 
 // DECIDED: the one face a metre above the datum, found by
@@ -114,6 +117,7 @@ let top = select_where(
     &ev, cube, &faces,
     &[GeomPred::DatumDistance { datum: ground, cmp: Cmp::Approx, value: len(1.0) }],
     &params,
+    tol,
 ).expect("no candidate is in-band here");
 assert_eq!(
     top,
@@ -133,6 +137,7 @@ assert!(matches!(
             value: Expr::literal(1.0, Dimension::Angle).expect("an angle"),
         }],
         &params,
+        tol,
     ),
     Err(SelectRefusal::NotALength { .. }),
 ));
@@ -146,13 +151,14 @@ extruded square, with no coordinate and no arena key anywhere:
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 // A unit box, authored through the document layer (v4: the
 // profile payload is its PROGRAM — a chain of Expr-bearing steps).
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
-let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
+let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -170,7 +176,7 @@ let (next, cube) = insert(
 );
 doc = next;
 
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 
 // The whole-body materializers: one door per entity kind.
 assert_eq!(all_faces(&ev, cube).len(), 6);
@@ -301,13 +307,14 @@ kernel had chosen them. Analytic carriers all answer.
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 // v4: the profile payload is its PROGRAM — a chain
 // of Expr-bearing steps.
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
-let mut doc = Doc::<ProfileProgram>::empty_derived("select-example");
+let mut doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
@@ -325,7 +332,7 @@ let (next, cube) = insert(
 );
 doc = next;
 
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 
 // Select the top cap by NAME, then ask where it is.
 let top = Selector::of(
@@ -383,8 +390,9 @@ pass through your hands as values, never straight into a recipe.
 use pncad::prelude::*;
 use pncad::document::{BooleanOp, BooleanValue, NodeErrorKind, NodeResult};
 
+let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
@@ -398,7 +406,7 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| ProfileProgram {
 };
 
 // A unit box, and a smaller box RESTING on its top cap.
-let doc = Doc::<ProfileProgram>::empty_derived("select-example");
+let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, 0.0)));
 let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, 1.0)));
@@ -410,7 +418,7 @@ let (undeclared, uni) = insert(
     &doc,
     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: None },
 );
-let ev = evaluate::<f64>(&undeclared, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&undeclared, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
     panic!("the undeclared union must refuse");
 };
@@ -426,20 +434,20 @@ assert_eq!(finding.class, ContactClass::Rest);
 // that refused now verify the declared contact. (Declaring the
 // menu's own finding — `declare(&doc, finding)` — is the same
 // door; the detector shows the full inventory.)
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
-let findings = find_flush_candidates(&ev, base, block).expect("definite findings");
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, ContactClass::Rest);
-let (doc, decl) = declare_all(&doc, &findings).expect("declarable");
+let (doc, decl) = declare_all(&doc, &findings, tol).expect("declarable");
 let (doc, uni) = insert(
     &doc,
     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Some(decl) },
 );
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
     &ev.value(uni).expect("the declared union evaluates").payload
 else {
     panic!("expected a body");
 };
-assert_eq!(mass_properties(body).expect("mass").volume, 1.125);
+assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
 ```

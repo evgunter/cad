@@ -536,7 +536,8 @@ pub(super) fn analyze_contact<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tolerance;
+    use geom_core::Tol;
+
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
@@ -555,7 +556,7 @@ mod tests {
             ProfileVertex::new(at(phi_b), 0.0),
         ]);
         Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -564,7 +565,12 @@ mod tests {
             origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         };
-        AxisFrame::build(vp.plane().placement, &axis, Band::linear().unwrap()).unwrap()
+        AxisFrame::build(
+            vp.plane().placement,
+            &axis,
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap()
     }
 
     /// NIT-1 regression: an arc from −90° to 130° contains the carrier

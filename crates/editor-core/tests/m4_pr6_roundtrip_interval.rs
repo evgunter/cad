@@ -17,9 +17,16 @@ use editor_core::{CancelToken, EvalOptions, ProfileDoc, evaluate, load, save};
 use geom_core::Interval;
 
 use corpus::documents;
+use geom_core::Tol;
 
 fn fingerprint(label: &str, doc: &ProfileDoc) -> String {
-    let ev = evaluate::<Interval>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<Interval>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     // #117: fingerprint identity is blind to evaluation health — assert
     // green so a sick fixture fails loudly (rationale in the f64 lane,
     // m4_pr6_roundtrip.rs).
@@ -35,8 +42,8 @@ fn fingerprint(label: &str, doc: &ProfileDoc) -> String {
 #[test]
 fn interval_replay_identity_across_save_load() {
     for d in documents() {
-        let text = save(&d.doc, &[]).expect("save");
-        let loaded = load(&text).expect("load");
+        let text = save(&d.doc, &[], Tol::witness()).expect("save");
+        let loaded = load(&text, Tol::witness()).expect("load");
         assert!(
             loaded.doc.bit_eq(&d.doc),
             "{}: round-trip bit identity",

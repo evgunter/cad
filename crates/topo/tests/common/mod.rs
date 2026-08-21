@@ -15,6 +15,7 @@
 
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 
@@ -35,7 +36,7 @@ pub fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
 
 /// A Newell-certified plane from an outward-CCW-ordered corner list.
 pub fn plane<T: geom_core::Decide>(corners: &[Point3<T>]) -> Surface<T> {
-    newell_plane(corners, Band::linear().unwrap()).unwrap()
+    newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
 }
 
 /// Builds the geometric unit cube through the public operators: the
@@ -69,11 +70,17 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             },
             b,
             line(a, b),
+            Tol::witness(),
         )
         .unwrap();
     let strut = |body: &mut Body<T>, at, from, to| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to))
-            .unwrap()
+        body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            to,
+            line(from, to),
+            Tol::witness(),
+        )
+        .unwrap()
     };
     let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
     let e_cd = strut(&mut body, e_bc.he_minus, cc, d);
@@ -91,6 +98,7 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             },
             line(d, a),
             FaceSurface::New(plane(&[a, d, cc, b])),
+            Tol::witness(),
         )
         .unwrap();
     let e_aa = strut(&mut body, e_ab.he_plus, a, a1);
@@ -106,6 +114,7 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             },
             line(a1, b1),
             FaceSurface::New(plane(&[a, b, b1, a1])),
+            Tol::witness(),
         )
         .unwrap();
     let f_right = body
@@ -116,6 +125,7 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             },
             line(b1, c1),
             FaceSurface::New(plane(&[b, cc, c1, b1])),
+            Tol::witness(),
         )
         .unwrap();
     let f_back = body
@@ -126,6 +136,7 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             },
             line(c1, d1),
             FaceSurface::New(plane(&[cc, d, d1, c1])),
+            Tol::witness(),
         )
         .unwrap();
     let f_left = body
@@ -136,6 +147,7 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
             },
             line(d1, a1),
             FaceSurface::New(plane(&[d, a, a1, d1])),
+            Tol::witness(),
         )
         .unwrap();
     // The seed face survives as the top cap: attach its plane (outward
@@ -194,6 +206,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
             },
             bot[1],
             line(bot[0], bot[1]),
+            Tol::witness(),
         )
         .unwrap(),
     );
@@ -204,6 +217,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
                 MevSite::Fan { he1: at, he2: at },
                 bot[i],
                 line(bot[i - 1], bot[i]),
+                Tol::witness(),
             )
             .unwrap(),
         );
@@ -227,6 +241,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
             },
             line(bot[n - 1], bot[0]),
             FaceSurface::New(plane(&rev)),
+            Tol::witness(),
         )
         .unwrap();
     // Struts up from each bottom vertex. The chain edge from v_i has
@@ -246,6 +261,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
                 MevSite::Fan { he1: at, he2: at },
                 top[i],
                 line(bot[i], top[i]),
+                Tol::witness(),
             )
             .unwrap(),
         );
@@ -269,6 +285,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
                 },
                 line(top[i], top[j]),
                 FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
+                Tol::witness(),
             )
             .unwrap();
         if i == 0 {
@@ -306,7 +323,7 @@ pub fn prism_z<T: geom_core::Decide>(profile: &[(f64, f64)], z0: f64, z1: f64) -
 /// (coplanar neighbors — collinear profile runs) keep their
 /// conventional chord, mirroring the pipeline's D2 split.
 pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     for (edge_key, edge) in edges {
         let face_surface = |body: &Body<T>, he| {
@@ -334,7 +351,7 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeGeometry::Intersection { s1, s2, witness };
-        body.set_edge_curve(edge_key, spec).unwrap();
+        body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
     }
 }
 
@@ -369,11 +386,17 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
             },
             b,
             line(a, b),
+            Tol::witness(),
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, from, to| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to))
-            .unwrap()
+        body.mev(
+            MevSite::Fan { he1: at, he2: at },
+            to,
+            line(from, to),
+            Tol::witness(),
+        )
+        .unwrap()
     };
     let e_bc = strut(body, e_ab.he_minus, b, cc);
     let e_cd = strut(body, e_bc.he_minus, cc, d);
@@ -388,6 +411,7 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
             },
             line(d, a),
             FaceSurface::New(plane(&[a, d, cc, b])),
+            Tol::witness(),
         )
         .unwrap();
     let e_aa = strut(body, e_ab.he_plus, a, a1);
@@ -402,6 +426,7 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
             },
             line(a1, b1),
             FaceSurface::New(plane(&[a, b, b1, a1])),
+            Tol::witness(),
         )
         .unwrap();
     body.mef(
@@ -411,6 +436,7 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
         },
         line(b1, c1),
         FaceSurface::New(plane(&[b, cc, c1, b1])),
+        Tol::witness(),
     )
     .unwrap();
     body.mef(
@@ -420,6 +446,7 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
         },
         line(c1, d1),
         FaceSurface::New(plane(&[cc, d, d1, c1])),
+        Tol::witness(),
     )
     .unwrap();
     body.mef(
@@ -429,6 +456,7 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
         },
         line(d1, a1),
         FaceSurface::New(plane(&[d, a, a1, d1])),
+        Tol::witness(),
     )
     .unwrap();
     body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
@@ -451,7 +479,7 @@ pub fn flush_declarations<T: geom_core::Decide>(
 ) -> topo::BooleanDeclarations {
     use geom_core::k_stats::{decide, decide_flagged};
     use geom_core::{Margin, Sign};
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let planes = |body: &Body<T>| -> Vec<(topo::FaceKey, Point3<T>, geom_core::Vec3<T>)> {
         body.faces()
             .filter_map(|(k, f)| match body.get_surface(f.surface) {

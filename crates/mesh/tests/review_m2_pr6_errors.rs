@@ -10,6 +10,7 @@
 mod common;
 
 use common::{axis_y, ball, cone, donut, p2, validated, washer};
+use geom_core::Tol;
 use mesh::{TessellateError, tessellate};
 use profile::ProfileLoop;
 use profile::RawLoop;
@@ -18,7 +19,7 @@ use sweep::{Revolution, revolve};
 #[test]
 fn survives_negative_zero_delta_refused() {
     // −0.0 is not > 0.0: must be refused, not treated as "very fine".
-    match tessellate(&donut(), -0.0) {
+    match tessellate(&donut(), -0.0, Tol::witness()) {
         Err(TessellateError::InvalidChordalTolerance { value }) => {
             assert_eq!(value.to_bits(), (-0.0f64).to_bits());
         }
@@ -29,7 +30,7 @@ fn survives_negative_zero_delta_refused() {
 #[test]
 fn survives_denormal_delta_typed_overflow_on_curved_bodies() {
     for body in [donut(), washer(), cone()] {
-        match tessellate(&body, 5e-324) {
+        match tessellate(&body, 5e-324, Tol::witness()) {
             Err(TessellateError::ResolutionOverflow { count }) => {
                 assert!(count > 16_777_216.0);
             }
@@ -48,7 +49,7 @@ fn survives_delta_fine_but_sane_still_tessellates() {
     // all. The 2^24 cap bounds allocation, not wall-clock. The δ this
     // row passes is chosen for the point-count regime.
     let body = washer();
-    let mesh = tessellate(&body, 1e-6);
+    let mesh = tessellate(&body, 1e-6, Tol::witness());
     assert!(mesh.is_ok(), "fine-but-sane delta refused");
 }
 
@@ -64,21 +65,31 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
             profile::ProfileVertex::new(p2(10.0, -0.05), 1.0),
             profile::ProfileVertex::new(p2(10.0, 0.05), 1.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     let flat_cone = {
         // Nearly flat cone (half-angle → π/2) — cosα·sinα maximal
         // sensitivity region for the cone bound.
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.2), p2(0.0, 0.2)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     };
     for body in [ball(), cone(), donut(), extreme_torus, flat_cone] {
         for delta in [3.0, 0.7, 0.09, 0.013] {
-            match tessellate(&body, delta) {
+            match tessellate(&body, delta, Tol::witness()) {
                 Ok(_) => {}
                 Err(TessellateError::CertificateExceeded {
                     bound, requested, ..
@@ -101,6 +112,7 @@ fn survives_torus_wedge_outside_pole_window() {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(2.0 * core::f64::consts::PI - 0.1),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -114,6 +126,6 @@ fn survives_self_intersecting_profile_never_reaches_spade() {
     // boundary, which profile validation refuses upstream — typed.
     let bowtie = ProfileLoop::polygon([p2(0.5, 0.0), p2(2.0, 1.0), p2(2.0, 0.0), p2(0.5, 1.0)]);
     let res = profile::Profile::new(profile::SketchPlane::xy(), vec![bowtie])
-        .validate(geom_core::Tolerance::get());
+        .validate(geom_core::Tol::witness());
     assert!(res.is_err(), "self-intersecting profile must be refused");
 }

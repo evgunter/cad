@@ -4,6 +4,7 @@
 
 mod common;
 use common::census;
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn box_step() -> String {
@@ -15,12 +16,12 @@ fn box_step() -> String {
 }
 
 fn report(tag: &str, text: &str) {
-    match import_step(text, &ImportOptions::default()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "{tag}: SOLID census (solids,shells,faces,edges,verts)={:?} tier3={:?}",
                 census(&body),
-                topo::validate_geometric(&body).map(|()| "ok")
+                topo::validate_geometric(&body, Tol::witness()).map(|()| "ok")
             );
         }
         Ok(StepImport::Wireframe { .. }) => println!("{tag}: WIREFRAME"),

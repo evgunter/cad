@@ -101,7 +101,7 @@ use crate::cert;
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
-use crate::sizing::{Tol, ceil_count, sagitta_step};
+use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::types::TessellateError;
 
 /// Retry budget for the rebuild loop (module docs).
@@ -163,7 +163,7 @@ pub(crate) fn tessellate_trimmed(
     surface: &Surface<f64>,
     chords: &ChordPass,
     positions: &mut Vec<Point3<f64>>,
-    tol: &Tol,
+    tol: &SizingTols,
     bounds: &mut FaceBounds,
 ) -> Result<Vec<[u32; 3]>, TessellateError> {
     let face = body

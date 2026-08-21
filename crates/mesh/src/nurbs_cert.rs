@@ -1510,6 +1510,7 @@ fn derived_knots(kv: &KnotVector, fk: FaceKey) -> Result<KnotVector, TessellateE
 mod tests {
     use super::*;
     use geom_core::Point3;
+    use geom_core::Tol;
     use profile::RawLoop;
     use test_utils::fuzz;
 
@@ -2055,7 +2056,7 @@ mod tests {
             .iter()
             .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
             .collect();
-        let body = sweep::loft_body::<f64>(&sections, &places, 1)
+        let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")
             .body;
         for (_, face) in body.faces() {

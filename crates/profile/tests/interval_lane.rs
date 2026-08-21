@@ -13,6 +13,7 @@
 mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
+use geom_core::Tol;
 use geom_core::{Interval, MarginDiag, Real, Sign};
 use profile::{LoopRole, ProfileError, RawLoop, SegmentKind};
 
@@ -70,7 +71,7 @@ fn near_tangency_escalates_via_an_in_band_enclosure() {
     // lies wholly inside the open sliver band — the terminal case the
     // subdivision driver cannot refine (MarginDiag::Enclosure carries
     // the bounds; escalation is the only sound outcome, Q1).
-    let eps = tol().eps;
+    let eps = tol().eps();
     let err = lift::<Interval>(&near_tangent_hole(eps))
         .validate(tol())
         .expect_err("near-tangency must escalate at Interval");
@@ -99,7 +100,7 @@ fn interval_decisions_match_f64_on_the_fixture_suite() {
         profile(vec![rect(0.0, 0.0, 2.0, 2.0)]),
         annulus(),
         tangent_hole(),
-        near_tangent_hole(tol().eps),
+        near_tangent_hole(tol().eps()),
     ];
     for p in fixtures {
         let at_f64 = p.validate(tol());
@@ -173,9 +174,9 @@ fn arc_leg_fillet_constructs_and_validates_at_interval() {
     let one = |v: f64| Interval::from_f64(v);
     let lp = profile::Open
         .at(ip2(0.0, 2.0))
-        .line_to(ip2(0.0, 0.0))
+        .line_to(ip2(0.0, 0.0), Tol::witness())
         .expect("the straight run down to the ray's origin")
-        .toward(one(1.0), one(0.0))
+        .toward(one(1.0), one(0.0), Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet_arc(
             one(0.5),
@@ -184,6 +185,7 @@ fn arc_leg_fillet_constructs_and_validates_at_interval() {
                 winding: profile::ArcSweep::Ccw,
                 p: profile::Start,
             },
+            Tol::witness(),
         )
         .expect("the arc-carrier fillet constructs at Interval")
         .loop_;
@@ -202,9 +204,9 @@ fn exact_fit_arc_fillet_escalates_at_interval() {
     let one = |v: f64| Interval::from_f64(v);
     let err = profile::Open
         .at(ip2(0.0, 2.0))
-        .line_to(ip2(0.0, 0.0))
+        .line_to(ip2(0.0, 0.0), Tol::witness())
         .expect("the straight run down to the ray's origin")
-        .toward(one(1.0), one(0.0))
+        .toward(one(1.0), one(0.0), Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet_arc(
             one(1.0),
@@ -213,6 +215,7 @@ fn exact_fit_arc_fillet_escalates_at_interval() {
                 winding: profile::ArcSweep::Ccw,
                 p: profile::Start,
             },
+            Tol::witness(),
         )
         .expect_err("the knife-edge fit must escalate at Interval");
     match err {
@@ -259,6 +262,7 @@ fn vesica_near_pick_escalates_at_interval_on_the_coincident_candidate() {
                 winding: profile::ArcSweep::Ccw,
                 p: profile::Start,
             },
+            Tol::witness(),
         )
         .expect_err("the coincident candidate is undecidable on an enclosure");
     match err {

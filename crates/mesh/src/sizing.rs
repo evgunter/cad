@@ -8,7 +8,7 @@
 //!
 //! - a **target** — the metres of deviation a schedule aims at. There
 //!   is exactly one, δ_s = [`sizing_target`]`(δ)`, and it is carried
-//!   with the run's other tolerances by [`Tol`].
+//!   with the run's other tolerances by [`SizingTols`].
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
 //!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
@@ -116,7 +116,7 @@ use crate::types::TessellateError;
 /// is textual and cannot see a read spelled another way; the mechanism
 /// that would (ε as a type whose operations are named, D2 addendum
 /// row 0) is **issue #881**.
-pub(crate) struct Tol {
+pub(crate) struct SizingTols {
     /// The chordal tolerance δ.
     pub delta: f64,
     /// The sizing target δ_s = δ/2.
