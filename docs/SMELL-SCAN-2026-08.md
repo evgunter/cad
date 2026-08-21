@@ -9689,7 +9689,13 @@ The first scan's own closing rule for the retired unscheduled table says
 a finding *"leaves a verdict and no row only if the verdict is
 closed"*. This one is decided-and-open.
 
-**Verdict: ASKED — Evan, 2026-08-21, by Track H on claiming.** Track H
+**Verdict: ANSWERED — Evan, 2026-08-21: *"tightening to `CertifiedBounds` works at least for now."* Answer (4).** The fillet seam's three public entry points take `<T: Decide + CertifiedBounds>`, which makes an external `Dual64` instantiation a **compile error** rather than a thing an audit has to keep being true about. *"At least for now"* is part of the ruling and is recorded as such: this closes the seam, it does not settle whether a fillet battery should ever be differentiable.
+
+**What the ruling does NOT do — and the distinction is Evan's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds** — the quadrature arm declining internally while the rest genuinely validates, after which every certificate's value channel is compared bitwise to the `f64` build. Bounding that pass on `CertifiedBounds` would not harden it; it would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
+
+*(Asked by Track H on claiming, 2026-08-21; the record of the question is below and in PR #867.)*
+
+**Original question, kept because the answer is only legible against it — ASKED 2026-08-21.** Track H
 owns `geom-core/` and this is the one row in its ground that is a
 decision rather than work, so it goes out at constitution rather than
 when a neighbour stalls on it: **`H-c` edits the same `real.rs` doc
