@@ -706,6 +706,7 @@ impl Tol {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use crate::tolerance::Tol;
     use super::*;
 
     // Process-global state discipline: tests share one process, so

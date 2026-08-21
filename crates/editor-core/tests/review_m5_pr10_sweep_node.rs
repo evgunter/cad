@@ -16,6 +16,7 @@ use editor_core::{
     CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
 };
 use fixture::{desc, insert};
+use geom_core::Tol;
 
 #[test]
 fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
@@ -47,7 +48,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         }),
     ];
     for (name, path_desc) in paths {
-        let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node");
+        let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
         let (d, profile) = insert(
             doc,
             Node::Profile(desc(
@@ -69,7 +70,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
                 v_degree: Expr::count(2),
             },
         );
-        let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+        let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
         match out.nodes.get(&sweep).expect("result") {
             NodeResult::Failed(e) => {
                 println!("{name}: {:?}", e.kind);
@@ -105,7 +106,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
 /// story about geometry it never reached.
 #[test]
 fn review_recipe_doors_precede_the_sweep_frontier() {
-    let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node");
+    let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
     let (d, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -136,7 +137,7 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
             v_degree: Expr::count(2),
         },
     );
-    let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let out = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
     match out.nodes.get(&sweep).expect("result") {
         NodeResult::Failed(e) => match &e.kind {
             NodeErrorKind::WrongOperand { input, .. } => assert_eq!(*input, datum),

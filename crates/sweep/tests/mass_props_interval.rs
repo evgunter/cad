@@ -22,7 +22,7 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(geom_core::Tol::witness().get())
+        .validate(geom_core::Tol::witness())
         .unwrap()
 }
 
@@ -126,7 +126,7 @@ fn f64_value_within_interval_enclosure() {
         ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp_f = Profile::new(SketchPlane::xy(), vec![lp_f])
-        .validate(geom_core::Tol::witness().get())
+        .validate(geom_core::Tol::witness())
         .unwrap();
     let t_f = revolve(
         &vp_f,

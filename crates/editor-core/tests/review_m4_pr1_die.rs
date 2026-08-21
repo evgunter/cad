@@ -13,6 +13,7 @@
 use editor_core::{
     Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
 };
+use geom_core::Tol;
 
 #[derive(Debug, Clone, PartialEq)]
 struct FakeProfile(&'static str);
@@ -96,7 +97,7 @@ fn placements() -> Vec<([f64; 3], [f64; 3], f64)> {
 }
 
 fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit).unwrap();
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
     log.push(edit);
     (applied.doc, applied.record.minted)
 }
@@ -143,7 +144,7 @@ fn depth_param() -> TEdit {
 fn author_theirs() -> Authored {
     let mut log = Vec::new();
     let (doc, _) = step(
-        TDoc::empty_derived("review_m4_pr1_die"),
+        TDoc::empty_derived("review_m4_pr1_die", Tol::witness()),
         &mut log,
         depth_param(),
     );
@@ -215,7 +216,7 @@ fn author_theirs() -> Authored {
 fn author_mine() -> Authored {
     let mut log = Vec::new();
     let (doc, cube_p) = step(
-        TDoc::empty_derived("review_m4_pr1_die"),
+        TDoc::empty_derived("review_m4_pr1_die", Tol::witness()),
         &mut log,
         TEdit::InsertNode {
             node: Node::Profile(FakeProfile("square-20mm")),
@@ -321,10 +322,10 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // Replay identity holds for BOTH edit orders (PartialEq + the
     // stricter role-isomorphism check against self is implied).
     assert_eq!(
-        TDoc::replay(theirs.doc.id(), &theirs.log).unwrap(),
+        TDoc::replay(theirs.doc.id(), &theirs.log, Tol::witness()).unwrap(),
         theirs.doc
     );
-    assert_eq!(TDoc::replay(mine.doc.id(), &mine.log).unwrap(), mine.doc);
+    assert_eq!(TDoc::replay(mine.doc.id(), &mine.log, Tol::witness()).unwrap(), mine.doc);
 
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);

@@ -99,6 +99,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
+use geom_core::Tol;
 
 /// `true` iff the two bodies are structurally isomorphic (see the
 /// [module docs](self) for the exact relation and its limits).
@@ -489,6 +490,7 @@ fn loop_sig(body: &Body<f64>, loop_key: LoopKey) -> String {
 
 #[cfg(test)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::Point3;
 
     use super::*;
@@ -510,12 +512,13 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 pt(1.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         body
     }
@@ -529,7 +532,7 @@ mod tests {
         let circle = body
             .mef_chord(MefSite::Lone {
                 r#loop: seed.r#loop,
-            })
+            }, Tol::witness())
             .unwrap();
         body.mev_line(
             MevSite::Fan {
@@ -537,6 +540,7 @@ mod tests {
                 he2: circle.he_minus,
             },
             pt(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
         body
@@ -544,8 +548,8 @@ mod tests {
 
     #[test]
     fn identical_builds_have_identical_forms() {
-        let a = ops_cube();
-        let b = ops_cube();
+        let a = ops_cube(Tol::witness());
+        let b = ops_cube(Tol::witness());
         assert_eq!(canonical_form(&a.body), canonical_form(&b.body));
         assert!(isomorphic(&a.body, &b.body));
     }
@@ -573,13 +577,14 @@ mod tests {
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(2.0, 0.0, 0.0), // elsewhere
+                pt(2.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         assert!(!isomorphic(&a, &body));
     }
@@ -589,7 +594,7 @@ mod tests {
         // Cycle::first is a representation-internal anchor; rotating it
         // must not change the canonical form (the kill ops re-anchor
         // loops unconditionally, so roundtrips depend on this).
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let before = canonical_form(&t.body);
         let mut rotated = t.body.clone();
         let loops: Vec<_> = rotated.loops().map(|(k, _)| k).collect();
@@ -608,7 +613,7 @@ mod tests {
     fn form_is_invariant_under_emanating_choice() {
         // Vertex::emanating names an arbitrary orbit member; re-anchoring
         // it must not change the form.
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let before = canonical_form(&t.body);
         let mut reanchored = t.body.clone();
         let vertices: Vec<_> = reanchored.vertices().map(|(k, _)| k).collect();
@@ -625,8 +630,8 @@ mod tests {
 
     #[test]
     fn cube_is_not_the_holed_box() {
-        let cube = ops_cube();
-        let holed = ops_holed_box();
+        let cube = ops_cube(Tol::witness());
+        let holed = ops_holed_box(Tol::witness());
         assert!(!isomorphic(&cube.body, &holed.body));
     }
 
@@ -645,19 +650,20 @@ mod tests {
                         r#loop: seed.r#loop,
                     },
                     pt(1.0, 0.0, 0.0),
+                    Tol::witness(),
                 )
                 .unwrap();
             let split_faces = body
                 .mef_chord(MefSite::Chords {
                     he1: seg.he_plus,
                     he2: seg.he_minus,
-                })
+                }, Tol::witness())
                 .unwrap();
             // Two hole anchors planted from face A's side (seg.he_plus
             // lives in the new face after mef; its mate in the old).
             let plant = |body: &mut Body<f64>, at, x| {
                 let strut = body
-                    .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, 0.0, 0.0))
+                    .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, 0.0, 0.0), Tol::witness())
                     .unwrap();
                 body.kemr(strut.he_plus, strut.he_minus).unwrap()
             };
@@ -697,6 +703,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 pt(1.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         let plant = |body: &mut Body<f64>, x| {
@@ -707,6 +714,7 @@ mod tests {
                         he2: seg.he_minus,
                     },
                     pt(x, 0.0, 0.0),
+                    Tol::witness(),
                 )
                 .unwrap();
             body.kemr(strut.he_plus, strut.he_minus).unwrap()

@@ -44,6 +44,7 @@ use crate::expr::EvalError;
 use crate::names::{NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
+use geom_core::Tol;
 
 /// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
 /// per-node result map, with the run's epoch, outcome, and the
@@ -962,11 +963,12 @@ pub fn evaluate<T>(
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
     opts: &EvalOptions,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, &[])
+    evaluate_at_descent(doc, prior, cancel, opts, &[], tol)
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
@@ -980,11 +982,12 @@ pub(crate) fn evaluate_nested<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain)
+    evaluate_at_descent(doc, None, cancel, opts, chain, tol)
 }
 
 fn evaluate_at_descent<T>(
@@ -993,6 +996,7 @@ fn evaluate_at_descent<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
@@ -1001,18 +1005,18 @@ where
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
-    let process_eps = geom_core::Tolerance::get().eps;
+    let process_eps = tol.eps();
     if doc.epsilon().to_bits() != process_eps.to_bits() {
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
     let env = doc.param_env::<T>();
-    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep);
+    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep, tol);
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
     // (A11): one spanning tree per cluster, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
     // answer to "where does this cluster sit".
-    let poses = crate::mate::solve_document(doc);
+    let poses = crate::mate::solve_document(doc, tol);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
@@ -1036,7 +1040,7 @@ where
             use rayon::prelude::*;
             let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
                 .par_iter()
-                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env)))
+                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env, tol)))
                 .collect();
             for (id, step) in results {
                 bookkeep(&step, &mut recomputed, &mut reused);
@@ -1049,7 +1053,7 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_node(doc, &env, id, &nodes, prior, &op_env);
+            let step = eval_node(doc, &env, id, &nodes, prior, &op_env, tol);
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -1183,6 +1187,7 @@ fn eval_node<T>(
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
     op_env: &wire::OpEnv<'_, T>,
+    tol: Tol,
 ) -> NodeStep<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
@@ -1237,7 +1242,7 @@ where
     // f64-pinned). Resolved ONCE here; the same values feed the
     // content key (resolved-value convention, §4e) and the op.
     let resolved_program = match node {
-        crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
+        crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>(), tol) {
             Ok(r) => Some(r),
             Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
         },
@@ -1251,7 +1256,7 @@ where
     // exactly the lane validation the op runs (the v1 logged surface).
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
-            match wire::prepare_profile(program, resolved) {
+            match wire::prepare_profile(program, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -1266,6 +1271,7 @@ where
         &upstream_keys,
         doc.witness(id),
         op_env.poses.placement(doc, id).ok(),
+        tol,
     );
     let naming_key = naming_key(content_key, &upstream_naming);
 
@@ -1302,6 +1308,7 @@ where
         &slot_values,
         profile_pre.as_ref(),
         op_env,
+        tol,
     );
     let verdicts = geom_core::k_stats::take_verdict_log();
     match op {
@@ -1338,6 +1345,7 @@ fn content_key<T>(
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
     placement: Option<crate::placement::Frame>,
+    tol: Tol,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -1352,7 +1360,7 @@ where
     // wanted; any future persistence of keys inherits this honest
     // version. Bump AGAIN whenever the hashed input set changes.
     h.write_tag(2);
-    let tol = geom_core::Tolerance::get();
+    let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
     let tag = match node {

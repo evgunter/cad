@@ -63,6 +63,7 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
@@ -327,6 +328,7 @@ pub fn classify_neighborhood<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
     use crate::fixtures::prism;
 
@@ -336,7 +338,7 @@ mod tests {
     /// fix pass.
     #[test]
     fn a_sphere_carried_sector_refuses_by_name() {
-        let p = prism(3);
+        let p = prism(3, Tol::witness());
         let face = p.face_side[0];
         let mut body = p.body;
         body.set_face_surface(

@@ -16,6 +16,7 @@ use topo::{
 use super::SweptSeg;
 use super::axis::AxisFrame;
 use crate::swept::placed_segment_spec;
+use geom_core::Tol;
 
 /// What one meridian chain left behind.
 pub(super) struct MeridianChain {
@@ -49,6 +50,7 @@ pub(super) fn build_chain<T: Decide>(
     segs: &[SweptSeg<T>],
     qs: &[Point3<T>],
     cap: FaceSurface<T>,
+    tol: Tol,
 ) -> Result<MeridianChain, EulerOpError> {
     let (place, normal) = (frame.place, frame.n3);
     let n = segs.len();
@@ -57,6 +59,7 @@ pub(super) fn build_chain<T: Decide>(
         MevSite::Lone { r#loop },
         qs[1 % n],
         placed_segment_spec(&segs[0], place, normal, qs[0], qs[1 % n]),
+        tol,
     )?;
     hes.push(first.he_plus);
     let mut verts = vec![anchor, first.vertex];
@@ -69,6 +72,7 @@ pub(super) fn build_chain<T: Decide>(
             },
             qs[j],
             placed_segment_spec(&segs[j - 1], place, normal, qs[j - 1], qs[j]),
+            tol,
         )?;
         hes.push(m.he_plus);
         verts.push(m.vertex);
@@ -81,6 +85,7 @@ pub(super) fn build_chain<T: Decide>(
         },
         placed_segment_spec(&segs[n - 1], place, normal, qs[n - 1], qs[0]),
         cap,
+        tol,
     )?;
     hes.push(close.he_plus);
     Ok(MeridianChain {

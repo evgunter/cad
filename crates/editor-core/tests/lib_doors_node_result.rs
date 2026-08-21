@@ -14,6 +14,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use profile::SketchPlane;
+use geom_core::Tol;
 
 /// A square profile `[0,s]²` on the xy-plane, as a loop program.
 fn square(s: f64) -> Node<ProfileProgram> {
@@ -36,9 +37,9 @@ fn square(s: f64) -> Node<ProfileProgram> {
 /// document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
-    let mut doc = ProfileDoc::empty_derived("lib_doors_node_result");
+    let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
-        let applied = doc.apply(&DocEdit::InsertNode { node }).unwrap();
+        let applied = doc.apply(&DocEdit::InsertNode { node }, Tol::witness()).unwrap();
         *doc = applied.doc;
         applied.record.minted.unwrap()
     };
@@ -80,7 +81,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 #[test]

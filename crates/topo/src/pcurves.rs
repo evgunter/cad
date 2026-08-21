@@ -156,7 +156,7 @@ use geom_brep::{
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use crate::tolerance::Tol;
+use geom_core::Tol;
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
 
 use crate::body::Body;

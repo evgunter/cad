@@ -52,7 +52,7 @@
 //! of (body, δ)"* holds **for every body in the tree** — a statement
 //! about the tree, not a theorem, and weaker than *"ε cannot move an
 //! emitted coordinate"*, which is false. ε arrives once, in
-//! [`fn@tessellate`]; `sizing::Tol`'s doc states what its reads may do
+//! [`fn@tessellate`]; `sizing::SizingTols`'s doc states what its reads may do
 //! and where that claim stops, and `tests/all.rs`'s
 //! `the_eps_inventory_is_pinned` computes where they are (D9).
 //!

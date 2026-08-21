@@ -535,7 +535,7 @@ impl<T: Decide> Body<T> {
         // when the fitted route joins the mint pass, this site
         // inherits the fix for free.
         if !self.pcurves.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work)
+            crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
         *self = work;

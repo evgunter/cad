@@ -417,7 +417,7 @@ pub fn split_reduce<T: geom_core::Decide>(
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices)?;
+    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, Tol::witness())?;
 
     let mut null_edges = Vec::new();
     for &v in &on_vertices {
@@ -514,7 +514,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 > {
     let band = geom_core::Band::linear(Tol::witness()).map_err(SplitReduceError::from)?;
     let mut red = split_reduce(operand, plane)?;
-    let (completed, fragments) = join::split_connect(&mut red, band)?;
+    let (completed, fragments) = join::split_connect(&mut red, band, Tol::witness())?;
     Ok((red, completed, fragments))
 }
 
@@ -639,10 +639,10 @@ fn split_direct<T: geom_core::Decide>(
     plane: &SplitPlane<T>,
 ) -> Result<SplitResult<T>, SplitError> {
     let (red, completed, fragments) = split_scratch(operand, plane)?;
-    let mut result = finish::split_finish(red, &completed, fragments)?;
+    let mut result = finish::split_finish(red, &completed, fragments, Tol::witness())?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
-            crate::pcurves::mint_pcurves(body)?;
+            crate::pcurves::mint_pcurves(body, Tol::witness())?;
         }
     }
     Ok(result)

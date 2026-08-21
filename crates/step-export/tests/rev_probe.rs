@@ -32,8 +32,8 @@ fn ball_both_single_band_flips_green() {
     assert_eq!(bands.len(), 2);
     for k in bands {
         let flipped = body.flipped_face_sense_for_tests(k).unwrap();
-        let v = validate_geometric(&flipped);
-        let vol = topo::mass_properties(&flipped).map(|p| p.volume);
+        let v = validate_geometric(&flipped, Tol::witness());
+        let vol = topo::mass_properties(&flipped, Tol::witness()).map(|p| p.volume);
         println!("BALL flip {k:?}: verdict={v:?} vol={vol:?}");
         assert!(v.is_ok(), "either single-band flip must stay exempt");
     }
@@ -54,6 +54,7 @@ fn revolved(pts: &[(f64, f64)], axis_dir: (f64, f64)) -> Body<f64> {
             dir: geom_core::Vec2::new(axis_dir.0, axis_dir.1),
         },
         Revolution::Full,
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -89,7 +90,7 @@ fn nappe_adversaries() {
     let mut seen_pos = false;
     let mut seen_neg = false;
     for (name, body) in &cases {
-        let ok = validate_geometric(body);
+        let ok = validate_geometric(body, Tol::witness());
         println!("NAPPE {name}: honest={:?}", ok.as_ref().map(|_| "green"));
         assert!(ok.is_ok(), "{name}: honest body must be green");
         let cones: Vec<(FaceKey, bool, Point3<f64>, Vec3<f64>)> = body
@@ -115,7 +116,7 @@ fn nappe_adversaries() {
                 seen_neg = true;
             }
             let flipped = body.flipped_face_sense_for_tests(k).unwrap();
-            let errs = validate_geometric(&flipped)
+            let errs = validate_geometric(&flipped, Tol::witness())
                 .expect_err(&format!("{name}: flipped cone face must refuse"));
             let named = errs
                 .iter()
@@ -142,7 +143,7 @@ fn nappe_adversaries() {
 fn conic_trimmed_wall_flip_probe() {
     let body = common::cut_cylinder();
     assert!(
-        validate_geometric(&body).is_ok(),
+        validate_geometric(&body, Tol::witness()).is_ok(),
         "honest cut_cylinder green"
     );
     let walls: Vec<(FaceKey, bool)> = body
@@ -155,8 +156,8 @@ fn conic_trimmed_wall_flip_probe() {
     println!("CONIC walls={walls:?}");
     for (k, sense) in walls {
         let flipped = body.flipped_face_sense_for_tests(k).unwrap();
-        let v = validate_geometric(&flipped);
-        let vol = topo::mass_properties(&flipped).map(|p| p.volume);
+        let v = validate_geometric(&flipped, Tol::witness());
+        let vol = topo::mass_properties(&flipped, Tol::witness()).map(|p| p.volume);
         println!("CONIC cut_cylinder wall sense={sense} flip -> {v:?} vol={vol:?}");
     }
 }

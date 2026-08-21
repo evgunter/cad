@@ -38,6 +38,7 @@ use super::surfaces::{strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
 /// (the module-doc convention; the sweep traverses reversed chains).
@@ -47,6 +48,7 @@ pub(super) fn build_full<T: Decide>(
     classes: &[LoopClasses<T>],
     theta: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     if loops.len() > 1 {
         return Err(RevolveError::FullRevolveHoles);
@@ -55,8 +57,8 @@ pub(super) fn build_full<T: Decide>(
     let cls = &classes[0];
     let run = super::axis::analyze_contact(segs, cls, 0)?;
     match run {
-        None => build_lamina(frame, segs, cls, theta, band),
-        Some(run) => build_wire(frame, segs, cls, run, theta, band),
+        None => build_lamina(frame, segs, cls, theta, band, tol),
+        Some(run) => build_wire(frame, segs, cls, run, theta, band, tol),
     }
 }
 
@@ -67,6 +69,7 @@ fn build_lamina<T: Decide>(
     cls: &LoopClasses<T>,
     theta: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
     let n = segs.len();
@@ -85,6 +88,7 @@ fn build_lamina<T: Decide>(
         segs,
         &qs,
         FaceSurface::New(Surface::nurbs_placeholder()),
+        tol,
     )?;
     let hes = lamina.hes;
     let start_disc = lamina.face;
@@ -93,9 +97,7 @@ fn build_lamina<T: Decide>(
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
-    let swept = sweep_loop(
-        &mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
-    )?;
+    let swept = sweep_loop(&mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band, tol)?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
     // file docs). ----
@@ -135,6 +137,7 @@ fn build_lamina<T: Decide>(
             ring: c_plus(&body, tops[0])?,
         },
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
+        tol,
     )?;
     body.kev(n0.he_plus)?;
     for j in 1..n {
@@ -145,6 +148,7 @@ fn build_lamina<T: Decide>(
             },
             EdgeCurveSpec::self_loop_circle_at(qs[j]),
             FaceSurface::Inherit,
+            tol,
         )?;
         body.kev(nj.he_plus)?;
         body.kef(c_plus(&body, tops[j - 1])?)?;
@@ -158,7 +162,7 @@ fn build_lamina<T: Decide>(
         if let Some(f) = swept.faces[j] {
             let wall = face_surface_key(&body, f)?;
             let edge = he_edge(&body, *he)?;
-            upgrade_meridian_seam(&mut body, edge, wall)?;
+            upgrade_meridian_seam(&mut body, edge, wall, tol)?;
         }
     }
 
@@ -211,6 +215,7 @@ fn build_wire<T: Decide>(
     run: AxisRun,
     theta: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
     let n = segs.len();
@@ -247,6 +252,7 @@ fn build_wire<T: Decide>(
         },
         qw[1],
         placed_segment_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1]),
+        tol,
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -258,6 +264,7 @@ fn build_wire<T: Decide>(
             },
             qw[i + 1],
             placed_segment_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1]),
+            tol,
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -299,6 +306,7 @@ fn build_wire<T: Decide>(
                 half,
                 axis_c,
             ),
+            tol,
         )?;
         struts.push(Some(m));
     }
@@ -335,6 +343,7 @@ fn build_wire<T: Decide>(
             MefSite::Chords { he1, he2 },
             placed_segment_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
             surface,
+            tol,
         )?;
         // The honest orientation bit (M5 S11) — see
         // `partial::sweep_loop`; the band-2 twins below inherit the
@@ -362,7 +371,7 @@ fn build_wire<T: Decide>(
                 vertex_index,
                 source,
             }
-        })?;
+        }, tol)?;
     }
 
     // ---- Phase 3: band 2 — one rim-closing mef per interior vertex
@@ -408,6 +417,7 @@ fn build_wire<T: Decide>(
             MefSite::Chords { he1, he2 },
             spec,
             FaceSurface::Shared(face_surface_key(&body, faces[i])?),
+            tol,
         )?;
         // The band-2 wall is the same classified wall as its band-1
         // twin (M5 S11): same surface, same material side, same sense.
@@ -440,7 +450,7 @@ fn build_wire<T: Decide>(
                 vertex_index,
                 source,
             }
-        })?;
+        }, tol)?;
     }
 
     // ---- Phase 4: meridian upgrades — angle-0 chain edges sit on the
@@ -450,7 +460,7 @@ fn build_wire<T: Decide>(
     for i in 0..k {
         let wall = face_surface_key(&body, faces[i])?;
         let edge = he_edge(&body, hes[i])?;
-        upgrade_meridian_seam(&mut body, edge, wall)?;
+        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
     }
 
     #[cfg(debug_assertions)]

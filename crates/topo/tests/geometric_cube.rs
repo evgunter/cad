@@ -38,7 +38,7 @@ fn geometric_cube_passes_all_three_tiers() {
     // Prefer-intrinsic enforcement (D2, M2 PR 4 fix pass): every cube
     // edge is a definitely-transverse plane-pair corner, so at rest the
     // un-upgraded chords are named — all twelve, nothing else.
-    let errs = validate_geometric(&t.body).unwrap_err();
+    let errs = validate_geometric(&t.body, Tol::witness()).unwrap_err();
     assert_eq!(errs.len(), 12, "{errs:?}");
     assert!(
         errs.iter()
@@ -49,7 +49,7 @@ fn geometric_cube_passes_all_three_tiers() {
     // cube passes all three tiers.
     let mut body = t.body;
     describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
 /// **M5 S10 acceptance row: tier 3 is the sense gate (check 6).**
@@ -77,11 +77,11 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     let t = geometric_cube::<f64>();
     let mut body = t.body;
     describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()), "the fixture is clean");
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()), "the fixture is clean");
 
     let (face, outer) = body.faces().map(|(k, f)| (k, f.outer)).next().unwrap();
     let flipped = body.flipped_face_sense_for_tests(face).unwrap();
-    let errs = validate_geometric(&flipped).unwrap_err();
+    let errs = validate_geometric(&flipped, Tol::witness()).unwrap_err();
     assert!(
         errs.contains(&topo::ValidationError::LoopRoleInverted {
             face,
@@ -91,7 +91,7 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     );
 
     // Winding-derived, hence blind to a lone sense flip: same volume.
-    let volume = |b: &Body<f64>| topo::props::mass_properties(b).unwrap().volume;
+    let volume = |b: &Body<f64>| topo::props::mass_properties(b, Tol::witness()).unwrap().volume;
     assert_eq!(
         volume(&body).to_bits(),
         volume(&flipped).to_bits(),
@@ -110,7 +110,7 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     body.set_face_surface(seed_face, FaceSurface::New(Surface::nurbs_placeholder()))
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter().any(|e| matches!(
             e,
@@ -142,6 +142,7 @@ fn wrong_cache_is_rejected_at_attachment() {
             },
             c(1.0, 0.0, 0.0),
             spec,
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(
@@ -169,7 +170,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     let t = geometric_cube::<f64>();
     let mut body = t.body;
     describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
         Some(EdgeGeometry::Intersection { .. })
@@ -195,7 +196,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
         s2: foreign1,
         witness: p0.lerp(p1, 0.5),
     };
-    let err = body.set_edge_curve(edge_key, spec).unwrap_err();
+    let err = body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, EulerOpError::DescriptionNotAdjacent { .. }),
         "{err:?}"
@@ -234,7 +235,7 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     let mut d = geometric_cube::<Dual64>();
     describe_as_intersections(&mut f.body);
     describe_as_intersections(&mut d.body);
-    assert_eq!(validate_geometric(&d.body), Ok(()));
+    assert_eq!(validate_geometric(&d.body, Tol::witness()), Ok(()));
     let f_certs: Vec<f64> = f
         .body
         .curves()
@@ -268,6 +269,7 @@ fn near_tangent_intersection_attachment_escalates() {
                 r#loop: seed.r#loop,
             },
             c(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let split = body
@@ -282,6 +284,7 @@ fn near_tangent_intersection_attachment_escalates() {
                 normal: Vec3::unit_z(),
                 u_ref: Vec3::unit_x(),
             }),
+            Tol::witness(),
         )
         .unwrap();
     // The old face gets the near-tangent plane through the same line.
@@ -302,7 +305,7 @@ fn near_tangent_intersection_attachment_escalates() {
         s2: tilted,
         witness: c(0.5, 0.0, 0.0),
     };
-    let err = body.set_edge_curve(split.edge, spec).unwrap_err();
+    let err = body.set_edge_curve(split.edge, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -330,7 +333,8 @@ fn totality_no_panics_on_poison_inputs() {
             MevSite::Lone {
                 r#loop: seed.r#loop
             },
-            c(nan, 0.0, 0.0)
+            c(nan, 0.0, 0.0),
+            Tol::witness(),
         ),
         Err(EulerOpError::Certification { .. })
     ));
@@ -342,7 +346,8 @@ fn totality_no_panics_on_poison_inputs() {
                 r#loop: seed.r#loop
             },
             c(1.0, 0.0, 0.0),
-            spec
+            spec,
+            Tol::witness(),
         ),
         Err(EulerOpError::Certification {
             error: CertifyError::Unimplemented

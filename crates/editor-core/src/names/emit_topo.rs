@@ -250,8 +250,9 @@ pub(crate) fn name_split<T: Decide>(
     target_table: &NameTable,
     target_body: &Body<T>,
     tool_normal: Vec3<T>,
+    tol: Tol,
 ) -> Result<Arc<NameTable>, NamingError> {
-    let b = band()?;
+    let b = band(tol)?;
     let mut t = NameTable::new();
     let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
@@ -588,8 +589,9 @@ pub(crate) fn name_boolean<T: Decide>(
     naming: &topo::BooleanNaming,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
+    tol: Tol,
 ) -> Result<Arc<NameTable>, NamingError> {
-    let bnd = band()?;
+    let bnd = band(tol)?;
     let bug = |what| NamingError::Emission { what };
     let mut t = NameTable::new();
     t.insert(
@@ -1563,6 +1565,7 @@ mod tests {
         clippy::unreachable
     )]
 
+    use geom_core::Tol;
     use super::*;
     use crate::names::emit_sweep::name_extrude;
     use crate::node::RecipeNodeId;
@@ -1582,9 +1585,9 @@ mod tests {
                 .map(|(x, y)| geom_core::Point2::new(x, y)),
         );
         let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness().get())
+            .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
+        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
 
@@ -1619,7 +1622,7 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b).unwrap();
+        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness()).unwrap();
 
         // Exactly one Merged name, on the kept (top) face, with the
         // TWO deduped constituents in sorted order.
@@ -1663,9 +1666,9 @@ mod tests {
                 .map(|(x, y)| geom_core::Point2::new(x, y)),
         );
         let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness().get())
+            .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64)).unwrap();
+        let built = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
         let laterals: Vec<_> = a_table
@@ -1704,7 +1707,7 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let err = name_boolean(RecipeNodeId(9), &built.body, &naming, &a, &b)
+        let err = name_boolean(RecipeNodeId(9), &built.body, &naming, &a, &b, Tol::witness())
             .expect_err("same-constituent merge groups must refuse loudly");
         let _ = err; // typed NamingError, never a silent alias
     }

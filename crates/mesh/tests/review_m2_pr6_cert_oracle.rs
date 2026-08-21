@@ -21,6 +21,7 @@ use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::Body;
+use geom_core::Tol;
 
 // ---- independent exact-distance oracles (re-derived) ----------------
 
@@ -100,7 +101,7 @@ fn my_dist(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
 /// n=8 ⇒ 45 points per triangle) against the KEYED face's surface —
 /// the honest promise is δ + ε (+ f64 rounding).
 fn hunt_chordal_violation(body: &Body<f64>, delta: f64) {
-    let mesh = tessellate(body, delta).unwrap();
+    let mesh = tessellate(body, delta, Tol::witness()).unwrap();
     assert_eq!(check_mesh(&mesh), Ok(()));
     assert!(signed_volume(&mesh) > 0.0);
     let slack = delta + eps() + 1e-9;
@@ -159,7 +160,7 @@ fn tall_thin_bar() -> Body<f64> {
     // All eight joints are exact corner-arc/side tangencies (#101).
     let n = lp.vertices().len();
     lp = lp.with_tangent_joints((0..n).collect());
-    extrude(&validated(vec![lp]), Extrusion::Distance(25.0))
+    extrude(&validated(vec![lp]), Extrusion::Distance(25.0), Tol::witness())
         .unwrap()
         .body
 }
@@ -169,7 +170,7 @@ fn tall_thin_bar() -> Body<f64> {
 /// cylinder wall; genus 1, no axis contact.
 fn diamond_ring() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -177,7 +178,7 @@ fn diamond_ring() -> Body<f64> {
 /// Megaphone: very wide cone (half-angle atan 3 ≈ 71.6°) + top disc.
 fn megaphone() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 1.0), p2(0.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -194,7 +195,7 @@ fn silo() -> Body<f64> {
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
     lp = lp.with_tangent_joints(vec![2]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -213,7 +214,7 @@ fn dome() -> Body<f64> {
         ),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -275,7 +276,7 @@ fn survives_chordal_hunt_near_pole_cap_fine() {
 #[test]
 fn survives_backref_integrity_and_patch_separability() {
     let body = diamond_ring();
-    let mesh = tessellate(&body, 0.05).unwrap();
+    let mesh = tessellate(&body, 0.05, Tol::witness()).unwrap();
     // One patch per face, one polyline per edge, in arena order.
     let face_keys: Vec<_> = body.faces().map(|(k, _)| k).collect();
     let patch_keys: Vec<_> = mesh.patches.iter().map(|p| p.face).collect();

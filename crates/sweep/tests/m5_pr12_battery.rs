@@ -40,7 +40,7 @@ fn boxy(sx: f64, sy: f64, sz: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(sz)).unwrap().body
+    extrude(&profile, Extrusion::Distance(sz), Tol::witness()).unwrap().body
 }
 
 /// An L-shaped (notched) prism: the only planar fixture in this file
@@ -63,7 +63,7 @@ fn notched() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// A radius-`r` ball centred at `c` (the S13 authoring).
@@ -79,8 +79,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face
@@ -95,6 +95,7 @@ fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
         &ball,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .expect("slab ∖ ball (S13)");
     out.body().expect("a body").body.clone()

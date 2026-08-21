@@ -19,6 +19,7 @@ mod common;
 use common::{flush_declarations, prism_z};
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{Body, BooleanResult, mass_properties, union_with, validate_pseudomanifold};
+use geom_core::Tol;
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -33,21 +34,21 @@ fn skipped_declared_merge_is_tier3_green_and_visible() {
     let b = brick((0.5, 1.5), (0.25, 1.25), (0.0, 1.0));
     let decls = flush_declarations(&a, &b);
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
-    let r = union_with(&a, &b, &decls).expect("declared flush-caps union runs");
+    let r = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush-caps union runs");
     let BooleanResult::Body(bb) = r else {
         panic!("overlapping union cannot be Empty");
     };
     assert_eq!(
-        mass_properties(&bb.body).unwrap().volume,
+        mass_properties(&bb.body, Tol::witness()).unwrap().volume,
         1.0 + 1.0 - 0.5 * 0.75,
         "exact dyadic volume"
     );
     assert_eq!(validate_closed(&bb.body), Ok(()), "tier 2");
     // F1: the skip lane must not ship stale descriptions — tier 3
     // green at rest, and 3′ with the op's own contacts.
-    assert_eq!(validate_geometric(&bb.body), Ok(()), "tier 3 (F1 pin)");
+    assert_eq!(validate_geometric(&bb.body, Tol::witness()), Ok(()), "tier 3 (F1 pin)");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts),
+        validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
         Ok(()),
         "tier 3′"
     );

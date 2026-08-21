@@ -30,9 +30,10 @@ use editor_core::{
 };
 
 use fixture::{desc, insert, len, scl};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 /// The node's table, or the node's failure — spelled out, because a
@@ -134,7 +135,7 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// and the tie is still THERE — propagated, not laundered.
 #[test]
 fn split_over_a_tied_operand_names_and_keeps_the_tie() {
-    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14"));
+    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(doc, Node::Split { target: sub, tool });
     let ev = run(&doc);
@@ -169,7 +170,7 @@ fn split_over_a_tied_operand_names_and_keeps_the_tie() {
 /// refused identically. It names now.
 #[test]
 fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
-    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14"));
+    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     // A second cutter, nowhere near the tied prong fragments: it
     // crosses A's top face at z = 4, well above z ∈ [1, 3].
     let (doc, c) = block(doc, (1.0, 3.0), (1.0, 3.0), 3.5, 2.0);
@@ -206,7 +207,7 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
 /// the arm shipped untested in the first cut).
 #[test]
 fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
-    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14"));
+    let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     // Engulf the y-high prong region entirely: every candidate in
     // y ∈ [2.5, 3] dies, the y ∈ [1, 1.5] one survives intact.
     let (doc, c) = block(doc, (1.5, 4.5), (2.25, 3.25), 0.5, 3.0);
@@ -254,11 +255,11 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
 fn tie_bearing_name_tables_are_identical_across_evaluations() {
     let builds: [fn() -> (ProfileDoc, RecipeNodeId); 2] = [
         || {
-            let (doc, _, n) = l_split(ProfileDoc::empty_derived("lib_g14"));
+            let (doc, _, n) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
             (doc, n)
         },
         || {
-            let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14"));
+            let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
             let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
             let (doc, split) = insert(doc, Node::Split { target: sub, tool });
             (doc, split)
@@ -303,7 +304,7 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 #[test]
 fn l_shaped_extrude_cut_across_both_legs_names_with_tied_chords() {
-    let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14"));
+    let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
     let t = table(&ev, split);
     // The wall was here: this document has no boolean at all, so the
@@ -361,7 +362,7 @@ fn l_shaped_extrude_cut_across_both_legs_names_with_tied_chords() {
 /// signal to work with (review NOTE-3).
 #[test]
 fn the_tied_chords_are_reachable_through_the_selector_layer() {
-    let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14"));
+    let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
     let params = ParamEnv::default();
     let sel =
@@ -382,6 +383,7 @@ fn the_tied_chords_are_reachable_through_the_selector_layer() {
         &sel,
         &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
         &params,
+        Tol::witness(),
     )
     .expect("an exact atom never refuses");
     assert_eq!(lines, plain, "the exact atom dropped a chord");
@@ -400,6 +402,7 @@ fn the_tied_chords_are_reachable_through_the_selector_layer() {
             value: len(0.1),
         }],
         &params,
+        Tol::witness(),
     )
     .expect_err("a separating atom over a tie must refuse, not narrow");
     let SelectRefusal::TiedDisagrees {
@@ -421,7 +424,7 @@ fn the_tied_chords_are_reachable_through_the_selector_layer() {
 /// end to end, so nothing in it reports a naming failure.
 #[test]
 fn the_l_split_chain_reports_no_naming_failure() {
-    let (doc, ext, split) = l_split(ProfileDoc::empty_derived("lib_g14"));
+    let (doc, ext, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
     for id in [ext, split] {
         assert!(

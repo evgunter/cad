@@ -41,8 +41,8 @@ struct StubStore {
 }
 
 impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc) -> DocRef {
-        let pin = content_pin(&doc).expect("the pin computes");
+    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
+        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }
@@ -50,7 +50,7 @@ impl StubStore {
 }
 
 impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
             message: message.to_string(),
@@ -59,7 +59,7 @@ impl PartResolver for StubStore {
             .docs
             .get(&doc_ref.id)
             .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc).expect("the pin computes");
+        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
         if found != doc_ref.pin {
             return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
         }
@@ -69,7 +69,7 @@ impl PartResolver for StubStore {
 
 /// A one-solid part: a unit square extruded 1 tall.
 fn part(label: &str) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -93,8 +93,8 @@ fn part(label: &str) -> ProfileDoc {
 /// resolves them.
 fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore) {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part(&format!("{label}-part")));
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
+    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
@@ -176,7 +176,7 @@ fn opts(store: StubStore) -> EvalOptions {
 }
 
 fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o)
+    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
 }
 
 fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::MateFault {
@@ -263,7 +263,7 @@ fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
 #[test]
 fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     let (doc, ids, store, _) = determined_pair();
-    let poses = solve_document(&doc);
+    let poses = solve_document(&doc, Tol::witness());
     assert_eq!(poses.fault(ids[1]), None, "the pair solves");
     assert_eq!(poses.gauge(ids[1]), Some(ids[0]), "the gauge is instance 0");
     let relative = poses.relative(ids[1]).expect("a solved pose");
@@ -282,8 +282,8 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     let o = opts(store);
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
-    let body = product(&doc, &ev).expect("the product gathers");
-    let volume = topo::mass_properties(&body)
+    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("mass properties")
         .volume;
     assert!(
@@ -304,8 +304,8 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let first = run(&doc, &o);
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
-        let body = product(&doc, ev).expect("gathers");
-        topo::mass_properties(&body).expect("props").volume
+        let body = product(&doc, ev, Tol::witness()).expect("gathers");
+        topo::mass_properties(&body, Tol::witness()).expect("props").volume
     };
     assert_eq!(
         volume(&first).to_bits(),
@@ -313,9 +313,9 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
         "two evaluations of one document agree bit for bit"
     );
     let _ = ids;
-    let text = save(&doc, &[]).expect("saves");
-    assert_eq!(text, save(&doc, &[]).expect("saves"), "byte-stable");
-    let back = load(&text).expect("loads").doc;
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    assert_eq!(text, save(&doc, &[], Tol::witness()).expect("saves"), "byte-stable");
+    let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the mates round-trip bit for bit");
 }
 
@@ -342,7 +342,7 @@ fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
         );
         doc = next;
     }
-    let poses = solve_document(&doc);
+    let poses = solve_document(&doc, Tol::witness());
     let fault = poses.fault(ids[1]).expect("the pair refuses").clone();
     let editor_core::MateFault::Under { residual, .. } = &fault else {
         panic!("expected UNDER, got {fault:?}");
@@ -393,7 +393,7 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         doc = next;
         mates.push(id);
     }
-    let poses = solve_document(&doc);
+    let poses = solve_document(&doc, Tol::witness());
     let fault = poses.fault(mates[1]).expect("the pair refuses").clone();
     let editor_core::MateFault::Contradictory {
         held,
@@ -451,6 +451,7 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
                 Some(0.0),
             ),
         },
+        Tol::witness(),
     )
     .expect("the mate inserts");
     assert_eq!(clusters(&applied.doc).len(), 1, "one cluster now");
@@ -486,7 +487,7 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
         },
     );
     let before = doc.clone();
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: joint }).expect("the mate deletes");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: joint }, Tol::witness()).expect("the mate deletes");
     assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
     assert_eq!(
         applied.maintenance,
@@ -519,7 +520,7 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         },
     );
     let before = doc.clone();
-    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }).expect("the gauge deletes");
+    let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness()).expect("the gauge deletes");
     assert_eq!(
         applied.maintenance,
         vec![ClusterMaintenance::GaugeRewrite {
@@ -554,8 +555,8 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
         "a singleton cluster's gauge IS its instance, so the key is \
          exactly the pre-mate one"
     );
-    let text = save(&doc, &[]).expect("saves");
-    let back = load(&text).expect("loads").doc;
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the round trip is bit-exact");
     // The header necessarily moved (the `Node::Mate` arm took a schema
     // version), so byte-identity is asserted BELOW it — everything the
@@ -563,7 +564,7 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
     let body = |t: &str| t.split_once('\n').expect("a header").1.to_string();
     assert_eq!(
         body(&text),
-        body(&save(&back, &[]).expect("saves")),
+        body(&save(&back, &[], Tol::witness()).expect("saves")),
         "every byte below the header survives the keying migration"
     );
 }
@@ -620,7 +621,7 @@ fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
     use std::collections::BTreeSet;
     let (doc, ids, mates) = two_clusters();
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
-    let out = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4e"))
+    let out = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4e"), Tol::witness())
         .expect("a whole-cluster cut splits");
     assert!(
         out.part.placements().is_empty(),
@@ -661,7 +662,7 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
     let (doc, ids, mates) = two_clusters();
     // One whole cluster PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
-    match editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f")) {
+    match editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f"), Tol::witness()) {
         Err(editor_core::SplitError::TornCluster {
             gauge,
             instance,
@@ -674,7 +675,7 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         other => panic!("expected TornCluster, got {other:?}"),
     }
     // The message names the cluster, both sides, and the repair.
-    let message = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f2"))
+    let message = editor_core::split(&doc, &cut, editor_core::DocumentId::derive("asm-r2a-4f2"), Tol::witness())
         .expect_err("refuses")
         .to_string();
     assert!(message.contains("tears the placement cluster"), "{message}");
@@ -686,6 +687,7 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         &doc,
         &other_way,
         editor_core::DocumentId::derive("asm-r2a-4f3"),
+        Tol::witness(),
     ) {
         Err(editor_core::SplitError::TornCluster {
             gauge,
@@ -846,7 +848,7 @@ fn row5b_two_pins_clocked_apart_but_invariant_matched_fold_to_prismatic() {
             node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         },
     );
-    let poses = solve_document(&doc);
+    let poses = solve_document(&doc, Tol::witness());
     let fault = poses
         .fault(second)
         .expect("a two-pin pair is UNDER")
@@ -916,7 +918,7 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
             node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]),
         },
     );
-    let poses = solve_document(&doc);
+    let poses = solve_document(&doc, Tol::witness());
     let fault = poses.fault(second).expect("the pair refuses").clone();
     let editor_core::MateFault::Contradictory {
         held,
@@ -968,7 +970,7 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
             node: pin(ids[0], ids[1], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
         },
     );
-    let poses = solve_document(&doc);
+    let poses = solve_document(&doc, Tol::witness());
     assert_eq!(poses.fault(ids[1]), None, "rest + two pins determine");
     let relative = poses.relative(ids[1]).expect("a solved pose");
     // VALUE-exact, not bit-exact, and the difference is the point: this
@@ -1063,8 +1065,8 @@ fn row6c_the_gather_ignores_the_mate_root() {
             Some(NodeResult::Ok(v)) if matches!(v.payload, editor_core::ValuePayload::Mate(_))
         ));
     }
-    let body = product(&doc, &ev).expect("the product gathers");
-    let volume = topo::mass_properties(&body).expect("props").volume;
+    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
+    let volume = topo::mass_properties(&body, Tol::witness()).expect("props").volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "the gather took the two instances and ignored the mates: {volume}"
@@ -1095,7 +1097,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
         vec![(mate_id, ids[0])],
         "the stranded head contributes NO edge (N5)"
     );
-    let fault = solve_document(&doc)
+    let fault = solve_document(&doc, Tol::witness())
         .fault(mate_id)
         .expect("the solve refuses")
         .clone();
@@ -1114,7 +1116,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
 #[test]
 fn row6e_a_non_tree_mate_declares_rather_than_determining() {
     let (doc, ids, _, rest) = determined_pair();
-    let roles = solve_document(&doc);
+    let roles = solve_document(&doc, Tol::witness());
     let mates: Vec<RecipeNodeId> = doc
         .order()
         .iter()
@@ -1153,7 +1155,7 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
         doc = next;
         made.push(id);
     }
-    let roles = solve_document(&doc);
+    let roles = solve_document(&doc, Tol::witness());
     // The spanning tree leaves the gauge for each neighbour in
     // document order — (0,1) then (0,2) — so the pair that closes the
     // loop is (1,2), whatever order the mates were authored in.
@@ -1201,7 +1203,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
         .apply(&DocEdit::Rebind {
             from: in_part(ids[1], RecipeNodeId(1)),
             to: in_part(ids[2], RecipeNodeId(1)),
-        })
+        }, Tol::witness())
         .expect("a mate head is a rebind site");
     assert_eq!(
         editor_core::reading_edges(&applied.doc),
@@ -1214,7 +1216,7 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     );
     assert!(
         !matches!(
-            solve_document(&applied.doc).fault(mate_id),
+            solve_document(&applied.doc, Tol::witness()).fault(mate_id),
             Some(editor_core::MateFault::DanglingHead { .. })
         ),
         "and the solve no longer refuses the head"
@@ -1261,7 +1263,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         .apply(&DocEdit::Rebind {
             from: in_part(ids[1], RecipeNodeId(1)),
             to: in_part(ids[2], RecipeNodeId(1)),
-        })
+        }, Tol::witness())
         .expect("the declare pair alone makes this a rebind site");
     let Some(Node::Declare { pairs }) = applied.doc.node(declare_id) else {
         panic!("the declare is still there");
@@ -1297,7 +1299,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
                 z_up(),
                 Some(0.0),
             ),
-        })
+        }, Tol::witness())
         .expect_err("the head names no node");
     assert!(
         matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),
@@ -1326,7 +1328,7 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
             ),
         },
     );
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     // Doctored BY PATH, not by position: the `b` head of this mate,
     // reached through the wire's own structure, so a fixture or
     // field-order change breaks the probe instead of silently moving it
@@ -1342,7 +1344,7 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
     );
     head["node"] = serde_json::json!(99);
     let doctored = format!("{header}{wire}");
-    match load(&doctored) {
+    match load(&doctored, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
             id,
             ..
@@ -1376,6 +1378,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
                 ),
             },
             &ev,
+            Tol::witness(),
         )
         .is_ok(),
         "the instance-qualified heads resolve in the instance's own table"
@@ -1423,6 +1426,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
             },
         },
         &ev,
+        Tol::witness(),
     )
     .unwrap_err();
     assert_eq!(
@@ -1451,7 +1455,7 @@ fn row7a_a_standalone_clocking_refuses_typed() {
             ),
         },
     );
-    let fault = solve_document(&doc)
+    let fault = solve_document(&doc, Tol::witness())
         .fault(mate_id)
         .expect("refuses")
         .clone();
@@ -1479,7 +1483,7 @@ fn row7b_a_clocking_rider_on_a_planar_rest_refuses_typed() {
             ),
         },
     );
-    let fault = solve_document(&doc)
+    let fault = solve_document(&doc, Tol::witness())
         .fault(mate_id)
         .expect("refuses")
         .clone();
@@ -1512,9 +1516,9 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
             ),
         },
     );
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     let doctored = text.replacen("\"rest\"", "\"fit\"", 1);
-    let message = match load(&doctored) {
+    let message = match load(&doctored, Tol::witness()) {
         Err(e) => e.to_string(),
         Ok(_) => panic!("an unknown class spelling must refuse"),
     };
@@ -1556,7 +1560,7 @@ fn row7d_an_in_band_case_split_escalates_typed() {
         doc = next;
         mates.push(id);
     }
-    let fault = solve_document(&doc)
+    let fault = solve_document(&doc, Tol::witness())
         .fault(mates[1])
         .expect("the band escalates")
         .clone();
@@ -1591,7 +1595,7 @@ fn row7e_a_self_mate_refuses_naming_the_instance_it_names_twice() {
             ),
         },
     );
-    let fault = solve_document(&doc)
+    let fault = solve_document(&doc, Tol::witness())
         .fault(mate_id)
         .expect("refuses")
         .clone();
@@ -1618,6 +1622,7 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
                 None,
             ),
         },
+        Tol::witness(),
     )
     .expect_err("a non-finite alignment never enters the document");
     assert!(

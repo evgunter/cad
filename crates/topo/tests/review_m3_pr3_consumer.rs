@@ -135,7 +135,7 @@ fn tiny_real_sliver_not_wrongly_refused() {
     assert_eq!(validate_closed(below), Ok(()));
     // The sliver: a similar triangle scaled by h/(1+h) in both profile
     // axes, depth 1: V = (1/2)·4·(1+h)·(h/(1+h))² ≈ 2h²/(1+h).
-    let va = mass_properties(above).unwrap().volume;
+    let va = mass_properties(above, Tol::witness()).unwrap().volume;
     let expect = 2.0 * h * h / (1.0 + h);
     assert!(
         (va - expect).abs() <= 1e-6 * expect,
@@ -209,9 +209,9 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     let r = split(&fx.body, &plane_y(1.0)).unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
-    assert!(mass_properties(above).is_ok(), "mass props work");
+    assert!(mass_properties(above, Tol::witness()).is_ok(), "mass props work");
     assert_eq!(
-        validate_geometric(above),
+        validate_geometric(above, Tol::witness()),
         Ok(()),
         "tier 3 accepts split output as shipped (D6: native descriptions)"
     );
@@ -300,6 +300,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
             },
             bot[1],
             line(bot[0], bot[1]),
+            Tol::witness(),
         )
         .unwrap(),
     ];
@@ -310,6 +311,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
                 MevSite::Fan { he1: at, he2: at },
                 bot[i],
                 line(bot[i - 1], bot[i]),
+                Tol::witness(),
             )
             .unwrap(),
         );
@@ -331,6 +333,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
             },
             line(bot[n - 1], bot[0]),
             FaceSurface::New(plane(&rev)),
+            Tol::witness(),
         )
         .unwrap();
     let mut struts = Vec::new();
@@ -347,6 +350,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
                 MevSite::Fan { he1: at, he2: at },
                 top[i],
                 line(bot[i], top[i]),
+                Tol::witness(),
             )
             .unwrap(),
         );
@@ -367,6 +371,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
                 },
                 line(top[i], top[j]),
                 FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
+                Tol::witness(),
             )
             .unwrap();
         if i == 0 {

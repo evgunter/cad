@@ -19,6 +19,7 @@ mod common;
 
 use common::{census, freecad_fixture};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use geom_core::Tol;
 
 /// The base fixture: BoxA (rep #36, MSB #37) and SphereB (rep #205,
 /// MSB #206), each placed once at the identity (#194, #225).
@@ -189,7 +190,7 @@ fn three_instances_of_one_component() {
     }
     let v_box = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]);
     let v_sphere = 4.0 / 3.0 * std::f64::consts::PI * 0.5f64.powi(3);
-    let got = topo::mass_properties(&body)
+    let got = topo::mass_properties(&body, Tol::witness())
         .expect("mass properties")
         .volume
         * 1e9;

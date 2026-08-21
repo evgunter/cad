@@ -235,7 +235,7 @@ fn assert_sub_tolerance_obligation(row: &str) {
                     Ok(()),
                     "{row}/{name}: tier 2 at ε {eps:e}"
                 );
-                if let Err(errs) = topo::validate_geometric(&body) {
+                if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
                     assert!(
                         errs.iter().all(is_escalation),
                         "{row}/{name}: tier 3 at ε {eps:e} reports a definite geometric \
@@ -351,7 +351,7 @@ fn foreign_corpus() {
             "{name}: reported structure normalizations"
         );
 
-        let props = topo::mass_properties(&body).unwrap_or_else(|err| panic!("{name}: {err}"));
+        let props = topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|err| panic!("{name}: {err}"));
         // mm³ → m³ (the generator's unit is FreeCAD's mm).
         let expected_m3 = e.volume_mm3 * 1e-9;
         // Roundoff: the volume is a fixed-order sum of per-face
@@ -375,7 +375,7 @@ fn foreign_corpus() {
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
         assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
-        assert_eq!(topo::validate_geometric(&body), Ok(()), "{name}: tier 3");
+        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
     }
 }
 
@@ -476,7 +476,7 @@ fn cross_dialect_fixed_point() {
             ..step_export::StepOptions::default()
         };
         let (body1, _, _) = freecad_body(name);
-        let export1 = step_export::step_string(&body1, &options)
+        let export1 = step_export::step_string(&body1, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
         let reimport = import_step(&export1, &ImportOptions::default())
             .unwrap_or_else(|e| panic!("{name}: re-import of our own dialect: {e}"));
@@ -488,14 +488,14 @@ fn cross_dialect_fixed_point() {
             census(&body2),
             "{name}: census identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&body2, &options)
+        let export2 = step_export::step_string(&body2, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         assert_eq!(
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
         );
-        let v1 = topo::mass_properties(&body1).unwrap().volume;
-        let v2 = topo::mass_properties(&body2).unwrap().volume;
+        let v1 = topo::mass_properties(&body1, Tol::witness()).unwrap().volume;
+        let v2 = topo::mass_properties(&body2, Tol::witness()).unwrap().volume;
         // Bit-identity everywhere but ONE named fixture. Byte-identical
         // exports already prove both bodies carry the same stated
         // geometry, so any residue is arithmetic, not data — and the
@@ -529,7 +529,7 @@ fn cross_dialect_fixed_point() {
 /// S9 flip rows, where what matters is that two imports describe the
 /// same solid (or a stated multiple of it).
 fn volume_mm3(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body).expect("mass properties").volume * 1e9
+    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume * 1e9
 }
 
 /// The least x over a body's points, in mm — the one scalar that
@@ -614,7 +614,7 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
         "1 mm is the f64 nearest 1e-3 m — one rounded multiply, no more"
     );
     // And the closed form lands within the roundoff that implies.
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         (v - 1e-9).abs() <= 8.0 * f64::EPSILON * 1e-9,
         "unit cube volume {v} m³ vs 1e-9 m³"
@@ -821,6 +821,7 @@ fn negative_zeros_normalize_at_translation() {
                 product_name: name.to_owned(),
                 ..step_export::StepOptions::default()
             },
+            Tol::witness(),
         )
         .unwrap();
         // An exact token match: `-0.001` starts with `-0.0` and is a
@@ -1364,7 +1365,7 @@ fn pi_derived_truncation_adopts_under_the_flat_budget() {
         );
         let (body, eps_in, _) = freecad_body(name);
         assert_eq!(eps_in, 1e-10);
-        assert_eq!(topo::validate_geometric(&body), Ok(()), "{name}: tier 3");
+        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
         println!(
             "{name}: semi-angle {printed} misses its identity by {miss:e}, adopted at ε_in {eps_in:e}"
         );
@@ -1428,6 +1429,7 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
                 product_name: name.to_owned(),
                 ..step_export::StepOptions::default()
             },
+            Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("{name}: re-export: {e}"));
         let path = dir.join(format!("{name}.step"));

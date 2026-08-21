@@ -49,7 +49,7 @@ fn boxy() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// A cylinder: a three-arc circle extruded. Its rim edges are
@@ -69,7 +69,7 @@ fn cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// A "D" prism: a square with one side replaced by a circular arc,
@@ -86,7 +86,7 @@ fn dee() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below

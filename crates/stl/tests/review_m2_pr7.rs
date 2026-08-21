@@ -31,6 +31,7 @@ mod common;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Extrusion, Revolution, extrude, revolve};
+use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Independent parsers (spec-derived).
@@ -173,7 +174,7 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
         common::acceptance_bodies()
             .into_iter()
             .map(|(name, body, delta)| {
-                let m = mesh::tessellate(&body, delta).unwrap();
+                let m = mesh::tessellate(&body, delta, Tol::witness()).unwrap();
                 (name, body, delta, m)
             })
             .collect();
@@ -254,7 +255,7 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
         // ---- VOLUME: globally outward, and within 3δA of the exact
         // body volume.
         let vol = soup_volume(&facets);
-        let exact = topo::mass_properties(body).unwrap();
+        let exact = topo::mass_properties(body, Tol::witness()).unwrap();
         assert!(
             (vol - exact.volume).abs() <= 3.0 * delta * exact.surface_area,
             "VOLUME: {name}: parsed-back volume {vol} vs exact {} beyond 3δA",
@@ -299,11 +300,11 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
     let b_first = binary_of(m1);
     let a_first = ascii_of(m1);
     // Interleave other exports, different δ, then repeat.
-    let m_coarse = mesh::tessellate(ball, delta * 2.0).unwrap();
+    let m_coarse = mesh::tessellate(ball, delta * 2.0, Tol::witness()).unwrap();
     let _ = binary_of(&m_coarse);
     let _ = binary_of(w1);
     let _ = ascii_of(w1);
-    let m2 = mesh::tessellate(ball, delta).unwrap();
+    let m2 = mesh::tessellate(ball, delta, Tol::witness()).unwrap();
     assert_eq!(
         binary_of(&m2),
         b_first,
@@ -356,7 +357,7 @@ fn f32_display_round_trip_spot_checks() {
 /// must refuse typed — never a zeroed/guessed normal.
 #[test]
 fn coarse_cone_apex_fan_refuses_typed() {
-    let mesh = mesh::tessellate(&common::cone(), 0.05).unwrap();
+    let mesh = mesh::tessellate(&common::cone(), 0.05, Tol::witness()).unwrap();
     let mut out = Vec::new();
     match stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}
@@ -371,7 +372,7 @@ fn coarse_cone_apex_fan_refuses_typed() {
 
 #[test]
 fn corrupt_index_refuses_typed() {
-    let mut mesh = mesh::tessellate(&common::l_prism(), 1e-2).unwrap();
+    let mut mesh = mesh::tessellate(&common::l_prism(), 1e-2, Tol::witness()).unwrap();
     let n = mesh.positions.len() as u32;
     mesh.patches[0].triangles[0][1] = n + 7;
     let mut out = Vec::new();
@@ -388,7 +389,7 @@ fn corrupt_index_refuses_typed() {
 /// rather than truncation or a silently misread file.
 #[test]
 fn a_caller_supplied_header_lands_padded_and_its_limits_refuse_typed() {
-    let mesh = mesh::tessellate(&common::l_prism(), 1e-2).unwrap();
+    let mesh = mesh::tessellate(&common::l_prism(), 1e-2, Tol::witness()).unwrap();
     let default_bytes = binary_of(&mesh);
 
     let mut out = Vec::new();
@@ -484,7 +485,7 @@ fn a_caller_supplied_header_lands_padded_and_its_limits_refuse_typed() {
 /// (mismatched adjacent orientation).
 #[test]
 fn check_mesh_catches_hand_broken_meshes() {
-    let good = mesh::tessellate(&common::l_prism(), 1e-2).unwrap();
+    let good = mesh::tessellate(&common::l_prism(), 1e-2, Tol::witness()).unwrap();
     assert!(mesh::validate::check_mesh(&good).is_ok());
     // (a) hole: drop one triangle.
     let mut holed = good.clone();
@@ -538,6 +539,7 @@ fn consumer_e2e_vase_and_bracket() {
         &common::validated(vec![vase_profile]),
         common::axis_y(),
         Revolution::Full,
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -559,6 +561,7 @@ fn consumer_e2e_vase_and_bracket() {
     let bracket = extrude(
         &common::validated(vec![outer, hole(2.2, 0.5, 0.25), hole(0.5, 2.2, 0.25)]),
         Extrusion::Distance(0.5),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -567,10 +570,10 @@ fn consumer_e2e_vase_and_bracket() {
     for (name, body) in [("vase", &vase), ("bracket", &bracket)] {
         topo::validate(body).unwrap();
         topo::validate_closed(body).unwrap();
-        topo::validate_geometric(body).unwrap();
-        let props = topo::mass_properties(body).unwrap();
+        topo::validate_geometric(body, Tol::witness()).unwrap();
+        let props = topo::mass_properties(body, Tol::witness()).unwrap();
         assert!(props.volume > 0.0 && props.surface_area > 0.0);
-        let mesh = mesh::tessellate(body, delta).unwrap();
+        let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap();
         mesh::validate::check_mesh(&mesh).unwrap();
         // Export both formats to disk, re-read, re-derive volume.
         let bin_path = outdir.join(format!("{name}.stl"));
@@ -616,6 +619,7 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
                 ])]),
                 common::axis_y(),
                 Revolution::Full,
+                Tol::witness(),
             )
             .unwrap()
             .body,
@@ -633,6 +637,7 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
                 ])]),
                 common::axis_y(),
                 Revolution::Full,
+                Tol::witness(),
             )
             .unwrap()
             .body,
@@ -646,14 +651,15 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
                 ])]),
                 common::axis_y(),
                 Revolution::Partial(core::f64::consts::FRAC_PI_2),
+                Tol::witness(),
             )
             .unwrap()
             .body,
         ),
     ];
     for (name, body) in &shapes {
-        let props = topo::mass_properties(body).unwrap();
-        let mesh = mesh::tessellate(body, delta).unwrap();
+        let props = topo::mass_properties(body, Tol::witness()).unwrap();
+        let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap();
         mesh::validate::check_mesh(&mesh).unwrap();
         let vm = mesh::validate::signed_volume(&mesh);
         assert!(

@@ -7,6 +7,7 @@
 mod common;
 
 use common::{SOLID_FIXTURES, census, expect_sidecar, fixture, import_body};
+use geom_core::Tol;
 
 /// Row 1 per fixture: census against the sidecar's `KERNEL_*` fields
 /// (the NATIVE census — the `EXPECT_*` counts record OCC's import-side
@@ -69,7 +70,7 @@ fn committed_corpus_row(name: &str) {
     // teeth both ways: the review's scale-corruption probe
     // (`review_k3_probe`) shows the new budget catching corruptions
     // the old slop accepted, at 1600×/8000× margins.
-    let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
+    let props = topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
@@ -90,7 +91,7 @@ fn committed_corpus_row(name: &str) {
     // bodies pass natively.
     assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
-    assert_eq!(topo::validate_geometric(&body), Ok(()), "{name}: tier 3");
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
 }
 
 #[test]
@@ -117,7 +118,7 @@ fn fixed_point() {
             ..step_export::StepOptions::default()
         };
         let (body1, _) = import_body(name);
-        let export1 = step_export::step_string(&body1, &options)
+        let export1 = step_export::step_string(&body1, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
         // STEP has no native contact concept, so export DROPS the
         // kiss declaration (the honest C6 posture) and the re-import
@@ -143,14 +144,14 @@ fn fixed_point() {
             census(&body2),
             "{name}: census identical across the adoption pass"
         );
-        let v1 = topo::mass_properties(&body1).unwrap().volume;
-        let v2 = topo::mass_properties(&body2).unwrap().volume;
+        let v1 = topo::mass_properties(&body1, Tol::witness()).unwrap().volume;
+        let v2 = topo::mass_properties(&body2, Tol::witness()).unwrap().volume;
         assert_eq!(
             v1.to_bits(),
             v2.to_bits(),
             "{name}: certified volume bit-identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&body2, &options)
+        let export2 = step_export::step_string(&body2, &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         assert_eq!(
             export1, export2,

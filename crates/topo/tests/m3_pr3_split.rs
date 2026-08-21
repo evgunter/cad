@@ -58,7 +58,7 @@ const MIRRORED: &[(f64, f64)] = &[
 /// Tier 3 directly at rest (D6, M3 PR 6a): split results carry honest
 /// `Intersection` descriptions natively — no upgrade pass exists.
 fn assert_tier3_after_upgrade(body: &Body<f64>) {
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
@@ -129,11 +129,11 @@ fn holed_box_geometric() -> Body<f64> {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
             .unwrap()
     };
     let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap();
     // Bottom chain A→B→C→D, closed; verticals; sides (§9.4.2).
     let e_ab = body
         .mev_line(
@@ -141,6 +141,7 @@ fn holed_box_geometric() -> Body<f64> {
                 r#loop: seed.r#loop,
             },
             pt(4.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 4.0, 2.0, 0.0);
@@ -162,7 +163,7 @@ fn holed_box_geometric() -> Body<f64> {
     let hole = strut(&mut body, f_front.he_plus, 0.5, 0.5, 2.0);
     let kill = body.kemr(hole.he_plus, hole.he_minus).unwrap();
     let s_pq = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(1.5, 0.5, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(1.5, 0.5, 2.0), Tol::witness())
         .unwrap();
     let s_qr = strut(&mut body, s_pq.he_minus, 1.5, 1.5, 2.0);
     let s_rs = strut(&mut body, s_qr.he_minus, 0.5, 1.5, 2.0);
@@ -249,9 +250,9 @@ fn generic_plane_asymmetric() {
 
     // Volume conservation (evaluation-lane check).
     let (va, vb, v0) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
-        mass_properties(&fx.body).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(&fx.body, Tol::witness()).unwrap().volume,
     );
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 
@@ -332,9 +333,9 @@ fn vertex_grazing_plane() {
         }
     }
     let (va, vb, v0) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
-        mass_properties(&fx.body).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(&fx.body, Tol::witness()).unwrap().volume,
     );
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 }
@@ -407,9 +408,9 @@ fn notched_block_end_to_end() {
 
     // Volume conservation.
     let (va, vb, v0) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
-        mass_properties(&fx.body).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(&fx.body, Tol::witness()).unwrap().volume,
     );
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 }
@@ -467,10 +468,10 @@ fn bob_mirror_pinch_refuses_typed() {
         assert_eq!(vertices_at(pieces, 4.0, 1.0, z).len(), 2);
         assert_eq!(vertices_at(slab, 4.0, 1.0, z).len(), 1);
     }
-    let v0 = mass_properties(&fx.body).unwrap().volume;
+    let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
     let (vs, vp) = (
-        mass_properties(slab).unwrap().volume,
-        mass_properties(pieces).unwrap().volume,
+        mass_properties(slab, Tol::witness()).unwrap().volume,
+        mass_properties(pieces, Tol::witness()).unwrap().volume,
     );
     assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 
@@ -487,10 +488,10 @@ fn bob_mirror_pinch_refuses_typed() {
     assert_eq!(validate_closed(slab), Ok(()));
     assert_eq!(pieces.shells().count(), 3);
     assert_eq!(slab.shells().count(), 1);
-    let v0 = mass_properties(&fx.body).unwrap().volume;
+    let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
     let (vs, vp) = (
-        mass_properties(slab).unwrap().volume,
-        mass_properties(pieces).unwrap().volume,
+        mass_properties(slab, Tol::witness()).unwrap().volume,
+        mass_properties(pieces, Tol::witness()).unwrap().volume,
     );
     assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 }
@@ -582,8 +583,8 @@ fn ring_rehoming_genus_one() {
     assert_eq!(rings(above), 0);
     // Volume: 4×2×2 box minus 1×1×2 hole = 14; above slab 1×2×2 = 4.
     let (va, vb) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
     );
     assert!((va - 4.0).abs() < 1e-12, "above {va}");
     assert!((vb - 10.0).abs() < 1e-12, "below {vb}");

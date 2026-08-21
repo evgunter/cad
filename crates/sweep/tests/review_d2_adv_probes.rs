@@ -93,8 +93,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
@@ -106,9 +106,10 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             PI / 2.0,
         ),
+        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(&rot, &Affine3::translation(c)).unwrap()
+    topo::transform_rigid(&rot, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
@@ -118,6 +119,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .ok()?;
     Some(out.body()?.body.clone())
@@ -130,6 +132,7 @@ fn union(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .ok()?;
     Some(out.body()?.body.clone())
@@ -143,7 +146,7 @@ fn union(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
 /// rather than primitives.
 fn corpus() -> Vec<(&'static str, Body<f64>)> {
     let mut out: Vec<(&'static str, Body<f64>)> = Vec::new();
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     out.push(("cube", c.clone()));
 
     // A rigidly rotated cube — the same topology on a different frame,
@@ -155,6 +158,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             Vec3::new(1.0, 1.0, 1.0).normalize(),
             0.7,
         ),
+        Tol::witness(),
     ) {
         out.push(("cube_rotated", t));
     }
@@ -171,12 +175,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
         out.push(("die_one_pip", b.clone()));
         // A body the SURGERY itself minted, filleted again: its faces
         // and carriers are the surgery's own output, not a primitive's.
-        let box_edges: Vec<EdgeKey> = cube(1.0)
+        let box_edges: Vec<EdgeKey> = cube(1.0, Tol::witness())
             .edges()
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
-        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, band()) {
+        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, band(), Tol::witness()) {
             out.push(("die_one_pip_blended", f.body));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
@@ -209,10 +213,10 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     // door's own destination after it has been written into twice —
     // the shape the PR's row-1 refutation is about.
     let mut dst = c.clone();
-    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5)).is_ok() {
+    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness()).is_ok() {
         out.push(("grafted_two_solid", dst.clone()));
         let mut again = dst.clone();
-        if topo::instance::graft_disjoint_all(&mut again, &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)))
+        if topo::instance::graft_disjoint_all(&mut again, &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)), Tol::witness())
             .is_ok()
         {
             out.push(("grafted_three_solid", again));
@@ -440,7 +444,7 @@ fn d2_no_input_reaches_a_panic() {
                 // is the only outcome-level proof available from outside
                 // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fillet_edges(body, &req, r, band())
+                    fillet_edges(body, &req, r, band(), Tol::witness())
                         .map(|f| f.band_faces.len())
                         .unwrap_or(0)
                 }));
@@ -508,7 +512,7 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, band()) {
+                match fillet_edges(&body, &req, r, band(), Tol::witness()) {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -556,18 +560,18 @@ fn d2_reached_variants() {
 /// that is a fact about today's `combine`, not a fact this row pins.
 #[test]
 fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
-    let base = cube(1.0);
+    let base = cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = base.edges().map(|(k, _)| k).collect();
     // The whole-body fillet succeeds before the graft: the request is
     // inside the front door, so any refusal below is the graft's doing
     // and not the request's.
     assert!(
-        fillet_edges(&base, &edges, 0.12, band()).is_ok(),
+        fillet_edges(&base, &edges, 0.12, band(), Tol::witness()).is_ok(),
         "the control request must pass, or this row proves nothing"
     );
 
     let mut dst = base.clone();
-    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5)).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness()).expect("a disjoint graft");
     assert!(
         dst.solids().count() > 1 || dst.shells().count() > 1,
         "a graft that added nothing countable cannot be the witness the \
@@ -578,7 +582,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, band()) {
+    match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()) {
         Err(FilletError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \

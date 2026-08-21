@@ -397,7 +397,7 @@ pub(super) fn insert_crossings<T: Decide>(
             // Any refusal here (in practice the certification lane's
             // strict-row ResidualExceeded) gets the crossing site
             // attached; the typed Euler error stays nested whole.
-            let created = body.split_edge(target, t).map_err(|source| {
+            let created = body.split_edge(target, t, tol).map_err(|source| {
                 SplitReduceError::CrossingInsertion {
                     edge: target,
                     endpoints: (u, v),

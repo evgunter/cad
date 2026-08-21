@@ -42,6 +42,7 @@ use super::surgery::{
     unbuilt_run_out,
 };
 use super::{CornerConfig, FilletError};
+use geom_core::Tol;
 
 /// **A chain admitted through the open-chain door**: exactly one link,
 /// plane–plane supports, convex.
@@ -408,6 +409,7 @@ impl<T: Decide> RequestedBoundary<T> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use topo::FaceKey;
 
     use super::super::FilletError;
@@ -468,8 +470,8 @@ mod tests {
     /// not depend on that staying true.
     #[test]
     fn corner_links_refuses_a_link_that_terminates_elsewhere() {
-        let body = cube(L);
-        let links = all_links(&body);
+        let body = cube(L, Tol::witness());
+        let links = all_links(&body, Tol::witness());
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
         let admitted: Vec<ConvexOpen<'_, f64>> = chains
             .iter()
@@ -518,8 +520,8 @@ mod tests {
     /// nobody can tell is working.
     #[test]
     fn distinct_faces_is_pairwise() {
-        let body = cube(L);
-        let vertex = all_links(&body)[0].start;
+        let body = cube(L, Tol::witness());
+        let vertex = all_links(&body, Tol::witness())[0].start;
         let faces = CornerFaces::admit(&body, vertex).expect("a cube corner is trivalent");
         let [f0, f1, f2] = match faces.as_slice() {
             [a, b, c] => [*a, *b, *c],
@@ -541,8 +543,8 @@ mod tests {
     /// carries a run-out refusal it could not justify.
     #[test]
     fn admission_makes_the_third_support_total() {
-        let body = cube(L);
-        let vertex = all_links(&body)[0].start;
+        let body = cube(L, Tol::witness());
+        let vertex = all_links(&body, Tol::witness())[0].start;
         let faces = CornerFaces::admit(&body, vertex).expect("a cube corner is trivalent");
         let [f0, f1, f2] = match faces.as_slice() {
             [a, b, c] => [*a, *b, *c],

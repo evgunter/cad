@@ -177,6 +177,7 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 
 #[cfg(feature = "interval")]
 mod certified {
+    use geom_core::Tol;
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};
     use geom_core::{Band, Bounds, Interval};

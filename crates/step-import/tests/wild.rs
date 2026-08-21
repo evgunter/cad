@@ -268,7 +268,7 @@ fn assert_sub_tolerance_obligation(row: &str) {
                     Ok(()),
                     "{row}/{name}: tier 2 at ε {eps:e}"
                 );
-                match topo::validate_geometric(&body) {
+                match topo::validate_geometric(&body, Tol::witness()) {
                     Ok(()) => certified += 1,
                     Err(errs) => {
                         assert!(
@@ -325,9 +325,9 @@ fn wild_files_import_and_agree_with_the_oracle() {
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
         assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
-        assert_eq!(topo::validate_geometric(&body), Ok(()), "{name}: tier 3");
+        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "{name}: tier 3");
 
-        let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let props = topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
         let volume_mm3 = props.volume * 1e9;
         let tolerance = 1e-11 * e.volume_mm3.abs() + props.volume_pad * 1e9;
         assert!(
@@ -441,7 +441,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             ..step_export::StepOptions::default()
         };
         let first =
-            step_export::step_string(&body, &options).unwrap_or_else(|e| panic!("{name}: {e}"));
+            step_export::step_string(&body, &options, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
         let Ok(StepImport::Solid { body: again, .. }) =
             import_step(&first, &ImportOptions::default())
         else {
@@ -466,14 +466,14 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         // not zero; the sharper claims still hold exactly — the
         // census above, and the byte-identical second export below.
         let (v1, v2) = (
-            topo::mass_properties(&body).unwrap().volume,
-            topo::mass_properties(&again).unwrap().volume,
+            topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+            topo::mass_properties(&again, Tol::witness()).unwrap().volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
-        let second = step_export::step_string(&again, &options).unwrap();
+        let second = step_export::step_string(&again, &options, Tol::witness()).unwrap();
         assert_eq!(
             first, second,
             "{name}: the second export must be byte-identical"

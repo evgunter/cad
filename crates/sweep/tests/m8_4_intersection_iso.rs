@@ -52,7 +52,7 @@ fn offset_square_prism() -> Body<f64> {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
 }
@@ -164,6 +164,7 @@ fn intrinsic_seam(
             param_start: t0,
             param_end: t1,
         },
+        Tol::witness(),
     )?;
     // The loft minted this half-edge's cache against the description it
     // had before this surgery; a cache read back would answer about
@@ -300,7 +301,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     );
     assert!(p0.y.abs() < 1e-12, "and starts at its v origin: {p0:?}");
     // The mint pass certifies every face of the body it charts.
-    topo::mint_pcurves(&mut body).expect("the whole body charts over the new arm");
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the whole body charts over the new arm");
     let stored = body
         .pcurve(he)
         .expect("the seam's own half-edge stores its certified image");

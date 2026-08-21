@@ -35,7 +35,7 @@ fn holed_plate() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// The through-boss: radius 0.5 at (2, 2), three 120-deg arcs with
@@ -57,18 +57,18 @@ fn through_boss() -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.6)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.6), Tol::witness()).unwrap().body
 }
 
 #[test]
 fn probe_cross_instance_conformal_wall_touch_at_three_prime() {
     let plate = holed_plate();
     let boss = through_boss();
-    assert_eq!(topo::validate_geometric(&plate), Ok(()), "plate tier 3");
-    assert_eq!(topo::validate_geometric(&boss), Ok(()), "boss tier 3");
+    assert_eq!(topo::validate_geometric(&plate, Tol::witness()), Ok(()), "plate tier 3");
+    assert_eq!(topo::validate_geometric(&boss, Tol::witness()), Ok(()), "boss tier 3");
     let mut body = plate.clone();
-    topo::graft_disjoint(&mut body, &boss).unwrap();
-    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default());
+    topo::graft_disjoint(&mut body, &boss, Tol::witness()).unwrap();
+    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("cross-instance conformal wall touch, undeclared: {verdict:?}");
     // OBSERVED (a1b78954): the gate refuses LOUDLY — but not through
     // any conformal arm (the walls' keys are distinct, so the arm

@@ -21,8 +21,10 @@
 mod common;
 
 use step_export::{StepOptions, write_step};
+use geom_core::Tol;
 
 fn main() {
+    let tol = Tol::witness();
     let outdir = std::env::args()
         .nth(1)
         .expect("usage: export_fixtures <outdir>");
@@ -35,7 +37,7 @@ fn main() {
         };
         let path = format!("{outdir}/{name}.step");
         let mut file = std::fs::File::create(&path).expect("create fixture file");
-        write_step(&body, &options, &mut file).expect("write fixture");
+        write_step(&body, &options, &mut file, tol).expect("write fixture");
         println!("wrote {path}");
     }
 }

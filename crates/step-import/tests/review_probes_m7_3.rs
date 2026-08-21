@@ -42,7 +42,7 @@ fn native_loft_prism() -> topo::Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("native loft_prism builds")
         .body
 }
@@ -117,7 +117,7 @@ fn probe_refit_seam_refuses_typed() {
                  imported as a solid (census {:?})",
                 census(&body)
             );
-            topo::validate_geometric(&body)
+            topo::validate_geometric(&body, Tol::witness())
                 .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -140,7 +140,7 @@ fn probe_all_unit_weight_rational_instance_imports_identically() {
     assert_eq!(topo::validate(&body), Ok(()), "t1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
     assert_eq!(
-        topo::validate_geometric(&body),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "t3 green: all-1.0 weights ARE non-rational"
     );
@@ -168,7 +168,7 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("arc loft builds")
         .body
 }
@@ -176,7 +176,7 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
 #[test]
 fn probe_arc_loft_weights_snapped_to_one_refuses() {
     let native = native_arc_loft_for_probe();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
+    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
         .expect("arc loft exports");
     // Find the RATIONAL_B_SPLINE_SURFACE weight list and replace every
     // weight with 1.0.
@@ -217,7 +217,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
     match import(&mutated) {
         Err(e) => eprintln!("PROBE weight-snap refusal (honest): {e}"),
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
             panic!(
                 "LAUNDERED: weight-snapped rational wall imported; t3 = {t3:?}, census {:?}",
                 census(&body)
@@ -254,7 +254,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 #[test]
 fn probe_arm_b_rim_off_wall_arc() {
     let native = native_arc_loft_for_probe();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
+    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
         .expect("arc loft exports");
     // Find the CIRCLE whose placement's location is (0.0, 0.0, 0.0).
     let mut center_line = None;
@@ -322,7 +322,7 @@ fn probe_arm_b_rim_off_wall_arc() {
         Ok(StepImport::Solid { body, .. }) => {
             let t1 = topo::validate(&body);
             let t2 = topo::validate_closed(&body);
-            let t3 = topo::validate_geometric(&body).map(|_| "t3 GREEN");
+            let t3 = topo::validate_geometric(&body, Tol::witness()).map(|_| "t3 GREEN");
             panic!(
                 "LAUNDERED (the F1 hole is back): rim-off-wall arc imported as a solid; \
                  t1 = {t1:?}, t2 = {t2:?}, t3 = {t3:?}"
@@ -440,7 +440,7 @@ fn probe_rim_same_sense_flip_is_honest() {
             assert_eq!(census(&body), census(&base), "census must match");
             assert_eq!(topo::validate(&body), Ok(()), "t1");
             assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
-            assert_eq!(topo::validate_geometric(&body), Ok(()), "t3");
+            assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "t3");
             eprintln!("PROBE same_sense flip: accepted and fully valid");
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -501,7 +501,7 @@ fn probe_reexport_promotion_divergence() {
         product_name: "loft_prism".to_owned(),
         ..step_export::StepOptions::default()
     };
-    let out = step_export::step_string(&body, &options).expect("re-export");
+    let out = step_export::step_string(&body, &options, Tol::witness()).expect("re-export");
     let count = |s: &str, pat: &str| s.matches(pat).count();
     assert_eq!(
         (
@@ -521,7 +521,7 @@ fn probe_reexport_promotion_divergence() {
     );
     // The promoted one-cycle fixed point.
     let body2 = solid(&out, "first re-export");
-    let out2 = step_export::step_string(&body2, &options).expect("second re-export");
+    let out2 = step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
     assert_eq!(out, out2, "fixed point from the first re-export on");
 }
 

@@ -21,6 +21,7 @@ use editor_core::{
 };
 use geom_core::{Affine3, Vec3};
 use profile::SketchPlane;
+use geom_core::Tol;
 
 struct Rec {
     doc: ProfileDoc,
@@ -30,13 +31,13 @@ struct Rec {
 impl Rec {
     fn new() -> Self {
         Self {
-            doc: ProfileDoc::empty_derived("review_m5_pr9_doc_probe"),
+            doc: ProfileDoc::empty_derived("review_m5_pr9_doc_probe", Tol::witness()),
             edits: Vec::new(),
         }
     }
     fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         let edit = DocEdit::InsertNode { node };
-        let applied = apply(&self.doc, &edit).expect("edit applies");
+        let applied = apply(&self.doc, &edit, Tol::witness()).expect("edit applies");
         self.doc = applied.doc;
         self.edits.push(edit);
         applied.record.minted.expect("minted id")
@@ -96,23 +97,24 @@ fn union_body<T: geom_core::Decide>(
 #[test]
 fn the_boss_union_document_row_f64_volume_and_roundtrip() {
     let (doc, _edits, union) = boss_union_doc();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
     let body = union_body(&ev, union);
-    let vol = topo::mass_properties(body).unwrap().volume;
+    let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
     let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
     assert!(
         (vol - expect).abs() < 1e-9,
         "doc-lane boss union volume {vol} vs {expect}"
     );
     // Save/load replay identity, f64 lane.
-    let text = save(&doc, &[]).expect("save");
-    let loaded = load(&text).expect("load");
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
     assert!(loaded.doc.bit_eq(&doc), "round-trip bit identity");
     let ev2 = evaluate::<f64>(
         &loaded.doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     );
     assert_eq!(
         format!("{:?}", ev.nodes),
@@ -196,7 +198,7 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
         distance: len(1.0),
     });
     let count = |doc: &ProfileDoc| -> usize {
-        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
         let body = match &ev.value(ex).expect("extrude evaluated").payload {
             ValuePayload::Body(b) => b.clone(),
             other => panic!("expected a body, got {}", other.kind_name()),
@@ -214,8 +216,8 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     };
     let n0 = count(&r.doc);
     assert_eq!(n0, 2, "the fillet mints its two tangent struts at rest");
-    let text = save(&r.doc, &[]).expect("save");
-    let loaded = load(&text).expect("load");
+    let text = save(&r.doc, &[], Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
     assert_eq!(
         count(&loaded.doc),
         n0,

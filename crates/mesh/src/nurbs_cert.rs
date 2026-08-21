@@ -183,6 +183,7 @@ use geom_core::spline::hull::derivative_coeffs;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
+use geom_core::Tol;
 
 /// Certified sup bounds on the three second partials of one described
 /// non-rational NURBS face, over its whole chart rectangle (module
@@ -1508,6 +1509,7 @@ fn derived_knots(kv: &KnotVector, fk: FaceKey) -> Result<KnotVector, TessellateE
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
     use geom_core::Point3;
     use profile::RawLoop;
@@ -2055,7 +2057,7 @@ mod tests {
             .iter()
             .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
             .collect();
-        let body = sweep::loft_body::<f64>(&sections, &places, 1)
+        let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")
             .body;
         for (_, face) in body.faces() {

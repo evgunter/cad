@@ -36,6 +36,7 @@
 use mesh::tessellate;
 use mesh::validate::check_mesh;
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn fixture(name: &str) -> String {
     let p = format!(
@@ -59,7 +60,7 @@ fn meshed(name: &str) -> Rows {
     [2.0e-3, 5.0e-4]
         .into_iter()
         .map(|d| {
-            let m = tessellate(&body, d).unwrap_or_else(|e| panic!("{name} at δ={d}: {e:?}"));
+            let m = tessellate(&body, d, Tol::witness()).unwrap_or_else(|e| panic!("{name} at δ={d}: {e:?}"));
             let n: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
             (n, check_mesh(&m).map_err(|e| format!("{e:?}")))
         })

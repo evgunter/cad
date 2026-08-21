@@ -34,7 +34,7 @@ use fixture::{insert, len};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 /// A unit box as an extruded square, plus a datum PLANE on z = 0 with
@@ -42,7 +42,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// against, referenced as a node exactly like any other input (GS-Q6).
 fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, p) = insert(
-        ProfileDoc::empty_derived("lib_sel1_geoselect"),
+        ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -68,7 +68,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 fn no_params() -> ParamEnv<f64> {
-    ProfileDoc::empty_derived("lib_sel1_geoselect").param_env::<f64>()
+    ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()).param_env::<f64>()
 }
 
 fn all(kind: EntityKind) -> Selector {
@@ -92,7 +92,7 @@ fn empty_geometry_is_plain_select() {
         EntityKind::Body,
     ] {
         let structural = select(&ev, cube, &all(kind));
-        let filtered = select_where(&ev, cube, &all(kind), &[], &no_params()).unwrap();
+        let filtered = select_where(&ev, cube, &all(kind), &[], &no_params(), Tol::witness()).unwrap();
         assert_eq!(structural, filtered, "{kind:?}");
     }
 }
@@ -105,13 +105,13 @@ fn carrier_kind_selects_the_box_edges() {
     let ev = eval(&doc);
     let lines = [GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))];
 
-    let edges = select_where(&ev, cube, &all(EntityKind::Edge), &lines, &no_params()).unwrap();
+    let edges = select_where(&ev, cube, &all(EntityKind::Edge), &lines, &no_params(), Tol::witness()).unwrap();
     assert_eq!(edges, select(&ev, cube, &all(EntityKind::Edge)));
     assert_eq!(edges.len(), 12);
 
     // A curve atom against FACE names: total, and totally false.
     assert!(
-        select_where(&ev, cube, &all(EntityKind::Face), &lines, &no_params())
+        select_where(&ev, cube, &all(EntityKind::Face), &lines, &no_params(), Tol::witness())
             .unwrap()
             .is_empty()
     );
@@ -123,6 +123,7 @@ fn carrier_kind_selects_the_box_edges() {
             &all(EntityKind::Edge),
             &[GeomPred::CurveKind(CurveKindSet::default())],
             &no_params(),
+            Tol::witness(),
         )
         .unwrap()
         .is_empty()
@@ -138,14 +139,14 @@ fn surface_kind_selects_the_box_faces() {
     let planes = [GeomPred::SurfaceKind(SurfaceKindSet::just(
         SurfaceKind::Plane,
     ))];
-    let faces = select_where(&ev, cube, &all(EntityKind::Face), &planes, &no_params()).unwrap();
+    let faces = select_where(&ev, cube, &all(EntityKind::Face), &planes, &no_params(), Tol::witness()).unwrap();
     assert_eq!(faces.len(), 6);
 
     let top_cap = Selector::of(
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
     );
     assert_eq!(
-        select_where(&ev, cube, &top_cap, &planes, &no_params()).unwrap(),
+        select_where(&ev, cube, &top_cap, &planes, &no_params(), Tol::witness()).unwrap(),
         select(&ev, cube, &top_cap),
     );
     // No sphere anywhere on a box.
@@ -158,6 +159,7 @@ fn surface_kind_selects_the_box_faces() {
                 SurfaceKind::Sphere
             ))],
             &no_params(),
+            Tol::witness(),
         )
         .unwrap()
         .is_empty()
@@ -180,6 +182,7 @@ fn adjacent_kinds_is_unordered() {
         &all(EntityKind::Edge),
         &[GeomPred::AdjacentKinds(plane, plane)],
         &no_params(),
+        Tol::witness(),
     )
     .unwrap();
     assert_eq!(both.len(), 12);
@@ -192,6 +195,7 @@ fn adjacent_kinds_is_unordered() {
                 &all(EntityKind::Edge),
                 &[GeomPred::AdjacentKinds(pair.0, pair.1)],
                 &no_params(),
+                Tol::witness(),
             )
             .unwrap()
             .is_empty(),
@@ -212,7 +216,7 @@ fn atoms_conjoin() {
         GeomPred::AdjacentKinds(plane, plane),
     ];
     assert_eq!(
-        select_where(&ev, cube, &all(EntityKind::Edge), &conj, &no_params())
+        select_where(&ev, cube, &all(EntityKind::Edge), &conj, &no_params(), Tol::witness())
             .unwrap()
             .len(),
         12
@@ -227,7 +231,8 @@ fn atoms_conjoin() {
             cube,
             &all(EntityKind::Edge),
             &contradiction,
-            &no_params()
+            &no_params(),
+            Tol::witness(),
         )
         .unwrap()
         .is_empty()
@@ -254,7 +259,7 @@ fn datum_distance_partitions_by_sign() {
     let ev = eval(&doc);
     let v = all(EntityKind::Vertex);
     let n = |cmp, value| {
-        select_where(&ev, cube, &v, &at(datum, cmp, value), &no_params())
+        select_where(&ev, cube, &v, &at(datum, cmp, value), &no_params(), Tol::witness())
             .unwrap()
             .len()
     };
@@ -280,6 +285,7 @@ fn datum_distance_reads_face_frames() {
         &all(EntityKind::Face),
         &at(datum, Cmp::Approx, 1.0),
         &no_params(),
+        Tol::witness(),
     )
     .unwrap();
     let named = select(
@@ -310,6 +316,7 @@ fn an_in_band_margin_refuses_typed() {
         &all(EntityKind::Vertex),
         &at(datum, Cmp::Approx, sliver),
         &no_params(),
+        Tol::witness(),
     )
     .expect_err("an in-band margin is a refusal, not a filter outcome");
     match refusal {
@@ -335,6 +342,7 @@ fn an_unreadable_candidate_refuses_typed() {
         &all(EntityKind::Body),
         &at(datum, Cmp::Approx, 0.0),
         &no_params(),
+        Tol::witness(),
     )
     .expect_err("a body has no position");
     assert!(matches!(refusal, SelectRefusal::Unreadable { .. }));
@@ -355,7 +363,7 @@ fn a_non_length_value_refuses() {
         value: Expr::literal(1.0, Dimension::Angle).unwrap(),
     }];
     assert!(matches!(
-        select_where(&ev, cube, &all(EntityKind::Vertex), &bad, &no_params()),
+        select_where(&ev, cube, &all(EntityKind::Vertex), &bad, &no_params(), Tol::witness()),
         Err(SelectRefusal::NotALength {
             dim: Dimension::Angle
         })
@@ -369,7 +377,7 @@ fn a_non_datum_reference_refuses() {
     let (doc, cube, _) = box_doc();
     let ev = eval(&doc);
     let bad = at(cube, Cmp::Approx, 0.0);
-    match select_where(&ev, cube, &all(EntityKind::Vertex), &bad, &no_params()) {
+    match select_where(&ev, cube, &all(EntityKind::Vertex), &bad, &no_params(), Tol::witness()) {
         Err(SelectRefusal::NotADatum { datum, found }) => {
             assert_eq!(datum, cube);
             assert_ne!(found, "datum");
@@ -379,7 +387,7 @@ fn a_non_datum_reference_refuses() {
     // An unevaluated node id, same door.
     let ghost = at(RecipeNodeId(9999), Cmp::Approx, 0.0);
     assert!(matches!(
-        select_where(&ev, cube, &all(EntityKind::Vertex), &ghost, &no_params()),
+        select_where(&ev, cube, &all(EntityKind::Vertex), &ghost, &no_params(), Tol::witness()),
         Err(SelectRefusal::NotADatum { .. })
     ));
 }
@@ -397,6 +405,7 @@ fn a_valueless_node_is_empty_not_an_error() {
             &all(EntityKind::Edge),
             &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
             &no_params(),
+            Tol::witness(),
         )
         .unwrap()
         .is_empty()
@@ -518,6 +527,7 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
         &edges,
         &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
         &no_params(),
+        Tol::witness(),
     )
     .expect("exact atoms are total — a purely-exact filter cannot refuse");
     let rims = select_where(
@@ -529,6 +539,7 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
             SurfaceKindSet::just(SurfaceKind::Sphere),
         )],
         &no_params(),
+        Tol::witness(),
     )
     .expect("exact atoms are total");
 
@@ -565,6 +576,7 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
         &edges,
         &[GeomPred::AdjacentKinds(sphere, sphere)],
         &no_params(),
+        Tol::witness(),
     )
     .expect("exact atoms are total");
     assert_eq!(meridians.len(), 2, "the two co-surface cavity meridians");
@@ -606,6 +618,7 @@ fn tied_box() -> (
             &all(EntityKind::Vertex),
             &at(datum, Cmp::Approx, v),
             &no_params(),
+            Tol::witness(),
         )
         .expect("no candidate is in-band here")[0]
             .clone()
@@ -647,7 +660,7 @@ fn tied_box() -> (
 fn a_tied_name_meets_geometry_as_a_trilean() {
     let (ev, cube, datum, tied) = tied_box();
     let vertices = all(EntityKind::Vertex);
-    let go = |cmp, v| select_where(&ev, cube, &vertices, &at(datum, cmp, v), &no_params());
+    let go = |cmp, v| select_where(&ev, cube, &vertices, &at(datum, cmp, v), &no_params(), Tol::witness());
 
     // ALL match — both candidates are less than 5 m from the datum.
     // The name comes back, and it is still the TIED name.
@@ -688,6 +701,7 @@ fn a_tied_name_meets_geometry_as_a_trilean() {
             &vertices,
             &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
             &no_params(),
+            Tol::witness(),
         )
         .expect("exact atoms are total, ties included")
         .is_empty()

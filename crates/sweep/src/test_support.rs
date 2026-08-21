@@ -46,6 +46,7 @@ use topo::{Body, EdgeKey};
 
 use crate::fillet::battery::{FilletRequest, Link, run_battery};
 use crate::{Extrusion, extrude};
+use geom_core::Tol;
 
 /// The cube side the in-crate pins build on, meters.
 pub const L: f64 = 1.0;
@@ -54,7 +55,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube(l: f64) -> Body<f64> {
+pub fn cube(l: f64, tol: Tol) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
             .into_iter()
@@ -62,15 +63,15 @@ pub fn cube(l: f64) -> Body<f64> {
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(tol)
         .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
+    extrude(&profile, Extrusion::Distance(l), tol).unwrap().body
 }
 
 /// Every edge of `body` resolved by the fillet battery, in edge
 /// order.
-pub fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
-    let tol = Tolerance::get();
+pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
+    let tol = tol.get();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let verdict = run_battery(
         &FilletRequest {

@@ -38,7 +38,7 @@ fn loft_prism() -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("shape (iii) loft builds")
         .body
 }
@@ -69,6 +69,7 @@ fn swept_elbow() -> Body<f64> {
         &path,
         9,
         3,
+        Tol::witness(),
     )
     .expect("the curved-path sweep body builds")
     .body
@@ -77,7 +78,7 @@ fn swept_elbow() -> Body<f64> {
 #[test]
 fn loft_prism_tessellates_watertight_and_volume_sane() {
     let body = loft_prism();
-    let mesh = mesh::tessellate(&body, 6e-3).expect("the NURBS-walled loft tessellates");
+    let mesh = mesh::tessellate(&body, 6e-3, Tol::witness()).expect("the NURBS-walled loft tessellates");
     check_mesh(&mesh).expect("watertight, manifold, outward");
     let v = signed_volume(&mesh);
     // Derived exact volume 9 m³ (m6_loft_body.rs); the chordal mesh
@@ -91,7 +92,7 @@ fn loft_prism_tessellates_watertight_and_volume_sane() {
 #[test]
 fn swept_elbow_tessellates_watertight_and_volume_sane() {
     let body = swept_elbow();
-    let mesh = mesh::tessellate(&body, 3e-3).expect("the swept elbow tessellates");
+    let mesh = mesh::tessellate(&body, 3e-3, Tol::witness()).expect("the swept elbow tessellates");
     check_mesh(&mesh).expect("watertight, manifold, outward");
     let v = signed_volume(&mesh);
     let pappus = 0.5 * 0.5 * 3.0 * FRAC_PI_2;
@@ -115,7 +116,7 @@ fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
     let coarse = 3e-2;
     let fine = 6e-3;
     let measure = |delta: f64| -> (f64, usize) {
-        let mesh = mesh::tessellate(&body, delta).expect("tessellates");
+        let mesh = mesh::tessellate(&body, delta, Tol::witness()).expect("tessellates");
         check_mesh(&mesh).expect("watertight");
         let mut worst = 0.0f64;
         for patch in &mesh.patches {
@@ -174,8 +175,8 @@ fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
 #[test]
 fn nurbs_tessellation_is_deterministic() {
     let body = swept_elbow();
-    let a = mesh::tessellate(&body, 1e-2).expect("tessellates");
-    let b = mesh::tessellate(&body, 1e-2).expect("tessellates");
+    let a = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
+    let b = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
     assert_eq!(a.positions.len(), b.positions.len());
     for (pa, pb) in a.positions.iter().zip(&b.positions) {
         assert_eq!(pa.x.to_bits(), pb.x.to_bits());

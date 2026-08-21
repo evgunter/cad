@@ -62,6 +62,7 @@ fn native_arc_loft() -> topo::Body<f64> {
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc loft builds")
     .body
@@ -81,6 +82,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
                 &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
                 &stack([0.0, 1.0, 2.0]),
                 2,
+                Tol::witness(),
             )
             .expect("lofts")
             .body,

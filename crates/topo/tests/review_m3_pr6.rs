@@ -14,6 +14,7 @@ use topo::{
     SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union,
     validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -111,13 +112,13 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 fn both_sided_pinch_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
         let fx = prism::<T>(profile, 1.0);
-        let v0 = mass_properties(&fx.body).unwrap().volume;
+        let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
         match split(&fx.body, &plane_y::<T>(1.0, 1.0)) {
             Ok(r) => {
                 assert!(must_succeed, "BOTH_SIDED unexpectedly split — re-examine");
                 let (va, vb) = (
-                    mass_properties(body_of(&r.above)).unwrap().volume,
-                    mass_properties(body_of(&r.below)).unwrap().volume,
+                    mass_properties(body_of(&r.above), Tol::witness()).unwrap().volume,
+                    mass_properties(body_of(&r.below), Tol::witness()).unwrap().volume,
                 );
                 let d = (va + vb - v0).abs();
                 assert!(d.hi() <= 1e-9, "volume conservation: {d:?}");
@@ -180,7 +181,7 @@ fn mirror_identity_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
                 y.vertices().count(),
                 "{profile:?} {side} vertices"
             );
-            let d = (mass_properties(x).unwrap().volume - mass_properties(y).unwrap().volume).abs();
+            let d = (mass_properties(x, Tol::witness()).unwrap().volume - mass_properties(y, Tol::witness()).unwrap().volume).abs();
             assert!(d.hi() <= 1e-9, "{side}: volume mismatch {d:?}");
         }
         // Section-normal convention: outward normals point away from
@@ -255,7 +256,7 @@ mod interval_r1 {
 fn r2_coplanar_plus_overlap_detected() {
     let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z));
     cube_into(&mut body, |x, y, z| Point3::new(1.0 + x, 3.0 * y, z));
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default()).unwrap_err();
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(
         errors
             .iter()
@@ -284,7 +285,7 @@ fn r2_coplanar_plus_overlap_detected() {
 fn r2_flush_stack_full_overlap() {
     let mut body = mapped_cube(Point3::new);
     cube_into(&mut body, |x, y, z| Point3::new(x, y, 1.0 + z));
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default()).unwrap_err();
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!errors.is_empty(), "flush stack must not pass undeclared");
     assert!(
         errors
@@ -305,7 +306,7 @@ fn r2_flush_stack_full_overlap() {
         }
     }
     assert_eq!(contacts.vv.len(), 4, "expected the 4 corner kisses");
-    let verdict = validate_pseudomanifold(&body, &contacts);
+    let verdict = validate_pseudomanifold(&body, &contacts, Tol::witness());
     // Executed outcome recorded in the report: if Ok, a full-area
     // flush contact is certifiable from 4 vv records (skeleton
     // posture, per PR body); if Err, list what still fires.
@@ -328,7 +329,7 @@ fn r2_inscribed_diamond_vertices_on_edges() {
     cube_into(&mut body, |x, y, z| {
         Point3::new(1.0 + x - y, x + y, 2.0 + z)
     });
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default()).unwrap_err();
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(
         errors.iter().any(|e| matches!(
             e,
@@ -369,7 +370,7 @@ fn l_prism() -> Body<f64> {
 /// D8 witness this hunt exists for.
 fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
     match r {
-        Ok(BooleanResult::Body(b)) => Some(mass_properties(&b.body).unwrap().volume),
+        Ok(BooleanResult::Body(b)) => Some(mass_properties(&b.body, Tol::witness()).unwrap().volume),
         Ok(BooleanResult::Empty) => Some(0.0),
         Err(BooleanError::PairingMismatch { .. }) => {
             panic!("D8 WITNESS: PairingMismatch at {ctx}")
@@ -397,7 +398,7 @@ fn r4_frontier_is_joindesync_not_pairingmismatch() {
             0.5 + x * e1.z + y * e2.z + z * e3.z,
         )
     });
-    let err = union(&a, &b).unwrap_err();
+    let err = union(&a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::JoinDesync { .. }),
         "frontier moved: {err:?}"
@@ -412,7 +413,7 @@ fn r4_frontier_is_joindesync_not_pairingmismatch() {
 #[test]
 fn r4_extended_sweep_volume_identities() {
     let a = l_prism();
-    let va = mass_properties(&a).unwrap().volume;
+    let va = mass_properties(&a, Tol::witness()).unwrap().volume;
     let mut closed = 0;
     let mut refused = 0;
     for zc in [0.5f64, 1.0] {
@@ -444,11 +445,11 @@ fn r4_extended_sweep_volume_identities() {
                     }
                 };
                 let b = mapped_cube(map);
-                let vb = mass_properties(&b).unwrap().volume;
+                let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
                 let ctx = format!("zc={zc} family={family} k={k}");
-                let vu = vol_of(union(&a, &b), &ctx);
-                let vi = vol_of(intersect(&a, &b), &ctx);
-                let vs = vol_of(subtract(&a, &b), &ctx);
+                let vu = vol_of(union(&a, &b, Tol::witness()), &ctx);
+                let vi = vol_of(intersect(&a, &b, Tol::witness()), &ctx);
+                let vs = vol_of(subtract(&a, &b, Tol::witness()), &ctx);
                 if let (Some(vu), Some(vi)) = (vu, vi) {
                     assert!(
                         (vu - (va + vb - vi)).abs() <= 1e-9,
@@ -498,7 +499,7 @@ fn straddle_scenario<T: Decide + topo::PropsQuadLane>(delta: f64) {
         0.0,
         1.0,
     );
-    let verdict = validate_pseudomanifold(&fx.body, &ContactRecords::default());
+    let verdict = validate_pseudomanifold(&fx.body, &ContactRecords::default(), Tol::witness());
     let errors = verdict.expect_err("near-touch at/inside eps must be loud");
     let (mut esc, mut und) = (0, 0);
     for e in &errors {
@@ -555,10 +556,10 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
             1.0 + x * e1.z + y * e2.z + z * e3.z,
         )
     });
-    let BooleanResult::Body(r) = union(&slab, &tilted).unwrap() else {
+    let BooleanResult::Body(r) = union(&slab, &tilted, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts), Ok(()));
+    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
     let mut tampered = r.contacts.clone();
     let rests = tampered.a_on_b.len() + tampered.b_on_a.len();
     assert_eq!(rests, 1, "expected exactly one vf record");
@@ -575,7 +576,7 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
         .find(|&k| k != right)
         .unwrap();
     rec.face = wrong;
-    let errors = validate_pseudomanifold(&r.body, &tampered).unwrap_err();
+    let errors = validate_pseudomanifold(&r.body, &tampered, Tol::witness()).unwrap_err();
     assert!(
         errors
             .iter()
@@ -599,16 +600,16 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
 fn r7_closure_reversed_rows_loud() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let BooleanResult::Body(base) = union(&a, &b).unwrap() else {
+    let BooleanResult::Body(base) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss base");
     };
     // Reversed subtract: mover ∖ assembly. Oracle: mover [1.5,2.5]^3
     // minus its overlap with B-cube [1,2]^3 = 1 − 0.125 = 0.875.
     let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5));
-    match subtract(&mover, &base.body) {
+    match subtract(&mover, &base.body, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
-            assert_eq!(mass_properties(&r.body).unwrap().volume, 0.875);
-            match validate_pseudomanifold(&r.body, &r.contacts) {
+            assert_eq!(mass_properties(&r.body, Tol::witness()).unwrap().volume, 0.875);
+            match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
                 Ok(()) => {}
                 Err(errors) => {
                     for e in &errors {
@@ -625,15 +626,15 @@ fn r7_closure_reversed_rows_loud() {
     }
     // Intersect vs a second toucher kissing the same (1,1,1) locus.
     let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
-    match intersect(&base.body, &toucher) {
+    match intersect(&base.body, &toucher, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             // The intersection of the assembly with the edge-tied
             // toucher: B-cube ∩ toucher is the face-flush region of
             // measure 0 → must not silently return junk; A ∩ toucher
             // is the shared edge only. Any BODY here must certify or
             // refuse loudly.
-            let v = mass_properties(&r.body).unwrap().volume;
-            match validate_pseudomanifold(&r.body, &r.contacts) {
+            let v = mass_properties(&r.body, Tol::witness()).unwrap().volume;
+            match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
                 Ok(()) => eprintln!("R7 intersect second-toucher closed: vol {v}"),
                 Err(errors) => {
                     for e in &errors {

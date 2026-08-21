@@ -29,10 +29,10 @@ fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 }
 
 fn die(l: f64, r: f64) -> Filleted<f64> {
-    let body = cube(l);
+    let body = cube(l, Tol::witness());
     let edges = all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
-    fillet_edges(&body, &edges, r, band()).expect("the die body")
+    fillet_edges(&body, &edges, r, band(), Tol::witness()).expect("the die body")
 }
 
 /// The acceptance row: the whole rounded die, top to bottom.
@@ -44,7 +44,7 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
     // 1. The three validator tiers, coarsest first.
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&f.body), Ok(()), "tier 3");
+    assert_eq!(topo::validate_geometric(&f.body, Tol::witness()), Ok(()), "tier 3");
 
     // 2. The Euler counts: 6 shrunk planes + 12 quarter-cylinders + 8
     // sphere octants; 24 trimlines + 24 corner arcs; 3 feet per box
@@ -70,7 +70,7 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
         + 12.0 * (PI * r * r / 4.0) * core
         + (4.0 / 3.0) * PI * r.powi(3);
     let area = 6.0 * core.powi(2) + 12.0 * (PI * r / 2.0) * core + 4.0 * PI * r * r;
-    let props = topo::mass_properties(&f.body).unwrap();
+    let props = topo::mass_properties(&f.body, Tol::witness()).unwrap();
     assert!(
         (props.volume - volume).abs() <= 1e-9 * volume,
         "volume {} vs closed form {volume}",
@@ -83,7 +83,7 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
     );
 
     // 4. Watertight under tessellation.
-    let mesh = mesh::tessellate(&f.body, 1e-2).expect("the die tessellates");
+    let mesh = mesh::tessellate(&f.body, 1e-2, Tol::witness()).expect("the die tessellates");
     mesh::validate::check_mesh(&mesh).expect("the die's mesh is watertight");
 
     // 5. Prefer-intrinsic, from birth: every edge of every blend and
@@ -115,13 +115,13 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
 fn the_die_is_tier3_valid_at_a_second_radius() {
     let (l, r) = (2.0, 0.4);
     let f = die(l, r);
-    assert_eq!(topo::validate_geometric(&f.body), Ok(()), "tier 3");
+    assert_eq!(topo::validate_geometric(&f.body, Tol::witness()), Ok(()), "tier 3");
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)
         + 12.0 * (PI * r * r / 4.0) * core
         + (4.0 / 3.0) * PI * r.powi(3);
-    let props = topo::mass_properties(&f.body).unwrap();
+    let props = topo::mass_properties(&f.body, Tol::witness()).unwrap();
     assert!(
         (props.volume - volume).abs() <= 1e-9 * volume,
         "volume {} vs closed form {volume}",
@@ -134,9 +134,9 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
 /// rather than half-building.
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
-    let body = cube(1.0);
+    let body = cube(1.0, Tol::witness());
     let edges = all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], 0.15, band())
+    let err = fillet_edges(&body, &edges[..1], 0.15, band(), Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
         matches!(err, FilletError::UnsupportedRunOut { .. }),

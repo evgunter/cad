@@ -28,6 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn fixture(name: &str) -> String {
     let path = format!(
@@ -61,8 +62,8 @@ fn rect_the_control_still_measures_exactly() {
     else {
         panic!("rect.step (the CONTROL) must still import as a solid");
     };
-    topo::validate_geometric(&body).expect("rect.step must still pass tier 3");
-    let mp = topo::mass_properties(&body).expect("rect.step must still measure");
+    topo::validate_geometric(&body, Tol::witness()).expect("rect.step must still pass tier 3");
+    let mp = topo::mass_properties(&body, Tol::witness()).expect("rect.step must still measure");
     assert_eq!(mp.volume_pad, 0.0, "the closed-form lane's pad is 0");
     let rel = (mp.volume - RECT_VOLUME).abs() / RECT_VOLUME;
     assert!(
@@ -115,7 +116,7 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
         panic!("xsplit.step (rectangular sub-faces) must import as a solid");
     };
     let exact = cross_volume();
-    let before = topo::mass_properties(&body).expect("the sub-faced body measures");
+    let before = topo::mass_properties(&body, Tol::witness()).expect("the sub-faced body measures");
     let rel = (before.volume - exact).abs() / exact;
     assert!(
         rel < 1e-12 && before.volume_pad == 0.0,
@@ -125,7 +126,7 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     );
 
     let out = body
-        .merge_coplanar_faces()
+        .merge_coplanar_faces(Tol::witness())
         .expect("the merge itself is a legal Euler-op composition and still runs");
     // Exactly the two cylindrical walls, each of whose three
     // rectangular sub-faces shares one SurfaceKey. `is_empty()` alone
@@ -142,7 +143,7 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     );
 
     // The door: a wrong number is no longer available on the other side.
-    match topo::mass_properties(&body) {
+    match topo::mass_properties(&body, Tol::witness()) {
         Err(e) => {
             let s = format!("{e:?}");
             assert!(

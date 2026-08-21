@@ -227,6 +227,7 @@ use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::Live;
 use crate::provenance::Provenance;
+use geom_core::Tol;
 
 /// Where [`Body::mekr`] acts: the site addressing for "make edge, kill
 /// ring".
@@ -610,17 +611,18 @@ impl<T: Decide> Body<T> {
         &mut self,
         site: MekrSite,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve),
-            MekrSite::EmptyRing { target, ring } => self.mekr_empty_ring(site, target, ring, curve),
+            MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve, tol),
+            MekrSite::EmptyRing { target, ring } => self.mekr_empty_ring(site, target, ring, curve, tol),
             MekrSite::EmptyTarget { target, ring } => {
-                self.mekr_empty_target(site, target, ring, curve)
+                self.mekr_empty_target(site, target, ring, curve, tol)
             }
-            MekrSite::BothEmpty { target, ring } => self.mekr_both_empty(site, target, ring, curve),
+            MekrSite::BothEmpty { target, ring } => self.mekr_both_empty(site, target, ring, curve, tol),
         }?;
 
         #[cfg(debug_assertions)]
@@ -647,7 +649,7 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mekr`].
-    pub fn mekr_chord(&mut self, site: MekrSite) -> Result<MekrResult, EulerOpError> {
+    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError> {
         let anchor_of = |body: &Self, r#loop: LoopKey| -> Result<VertexKey, EulerOpError> {
             let loop_data = body.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
                 key: EntityId::Loop(r#loop),
@@ -681,7 +683,7 @@ impl<T: Decide> Body<T> {
             let p_w = self.resolve_vertex_point(w)?;
             EdgeCurveSpec::line_between(p_u, p_w)
         };
-        self.mekr(site, spec)
+        self.mekr(site, spec, tol)
     }
 
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
@@ -990,6 +992,7 @@ impl<T: Decide> Body<T> {
         target: HalfEdgeKey,
         ring: HalfEdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let (target_live, target_data) = self.resolve_half_edge_live(target)?;
@@ -1038,7 +1041,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
@@ -1084,6 +1087,7 @@ impl<T: Decide> Body<T> {
         target: HalfEdgeKey,
         ring: LoopKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let (target_live, target_data) = self.resolve_half_edge_live(target)?;
@@ -1118,7 +1122,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
@@ -1149,6 +1153,7 @@ impl<T: Decide> Body<T> {
         target: LoopKey,
         ring: HalfEdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
@@ -1187,7 +1192,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
@@ -1226,6 +1231,7 @@ impl<T: Decide> Body<T> {
         target: LoopKey,
         ring: LoopKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
@@ -1256,7 +1262,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
@@ -1377,6 +1383,7 @@ impl<T: Decide> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::Point3;
 
     use super::*;
@@ -1426,6 +1433,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         (body, seed, seg)
@@ -1442,6 +1450,7 @@ mod tests {
                     he2: seg.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         (body, seed, seg, strut)
@@ -1459,6 +1468,7 @@ mod tests {
                     he2: e0.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let e2 = body
@@ -1468,6 +1478,7 @@ mod tests {
                     he2: e1.he_minus,
                 },
                 p(3.0),
+                Tol::witness(),
             )
             .unwrap();
         // Pin the cycle the tests below stand on: out along the plus
@@ -1756,7 +1767,7 @@ mod tests {
             },
             prov(),
         );
-        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
+        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0), Tol::witness()));
         let edge = body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -1893,7 +1904,7 @@ mod tests {
     fn kemr_rejects_halves_in_different_loops() {
         // The pillow's rim edges have their halves in the two cap
         // loops; kemr needs an edge occurring twice in ONE loop.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let (he1, he2) = (t.hes_a[0], t.hes_b[0]);
         let expected = EulerOpError::NotSameLoop { he1, he2 };
         assert_err_deep_unchanged(&mut t.body, &expected, |b| b.kemr(he1, he2).unwrap_err());
@@ -1918,7 +1929,7 @@ mod tests {
             target: e0.he_minus,
             ring: e2.he_plus,
         };
-        let restore = body.mekr_chord(site).unwrap();
+        let restore = body.mekr_chord(site, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -1986,7 +1997,7 @@ mod tests {
             .mekr_chord(MekrSite::EmptyRing {
                 target: seg.he_minus,
                 ring: kill.ring,
-            })
+            }, Tol::witness())
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2016,7 +2027,7 @@ mod tests {
             .mekr_chord(MekrSite::EmptyTarget {
                 target: seed.r#loop,
                 ring: seg.he_minus,
-            })
+            }, Tol::witness())
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2050,7 +2061,7 @@ mod tests {
             .mekr_chord(MekrSite::BothEmpty {
                 target: seed.r#loop,
                 ring: kill.ring,
-            })
+            }, Tol::witness())
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2088,21 +2099,21 @@ mod tests {
             b.mekr_chord(MekrSite::Cycles {
                 target: e0.he_plus,
                 ring: e1.he_plus,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
     }
 
     #[test]
     fn mekr_rejects_loops_of_different_faces() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let (target, ring) = (t.hes_a[0], t.hes_b[0]);
         let expected = EulerOpError::NotSameFace {
             target: t.loop_a,
             ring: t.loop_b,
         };
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles { target, ring }).unwrap_err()
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness()).unwrap_err()
         });
     }
 
@@ -2119,7 +2130,7 @@ mod tests {
             b.mekr_chord(MekrSite::Cycles {
                 target: e2.he_plus,
                 ring: e0.he_minus,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
     }
@@ -2134,7 +2145,7 @@ mod tests {
             b.mekr_chord(MekrSite::EmptyRing {
                 target: e0.he_minus,
                 ring: kill.ring,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
         // EmptyTarget with a cycle target loop.
@@ -2145,7 +2156,7 @@ mod tests {
             b.mekr_chord(MekrSite::EmptyTarget {
                 target: seed.r#loop,
                 ring: e0.he_minus,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
         // BothEmpty with cycle loops.
@@ -2153,7 +2164,7 @@ mod tests {
             b.mekr_chord(MekrSite::BothEmpty {
                 target: seed.r#loop,
                 ring: kill.ring,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
     }
@@ -2170,7 +2181,7 @@ mod tests {
             b.mekr_chord(MekrSite::Cycles {
                 target: e1.he_plus,
                 ring: e0.he_minus,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
         // A null loop key as the ring.
@@ -2182,7 +2193,7 @@ mod tests {
             b.mekr_chord(MekrSite::EmptyRing {
                 target: e0.he_minus,
                 ring: dead_loop,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
     }
@@ -2207,7 +2218,7 @@ mod tests {
             b.mekr_chord(MekrSite::BothEmpty {
                 target,
                 ring: extra,
-            })
+            }, Tol::witness())
             .unwrap_err()
         });
     }
@@ -2225,7 +2236,7 @@ mod tests {
             .mekr_chord(MekrSite::Cycles {
                 target: a0.he_minus,
                 ring: a2.he_plus,
-            })
+            }, Tol::witness())
             .unwrap();
         let extra_a = body_a
             .mev_line(
@@ -2234,6 +2245,7 @@ mod tests {
                     he2: a0.he_minus,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap();
 
@@ -2245,7 +2257,7 @@ mod tests {
             .mekr_chord(MekrSite::Cycles {
                 target: b0.he_minus,
                 ring: b2.he_plus,
-            })
+            }, Tol::witness())
             .unwrap();
         let extra_b = body_b
             .mev_line(
@@ -2254,6 +2266,7 @@ mod tests {
                     he2: b0.he_minus,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(deep_snapshot(&body_a), deep_snapshot(&body_b));
@@ -2268,6 +2281,7 @@ mod tests {
                     he2: c0.he_minus,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap();
 
@@ -2303,7 +2317,7 @@ mod tests {
             .mekr_chord(MekrSite::Cycles {
                 target: a0.he_minus,
                 ring: a2.he_plus,
-            })
+            }, Tol::witness())
             .unwrap();
         let (mut body_c, _seed_c, [c0, c1, c2]) = chain3();
         // chain3 is deterministic, so the two histories share their
@@ -2319,13 +2333,13 @@ mod tests {
             .mef_chord(MefSite::Chords {
                 he1: a0.he_plus,
                 he2: a2.he_minus,
-            })
+            }, Tol::witness())
             .unwrap();
         let mef1_c = body_c
             .mef_chord(MefSite::Chords {
                 he1: c0.he_plus,
                 he2: c2.he_minus,
-            })
+            }, Tol::witness())
             .unwrap();
         assert_ne!(mef1_a.r#loop, mef1_c.r#loop);
         assert_eq!(mef1_a.face, mef1_c.face);
@@ -2340,13 +2354,13 @@ mod tests {
             .mef_chord(MefSite::Chords {
                 he1: a2.he_minus,
                 he2: a0.he_minus,
-            })
+            }, Tol::witness())
             .unwrap();
         let mef2_c = body_c
             .mef_chord(MefSite::Chords {
                 he1: c2.he_minus,
                 he2: c0.he_minus,
-            })
+            }, Tol::witness())
             .unwrap();
         assert_eq!(mef2_a, mef2_c);
         assert_eq!(validate(&body_a), Ok(()));
@@ -2368,13 +2382,14 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         let split = body
             .mef_chord(MefSite::Chords {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
-            })
+            }, Tol::witness())
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         (body, seed, seg, split)
@@ -2441,7 +2456,7 @@ mod tests {
         // mfkrh will mint such faces), so the fixture grafts one in raw:
         // pillow + face C with an Empty outer at a lone vertex and its
         // OWN surface, same shell. Tier-1-valid.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let pt = t.body.add_point(p(9.0));
         let v = t.body.add_vertex(
             Vertex {
@@ -2578,6 +2593,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -2621,6 +2637,7 @@ mod tests {
                     he2: seg.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();

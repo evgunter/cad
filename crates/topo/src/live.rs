@@ -33,6 +33,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, HalfEdge, HalfEdgeKey};
 use crate::euler::EulerOpError;
 use geom_core::Real;
+use geom_core::Tol;
 
 /// A [`HalfEdgeKey`] a lookup has returned — see the [module
 /// docs](self) for the precise claim and its one residue.
@@ -113,6 +114,7 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use geom_core::Tol;
     use super::Live;
     use crate::body::Body;
     use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
@@ -137,7 +139,7 @@ mod tests {
         let empty = Body::<f64>::new();
         assert!(Live::of(&empty, HalfEdgeKey::default()).is_none());
         assert!(empty.require_live(HalfEdgeKey::default()).is_err());
-        let body = pillow().body;
+        let body = pillow(Tol::witness()).body;
         assert!(!body.half_edges.is_empty(), "the arena must be populated");
         assert!(Live::of(&body, HalfEdgeKey::default()).is_none());
         assert!(body.require_live(HalfEdgeKey::default()).is_err());

@@ -15,13 +15,14 @@ use editor_core::{
 };
 use fixture::{die, len};
 use topo::{Body, mass_properties, validate, validate_closed};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
     let opts = EvalOptions {
         parallel,
         ..EvalOptions::default()
     };
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts)
+    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts, Tol::witness())
 }
 
 /// The final boolean body of an evaluation.
@@ -120,12 +121,12 @@ fn doc_param_edit_recomputes_the_param_cone() {
                 dim: editor_core::Dimension::Length,
                 value: 0.0625,
             },
-        })
+        }, Tol::witness())
         .unwrap()
         .doc;
     let memo = run(&edited, Some(&full), false);
     assert_eq!((memo.recomputed, memo.reused), (48, 29));
-    let vol = mass_properties(final_body(&memo, d.final_node))
+    let vol = mass_properties(final_body(&memo, d.final_node), Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
@@ -150,7 +151,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 fixture::scl(0.0),
             )
             .unwrap(),
-        })
+        }, Tol::witness())
         .unwrap()
         .doc;
     let ev = run(&broken, None, false);
@@ -201,7 +202,7 @@ fn cancelation_returns_a_typed_partial_result() {
     let cancel = CancelToken::new();
     cancel.cancel();
     let opts = EvalOptions::default();
-    let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts);
+    let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts, Tol::witness());
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert!(ev.nodes.is_empty()); // canceled before the first node
     assert_eq!(ev.order.len(), 77); // order is data, not schedule
@@ -214,7 +215,7 @@ fn cancelation_returns_a_typed_partial_result() {
 
     // A canceled evaluation is a legal (empty) memo: a fresh run from
     // it completes and computes everything.
-    let full = evaluate::<f64>(&d.doc, Some(&ev), &CancelToken::new(), &opts2);
+    let full = evaluate::<f64>(&d.doc, Some(&ev), &CancelToken::new(), &opts2, Tol::witness());
     assert_eq!(full.outcome, EvalOutcome::Completed);
     assert_eq!((full.recomputed, full.reused), (77, 0));
 }
@@ -223,7 +224,7 @@ fn cancelation_returns_a_typed_partial_result() {
 fn disjoint_subtract_to_empty_is_a_typed_success() {
     use editor_core::{BooleanOp, Node};
     // A 1×1×1 cube inside a 3×3×3 cube: inner ∖ outer = ∅.
-    let doc = ProfileDoc::empty_derived("m4_pr2_eval");
+    let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, small_p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -293,7 +294,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
     use editor_core::{Datum, DatumValue, Node, SplitSide};
-    let doc = ProfileDoc::empty_derived("m4_pr2_eval");
+    let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, prof) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -338,8 +339,8 @@ fn split_evaluates_both_parts_role_tagged() {
             let (SplitSide::Body(above), SplitSide::Body(below)) = (above, below) else {
                 panic!("both sides carry material");
             };
-            assert_eq!(mass_properties(above).unwrap().volume, 2.0 * 2.0 * 1.5);
-            assert_eq!(mass_properties(below).unwrap().volume, 2.0 * 2.0 * 0.5);
+            assert_eq!(mass_properties(above, Tol::witness()).unwrap().volume, 2.0 * 2.0 * 1.5);
+            assert_eq!(mass_properties(below, Tol::witness()).unwrap().volume, 2.0 * 2.0 * 0.5);
             for b in [above, below] {
                 assert_eq!(validate(b), Ok(()));
                 assert_eq!(validate_closed(b), Ok(()));

@@ -43,6 +43,7 @@ use common::orient::{
     min_roll_turn, stack_axis,
 };
 use common::quad;
+use geom_core::Tol;
 
 /// Profile half-width: small against the helix radius, so the swept
 /// tube is embedded (no station's section reaches the axis).
@@ -111,9 +112,9 @@ fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
     let path = helix_path(turns);
     let place = start_place(&path);
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
-    let swept = sweep_body::<f64>(&profile, place, &path, stations, 3)
+    let swept = sweep_body::<f64>(&profile, place, &path, stations, 3, Tol::witness())
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build now: {e:?}"));
-    let m = topo::props::mass_properties(&swept.body).expect("mass properties certify");
+    let m = topo::props::mass_properties(&swept.body, Tol::witness()).expect("mass properties certify");
     assert!(
         m.volume_pad < 1e-9,
         "{turns}-turn helix @ {stations} stations: the certified enclosure must \
@@ -253,7 +254,7 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     let path = helix_path(turns);
     let place = start_place(&path);
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
-    let swept = sweep_body::<f64>(&profile, place, &path, stations, 3)
+    let swept = sweep_body::<f64>(&profile, place, &path, stations, 3, Tol::witness())
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build: {e:?}"));
     assert_eq!(topo::validate(&swept.body), Ok(()), "{turns} turns: tier 1");
     assert_eq!(
@@ -290,7 +291,7 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 4);
     assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
     assert_eq!(
-        topo::validate::validate_geometric(&swept.body),
+        topo::validate::validate_geometric(&swept.body, Tol::witness()),
         Ok(()),
         "{turns} turns: tier 3"
     );

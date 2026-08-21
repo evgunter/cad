@@ -441,8 +441,9 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     finding: &FlushFinding,
+    tol: Tol,
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
-    declare_all(doc, core::slice::from_ref(finding))
+    declare_all(doc, core::slice::from_ref(finding), tol)
 }
 
 /// Declares a SET of inspected findings in one [`Node::Declare`] —
@@ -456,9 +457,10 @@ pub fn declare<P: Clone + crate::ProfilePayload>(
 pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     findings: &[FlushFinding],
+    tol: Tol,
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
-    let applied = apply(doc, &DocEdit::InsertNode { node }).map_err(DeclareError::Edit)?;
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
     Ok((applied.doc, id))
 }

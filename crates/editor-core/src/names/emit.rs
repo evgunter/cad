@@ -491,6 +491,7 @@ pub(crate) fn check_total<T: geom_core::Real>(
 mod pattern_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    use geom_core::Tol;
     use std::collections::BTreeSet;
     use std::sync::Arc;
 
@@ -517,9 +518,9 @@ mod pattern_tests {
                 .map(|(x, y)| geom_core::Point2::new(x, y)),
         );
         let prof = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness().get())
+            .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64)).unwrap();
+        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
         let table = name_extrude(node, &built).unwrap();
         (built.body, table)
     }
@@ -540,7 +541,7 @@ mod pattern_tests {
             body.edges().map(|(k, _)| k).collect(),
             body.vertices().map(|(k, _)| k).collect(),
         );
-        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
+        topo::graft_disjoint(&mut body, &second, Tol::witness()).expect("a two-solid master");
         let fresh_f: Vec<_> = body
             .faces()
             .map(|(k, _)| k)
@@ -607,6 +608,7 @@ mod pattern_tests {
                     topo::transform_rigid(
                         master,
                         &Affine3::translation(Vec3::new(0.0, 0.0, step * i as f64)),
+                        Tol::witness(),
                     )
                     .unwrap()
                 })

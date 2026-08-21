@@ -36,7 +36,7 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
-    let cylinder = extrude(&disc(), Extrusion::Distance(H)).unwrap().body;
+    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness()).unwrap().body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, H / 2.0),
         normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
@@ -55,7 +55,7 @@ fn tilted_halves_volume_enclosure_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::mass_properties(body)
+        let m = topo::mass_properties(body, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: the PR 11 quadrature lane computes: {e:?}"));
         assert!(
             m.volume_pad > 0.0,
@@ -85,7 +85,7 @@ fn half_area_enclosures_bracket_the_closed_form() {
     let pi = core::f64::consts::PI;
     let exact = pi * R * R + pi * R * H + pi * R * R / PHI.cos();
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::mass_properties(body).unwrap();
+        let m = topo::mass_properties(body, Tol::witness()).unwrap();
         assert!(
             m.area_pad > 0.0,
             "{label}: the cut wall's area is a certified enclosure"
@@ -157,7 +157,7 @@ fn half_area_enclosures_bracket_the_closed_form() {
 fn tier3_passes_on_both_halves() {
     let (above, below) = halves();
     for (label, body) in [("above", &above), ("below", &below)] {
-        if let Err(errs) = validate_geometric(body) {
+        if let Err(errs) = validate_geometric(body, Tol::witness()) {
             panic!("{label}: tier 3 must pass with the quadrature lane live: {errs:?}");
         }
     }
@@ -168,8 +168,8 @@ fn tier3_passes_on_both_halves() {
 #[test]
 fn quadrature_is_bit_deterministic() {
     let (above, _) = halves();
-    let a = topo::mass_properties(&above).unwrap();
-    let b = topo::mass_properties(&above).unwrap();
+    let a = topo::mass_properties(&above, Tol::witness()).unwrap();
+    let b = topo::mass_properties(&above, Tol::witness()).unwrap();
     assert_eq!(a.volume.to_bits(), b.volume.to_bits());
     assert_eq!(a.surface_area.to_bits(), b.surface_area.to_bits());
     assert_eq!(a.volume_pad.to_bits(), b.volume_pad.to_bits());
@@ -181,8 +181,8 @@ fn quadrature_is_bit_deterministic() {
 #[test]
 fn halves_sum_to_the_cylinder() {
     let (above, below) = halves();
-    let a = topo::mass_properties(&above).unwrap();
-    let b = topo::mass_properties(&below).unwrap();
+    let a = topo::mass_properties(&above, Tol::witness()).unwrap();
+    let b = topo::mass_properties(&below, Tol::witness()).unwrap();
     let full = core::f64::consts::PI * R * R * H;
     let sum = a.volume + b.volume;
     let pad = a.volume_pad + b.volume_pad;
@@ -220,7 +220,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(d(H))).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(d(H)), Tol::witness()).unwrap().body;
     let plane = SplitPlane {
         origin: Point3::new(d(0.0), d(0.0), d(H / 2.0)),
         normal: Vec3::new(d(PHI.sin()), d(0.0), d(PHI.cos())),
@@ -229,7 +229,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     let SplitPart::Body(above) = &result.above else {
         panic!("above carries material");
     };
-    match topo::mass_properties(above) {
+    match topo::mass_properties(above, Tol::witness()) {
         Err(topo::MassPropsError::Face { source, .. }) => {
             let msg = format!("{source}");
             assert!(msg.contains("ellipse arc"), "{msg}");

@@ -38,7 +38,7 @@ fn all_dumps(delta: f64) -> String {
         ("donut", donut()),
         ("wedge", wedge()),
     ] {
-        let mesh = tessellate(&body, delta).unwrap();
+        let mesh = tessellate(&body, delta, Tol::witness()).unwrap();
         out.push_str(name);
         out.push('\n');
         out.push_str(&dump(&mesh));
@@ -131,8 +131,8 @@ fn survives_delta_sweep_at_fixed_eps_monotone_sane() {
     let body = donut();
     let mut last = 0usize;
     for delta in [0.5, 0.1, 0.02] {
-        let m1 = tessellate(&body, delta).unwrap();
-        let m2 = tessellate(&body, delta).unwrap();
+        let m1 = tessellate(&body, delta, Tol::witness()).unwrap();
+        let m2 = tessellate(&body, delta, Tol::witness()).unwrap();
         assert_eq!(dump(&m1), dump(&m2));
         let n = mesh::validate::triangle_count(&m1);
         assert!(n >= last, "triangle count shrank as delta tightened");
@@ -160,6 +160,7 @@ fn survives_canonically_equal_profile_constructions() {
             &validated(vec![ProfileLoop::polygon(pts)]),
             axis_y(),
             Revolution::Full,
+            Tol::witness(),
         )
         .unwrap()
         .body;
@@ -188,15 +189,15 @@ fn survives_near_axis_vertex_arc_endpoint() {
         profile::ProfileVertex::new(p2(d, 1.0), 0.0),
     ]);
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
-        .validate(geom_core::Tol::witness().get());
+        .validate(geom_core::Tol::witness());
     let Ok(vp) = profile else {
         return; // refused at profile validation on this row — typed, fine
     };
-    match revolve(&vp, axis_y(), Revolution::Full) {
+    match revolve(&vp, axis_y(), Revolution::Full, Tol::witness()) {
         Err(_) => {} // refused typed upstream — fine
         Ok(out) => {
             let body = out.body;
-            match tessellate(&body, 0.05) {
+            match tessellate(&body, 0.05, Tol::witness()) {
                 Err(e) => {
                     // Typed refusal is acceptable; a panic would not be.
                     let _ = e;

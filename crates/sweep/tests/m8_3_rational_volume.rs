@@ -156,6 +156,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc prism lofts (the pcurve mint is inside the build)")
     .body;
@@ -165,7 +166,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // the volume posture below turns out to be. Nothing may gate this
     // line on that posture.
     topo::validate_closed(&loft).expect("TIER-1/2: tiers 1/2 admit the rational-wall body");
-    let got = topo::mass_properties(&loft);
+    let got = topo::mass_properties(&loft, Tol::witness());
     let posture = body_posture("arc prism", &got);
     eprintln!(
         "EPS-ROW arc prism @ eps={:e}: {posture:?}{}",
@@ -187,7 +188,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // TIER 3: the +V invariant consumes the quadrature, so the verdict
     // is pinned exactly where the quadrature certifies (a budget
     // refusal here would be an honest tier-3 refusal, not a break).
-    topo::validate_geometric(&loft)
+    topo::validate_geometric(&loft, Tol::witness())
         .expect("TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276)");
 
     // The oracle: the same solid through `extrude`, whose bulged wall
@@ -195,8 +196,8 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
         .validate(Tol::witness())
         .expect("the profile validates");
-    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0)).expect("extrude");
-    let want = topo::mass_properties(&oracle.body).expect("analytic mass properties");
+    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness()).expect("extrude");
+    let want = topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
@@ -248,10 +249,11 @@ fn arc_loft_is_volume_computable_with_a_pinned_pad() {
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc loft builds")
     .body;
-    let got = topo::mass_properties(&loft);
+    let got = topo::mass_properties(&loft, Tol::witness());
     let posture = body_posture("arc loft", &got);
     eprintln!(
         "EPS-ROW arc loft @ eps={:e}: {posture:?}{}",

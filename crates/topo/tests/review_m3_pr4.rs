@@ -44,7 +44,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
+    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
@@ -260,7 +260,7 @@ fn reflex_edge_touch_benign() {
     .body;
     let b = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)], 0.0, 1.0).body;
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 validate(&red.a).unwrap();
                 validate(&red.b).unwrap();
@@ -301,7 +301,7 @@ fn reflex_edge_crossing_refuses_loudly() {
     .body;
     let b = prism_z::<f64>(&[(1.0, 1.0), (2.0, 0.6), (2.0, 1.4)], 0.0, 1.0).body;
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 assert!(
                     !red.null_pairs.is_empty(),
@@ -340,7 +340,7 @@ fn notch_fill_dense_ties() {
     .body;
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 validate(&red.a).unwrap();
                 validate(&red.b).unwrap();
@@ -518,7 +518,7 @@ fn curved_face_gate_witness() {
         }),
     )
     .unwrap();
-    match boolean_reduce(BooleanOp::Union, &a, &b) {
+    match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(BooleanError::CurvedBooleanUnsupported {
             operand: topo::Operand::B,
             face: f,
@@ -549,7 +549,7 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
         ))),
     )
     .unwrap();
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b) {
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(e) => e,
         Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
     };

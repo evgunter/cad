@@ -35,7 +35,7 @@ fn offset_square_prism() -> Body<f64> {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
 }
@@ -167,6 +167,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             param_start: t0,
             param_end: t1,
         },
+        Tol::witness(),
     ) {
         Ok(_) => {
             assert!(
@@ -317,6 +318,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
                 param_start: t0,
                 param_end: t1,
             },
+            Tol::witness(),
         )
         .expect_err("a NURBS × NURBS pair has no certificate and must refuse at attachment");
     println!("P-F refusal: {err:?}");

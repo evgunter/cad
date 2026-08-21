@@ -22,12 +22,12 @@ fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Eva
         parallel,
         ..EvalOptions::default()
     };
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts)
+    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts, Tol::witness())
 }
 
 fn fingerprint(b: &Body<f64>) -> String {
     let mut s = String::new();
-    let m = mass_properties(b).unwrap();
+    let m = mass_properties(b, Tol::witness()).unwrap();
     let _ = writeln!(
         s,
         "V {:016x} A {:016x}",
@@ -66,7 +66,7 @@ fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 /// the operands in the given order. Node ids are minted monotonically,
 /// so both docs address the Subtract by the SAME id.
 fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("review_m4_pr2");
+    let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, pa) = insert(
         doc,
         Node::Profile(desc(
@@ -154,7 +154,7 @@ fn operand_swap_never_reuses_the_prior_subtract() {
 /// memo is keyed by id THEN content key).
 #[test]
 fn delete_and_reinsert_identical_node_recomputes() {
-    let doc = ProfileDoc::empty_derived("review_m4_pr2");
+    let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -204,7 +204,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
 /// `through` must land on a Failed entry.
 #[test]
 fn diamond_with_two_failed_ancestors_has_deterministic_through() {
-    let doc = ProfileDoc::empty_derived("review_m4_pr2");
+    let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -293,7 +293,7 @@ fn canceled_partials_are_typed_and_never_pollute_the_memo() {
     // Boundary: pre-canceled → empty completed prefix, typed.
     let pre = CancelToken::new();
     pre.cancel();
-    let ev = evaluate::<f64>(&d.doc, None, &pre, &EvalOptions::default());
+    let ev = evaluate::<f64>(&d.doc, None, &pre, &EvalOptions::default(), Tol::witness());
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert_eq!(ev.nodes.len(), 0);
     assert_eq!(ev.order.len(), total, "order is data, not schedule");
@@ -311,7 +311,7 @@ fn canceled_partials_are_typed_and_never_pollute_the_memo() {
             std::thread::sleep(std::time::Duration::from_micros(delay_us));
             t2.cancel();
         });
-        let part = evaluate::<f64>(&d.doc, None, &tok, &EvalOptions::default());
+        let part = evaluate::<f64>(&d.doc, None, &tok, &EvalOptions::default(), Tol::witness());
         h.join().unwrap();
         if part.outcome != EvalOutcome::Canceled || part.nodes.is_empty() {
             continue;
@@ -350,7 +350,7 @@ fn canceled_partials_are_typed_and_never_pollute_the_memo() {
 /// A doc mixing a diamond, a circular pattern, a revolve, a split,
 /// and a poisoned subgraph — the R5 stressor.
 fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let doc = ProfileDoc::empty_derived("review_m4_pr2");
+    let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -568,7 +568,7 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
 /// A revolve doc: square at x∈[1.25,1.75] revolved about the y axis
 /// by `angle`.
 fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("review_m4_pr2");
+    let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, rp) = insert(
         doc,
         Node::Profile(desc(
@@ -601,7 +601,7 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     let ev = run(&doc, None, false);
     match ev.nodes.get(&rev) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Body(b) => Ok(mass_properties(b).unwrap().volume),
+            ValuePayload::Body(b) => Ok(mass_properties(b, Tol::witness()).unwrap().volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
         Some(NodeResult::Failed(e)) => Err(format!("{:?}", e.kind)),
@@ -670,7 +670,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     // ways: translated (exact), and rotated π/2 about the cube center
     // axis from face-coords (1,1) — same target pocket by symmetry.
     let build = |rotate: bool| {
-        let doc = ProfileDoc::empty_derived("review_m4_pr2");
+        let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
         let (doc, cp) = insert(
             doc,
             Node::Profile(desc(
@@ -748,10 +748,10 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     };
     let (d_exact, s_exact) = build(false);
     let (d_rot, s_rot) = build(true);
-    let v_exact = mass_properties(boolean_body(&run(&d_exact, None, false), s_exact))
+    let v_exact = mass_properties(boolean_body(&run(&d_exact, None, false), s_exact), Tol::witness())
         .unwrap()
         .volume;
-    let v_rot = mass_properties(boolean_body(&run(&d_rot, None, false), s_rot))
+    let v_rot = mass_properties(boolean_body(&run(&d_rot, None, false), s_rot), Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(
@@ -883,7 +883,7 @@ fn wire_doors_refuse_typed() {
 #[test]
 fn datum_kind_is_key_separated() {
     let build = |axis: bool| {
-        let doc = ProfileDoc::empty_derived("review_m4_pr2");
+        let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
         let node = if axis {
             Node::Datum(editor_core::Datum::Axis {
                 origin: [len(0.5), len(0.25), len(0.125)],

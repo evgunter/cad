@@ -61,6 +61,7 @@ use topo::{Body, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
 use crate::adopt;
 use crate::entities::SolidSpec;
 use crate::error::StepImportError;
+use geom_core::Tol;
 
 /// One edge-use in the flattened target complex.
 #[derive(Clone, Copy, Debug)]
@@ -243,7 +244,7 @@ impl<'a> Builder<'a> {
     /// Inserts edge `edge_id` via `mev`: the start vertex is present,
     /// the end vertex is new. `he_plus` runs start → end (the forward
     /// contract; module docs, direction discipline).
-    fn insert_mev(&mut self, edge_id: u64) -> Result<(), StepImportError> {
+    fn insert_mev(&mut self, edge_id: u64, tol: Tol) -> Result<(), StepImportError> {
         let spec = &self.solid.edges[&edge_id];
         let (fwd, rev) = self.target.edge_uses[&edge_id];
         let p_end = self.solid.vertices[&spec.end];
@@ -272,7 +273,7 @@ impl<'a> Builder<'a> {
         };
         let created = self
             .body
-            .mev_line(site, p_end)
+            .mev_line(site, p_end, tol)
             .map_err(Self::op_err(edge_id))?;
         self.use_he[fwd] = Some(created.he_plus);
         self.use_he[rev] = Some(created.he_minus);
@@ -372,7 +373,7 @@ impl<'a> Builder<'a> {
     /// Inserts edge `edge_id` as a chord: both endpoints present
     /// (`Lone` or `Built`). Every site is stated so that `he_plus`
     /// runs file-start → file-end (module docs, direction discipline).
-    fn insert_chord(&mut self, edge_id: u64) -> Result<(), StepImportError> {
+    fn insert_chord(&mut self, edge_id: u64, tol: Tol) -> Result<(), StepImportError> {
         let spec = &self.solid.edges[&edge_id];
         let (fwd, rev) = self.target.edge_uses[&edge_id];
         let no_anchor = StepImportError::Topology {
@@ -386,7 +387,7 @@ impl<'a> Builder<'a> {
             (VState::Lone { vertex, r#loop }, _) if spec.start == spec.end => {
                 let c = self
                     .body
-                    .mef_chord(MefSite::Lone { r#loop })
+                    .mef_chord(MefSite::Lone { r#loop }, tol)
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, vertex, vertex)
             }
@@ -406,7 +407,7 @@ impl<'a> Builder<'a> {
                     .mekr_chord(MekrSite::BothEmpty {
                         target: l1,
                         ring: l2,
-                    })
+                    }, tol)
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
@@ -425,7 +426,7 @@ impl<'a> Builder<'a> {
                     .mekr_chord(MekrSite::EmptyTarget {
                         target: l1,
                         ring: s_r,
-                    })
+                    }, tol)
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
@@ -444,7 +445,7 @@ impl<'a> Builder<'a> {
                     .mekr_chord(MekrSite::EmptyRing {
                         target: s_f,
                         ring: l2,
-                    })
+                    }, tol)
                     .map_err(Self::op_err(edge_id))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
@@ -456,7 +457,7 @@ impl<'a> Builder<'a> {
                 let s_r = self.anchor(rev).ok_or(no_anchor)?;
                 if s_f == s_r {
                     // The tied self-loop splice (module docs).
-                    let (p, m) = self.insert_selfloop_tied(edge_id, fwd, rev, s_f)?;
+                    let (p, m) = self.insert_selfloop_tied(edge_id, fwd, rev, s_f, tol)?;
                     (p, m, v1, v2)
                 } else {
                     let lf = self.parent_loop(s_f, edge_id)?;
@@ -464,7 +465,7 @@ impl<'a> Builder<'a> {
                     if lf == lr {
                         let c = self
                             .body
-                            .mef_chord(MefSite::Chords { he1: s_f, he2: s_r })
+                            .mef_chord(MefSite::Chords { he1: s_f, he2: s_r }, tol)
                             .map_err(Self::op_err(edge_id))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     } else {
@@ -474,7 +475,7 @@ impl<'a> Builder<'a> {
                             .mekr_chord(MekrSite::Cycles {
                                 target: s_f,
                                 ring: s_r,
-                            })
+                            }, tol)
                             .map_err(Self::op_err(edge_id))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     }
@@ -506,6 +507,7 @@ impl<'a> Builder<'a> {
         fwd: usize,
         rev: usize,
         s: HalfEdgeKey,
+        tol: Tol,
     ) -> Result<(HalfEdgeKey, HalfEdgeKey), StepImportError> {
         // Which of the two uses comes first in the target fan,
         // walking σ from the forward use until the reversed use or a
@@ -525,7 +527,7 @@ impl<'a> Builder<'a> {
         if fwd_first {
             let c = self
                 .body
-                .mef_chord(MefSite::Chords { he1: s, he2: s })
+                .mef_chord(MefSite::Chords { he1: s, he2: s }, tol)
                 .map_err(Self::op_err(edge_id))?;
             return Ok((c.he_plus, c.he_minus));
         }
@@ -535,14 +537,14 @@ impl<'a> Builder<'a> {
         let offset = geom_core::Point3::new(p.x + 1.0, p.y, p.z);
         let strut = self
             .body
-            .mev_line(MevSite::Fan { he1: s, he2: s }, offset)
+            .mev_line(MevSite::Fan { he1: s, he2: s }, offset, tol)
             .map_err(Self::op_err(edge_id))?;
         let c = self
             .body
             .mef_chord(MefSite::Chords {
                 he1: s,
                 he2: strut.he_plus,
-            })
+            }, tol)
             .map_err(Self::op_err(edge_id))?;
         self.body
             .kev(strut.he_plus)
@@ -554,7 +556,7 @@ impl<'a> Builder<'a> {
     /// strut from a built anchor, `kemr` strands the far vertex
     /// (Mäntylä §9.3's hole-planting state). Reaches vertices no
     /// insertable edge can (module docs).
-    fn plant(&mut self, edge_id: u64, vertex_id: u64) -> Result<(), StepImportError> {
+    fn plant(&mut self, edge_id: u64, vertex_id: u64, tol: Tol) -> Result<(), StepImportError> {
         let p = self.solid.vertices[&vertex_id];
         // Deterministic anchor scan: the first realized use whose
         // start position differs from `p` (a zero-length scaffold
@@ -571,7 +573,7 @@ impl<'a> Builder<'a> {
             }
             let strut = self
                 .body
-                .mev_line(MevSite::Fan { he1: he, he2: he }, p)
+                .mev_line(MevSite::Fan { he1: he, he2: he }, p, tol)
                 .map_err(Self::op_err(edge_id))?;
             let kill = self
                 .body
@@ -598,7 +600,7 @@ impl<'a> Builder<'a> {
     /// self-loop's vertex carries every possible anchor before its
     /// tie-prone splice), planting a start vertex when nothing is
     /// insertable.
-    fn run(&mut self) -> Result<(), StepImportError> {
+    fn run(&mut self, tol: Tol) -> Result<(), StepImportError> {
         let mut remaining: Vec<u64> = self.target.edge_uses.keys().copied().collect();
         while !remaining.is_empty() {
             let state = |b: &Self, v: u64| -> u8 {
@@ -647,14 +649,14 @@ impl<'a> Builder<'a> {
                 // edge's start vertex and retry.
                 let e = remaining[0];
                 let start = self.solid.edges[&e].start;
-                self.plant(e, start)?;
+                self.plant(e, start, tol)?;
                 continue;
             };
             let e = remaining.remove(index);
             if is_mev {
-                self.insert_mev(e)?;
+                self.insert_mev(e, tol)?;
             } else {
-                self.insert_chord(e)?;
+                self.insert_chord(e, tol)?;
             }
         }
         Ok(())
@@ -714,7 +716,7 @@ impl<'a> Builder<'a> {
 /// Assembles one `MANIFOLD_SOLID_BREP` into a new solid of `body`
 /// (phase A + verification), then hands the realization to the
 /// adoption phases (rings, surfaces, senses, edge descriptions).
-fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImportError> {
+fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec, tol: Tol) -> Result<(), StepImportError> {
     let target = Target::build(solid)?;
     // Root: the first non-self-loop edge's start vertex (so the seed
     // grows by `mev`), else the first edge's vertex (an all-self-loop
@@ -770,7 +772,7 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
         use_he: vec![None; use_count],
         vstate,
     };
-    builder.run()?;
+    builder.run(tol)?;
     builder.verify(solid.id)?;
     let Builder {
         target,
@@ -798,7 +800,7 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
         })
         .collect::<Result<_, _>>()?;
     let assembled = Assembled { target, use_he };
-    adopt::finish(body, solid, &assembled)
+    adopt::finish(body, solid, &assembled, tol)
 }
 
 /// One `MANIFOLD_SOLID_BREP` assembled into a body of its OWN, so the
@@ -807,8 +809,8 @@ fn assemble_solid(body: &mut Body<f64>, solid: &SolidSpec) -> Result<(), StepImp
 /// flux sum over every shell), which cannot see a single inside-out
 /// solid whose neighbours cancel it. Same assembly, same pcurve mint,
 /// same geometry — only the arena's contents differ.
-pub(crate) fn build_one_solid(solid: &SolidSpec) -> Result<Body<f64>, StepImportError> {
-    build(std::slice::from_ref(solid))
+pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, StepImportError> {
+    build(std::slice::from_ref(solid), tol)
 }
 
 /// The assembly proper: every solid in `solids` into one arena, then
@@ -818,11 +820,11 @@ pub(crate) fn build_one_solid(solid: &SolidSpec) -> Result<Body<f64>, StepImport
 /// one-element slice. The multi-solid door retired with M8 instancing,
 /// which builds each instance in a body of its own and grafts the
 /// copies (`lib.rs`), so no caller assembles two specs into one arena.
-fn build(solids: &[SolidSpec]) -> Result<Body<f64>, StepImportError> {
+fn build(solids: &[SolidSpec], tol: Tol) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
     for solid in solids {
-        assemble_solid(&mut body, solid)?;
+        assemble_solid(&mut body, solid, tol)?;
     }
-    topo::mint_pcurves(&mut body).map_err(|source| StepImportError::Pcurves { source })?;
+    topo::mint_pcurves(&mut body, tol).map_err(|source| StepImportError::Pcurves { source })?;
     Ok(body)
 }

@@ -27,6 +27,7 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 
 #[cfg(feature = "interval")]
 mod certified {
+    use geom_core::Tol;
     use core::f64::consts::PI;
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};

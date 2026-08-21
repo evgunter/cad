@@ -298,7 +298,7 @@ pub(super) fn split_finish<T: Decide>(
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let section_faces: Vec<FaceKey> = section_side.keys().collect();
     for face in section_faces {
-        describe_section_boundary(&mut body, face, band)?;
+        describe_section_boundary(&mut body, face, band, tol)?;
     }
 
     // ---- Distribution: movefac every shell of the solid. ----
@@ -351,6 +351,7 @@ fn describe_section_boundary<T: Decide>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
+    tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
@@ -440,7 +441,7 @@ fn describe_section_boundary<T: Decide>(
                             spec
                         }
                     };
-                    body.set_edge_curve(edge, spec)?;
+                    body.set_edge_curve(edge, spec, tol)?;
                 }
                 // Smooth: the conventional chord stays (D2).
                 Ok(geom_brep::DihedralClass::Smooth) => {}

@@ -41,6 +41,7 @@ pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
             lp,
         ),
         Extrusion::Distance(z.1 - z.0),
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -109,7 +110,7 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
         ProfileVertex::new(p2(-1.0, 0.0), 1.0),
         ProfileVertex::new(p2(1.0, 0.0), 1.0),
     ]);
-    let cylinder = extrude(&validated(vec![lp]), Extrusion::Distance(2.5))
+    let cylinder = extrude(&validated(vec![lp]), Extrusion::Distance(2.5), Tol::witness())
         .unwrap()
         .body;
     let phi: f64 = 0.3;
@@ -130,7 +131,7 @@ pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
 pub fn boss_plate() -> Body<f64> {
     use geom_core::Affine3;
     let plate_loop = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
-    let plate = extrude(&validated(vec![plate_loop]), Extrusion::Distance(1.0))
+    let plate = extrude(&validated(vec![plate_loop]), Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
     let b120 = (core::f64::consts::PI / 6.0).tan();
@@ -147,10 +148,10 @@ pub fn boss_plate() -> Body<f64> {
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
         .unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.2))
+    let boss = extrude(&boss_profile, Extrusion::Distance(1.2), Tol::witness())
         .unwrap()
         .body;
-    let out = topo::union(&plate, &boss).unwrap();
+    let out = topo::union(&plate, &boss, Tol::witness()).unwrap();
     match out {
         BooleanResult::Body(bb) => bb.body,
         other => panic!("the boss union yields a body, got {other:?}"),
@@ -183,6 +184,7 @@ pub fn az_intersect() -> Body<f64> {
             .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -211,10 +213,11 @@ pub fn az_intersect() -> Body<f64> {
         .validate(Tol::witness())
         .unwrap(),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .unwrap()
     .body;
-    match topo::intersect(&a, &z) {
+    match topo::intersect(&a, &z, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("A×Z intersect did not produce a body ({other:?})"),
     }
@@ -229,7 +232,7 @@ pub fn l_prism() -> Body<f64> {
         p2(1.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
+    extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body
 }
@@ -242,7 +245,7 @@ pub fn holed_prism() -> Body<f64> {
         ProfileVertex::new(p2(1.0, 0.0), 1.0),
         ProfileVertex::new(p2(-1.0, 0.0), 1.0),
     ]);
-    extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0))
+    extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body
 }
@@ -252,21 +255,21 @@ pub fn ball() -> Body<f64> {
         ProfileVertex::new(p2(0.0, -1.0), 1.0),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
 
 pub fn cone() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
 
 pub fn washer() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -276,7 +279,7 @@ pub fn donut() -> Body<f64> {
         ProfileVertex::new(p2(2.0, -0.5), 1.0),
         ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -287,6 +290,7 @@ pub fn wedge() -> Body<f64> {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap()
     .body

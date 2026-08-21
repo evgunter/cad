@@ -88,8 +88,8 @@ fn scenarios() -> Vec<(&'static str, Body<f64>, Body<f64>)> {
 #[test]
 fn realized_candidates_superset_of_idealized_accepted() {
     for (name, a, b) in scenarios() {
-        let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None).unwrap();
-        let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
+        let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
+        let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
         assert_eq!(
             missing_pairs(&r_ab, &i_ab),
             vec![],
@@ -116,8 +116,8 @@ fn realized_candidates_superset_of_idealized_accepted() {
 fn disjoint_bodies_are_pruned() {
     let a: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b: Body<f64> = brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0));
-    let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None).unwrap();
-    let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
+    let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
+    let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     assert_eq!(r_ab.examined.len() + r_ba.examined.len(), 0);
     assert!(i_ab.examined.len() + i_ba.examined.len() > 0);
 }
@@ -146,8 +146,8 @@ fn results_bit_equal_realized_vs_idealized() {
     for (name, a, b) in scenarios() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             let decls = common::flush_declarations(&a, &b);
-            let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized);
-            let ideal = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized);
+            let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
+            let ideal = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
             let refusal_row = expected_refusals.contains(&(name, op));
             match (&real, &ideal) {
                 (Ok(r), Ok(i)) => {
@@ -199,13 +199,13 @@ fn results_bit_equal_realized_vs_idealized() {
 fn planted_degradation_is_caught() {
     let a: Body<f64> = brick((0.0, 4.0), (0.0, 2.0), (0.0, 2.0));
     let b: Body<f64> = brick((1.0, 3.0), (-1.0, 3.0), (1.0, 3.0));
-    let (i_ab, _) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
+    let (i_ab, _) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     let &(_, face) = i_ab
         .accepted
         .first()
         .expect("crossing bricks accept A→B events");
     let plant = PlantedDegradation { face };
-    let (r_ab, _) = sweep_traces(&a, &b, SweepStrategy::Realized, Some(plant)).unwrap();
+    let (r_ab, _) = sweep_traces(&a, &b, SweepStrategy::Realized, Some(plant), Tol::witness()).unwrap();
     let missing = missing_pairs(&r_ab, &i_ab);
     assert!(
         missing.iter().any(|&(_, f)| f == face),
@@ -243,8 +243,8 @@ fn sweep_pad_derivation_transitions() {
     // so the derivation's INEQUALITIES are pinned via interior gaps.
     for gap in [0.0, 0.25 * zero, 0.75 * zero] {
         let (a, b) = tower(gap);
-        let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None).unwrap();
-        let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
+        let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
+        let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
         assert!(
             !r_ab.accepted.is_empty() || !r_ba.accepted.is_empty(),
             "gap {gap:e}: flush contact must be accepted"
@@ -259,11 +259,11 @@ fn sweep_pad_derivation_transitions() {
     let mid = 0.5 * (zero + escalate);
     let (a, b) = tower(mid);
     assert!(
-        sweep_traces(&a, &b, SweepStrategy::Realized, None).is_err(),
+        sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).is_err(),
         "in-band gap must escalate (realized)"
     );
     assert!(
-        sweep_traces(&a, &b, SweepStrategy::Idealized, None).is_err(),
+        sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).is_err(),
         "in-band gap must escalate (idealized)"
     );
 
@@ -272,7 +272,7 @@ fn sweep_pad_derivation_transitions() {
     // Interior points again (2·escalate, not escalate — see above).
     for gap in [2.0 * escalate, pad, 2.0 * pad] {
         let (a, b) = tower(gap);
-        let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None).unwrap();
+        let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
         assert!(
             !r_ab.examined.is_empty() || !r_ba.examined.is_empty(),
             "gap {gap:e}: still a candidate inside 2·pad"
@@ -286,8 +286,8 @@ fn sweep_pad_derivation_transitions() {
     // Pruned: beyond 2·pad the pair space empties under the tree
     // while the idealized scan still walks it.
     let (a, b) = tower(4.0 * pad);
-    let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None).unwrap();
-    let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
+    let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
+    let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     assert_eq!(
         r_ab.examined.len() + r_ba.examined.len(),
         0,
@@ -304,9 +304,9 @@ fn sweep_pad_derivation_transitions() {
 fn pad_zero_regression_is_caught() {
     let gap = 0.5 * geom_core::Tol::witness().get().eps;
     let (a, b) = tower(gap);
-    let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None).unwrap();
+    let (i_ab, i_ba) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     let (r_ab, r_ba) =
-        sweep_traces_with_pad(&a, &b, SweepStrategy::Realized, None, Some(0.0)).unwrap();
+        sweep_traces_with_pad(&a, &b, SweepStrategy::Realized, None, Some(0.0), Tol::witness()).unwrap();
     let lost = missing_pairs(&r_ab, &i_ab).len() + missing_pairs(&r_ba, &i_ba).len();
     assert!(
         lost > 0,
@@ -343,8 +343,8 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
         let d = k * zero;
         let a: Body<f64> = brick((5.0, 6.0), (0.0, 1.0), (1.0 + d, 2.0 + d));
         let b: Body<f64> = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-        let realized = sweep_traces(&a, &b, SweepStrategy::Realized, None);
-        let idealized = sweep_traces(&a, &b, SweepStrategy::Idealized, None);
+        let realized = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness());
+        let idealized = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness());
         let (r_ab, r_ba) = realized.expect("realized never examines the remote pair");
         assert_eq!(
             r_ab.examined.len() + r_ba.examined.len(),
@@ -375,8 +375,8 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
         // predicate-by-predicate.
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             let decls = topo::BooleanDeclarations::none();
-            let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized);
-            let ideal = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized);
+            let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
+            let ideal = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
             if k > 1.0 && k < tol.k {
                 let re = real.expect_err("in-band realized refuses at containment");
                 let ie = ideal.expect_err("in-band idealized refuses at the sweep");

@@ -38,6 +38,7 @@ use topo::{
     Body, EntityId, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, Provenance, validate,
     validate_closed,
 };
+use geom_core::Tol;
 
 /// Every operator result of one cube construction, in call order.
 #[derive(PartialEq, Eq, Debug)]
@@ -65,6 +66,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     assert_eq!(validate(body), Ok(()));
@@ -75,6 +77,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
                 he2: e_ab.he_minus,
             },
             pt(1.0, 1.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     assert_eq!(validate(body), Ok(()));
@@ -85,6 +88,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
                 he2: e_bc.he_minus,
             },
             pt(0.0, 1.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     assert_eq!(validate(body), Ok(()));
@@ -109,7 +113,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
         .mef_chord(MefSite::Chords {
             he1: he_dc,
             he2: he_ab,
-        })
+        }, Tol::witness())
         .unwrap();
     assert_eq!(validate(body), Ok(()));
 
@@ -118,7 +122,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
     // outgoing bottom-square half.
     let strut = |body: &mut Body<f64>, at: topo::HalfEdgeKey, x: f64, y: f64| {
         let created = body
-            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, 1.0))
+            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, 1.0), Tol::witness())
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         created
@@ -133,7 +137,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
     // the run [he1 .. he2) — down the strut, along one bottom edge, up
     // the next strut — becomes the side face's outer loop.
     let side = |body: &mut Body<f64>, he1, he2| {
-        let created = body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        let created = body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap();
         assert_eq!(validate(body), Ok(()));
         created
     };

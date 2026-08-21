@@ -96,6 +96,7 @@ use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::null::CurveGeom;
 use crate::ray_parity::{self, ParityRows};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// The certified overlap answer (both outcomes are *definite*; every
 /// non-definite configuration is a typed error).
@@ -1460,6 +1461,7 @@ mod r2_probes;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
     use geom_core::{Point3, Vec3};
 
@@ -1883,6 +1885,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 b,
+                Tol::witness(),
             )
             .unwrap();
         let e_bc = body
@@ -1892,6 +1895,7 @@ mod tests {
                     he2: e_ab.he_minus,
                 },
                 cc,
+                Tol::witness(),
             )
             .unwrap();
         let e_cd = body
@@ -1901,6 +1905,7 @@ mod tests {
                     he2: e_bc.he_minus,
                 },
                 d,
+                Tol::witness(),
             )
             .unwrap();
         let he_dc = body
@@ -1913,6 +1918,7 @@ mod tests {
             },
             EdgeCurveSpec::line_between(d, a),
             surface,
+            Tol::witness(),
         )
         .unwrap()
         .face
@@ -2095,6 +2101,7 @@ mod tests {
                 },
                 p10,
                 bottom,
+                Tol::witness(),
             )
             .unwrap();
         let e_r = body
@@ -2104,6 +2111,7 @@ mod tests {
                     he2: e_b.he_minus,
                 },
                 p11,
+                Tol::witness(),
             )
             .unwrap();
         let top = rim_spec(body, cyl, z1, u0, u1, false);
@@ -2115,6 +2123,7 @@ mod tests {
                 },
                 p01,
                 top,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -2128,6 +2137,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(p01, p00),
                 FaceSurface::Shared(cyl),
+                Tol::witness(),
             )
             .unwrap()
             .face;
@@ -2145,14 +2155,14 @@ mod tests {
             Err(ChartRegionError::MissingCache { .. }) => {}
             other => panic!("unminted cylinder faces must refuse, got {other:?}"),
         }
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         assert_eq!(
             chart_region_overlap(&body, w1, &body, w2, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
         // Disjoint azimuth ranges answer EMPTY.
         let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         assert_eq!(
             chart_region_overlap(&body, w1, &body, w3, band()).unwrap(),
             ChartOverlap::Empty
@@ -2166,7 +2176,7 @@ mod tests {
         // moved to (u, v)) refuses typed — never a chord read.
         let mut body = Body::<f64>::new();
         let (wall, _) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
 
         // The tilted section z = 0.4·x of the unit cylinder, as its
         // exact ellipse carrier, charted onto the cylinder: the

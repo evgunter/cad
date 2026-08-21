@@ -24,6 +24,7 @@ use editor_core::{
 };
 use fixture::{declare_x_offset_flush, desc, fname, insert, len, wall};
 use topo::validate_pseudomanifold;
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     editor_core::evaluate(
@@ -31,6 +32,7 @@ fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
         None,
         &editor_core::CancelToken::new(),
         &editor_core::EvalOptions::default(),
+        Tol::witness(),
     )
 }
 
@@ -135,7 +137,7 @@ fn kiss_vertex_names(
 fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     // WITHOUT a Declare: the new result re-discovers the surviving
     // operand-internal kiss as UNDECLARED (the documented M3 gap).
-    let (doc, a, b, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare"));
+    let (doc, a, b, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness()));
     let (doc_undeclared, mover) = block(doc.clone(), (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (doc_undeclared, u2) = insert(
         doc_undeclared,
@@ -150,7 +152,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u2) else {
         panic!("union is a body");
     };
-    let errors = validate_pseudomanifold(body, contacts).unwrap_err();
+    let errors = validate_pseudomanifold(body, contacts, Tol::witness()).unwrap_err();
     assert!(
         errors
             .iter()
@@ -178,7 +180,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         panic!("union is a body");
     };
     assert_eq!(
-        validate_pseudomanifold(body, contacts),
+        validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(()),
         "declared reuse must certify at the 3' gate"
     );
@@ -194,7 +196,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
 fn flush_plane_pair_glues_with_declare_refuses_without() {
     // Coincident-plane pair, UNDECLARED: typed refusal at the
     // coincidence door (rung (b): value equality never classifies).
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc_undeclared, u) = insert(
@@ -233,8 +235,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
     let BooleanValue::Body { body, .. } = boolean_value(&ev, u) else {
         panic!("declared union is a body");
     };
-    assert_eq!(topo::mass_properties(body).unwrap().volume, 1.5);
-    assert_eq!(topo::validate::validate_geometric(body), Ok(()));
+    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 1.5);
+    assert_eq!(topo::validate::validate_geometric(body, Tol::witness()), Ok(()));
     let merged_rows = ev
         .value(u)
         .unwrap()
@@ -246,7 +248,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
 
     // Decoupled variant (no coincident planes): untouched — no
     // Declare needed, transversal union works as before.
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, u) = insert(
@@ -263,7 +265,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         panic!("decoupled union is a body");
     };
     // 1 + (b = 1·0.5·1.25) − (overlap = 0.5·0.5·0.75) = 1.4375.
-    assert_eq!(topo::mass_properties(body).unwrap().volume, 1.4375);
+    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 1.4375);
 }
 
 /// D6.4 / PR 3 R13: the #90 crossing-slots double subtract as a
@@ -274,7 +276,7 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
 /// plane — declared through the FromA-wrapped name.
 #[test]
 fn crossing_slots_recipe_document_evaluates_and_resolves() {
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, s1) = insert(
@@ -315,10 +317,10 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     };
     // #90's oracle: 9 − two 0.5-deep slots + shared middle.
     assert_eq!(
-        topo::mass_properties(body).unwrap().volume,
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
-    assert_eq!(topo::validate_pseudomanifold(body, contacts), Ok(()));
+    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
     // Resolution corpus seed (boolean-of-boolean DAG): the two slot
     // floors GLUED (declared) — the wrapped floor lineage retired
     // into the Merged row, fails typed, and OFFERS the merge; the
@@ -360,7 +362,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
 /// covered below.)
 #[test]
 fn declare_resolution_failures_are_typed_n5_errors() {
-    let base = ProfileDoc::empty_derived("m4_pr5_declare");
+    let base = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (base, a) = block(base, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (base, b) = block(base, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let boolean_with = |doc: ProfileDoc, decl| {
@@ -455,7 +457,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
 /// exact volume.
 #[test]
 fn skipped_declared_merge_recipe_door_is_tier3_green() {
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, decl) = insert(
@@ -484,9 +486,9 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
     let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u) else {
         panic!("declared flush-caps union is a body");
     };
-    assert_eq!(topo::mass_properties(body).unwrap().volume, 1.625);
-    assert_eq!(topo::validate::validate_geometric(body), Ok(()), "tier 3");
-    assert_eq!(topo::validate_pseudomanifold(body, contacts), Ok(()));
+    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 1.625);
+    assert_eq!(topo::validate::validate_geometric(body, Tol::witness()), Ok(()), "tier 3");
+    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
     // Review F6: this shape is the corpus's PURE-seam-vertex pin —
     // the skip lane's re-described in-plane chain leaves vertices
     // whose every incident edge is Seam-named from ONE line (single
@@ -524,7 +526,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // --- DeclareBothOperands: the same body value feeds both sides,
     // so the name resolves in BOTH operand tables — refused, never a
     // side guess (reviewer's probe adopted).
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let cap = fname(a, RoleSeg::Cap(CapEnd::Top));
     let (doc, decl) = insert(
@@ -547,7 +549,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // Declare names a third body's face; deleting that node AFTER the
     // Declare strands the name; resolution refuses NodeGone with the
     // derived NodeDeleted edit.
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
@@ -567,7 +569,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
             declare: Some(decl),
         },
     );
-    let doc = doc.apply(&DocEdit::DeleteNode { id: c }).unwrap().doc;
+    let doc = doc.apply(&DocEdit::DeleteNode { id: c }, Tol::witness()).unwrap().doc;
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert!(
@@ -578,7 +580,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // --- Ambiguous: the Declare names a TIED row (the symmetric U
     // cutter's N2 tie) — refused with the tie carried honestly:
     // candidates name the tied row itself, width = the recorded tie.
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, ua) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, up) = insert(
         doc,
@@ -672,7 +674,7 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
 /// appear and the document must certify.
 #[test]
 fn crossing_slots_swapped_order_hits_the_junction_arm() {
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare");
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, s1) = insert(
@@ -707,10 +709,10 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         panic!("swapped crossing slots is a body");
     };
     assert_eq!(
-        topo::mass_properties(body).unwrap().volume,
+        topo::mass_properties(body, Tol::witness()).unwrap().volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
-    assert_eq!(topo::validate_pseudomanifold(body, contacts), Ok(()));
+    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
     // The junction arm's product: a vertex named by ≥ 2 Seam
     // segments (the sorted line set).
     let junctions = ev

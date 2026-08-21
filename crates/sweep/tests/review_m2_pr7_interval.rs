@@ -27,7 +27,7 @@ fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Interval> {
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(geom_core::Tol::witness().get())
+        .validate(geom_core::Tol::witness())
         .unwrap()
 }
 

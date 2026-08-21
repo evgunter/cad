@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 
 use common::census;
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn wild(rel: &str) -> String {
     let p = format!("{}/tests/fixtures/wild/{rel}", env!("CARGO_MANIFEST_DIR"));
@@ -161,7 +162,7 @@ fn r1_torus_region_selection_is_real() {
             );
         };
         assert_eq!(census(&body), cens, "{tag}: census");
-        let v = topo::mass_properties(&body).unwrap().volume;
+        let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
         let rel = ((v - v_want) / v_want).abs();
         assert!(
             rel < 1e-12,
@@ -236,7 +237,7 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
         );
     };
     assert_eq!(census(&body), (1, 1, 2, 6, 4), "band_a census");
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         ((v - v_want) / v_want).abs() < 1e-12,
         "band_a volume {v:e} vs closed form {v_want:e}"
@@ -263,8 +264,8 @@ fn r1_washer90_imports_the_true_region() {
         );
     };
     assert_eq!(census(&body), (1, 1, 3, 5, 4), "washer90 census");
-    assert_eq!(topo::validate_geometric(&body), Ok(()), "washer90 tier 3");
-    let v = topo::mass_properties(&body).unwrap().volume;
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "washer90 tier 3");
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         ((v - v_true) / v_true).abs() < 1e-12,
         "washer90 volume {v:e} vs true {v_true:e} — the winding read regressed"

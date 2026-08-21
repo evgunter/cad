@@ -14,9 +14,10 @@ use editor_core::{
 };
 use fixture::{ang, desc, die, insert, len, scl};
 use topo::Body;
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 /// Every output body of a node's value, with its body index.
@@ -116,7 +117,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     // overlapping union (fragments/seams), split (both halves),
     // partial revolve (bands/meridians/caps), linear pattern
     // (instances).
-    let doc = ProfileDoc::empty_derived("m4_pr4_hit");
+    let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
     let (doc, a) = {
         let (doc, p) = insert(
             doc,
@@ -230,7 +231,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
 #[test]
 fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // Failed / poisoned doors.
-    let doc = ProfileDoc::empty_derived("m4_pr4_hit");
+    let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(

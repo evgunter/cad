@@ -40,6 +40,7 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::splitting::finish::{carve, single_solid};
+use geom_core::Tol;
 
 /// The finish product: the combined result body (still un-zipped) plus
 /// the seam bookkeeping the zip consumes.
@@ -122,6 +123,7 @@ fn classify_shell<T: Decide>(
     skip: &SecondaryMap<VertexKey, ()>,
     operand: Operand,
     band: Band,
+    tol: Tol,
 ) -> Result<SideCode, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let shell_data = body
@@ -169,7 +171,7 @@ fn classify_shell<T: Decide>(
                     .get_vertex(v)
                     .and_then(|vd| body.get_point(vd.point))
                     .ok_or_else(|| desync("shell vertex has no point"))?;
-                match point_in_solid(other, q, band).map_err(BooleanError::Containment)? {
+                match point_in_solid(other, q, band, tol).map_err(BooleanError::Containment)? {
                     SolidContainment::In => return Ok(SideCode::In),
                     SolidContainment::Out => return Ok(SideCode::Out),
                     SolidContainment::OnBoundary => continue,
@@ -217,6 +219,7 @@ fn select_solid<T: Decide>(
     operand: Operand,
     keep: SideCode,
     band: Band,
+    tol: Tol,
 ) -> Result<Vec<ShellKey>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let shells: Vec<ShellKey> = body
@@ -230,7 +233,7 @@ fn select_solid<T: Decide>(
     }
     let mut kept = Vec::new();
     for shell in all {
-        if classify_shell(body, shell, side_of, other, skip, operand, band)? == keep {
+        if classify_shell(body, shell, side_of, other, skip, operand, band, tol)? == keep {
             kept.push(shell);
         }
     }
@@ -248,6 +251,7 @@ pub(super) fn setopfinish<T: Decide>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<FinishOut<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
 
@@ -271,6 +275,7 @@ pub(super) fn setopfinish<T: Decide>(
         Operand::A,
         kept_side(op, Operand::A),
         band,
+        tol,
     )?;
     let b_kept_shells = select_solid(
         &mut red.b,
@@ -281,6 +286,7 @@ pub(super) fn setopfinish<T: Decide>(
         Operand::B,
         kept_side(op, Operand::B),
         band,
+        tol,
     )?;
     if a_kept_shells.is_empty() || b_kept_shells.is_empty() {
         // With ≥ 1 completed polygon both solids hold both components.
@@ -301,7 +307,7 @@ pub(super) fn setopfinish<T: Decide>(
     // ---- The combine door. ----
     let mut body = a_kept;
     let solid = single_solid(&body).map_err(|_| desync("kept A component is not one solid"))?;
-    let graft = graft_solid(&mut body, solid, &b_kept)?;
+    let graft = graft_solid(&mut body, solid, &b_kept, tol)?;
 
     // ---- Seam bookkeeping in result keys. ----
     let keep_a = kept_side(op, Operand::A);

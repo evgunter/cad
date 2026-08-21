@@ -39,7 +39,7 @@ fn rebuild_is_byte_identical_and_volumes_positive() {
     for (i, (loops, rev)) in shapes().into_iter().enumerate() {
         let build = || {
             let vp = validated(loops.clone());
-            revolve(&vp, axis_y(), rev).unwrap()
+            revolve(&vp, axis_y(), rev, Tol::witness()).unwrap()
         };
         let a = build();
         let b = build();
@@ -72,7 +72,7 @@ fn dual_value_channel_matches_f64_bitwise() {
     };
     for (i, (loops, rev)) in shapes().into_iter().enumerate() {
         let vp = validated(loops.clone());
-        let f = revolve(&vp, axis_y(), rev).unwrap();
+        let f = revolve(&vp, axis_y(), rev, Tol::witness()).unwrap();
         let dp = Profile::new(
             SketchPlane::<Dual64>::xy(),
             loops.iter().map(&lift).collect(),
@@ -87,7 +87,7 @@ fn dual_value_channel_matches_f64_bitwise() {
             origin: Point2::new(Dual::constant(0.0), Dual::constant(0.0)),
             dir: Vec2::new(Dual::constant(0.0), Dual::constant(1.0)),
         };
-        let d = revolve(&dp, daxis, drev).unwrap();
+        let d = revolve(&dp, daxis, drev, Tol::witness()).unwrap();
         // Value channel bit-identity: compare every point coordinate.
         let f_pts: Vec<f64> = f.body.points().flat_map(|(_, p)| [p.x, p.y, p.z]).collect();
         let d_pts: Vec<f64> = d

@@ -1747,7 +1747,7 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane>(
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let errors = tier3_local_checks(body, band);
+    let errors = tier3_local_checks(body, band, tol);
     if errors.is_empty() {
         Ok(())
     } else {
@@ -1764,9 +1764,10 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane>(
 pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Vec<ValidationError> {
     let mut marks = slotmap::SecondaryMap::new();
-    tier3_local_checks_marked(body, band, &mut marks)
+    tier3_local_checks_marked(body, band, &mut marks, tol)
 }
 
 /// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
@@ -1788,7 +1789,7 @@ pub fn contact_marks<T: crate::props::PropsQuadLane>(
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let mut marks = slotmap::SecondaryMap::new();
-    let errors = tier3_local_checks_marked(body, band, &mut marks);
+    let errors = tier3_local_checks_marked(body, band, &mut marks, tol);
     if errors.is_empty() {
         Ok(marks)
     } else {
@@ -1803,6 +1804,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
+    tol: Tol,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
@@ -2381,7 +2383,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // the face the check-6 curved arm must exempt as Unencoded.
     // ------------------------------------------------------------------
     if errors.is_empty() {
-        match crate::props::mass_properties_with(body, band) {
+        match crate::props::mass_properties_with(body, band, tol) {
             Ok(props) => {
                 // The margin consumes the CERTIFIED bound (M5 PR 11):
                 // for quadrature faces `volume` is an enclosure
@@ -2474,7 +2476,7 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let mut errors = tier3_local_checks(body, band);
+    let mut errors = tier3_local_checks(body, band, tol);
     if errors.is_empty() {
         errors.extend(crate::census::census_and_certify(body, contacts, band));
     }
@@ -3366,6 +3368,7 @@ fn shell_component<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::Point3;
     use proptest::prelude::*;
 
@@ -3427,7 +3430,7 @@ mod tests {
         // The minimal closed body: 2 vertices, 2 edges, 2 faces —
         // Euler–Poincaré v − e + f = 2 − 2 + 2 = 2 = 2(s − h) + r with
         // s = 1, h = r = 0 (a sphere). Replaces M0's single-face tiny().
-        let t = pillow();
+        let t = pillow(Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         assert_eq!(t.body.vertices().count(), 2);
         assert_eq!(t.body.edges().count(), 2);
@@ -3440,7 +3443,7 @@ mod tests {
         // n = 1: one vertex, one self-loop edge whose two halves live in
         // different faces' one-half-edge loops. A legal (tier-1 and
         // tier-2) closed manifold body: v − e + f = 1 − 1 + 2 = 2.
-        let t = ngon_pillow(1);
+        let t = ngon_pillow(1, Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         assert_eq!(t.body.vertices().count(), 1);
         assert_eq!(t.body.edges().count(), 1);
@@ -3459,7 +3462,7 @@ mod tests {
 
     #[test]
     fn prism_validates_cleanly() {
-        let t = prism(4);
+        let t = prism(4, Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         // v = 2n, e = 3n, f = n + 2: v − e + f = 8 − 12 + 6 = 2.
         assert_eq!(t.body.vertices().count(), 8);
@@ -3482,7 +3485,7 @@ mod tests {
         // that is exactly the next(mate(·)) order. (GWB states its orbit
         // idiom for the mirrored clockwise-loop convention; this test is
         // the transcription guard.)
-        let t = prism(4);
+        let t = prism(4, Tol::witness());
         let i = 1;
         assert_eq!(
             t.body.vertex_orbit(t.ht[i]),
@@ -3505,7 +3508,7 @@ mod tests {
 
     #[test]
     fn orbit_steps_are_mutual_inverses_and_preserve_start() {
-        let t = prism(3);
+        let t = prism(3, Tol::witness());
         for (he_key, he) in t.body.half_edges() {
             // cw(he) = next(mate(he)) starts at the same vertex...
             let mate = t.body.mate(he_key).unwrap();
@@ -3532,7 +3535,7 @@ mod tests {
 
     #[test]
     fn dangling_topology_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Mint a key that can never resolve again: insert, then remove
         // (the slot's version is bumped; even reuse cannot revive it).
         let dead = t.body.add_half_edge(
@@ -3585,7 +3588,7 @@ mod tests {
 
     #[test]
     fn dangling_geometry_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Repoint an existing vertex at a removed point: the vertex's
         // reference dangles, and the abandoned point becomes an orphan.
         let dead = t.body.add_point(anchor());
@@ -3633,7 +3636,7 @@ mod tests {
 
     #[test]
     fn next_prev_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Tear prev only: a1's true predecessor (via next) is a0, so the
         // check fires for a0 ("my successor does not point back") and
         // for nothing else — next itself is intact, so cycles and orbits
@@ -3650,7 +3653,7 @@ mod tests {
 
     #[test]
     fn loop_cycle_overrun_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Point a0's next into loop B's cycle. A pure overrun is
         // impossible: while next/prev stay mutual inverses next is a
         // permutation and every walk closes — so the expected vector
@@ -3674,7 +3677,7 @@ mod tests {
 
     #[test]
     fn parent_loop_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // b0 claims loop A as parent while sitting in loop B's cycle:
         // loop B's walk reports the mismatch, and b0 is simultaneously
         // unreachable from its claimed parent (whose cycle closed
@@ -3696,7 +3699,7 @@ mod tests {
 
     #[test]
     fn half_edge_claiming_an_empty_parent_is_unreachable() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // A fresh lone vertex in an empty loop (legal), then a1 claims
         // that empty loop as its parent: an empty loop reaches nothing.
         let p2 = t.body.add_point(anchor());
@@ -3725,7 +3728,7 @@ mod tests {
 
     #[test]
     fn edge_halves_identical_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // e0 claims a0 in both slots: a0 is now claimed twice overall
         // and b0 (e0's real minus half) by nobody. Antiparallelism is
         // gated on distinct halves (skipped); both orbits break at the
@@ -3750,7 +3753,7 @@ mod tests {
 
     #[test]
     fn edge_slot_backpointer_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // e0's minus slot claims b1 (whose .edge is e1): back-pointer
         // mismatch; b0 goes unclaimed, b1 doubly claimed; and e0's
         // halves (a0, b1) both run v0 → v1, so antiparallelism genuinely
@@ -3777,7 +3780,7 @@ mod tests {
 
     #[test]
     fn edge_not_antiparallel_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Swap loop B's start vertices: both edges' halves now run the
         // same way (parallel, not antiparallel), and both orbits close
         // over a foreign member — the b half-edge that now starts at the
@@ -3807,7 +3810,7 @@ mod tests {
 
     #[test]
     fn emanating_start_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // v0's emanating points at a half-edge starting at v1. The orbit
         // check is gated on a matching start (skipped for v0), so the
         // mismatch is the single report.
@@ -3823,7 +3826,7 @@ mod tests {
 
     #[test]
     fn empty_loop_vertex_with_emanating_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // An empty loop claiming v0, which has half-edges: a lone vertex
         // must have none.
         add_empty_loop_face(&mut t.body, t.shell, t.vertices[0]);
@@ -3838,7 +3841,7 @@ mod tests {
 
     #[test]
     fn lone_vertex_with_incidence_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // v0 claims to be lone (emanating: None) while two half-edges
         // start at it. The orbit check needs an emanating (skipped).
         t.body.get_vertex_mut(t.vertices[0]).unwrap().emanating = None;
@@ -3853,7 +3856,7 @@ mod tests {
 
     #[test]
     fn orphan_vertex_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // A vertex no half-edge starts at and no empty loop holds — the
         // M0 orphan-vertex rule restated in half-edge terms. Its point
         // is NOT an orphan: geometry referenced by an orphan entity is
@@ -3920,9 +3923,9 @@ mod tests {
         // close, mates pair, antiparallelism holds, emanating matches —
         // but v0's incident half-edges fall into TWO orbits, and the
         // orbit-closure check is exactly what catches it.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let v0 = t.vertices[0];
-        let curve = t.body.add_curve(crate::fixtures::test_curve(anchor()));
+        let curve = t.body.add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
         let e2 = t.body.add_edge(
             crate::entity::Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -3987,7 +3990,7 @@ mod tests {
 
     #[test]
     fn outer_listed_as_ring_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // outer ∈ rings is both the designation error and a double
         // ownership (the loop is counted once as outer, once as ring) —
         // two true statements, two errors, in pass-7 order.
@@ -4006,7 +4009,7 @@ mod tests {
 
     #[test]
     fn loop_back_pointer_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         t.body.get_loop_mut(t.loop_b).unwrap().face = t.face_a;
         assert_eq!(
             validate(&t.body),
@@ -4020,7 +4023,7 @@ mod tests {
 
     #[test]
     fn face_and_shell_back_pointer_mismatches_are_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // A second (empty but owned) shell+solid to point at.
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
@@ -4056,7 +4059,7 @@ mod tests {
 
     #[test]
     fn orphan_shell_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let sh2 = t.body.add_shell(
             Shell {
                 faces: vec![],
@@ -4082,7 +4085,7 @@ mod tests {
 
     #[test]
     fn multiply_owned_shell_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let sh = t.shell;
         t.body.get_solid_mut(t.solid).unwrap().shells.push(sh);
         assert_eq!(
@@ -4096,9 +4099,9 @@ mod tests {
 
     #[test]
     fn orphan_geometry_is_reported_for_all_three_arenas() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let p = t.body.add_point(anchor());
-        let c = t.body.add_curve(crate::fixtures::test_curve(anchor()));
+        let c = t.body.add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
         let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
         assert_eq!(
             validate(&t.body),
@@ -4205,7 +4208,7 @@ mod tests {
                 predicate: Some("validate_probe"),
             }
         }
-        let t = pillow();
+        let t = pillow(Tol::witness());
         let he = t.hes_a[0];
         let v = t.vertices[0];
         let e = t.edges[0];
@@ -4412,7 +4415,7 @@ mod tests {
 
     #[test]
     fn solid_without_shells_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Solids are containment roots — nothing anchors them, so a bare
         // solid trips ONLY the arity floor.
         let bare = t.body.add_solid(Solid { shells: vec![] }, prov());
@@ -4424,7 +4427,7 @@ mod tests {
 
     #[test]
     fn shell_without_faces_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Owned and back-pointed correctly — the missing faces are the
         // only defect (contrast the orphan-shell test, where BOTH fire).
         let sh2 = t.body.add_shell(
@@ -4456,7 +4459,7 @@ mod tests {
         // its mates has v − e + f − r = 2 − 2 + 1 − 0 = 1, odd.
         // Documented order: pass 10 (edge arena order), then pass 11
         // (shell arena order).
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
             Shell {
@@ -4510,7 +4513,7 @@ mod tests {
         // vertices and all 12 edges (each moved edge still has its
         // other face here), χ = 8 − 12 + 5 = 1; the lone face has
         // χ = 4 − 4 + 1 = 1.
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let mut body = t.body;
         let front = t.mefs[1].face;
         let old_shell = body.get_face(front).unwrap().shell;
@@ -4562,7 +4565,7 @@ mod tests {
 
     #[test]
     fn missing_provenance_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         t.body.face_provenance.remove(t.face_a);
         assert_eq!(
             validate(&t.body),
@@ -4578,7 +4581,7 @@ mod tests {
         // pub(crate) arena WITHOUT removing its record — the exact bug
         // a kill-side operator would have if it forgot its kill-hygiene
         // duty, and the reason the bidirectional check exists.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let extra = t.body.add_solid(Solid { shells: vec![] }, prov());
         t.body.solids.remove(extra);
         assert_eq!(
@@ -4594,7 +4597,7 @@ mod tests {
         // One body with independent defects in passes 9, 10, 11, and 12:
         // the report arrives in exactly pass order. (The per-pass tests
         // above pin intra-pass order; this pins the pass sequence.)
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let bare = t.body.add_solid(Solid { shells: vec![] }, prov()); // pass 9
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
@@ -4685,13 +4688,13 @@ mod tests {
     #[test]
     fn closed_fixtures_pass_tier_two() {
         // Raw-built closed families…
-        assert_eq!(validate_closed(&pillow().body), Ok(()));
-        assert_eq!(validate_closed(&ngon_pillow(1).body), Ok(()));
-        assert_eq!(validate_closed(&prism(4).body), Ok(()));
+        assert_eq!(validate_closed(&pillow(Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&ngon_pillow(1, Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&prism(4, Tol::witness()).body), Ok(()));
         // …and the operator-built acceptance bodies, genus 0 through 2.
-        assert_eq!(validate_closed(&ops_cube().body), Ok(()));
-        assert_eq!(validate_closed(&ops_holed_box().body), Ok(()));
-        assert_eq!(validate_closed(&ops_genus2()), Ok(()));
+        assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&ops_holed_box(Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&ops_genus2(Tol::witness())), Ok(()));
     }
 
     /// Gives every face of `body` the Newell plane of its outer loop —
@@ -4752,9 +4755,9 @@ mod tests {
     /// certified cube, lives in `tests/geometric_cube.rs`.)
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
-        let mut cube = ops_cube().body;
+        let mut cube = ops_cube(Tol::witness()).body;
         plane_every_face(&mut cube);
-        let honest = validate_geometric(&cube).unwrap_err();
+        let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
         assert!(
             honest
                 .iter()
@@ -4766,7 +4769,7 @@ mod tests {
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
         let flipped = cube.flipped_face_sense_for_tests(face).unwrap();
-        let errors = validate_geometric(&flipped).unwrap_err();
+        let errors = validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {
                 face,
@@ -4779,7 +4782,7 @@ mod tests {
         // computed from the loop windings, which a lone sense flip does
         // not touch — the two bodies meter the SAME volume, so check 7
         // could not refuse the flipped one even if it ran.
-        let volume = |b: &Body<f64>| crate::props::mass_properties(b).unwrap().volume;
+        let volume = |b: &Body<f64>| crate::props::mass_properties(b, Tol::witness()).unwrap().volume;
         assert_eq!(
             volume(&cube).to_bits(),
             volume(&flipped).to_bits(),
@@ -4821,6 +4824,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -4844,12 +4848,13 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         let strut = body
             .mev_line(
@@ -4858,6 +4863,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -4882,12 +4888,13 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         let strut = body
             .mev_line(
@@ -4896,6 +4903,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -4923,12 +4931,13 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         let strut = body
             .mev_line(
@@ -4937,16 +4946,17 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let grow = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell)
@@ -4987,6 +4997,7 @@ mod tests {
                     he2: anchor,
                 },
                 p(4.0),
+                Tol::witness(),
             )
             .unwrap();
         // …and a planted empty ring next to it.
@@ -4997,6 +5008,7 @@ mod tests {
                     he2: anchor,
                 },
                 p(5.0),
+                Tol::witness(),
             )
             .unwrap();
         let ring2 = body.kemr(plant.he_plus, plant.he_minus).unwrap();
@@ -5039,9 +5051,9 @@ mod tests {
             let mut body = Body::<f64>::new();
             let mut counter = 0_u32;
             for (d1, d2) in decisions {
-                let choice = seqgen::choose_op(&body, d1, d2)
+                let choice = seqgen::choose_op(&body, d1, d2, Tol::witness())
                     .expect("an op always applies");
-                seqgen::apply(&mut body, choice, &mut counter);
+                seqgen::apply(&mut body, choice, &mut counter, Tol::witness());
                 prop_assert_eq!(validate(&body), Ok(()), "after {:?}", choice);
             }
         }
@@ -5056,11 +5068,11 @@ mod tests {
             let mut body = Body::<f64>::new();
             let mut counter = 0_u32;
             for (d1, d2) in decisions {
-                let choice = seqgen::choose_op(&body, d1, d2)
+                let choice = seqgen::choose_op(&body, d1, d2, Tol::witness())
                     .expect("an op always applies");
-                seqgen::apply(&mut body, choice, &mut counter);
+                seqgen::apply(&mut body, choice, &mut counter, Tol::witness());
             }
-            seqgen::teardown(&mut body);
+            seqgen::teardown(&mut body, Tol::witness());
             // The torn-down body is empty; both tiers hold vacuously.
             prop_assert_eq!(validate(&body), Ok(()));
             prop_assert_eq!(validate_closed(&body), Ok(()));
@@ -5077,7 +5089,7 @@ mod tests {
     proptest! {
         #[test]
         fn ngon_pillows_validate_cleanly(n in 1usize..=8) {
-            let t = ngon_pillow(n);
+            let t = ngon_pillow(n, Tol::witness());
             prop_assert_eq!(validate(&t.body), Ok(()));
             prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), n);
@@ -5093,7 +5105,7 @@ mod tests {
 
         #[test]
         fn prisms_validate_cleanly(n in 2usize..=8) {
-            let t = prism(n);
+            let t = prism(n, Tol::witness());
             prop_assert_eq!(validate(&t.body), Ok(()));
             prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), 2 * n);

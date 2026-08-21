@@ -65,6 +65,7 @@ use super::FilletError;
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{FilletRequest, Link, run_battery};
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
+use geom_core::Tol;
 
 /// A filleted body: the rounded solid plus the keys of the faces the
 /// blend introduced.
@@ -129,6 +130,7 @@ pub fn fillet_edges<T: Decide + Bounds>(
     edges: &[EdgeKey],
     radius: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Filleted<T>, FilletError> {
     // A repeated edge is malformed for the chain walk (it would
     // double a link), so it refuses before the battery samples
@@ -149,7 +151,7 @@ pub fn fillet_edges<T: Decide + Bounds>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    super::surgery::fillet_surgery(body, &verdict, band)
+    super::surgery::fillet_surgery(body, &verdict, band, tol)
 }
 
 /// A face's boundary cycle (outer loop, cycle order).

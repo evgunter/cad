@@ -46,7 +46,7 @@
 //! [`EpsilonSource`] at all.
 
 pub use geom_core::tolerance::{
-    DEFAULT_EPS, DEFAULT_K, ENV_EPS, ENV_K, EpsilonSource, Tolerance, ToleranceEnvError,
+    DEFAULT_EPS, DEFAULT_K, ENV_EPS, ENV_K, EpsilonSource, Tol, Tolerance, ToleranceEnvError,
     ToleranceEnvErrorKind, ToleranceError, ToleranceReport,
 };
 

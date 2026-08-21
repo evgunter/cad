@@ -17,9 +17,10 @@ use editor_core::{
 use fixture::{ang, insert, len};
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -41,7 +42,7 @@ fn pole(node: RecipeNodeId, l: u32, v: u32) -> StableName {
 
 /// XY-plane revolve about the y datum axis, from loop programs.
 fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m9_d1_r2_probes");
+    let doc = ProfileDoc::empty_derived("m9_d1_r2_probes", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {

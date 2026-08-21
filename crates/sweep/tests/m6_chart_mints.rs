@@ -30,7 +30,7 @@ fn axis_y() -> RevolveAxis<f64> {
 /// Every half-edge of every NON-PLANAR face carries a stored cache
 /// (planar faces keep derive-on-demand — C4), and tier 3 is green.
 fn assert_curved_faces_fully_minted(name: &str, body: &Body<f64>) {
-    assert_eq!(topo::validate_geometric(body), Ok(()), "{name} tier 3");
+    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()), "{name} tier 3");
     let mut curved_hes = 0usize;
     for (_, face) in body.faces() {
         let surface = body.get_surface(face.surface).expect("surface resolves");
@@ -69,7 +69,7 @@ fn the_ball_carries_stored_sphere_pcurves_at_rest() {
         ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
         ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
-    let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full).unwrap();
+    let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_curved_faces_fully_minted("ball", &t.body);
 }
 
@@ -81,7 +81,7 @@ fn the_cone_carries_stored_cone_pcurves_at_rest() {
         Point2::new(1.0, 0.0),
         Point2::new(0.0, 1.0),
     ]);
-    let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full).unwrap();
+    let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_curved_faces_fully_minted("cone", &t.body);
 }
 
@@ -93,7 +93,7 @@ fn the_donut_carries_stored_torus_pcurves_at_rest() {
         ProfileVertex::new(Point2::new(1.5, 0.0), 1.0),
         ProfileVertex::new(Point2::new(2.5, 0.0), 1.0),
     ]);
-    let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full).unwrap();
+    let t = revolve::<f64>(&validated(lp), axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_curved_faces_fully_minted("donut", &t.body);
 }
 
@@ -112,11 +112,11 @@ fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
         Point2::new(1.0, 1.0),
         Point2::new(0.0, 1.0),
     ]);
-    let blank = extrude(&validated(lp), Extrusion::Distance(1.0))
+    let blank = extrude(&validated(lp), Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
     let rims: Vec<topo::EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    let filleted = sweep::fillet::fillet_edges(&blank, &rims, 0.12, band)
+    let filleted = sweep::fillet::fillet_edges(&blank, &rims, 0.12, band, Tol::witness())
         .expect("the die blank fillets")
         .body;
     let mut spheres = 0usize;

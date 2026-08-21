@@ -23,19 +23,20 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, all_edges, all_faces, all_vertices, denotation, edge_frame,
     evaluate, face_frame, vertex_position,
 };
+use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
 }
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 /// A unit box as an extruded square, and its extrude node.
 fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
-        ProfileDoc::empty_derived("lib_u5_interrogate"),
+        ProfileDoc::empty_derived("lib_u5_interrogate", Tol::witness()),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],

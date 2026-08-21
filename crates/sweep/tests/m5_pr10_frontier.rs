@@ -31,7 +31,7 @@ mod common;
 fn geometry() -> sweep::LoftGeometry {
     let chain = common::chain;
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    loft_geometry(&[chain(1.0), chain(1.6), chain(1.0)], &places, 2).expect("the loft skins")
+    loft_geometry(&[chain(1.0), chain(1.6), chain(1.0)], &places, 2, Tol::witness()).expect("the loft skins")
 }
 
 /// The walls exist, are real NURBS (not the placeholder), and carry
@@ -73,10 +73,10 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     )
     .validate(Tol::witness())
     .expect("the square validates");
-    let built = extrude(&profile, Extrusion::Distance(2.0)).expect("extrudes");
+    let built = extrude(&profile, Extrusion::Distance(2.0), Tol::witness()).expect("extrudes");
     let mut body = built.body;
     // The baseline is a genuine tier-3 solid.
-    validate_geometric(&body).expect("the extrusion validates at tier 3");
+    validate_geometric(&body, Tol::witness()).expect("the extrusion validates at tier 3");
 
     let g = geometry();
     let wall = lift_surface::<f64>(&g.walls[0][1]).expect("lifts");
@@ -84,7 +84,7 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
         .expect("the arena takes a real NURBS surface");
 
-    let errors = validate_geometric(&body).expect_err("tier 3 must refuse the mismatched geometry");
+    let errors = validate_geometric(&body, Tol::witness()).expect_err("tier 3 must refuse the mismatched geometry");
     assert!(
         !errors
             .iter()

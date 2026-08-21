@@ -110,9 +110,9 @@ fn arc_bulge_restriction_formula_derived_independently() {
 /// radius shrinks it into the band.
 #[test]
 fn split_circle_carrier_intersection_edge() {
-    let out = extrude(&d_profile(), Extrusion::Distance(1.0)).unwrap();
+    let out = extrude(&d_profile(), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let mut body: Body<f64> = out.body;
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let (edge, parent) = body
         .edges()
         .find_map(|(k, e)| {
@@ -122,7 +122,7 @@ fn split_circle_carrier_intersection_edge() {
         .expect("the D-body must carry a circular rim");
     let (t0, t1) = parent.params();
     let t = t0 + (t1 - t0) * 0.3;
-    let created = body.split_edge(edge, t).unwrap();
+    let created = body.split_edge(edge, t, Tol::witness()).unwrap();
     // RE-PINNED at the M5 PR 9 fix pass: this row used to pin the
     // NotIsoRectangle/VolumeUncomputable refusal here, and that pin's
     // failure under PR 9 is the EVIDENCE the du_of_rims repair works.
@@ -135,7 +135,7 @@ fn split_circle_carrier_intersection_edge() {
     // direction) group, so a split rim integrates EXACTLY: tier 3
     // holds straight through the split.
     assert_eq!(
-        validate_geometric(&body),
+        validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3 must survive a rim split since the du_of_rims repair"
     );
@@ -181,7 +181,7 @@ fn split_circle_carrier_intersection_edge() {
     let angular_margin = eps / radius * 0.9; // meters-margin inside band
     assert!(angular_margin > eps, "probe needs r < 0.9 to be meaningful");
     let err = body
-        .split_edge(created.new_edge, c0 + angular_margin)
+        .split_edge(created.new_edge, c0 + angular_margin, Tol::witness())
         .unwrap_err();
     assert!(
         matches!(
@@ -199,21 +199,21 @@ fn split_circle_carrier_intersection_edge() {
 /// involution, D9 determinism, and the exact negated volume.
 #[test]
 fn revert_extruded_prism_posture() {
-    let out = extrude(&l_profile(), Extrusion::Distance(2.0)).unwrap();
+    let out = extrude(&l_profile(), Extrusion::Distance(2.0), Tol::witness()).unwrap();
     let body: Body<f64> = out.body;
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let original = format!("{body:?}");
-    let vol = topo::mass_properties(&body).unwrap().volume;
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
     assert_eq!(format!("{body:?}"), original, "revert mutated its operand");
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
-        validate_geometric(&reverted),
+        validate_geometric(&reverted, Tol::witness()),
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness()).unwrap().volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
@@ -235,11 +235,11 @@ fn revert_extruded_prism_posture() {
 /// `revert` is a bitwise involution and a deterministic function.
 #[test]
 fn revert_curved_body_reverts_via_the_sense_bit() {
-    let out = extrude(&d_profile(), Extrusion::Distance(1.0)).unwrap();
+    let out = extrude(&d_profile(), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let body: Body<f64> = out.body;
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let before = format!("{body:?}");
-    let vol = topo::mass_properties(&body).unwrap().volume;
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -268,11 +268,11 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     // The M3 contract, unchanged, on a curved body.
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
-        validate_geometric(&reverted),
+        validate_geometric(&reverted, Tol::witness()),
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness()).unwrap().volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
     assert_eq!(
@@ -287,9 +287,9 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
 /// lifecycle on a real consumer body, not a fixture).
 #[test]
 fn split_then_null_lifecycle_on_prism() {
-    let out = extrude(&l_profile(), Extrusion::Distance(1.0)).unwrap();
+    let out = extrude(&l_profile(), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let mut body: Body<f64> = out.body;
-    let vol0 = topo::mass_properties(&body).unwrap().volume;
+    let vol0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
         .edges()
@@ -299,10 +299,10 @@ fn split_then_null_lifecycle_on_prism() {
         })
         .unwrap();
     let (t0, t1) = curve.params();
-    body.split_edge(edge, t0 + (t1 - t0) * 0.5).unwrap();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    body.split_edge(edge, t0 + (t1 - t0) * 0.5, Tol::witness()).unwrap();
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert_eq!(
-        topo::mass_properties(&body).unwrap().volume.to_bits(),
+        topo::mass_properties(&body, Tol::witness()).unwrap().volume.to_bits(),
         vol0.to_bits(),
         "split changed the prism's exact volume"
     );
@@ -316,10 +316,10 @@ fn split_then_null_lifecycle_on_prism() {
         )
         .unwrap();
     assert!(matches!(
-        topo::mass_properties(&body).unwrap_err(),
+        topo::mass_properties(&body, Tol::witness()).unwrap_err(),
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());
     body.kev(created.he_plus).unwrap();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }

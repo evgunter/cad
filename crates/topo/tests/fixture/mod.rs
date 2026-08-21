@@ -354,6 +354,7 @@ where
                 param_start: t0,
                 param_end: t1,
             },
+            Tol::witness(),
         )
         .expect("the rung-3 edge certifies at rest");
 

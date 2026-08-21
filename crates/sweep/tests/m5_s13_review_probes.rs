@@ -34,7 +34,7 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body).unwrap().volume
+    topo::mass_properties(body, Tol::witness()).unwrap().volume
 }
 
 fn boxy(x0: f64, y0: f64, x1: f64, y1: f64, h: f64) -> Body<f64> {
@@ -47,7 +47,7 @@ fn boxy(x0: f64, y0: f64, x1: f64, y1: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h)).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness()).unwrap().body
 }
 
 fn slab() -> Body<f64> {
@@ -66,8 +66,8 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world x-axis.
@@ -79,7 +79,7 @@ fn rot_x_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(0.0, -s, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map).unwrap()
+    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world y-axis.
@@ -91,7 +91,7 @@ fn rot_y_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
         Vec3::new(s, 0.0, c),
     );
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
-    topo::transform_rigid(body, &map).unwrap()
+    topo::transform_rigid(body, &map, Tol::witness()).unwrap()
 }
 
 fn cap(r: f64, h: f64) -> f64 {
@@ -114,6 +114,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
         &ball,
         &decls,
         SweepStrategy::Realized,
+        Tol::witness(),
     );
     let i = boolean_op_with(
         BooleanOp::Union,
@@ -121,6 +122,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
         &ball,
         &decls,
         SweepStrategy::Idealized,
+        Tol::witness(),
     );
     match (&r, &i) {
         (Ok(rb), Ok(ib)) => {
@@ -145,7 +147,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
 #[test]
 fn probe_exact_tangency_from_inside_refuses_typed() {
     let b = ball_at(0.5, Vec3::new(2.0, 2.0, 0.5));
-    let err = topo::union(&slab(), &b).expect_err("tangency must not answer");
+    let err = topo::union(&slab(), &b, Tol::witness()).expect_err("tangency must not answer");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's tangency arm, got {err:?}");
     };
@@ -165,7 +167,7 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 #[test]
 fn probe_edge_escape_refuses_typed_at_the_pierce_frontier() {
     let b = ball_at(0.5, Vec3::new(0.3, 2.0, 1.2));
-    let err = topo::union(&slab(), &b).expect_err("edge escape must not certify");
+    let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
     let BooleanError::CurvedPierceUnsupported { .. } = err else {
         panic!("expected the pierce frontier, got {err:?}");
     };
@@ -178,13 +180,13 @@ fn probe_flipped_row_replays_bit_identical() {
     let a = slab();
     let b = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
     let decls = BooleanDeclarations::none();
-    let one = boolean_op_with(BooleanOp::Union, &a, &b, &decls, SweepStrategy::Realized)
+    let one = boolean_op_with(BooleanOp::Union, &a, &b, &decls, SweepStrategy::Realized, Tol::witness())
         .unwrap()
         .body()
         .unwrap()
         .body
         .clone();
-    let two = boolean_op_with(BooleanOp::Union, &a, &b, &decls, SweepStrategy::Realized)
+    let two = boolean_op_with(BooleanOp::Union, &a, &b, &decls, SweepStrategy::Realized, Tol::witness())
         .unwrap()
         .body()
         .unwrap()
@@ -207,6 +209,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
         &b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .expect("the re-cut re-charts any tilted source chart")
     .body()
@@ -238,6 +241,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
         &b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     ) {
         Ok(out) => {
             let v = vol(&out.body().unwrap().body);
@@ -275,10 +279,10 @@ fn probe_nested_spheres_union_to_the_outer_ball() {
     use core::f64::consts::PI;
     let big = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
     let small = ball_at(0.3, Vec3::new(2.0, 2.0, 0.2));
-    let out = topo::union(&big, &small).expect("the whole-sphere containment arm answers");
+    let out = topo::union(&big, &small, Tol::witness()).expect("the whole-sphere containment arm answers");
     let body = &out.body().expect("a body").body;
     assert_eq!(body.shells().count(), 1, "one shell: the outer ball");
-    let vol = topo::mass_properties(body).unwrap().volume;
+    let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
     let want = 4.0 * PI / 3.0;
     assert!(
         (vol - want).abs() <= 1e-9 * want,
@@ -356,7 +360,7 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
     let b = rot_y_about(&b1, pivot, 0.312);
     let decls = BooleanDeclarations::none();
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {
-        let err = boolean_op_with(BooleanOp::Union, &slab(), &b, &decls, strat)
+        let err = boolean_op_with(BooleanOp::Union, &slab(), &b, &decls, strat, Tol::witness())
             .expect_err("two non-parallel escapes must refuse");
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
             panic!("{strat:?}: expected the multi-escape refusal, got {err:?}");

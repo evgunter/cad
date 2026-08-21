@@ -36,7 +36,7 @@ pub fn axis_y() -> RevolveAxis<f64> {
 pub fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 /// (v, e, f, r) of a body.

@@ -17,6 +17,7 @@ use topo::{
     Body, BooleanError, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
     union_with,
 };
+use geom_core::Tol;
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -51,8 +52,8 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
         "a flush cap is the conformal class, spelled out"
     );
 
-    let first = union_with(&a, &b, &decls).expect("declared flush union runs");
-    let second = union_with(&a, &b, &decls).expect("the rerun runs");
+    let first = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush union runs");
+    let second = union_with(&a, &b, &decls, Tol::witness()).expect("the rerun runs");
     let (BooleanResult::Body(x), BooleanResult::Body(y)) = (first, second) else {
         panic!("an overlapping union cannot be Empty");
     };
@@ -61,8 +62,8 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
         "bit-identical replay must reproduce the RECORDS bit-identically (D9/C4)"
     );
     assert_eq!(
-        mass_properties(&x.body).unwrap().volume,
-        mass_properties(&y.body).unwrap().volume
+        mass_properties(&x.body, Tol::witness()).unwrap().volume,
+        mass_properties(&y.body, Tol::witness()).unwrap().volume
     );
 }
 
@@ -71,7 +72,7 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
 #[test]
 fn undeclared_kiss_still_refuses() {
     let (a, b) = stacked();
-    let err = topo::union(&a, &b).expect_err("an undeclared kiss must refuse");
+    let err = topo::union(&a, &b, Tol::witness()).expect_err("an undeclared kiss must refuse");
     assert!(
         matches!(
             err,
@@ -98,10 +99,10 @@ fn a_wrong_class_declaration_refuses_instead_of_being_ignored() {
         *d = FacePairDeclaration::new(d.a, d.b, ContactClass::Tangent);
     }
     assert!(
-        union_with(&a, &b, &rest).is_ok(),
+        union_with(&a, &b, &rest, Tol::witness()).is_ok(),
         "the same pair under the right class unions (the green half)"
     );
-    let err = union_with(&a, &b, &tangent)
+    let err = union_with(&a, &b, &tangent, Tol::witness())
         .expect_err("a class the stages cannot act on must refuse at the door");
     let msg = err.to_string();
     assert!(
@@ -153,7 +154,7 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     decls
         .coincident_faces
         .push(FacePairDeclaration::rest(cap_of(&a, 0.0), cap_of(&b, 2.0)));
-    let err = union_with(&a, &b, &decls).expect_err("a false Rest must refuse");
+    let err = union_with(&a, &b, &decls, Tol::witness()).expect_err("a false Rest must refuse");
     let msg = err.to_string();
     match &err {
         BooleanError::ContactContradicted {

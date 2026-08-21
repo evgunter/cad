@@ -257,6 +257,7 @@ impl<T: Real> BooleanResult<T> {
 pub fn union<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     boolean_op_with(
         BooleanOp::Union,
@@ -264,6 +265,7 @@ pub fn union<T: Decide + Bounds>(
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        tol,
     )
 }
 
@@ -275,6 +277,7 @@ pub fn union<T: Decide + Bounds>(
 pub fn intersect<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     boolean_op_with(
         BooleanOp::Intersect,
@@ -282,6 +285,7 @@ pub fn intersect<T: Decide + Bounds>(
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        tol,
     )
 }
 
@@ -293,6 +297,7 @@ pub fn intersect<T: Decide + Bounds>(
 pub fn subtract<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     boolean_op_with(
         BooleanOp::Subtract,
@@ -300,6 +305,7 @@ pub fn subtract<T: Decide + Bounds>(
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        tol,
     )
 }
 
@@ -313,8 +319,9 @@ pub fn union_with<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(BooleanOp::Union, a, b, decls, SweepStrategy::Realized)
+    boolean_op_with(BooleanOp::Union, a, b, decls, SweepStrategy::Realized, tol)
 }
 
 /// A ∩* B with declared coincidence intents ([`union_with`]).
@@ -326,8 +333,9 @@ pub fn intersect_with<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(BooleanOp::Intersect, a, b, decls, SweepStrategy::Realized)
+    boolean_op_with(BooleanOp::Intersect, a, b, decls, SweepStrategy::Realized, tol)
 }
 
 /// A ∖* B with declared coincidence intents ([`union_with`]).
@@ -339,8 +347,9 @@ pub fn subtract_with<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_with(BooleanOp::Subtract, a, b, decls, SweepStrategy::Realized)
+    boolean_op_with(BooleanOp::Subtract, a, b, decls, SweepStrategy::Realized, tol)
 }
 
 /// The shared pipeline (module docs), with an explicit
@@ -359,6 +368,7 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     b: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     // The curved ∖/∩ front door, NARROWED FROM WHOLESALE TO PER-CLASS
     // (M5 S12; C12.1 — retire per class, never wholesale; M5 S13
@@ -401,7 +411,7 @@ pub fn boolean_op_with<T: Decide + Bounds>(
             }
         }
     }
-    boolean_op_recut(op, a, b, decls, strategy, true)
+    boolean_op_recut(op, a, b, decls, strategy, true, tol)
 }
 
 /// The pipeline behind the front door, parameterized on whether the
@@ -418,7 +428,7 @@ fn boolean_op_recut<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
-    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy)?;
+    let mut red = super::boolean_reduce_declared_strategy(op, a, b, decls, strategy, tol)?;
 
     if red.null_pairs.is_empty() {
         if !red.null_edges.is_empty() {
@@ -457,10 +467,10 @@ fn boolean_op_recut<T: Decide + Bounds>(
                     what: "re-cut sphere operands still produced no crossings",
                 });
             }
-            let (a2, b2) = apply_recuts(a, b, &recuts)?;
-            return boolean_op_recut(op, &a2, &b2, decls, strategy, false);
+            let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
+            return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol);
         }
-        return fallback(op, &red, a, b, decls, band);
+        return fallback(op, &red, a, b, decls, band, tol);
     }
 
     // The declared-REST union door (M5 S1): a declared union whose
@@ -471,13 +481,13 @@ fn boolean_op_recut<T: Decide + Bounds>(
     // (declared union), so undeclared and non-union ops pay nothing.
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
-    let connected = match bool_connect(&mut red, a, b, band) {
+    let connected = match bool_connect(&mut red, a, b, band, tol) {
         Ok(c) => c,
         Err(err @ (BooleanError::Join(_) | BooleanError::JoinDesync { .. })) => match saved {
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
-                return match super::rest::try_rest_union(red, a, b, decls, band)? {
+                return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
                     Some(result) => Ok(result),
                     // Not the REST frontier: the original join
                     // refusal stands, verbatim.
@@ -495,23 +505,23 @@ fn boolean_op_recut<T: Decide + Bounds>(
     }
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
-    let fin = setopfinish(op, red, &connected.completed, a, b, band)?;
+    let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
     let mut body = fin.body;
     let mut seam_edges = Vec::new();
     let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
     for &(a_face, b_face) in &fin.seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map)?;
+        let rep = zip_seam(&mut body, a_face, b_face, &fin.vertex_map, tol)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         seam_edges.extend(rep.seam_edges);
     }
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs)
+        .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(BooleanError::Merge)?;
     desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band)?;
+    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
         &body,
         &contacts,
@@ -532,9 +542,9 @@ fn boolean_op_recut<T: Decide + Bounds>(
     // the finished body — the same pass the split lane runs. A planar
     // body mints nothing (no curved faces), so the M3 lane is
     // untouched bit-identically.
-    crate::pcurves::mint_pcurves(&mut body).map_err(|source| BooleanError::Pcurves { source })?;
+    crate::pcurves::mint_pcurves(&mut body, tol).map_err(|source| BooleanError::Pcurves { source })?;
     gate(&body)?;
-    volume_backstop(op, a, b, &body, band)?;
+    volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -688,6 +698,7 @@ pub(super) fn volume_backstop<T: Decide>(
     b: &Body<T>,
     result: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<(), BooleanError> {
     let corrupt = || BooleanError::ClassificationInvariant {
         what: "volume backstop: mass properties refused on a tier-valid planar body",
@@ -700,7 +711,7 @@ pub(super) fn volume_backstop<T: Decide>(
     // Volume AND surface area: the area is this gate's metering lever
     // (fn docs, audit F3), read from the same closed-form pass.
     let props = |body: &Body<T>| -> Result<(T, T), BooleanError> {
-        let p = crate::props::mass_properties_closed_form(body, band).map_err(|_| corrupt())?;
+        let p = crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| corrupt())?;
         Ok((p.volume, p.surface_area))
     };
     // The exact (bit-hairline) band for the sign arm below — the same
@@ -817,6 +828,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
     seam_edges: &[crate::entity::EdgeKey],
     merged: &crate::merge_faces::MergeCoplanarOutcome,
     band: Band,
+    tol: Tol,
 ) -> Result<(), BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "description worklist edge not walkable",
@@ -916,7 +928,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     spec.description = geom_brep::EdgeGeometry::Intersection { s1, s2, witness };
                     spec
                 };
-                body.set_edge_curve(edge, spec)
+                body.set_edge_curve(edge, spec, tol)
                     .map_err(|_| BooleanError::JoinDesync {
                         what: "minted-edge description failed certification",
                     })?;
@@ -962,7 +974,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                                    re-description lane exists for arcs)",
                         });
                     }
-                    body.set_edge_curve(edge, geom_brep::EdgeCurveSpec::line_between(p0, p1))
+                    body.set_edge_curve(edge, geom_brep::EdgeCurveSpec::line_between(p0, p1), tol)
                         .map_err(|_| BooleanError::JoinDesync {
                             what: "stale in-plane description failed re-certification",
                         })?;
@@ -1700,7 +1712,7 @@ fn apply_recuts<T: Decide + Bounds>(
             );
             let q = r.center - Point3::origin();
             let map = geom_core::Affine3::from_parts(linear, q - linear * q);
-            let turned = crate::transform::transform_rigid(&ball, &map)
+            let turned = crate::transform::transform_rigid(&ball, &map, tol)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push(turned);
         }
@@ -1726,7 +1738,7 @@ fn apply_recuts<T: Decide + Bounds>(
                 Some(base) => {
                     let base_solid =
                         single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
-                    graft_solid(base, base_solid, &turned)?;
+                    graft_solid(base, base_solid, &turned, tol)?;
                 }
             }
         }
@@ -1752,6 +1764,7 @@ fn classify_shells<T: Decide>(
     contacts: &ContactRecords,
     operand: Operand,
     band: Band,
+    tol: Tol,
 ) -> Result<Vec<(ShellKey, SideCode)>, BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "fallback operand clone is not walkable",
@@ -1776,7 +1789,7 @@ fn classify_shells<T: Decide>(
                         .get_vertex(v)
                         .and_then(|vd| body.get_point(vd.point))
                         .ok_or_else(corrupt)?;
-                    match point_in_solid(other, q, band).map_err(BooleanError::Containment)? {
+                    match point_in_solid(other, q, band, tol).map_err(BooleanError::Containment)? {
                         SolidContainment::In => {
                             verdict = Some(SideCode::In);
                             break 'probe;
@@ -1805,10 +1818,11 @@ fn fallback<T: Decide>(
     b_pristine: &Body<T>,
     decls: &BooleanDeclarations,
     band: Band,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let a_sides = classify_shells(&red.a, b_pristine, &red.contacts, Operand::A, band)?;
-    let b_sides = classify_shells(&red.b, a_pristine, &red.contacts, Operand::B, band)?;
+    let a_sides = classify_shells(&red.a, b_pristine, &red.contacts, Operand::A, band, tol)?;
+    let b_sides = classify_shells(&red.b, a_pristine, &red.contacts, Operand::B, band, tol)?;
     let keep_a = kept_side(op, Operand::A);
     let keep_b = kept_side(op, Operand::B);
     let a_keep: Vec<ShellKey> = a_sides
@@ -1846,6 +1860,7 @@ fn fallback<T: Decide>(
                 decls,
                 BooleanResultKind::OperandA,
                 band,
+                tol,
             )
         }
         (true, false) => {
@@ -1857,6 +1872,7 @@ fn fallback<T: Decide>(
                 decls,
                 BooleanResultKind::OperandB,
                 band,
+                tol,
             )
         }
         (false, false) => {
@@ -1867,7 +1883,7 @@ fn fallback<T: Decide>(
             }
             let solid =
                 single_solid(&body).map_err(|_| desync("fallback A carve not one solid"))?;
-            let graft = graft_solid(&mut body, solid, &b_body)?;
+            let graft = graft_solid(&mut body, solid, &b_body, tol)?;
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
                 _ => BooleanResultKind::Assembly,
@@ -1875,11 +1891,11 @@ fn fallback<T: Decide>(
             let declared_pairs =
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let merged = body
-                .merge_coplanar_faces_declared(&declared_pairs)
+                .merge_coplanar_faces_declared(&declared_pairs, tol)
                 .map_err(BooleanError::Merge)?;
             let mut desc = Descendants::default();
             desc.absorb_merge(&merged);
-            describe_minted_edges(&mut body, &[], &merged, band)?;
+            describe_minted_edges(&mut body, &[], &merged, band, tol)?;
             let mut contacts = remap_contacts(
                 &body,
                 &red.contacts,
@@ -1928,6 +1944,7 @@ fn finish_fallback<T: Decide>(
     decls: &BooleanDeclarations,
     kind: BooleanResultKind,
     band: Band,
+    tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let reduction_contacts = contacts.clone();
     let mut body = body;
@@ -1937,10 +1954,10 @@ fn finish_fallback<T: Decide>(
     // Cross-operand declared pairs are inapplicable here (one operand
     // is absent from the result); the surviving operand's CARRIED
     // records still apply.
-    let merged = body.merge_coplanar_faces().map_err(BooleanError::Merge)?;
+    let merged = body.merge_coplanar_faces(tol).map_err(BooleanError::Merge)?;
     let mut desc = Descendants::default();
     desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &[], &merged, band)?;
+    describe_minted_edges(&mut body, &[], &merged, band, tol)?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
@@ -1979,7 +1996,7 @@ fn finish_fallback<T: Decide>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use geom_core::Band;
+    use geom_core::{Band, Tol};
 
     use super::volume_backstop;
     use crate::boolean::{BooleanError, BooleanOp};
@@ -1995,8 +2012,8 @@ mod tests {
     fn volume_backstop_wiring() {
         let band = Band::linear(Tol::witness()).unwrap();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let cube = quad_prism(&square, 1.0);
-        let small = quad_prism(&square, 0.5);
+        let cube = quad_prism(&square, 1.0, Tol::witness());
+        let small = quad_prism(&square, 0.5, Tol::witness());
         let implausible = |e: BooleanError| {
             assert!(
                 matches!(e, BooleanError::ResultVolumeImplausible { .. }),
@@ -2004,21 +2021,21 @@ mod tests {
             );
         };
         // vol(∪) ≥ max: a union "result" smaller than an operand.
-        implausible(volume_backstop(BooleanOp::Union, &cube, &cube, &small, band).unwrap_err());
+        implausible(volume_backstop(BooleanOp::Union, &cube, &cube, &small, band, Tol::witness()).unwrap_err());
         // vol(∖) ≤ vol(A): a subtract "result" larger than A.
-        implausible(volume_backstop(BooleanOp::Subtract, &small, &cube, &cube, band).unwrap_err());
+        implausible(volume_backstop(BooleanOp::Subtract, &small, &cube, &cube, band, Tol::witness()).unwrap_err());
         // vol(∩) ≤ min: an intersect "result" larger than an operand.
-        implausible(volume_backstop(BooleanOp::Intersect, &small, &cube, &cube, band).unwrap_err());
+        implausible(volume_backstop(BooleanOp::Intersect, &small, &cube, &cube, band, Tol::witness()).unwrap_err());
         // Equal volumes: every bound is non-strict — all pass.
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            volume_backstop(op, &cube, &cube, &cube, band).unwrap();
+            volume_backstop(op, &cube, &cube, &cube, band, Tol::witness()).unwrap();
         }
         // Complement operand (negative flux volume): its bound is
         // vacuous and must be SKIPPED — A ∩ revert(B) legitimately
         // exceeds vol(revert B); the A-side bound still applies.
-        let rev = quad_prism(&square, 0.5).revert().unwrap();
-        volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band).unwrap();
-        implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band).unwrap_err());
+        let rev = quad_prism(&square, 0.5, Tol::witness()).revert().unwrap();
+        volume_backstop(BooleanOp::Intersect, &cube, &rev, &cube, band, Tol::witness()).unwrap();
+        implausible(volume_backstop(BooleanOp::Intersect, &small, &rev, &cube, band, Tol::witness()).unwrap_err());
     }
 
     /// **The #200 review's MAJ-1, end to end through the real gate.**
@@ -2036,20 +2053,20 @@ mod tests {
     fn volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area() {
         let band = Band::linear(Tol::witness()).unwrap();
         let plate_profile = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
-        let plate = quad_prism(&plate_profile, 0.1);
+        let plate = quad_prism(&plate_profile, 0.1, Tol::witness());
         // The "result" of `plate ∖ tool` that wrongly KEPT a 3 mm cube:
         // same footprint, 2.7e-8 m³ of extra material (a 6.75e-9 m lift
         // over the 4 m² footprint — the volume of a 3 mm cube).
         let kept = 0.003_f64.powi(3);
-        let wrong = quad_prism(&plate_profile, 0.1 + kept / 4.0);
-        let err = volume_backstop(BooleanOp::Subtract, &plate, &plate, &wrong, band).unwrap_err();
+        let wrong = quad_prism(&plate_profile, 0.1 + kept / 4.0, Tol::witness());
+        let err = volume_backstop(BooleanOp::Subtract, &plate, &plate, &wrong, band, Tol::witness()).unwrap_err();
         assert!(
             matches!(err, BooleanError::ResultVolumeImplausible { .. }),
             "a macroscopic wrong component must refuse however much \
              boundary area it is smeared over, got {err:?}"
         );
         // The exact-zero pass direction is untouched by the sign arm.
-        volume_backstop(BooleanOp::Subtract, &plate, &plate, &plate, band).unwrap();
+        volume_backstop(BooleanOp::Subtract, &plate, &plate, &plate, band, Tol::witness()).unwrap();
     }
 
     /// **The NURBS re-gate, pinned (M5 S13 §1), and the placeholder's
@@ -2087,14 +2104,15 @@ mod tests {
                         r#loop: seed.r#loop,
                     },
                     pt(1.0, 0.0, 0.0),
+                    Tol::witness(),
                 )
                 .unwrap();
             let strut = |body: &mut crate::Body<f64>, at, x, y, z| {
-                body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+                body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
                     .unwrap()
             };
             let mef = |body: &mut crate::Body<f64>, he1, he2| {
-                body.mef_chord(MefSite::Chords { he1, he2 }).unwrap()
+                body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap()
             };
             let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
             let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
@@ -2113,7 +2131,7 @@ mod tests {
             body
         };
 
-        let a = ops_cube().body;
+        let a = ops_cube(Tol::witness()).body;
         let b = far_cube(10.0);
         let err = boolean_op_with(
             BooleanOp::Union,
@@ -2121,6 +2139,7 @@ mod tests {
             &b,
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         )
         .expect_err("a NURBS operand must refuse typed, never be vertex-probed");
         // Door 1 — the placeholder is unbounded, so the pair is a
@@ -2169,7 +2188,7 @@ mod tests {
         use crate::boolean::{ContactRecords, VfContact, VvContact};
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let mut body = quad_prism(&square, 1.0);
+        let mut body = quad_prism(&square, 1.0, Tol::witness());
         let live_vertex = body.vertices().next().map(|(k, _)| k).unwrap();
         let live_face = body.faces().next().map(|(k, _)| k).unwrap();
         // Dead keys: arena entries removed in place (the test only

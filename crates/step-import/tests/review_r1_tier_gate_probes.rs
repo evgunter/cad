@@ -578,7 +578,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
         match import_step(&text, &ImportOptions::default()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
                 "alpha={alpha:e}: the in-band wedge SHIPPED as a solid (gate re-run: {:?})",
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             ),
             Ok(other) => panic!("alpha={alpha:e}: unexpected non-solid {other:?}"),
             Err(err) => {

@@ -30,6 +30,7 @@ use sweep::{LoftError, ProfileLoop, ProfileVertex, Section, loft_body};
 
 mod common;
 use common::quad;
+use geom_core::Tol;
 
 /// A square with a semicircular bite: three lines and one bulge-1
 /// (half-turn) arc from `(2, 0)` to `(2, 2)` whose carrier circle
@@ -66,6 +67,7 @@ fn declared_tangent_section_loops_now_loft() {
         &[tangent_bite(true), tangent_bite(true)],
         &at_z(&[0.0, 1.0]),
         1,
+        Tol::witness(),
     )
     .expect("the declared-tangent section pair lofts");
     assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1");
@@ -83,6 +85,7 @@ fn undeclared_tangent_section_loops_still_refuse() {
         &[tangent_bite(false), tangent_bite(false)],
         &at_z(&[0.0, 1.0]),
         1,
+        Tol::witness(),
     ) {
         Err(LoftError::Skin(SkinError::SectionProfile {
             section: 0,
@@ -110,10 +113,11 @@ fn u3_differential_loft_prism_is_bit_identical_to_the_recorded_base() {
         &[quad(square), quad(trapezoid), quad(square)],
         &at_z(&[0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the corpus loft_prism builds from profile-vocabulary sections");
     let body = &lofted.body;
-    let m = topo::props::mass_properties(body).expect("mass properties");
+    let m = topo::props::mass_properties(body, Tol::witness()).expect("mass properties");
     assert_eq!(
         m.volume.to_bits(),
         BASE_VOLUME_BITS,

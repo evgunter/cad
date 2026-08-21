@@ -14,6 +14,7 @@ mod common;
 use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{Body, SplitPart, SplitPlane, mass_properties, split, validate_closed};
+use geom_core::Tol;
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
@@ -39,9 +40,9 @@ fn tilted_plane_f64_and_replay() {
     assert_eq!(validate_closed(below), Ok(()));
     // The cut corner: below = triangle prism {(0,0),(2,0),(0,2)}·[0,1].
     let (va, vb, v0) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
-        mass_properties(&fx.body).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(&fx.body, Tol::witness()).unwrap().volume,
     );
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
@@ -96,7 +97,7 @@ fn orientation_flip_swaps_sides_only() {
     };
     let r1 = split(&fx.body, &plane(1.0)).unwrap();
     let r2 = split(&fx.body, &plane(-1.0)).unwrap();
-    let vol = |p: &SplitPart<f64>| mass_properties(body_of(p)).unwrap().volume;
+    let vol = |p: &SplitPart<f64>| mass_properties(body_of(p), Tol::witness()).unwrap().volume;
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);
     assert!((vol(&r1.below) - vol(&r2.above)).abs() < 1e-12);
     let census = |p: &SplitPart<f64>| {

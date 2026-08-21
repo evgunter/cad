@@ -60,6 +60,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
             },
             bot[1],
             line(bot[0], bot[1]),
+            tol,
         )
         .unwrap(),
     );
@@ -70,6 +71,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
                 MevSite::Fan { he1: at, he2: at },
                 bot[i],
                 line(bot[i - 1], bot[i]),
+                tol,
             )
             .unwrap(),
         );
@@ -91,6 +93,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
             },
             line(bot[n - 1], bot[0]),
             FaceSurface::New(plane(&rev)),
+            tol,
         )
         .unwrap();
     let mut struts = Vec::new();
@@ -107,6 +110,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
                 MevSite::Fan { he1: at, he2: at },
                 top[i],
                 line(bot[i], top[i]),
+                tol,
             )
             .unwrap(),
         );
@@ -127,6 +131,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
                 },
                 line(top[i], top[j]),
                 FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
+                tol,
             )
             .unwrap();
         if i == 0 {
@@ -142,7 +147,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
 /// solid, cross-shell fusion), then the loopglue zip — per coincident
 /// vertex pair a scaffolding `mekr`/`mef` + `kev`, per doubled edge a
 /// `kef` — the ch. 12 machinery's ch. 14 call site.
-fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, above_face: FaceKey) {
+fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, above_face: FaceKey, tol: Tol) {
     let fused = body.kfmrh(below_face, above_face).unwrap();
     let ring = fused.ring; // the above loop, now a ring of below_face
     let outer = body.get_face(below_face).unwrap().outer;
@@ -193,6 +198,7 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
                 ring: rs[0],
             },
             self_loop(body, ob[0]),
+            tol,
         )
         .unwrap();
     body.kev(n0.he_plus).unwrap();
@@ -205,6 +211,7 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
                 },
                 self_loop(body, ob[j]),
                 FaceSurface::Inherit,
+                tol,
             )
             .unwrap();
         body.kev(nj.he_plus).unwrap();
@@ -217,8 +224,9 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
 /// the pre-carve seam, merge the same-key coplanar pairs, and compare
 /// against the operand-with-crossings reference.
 #[test]
-fn reassembly_oracle_generic_cube(tol: Tol) {
-    let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
+fn reassembly_oracle_generic_cube() {
+    let tol = Tol::witness();
+    let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::new(0.0, 1.0, 0.0),
@@ -251,9 +259,9 @@ fn reassembly_oracle_generic_cube(tol: Tol) {
     assert_eq!(validate(&body), Ok(()));
 
     // Re-glue and compare.
-    reglue_pair(&mut body, below_face, above_face);
+    reglue_pair(&mut body, below_face, above_face, tol);
     assert_eq!(validate(&body), Ok(()));
-    body.merge_coplanar_faces().unwrap();
+    body.merge_coplanar_faces(tol).unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
 
     // Reference: operand + the same crossing insertions only.
@@ -261,7 +269,7 @@ fn reassembly_oracle_generic_cube(tol: Tol) {
         let band = geom_core::Band::linear(tol).unwrap();
         let mut b = operand.clone();
         let (mut sides, mut on) = super::classify::classify_vertices(&b, &plane, band).unwrap();
-        super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on).unwrap();
+        super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on, tol).unwrap();
         b
     };
     assert_eq!(
@@ -269,8 +277,8 @@ fn reassembly_oracle_generic_cube(tol: Tol) {
         reference.arena_counts(),
         "census equality"
     );
-    let m1 = mass_properties(&body).unwrap();
-    let m0 = mass_properties(&operand).unwrap();
+    let m1 = mass_properties(&body, tol).unwrap();
+    let m0 = mass_properties(&operand, tol).unwrap();
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);
     assert!(
         close(m1.volume, m0.volume),

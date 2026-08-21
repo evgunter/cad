@@ -42,7 +42,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
             return;
         }
     };
-    match extrude(&profile, Extrusion::Distance(1.0)) {
+    match extrude(&profile, Extrusion::Distance(1.0), Tol::witness()) {
         Err(e) => {
             // Loud at construction: acceptable per F6. The error must
             // not be a panic and should speak.
@@ -63,7 +63,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
                     Some(geom_brep::EdgeGeometry::TangentIntersection { .. })
                 )
             });
-            match topo::contact_marks(&body) {
+            match topo::contact_marks(&body, Tol::witness()) {
                 Err(errs) => {
                     eprintln!("IN-BAND-AT-REST: tier-3 walk escalated: {errs:?}");
                     assert!(

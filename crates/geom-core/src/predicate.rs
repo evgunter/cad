@@ -865,6 +865,7 @@ impl Decide for f64 {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use crate::tolerance::Tol;
     use super::*;
     use proptest::prelude::*;
 

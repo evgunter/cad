@@ -22,6 +22,7 @@ use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
     subtract_with, union, union_with, validate, validate_closed, validate_geometric,
 };
+use geom_core::Tol;
 
 fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -30,14 +31,14 @@ fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f
 /// A public declared boolean op as a value (M4 PR 5: the corpus
 /// declares its intended flush contacts — recipe intent, test form).
 type BoolOp<T> =
-    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations) -> Result<BooleanResult<T>, BooleanError>;
+    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one op functionally with the author's flush contacts
 /// declared, checking the operands stayed bitwise untouched and the
 /// result passes tier 1 + 2.
 fn run<T: Decide + geom_core::Bounds>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let out = op(a, b, &common::flush_declarations(a, b)).unwrap();
+    let out = op(a, b, &common::flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &out {
@@ -53,7 +54,7 @@ fn body_of<T: Decide + geom_core::Bounds>(r: &BooleanResult<T>) -> &BooleanBody<
 
 /// Volume/area equality at f64 (exact values for the pinned corpus).
 fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
-    let m = mass_properties(body).unwrap();
+    let m = mass_properties(body, Tol::witness()).unwrap();
     assert_eq!(m.volume, volume, "exact volume");
     assert_eq!(m.surface_area, area, "exact area");
 }
@@ -61,7 +62,7 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
 /// Tier 3 directly at rest (D6, M3 PR 6a): boolean results carry
 /// honest `Intersection` descriptions natively.
 fn assert_tier3_posture(body: &Body<f64>) {
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 // ---------------------------------------------------------------
@@ -450,8 +451,8 @@ fn subtract_equals_intersect_revert_oracle() {
         ),
     ];
     for (name, a, b) in corpus {
-        let direct = subtract(&a, &b).unwrap();
-        let via_revert = topo::intersect(&a, &b.revert().unwrap()).unwrap();
+        let direct = subtract(&a, &b, Tol::witness()).unwrap();
+        let via_revert = topo::intersect(&a, &b.revert().unwrap(), Tol::witness()).unwrap();
         match (&direct, &via_revert) {
             (BooleanResult::Empty, BooleanResult::Empty) => {}
             (BooleanResult::Body(d), BooleanResult::Body(r)) => {
@@ -460,8 +461,8 @@ fn subtract_equals_intersect_revert_oracle() {
                     arena_counts(&r.body),
                     "{name}: census equality"
                 );
-                let md = mass_properties(&d.body).unwrap();
-                let mr = mass_properties(&r.body).unwrap();
+                let md = mass_properties(&d.body, Tol::witness()).unwrap();
+                let mr = mass_properties(&r.body, Tol::witness()).unwrap();
                 assert_eq!(md.volume, mr.volume, "{name}: volume equality");
                 assert_eq!(md.surface_area, mr.surface_area, "{name}: area equality");
             }
@@ -490,7 +491,7 @@ fn merge_ladder_fires_only_on_declared_planes() {
     // (0..2)²×(0..4) brick's six maximal faces.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    let undeclared = union(&a, &b);
+    let undeclared = union(&a, &b, Tol::witness());
     assert!(
         undeclared.is_err(),
         "the undeclared stacked-full union must keep refusing typed \

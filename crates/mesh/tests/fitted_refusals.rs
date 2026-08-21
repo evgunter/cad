@@ -168,7 +168,7 @@ fn loft_prism() -> Body<f64> {
         .iter()
         .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("loft builds")
         .body
 }
@@ -183,7 +183,7 @@ fn split_cylinder_half() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.0)).unwrap().body;
+    let cylinder = extrude(&disc, Extrusion::Distance(2.0), Tol::witness()).unwrap().body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.0),
         normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
@@ -252,7 +252,7 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     let mut body = loft_prism();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Nurbs(_)));
     body.attach_pcurve(hek, cache.clone());
-    match mesh::tessellate(&body, 1e-2) {
+    match mesh::tessellate(&body, 1e-2, Tol::witness()) {
         Err(TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
                 note.contains("FITTED") && note.contains("UV speed bound"),
@@ -269,7 +269,7 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     let mut body = split_cylinder_half();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Cylinder { .. }));
     body.attach_pcurve(hek, cache);
-    match mesh::tessellate(&body, 1e-2) {
+    match mesh::tessellate(&body, 1e-2, Tol::witness()) {
         Err(TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
                 note.contains("FITTED") && note.contains("boolean layer"),

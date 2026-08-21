@@ -45,9 +45,10 @@ use editor_core::{
     CancelToken, DocEdit, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult, RoleSeg,
     StableName, apply, evaluate,
 };
+use geom_core::Tol;
 
 fn eval(doc: &editor_core::ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 fn edge_names(
@@ -132,6 +133,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
                 from: selection[0].clone(),
                 to: meridian.clone(),
             },
+            Tol::witness(),
         )
         .expect("rebinding a selected edge onto a cavity meridian")
         .doc;
@@ -247,7 +249,7 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
     let doc = die_composed::document();
     let (fillet, target) = fillet_and_target(&doc.doc);
     let before = eval(&doc.doc);
-    let bumped = apply(&doc.doc, &doc.bump)
+    let bumped = apply(&doc.doc, &doc.bump, Tol::witness())
         .expect("the corpus bump applies")
         .doc;
     let after = eval(&bumped);
@@ -317,6 +319,7 @@ fn rebind_repairs_a_selection_and_can_never_grow_it() {
             from: from.clone(),
             to: to.clone(),
         },
+        Tol::witness(),
     )
     .expect("rebinding one selected edge onto another")
     .doc;

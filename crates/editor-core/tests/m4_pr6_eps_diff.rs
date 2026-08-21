@@ -44,7 +44,7 @@ const EPS_NEW: &str = "1e-4";
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
     let (doc, _) = insert(
-        ProfileDoc::empty_derived("m4_pr6_eps_diff"),
+        ProfileDoc::empty_derived("m4_pr6_eps_diff", Tol::witness()),
         Node::Profile({
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the
@@ -87,7 +87,7 @@ fn child_eps_probe() {
         return; // Normal suite run: the parent drives this test.
     };
     let doc = thin_profile_doc();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
     let summary = verdict_summary(&ev);
     let json = serde_json::to_string(&summary).expect("summary serializes");
     std::fs::write(&out, json).expect("probe output writable");
@@ -217,12 +217,12 @@ fn set_tolerance_round_trips_and_gates_replay() {
     // the matching side: a fresh child at the NEW ε loads the file
     // and reports the recorded value).
     let doc = thin_profile_doc();
-    let text = save(&doc, &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }]).expect("save");
+    let text = save(&doc, &[editor_core::DocEdit::SetTolerance { eps: 1e-4 }], Tol::witness()).expect("save");
     // In THIS process the recorded ε (ambient) plus the edit's 1e-4
     // conflicts unless ambient IS 1e-4 — assert the door's decision
     // matches the committed ε, whichever matrix row we run under.
     let ambient = geom_core::Tol::witness().get().eps;
-    match load(&text) {
+    match load(&text, Tol::witness()) {
         Ok(loaded) => {
             assert_eq!(ambient.to_bits(), 1e-4f64.to_bits());
             assert_eq!(loaded.doc.epsilon().to_bits(), 1e-4f64.to_bits());

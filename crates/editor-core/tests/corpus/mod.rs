@@ -39,6 +39,7 @@ use editor_core::{
 };
 use geom_core::Decide;
 use topo::Body;
+use geom_core::Tol;
 
 pub mod boss;
 pub mod cut_cylinder;
@@ -112,7 +113,7 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(&self.doc, &self.bump)
+        apply(&self.doc, &self.bump, Tol::witness())
             .expect("corpus bump edit must apply")
             .doc
     }
@@ -193,7 +194,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
     doc: &ProfileDoc,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 /// The per-node failure report of an evaluation (empty when green).

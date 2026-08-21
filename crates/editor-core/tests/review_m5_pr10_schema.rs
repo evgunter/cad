@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{DocumentId, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 const V1: &str = include_str!("golden/v1_golden.cad");
 const V2: &str = include_str!("golden/v2_golden.cad");
@@ -17,7 +18,7 @@ fn body_of(text: &str) -> &str {
 /// v1 refuses SchemaTooOld with the pinned message, recourse once.
 #[test]
 fn review_v1_refuses_with_the_exact_message() {
-    let err = load(V1).expect_err("v1 must refuse");
+    let err = load(V1, Tol::witness()).expect_err("v1 must refuse");
     let msg = err.to_string();
     assert!(matches!(
         err,
@@ -41,7 +42,7 @@ fn review_v1_refuses_with_the_exact_message() {
 #[test]
 fn review_version_zero_refuses() {
     let text = format!("schema: 0\n{}", body_of(V2));
-    let err = load(&text).expect_err("v0 must refuse");
+    let err = load(&text, Tol::witness()).expect_err("v0 must refuse");
     println!("v0 -> {err:?}: {err}");
     assert!(matches!(err, PersistError::UnknownSchema { found: 0, .. }));
 }
@@ -52,7 +53,7 @@ fn review_version_zero_refuses() {
 fn review_version_three_is_too_new_even_with_garbage_body() {
     let next = u64::from(SCHEMA_VERSION) + 1;
     let text = format!("schema: {next}\n%%% not json %%%\n");
-    let err = load(&text).expect_err("a too-new schema must refuse");
+    let err = load(&text, Tol::witness()).expect_err("a too-new schema must refuse");
     assert!(
         matches!(err, PersistError::UnknownSchema { found, newest }
             if found == next && newest == SCHEMA_VERSION),
@@ -75,7 +76,7 @@ fn review_garbage_headers_refuse() {
         "schema: 18446744073709551616",
     ] {
         let text = format!("{h}\n{}", body_of(V2));
-        let err = load(&text).expect_err("must refuse");
+        let err = load(&text, Tol::witness()).expect_err("must refuse");
         assert!(
             matches!(err, PersistError::Header { .. }),
             "{h:?} -> {err:?}"
@@ -89,7 +90,7 @@ fn review_garbage_headers_refuse() {
 fn review_v1_header_with_v2_body_is_too_old() {
     let text = format!("schema: 1\n{}", body_of(V2));
     assert!(matches!(
-        load(&text),
+        load(&text, Tol::witness()),
         Err(PersistError::SchemaTooOld { found: 1, .. })
     ));
 }
@@ -99,7 +100,7 @@ fn review_v1_header_with_v2_body_is_too_old() {
 fn review_v1_header_with_broken_body_is_too_old() {
     let text = "schema: 1\n{\"snapshot\": [1,2,\n";
     assert!(matches!(
-        load(text),
+        load(text, Tol::witness()),
         Err(PersistError::SchemaTooOld { found: 1, .. })
     ));
 }
@@ -113,7 +114,7 @@ fn review_v2_header_with_broken_body_gets_the_body_diagnostic() {
     let id = DocumentId::derive("review-broken-body");
     let text = format!("schema: {SCHEMA_VERSION}\nid: {id}\n{{\"snapshot\": [1,2,\n");
     let text = text.as_str();
-    let err = load(text).expect_err("must refuse");
+    let err = load(text, Tol::witness()).expect_err("must refuse");
     assert!(matches!(err, PersistError::Parse { .. }), "{err:?}");
 }
 
@@ -148,7 +149,7 @@ fn review_a_hand_edited_v2_header_over_a_v1_body_refuses_since_v4() {
     // profile-bearing files, and the refusal is typed.
     let id = DocumentId::derive("review-hand-edited-header");
     let text = format!("schema: {SCHEMA_VERSION}\nid: {id}\n{}", body_of(V1));
-    match load(&text) {
+    match load(&text, Tol::witness()) {
         Err(PersistError::Parse { message, .. }) => assert!(
             message.contains("vertices"),
             "the refusal names the retired field: {message}"

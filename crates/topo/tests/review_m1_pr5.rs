@@ -38,6 +38,7 @@ use geom_core::Point3;
 use topo::{
     Body, EulerOpError, LoopBoundary, MefSite, MevSite, ValidationError, validate, validate_closed,
 };
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64) -> Point3<f64> {
     Point3::new(x, y, 0.0)
@@ -53,12 +54,13 @@ fn pillow() -> (Body<f64>, topo::MvfsCreated, topo::MevCreated) {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     body.mef_chord(MefSite::Chords {
         he1: seg.he_plus,
         he2: seg.he_minus,
-    })
+    }, Tol::witness())
     .unwrap();
     (body, seed, seg)
 }
@@ -78,16 +80,17 @@ fn grow_and_promote_detached_digon(
                 he2: anchor_he,
             },
             pt(x, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(x, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(x, 2.0), Tol::witness())
         .unwrap();
     body.mef_chord(MefSite::Chords {
         he1: grow.he_plus,
         he2: grow.he_minus,
-    })
+    }, Tol::witness())
     .unwrap();
     body.mfkrh_plug(kill.ring).unwrap()
 }
@@ -156,18 +159,19 @@ fn nested_detachment_detached_component_with_genus() {
                 he2: rim_he,
             },
             pt(2.0, 3.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // ...grow it to a digon cycle with an island face...
     let grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 4.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 4.0), Tol::witness())
         .unwrap();
     let island = body
         .mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
     // ...and kfmrh the island face onto the promoted face (same
     // component => handle, g+1): island's outer becomes a ring of the
@@ -211,12 +215,13 @@ fn two_solids_validate_independently() {
                     r#loop: seed.r#loop,
                 },
                 pt(10.0 * f64::from(i) + 1.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
     }
     assert_eq!(body.solids().count(), 2);
@@ -238,12 +243,13 @@ fn per_shell_disconnection_is_attributed_to_the_right_shell() {
                 r#loop: seed1.r#loop,
             },
             pt(1.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     body.mef_chord(MefSite::Chords {
         he1: seg1.he_plus,
         he2: seg1.he_minus,
-    })
+    }, Tol::witness())
     .unwrap();
     // Solid 2: pillow + promoted detached digon.
     let seed2 = body.mvfs(pt(10.0, 0.0)).unwrap();
@@ -253,12 +259,13 @@ fn per_shell_disconnection_is_attributed_to_the_right_shell() {
                 r#loop: seed2.r#loop,
             },
             pt(11.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     body.mef_chord(MefSite::Chords {
         he1: seg2.he_plus,
         he2: seg2.he_minus,
-    })
+    }, Tol::witness())
     .unwrap();
     grow_and_promote_detached_digon(&mut body, seg2.he_plus, 12.0);
     assert_eq!(validate(&body), Ok(()));
@@ -286,6 +293,7 @@ fn empty_outer_with_cycle_ring_is_tier1_legal() {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     // kemr on the segment loop: both sides empty (outer keeps its key,
@@ -294,7 +302,7 @@ fn empty_outer_with_cycle_ring_is_tier1_legal() {
     assert_eq!(validate(&body), Ok(()), "both-empty kemr output is tier 1");
     // Grow the RING to a cycle: face now has Empty outer + cycle ring.
     let grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0), Tol::witness())
         .unwrap();
     let outer_boundary = body
         .get_loop(body.get_face(seed.face).unwrap().outer)
@@ -342,16 +350,17 @@ fn ring_move_cross_component_stays_tier1_valid() {
                 he2: seg.he_plus,
             },
             pt(0.0, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0), Tol::witness())
         .unwrap();
     body.mef_chord(MefSite::Chords {
         he1: grow.he_plus,
         he2: grow.he_minus,
-    })
+    }, Tol::witness())
     .unwrap();
     // Component B: promoted detached digon.
     let promoted = grow_and_promote_detached_digon(&mut body, seg.he_plus, 5.0);
@@ -403,18 +412,19 @@ fn demotion_attack_battery_no_debug_panic() {
             he2: other_he,
         },
         pt(9.0, 9.0),
+        Tol::witness(),
     );
     assert!(r.is_err(), "cross-vertex fan must be rejected: {r:?}");
 
     // mev Lone on a CYCLE loop.
-    let r = body.mev_line(MevSite::Lone { r#loop: cube_outer }, pt(9.0, 9.0));
+    let r = body.mev_line(MevSite::Lone { r#loop: cube_outer }, pt(9.0, 9.0), Tol::witness());
     assert!(r.is_err(), "{r:?}");
 
     // mef Chords with he1 == he2.
     let r = body.mef_chord(MefSite::Chords {
         he1: rim_he,
         he2: rim_he,
-    });
+    }, Tol::witness());
     // (May be legal per PR 4's mate-alone re-make; either way: no panic.)
     if let Ok(created) = r {
         // Undo (kef on the NEW loop's half) to keep the body simple.
@@ -430,7 +440,7 @@ fn demotion_attack_battery_no_debug_panic() {
         let r = body.mef_chord(MefSite::Chords {
             he1: rim_he,
             he2: other_loop_he,
-        });
+        }, Tol::witness());
         assert!(r.is_err(), "cross-loop mef must be rejected: {r:?}");
     }
 
@@ -472,6 +482,7 @@ fn demotion_attack_battery_no_debug_panic() {
             he2: foreign_he,
         },
         pt(1.0, 1.0),
+        Tol::witness(),
     );
 
     // Whatever remains must still be tier-1 valid.
@@ -489,6 +500,7 @@ fn stale_keys_yield_typed_errors() {
                 he2: seg.he_plus,
             },
             pt(0.0, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     let dead_he = strut.he_plus;
@@ -504,12 +516,13 @@ fn stale_keys_yield_typed_errors() {
                 he2: dead_he,
             },
             pt(2.0, 2.0),
+            Tol::witness(),
         )
         .unwrap_err(),
         body.mef_chord(MefSite::Chords {
             he1: dead_he,
             he2: dead_he,
-        })
+        }, Tol::witness())
         .unwrap_err(),
     ] {
         assert!(
@@ -591,17 +604,18 @@ fn pillow_torus() -> Body<f64> {
                 he2: seg.he_plus,
             },
             pt(0.0, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0), Tol::witness())
         .unwrap();
     let island = body
         .mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
     // The face NOT holding the ring: the mef segment split made face_b;
     // ring sits on the face of seg.he_plus's loop. Use the island's
@@ -638,16 +652,17 @@ fn exhaustive_mutator_sweep_attached_island_plus_detached() {
                 he2: seg.he_plus,
             },
             pt(0.0, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.0, 2.0), Tol::witness())
         .unwrap();
     body.mef_chord(MefSite::Chords {
         he1: grow.he_plus,
         he2: grow.he_minus,
-    })
+    }, Tol::witness())
     .unwrap();
     // ...plus a promoted detached digon.
     grow_and_promote_detached_digon(&mut body, seg.he_plus, 5.0);
@@ -680,6 +695,7 @@ fn exhaustive_mutator_sweep_empty_ring_states() {
                 he2: seg.he_plus,
             },
             pt(0.0, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -701,6 +717,7 @@ fn promoted_empty_ring_still_has_an_empty_loop() {
                 he2: seg.he_plus,
             },
             pt(0.0, 1.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -740,11 +757,12 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
     let _grow = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(2.0, 0.0), Tol::witness())
         .unwrap();
     // face: Empty outer + 2-he strut cycle ring.
     assert_eq!(validate(&body), Ok(()));

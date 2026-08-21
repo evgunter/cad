@@ -12,6 +12,7 @@ use crate::names::EntityKind;
 use crate::node::{Node, PlacementRuleFault, RecipeNodeId, SlotId, StableName};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
+use geom_core::Tol;
 
 /// The v1 edit vocabulary (spec D6), extended by M4 PR 4 with the two
 /// explicit-repair edits: `Rebind` (NAMING-DESIGN N5 — the ONLY name
@@ -930,6 +931,7 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
+    tol: Tol,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
     // A11's cluster records follow the mate graph automatically. The
@@ -967,7 +969,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // validates under the CURRENT param env, refusing typed
             // here rather than at first evaluation.
             if let Node::Profile(p) = node {
-                p.check(&new.param_env::<f64>())
+                p.check(&new.param_env::<f64>(), tol)
                     .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
             }
             new.next_id += 1;
@@ -1015,8 +1017,8 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
-            set_slot(&mut new, *node, *slot, expr)?;
-            check_profile_after_slot_edit(&new, *node, *slot)?;
+            set_slot(&mut new, *node, *slot, expr, tol)?;
+            check_profile_after_slot_edit(&new, *node, *slot, tol)?;
             EditRecord {
                 minted: None,
                 structural: false,
@@ -1026,7 +1028,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             if !slot.is_structural() {
                 return Err(EditError::NotStructuralSlot { slot: *slot });
             }
-            set_slot(&mut new, *node, *slot, expr)?;
+            set_slot(&mut new, *node, *slot, expr, tol)?;
             EditRecord {
                 minted: None,
                 structural: true,
@@ -1047,8 +1049,8 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 .ok_or_else(|| EditError::PathOffTree { path: path.clone() })?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
-            set_slot(&mut new, path.node, path.slot, &rebuilt)?;
-            check_profile_after_slot_edit(&new, path.node, path.slot)?;
+            set_slot(&mut new, path.node, path.slot, &rebuilt, tol)?;
+            check_profile_after_slot_edit(&new, path.node, path.slot, tol)?;
             EditRecord {
                 minted: None,
                 structural,
@@ -1397,7 +1399,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
         }
     }
     let maintenance = if reconcile {
-        crate::mate::solve::reconcile(doc, &mut new)
+        crate::mate::solve::reconcile(doc, &mut new, tol)
     } else {
         Vec::new()
     };
@@ -1426,11 +1428,12 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     new: &Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
+    tol: Tol,
 ) -> Result<(), EditError> {
     if matches!(slot, SlotId::Profile { .. })
         && let Some(Node::Profile(p)) = new.nodes.get(&id)
     {
-        p.check(&new.param_env::<f64>())
+        p.check(&new.param_env::<f64>(), tol)
             .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
     }
     Ok(())
@@ -1443,6 +1446,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     id: RecipeNodeId,
     slot: SlotId,
     expr: &Expr,
+    tol: Tol,
 ) -> Result<(), EditError> {
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode { id });
@@ -1468,8 +1472,8 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
 
 impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// Method form of [`apply`] (spec D2's pure edit entry point).
-    pub fn apply(&self, edit: &DocEdit<P>) -> Result<Applied<P>, EditError> {
-        apply(self, edit)
+    pub fn apply(&self, edit: &DocEdit<P>, tol: Tol) -> Result<Applied<P>, EditError> {
+        apply(self, edit, tol)
     }
 
     /// Replay an edit list from the EMPTY document under the given
@@ -1477,10 +1481,10 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// BIT-IDENTICALLY (floats are stored exactly; ids re-mint
     /// deterministically). The document id is supplied, not replayed:
     /// identity is authored data the log never carries (ASM-1 D-1).
-    pub fn replay(id: crate::DocumentId, edits: &[DocEdit<P>]) -> Result<Doc<P>, EditError> {
-        let mut doc = Doc::empty(id);
+    pub fn replay(id: crate::DocumentId, edits: &[DocEdit<P>], tol: Tol) -> Result<Doc<P>, EditError> {
+        let mut doc = Doc::empty(id, tol);
         for edit in edits {
-            doc = apply(&doc, edit)?.doc;
+            doc = apply(&doc, edit, tol)?.doc;
         }
         Ok(doc)
     }

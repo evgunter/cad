@@ -36,6 +36,7 @@ use crate::{
     Solid, Vertex, VertexKey, validate,
 };
 use geom_core::Point3;
+use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -184,7 +185,7 @@ struct BoxBuilt {
 
 /// The 2×2×2 box (cube-test sequence; PR 2 material, re-verified here
 /// via loop-walk assertions rather than trusted).
-fn build_box(body: &mut Body<f64>) -> BoxBuilt {
+fn build_box(body: &mut Body<f64>, tol: Tol) -> BoxBuilt {
     let pt = Point3::new;
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
     let e_ab = body
@@ -193,10 +194,11 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
                 r#loop: seed.r#loop,
             },
             pt(2.0, 0.0, 0.0),
+            tol,
         )
         .unwrap(); // B
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
     };
     let e_bc = strut(body, e_ab.he_minus, 2.0, 2.0, 0.0); // C
@@ -208,14 +210,14 @@ fn build_box(body: &mut Body<f64>) -> BoxBuilt {
         .mef_chord(MefSite::Chords {
             he1: he_dc,
             he2: e_ab.he_plus,
-        })
+        }, tol)
         .unwrap();
     let e_aa = strut(body, e_ab.he_plus, 0.0, 0.0, 2.0);
     let e_bb = strut(body, e_bc.he_plus, 2.0, 0.0, 2.0);
     let e_cc = strut(body, e_cd.he_plus, 2.0, 2.0, 2.0);
     let e_dd = strut(body, f_bottom.he_plus, 0.0, 2.0, 2.0);
     let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
     let f_front = mef(body, e_aa.he_minus, e_bb.he_minus);
     let f_right = mef(body, e_bb.he_minus, e_cc.he_minus);
     let f_back = mef(body, e_cc.he_minus, e_dd.he_minus);
@@ -291,13 +293,14 @@ fn carve_hole(
     drop_pts: &[Point3<f64>],
     l: &mut GenusInputs,
     h: i64,
+    tol: Tol,
 ) -> HoleBuilt {
     let n = rim_pts.len() as i64;
     assert!(n >= 3);
 
     // Strut, then kemr: the planted empty ring.
     let strut = body
-        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0], tol)
         .unwrap();
     l.v += 1;
     l.e += 1;
@@ -329,7 +332,7 @@ fn carve_hole(
     // Grow the rim chain inside the ring.
     let mut rim: Vec<MevCreated> = Vec::new();
     let first_rim = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1], tol)
         .unwrap();
     l.v += 1;
     l.e += 1;
@@ -344,6 +347,7 @@ fn carve_hole(
                     he2: prev,
                 },
                 *p,
+                tol,
             )
             .unwrap();
         l.v += 1;
@@ -357,7 +361,7 @@ fn carve_hole(
         .mef_chord(MefSite::Chords {
             he1: rim[0].he_plus,
             he2: rim.last().unwrap().he_minus,
-        })
+        }, tol)
         .unwrap();
     l.e += 1;
     l.f += 1;
@@ -384,6 +388,7 @@ fn carve_hole(
                     he2: anchor,
                 },
                 *p,
+                tol,
             )
             .unwrap();
         l.v += 1;
@@ -399,7 +404,7 @@ fn carve_hole(
             .mef_chord(MefSite::Chords {
                 he1: drops[i].he_minus,
                 he2: drops[i + 1].he_minus,
-            })
+            }, tol)
             .unwrap();
         l.e += 1;
         l.f += 1;
@@ -414,7 +419,7 @@ fn carve_hole(
         .mef_chord(MefSite::Chords {
             he1: drops.last().unwrap().he_minus,
             he2: he_first_far,
-        })
+        }, tol)
         .unwrap();
     l.e += 1;
     l.f += 1;
@@ -478,9 +483,10 @@ fn carve_hole(
 
 #[test]
 fn independent_genus_one_and_two_builds_with_hand_ledger() {
+    let tol = Tol::witness();
     let pt = Point3::new;
     let mut body = Body::<f64>::new();
-    let b = build_box(&mut body);
+    let b = build_box(&mut body, tol);
     let mut l = GenusInputs {
         v: 8,
         e: 12,
@@ -503,6 +509,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
         &mut l,
         0,
+        tol,
     );
     assert_eq!(
         l,
@@ -567,6 +574,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         ],
         &mut l,
         1,
+        tol,
     );
     // Hand ledger, genus 2: v−e+f−r = 22−33+13−4 = −2 = 2(1−2).
     assert_eq!(
@@ -675,7 +683,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
 
     // Replay determinism of the whole genus-2 history, kills included.
     let mut body2 = Body::<f64>::new();
-    let b2 = build_box(&mut body2);
+    let b2 = build_box(&mut body2, tol);
     let mut l2 = GenusInputs {
         v: 8,
         e: 12,
@@ -695,6 +703,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
         &mut l2,
         0,
+        tol,
     );
     let he_top2 = body2
         .find_half_edge(b2.seed.face, b2.e_aa.vertex, b2.e_bb.vertex)
@@ -718,6 +727,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         ],
         &mut l2,
         1,
+        tol,
     );
     body2.ring_move(h2b.plug.ring, b2.f_right.face).unwrap();
     body2.ring_move(h2b.plug.ring, b2.f_bottom.face).unwrap();
@@ -734,7 +744,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
 
 /// mvfs + mev(Lone) + (n−1) strut mevs: the n-edge open chain
 /// v0–v1–…–vn in one loop, cycle [e0+ … e(n−1)+ e(n−1)− … e0−].
-fn chain(n: usize) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
+fn chain(n: usize, tol: Tol) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let mut es = Vec::new();
@@ -744,6 +754,7 @@ fn chain(n: usize) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     es.push(first);
@@ -756,6 +767,7 @@ fn chain(n: usize) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
                     he2: prev,
                 },
                 Point3::new(1.0 + i as f64, 0.0, 0.0),
+                tol,
             )
             .unwrap();
         es.push(e);
@@ -766,11 +778,12 @@ fn chain(n: usize) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
 
 #[test]
 fn kemr_asymmetric_split_exact_membership_and_anchors() {
+    let tol = Tol::witness();
     // 5-edge chain; kill the MIDDLE edge e2. Hand derivation:
     // cycle from e2+ is [e2+, e3+, e4+, e4−, e3−, e2−, e1−, e0−, e0+, e1+];
     // ring side (strictly between e2+ and e2−) = [e3+, e4+, e4−, e3−];
     // old side = [e1−, e0−, e0+, e1+].
-    let (mut body, seed, es) = chain(5);
+    let (mut body, seed, es) = chain(5, tol);
     let result = body.kemr(es[2].he_plus, es[2].he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -820,7 +833,7 @@ fn kemr_asymmetric_split_exact_membership_and_anchors() {
         .mekr_chord(MekrSite::Cycles {
             target: es[1].he_minus,
             ring: es[3].he_plus,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     let vs: Vec<VertexKey> = starts(&body, restore.he_plus);
@@ -846,9 +859,10 @@ fn kemr_asymmetric_split_exact_membership_and_anchors() {
 
 #[test]
 fn kemr_adjacent_halves_empty_side_anchor_rules() {
+    let tol = Tol::witness();
     // Strut kill, unswapped: ring side empty (next(he1) == he2) → ring
     // Empty at w = start(he2) = the tip.
-    let (mut body, seed, es) = chain(2);
+    let (mut body, seed, es) = chain(2, tol);
     let strut = &es[1];
     let result = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -870,7 +884,7 @@ fn kemr_adjacent_halves_empty_side_anchor_rules() {
     // Swapped: old side empty (next(he2) == he1) → OLD loop Empty at
     // u = start(he1) = the tip; ring gets the whole surviving cycle,
     // anchored at next(he1) = e0−.
-    let (mut body2, seed2, es2) = chain(2);
+    let (mut body2, seed2, es2) = chain(2, tol);
     let strut2 = &es2[1];
     let result2 = body2.kemr(strut2.he_minus, strut2.he_plus).unwrap();
     assert_eq!(validate(&body2), Ok(()));
@@ -894,7 +908,7 @@ fn kemr_adjacent_halves_empty_side_anchor_rules() {
 
 /// Raw-built (public builder) self-loop segment: one vertex, one edge,
 /// both halves a 2-cycle loop — the u == w collision state.
-fn raw_self_loop() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
+fn raw_self_loop(tol: Tol) -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
     let prov = Provenance::Primordial { op: "review" };
@@ -906,7 +920,7 @@ fn raw_self_loop() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
         },
         prov.clone(),
     );
-    let curve = body.add_curve(crate::fixtures::test_curve(Point3::new(0.0, 0.0, 0.0)));
+    let curve = body.add_curve(crate::fixtures::test_curve(Point3::new(0.0, 0.0, 0.0), tol));
     let edge = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -978,7 +992,8 @@ fn raw_self_loop() -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
 
 #[test]
 fn kemr_anchor_collision_input_is_tier1_invalid_and_typed() {
-    let (mut body, h1, h2, v) = raw_self_loop();
+    let tol = Tol::witness();
+    let (mut body, h1, h2, v) = raw_self_loop(tol);
     // The PR's claim: this state is ALREADY tier-1-invalid (the vertex
     // orbit splits over the two halves). Verify independently.
     assert!(
@@ -997,14 +1012,15 @@ fn kemr_anchor_collision_input_is_tier1_invalid_and_typed() {
 
 #[test]
 fn killed_keys_stay_dead_across_slot_recycling() {
-    let (mut body, seed, es) = chain(1);
+    let tol = Tol::witness();
+    let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
     let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
     let restore = body
         .mekr_chord(MekrSite::BothEmpty {
             target: seed.r#loop,
             ring: kill.ring,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -1036,7 +1052,7 @@ fn killed_keys_stay_dead_across_slot_recycling() {
         .mekr_chord(MekrSite::BothEmpty {
             target: seed.r#loop,
             ring: kill2.ring,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     for dead_he in [seg.he_plus, seg.he_minus, restore.he_plus, restore.he_minus] {
@@ -1053,16 +1069,17 @@ fn killed_keys_stay_dead_across_slot_recycling() {
 
 #[test]
 fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
+    let tol = Tol::witness();
     // Build A: segment, kemr∘mekr roundtrip, then a follow-up mev and a
     // follow-up mef. Build C: segment, then the same follow-ups.
-    let (mut body_a, seed_a, es_a) = chain(1);
+    let (mut body_a, seed_a, es_a) = chain(1, tol);
     let seg_a = es_a[0];
     let kill_a = body_a.kemr(seg_a.he_plus, seg_a.he_minus).unwrap();
     let restore_a = body_a
         .mekr_chord(MekrSite::BothEmpty {
             target: seed_a.r#loop,
             ring: kill_a.ring,
-        })
+        }, tol)
         .unwrap();
     let mev_a = body_a
         .mev_line(
@@ -1071,17 +1088,18 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
                 he2: restore_a.he_minus,
             },
             Point3::new(9.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let mef_a = body_a
         .mef_chord(MefSite::Chords {
             he1: restore_a.he_plus,
             he2: restore_a.he_minus,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body_a), Ok(()));
 
-    let (mut body_c, _seed_c, es_c) = chain(1);
+    let (mut body_c, _seed_c, es_c) = chain(1, tol);
     let seg_c = es_c[0];
     let mev_c = body_c
         .mev_line(
@@ -1090,13 +1108,14 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
                 he2: seg_c.he_minus,
             },
             Point3::new(9.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let mef_c = body_c
         .mef_chord(MefSite::Chords {
             he1: seg_c.he_plus,
             he2: seg_c.he_minus,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body_c), Ok(()));
 
@@ -1129,13 +1148,13 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
         .mef_chord(MefSite::Chords {
             he1: mev_a.he_plus,
             he2: mev_a.he_minus,
-        })
+        }, tol)
         .unwrap();
     let mef2_c = body_c
         .mef_chord(MefSite::Chords {
             he1: mev_c.he_plus,
             he2: mev_c.he_minus,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body_a), Ok(()));
     assert_eq!(validate(&body_c), Ok(()));
@@ -1144,27 +1163,28 @@ fn balanced_pair_convergence_holds_for_mev_but_not_for_loop_minting() {
 
 #[test]
 fn unbalanced_kill_divergence_persists() {
+    let tol = Tol::witness();
     // A: 3-chain, kemr only (no mekr), then two mevs.
-    let (mut body_a, _seed_a, es_a) = chain(3);
+    let (mut body_a, _seed_a, es_a) = chain(3, tol);
     let _kill = body_a.kemr(es_a[1].he_plus, es_a[1].he_minus).unwrap();
     let site_a = MevSite::Fan {
         he1: es_a[0].he_minus,
         he2: es_a[0].he_minus,
     };
-    let mev1_a = body_a.mev_line(site_a, Point3::new(9.0, 0.0, 0.0)).unwrap();
+    let mev1_a = body_a.mev_line(site_a, Point3::new(9.0, 0.0, 0.0), tol).unwrap();
     let mev2_a = body_a
-        .mev_line(site_a, Point3::new(10.0, 0.0, 0.0))
+        .mev_line(site_a, Point3::new(10.0, 0.0, 0.0), tol)
         .unwrap();
 
     // C: 3-chain, the same two mevs, no kill.
-    let (mut body_c, _seed_c, es_c) = chain(3);
+    let (mut body_c, _seed_c, es_c) = chain(3, tol);
     let site_c = MevSite::Fan {
         he1: es_c[0].he_minus,
         he2: es_c[0].he_minus,
     };
-    let mev1_c = body_c.mev_line(site_c, Point3::new(9.0, 0.0, 0.0)).unwrap();
+    let mev1_c = body_c.mev_line(site_c, Point3::new(9.0, 0.0, 0.0), tol).unwrap();
     let mev2_c = body_c
-        .mev_line(site_c, Point3::new(10.0, 0.0, 0.0))
+        .mev_line(site_c, Point3::new(10.0, 0.0, 0.0), tol)
         .unwrap();
 
     // Killed-arena keys diverge at the first mint (recycled slots)…
@@ -1190,9 +1210,10 @@ fn unbalanced_kill_divergence_persists() {
 
 #[test]
 fn mekr_joins_two_independent_rings_and_then_the_outer() {
+    let tol = Tol::witness();
     // One face, TWO empty rings from two independent strut/kemr
     // episodes — a state no single kemr produces.
-    let (mut body, seed, es) = chain(1);
+    let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
     let strut_a = body
         .mev_line(
@@ -1201,6 +1222,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
                 he2: seg.he_minus,
             },
             Point3::new(2.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let ring_a = body.kemr(strut_a.he_plus, strut_a.he_minus).unwrap();
@@ -1211,6 +1233,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
                 he2: seg.he_plus,
             },
             Point3::new(3.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let ring_b = body.kemr(strut_b.he_plus, strut_b.he_minus).unwrap();
@@ -1238,7 +1261,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
         .mekr_chord(MekrSite::BothEmpty {
             target: ring_a.ring,
             ring: ring_b.ring,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(body.get_face(seed.face).unwrap().rings, vec![ring_a.ring]);
@@ -1274,7 +1297,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
         .mekr_chord(MekrSite::Cycles {
             target: seg.he_plus,
             ring: join.he_plus,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(body.get_face(seed.face).unwrap().rings.is_empty());
@@ -1310,7 +1333,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
 /// Raw-built 2-edge chain (v0–v1–v2, one loop) whose two edges SHARE
 /// one curve — unreachable through M1 operators (each op mints its own
 /// curve) but tier-1-valid, exercising the reap scan's keep branch.
-fn raw_shared_curve_chain() -> (
+fn raw_shared_curve_chain(tol: Tol) -> (
     Body<f64>,
     [HalfEdgeKey; 4], // a0 (v0→v1), a1 (v1→v2), b1 (v2→v1), b0 (v1→v0)
     crate::CurveKey,
@@ -1336,7 +1359,7 @@ fn raw_shared_curve_chain() -> (
             )
         })
         .collect();
-    let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
+    let curve = body.add_curve(crate::fixtures::test_curve(p(0.0), tol));
     let e0 = body.add_edge(
         Edge {
             he_plus: null_he,
@@ -1417,7 +1440,8 @@ fn raw_shared_curve_chain() -> (
 
 #[test]
 fn kemr_keeps_shared_curves_and_reaps_private_ones() {
-    let (mut body, [a0, a1, b1, b0], curve) = raw_shared_curve_chain();
+    let tol = Tol::witness();
+    let (mut body, [a0, a1, b1, b0], curve) = raw_shared_curve_chain(tol);
     assert_eq!(
         validate(&body),
         Ok(()),
@@ -1442,14 +1466,15 @@ fn kemr_keeps_shared_curves_and_reaps_private_ones() {
 
 #[test]
 fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
+    let tol = Tol::witness();
     // Ops-built pillow; shared case first.
-    let (mut body, seed, es) = chain(1);
+    let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, tol)
         .unwrap();
     let shared = body.kfmrh(seed.face, split.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -1459,13 +1484,13 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     // Private case: same construction, but give the mef face its OWN
     // surface first (public mutation; body stays tier-1-valid since
     // the shared surface is still referenced by the seed face).
-    let (mut body2, seed2, es2) = chain(1);
+    let (mut body2, seed2, es2) = chain(1, tol);
     let seg2 = es2[0];
     let split2 = body2
         .mef_chord(MefSite::Chords {
             he1: seg2.he_plus,
             he2: seg2.he_minus,
-        })
+        }, tol)
         .unwrap();
     let private = body2.add_surface(crate::fixtures::test_surface(Point3::new(5.0, 0.0, 0.0)));
     body2.get_face_mut(split2.face).unwrap().surface = private;
@@ -1485,8 +1510,9 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
 
 #[test]
 fn kemr_error_paths_are_atomic() {
+    let tol = Tol::witness();
     // NotSameEdge: same key twice.
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     assert_err_unchanged(
         &mut body,
         &EulerOpError::NotSameEdge {
@@ -1505,7 +1531,7 @@ fn kemr_error_paths_are_atomic() {
         |b| b.kemr(es[0].he_plus, es[1].he_minus).unwrap_err(),
     );
     // NotSameEdge: corrupt bijection (edge does not claim its half).
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     body.get_edge_mut(es[1].edge).unwrap().he_plus = es[0].he_plus;
     assert_err_unchanged(
         &mut body,
@@ -1516,12 +1542,12 @@ fn kemr_error_paths_are_atomic() {
         |b| b.kemr(es[1].he_plus, es[1].he_minus).unwrap_err(),
     );
     // NotSameLoop: halves split across a mef.
-    let (mut body, _seed, es) = chain(1);
+    let (mut body, _seed, es) = chain(1, tol);
     let seg = es[0];
     body.mef_chord(MefSite::Chords {
         he1: seg.he_plus,
         he2: seg.he_minus,
-    })
+    }, tol)
     .unwrap();
     assert_err_unchanged(
         &mut body,
@@ -1532,7 +1558,7 @@ fn kemr_error_paths_are_atomic() {
         |b| b.kemr(seg.he_plus, seg.he_minus).unwrap_err(),
     );
     // StaleKey (half-edge argument).
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     let dead = HalfEdgeKey::default();
     assert_err_unchanged(
         &mut body,
@@ -1543,7 +1569,7 @@ fn kemr_error_paths_are_atomic() {
     );
     // LoopNotCycle: both halves' parent repointed at an empty ring loop
     // (corrupt body; typed error, atomic, release-safe).
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     let strut = es[1];
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     body.get_half_edge_mut(es[0].he_plus).unwrap().parent_loop = ring;
@@ -1554,7 +1580,7 @@ fn kemr_error_paths_are_atomic() {
         |b| b.kemr(es[0].he_plus, es[0].he_minus).unwrap_err(),
     );
     // LoopCycleBroken: self-linked next skips he2 (corrupt).
-    let (mut body, seed, es) = chain(2);
+    let (mut body, seed, es) = chain(2, tol);
     body.get_half_edge_mut(es[1].he_plus).unwrap().next = es[1].he_plus;
     assert_err_unchanged(
         &mut body,
@@ -1566,13 +1592,13 @@ fn kemr_error_paths_are_atomic() {
     // LoopCycleBroken via a WANDERING walk: next points into another
     // loop's cycle so the walk never returns — the bounded walk must
     // terminate (no hang, also in release).
-    let (mut body, seed, es) = chain(1);
+    let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, tol)
         .unwrap();
     let strut = body
         .mev_line(
@@ -1581,6 +1607,7 @@ fn kemr_error_paths_are_atomic() {
                 he2: seg.he_minus,
             },
             Point3::new(2.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     // strut halves live in the OLD face's loop; point the strut's next
@@ -1598,7 +1625,7 @@ fn kemr_error_paths_are_atomic() {
         "bounded walk must terminate promptly"
     );
     // StaleKey on a start vertex (corrupt half-edge).
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     body.get_half_edge_mut(es[1].he_plus).unwrap().start = VertexKey::default();
     assert_err_unchanged(
         &mut body,
@@ -1611,8 +1638,9 @@ fn kemr_error_paths_are_atomic() {
 
 #[test]
 fn mekr_error_paths_are_atomic() {
+    let tol = Tol::witness();
     // SameLoop.
-    let (mut body, seed, es) = chain(1);
+    let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
     assert_err_unchanged(
         &mut body,
@@ -1623,18 +1651,18 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::Cycles {
                 target: seg.he_plus,
                 ring: seg.he_minus,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // NotSameFace: ring on the old face, target half in the mef face.
-    let (mut body, _seed, es) = chain(1);
+    let (mut body, _seed, es) = chain(1, tol);
     let seg = es[0];
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, tol)
         .unwrap();
     let strut = body
         .mev_line(
@@ -1643,6 +1671,7 @@ fn mekr_error_paths_are_atomic() {
                 he2: seg.he_minus,
             },
             Point3::new(2.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
@@ -1658,12 +1687,12 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::EmptyRing {
                 target: split.he_minus,
                 ring,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // RingIsOuter: name the outer loop as the ring to kill.
-    let (mut body, seed, es) = chain(2);
+    let (mut body, seed, es) = chain(2, tol);
     let strut = es[1];
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
     assert_err_unchanged(
@@ -1675,12 +1704,12 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::EmptyTarget {
                 target: b_ring(b, seed.face),
                 ring: es[0].he_plus,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // LoopNotEmpty: EmptyRing with a cycle ring.
-    let (mut body, _seed, es) = chain(3);
+    let (mut body, _seed, es) = chain(3, tol);
     let kill = body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
     assert_err_unchanged(
         &mut body,
@@ -1689,12 +1718,12 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::EmptyRing {
                 target: es[0].he_minus,
                 ring: kill.ring,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // LoopCycleBroken: corrupt the ring's cycle with a null next.
-    let (mut body, _seed, es) = chain(3);
+    let (mut body, _seed, es) = chain(3, tol);
     let kill = body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
     body.get_half_edge_mut(es[2].he_plus).unwrap().next = HalfEdgeKey::default();
     let ring_loop = kill.ring;
@@ -1705,13 +1734,13 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::Cycles {
                 target: es[0].he_minus,
                 ring: es[2].he_plus,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // EmptyAnchorsCollide: two empty loops sharing one vertex (corrupt,
     // raw-grafted).
-    let (mut body, seed, es) = chain(2);
+    let (mut body, seed, es) = chain(2, tol);
     let strut = es[1];
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let extra = body.add_loop(
@@ -1737,12 +1766,12 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::BothEmpty {
                 target: kill.ring,
                 ring: extra,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // StaleKey: dead loop key as the ring.
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     let dead_loop = LoopKey::default();
     assert_err_unchanged(
         &mut body,
@@ -1753,12 +1782,12 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::EmptyRing {
                 target: es[0].he_plus,
                 ring: dead_loop,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
     // StaleKey on the splice point: target's prev dangles (corrupt).
-    let (mut body, _seed, es) = chain(2);
+    let (mut body, _seed, es) = chain(2, tol);
     let strut = es[1];
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     body.get_half_edge_mut(es[0].he_plus).unwrap().prev = HalfEdgeKey::default();
@@ -1771,7 +1800,7 @@ fn mekr_error_paths_are_atomic() {
             b.mekr_chord(MekrSite::EmptyRing {
                 target: es[0].he_plus,
                 ring,
-            })
+            }, tol)
             .unwrap_err()
         },
     );
@@ -1784,14 +1813,15 @@ fn b_ring(body: &Body<f64>, face: FaceKey) -> LoopKey {
 
 #[test]
 fn kfmrh_and_ring_move_error_paths_are_atomic() {
+    let tol = Tol::witness();
     // Pillow through ops.
-    let (mut body, seed, es) = chain(1);
+    let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, tol)
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -1838,6 +1868,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
                 he2: split.he_minus,
             },
             Point3::new(2.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
@@ -1894,10 +1925,11 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
 
 #[test]
 fn failing_ring_ops_leave_lineage_pure() {
+    let tol = Tol::witness();
     let pt = Point3::new;
     let build = |inject: bool| -> (Body<f64>, Vec<String>) {
         let mut body = Body::<f64>::new();
-        let b = build_box(&mut body);
+        let b = build_box(&mut body, tol);
         let mut l = GenusInputs {
             v: 8,
             e: 12,
@@ -1924,6 +1956,7 @@ fn failing_ring_ops_leave_lineage_pure() {
             &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
             &mut l,
             0,
+            tol,
         );
         if inject {
             // Failing mekr (NotSameFace: ring on front face, target in
@@ -1942,7 +1975,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                         };
                         first
                     }
-                }),
+                }, tol),
                 Err(EulerOpError::NotSameFace { .. })
             ));
             assert!(matches!(
@@ -1958,6 +1991,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                     he2: b.e_ab.he_minus,
                 },
                 pt(3.0, 0.0, 0.0),
+                tol,
             )
             .unwrap();
         let mut lines = snapshot(&body);

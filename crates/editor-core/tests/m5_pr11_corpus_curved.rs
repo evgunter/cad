@@ -18,6 +18,7 @@ use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use topo::Body;
 
 use corpus::{body_of, documents, eval, failures};
+use geom_core::Tol;
 
 const DELTA: f64 = 1e-2;
 
@@ -25,7 +26,7 @@ const DELTA: f64 = 1e-2;
 /// (tessellation wall-clock, triangle count) column.
 fn tess_column(label: &str, body: &Body<f64>) -> (f64, usize) {
     let t0 = Instant::now();
-    let mesh = mesh::tessellate(body, DELTA)
+    let mesh = mesh::tessellate(body, DELTA, Tol::witness())
         .unwrap_or_else(|e| panic!("{label}: tessellates at delta {DELTA}: {e:?}"));
     let dt = t0.elapsed().as_secs_f64() * 1e3;
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: watertight: {e:?}"));
@@ -70,7 +71,7 @@ fn cut_cylinder_gains_tessellation_and_props_columns() {
         ("cut_cylinder/below", &**below),
     ] {
         let (ms, tris) = tess_column(label, body);
-        let m = topo::mass_properties(body).expect("the PR 11 quadrature lane computes");
+        let m = topo::mass_properties(body, Tol::witness()).expect("the PR 11 quadrature lane computes");
         assert!(
             m.volume - m.volume_pad <= half && half <= m.volume + m.volume_pad,
             "{label}: bracket [{}, {}] vs {half}",
@@ -93,7 +94,7 @@ fn boss_union_gains_tessellation_and_props_columns() {
     assert!(failures(&ev).is_empty());
     let body = body_of(&ev, d.result.expect("boss carries a result"));
     let (ms, tris) = tess_column("boss_union", body);
-    let vol = topo::mass_properties(body).unwrap().volume;
+    let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
     // 3×3×0.8 plate + r = 0.35 boss poking 0.5 out of the plate.
     let expect = 7.2 + core::f64::consts::PI * 0.35f64.powi(2) * 0.5;
     assert!((vol - expect).abs() < 1e-6, "vol {vol} vs {expect}");

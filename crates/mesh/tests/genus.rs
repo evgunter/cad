@@ -8,6 +8,7 @@
 mod common;
 
 use common::*;
+use geom_core::Tol;
 
 #[test]
 fn washer_tessellates_full_period_patches() {
@@ -33,7 +34,7 @@ fn donut_tessellates_the_torus() {
 #[test]
 fn donut_faces_share_one_torus_surface() {
     let body = donut();
-    let mesh = mesh::tessellate(&body, 0.05).unwrap();
+    let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).unwrap();
     // Both wall faces lie on the single torus surface; per-face
     // patches stay separate (no face merging, ratified).
     let torus_patches: Vec<_> = mesh

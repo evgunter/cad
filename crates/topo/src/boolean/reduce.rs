@@ -57,6 +57,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Which candidate-generation path the reduction sweep runs — the
 /// idealized/realized pair of PERF-PLAN §4.4 (the pattern is only
@@ -465,6 +466,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     strategy: SweepStrategy,
     knobs: &SweepKnobs,
     mut trace: Option<&mut SweepTrace>,
+    tol: Tol,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
     let pad = knobs.pad_override.unwrap_or_else(|| boxes::sweep_pad(band));
@@ -590,20 +592,20 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                             match containment {
                                 FaceContainment::Out => {}
                                 FaceContainment::In => {
-                                    let w = split_at(x, x_is, edge_key, t)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol)?;
                                     contacts.vf(x_is, VfContact { vertex: w, face });
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnEdge(ey) => {
-                                    let w = split_at(x, x_is, edge_key, t)?;
-                                    let wy = split_other_at_point(y, x_is.other(), ey, p)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol)?;
+                                    let wy = split_other_at_point(y, x_is.other(), ey, p, tol)?;
                                     push_vv(contacts, x_is, w, wy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
                                 }
                                 FaceContainment::OnVertex(vy) => {
-                                    let w = split_at(x, x_is, edge_key, t)?;
+                                    let w = split_at(x, x_is, edge_key, t, tol)?;
                                     push_vv(contacts, x_is, w, vy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
@@ -622,10 +624,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
                         let mut hit = false;
                         if s1 == Sign::Zero {
-                            hit |= vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band)?;
+                            hit |= vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
                         }
                         if s2 == Sign::Zero {
-                            hit |= vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band)?;
+                            hit |= vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band, tol)?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
                             tr.accepted.push((edge_key, face));
@@ -671,20 +673,20 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     match containment {
                         FaceContainment::Out => {}
                         FaceContainment::In => {
-                            let w = split_at(x, x_is, edge_key, t)?;
+                            let w = split_at(x, x_is, edge_key, t, tol)?;
                             contacts.vf(x_is, VfContact { vertex: w, face });
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
-                            let w = split_at(x, x_is, edge_key, t)?;
-                            let wy = split_other_at_point(y, x_is.other(), ey, p)?;
+                            let w = split_at(x, x_is, edge_key, t, tol)?;
+                            let wy = split_other_at_point(y, x_is.other(), ey, p, tol)?;
                             push_vv(contacts, x_is, w, wy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
                         }
                         FaceContainment::OnVertex(vy) => {
-                            let w = split_at(x, x_is, edge_key, t)?;
+                            let w = split_at(x, x_is, edge_key, t, tol)?;
                             push_vv(contacts, x_is, w, vy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
@@ -698,10 +700,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                 (za, zb) => {
                     let mut hit = false;
                     if za == Sign::Zero {
-                        hit |= vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band)?;
+                        hit |= vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
                     }
                     if zb == Sign::Zero {
-                        hit |= vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band)?;
+                        hit |= vertex_on_face(x_is, y, v, pv, face, &plane, contacts, band, tol)?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
                         tr.accepted.push((edge_key, face));
@@ -922,12 +924,13 @@ fn vertex_on_face<T: Decide>(
     plane: &PlaneDesc<T>,
     contacts: &mut ContactAcc,
     band: Band,
+    tol: Tol,
 ) -> Result<bool, BooleanError> {
     match contfp(y, face, plane.normal, px, band).map_err(|e| esc(e, x_is.other()))? {
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, tol)?;
             push_vv(contacts, x_is, vx, wy);
         }
         FaceContainment::OnVertex(vy) => push_vv(contacts, x_is, vx, vy),
@@ -940,8 +943,9 @@ fn split_at<T: Decide>(
     x_is: Operand,
     edge: EdgeKey,
     t: T,
+    tol: Tol,
 ) -> Result<VertexKey, BooleanError> {
-    x.split_edge(edge, t)
+    x.split_edge(edge, t, tol)
         .map(|c| c.vertex)
         .map_err(|source| BooleanError::CrossingInsertion {
             operand: x_is,
@@ -962,6 +966,7 @@ fn split_other_at_point<T: Decide>(
     y_is: Operand,
     edge: EdgeKey,
     p: Point3<T>,
+    tol: Tol,
 ) -> Result<VertexKey, BooleanError> {
     let curve = match y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)) {
         Some(CurveGeom::Certified(c)) => c.clone(),
@@ -979,7 +984,7 @@ fn split_other_at_point<T: Decide>(
         });
     };
     let t = (p - origin).dot(dir);
-    split_at(y, y_is, edge, t)
+    split_at(y, y_is, edge, t, tol)
 }
 
 /// Requeues both children of a just-split edge (parent keeps the

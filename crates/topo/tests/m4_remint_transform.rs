@@ -12,6 +12,7 @@ use common::prism_z;
 use geom_brep::{CERT_SAMPLES, EdgeGeometry};
 use geom_core::{Affine3, Mat3, Vec3};
 use topo::transform_rigid;
+use geom_core::Tol;
 
 fn rot_trans() -> Affine3<f64> {
     // A rounding-hostile map: rotation by 1 radian about a skew axis
@@ -36,10 +37,10 @@ fn witnesses_are_construction_fresh_bits() {
         0.75,
     )
     .body;
-    let topo::BooleanResult::Body(bb) = topo::union(&a, &b).unwrap() else {
+    let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
-    let out = transform_rigid(&bb.body, &rot_trans()).unwrap();
+    let out = transform_rigid(&bb.body, &rot_trans(), Tol::witness()).unwrap();
     let mid = (CERT_SAMPLES - 1) / 2;
     let mut checked = 0usize;
     for (_k, e) in out.edges() {
@@ -77,12 +78,12 @@ fn transform_chain_stays_fresh() {
         0.75,
     )
     .body;
-    let topo::BooleanResult::Body(bb) = topo::union(&a, &b).unwrap() else {
+    let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
     let mut cur = bb.body;
     for i in 1..=5 {
-        cur = transform_rigid(&cur, &rot_trans())
+        cur = transform_rigid(&cur, &rot_trans(), Tol::witness())
             .unwrap_or_else(|e| panic!("chain step {i} refused: {e:?}"));
     }
     let mid = (CERT_SAMPLES - 1) / 2;
@@ -110,10 +111,10 @@ fn remint_is_deterministic() {
         0.75,
     )
     .body;
-    let topo::BooleanResult::Body(bb) = topo::union(&a, &b).unwrap() else {
+    let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
-    let o1 = transform_rigid(&bb.body, &rot_trans()).unwrap();
-    let o2 = transform_rigid(&bb.body, &rot_trans()).unwrap();
+    let o1 = transform_rigid(&bb.body, &rot_trans(), Tol::witness()).unwrap();
+    let o2 = transform_rigid(&bb.body, &rot_trans(), Tol::witness()).unwrap();
     assert_eq!(format!("{o1:?}"), format!("{o2:?}"));
 }

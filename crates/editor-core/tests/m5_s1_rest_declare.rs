@@ -23,6 +23,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, ValuePayload, evaluate, load, save,
 };
 use fixture::{desc, insert, len, wall};
+use geom_core::Tol;
 
 fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
     StableName {
@@ -55,7 +56,7 @@ fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
 /// The stacked-plates REST document: plates + Declare + union.
 /// Returns (doc, union node).
 fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m5_s1_rest_declare");
+    let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
     // The author's intent, stated: the contact pair (A's top cap on
@@ -88,7 +89,7 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
 /// discipline: `Debug` prints floats shortest-round-trip, bit-faithful
 /// for the finite values documents carry).
 fn fingerprint(doc: &ProfileDoc) -> String {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
     format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
 }
 
@@ -97,7 +98,7 @@ fn fingerprint(doc: &ProfileDoc) -> String {
 #[test]
 fn declared_rest_union_evaluates_green() {
     let (doc, u) = rest_doc();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
     let value = ev.value(u).expect("union evaluated");
     let ValuePayload::Boolean(BooleanValue::Body {
         body,
@@ -108,8 +109,8 @@ fn declared_rest_union_evaluates_green() {
         panic!("expected a boolean body, got {}", value.payload.kind_name());
     };
     assert_eq!(*kind, topo::BooleanResultKind::Seamed);
-    assert_eq!(topo::mass_properties(body).unwrap().volume, 8.0);
-    assert_eq!(topo::validate_pseudomanifold(body, contacts), Ok(()));
+    assert_eq!(topo::mass_properties(body, Tol::witness()).unwrap().volume, 8.0);
+    assert_eq!(topo::validate_pseudomanifold(body, contacts, Tol::witness()), Ok(()));
     assert!(
         contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty(),
         "REST records consumed into seam structure: {contacts:?}"
@@ -133,8 +134,8 @@ fn rest_union_rerun_is_bit_identical() {
 fn rest_union_persistence_round_trip() {
     let (doc, _) = rest_doc();
     let expected = fingerprint(&doc);
-    let text = save(&doc, &[]).expect("save");
-    let loaded = load(&text).expect("load");
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
     assert_eq!(loaded.doc, doc, "replayed document equals the original");
     assert_eq!(
         fingerprint(&loaded.doc),
@@ -142,6 +143,6 @@ fn rest_union_persistence_round_trip() {
         "persisted → replayed evaluation is bit-identical"
     );
     // Save AGAIN from the loaded state: canonical bytes are stable.
-    let text2 = save(&loaded.doc, &[]).expect("re-save");
+    let text2 = save(&loaded.doc, &[], Tol::witness()).expect("re-save");
     assert_eq!(text, text2, "canonical persisted bytes are stable");
 }

@@ -168,6 +168,7 @@ pub fn classify_dihedral<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::{Point3, Tolerance, Vec3};
 
     use super::*;

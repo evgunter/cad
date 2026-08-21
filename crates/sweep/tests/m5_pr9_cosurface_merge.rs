@@ -30,7 +30,7 @@ fn disc_cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// Cylinder wall faces of `body`.
@@ -58,9 +58,9 @@ fn sub_period_wall_pieces_remerge_structurally() {
     let parts = split(&body, &plane).expect("the tilted-cut lane splits it");
     let mut part = parts.below.body().expect("a below part exists").clone();
     assert_eq!(wall_count(&part), 2, "two same-key wall fragments");
-    let vol_before = topo::mass_properties(&part).unwrap().volume;
+    let vol_before = topo::mass_properties(&part, Tol::witness()).unwrap().volume;
 
-    let out = part.merge_coplanar_faces().expect("the cosurface merge");
+    let out = part.merge_coplanar_faces(Tol::witness()).expect("the cosurface merge");
     assert!(
         out.skipped.is_empty(),
         "sub-period runs commit: {:?}",
@@ -72,12 +72,12 @@ fn sub_period_wall_pieces_remerge_structurally() {
     assert_eq!(wall_count(&part), 1, "one maximal sub-period wall face");
 
     // Volume untouched exactly (the merge is pure structure).
-    let vol_after = topo::mass_properties(&part).unwrap().volume;
+    let vol_after = topo::mass_properties(&part, Tol::witness()).unwrap().volume;
     assert!(
         (vol_after - vol_before).abs() < 1e-12,
         "merge must not move volume: {vol_before} -> {vol_after}"
     );
-    if let Err(errs) = topo::validate_geometric(&part) {
+    if let Err(errs) = topo::validate_geometric(&part, Tol::witness()) {
         panic!("the merged part must stay tier-3 valid: {errs:?}");
     }
 }
@@ -90,8 +90,8 @@ fn full_period_closure_skips_loudly() {
     // — recorded as a LOUD skip naming the period closure; the body
     // is untouched and its volume stays exact.
     let mut body = disc_cylinder();
-    let vol_before = topo::mass_properties(&body).unwrap().volume;
-    let out = body.merge_coplanar_faces().expect("the merge call itself");
+    let vol_before = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let out = body.merge_coplanar_faces(Tol::witness()).expect("the merge call itself");
     assert!(out.groups.is_empty(), "no group commits: {:?}", out.groups);
     assert_eq!(out.skipped.len(), 1, "the closure is a loud skip");
     assert!(
@@ -99,7 +99,7 @@ fn full_period_closure_skips_loudly() {
         "the skip names the period closure: {}",
         out.skipped[0].reason
     );
-    let vol_after = topo::mass_properties(&body).unwrap().volume;
+    let vol_after = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!((vol_after - vol_before).abs() == 0.0, "body untouched");
     topo::validate_closed(&body).unwrap();
 }
@@ -116,8 +116,8 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
-    let out = body.merge_coplanar_faces().expect("no-op merge");
+    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let out = body.merge_coplanar_faces(Tol::witness()).expect("no-op merge");
     assert!(out.groups.is_empty(), "no rung licenses: {:?}", out.groups);
     assert!(out.skipped.is_empty());
 }

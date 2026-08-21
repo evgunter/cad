@@ -52,11 +52,11 @@ fn revolved_tube() -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, Revolution::Full).unwrap().body
+    revolve(&profile, axis, Revolution::Full, Tol::witness()).unwrap().body
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0)).unwrap().body
+    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
@@ -171,7 +171,7 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
 #[test]
 fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
     let mut body = revolved_tube();
-    topo::mint_pcurves(&mut body).unwrap();
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let mut found = 0usize;
     for (_, edge) in body.edges() {
         let (Some(a), Some(b)) = (body.pcurve(edge.he_plus), body.pcurve(edge.he_minus)) else {
@@ -229,9 +229,9 @@ fn planar_bodies_carry_zero_stored_pcurves() {
     let profile = Profile::new(SketchPlane::xy(), vec![square])
         .validate(Tol::witness())
         .unwrap();
-    let mut prism = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
+    let mut prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
     assert_eq!(prism.pcurves().count(), 0);
-    topo::mint_pcurves(&mut prism).unwrap();
+    topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");
 
     let plane = SplitPlane {
@@ -244,7 +244,7 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         .flatten()
     {
         assert_eq!(part.pcurves().count(), 0);
-        assert_eq!(validate_geometric(part), Ok(()));
+        assert_eq!(validate_geometric(part, Tol::witness()), Ok(()));
     }
 
     // Derive-on-demand still answers, exactly (the chart is affine).
@@ -336,7 +336,7 @@ fn a_tampered_branch_is_refused_at_rest() {
         "{findings:?}"
     );
     // And the ladder surfaces it typed.
-    let errs = validate_geometric(&above).unwrap_err();
+    let errs = validate_geometric(&above, Tol::witness()).unwrap_err();
     assert!(
         errs.iter().any(|e| format!("{e}").contains("pcurve")),
         "{errs:?}"
@@ -380,7 +380,7 @@ fn a_cache_certified_against_another_edge_fails_the_tier_gate() {
         )),
         "{findings:?}"
     );
-    assert!(validate_geometric(&above).is_err());
+    assert!(validate_geometric(&above, Tol::witness()).is_err());
 }
 
 /// A body carrying caches survives a rigid transform: the caches are
@@ -391,7 +391,7 @@ fn a_rigid_transform_re_derives_the_caches() {
     let (above, _) = tilted_cut();
     let before = above.pcurves().count();
     let map = geom_core::Affine3::translation(Vec3::new(1.0, -2.0, 0.5));
-    let moved = topo::transform::transform_rigid(&above, &map).unwrap();
+    let moved = topo::transform::transform_rigid(&above, &map, Tol::witness()).unwrap();
     assert_eq!(moved.pcurves().count(), before);
     assert!(topo::pcurves::validate_pcurves(&moved, Band::linear(Tol::witness()).unwrap()).is_empty());
 }

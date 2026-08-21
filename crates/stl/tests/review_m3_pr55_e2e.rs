@@ -41,6 +41,7 @@ fn slab(
     extrude(
         &validated(SketchPlane::from_frame(origin, u, v), lp),
         Extrusion::Distance(depth),
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -117,7 +118,7 @@ fn die_from_raw_extrudes_watertight_stl() {
                 (cv - 0.125, cv + 0.125),
                 0.625,
             );
-            let r = subtract(&acc, &pip).unwrap();
+            let r = subtract(&acc, &pip, Tol::witness()).unwrap();
             let BooleanResult::Body(bb) = r else {
                 panic!("pip subtract emptied the die");
             };
@@ -126,13 +127,13 @@ fn die_from_raw_extrudes_watertight_stl() {
             assert_eq!(validate(&acc), Ok(()));
             assert_eq!(validate_closed(&acc), Ok(()));
             let expect = 8.0 - f64::from(pips) * 0.25 * 0.25 * 0.125;
-            assert_eq!(mass_properties(&acc).unwrap().volume, expect, "pip {pips}");
+            assert_eq!(mass_properties(&acc, Tol::witness()).unwrap().volume, expect, "pip {pips}");
         }
     }
     assert_eq!(pips, 21);
-    assert_eq!(mass_properties(&acc).unwrap().volume, 7.8359375);
+    assert_eq!(mass_properties(&acc, Tol::witness()).unwrap().volume, 7.8359375);
     // Tessellate + self-checked mesh + STL for the admesh gate.
-    let mesh = mesh::tessellate(&acc, 1e-2).unwrap();
+    let mesh = mesh::tessellate(&acc, 1e-2, Tol::witness()).unwrap();
     check_mesh(&mesh).unwrap();
     let v = signed_volume(&mesh);
     assert!((v - 7.8359375).abs() < 1e-9, "mesh volume {v}");

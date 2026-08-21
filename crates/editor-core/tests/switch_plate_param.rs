@@ -24,6 +24,7 @@ use editor_core::{
 };
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
 use topo::mass_properties;
+use geom_core::Tol;
 
 /// The document, plus the ids the rows address.
 struct Scene {
@@ -37,7 +38,7 @@ struct Scene {
 /// the refusal only adds noise. The corpus document keeps the union;
 /// this is the same profile on a bare extrude.
 fn scene() -> Scene {
-    let doc = ProfileDoc::empty_derived("switch_plate_param");
+    let doc = ProfileDoc::empty_derived("switch_plate_param", Tol::witness());
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
@@ -47,6 +48,7 @@ fn scene() -> Scene {
                 value: HOLE_R_VALUE,
             },
         },
+        Tol::witness(),
     )
     .expect("the parameter declares")
     .doc;
@@ -55,6 +57,7 @@ fn scene() -> Scene {
         &DocEdit::InsertNode {
             node: Node::Profile(plate_profile()),
         },
+        Tol::witness(),
     )
     .expect("the parametric profile inserts");
     let profile = applied.record.minted.expect("profile id");
@@ -66,6 +69,7 @@ fn scene() -> Scene {
                 distance: Expr::literal(PLATE_DEPTH, Dimension::Length).expect("depth"),
             },
         },
+        Tol::witness(),
     )
     .expect("the extrude inserts");
     let solid = applied.record.minted.expect("solid id");
@@ -88,6 +92,7 @@ fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
                 value,
             },
         },
+        Tol::witness(),
     )
     .expect("SetDocParam never refuses for downstream profile breakage")
     .doc
@@ -125,7 +130,7 @@ fn a_parameter_edit_re_evaluates_into_new_geometry() {
         let doc = set_hole_r(&s.doc, r);
         let ev = eval::<f64>(&doc);
         assert_eq!(ev.outcome, EvalOutcome::Completed, "r = {r} evaluates");
-        mass_properties(body_of(&ev, s.solid))
+        mass_properties(body_of(&ev, s.solid), Tol::witness())
             .expect("mass properties")
             .volume
     };
@@ -158,8 +163,8 @@ fn one_parameter_drives_both_holes() {
     let delta = {
         let a = eval::<f64>(&set_hole_r(&s.doc, 0.2));
         let b = eval::<f64>(&set_hole_r(&s.doc, 0.3));
-        mass_properties(body_of(&a, s.solid)).expect("a").volume
-            - mass_properties(body_of(&b, s.solid)).expect("b").volume
+        mass_properties(body_of(&a, s.solid), Tol::witness()).expect("a").volume
+            - mass_properties(body_of(&b, s.solid), Tol::witness()).expect("b").volume
     };
     let one_hole = std::f64::consts::PI * (0.3 * 0.3 - 0.2 * 0.2) * PLATE_DEPTH;
     assert!(
@@ -291,6 +296,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
             slot: radius_slot,
             expr: Expr::literal(0.0, Dimension::Length).expect("zero literal"),
         },
+        Tol::witness(),
     );
     assert!(
         refused.is_err(),
@@ -314,6 +320,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
             slot: radius_slot,
             expr: Expr::literal(0.3, Dimension::Length).expect("literal"),
         },
+        Tol::witness(),
     )
     .expect("a well-formed radius applies");
     let ev = eval::<f64>(&ok.doc);

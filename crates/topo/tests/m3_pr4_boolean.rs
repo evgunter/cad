@@ -28,7 +28,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
     let before = (arena_counts(a), arena_counts(b));
     // M4 PR 5: intended flush contacts are DECLARED (the test author's
     // recipe intent); value-equality alone no longer classifies.
-    let red = boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
+    let red = boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     // Operands functionally untouched: every topology arena, not a
     // three-component sample of them.
     assert_eq!((arena_counts(a), arena_counts(b)), before);
@@ -131,7 +131,7 @@ fn corner_kiss_touch_and_near_miss() {
     // escalation, never a silent contact and never a silent miss (F6).
     let g = 1.0 + 3.0 * eps;
     let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0));
-    let err = boolean_reduce(BooleanOp::Union, &a, &b).unwrap_err();
+    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -142,7 +142,7 @@ fn corner_kiss_touch_and_near_miss() {
     // Definite gap (1000ε): clean miss, no contacts at all.
     let g = 1.0 + 1000.0 * eps;
     let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0));
-    let red = boolean_reduce(BooleanOp::Union, &a, &b).unwrap();
+    let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap();
     assert!(red.contacts.vv.is_empty());
     assert!(red.contacts.a_on_b.is_empty());
     assert!(red.null_edges.is_empty());
@@ -254,7 +254,7 @@ fn curved_operand_refuses() {
         topo::NewVertexSide::Above,
     )
     .unwrap();
-    let err = boolean_reduce(BooleanOp::Union, &a, &b).unwrap_err();
+    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ScaffoldingOperand { .. }),
         "{err:?}"
@@ -299,9 +299,10 @@ fn non_maximal_operand_refuses() {
         topo::MefSite::Chords { he1, he2 },
         common::line(p0, p1),
         topo::FaceSurface::Inherit,
+        Tol::witness(),
     )
     .unwrap();
-    let err = boolean_reduce(BooleanOp::Union, &a, &b).unwrap_err();
+    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::NonMaximalFaces { .. }),
         "{err:?}"

@@ -619,6 +619,7 @@ mod tests {
     //! reads source, not geometry, and guards the module docs' door
     //! list rather than any box.
 
+    use geom_core::Tol;
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
@@ -705,6 +706,7 @@ mod tests {
                 },
                 b,
                 arc,
+                Tol::witness(),
             )
             .unwrap();
         let e_bc = body
@@ -714,6 +716,7 @@ mod tests {
                     he2: e_ab.he_minus,
                 },
                 c,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -727,6 +730,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(c, a),
                 FaceSurface::Shared(plane),
+                Tol::witness(),
             )
             .unwrap()
             .face;
@@ -847,6 +851,7 @@ mod tests {
                 },
                 on(u1, z0),
                 bottom,
+                Tol::witness(),
             )
             .unwrap();
         let e_r = body
@@ -856,6 +861,7 @@ mod tests {
                     he2: e_b.he_minus,
                 },
                 on(u1, z1),
+                Tol::witness(),
             )
             .unwrap();
         let top = rim(&mut body, z1, false);
@@ -867,6 +873,7 @@ mod tests {
                 },
                 on(u0, z1),
                 top,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -880,6 +887,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
                 FaceSurface::Shared(cyl),
+                Tol::witness(),
             )
             .unwrap()
             .face;

@@ -1569,6 +1569,7 @@ fn plane_nurbs_pair<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::{Affine3, Point2, Tolerance, Vec3};
 
     use crate::edge_geometry::{MappedCurve, SketchSegment};

@@ -94,6 +94,7 @@ use geom_core::Real;
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
 use crate::geometry::SurfaceKey;
+use geom_core::Tol;
 
 /// A failed [`Body::revert`] precondition (closed enum, D3 style); the
 /// source body is never touched (revert is `&self`).
@@ -261,6 +262,7 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use crate::fixtures::ops_cube;
 
     /// **CONSTRUCTION row, flipped from the M3 refusal pin** (S9
@@ -274,7 +276,7 @@ mod tests {
     /// `crates/sweep/tests/m5_s12_curved_ops.rs`.)
     #[test]
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let before: Vec<bool> = cube.body.faces().map(|(_, f)| f.sense).collect();
         assert!(before.iter().all(|s| *s), "mvfs/mef mint sense: true");
         let reverted = cube.body.revert().expect("S12: curved revert is wired");

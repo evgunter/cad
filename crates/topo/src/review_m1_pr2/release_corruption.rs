@@ -77,12 +77,13 @@ use geom_core::Point3;
 // so debug builds stay warning-free.
 #[cfg(not(debug_assertions))]
 use crate::validate;
+use geom_core::Tol;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
 }
 
-fn pillow() -> (
+fn pillow(tol: Tol) -> (
     Body<f64>,
     crate::MvfsCreated,
     crate::MevCreated,
@@ -96,13 +97,14 @@ fn pillow() -> (
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, tol)
         .unwrap();
     (body, seed, seg, split)
 }
@@ -110,7 +112,8 @@ fn pillow() -> (
 /// Broken orbit (edge<->half bijection corrupted): typed error, no hang.
 #[test]
 fn broken_orbit_yields_typed_error() {
-    let (mut body, _, seg, split) = pillow();
+    let tol = Tol::witness();
+    let (mut body, _, seg, split) = pillow(tol);
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_minus;
     let err = body
@@ -120,6 +123,7 @@ fn broken_orbit_yields_typed_error() {
                 he2: split.he_plus,
             },
             p(9.0),
+            tol,
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::FanOrbitBroken { .. }));
@@ -129,13 +133,14 @@ fn broken_orbit_yields_typed_error() {
 /// bounded even when the tear makes a long spurious path.
 #[test]
 fn torn_cycle_yields_typed_error() {
-    let (mut body, _, seg, split) = pillow();
+    let tol = Tol::witness();
+    let (mut body, _, seg, split) = pillow(tol);
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
     let err = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: split.he_minus,
-        })
+        }, tol)
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
 }
@@ -150,6 +155,7 @@ fn torn_cycle_yields_typed_error() {
 /// under attack is identical in both profiles.
 #[test]
 fn large_torn_body_terminates_quickly() {
+    let tol = Tol::witness();
     let n: i32 = if cfg!(debug_assertions) { 500 } else { 3000 };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
@@ -159,6 +165,7 @@ fn large_torn_body_terminates_quickly() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let mut last = seg;
@@ -170,6 +177,7 @@ fn large_torn_body_terminates_quickly() {
                     he2: seg.he_plus,
                 },
                 p(2.0 + f64::from(i)),
+                tol,
             )
             .unwrap();
     }
@@ -181,7 +189,7 @@ fn large_torn_body_terminates_quickly() {
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: target,
-        })
+        }, tol)
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
     let walked = start.elapsed();
@@ -261,6 +269,7 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 #[test]
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
+    let tol = Tol::witness();
     let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     let sink = std::sync::Arc::clone(&captured);
     let previous = std::panic::take_hook();
@@ -270,14 +279,14 @@ fn debug_postcondition_fires_on_corrupt_input() {
         }
     }));
     let result = std::panic::catch_unwind(|| {
-        let (mut body, seed, seg, split) = pillow();
+        let (mut body, seed, seg, split) = pillow(tol);
         let foreign = seed.r#loop;
         body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = foreign;
         body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = foreign;
         let _ = body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: split.he_minus,
-        });
+        }, tol);
     });
     std::panic::set_hook(previous);
     assert!(
@@ -299,20 +308,22 @@ fn debug_postcondition_fires_on_corrupt_input() {
 /// ops never panic on a fresh body either.
 #[test]
 fn empty_body_error_paths() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     assert!(
         body.mev_line(
             MevSite::Lone {
                 r#loop: crate::LoopKey::default()
             },
-            p(0.0)
+            p(0.0),
+            tol,
         )
         .is_err()
     );
     assert!(
         body.mef_chord(MefSite::Lone {
             r#loop: crate::LoopKey::default()
-        })
+        }, tol)
         .is_err()
     );
     assert!(
@@ -322,6 +333,7 @@ fn empty_body_error_paths() {
                 he2: crate::HalfEdgeKey::default(),
             },
             p(0.0),
+            tol,
         )
         .is_err()
     );
@@ -329,7 +341,7 @@ fn empty_body_error_paths() {
         body.mef_chord(MefSite::Chords {
             he1: crate::HalfEdgeKey::default(),
             he2: crate::HalfEdgeKey::default(),
-        })
+        }, tol)
         .is_err()
     );
     assert_eq!(body.vertices().count(), 0);

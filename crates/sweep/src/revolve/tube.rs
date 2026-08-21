@@ -255,13 +255,13 @@ pub fn tube_along_arc<T: Decide>(
     let loops = [segs];
     let classes_arr = [classes];
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes_arr, theta, band)
+        full::build_full(&frame, &loops, &classes_arr, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes_arr, theta, true, band)
+        partial::build_partial(&frame, &loops, &classes_arr, theta, true, band, tol)
     }
     .map_err(TubeError::Revolve)?;
     // The same final pass as every constructor since M6-3: stored
     // certified pcurves at rest.
-    topo::mint_pcurves(&mut out.body).map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
+    topo::mint_pcurves(&mut out.body, tol).map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
     Ok(out)
 }

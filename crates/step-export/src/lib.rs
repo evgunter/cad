@@ -209,6 +209,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use topo::{Body, EdgeKey, FaceKey, LoopKey, ShellKey};
+use geom_core::Tol;
 
 mod real;
 mod volume;
@@ -461,8 +462,8 @@ impl Default for StepOptions {
 /// [`StepExportError`] — out-of-subset geometry, mid-surgery bodies,
 /// non-finite values, void shells, corrupt structure. Finished planar
 /// bodies from the public construction APIs export cleanly.
-pub fn step_string(body: &Body<f64>, options: &StepOptions) -> Result<String, StepExportError> {
-    writer::write_document(body, options)
+pub fn step_string(body: &Body<f64>, options: &StepOptions, tol: Tol) -> Result<String, StepExportError> {
+    writer::write_document(body, options, tol)
 }
 
 /// [`step_string`], written to an [`std::io::Write`] sink.
@@ -474,8 +475,9 @@ pub fn write_step<W: std::io::Write>(
     body: &Body<f64>,
     options: &StepOptions,
     sink: &mut W,
+    tol: Tol,
 ) -> Result<(), StepExportError> {
-    let document = step_string(body, options)?;
+    let document = step_string(body, options, tol)?;
     sink.write_all(document.as_bytes())
         .map_err(StepExportError::Io)
 }

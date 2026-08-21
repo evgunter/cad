@@ -22,6 +22,7 @@ use editor_core::{
     content_pin, evaluate, load, product, save,
 };
 use fixture::{desc, insert, len, square, step};
+use geom_core::Tol;
 
 // ---- The stub store (ASM-2A's, verbatim in behaviour) ----
 
@@ -33,8 +34,8 @@ struct StubStore {
 }
 
 impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc) -> DocRef {
-        let pin = content_pin(&doc).expect("the pin computes");
+    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
+        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }
@@ -42,7 +43,7 @@ impl StubStore {
 }
 
 impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
             message: message.to_string(),
@@ -51,7 +52,7 @@ impl PartResolver for StubStore {
             .docs
             .get(&doc_ref.id)
             .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc).expect("the pin computes");
+        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
         if found != doc_ref.pin {
             return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
         }
@@ -67,12 +68,12 @@ fn with_resolver(store: StubStore) -> EvalOptions {
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts)
+    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
 /// A one-solid part: a unit square extruded 1 tall, centered at `cx`.
 fn part(label: &str, cx: f64) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -95,7 +96,7 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
 /// An assembly instantiating `refs` in order, each a root, the i-th
 /// displaced `spacing * i` along +x so the solids stay disjoint.
 fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label));
+    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
         let (next, id) = insert(doc, Node::instantiate_part(*r));
@@ -118,7 +119,7 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume
 }
 
 /// Every x of a body's vertices in ascending total order — the
@@ -151,9 +152,9 @@ fn names_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 /// FOUR solids, and every name in it is doubly `InPart`-wrapped.
 fn nested_fixture() -> (StubStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNodeId>) {
     let mut store = StubStore::default();
-    let p = store.insert(part("asm2b-p", 0.0));
+    let p = store.insert(part("asm2b-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0);
-    let b = store.insert(b_doc.clone());
+    let b = store.insert(b_doc.clone(), Tol::witness());
     let (a_doc, a_ids) = assembly("asm2b-a", &[b, b], 100.0);
     (store, a_doc, b_doc, b, a_ids)
 }
@@ -167,12 +168,12 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     let opts = with_resolver(store);
 
     let ev = run(&a_doc, &opts);
-    let body = product(&a_doc, &ev).expect("the product gathers");
+    let body = product(&a_doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 4, "two sub-assemblies of two parts");
 
     let p_doc = part("asm2b-p", 0.0);
     let p_ev = run(&p_doc, &EvalOptions::default());
-    let p_body = product(&p_doc, &p_ev).expect("the part's product");
+    let p_body = product(&p_doc, &p_ev, Tol::witness()).expect("the part's product");
     assert_eq!(
         volume(&body).to_bits(),
         (4.0 * volume(&p_body)).to_bits(),
@@ -193,7 +194,7 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     assert_eq!(ev.part_evaluations, 2, "one B evaluation, one P inside it");
 
     let ev2 = run(&a_doc, &opts);
-    let body2 = product(&a_doc, &ev2).expect("the product gathers again");
+    let body2 = product(&a_doc, &ev2, Tol::witness()).expect("the product gathers again");
     assert_eq!(
         volume(&body).to_bits(),
         volume(&body2).to_bits(),
@@ -316,8 +317,8 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
             }),
         },
     );
-    let text = save(&doc, &[]).expect("saves");
-    let loaded = load(&text).expect("loads").doc;
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(
         loaded.appearance().keys().any(|k| *k == name),
         "a doubly-wrapped name survives the wire verbatim"
@@ -334,15 +335,15 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 #[test]
 fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let mut store = StubStore::default();
-    let p = store.insert(part("asm2b-r4-p", 0.0));
+    let p = store.insert(part("asm2b-r4-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0);
-    let b = store.insert(b_doc);
+    let b = store.insert(b_doc, Tol::witness());
     let (doc, ids) = assembly("asm2b-r4-a", &[b], 0.0);
     let opts = with_resolver(store);
 
     let before = run(&doc, &opts);
-    let body0 = product(&doc, &before).expect("gathers");
-    let pin0 = content_pin(&doc).expect("pins");
+    let body0 = product(&doc, &before, Tol::witness()).expect("gathers");
+    let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
     let (moved, _) = step(
         doc,
@@ -351,10 +352,10 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
             frame: Frame::translation([7.0, 0.0, 0.0]),
         },
     );
-    assert_ne!(content_pin(&moved).expect("pins"), pin0, "the pin moves");
+    assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0, "the pin moves");
 
     let after = run(&moved, &opts);
-    let body1 = product(&moved, &after).expect("gathers");
+    let body1 = product(&moved, &after, Tol::witness()).expect("gathers");
     assert_eq!(body1.solids().count(), 2, "both solids came along");
     assert_eq!(
         volume(&body0).to_bits(),
@@ -411,14 +412,14 @@ const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 #[test]
 fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
     let mut store = StubStore::default();
-    let p = store.insert(part("asm2b-r5-p", 0.0));
+    let p = store.insert(part("asm2b-r5-p", 0.0), Tol::witness());
     let (doc, _) = assembly("asm2b-r5-a", &[p, p], 5.0);
     let opts = with_resolver(store);
 
     let ev = run(&doc, &opts);
-    let body = product(&doc, &ev).expect("gathers");
-    let text = save(&doc, &[]).expect("saves");
-    let loaded = load(&text).expect("loads").doc;
+    let body = product(&doc, &ev, Tol::witness()).expect("gathers");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc), "the assembly round-trips");
 
     assert_eq!(
@@ -445,27 +446,27 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
 #[test]
 fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
     let mut store = StubStore::default();
-    let p = store.insert(part("asm2b-ov-p", 0.0));
+    let p = store.insert(part("asm2b-ov-p", 0.0), Tol::witness());
     // ASM-2A's shape: two copies of a one-solid part, 0.25 apart.
     let (single, _) = assembly("asm2b-ov-single", &[p, p], 0.25);
     // 2B's shape: two copies of a two-solid sub-assembly, placed so a
     // solid of each lands inside a solid of the other.
     let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0);
-    let b = store.insert(b_doc);
+    let b = store.insert(b_doc, Tol::witness());
     let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25);
     let opts = with_resolver(store);
 
     let single_ev = run(&single, &opts);
     let multi_ev = run(&multi, &opts);
     assert_eq!(
-        product(&single, &single_ev)
+        product(&single, &single_ev, Tol::witness())
             .map(|b| b.solids().count())
             .ok(),
         Some(2),
         "ASM-2A's own shape: interference is not caught at rest"
     );
     assert_eq!(
-        product(&multi, &multi_ev).map(|b| b.solids().count()).ok(),
+        product(&multi, &multi_ev, Tol::witness()).map(|b| b.solids().count()).ok(),
         Some(4),
         "and a multi-solid instance reaches exactly the same decision"
     );

@@ -15,15 +15,16 @@ use editor_core::{
     RecipeNodeId, SlotId, StepArg, ValuePayload, evaluate,
 };
 use profile::SketchPlane;
+use geom_core::Tol;
 
 fn circle_doc(r: f64) -> ProfileDoc {
-    ProfileDoc::empty_derived("switch_slots")
+    ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(&DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
                 plane: SketchPlane::xy(),
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
             }),
-        })
+        }, Tol::witness())
         .unwrap()
         .doc
 }
@@ -79,7 +80,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
             node: RecipeNodeId(0),
             slot: radius_slot(),
             expr: Expr::literal(0.75, Dimension::Length).unwrap(),
-        })
+        }, Tol::witness())
         .expect("a legal radius edit applies");
     assert!(
         !grown.record.structural,
@@ -90,6 +91,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     );
     let Some(v) = ev.value(RecipeNodeId(0)) else {
         panic!("profile evaluates");
@@ -122,7 +124,7 @@ fn set_expression_and_expr_at_route_into_programs() {
             node: RecipeNodeId(0),
             slot: radius_slot(),
             expr: sum,
-        })
+        }, Tol::witness())
         .unwrap()
         .doc;
     let path = ExprPath {
@@ -139,7 +141,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .apply(&DocEdit::SetExpression {
             path: path.clone(),
             expr: Expr::literal(0.375, Dimension::Length).unwrap(),
-        })
+        }, Tol::witness())
         .expect("sub-path edit applies")
         .doc;
     assert_eq!(
@@ -157,7 +159,7 @@ fn program_slots_refuse_wrong_dimensions() {
         node: RecipeNodeId(0),
         slot: radius_slot(),
         expr: Expr::literal(0.5, Dimension::Angle).unwrap(),
-    }) {
+    }, Tol::witness()) {
         Err(EditError::SlotDimensionMismatch {
             expected: Dimension::Length,
             found: Dimension::Angle,
@@ -177,7 +179,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         node: RecipeNodeId(0),
         slot: radius_slot(),
         expr: Expr::literal(0.0, Dimension::Length).unwrap(),
-    }) {
+    }, Tol::witness()) {
         Err(EditError::ProfileProgramRefused {
             node,
             refusal:
@@ -200,14 +202,14 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
 /// exist at rest.
 #[test]
 fn set_doc_param_never_refuses_for_downstream_profiles() {
-    let doc = ProfileDoc::empty_derived("switch_slots")
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(&DocEdit::SetDocParam {
             name: ParamName::new("r"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.5,
             },
-        })
+        }, Tol::witness())
         .unwrap()
         .doc;
     let doc = doc
@@ -222,7 +224,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     radius: Expr::param(ParamName::new("r"), Dimension::Length),
                 }],
             }),
-        })
+        }, Tol::witness())
         .unwrap()
         .doc;
     // The breaking param edit APPLIES (never refused here)…
@@ -233,11 +235,11 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 dim: Dimension::Length,
                 value: 0.0,
             },
-        })
+        }, Tol::witness())
         .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
         .doc;
     // …and the refusal surfaces at evaluation, typed, naming the loop.
-    let ev = evaluate::<f64>(&broken, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(&broken, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
     match ev.nodes.get(&RecipeNodeId(0)) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
@@ -265,9 +267,9 @@ fn insert_node_checks_program_dimensions() {
             radius: Expr::literal(0.5, Dimension::Angle).unwrap(),
         }],
     };
-    match ProfileDoc::empty_derived("switch_slots").apply(&DocEdit::InsertNode {
+    match ProfileDoc::empty_derived("switch_slots", Tol::witness()).apply(&DocEdit::InsertNode {
         node: Node::Profile(bad),
-    }) {
+    }, Tol::witness()) {
         Err(EditError::SlotDimensionMismatch {
             expected: Dimension::Length,
             found: Dimension::Angle,

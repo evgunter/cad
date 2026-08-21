@@ -22,6 +22,7 @@ use editor_core::{
 };
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
+use geom_core::Tol;
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
@@ -40,7 +41,7 @@ pub fn scl(v: f64) -> Expr {
 
 /// Applies an edit, returning the new doc and any minted id.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit).unwrap();
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
     (applied.doc, applied.record.minted)
 }
 
@@ -102,7 +103,7 @@ impl Recorder {
     /// A recorder over the empty document.
     pub fn new() -> Self {
         Self {
-            doc: ProfileDoc::empty_derived("mod"),
+            doc: ProfileDoc::empty_derived("mod", Tol::witness()),
             edits: Vec::new(),
         }
     }
@@ -110,7 +111,7 @@ impl Recorder {
     /// Applies an edit (the doors refusing is a loud test failure)
     /// and records it; returns any minted id.
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
-        let applied = editor_core::apply(&self.doc, &edit).expect("recorded edit must apply");
+        let applied = editor_core::apply(&self.doc, &edit, Tol::witness()).expect("recorded edit must apply");
         self.doc = applied.doc;
         self.edits.push(edit);
         applied.record.minted

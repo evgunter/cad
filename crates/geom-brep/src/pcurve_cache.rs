@@ -3741,6 +3741,7 @@ pub fn chart_pcurve<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
     use super::*;

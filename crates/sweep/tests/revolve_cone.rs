@@ -21,6 +21,7 @@ use geom_brep::EdgeGeometry;
 use profile::ProfileLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
+use geom_core::Tol;
 
 fn triangle() -> ProfileLoop<f64> {
     ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
@@ -29,7 +30,7 @@ fn triangle() -> ProfileLoop<f64> {
 #[test]
 fn cone_full_revolve_has_an_apex_and_certifies() {
     let vp = validated(vec![triangle()]);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(counts(&t.body), (4, 6, 4, 0));
     // Two surfaces total (one plane, one cone), each shared by its

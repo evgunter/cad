@@ -7,6 +7,7 @@ mod common;
 
 use mesh::tessellate;
 use stl::{AsciiOptions, BinaryOptions, SolidName, write_ascii, write_binary};
+use geom_core::Tol;
 
 fn fnv(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -31,7 +32,7 @@ fn fnv(bytes: &[u8]) -> u64 {
 fn meshes() -> Vec<(&'static str, mesh::Mesh)> {
     common::acceptance_bodies()
         .into_iter()
-        .map(|(name, body, delta)| (name, tessellate(&body, delta).unwrap()))
+        .map(|(name, body, delta)| (name, tessellate(&body, delta, Tol::witness()).unwrap()))
         .collect()
 }
 
@@ -369,7 +370,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
         // against this freshly rebuilt one — the single retessellation
         // here serves both writers, and comparing a writer's output to
         // itself would assert nothing.
-        let rebuilt_mesh = tessellate(&body, delta).unwrap();
+        let rebuilt_mesh = tessellate(&body, delta, Tol::witness()).unwrap();
         let rebuilt = binary_of(&rebuilt_mesh);
         let first = by_name(name);
         let a = binary_of(first);
@@ -397,7 +398,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 /// so a future mesh-side fix flips this test loudly.
 #[test]
 fn coarse_cone_apex_fan_is_refused_typed() {
-    let mesh = tessellate(&common::cone(), 0.05).unwrap();
+    let mesh = tessellate(&common::cone(), 0.05, Tol::witness()).unwrap();
     let mut out = Vec::new();
     match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}

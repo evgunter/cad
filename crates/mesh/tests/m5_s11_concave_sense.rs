@@ -33,22 +33,22 @@ fn notched() -> Body<f64> {
     let b = FRAC_PI_8.tan();
     let lp = profile::Open
         .at(p2(0.0, 0.0))
-        .arc_to(profile::Bulge { p: p2(2.0, 0.0), b })
+        .arc_to(profile::Bulge { p: p2(2.0, 0.0), b }, Tol::witness())
         .unwrap()
-        .line_to(p2(2.0, 1.5))
+        .line_to(p2(2.0, 1.5), Tol::witness())
         .unwrap()
         .arc_to(profile::Bulge {
             p: p2(0.0, 1.5),
             b: -b,
-        })
+        }, Tol::witness())
         .unwrap()
-        .line_to(profile::Start)
+        .line_to(profile::Start, Tol::witness())
         .unwrap()
         .loop_;
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(geom_core::Tol::witness().get())
+        .validate(geom_core::Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// The hole plate: 4×4×1 with a unit-radius through hole — the hole
@@ -60,9 +60,9 @@ fn hole_plate() -> Body<f64> {
         ProfileVertex::new(p2(3.0, 2.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(geom_core::Tol::witness().get())
+        .validate(geom_core::Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 #[test]

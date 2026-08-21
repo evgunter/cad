@@ -617,7 +617,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(&body),
+            topo::validate_geometric(&body, Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -715,7 +715,7 @@ fn every_corpus_import_passes_the_shared_gate() {
             match (import_step(&text, &options), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(&body),
+                        topo::validate_geometric(&body, Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \

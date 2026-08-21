@@ -13,9 +13,10 @@ use editor_core::{
     PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, scl, square, step};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
@@ -24,6 +25,7 @@ fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
         Some(prior),
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     )
 }
 
@@ -74,7 +76,7 @@ fn block(
 #[test]
 fn set_appearance_validates_and_applies_purely() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -86,7 +88,7 @@ fn set_appearance_validates_and_applies_purely() {
         .apply(&DocEdit::SetAppearance {
             name: cap.clone(),
             attr: red(),
-        })
+        }, Tol::witness())
         .unwrap();
     // Non-structural, nothing minted; the input document untouched.
     assert!(!applied.record.structural);
@@ -118,7 +120,7 @@ fn set_appearance_validates_and_applies_purely() {
         doc.apply(&DocEdit::SetAppearance {
             name: edge.clone(),
             attr: red(),
-        })
+        }, Tol::witness())
         .unwrap_err(),
         EditError::AppearanceWrongKind { name: edge }
     );
@@ -133,7 +135,7 @@ fn set_appearance_validates_and_applies_purely() {
         doc.apply(&DocEdit::SetAppearance {
             name: bogus.clone(),
             attr: red(),
-        })
+        }, Tol::witness())
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode { name: bogus }
     );
@@ -142,7 +144,7 @@ fn set_appearance_validates_and_applies_purely() {
 #[test]
 fn multi_attribute_per_entity_and_clear_semantics() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -155,7 +157,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         doc.apply(&DocEdit::ClearAppearance {
             name: body.clone(),
             kind: AttrKind::Color,
-        })
+        }, Tol::witness())
         .unwrap_err(),
         EditError::AppearanceNotSet {
             name: body.clone(),
@@ -221,7 +223,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 
 #[test]
 fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
-    let doc0 = ProfileDoc::empty_derived("m4_pr7_appearance");
+    let doc0 = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
     let (doc1, p) = insert(
         doc0.clone(),
         Node::Profile(desc(
@@ -260,7 +262,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(doc3.id(), &edits).unwrap();
+    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 
@@ -342,7 +344,7 @@ fn appearance_only_edit_recomputes_zero_nodes() {
 #[test]
 fn transform_pass_through_carries_the_attribute_downstream() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -378,7 +380,7 @@ fn transform_pass_through_carries_the_attribute_downstream() {
 #[test]
 fn deleting_the_minting_node_strands_the_attribute_loudly() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -414,7 +416,7 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
 #[test]
 fn failed_target_node_is_a_typed_indeterminate_loss() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -454,7 +456,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
 
 #[test]
 fn poisoned_target_node_reports_the_failed_ancestor() {
-    let doc = ProfileDoc::empty_derived("m4_pr7_appearance");
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
     // Decoupled overlap (M4 PR 5: coincident planes demand a Declare;
     // this test wants a plain transversal union).
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
@@ -504,7 +506,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
 #[test]
 fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -574,7 +576,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
 /// B-cap prong fragments tie (no covariant qualifier separates them).
 /// Returns (doc, subtract node).
 fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m4_pr7_appearance");
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, p) = insert(
         doc,
@@ -694,7 +696,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
     // displayed node's table mints, or PR 4's Rebind. This test PINS
     // the ruling; changing it requires a ratified policy, not a code
     // tweak.
-    let doc = ProfileDoc::empty_derived("m4_pr7_appearance");
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, uni) = insert(
@@ -721,7 +723,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
 #[test]
 fn canceled_run_reports_not_evaluated_not_vanished() {
     let (doc, ext) = block(
-        ProfileDoc::empty_derived("m4_pr7_appearance"),
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
@@ -731,7 +733,7 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
     let doc = set(doc, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();
-    let ev = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default());
+    let ev = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default(), Tol::witness());
     assert_eq!(ev.outcome, editor_core::EvalOutcome::Canceled);
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(

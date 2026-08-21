@@ -27,6 +27,7 @@ use common::{flush_declarations, prism_z};
 use geom_core::Decide;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{BooleanError, BooleanResult, BooleanResultKind, mass_properties, union, union_with};
+use geom_core::Tol;
 
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
@@ -56,7 +57,7 @@ fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
 fn corner_aligned_leg_union_tier2_exact() {
     let a = top::<f64>();
     let b = leg(4.0, 3.0);
-    let r = union_with(&a, &b, &flush_declarations(&a, &b))
+    let r = union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness())
         .expect("REGRESSION: declared corner-aligned leg union refused");
     let BooleanResult::Body(bb) = r else {
         panic!("nonempty overlap cannot be Empty")
@@ -65,14 +66,14 @@ fn corner_aligned_leg_union_tier2_exact() {
     assert_eq!(validate_closed(&bb.body), Ok(()));
     assert_eq!(bb.body.shells().count(), 1);
     assert_eq!(
-        mass_properties(&bb.body).unwrap().volume,
+        mass_properties(&bb.body, Tol::witness()).unwrap().volume,
         TOP_VOL + PER_LEG_GAIN,
         "exact dyadic volume"
     );
     // Tier-3 posture probe (the PR #82 SECONDARY tripwire watched a
     // DescriptionNotAdjacent gap on in-plane seam edges; the declared
     // merge consumes those edges): record where the result lands.
-    match validate_geometric(&bb.body) {
+    match validate_geometric(&bb.body, Tol::witness()) {
         Ok(()) => {}
         Err(errs) => panic!("tier-3 verdict on the declared merge result: {errs:?}"),
     }
@@ -86,7 +87,7 @@ fn corner_aligned_table_four_legs_builds() {
     let mut table = top::<f64>();
     for (cx, cy) in [(4.0, 3.0), (4.0, 0.0), (0.0, 3.0), (0.0, 0.0)] {
         let l = leg(cx, cy);
-        let r = union_with(&table, &l, &flush_declarations(&table, &l))
+        let r = union_with(&table, &l, &flush_declarations(&table, &l), Tol::witness())
             .expect("declared corner-aligned leg union refused");
         let BooleanResult::Body(bb) = r else {
             panic!("nonempty overlap cannot be Empty")
@@ -96,7 +97,7 @@ fn corner_aligned_table_four_legs_builds() {
     assert_eq!(validate_closed(&table), Ok(()));
     assert_eq!(table.shells().count(), 1);
     assert_eq!(
-        mass_properties(&table).unwrap().volume,
+        mass_properties(&table, Tol::witness()).unwrap().volume,
         TOP_VOL + 4.0 * PER_LEG_GAIN,
         "exact dyadic volume, all four legs"
     );
@@ -107,7 +108,7 @@ fn corner_aligned_table_four_legs_builds() {
 /// without shared source or declared intent never glue.
 #[test]
 fn undeclared_corner_leg_refuses_loudly() {
-    match union(&top::<f64>(), &leg(4.0, 3.0)) {
+    match union(&top::<f64>(), &leg(4.0, 3.0), Tol::witness()) {
         Err(BooleanError::UndeclaredCoincidence { .. }) => {}
         other => panic!("undeclared flush union must refuse UndeclaredCoincidence, got {other:?}"),
     }

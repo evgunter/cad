@@ -4,14 +4,14 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::Tolerance;
+use geom_core::{Tol, Tolerance};
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
-use crate::sizing::{Tol, sizing_target};
+use crate::sizing::{SizingTols, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
@@ -40,11 +40,11 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// carriers, rings on curved faces, a curved face whose iso domain is
 /// not its own UV rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
-pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateError> {
+pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
-    let eps = Tolerance::get().eps;
+    let eps = tol.eps();
     let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
@@ -95,7 +95,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             .ok_or(TessellateError::MissingEntity {
                 what: "face surface",
             })?;
-        let tol = Tol {
+        let tol = SizingTols {
             delta: chordal,
             delta_s,
             eps,

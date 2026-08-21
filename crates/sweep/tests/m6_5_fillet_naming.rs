@@ -46,8 +46,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 /// The die_composed pip: a ball poled along +Z, centred at `c`.
@@ -60,9 +60,10 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             core::f64::consts::FRAC_PI_2,
         ),
+        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
+    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -94,7 +95,7 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The pipped cube of `corpus/die_composed.rs`, its 12 surviving box
 /// edges and its pip rim's two arcs.
 fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L);
+    let cube0 = cube(DIE_L, Tol::witness());
     let box_keys: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pip = ball_poled_z(PIP_R, Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)));
     let pipped = boolean_op_with(
@@ -103,6 +104,7 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
         &pip,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .unwrap()
     .body()
@@ -128,7 +130,7 @@ fn fe_single_call_twelve_open_chains_plus_one_closed_rim() {
     assert_eq!(rims.len(), 2, "the pip rim is two arcs");
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band())
+    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness())
         .expect("one call takes the open chains and the closed rim together");
     assert_eq!(out.blend_faces.len(), 12, "one blend per box edge");
     assert_eq!(out.corner_faces.len(), 8, "one octant per box corner");
@@ -144,7 +146,7 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band()).expect("the surgery");
+    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     let mut minted_f: Vec<_> = rec
@@ -280,7 +282,7 @@ fn the_records_have_the_shape_the_surgery_built() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band()).expect("the surgery");
+    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     assert_eq!(rec.blends.len(), 12);
     assert_eq!(rec.corners.len(), 8);
@@ -309,9 +311,9 @@ fn the_records_have_the_shape_the_surgery_built() {
 /// The census is the die's: `V=8, E=12, F=6` rounds to 24 / 48 / 26.
 #[test]
 fn the_every_edge_request_records_every_entity_it_mints() {
-    let cube0 = cube(DIE_L);
+    let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, band()).expect("the surgery");
+    let out = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     assert_eq!(rec.blends.len(), 12, "one blend per source edge");
@@ -393,9 +395,9 @@ fn the_every_edge_request_records_every_entity_it_mints() {
 /// emitter would refuse `MissingUpstream`, but the bug belongs here.
 #[test]
 fn every_every_edge_record_names_a_source_entity() {
-    let cube0 = cube(DIE_L);
+    let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, band()).expect("the surgery");
+    let out = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     for (_, src) in &rec.blends {
         assert!(cube0.get_edge(*src).is_some(), "a blend names no source");
@@ -428,10 +430,10 @@ fn every_every_edge_record_names_a_source_entity() {
 /// sidecar, which are cross-revision by construction.
 #[test]
 fn the_every_edge_fillet_is_deterministic() {
-    let cube0 = cube(DIE_L);
+    let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let a = fillet_edges(&cube0, &edges, R, band()).expect("the surgery");
-    let b = fillet_edges(&cube0, &edges, R, band()).expect("the surgery again");
+    let a = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
+    let b = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery again");
     assert_eq!(
         format!("{:?}", a.body),
         format!("{:?}", b.body),

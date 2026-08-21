@@ -14,11 +14,12 @@ use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Revolution, revolve};
 use topo::Body;
+use geom_core::Tol;
 
 const PI: f64 = core::f64::consts::PI;
 
 fn rev(lp: ProfileLoop<f64>, r: Revolution<f64>) -> Body<f64> {
-    revolve(&validated(vec![lp]), axis_y(), r).unwrap().body
+    revolve(&validated(vec![lp]), axis_y(), r, Tol::witness()).unwrap().body
 }
 
 fn washer_profile() -> ProfileLoop<f64> {

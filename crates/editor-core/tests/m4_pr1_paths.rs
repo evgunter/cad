@@ -6,6 +6,7 @@
 use editor_core::{
     Datum, Dimension, Doc, DocEdit, EditError, Expr, ExprPath, Node, RecipeNodeId, SlotId,
 };
+use geom_core::Tol;
 
 /// The opaque profile payload for tests: this crate never looks
 /// inside `P` (spec D1/D3 — PR 2 instantiates the real profile type).
@@ -29,11 +30,11 @@ fn scl(v: f64) -> Expr {
 /// profile + extrude(distance = a + b), returning (doc, profile id,
 /// extrude id).
 fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = TDoc::empty_derived("m4_pr1_paths");
+    let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let a = doc
         .apply(&TEdit::InsertNode {
             node: Node::Profile(FakeProfile("square")),
-        })
+        }, Tol::witness())
         .unwrap();
     let profile = a.record.minted.unwrap();
     let distance = Expr::add(len(0.010), len(0.005)).unwrap();
@@ -41,7 +42,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .doc
         .apply(&TEdit::InsertNode {
             node: Node::Extrude { profile, distance },
-        })
+        }, Tol::witness())
         .unwrap();
     (b.doc, profile, b.record.minted.unwrap())
 }
@@ -64,7 +65,7 @@ fn expr_path_survives_edits_to_other_expressions() {
             node: Node::Datum(Datum::Point {
                 position: [len(0.0), len(0.0), len(0.0)],
             }),
-        })
+        }, Tol::witness())
         .unwrap();
     let datum = c.record.minted.unwrap();
     let d = c
@@ -73,7 +74,7 @@ fn expr_path_survives_edits_to_other_expressions() {
             node: datum,
             slot: SlotId::Origin(editor_core::Axis3::X),
             expr: len(0.042),
-        })
+        }, Tol::witness())
         .unwrap();
     assert_eq!(d.doc.expr_at(&path).unwrap(), &before);
 }
@@ -99,7 +100,7 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
         .apply(&TEdit::SetExpression {
             path: first.clone(),
             expr: len(0.020),
-        })
+        }, Tol::witness())
         .unwrap();
     assert_eq!(e.doc.expr_at(&second).unwrap(), &before);
     assert_eq!(e.doc.expr_at(&first).unwrap(), &len(0.020));
@@ -121,19 +122,19 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
 fn recipe_node_ids_are_never_reused() {
     // Delete then insert: the freed id must NOT come back (spec D3 —
     // N1's substrate contract).
-    let doc = TDoc::empty_derived("m4_pr1_paths");
+    let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let a = doc
         .apply(&TEdit::InsertNode {
             node: Node::Profile(FakeProfile("p0")),
-        })
+        }, Tol::witness())
         .unwrap();
     let first = a.record.minted.unwrap();
-    let b = a.doc.apply(&TEdit::DeleteNode { id: first }).unwrap();
+    let b = a.doc.apply(&TEdit::DeleteNode { id: first }, Tol::witness()).unwrap();
     let c = b
         .doc
         .apply(&TEdit::InsertNode {
             node: Node::Profile(FakeProfile("p1")),
-        })
+        }, Tol::witness())
         .unwrap();
     let second = c.record.minted.unwrap();
     assert_ne!(first, second);
@@ -143,7 +144,7 @@ fn recipe_node_ids_are_never_reused() {
 
 #[test]
 fn dangling_ref_rejected() {
-    let doc = TDoc::empty_derived("m4_pr1_paths");
+    let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let ghost = RecipeNodeId(99);
     let err = doc
         .apply(&TEdit::InsertNode {
@@ -151,7 +152,7 @@ fn dangling_ref_rejected() {
                 profile: ghost,
                 distance: len(0.01),
             },
-        })
+        }, Tol::witness())
         .unwrap_err();
     assert_eq!(err, EditError::UnresolvedInput { input: ghost });
 }
@@ -160,7 +161,7 @@ fn dangling_ref_rejected() {
 fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
-    let doc = TDoc::empty_derived("m4_pr1_paths");
+    let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
     let guessed = RecipeNodeId(0); // empty doc will mint 0 next
     let err = doc
         .apply(&TEdit::InsertNode {
@@ -168,7 +169,7 @@ fn self_reference_cannot_forge_the_next_id() {
                 profile: guessed,
                 distance: len(0.01),
             },
-        })
+        }, Tol::witness())
         .unwrap_err();
     assert_eq!(err, EditError::UnresolvedInput { input: guessed });
 }
@@ -176,7 +177,7 @@ fn self_reference_cannot_forge_the_next_id() {
 #[test]
 fn delete_of_referenced_node_rejected() {
     let (doc, profile, extrude) = profile_and_extrude();
-    let err = doc.apply(&TEdit::DeleteNode { id: profile }).unwrap_err();
+    let err = doc.apply(&TEdit::DeleteNode { id: profile }, Tol::witness()).unwrap_err();
     assert_eq!(
         err,
         EditError::DeleteWouldDangle {
@@ -195,7 +196,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(0.01),
-        })
+        }, Tol::witness())
         .unwrap_err();
     assert_eq!(
         err,
@@ -209,7 +210,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
             node: extrude,
             slot: SlotId::Distance,
             expr: scl(1.0),
-        })
+        }, Tol::witness())
         .unwrap_err();
     assert_eq!(
         err,
@@ -233,7 +234,7 @@ fn set_expression_path_off_tree_rejected() {
         .apply(&TEdit::SetExpression {
             path: bad.clone(),
             expr: len(0.01),
-        })
+        }, Tol::witness())
         .unwrap_err();
     assert_eq!(err, EditError::PathOffTree { path: bad });
 }

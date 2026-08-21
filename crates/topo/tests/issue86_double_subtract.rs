@@ -28,6 +28,7 @@ use topo::{
     Body, BooleanBody, BooleanResult, subtract_with, validate, validate_closed,
     validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -37,12 +38,12 @@ fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds>() -> BooleanBod
     let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
     let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
     let BooleanResult::Body(s1) =
-        subtract_with(&a, &b1, &flush_declarations(&a, &b1)).expect("first subtract succeeds")
+        subtract_with(&a, &b1, &flush_declarations(&a, &b1), Tol::witness()).expect("first subtract succeeds")
     else {
         panic!("first subtract yields a body");
     };
     let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5));
-    let BooleanResult::Body(s2) = subtract_with(&s1.body, &b2, &flush_declarations(&s1.body, &b2))
+    let BooleanResult::Body(s2) = subtract_with(&s1.body, &b2, &flush_declarations(&s1.body, &b2), Tol::witness())
         .expect("second subtract succeeds (issue #86)")
     else {
         panic!("second subtract yields a body");
@@ -57,7 +58,7 @@ fn assert_result_sound<T: Decide + topo::PropsQuadLane>(out: &BooleanBody<T>) {
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
     assert_eq!(
-        validate_pseudomanifold(&out.body, &out.contacts),
+        validate_pseudomanifold(&out.body, &out.contacts, Tol::witness()),
         Ok(()),
         "tier 3′"
     );
@@ -65,6 +66,7 @@ fn assert_result_sound<T: Decide + topo::PropsQuadLane>(out: &BooleanBody<T>) {
     let moved = topo::transform_rigid(
         &out.body,
         &geom_core::Affine3::translation(geom_core::Vec3::new(f(1.0), f(2.0), f(3.0))),
+        Tol::witness(),
     )
     .expect("transform of the double-subtract result");
     assert_eq!(validate(&moved), Ok(()), "tier 1 after transform");
@@ -126,7 +128,7 @@ fn kef_cascade_reports_killed_surface() {
         s2: s_minus,
         witness: p0.lerp(p1, 0.5),
     };
-    body.set_edge_curve(edge_key, spec).unwrap();
+    body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
 
     // Kill the plus side's face through this edge. The dying face's
     // surface is referenced only by (a) the face itself and (b) the

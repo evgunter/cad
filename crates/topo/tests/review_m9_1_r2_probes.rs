@@ -206,7 +206,7 @@ fn probe_replay_partial_eq_bites_on_mutation() {
     )
     .body;
     let decls = flush_declarations(&a, &b);
-    let BooleanResult::Body(x) = union_with(&a, &b, &decls).unwrap() else {
+    let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");
     };
     let mut mutated = x.contacts.clone();
@@ -254,7 +254,7 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
         face_a: fk,
         face_b: fk,
     });
-    let errors = topo::validate_pseudomanifold(&a, &contacts)
+    let errors = topo::validate_pseudomanifold(&a, &contacts, Tol::witness())
         .expect_err("fabricated contact records must be refused at rest");
     assert!(
         errors

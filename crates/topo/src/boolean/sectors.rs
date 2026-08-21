@@ -425,6 +425,7 @@ pub(super) fn pair_search<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
 
     fn band() -> Band {

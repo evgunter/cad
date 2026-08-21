@@ -53,6 +53,7 @@ use geom_brep::SketchSegment;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
+use geom_core::Tol;
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
 /// sub-arc of a converted profile arc is at most this wide, so the
@@ -841,6 +842,7 @@ fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f
 fn validate_sections(
     sections: &[Section],
     places: &[Affine3<f64>],
+    tol: Tol,
 ) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
     sections
         .iter()
@@ -848,7 +850,7 @@ fn validate_sections(
         .enumerate()
         .map(|(i, (loops, place))| {
             Profile::new(SketchPlane::new(*place), loops.clone())
-                .validate(geom_core::Tolerance::get())
+                .validate(tol)
                 .map_err(|source| SkinError::SectionProfile { section: i, source })
         })
         .collect()
@@ -877,6 +879,7 @@ pub fn loft_geometry(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
+    tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -896,7 +899,7 @@ pub fn loft_geometry(
             sections: k,
         });
     }
-    let validated = validate_sections(sections, places)?;
+    let validated = validate_sections(sections, places, tol)?;
     let loops = validated[0].loops().len();
     for (i, s) in validated.iter().enumerate().skip(1) {
         if s.loops().len() != loops {
@@ -1013,6 +1016,7 @@ pub fn loft_parameters(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
+    tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -1032,7 +1036,7 @@ pub fn loft_parameters(
             sections: k,
         });
     }
-    first_strip_parameters(&validate_sections(sections, places)?, places)
+    first_strip_parameters(&validate_sections(sections, places, tol)?, places)
 }
 
 /// The first strip's v-parameters — the whole loft's, by the
@@ -1108,10 +1112,11 @@ pub fn sweep_geometry(
     path: &NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
+    tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let places = sweep_places(place, path, stations)?;
     let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), stations).collect();
-    loft_geometry(&sections, &places, v_degree)
+    loft_geometry(&sections, &places, v_degree, tol)
 }
 
 /// The rigid section placements of a §10.4 path sweep — the

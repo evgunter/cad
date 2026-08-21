@@ -30,6 +30,7 @@ mod common;
 use common::prism;
 use geom_core::{Point3, Vec3};
 use topo::{Body, SplitPart, SplitPlane, mass_properties, split, validate_closed};
+use geom_core::Tol;
 
 /// The acceptance suite's touching-wedge fixture, verbatim.
 const MIRRORED: &[(f64, f64)] = &[
@@ -106,9 +107,9 @@ fn mirrored_fixture_flipped_plane_succeeds() {
     }
     // Volume conservation.
     let (vp, vs, v0) = (
-        mass_properties(pieces).unwrap().volume,
-        mass_properties(slab).unwrap().volume,
-        mass_properties(&fx.body).unwrap().volume,
+        mass_properties(pieces, Tol::witness()).unwrap().volume,
+        mass_properties(slab, Tol::witness()).unwrap().volume,
+        mass_properties(&fx.body, Tol::witness()).unwrap().volume,
     );
     assert!((vp + vs - v0).abs() <= 1e-12 * v0, "{vp} + {vs} vs {v0}");
 }
@@ -127,7 +128,7 @@ fn mirrored_fixture_flipped_plane_succeeds() {
 fn notched_fixture_orientation_table() {
     for (profile, pinched_above_under_plus) in [(NOTCHED, true), (MIRRORED, false)] {
         let fx = prism::<f64>(profile, 1.0);
-        let v0 = mass_properties(&fx.body).unwrap().volume;
+        let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
         for ny in [1.0, -1.0] {
             let r = split(&fx.body, &plane(1.0, ny)).unwrap();
             let (a, b) = (body_of(&r.above), body_of(&r.below));
@@ -142,8 +143,8 @@ fn notched_fixture_orientation_table() {
             };
             assert_eq!(pinched.shells().count(), 3, "{profile:?} ny={ny}");
             let (va, vb) = (
-                mass_properties(a).unwrap().volume,
-                mass_properties(b).unwrap().volume,
+                mass_properties(a, Tol::witness()).unwrap().volume,
+                mass_properties(b, Tol::witness()).unwrap().volume,
             );
             assert!((va + vb - v0).abs() <= 1e-12 * v0, "{va} + {vb} vs {v0}");
         }

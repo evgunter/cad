@@ -70,7 +70,7 @@ fn kernel_sidecar_fields_match_live_kernel() {
                 .collect()
         };
         let props =
-            topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: mass properties: {e}"));
+            topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: mass properties: {e}"));
         let print = |value: f64, what: &'static str| {
             step_export::fmt_real(value * 1e9, what)
                 .unwrap_or_else(|e| panic!("{name}: printing {what}: {e}"))

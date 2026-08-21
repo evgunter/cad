@@ -223,7 +223,7 @@ pub(crate) struct NgonPillow {
 /// # Panics
 ///
 /// If `n == 0` (fixture misuse, not kernel behavior).
-pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
+pub(crate) fn ngon_pillow(n: usize, tol: Tol) -> NgonPillow {
     assert!(n >= 1, "an n-gon pillow needs at least one edge");
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -245,7 +245,7 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
     let curves: Vec<CurveKey> = (0..n)
-        .map(|_| body.add_curve(test_curve(Point3::origin())))
+        .map(|_| body.add_curve(test_curve(Point3::origin(), tol)))
         .collect();
     let surface_a = body.add_surface(test_surface(Point3::origin()));
     let surface_b = body.add_surface(test_surface(Point3::origin()));
@@ -390,8 +390,8 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
 }
 
 /// The digon pillow — the minimal closed fixture (see [`ngon_pillow`]).
-pub(crate) fn pillow() -> NgonPillow {
-    ngon_pillow(2)
+pub(crate) fn pillow(tol: Tol) -> NgonPillow {
+    ngon_pillow(2, tol)
 }
 
 /// Key bundle for [`prism`].
@@ -445,7 +445,7 @@ pub(crate) struct Prism {
 /// # Panics
 ///
 /// If `n < 2` (fixture misuse, not kernel behavior).
-pub(crate) fn prism(n: usize) -> Prism {
+pub(crate) fn prism(n: usize, tol: Tol) -> Prism {
     assert!(n >= 2, "a prism needs at least a digon cap");
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -469,7 +469,7 @@ pub(crate) fn prism(n: usize) -> Prism {
     let bottom_points: Vec<PointKey> = (0..n)
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
-    let mut curve = || body.add_curve(test_curve(Point3::origin()));
+    let mut curve = || body.add_curve(test_curve(Point3::origin(), tol));
     let curves_t: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_b: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_v: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
@@ -741,7 +741,7 @@ pub(crate) struct OpsCube {
 /// Builds the unit cube through the operators (1 mvfs + 7 mev + 5 mef,
 /// the §9.4.2-minimal sequence; same construction as the PR 2
 /// acceptance test).
-pub(crate) fn ops_cube() -> OpsCube {
+pub(crate) fn ops_cube(tol: Tol) -> OpsCube {
     let pt = Point3::new;
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
@@ -751,14 +751,15 @@ pub(crate) fn ops_cube() -> OpsCube {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
     };
     let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
@@ -802,20 +803,20 @@ pub(crate) struct OpsHoledBox {
 /// 1 kfmrh, same construction as the PR 3 acceptance test (on the unit
 /// cube instead of the 2×2×2 box; coordinates are scaled, structure
 /// identical).
-pub(crate) fn ops_holed_box() -> OpsHoledBox {
+pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     let pt = Point3::new;
     let OpsCube {
         mut body,
         seed,
         mevs,
         mefs,
-    } = ops_cube();
+    } = ops_cube(tol);
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
     };
     let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
     let f_bottom = mefs[0];
     let f_front = mefs[1];
     // (f)–(g): plant the hole anchor P as an empty ring of the top face.
@@ -824,7 +825,7 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
     // (h)–(i): grow and close the rim P→Q→R→S; a membrane face covers
     // the opening.
     let s_pq = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0))
+        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0), tol)
         .unwrap(); // Q
     let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0); // R
     let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0); // S
@@ -865,9 +866,9 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
 /// `genus_two_double_hole_body_tears_down_to_nothing` — the annotated
 /// original stays in the review artifact). Euler ledger check inside:
 /// v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2).
-pub(crate) fn ops_genus2() -> Body<f64> {
+pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
     let pt = Point3::new;
-    let t = ops_holed_box();
+    let t = ops_holed_box(tol);
     let mut body = t.body;
     let f_front = t.box_mefs[1].face;
     let f_back = t.box_mefs[3].face;
@@ -880,11 +881,11 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     // Plant the rim anchor as an empty ring of the front face, then
     // grow and close the triangular rim; a membrane face covers it.
     let strut = body
-        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0], tol)
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let mut rim: Vec<MevCreated> = vec![
-        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1], tol)
             .unwrap(),
     ];
     for rp in &rim_pts[2..] {
@@ -896,6 +897,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
                     he2: prev,
                 },
                 *rp,
+                tol,
             )
             .unwrap(),
         );
@@ -904,7 +906,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
         .mef_chord(MefSite::Chords {
             he1: rim[0].he_plus,
             he2: rim.last().unwrap().he_minus,
-        })
+        }, tol)
         .unwrap();
     // Drop the verticals, cut the tube walls, and connect the sum.
     let mut drops: Vec<MevCreated> = Vec::new();
@@ -921,6 +923,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
                     he2: anchor,
                 },
                 *dp,
+                tol,
             )
             .unwrap(),
         );
@@ -929,7 +932,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
         body.mef_chord(MefSite::Chords {
             he1: drops[i].he_minus,
             he2: drops[i + 1].he_minus,
-        })
+        }, tol)
         .unwrap();
     }
     let he_first_far = body
@@ -938,7 +941,7 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     body.mef_chord(MefSite::Chords {
         he1: drops.last().unwrap().he_minus,
         he2: he_first_far,
-    })
+    }, tol)
     .unwrap();
     body.kfmrh(f_back, membrane.face).unwrap();
     // Genus-2 checkpoint.

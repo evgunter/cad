@@ -57,7 +57,7 @@ fn ball_at(cy: f64) -> Body<f64> {
         ProfileVertex::new(p2(0.0, cy - 1.0), 1.0),
         ProfileVertex::new(p2(0.0, cy + 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -89,7 +89,7 @@ fn first_face(body: &Body<f64>) -> FaceKey {
 #[test]
 fn props_flux_flips_with_the_rimless_band_sense() {
     let b = ball();
-    let honest = topo::props::mass_properties(&b).unwrap();
+    let honest = topo::props::mass_properties(&b, Tol::witness()).unwrap();
     assert!(
         (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the unit ball meters 4π/3, got {}",
@@ -97,7 +97,7 @@ fn props_flux_flips_with_the_rimless_band_sense() {
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
-    let lied = topo::props::mass_properties(&flipped).unwrap();
+    let lied = topo::props::mass_properties(&flipped, Tol::witness()).unwrap();
     assert!(
         lied.volume.abs() < 1e-9,
         "flipping one band's sense must negate its flux (the two halves \
@@ -132,7 +132,7 @@ fn props_flux_flips_with_the_rimless_band_sense() {
 #[test]
 fn offcentre_flipped_ball_still_cancels() {
     let b = ball_at(5.0);
-    let honest = topo::props::mass_properties(&b).unwrap();
+    let honest = topo::props::mass_properties(&b, Tol::witness()).unwrap();
     assert!(
         (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the off-centre unit ball still meters 4π/3, got {}",
@@ -140,7 +140,7 @@ fn offcentre_flipped_ball_still_cancels() {
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
-    let lied = topo::props::mass_properties(&flipped).unwrap();
+    let lied = topo::props::mass_properties(&flipped, Tol::witness()).unwrap();
     assert!(
         lied.volume.abs() < 1e-9,
         "off-centre flipped ball must STILL meter zero (anchored halves \
@@ -172,10 +172,10 @@ fn assembly_flip_is_wrong_but_nonzero() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cuboid = extrude(&vp, Extrusion::Distance(3.0)).unwrap().body;
-    let r = topo::boolean::union(&ball, &cuboid).unwrap();
+    let cuboid = extrude(&vp, Extrusion::Distance(3.0), Tol::witness()).unwrap().body;
+    let r = topo::boolean::union(&ball, &cuboid, Tol::witness()).unwrap();
     let body = &r.body().expect("a disjoint assembly is a body").body;
-    let honest = topo::props::mass_properties(body).unwrap();
+    let honest = topo::props::mass_properties(body, Tol::witness()).unwrap();
     assert!(
         (honest.volume - (4.0 * PI / 3.0 + 6.0)).abs() < 1e-9,
         "the assembly meters ball + cuboid, got {}",
@@ -188,7 +188,7 @@ fn assembly_flip_is_wrong_but_nonzero() {
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
     let flipped = body.flipped_face_sense_for_tests(band_face).unwrap();
-    let lied = topo::props::mass_properties(&flipped).unwrap();
+    let lied = topo::props::mass_properties(&flipped, Tol::witness()).unwrap();
     assert!(
         (lied.volume - 6.0).abs() < 1e-9,
         "wrong-but-nonzero: the bands cancel and the cuboid stands, so \
@@ -217,11 +217,11 @@ fn tier_three_refusal_is_surgical() {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(1.0)).unwrap().body;
-    assert_eq!(topo::validate::validate_geometric(&body), Ok(()));
+    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    assert_eq!(topo::validate::validate_geometric(&body, Tol::witness()), Ok(()));
     for (face, _) in body.faces() {
         let flipped = body.flipped_face_sense_for_tests(face).unwrap();
-        let errs = topo::validate::validate_geometric(&flipped).unwrap_err();
+        let errs = topo::validate::validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(!errs.is_empty(), "face {face:?}: the flip must be refused");
         assert!(
             errs.iter().all(|e| matches!(
@@ -258,7 +258,7 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0)).unwrap()
+    extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap()
 }
 
 /// **Construction row (M5 S11, flipped from S10's finding).**
@@ -315,12 +315,12 @@ fn fixed_concave_arc_wall_sense_is_false() {
     // (2) The consequence: point_in_solid is honest in the notch.
     let band = Band::linear(Tol::witness()).unwrap();
     let truth_hi = 2.5 - 2.0_f64.sqrt(); // ≈ 1.0858
-    let inside = point_in_solid(&t.body, Point3::new(1.0, 0.5, 0.5), band).unwrap();
+    let inside = point_in_solid(&t.body, Point3::new(1.0, 0.5, 0.5), band, Tol::witness()).unwrap();
     assert_eq!(inside, topo::boolean::SolidContainment::In);
     for y in [1.2_f64, 1.3, 1.4] {
         assert!(y > truth_hi, "these probes are OUTSIDE the solid");
         assert_eq!(
-            point_in_solid(&t.body, Point3::new(1.0, y, 0.5), band).unwrap(),
+            point_in_solid(&t.body, Point3::new(1.0, y, 0.5), band, Tol::witness()).unwrap(),
             topo::boolean::SolidContainment::Out,
             "the cylinder door reads the sense-signed radial as \
              outward, so the concave notch reads as void (S11)"
@@ -328,7 +328,7 @@ fn fixed_concave_arc_wall_sense_is_false() {
     }
     // And still In just below the true arc boundary.
     assert_eq!(
-        point_in_solid(&t.body, Point3::new(1.0, truth_hi - 0.05, 0.5), band).unwrap(),
+        point_in_solid(&t.body, Point3::new(1.0, truth_hi - 0.05, 0.5), band, Tol::witness()).unwrap(),
         topo::boolean::SolidContainment::In,
         "the fix must not overshoot: just inside the arc is material"
     );
@@ -353,7 +353,7 @@ fn pellet() -> Body<f64> {
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(0.4)).unwrap().body
+    extrude(&vp, Extrusion::Distance(0.4), Tol::witness()).unwrap().body
 }
 
 /// **Construction row (M5 S11, e2e half — flipped from S10's
@@ -372,16 +372,16 @@ fn pellet() -> Body<f64> {
 fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
     let a = mixed_turn_arcs().body;
     let b = pellet();
-    let vol_a = topo::props::mass_properties(&a).unwrap().volume;
-    let vol_b = topo::props::mass_properties(&b).unwrap().volume;
+    let vol_a = topo::props::mass_properties(&a, Tol::witness()).unwrap().volume;
+    let vol_b = topo::props::mass_properties(&b, Tol::witness()).unwrap().volume;
     assert!(
         (vol_b - 0.008).abs() < 1e-12,
         "the pellet meters 0.008, got {vol_b}"
     );
 
-    let r = topo::boolean::union(&a, &b).unwrap();
+    let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
-    let vol = topo::props::mass_properties(&out.body).unwrap().volume;
+    let vol = topo::props::mass_properties(&out.body, Tol::witness()).unwrap().volume;
     let shells = out.body.shells().count();
 
     assert!(

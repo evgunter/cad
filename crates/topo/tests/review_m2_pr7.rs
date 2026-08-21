@@ -52,10 +52,11 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
             },
             b,
             line(a, b),
+            Tol::witness(),
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, from, to| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to))
+        body.mev(MevSite::Fan { he1: at, he2: at }, to, line(from, to), Tol::witness())
             .unwrap()
     };
     let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
@@ -71,6 +72,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
             },
             line(d, a),
             FaceSurface::New(plane(&[a, d, cc, b])),
+            Tol::witness(),
         )
         .unwrap();
     let e_aa = strut(&mut body, e_ab.he_plus, a, a1);
@@ -85,6 +87,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
             },
             line(a1, b1),
             FaceSurface::New(plane(&[a, b, b1, a1])),
+            Tol::witness(),
         )
         .unwrap();
     let _f_right = body
@@ -95,6 +98,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
             },
             line(b1, c1),
             FaceSurface::New(plane(&[b, cc, c1, b1])),
+            Tol::witness(),
         )
         .unwrap();
     let _f_back = body
@@ -105,6 +109,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
             },
             line(c1, d1),
             FaceSurface::New(plane(&[cc, d, d1, c1])),
+            Tol::witness(),
         )
         .unwrap();
     let _f_left = body
@@ -115,6 +120,7 @@ fn mapped_cube(map: impl Fn(Point3<f64>) -> Point3<f64>) -> Body<f64> {
             },
             line(d1, a1),
             FaceSurface::New(plane(&[d, a, a1, d1])),
+            Tol::witness(),
         )
         .unwrap();
     body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
@@ -137,13 +143,13 @@ fn mirrored_cube_is_caught_by_negative_volume() {
         "tier 2 cannot see orientation"
     );
     // The exact machinery agrees the volume is −1.
-    let props = mass_properties(&body).unwrap();
+    let props = mass_properties(&body, Tol::witness()).unwrap();
     assert!(
         (props.volume + 1.0).abs() < 1e-12,
         "mirrored cube volume: {}",
         props.volume
     );
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::NegativeVolume)),
@@ -157,7 +163,7 @@ fn mirrored_cube_is_caught_by_negative_volume() {
 fn megascale_mirrored_cube_is_caught() {
     let s = 1e6;
     let body = mapped_cube(|p| Point3::new(-p.x * s, p.y * s, p.z * s));
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::NegativeVolume)),
@@ -171,7 +177,7 @@ fn megascale_mirrored_cube_is_caught() {
 #[test]
 fn unmirrored_twin_is_tier3_valid() {
     let body = mapped_cube(|p| p);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
 /// EXECUTED BOUNDARY of the exemptions (ratified posture: the +V
@@ -201,10 +207,10 @@ fn thin_inverted_slab_exemption_boundary() {
     // (b) escalation-band thickness: builds, is inside out, passes.
     let t = 10.0 * eps; // = Kε at default K: certifies; |V|/A = 5ε ∈ (ε, Kε).
     let body = mapped_cube(|p| Point3::new(-p.x, p.y, p.z * t));
-    let props = mass_properties(&body).unwrap();
+    let props = mass_properties(&body, Tol::witness()).unwrap();
     assert!(props.volume < 0.0, "the slab is genuinely inside out");
     assert_eq!(
-        validate_geometric(&body),
+        validate_geometric(&body, Tol::witness()),
         Ok(()),
         "the escalation exemption admits an inside-out ~Kε slab (ratified posture; executed pin)"
     );
@@ -239,7 +245,7 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
         }),
     )
     .unwrap();
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         !errs.is_empty(),
         "the corrupted body must fail tier 3 somewhere"

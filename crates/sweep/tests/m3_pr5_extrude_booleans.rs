@@ -33,7 +33,7 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let validated = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&validated, Extrusion::Distance(height))
+    extrude(&validated, Extrusion::Distance(height), Tol::witness())
         .unwrap()
         .body
 }
@@ -45,17 +45,17 @@ fn extruded_two_bricks_all_ops() {
     let a = slab(0.0, 0.0, 2.0, 0.0, 2.0); // [0,2]³
     let b = slab(1.0, 1.0, 2.0, 1.0, 2.0); // [1,3]³
     for (op, volume) in [
-        (topo::intersect as fn(&Body<f64>, &Body<f64>) -> _, 1.0_f64),
+        (topo::intersect as fn(&Body<f64>, &Body<f64>, Tol) -> _, 1.0_f64),
         (union, 15.0),
         (subtract, 7.0),
     ] {
-        let r: Result<BooleanResult<f64>, topo::BooleanError> = op(&a, &b);
+        let r: Result<BooleanResult<f64>, topo::BooleanError> = op(&a, &b, Tol::witness());
         let r = r.unwrap();
         let body = r.body().expect("non-empty");
         assert_eq!(body.kind, BooleanResultKind::Seamed);
         assert_eq!(validate(&body.body), Ok(()), "tier 1");
         assert_eq!(validate_closed(&body.body), Ok(()), "tier 2");
-        let m = mass_properties(&body.body).unwrap();
+        let m = mass_properties(&body.body, Tol::witness()).unwrap();
         assert_eq!(m.volume, volume, "exact volume");
     }
 }
@@ -65,10 +65,10 @@ fn extruded_two_bricks_all_ops() {
 fn extruded_pocket_subtract() {
     let a = slab(0.0, 0.0, 2.0, 0.0, 2.0);
     let b = slab(0.75, 0.75, 0.5, 1.5, 1.0); // pillar into the top face
-    let r = subtract(&a, &b).unwrap();
+    let r = subtract(&a, &b, Tol::witness()).unwrap();
     let body = r.body().expect("non-empty");
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(validate_closed(&body.body), Ok(()), "tier 2");
-    let m = mass_properties(&body.body).unwrap();
+    let m = mass_properties(&body.body, Tol::witness()).unwrap();
     assert_eq!(m.volume, 8.0 - 0.125, "exact volume");
 }

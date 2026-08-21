@@ -5,6 +5,7 @@
 mod common;
 use common::census;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use geom_core::Tol;
 
 fn twobody() -> String {
     let path = concat!(
@@ -22,7 +23,7 @@ fn solid(text: &str) -> topo::Body<f64> {
 }
 
 fn vol(b: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(b).unwrap().volume
+    topo::mass_properties(b, Tol::witness()).unwrap().volume
 }
 
 fn bbox(b: &topo::Body<f64>) -> [f64; 6] {

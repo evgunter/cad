@@ -46,17 +46,18 @@ use editor_core::{
     evaluate,
 };
 use fixture::prism_edges;
+use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
 }
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
+    let a = apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
     let id = a.record.minted.expect("a minted id");
     (a.doc, id)
 }
@@ -101,7 +102,7 @@ fn table_of(
 /// The die blank: a unit cube with EVERY edge blended. Returns the
 /// document, the extrude and the fillet.
 fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m6_5_downstream");
+    let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, blank) = insert(&doc, Node::fillet(cube, len(0.125), prism_edges(cube, 4)));
     (doc, cube, blank)
@@ -189,6 +190,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
             name: blend.clone(),
             attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(9, 8, 7)),
         },
+        Tol::witness(),
     )
     .expect("the appearance edit applies")
     .doc;
@@ -326,6 +328,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
         },
+        Tol::witness(),
     )
     .expect("the bump applies")
     .doc;
@@ -360,7 +363,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
 /// `die_fillet` authors by hand through `prism_edges`.
 #[test]
 fn all_edges_materializes_exactly_the_authored_every_edge_set() {
-    let doc = ProfileDoc::empty_derived("m6_5_downstream");
+    let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&doc);
 
@@ -388,6 +391,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
         },
+        Tol::witness(),
     )
     .expect("the bump applies")
     .doc;
@@ -408,7 +412,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
 /// for the refusal, not two.
 #[test]
 fn all_edges_of_a_nameless_node_is_empty() {
-    let doc = ProfileDoc::empty_derived("m6_5_downstream");
+    let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, p) = insert(
         &doc,
         Node::Profile(fixture::desc(

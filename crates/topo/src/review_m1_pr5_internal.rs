@@ -20,13 +20,15 @@
 use crate::entity::EntityId;
 use crate::fixtures::{ops_cube, pillow, prov};
 use crate::validate::{ValidationError, validate, validate_closed};
+use geom_core::Tol;
 
 /// Pass 12, all seven arenas, MISSING direction: remove each kind's
 /// record from a clean cube; expect exactly one MissingProvenance
 /// naming that entity.
 #[test]
 fn missing_provenance_all_seven_arenas() {
-    let t = ops_cube();
+    let tol = Tol::witness();
+    let t = ops_cube(tol);
 
     // Solids.
     let mut b = t.body.clone();
@@ -106,7 +108,8 @@ fn missing_provenance_all_seven_arenas() {
 /// expected and NOT gated away — provenance is pass 12, ungated).
 #[test]
 fn leaked_provenance_all_seven_arenas() {
-    let t = ops_cube();
+    let tol = Tol::witness();
+    let t = ops_cube(tol);
     macro_rules! leak_probe {
         ($arena:ident, $variant:ident) => {{
             let mut b = t.body.clone();
@@ -138,7 +141,8 @@ fn leaked_provenance_all_seven_arenas() {
 /// and deterministic across repeated validation.
 #[test]
 fn cross_shell_shredding_terminates_and_reports_coherently() {
-    let t = ops_cube();
+    let tol = Tol::witness();
+    let t = ops_cube(tol);
     let mut b = t.body;
     let faces: Vec<_> = b.faces.keys().collect();
     let solid = b.solids.keys().next().unwrap();
@@ -197,7 +201,8 @@ fn cross_shell_shredding_terminates_and_reports_coherently() {
 /// if it ever changes, re-check the module docs' cascade wording.
 #[test]
 fn tier2_strut_scan_echoes_on_dangling_start() {
-    let mut t = pillow();
+    let tol = Tol::witness();
+    let mut t = pillow(tol);
     // Mint a dead vertex key.
     let dead = t.body.add_vertex(
         crate::entity::Vertex {

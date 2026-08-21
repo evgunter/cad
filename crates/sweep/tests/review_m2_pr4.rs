@@ -53,7 +53,7 @@ fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 /// (v, e, f, r) of a body.
@@ -223,9 +223,13 @@ fn dump(t: &Extruded<f64>) -> String {
 #[test]
 fn survives_digon_outer_both_directions() {
     for d in [1.0, -1.0] {
-        let t = extrude(&validated(vec![circle_loop(0.0, 0.0, 0.5)]), {
+        let t = extrude(
+        &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
+        {
             Extrusion::Distance(d)
-        })
+        },
+        Tol::witness(),
+        )
         .unwrap();
         assert_all_tiers(&t.body);
         assert_eq!(counts(&t.body), (4, 6, 4, 0));
@@ -265,7 +269,7 @@ fn survives_two_arc_hole_hand_traced_cycles() {
     assert_eq!(vp.loops()[1].role(), LoopRole::Hole);
 
     for d in [1.0f64, -0.5] {
-        let t = extrude(&vp, Extrusion::Distance(d)).unwrap();
+        let t = extrude(&vp, Extrusion::Distance(d), Tol::witness()).unwrap();
         assert_all_tiers(&t.body);
         let (v, e, f, r) = counts(&t.body);
         assert_eq!((v, e, f, r), (12, 18, 8, 2));
@@ -326,7 +330,7 @@ fn survives_hole_near_outer_canonical_start() {
     // Hole lex-min vertex at (0.006, 0.011): bridge chord ~0.0125 m,
     // clearance to the outer edges 0.006 m — all definite at every CI ε.
     let hole = circle_loop(0.011, 0.011, 0.005);
-    let t = extrude(&validated(vec![outer, hole]), Extrusion::Distance(0.3)).unwrap();
+    let t = extrude(&validated(vec![outer, hole]), Extrusion::Distance(0.3), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 2));
@@ -349,6 +353,7 @@ fn survives_multiple_holes_genus_h() {
                 .collect::<Vec<_>>(),
         ),
         Extrusion::Distance(1.0),
+        Tol::witness(),
     )
     .unwrap();
     // Tiers passing means the tier-1/2 validators' own component E–P
@@ -367,6 +372,7 @@ fn survives_multiple_holes_genus_h() {
     let t3 = extrude(
         &validated(core::iter::once(outer).chain(holes3).collect::<Vec<_>>()),
         Extrusion::Distance(-0.7),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&t3.body);
@@ -431,7 +437,7 @@ fn survives_reversal_maps_and_orientation() {
     ));
 
     for d in [0.75, -0.75] {
-        let t = extrude(&vp, Extrusion::Distance(d)).unwrap();
+        let t = extrude(&vp, Extrusion::Distance(d), Tol::witness()).unwrap();
         assert_all_tiers(&t.body);
         assert!(signed_volume(&t.body) > 0.0, "d = {d}");
         let (top_z, bot_z) = (
@@ -481,7 +487,7 @@ fn survives_reversal_maps_and_orientation() {
     // for planar faces): area 3, both directions.
     let vp_l = validated(vec![l_loop()]);
     for d in [1.5, -1.5] {
-        let t = extrude(&vp_l, Extrusion::Distance(d)).unwrap();
+        let t = extrude(&vp_l, Extrusion::Distance(d), Tol::witness()).unwrap();
         let v = signed_volume(&t.body);
         assert!((v - 3.0 * d.abs()).abs() < 1e-9, "d {d}: V = {v}");
     }
@@ -504,7 +510,7 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
     // corner is canonical vertex 1.
     assert_eq!(vp.loops()[0].vertices()[1].pos().x, 1.0);
     for d in [1.0e-3, -1.0e-3] {
-        let err = extrude(&vp, Extrusion::Distance(d)).unwrap_err();
+        let err = extrude(&vp, Extrusion::Distance(d), Tol::witness()).unwrap_err();
         match err {
             ExtrudeError::SliverJoin {
                 loop_index,
@@ -553,6 +559,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     let t = extrude(
         &validated(vec![corner_profile(smooth_theta)]),
         Extrusion::Distance(w),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&t.body);
@@ -568,6 +575,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     let err = extrude(
         &validated(vec![corner_profile(sliver_theta)]),
         Extrusion::Distance(w),
+        Tol::witness(),
     )
     .unwrap_err();
     assert!(
@@ -586,6 +594,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     let t = extrude(
         &validated(vec![corner_profile(corner_theta)]),
         Extrusion::Distance(w),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&t.body);
@@ -610,7 +619,7 @@ fn survives_collinear_lines_share_the_plane_key() {
         p2(2.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
@@ -649,7 +658,7 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     ]);
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].pos().x, -1.0);
-    let t = extrude(&vp, Extrusion::Distance(0.5)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // Walls: [arc, line, line, arc]; the wrap join (segment 3 → 0)
     // shares faces[0]'s cylinder.
@@ -706,7 +715,7 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     ]);
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].pos().x, -1.0);
-    let t = extrude(&vp, Extrusion::Distance(0.5)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     let key = |j: usize| t.body.get_face(t.side_faces[0][j]).unwrap().surface;
     // The whole wrap-crossing run {2, 3, 0} shares ONE key…
@@ -759,7 +768,7 @@ fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
         Ok(vp) => {
             // If validation ever lets it through, extrude must refuse
             // typed (escalated cosurface or sliver join) — NEVER build.
-            let res = extrude(&vp, Extrusion::Distance(1.0));
+            let res = extrude(&vp, Extrusion::Distance(1.0), Tol::witness());
             assert!(
                 matches!(
                     res,
@@ -792,7 +801,7 @@ fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
     match profile_result {
         Err(_) => {} // typed at the profile gate — honest
         Ok(vp) => {
-            let res = extrude(&vp, Extrusion::Distance(1.0));
+            let res = extrude(&vp, Extrusion::Distance(1.0), Tol::witness());
             assert!(
                 matches!(
                     res,
@@ -814,6 +823,7 @@ fn survives_cosurface_bitwise_center_agreement() {
     let t = extrude(
         &validated(vec![circle_loop(0.25, -0.375, 0.5)]),
         Extrusion::Distance(1.0),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&t.body);
@@ -867,7 +877,7 @@ fn survives_mixed_turn_arcs_cap_certifies() {
         ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
     let vp = validated(vec![lp]);
-    let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert!(outward_normal(&t.body, t.top).z > 0.99);
     assert!(outward_normal(&t.body, t.bottom).z < -0.99);
@@ -902,9 +912,13 @@ fn survives_mixed_turn_arcs_cap_certifies() {
 fn survives_digon_caps_apex_determined() {
     let r = 0.5;
     let h = 0.75;
-    let t = extrude(&validated(vec![circle_loop(0.0, 0.0, r)]), {
+    let t = extrude(
+    &validated(vec![circle_loop(0.0, 0.0, r)]),
+    {
         Extrusion::Distance(h)
-    })
+    },
+    Tol::witness(),
+    )
     .unwrap();
     let cap_plane = |face| {
         let sk = t.body.get_face(face).unwrap().surface;
@@ -943,7 +957,7 @@ fn survives_far_offset_profiles_honest() {
         p2(off + 2.0, off + 1.0),
         p2(off, off + 1.0),
     ]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.5)).unwrap();
+    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert!(signed_volume(&t.body) > 0.0);
 
@@ -951,7 +965,7 @@ fn survives_far_offset_profiles_honest() {
     let lp = circle_loop(off, off, 0.5);
     match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(_) => {} // typed refusal at the profile gate is honest
-        Ok(vp) => match extrude(&vp, Extrusion::Distance(1.0)) {
+        Ok(vp) => match extrude(&vp, Extrusion::Distance(1.0), Tol::witness()) {
             Ok(t) => assert_all_tiers(&t.body),
             Err(e) => assert!(
                 matches!(
@@ -991,7 +1005,7 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
         p2(2.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Vector(v)).unwrap();
+    let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // Stored vector bitwise = input.
     let EdgeGeometry::MappedCurve(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
@@ -1022,7 +1036,7 @@ fn survives_error_paths_extended() {
     let vp = validated(vec![l_loop()]);
     // Sliver distances, both signs.
     for d in [3.0 * eps(), -3.0 * eps()] {
-        let err = extrude(&vp, Extrusion::Distance(d)).unwrap_err();
+        let err = extrude(&vp, Extrusion::Distance(d), Tol::witness()).unwrap_err();
         assert!(
             matches!(err, ExtrudeError::ExtrusionEscalated { ref source }
                 if source.predicate == Some("extrusion_normal_component")),
@@ -1031,17 +1045,17 @@ fn survives_error_paths_extended() {
     }
     // Coincident-with-zero distance from below.
     assert_eq!(
-        extrude(&vp, Extrusion::Distance(0.5 * eps())).unwrap_err(),
+        extrude(&vp, Extrusion::Distance(0.5 * eps()), Tol::witness()).unwrap_err(),
         ExtrudeError::DegenerateExtrusion
     );
     // Poisoned distance.
     assert!(matches!(
-        extrude(&vp, Extrusion::Distance(f64::NAN)).unwrap_err(),
+        extrude(&vp, Extrusion::Distance(f64::NAN), Tol::witness()).unwrap_err(),
         ExtrudeError::ExtrusionEscalated { .. }
     ));
     // Oblique with a definite in-plane part riding a definite normal.
     assert_eq!(
-        extrude(&vp, Extrusion::Vector(Vec3::new(0.0, 2e-3, 1.0))).unwrap_err(),
+        extrude(&vp, Extrusion::Vector(Vec3::new(0.0, 2e-3, 1.0)), Tol::witness()).unwrap_err(),
         ExtrudeError::ObliqueExtrusion
     );
     // NaN placement: 2-D validation cannot see it; the geometry gate
@@ -1054,7 +1068,7 @@ fn survives_error_paths_extended() {
     let vp_bad = Profile::new(bad_plane, vec![l_loop()])
         .validate(Tol::witness())
         .expect("validation is 2-D; the poisoned placement passes through");
-    let err = extrude(&vp_bad, Extrusion::Distance(1.0)).unwrap_err();
+    let err = extrude(&vp_bad, Extrusion::Distance(1.0), Tol::witness()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -1105,7 +1119,7 @@ fn survives_rebuild_byte_identity_zoo() {
             let loops: Vec<ProfileLoop<f64>> = core::iter::once(outer.clone())
                 .chain(holes.clone())
                 .collect();
-            extrude(&validated(loops), Extrusion::Distance(*d)).unwrap()
+            extrude(&validated(loops), Extrusion::Distance(*d), Tol::witness()).unwrap()
         };
         let a = build();
         let b2 = build();
@@ -1124,6 +1138,7 @@ fn dump_for_cross_profile_diff() {
     let t = extrude(
         &validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]),
         Extrusion::Distance(-1.0),
+        Tol::witness(),
     )
     .unwrap();
     let profile = if cfg!(debug_assertions) {

@@ -668,15 +668,15 @@ pub fn revolve<T: Decide>(
     }
 
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes, theta, band)
+        full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes, theta, reverse, band)
+        partial::build_partial(&frame, &loops, &classes, theta, reverse, band, tol)
     }?;
     // Final pass (M6-3, walk row 4): every revolve face's chart now
     // mints — cone/sphere/torus walls exactly as cylinder ones — so a
     // revolve output carries its stored certified pcurves at rest,
     // the same posture as boolean/split/loft outputs.
-    topo::mint_pcurves(&mut out.body).map_err(RevolveError::Pcurve)?;
+    topo::mint_pcurves(&mut out.body, tol).map_err(RevolveError::Pcurve)?;
     Ok(out)
 }
 

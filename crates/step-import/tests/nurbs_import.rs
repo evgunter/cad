@@ -68,7 +68,7 @@ fn native_arc_loft() -> topo::Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")
         .body
 }
@@ -126,7 +126,7 @@ fn reverse_data_section(text: &str) -> String {
 /// rational quadrature, which is the expensive thing in these rows.
 fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::MassProperties<f64>> {
     let target = 1024.0 * geom_core::Tol::witness().get().eps;
-    match topo::mass_properties(body) {
+    match topo::mass_properties(body, Tol::witness()) {
         Ok(props) => Some(props),
         Err(err) => {
             let topo::MassPropsError::Face { source, .. } = &err else {
@@ -255,7 +255,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
     }
 
     // ---- The ROUND TRIP, which the bank used to block entirely. ----
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
+    let text = step_export::step_string(&native, &step_export::StepOptions::default(), Tol::witness())
         .expect("the writer exports the rational-walled body");
     match import_step(&text, &ImportOptions::default()) {
         Ok(step_import::StepImport::Solid { body, .. }) => {
@@ -265,7 +265,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                  quadrature certified — it cannot happen at an ε where the native \
                  body's own flux ran out of schedule"
             );
-            let got = topo::mass_properties(&body).expect("imported rational mass properties");
+            let got = topo::mass_properties(&body, Tol::witness()).expect("imported rational mass properties");
             let want = native_props.as_ref().expect("the native side certified");
             // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
             // what soundness needs — two certified enclosures of one
@@ -312,7 +312,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                      order — the as-written file imported first-class, got {other:?}"
                 ),
             };
-            let back = topo::mass_properties(&again).expect("reversed-DATA mass properties");
+            let back = topo::mass_properties(&again, Tol::witness()).expect("reversed-DATA mass properties");
             assert_eq!(
                 back.volume.to_bits(),
                 got.volume.to_bits(),
@@ -482,5 +482,5 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         vec![0.0, 3.0],
         "both of the wall's seams adopt on ITS OWN knot-domain ends"
     );
-    topo::validate_geometric(&body).expect("and the reparameterized body is valid at rest");
+    topo::validate_geometric(&body, Tol::witness()).expect("and the reparameterized body is valid at rest");
 }

@@ -37,6 +37,7 @@
 
 use ::profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 use geom_core::{Decide, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+use geom_core::Tol;
 
 /// Embeds an `f64` literal as the working scalar.
 ///
@@ -164,6 +165,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 pub fn validated<T: Decide>(
     plane: SketchPlane<T>,
     loops: Vec<ProfileLoop<T>>,
+    tol: Tol,
 ) -> Result<ValidatedProfile<T>, ProfileError> {
-    Profile::new(plane, loops).validate(Tolerance::get())
+    Profile::new(plane, loops).validate(tol)
 }

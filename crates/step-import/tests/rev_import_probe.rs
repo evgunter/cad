@@ -61,7 +61,7 @@ fn three_rim_honest_control() {
     let text = cylinder_three_rim(".T.");
     match import(&text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
             println!("3RIM honest: imported, t3={t3:?}");
             assert!(
                 t3.is_ok(),
@@ -83,7 +83,7 @@ fn three_rim_flipped_wall_layering() {
     let text = cylinder_three_rim(".F.");
     match import(&text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
             println!("3RIM flipped: imported (rider skipped), t3={t3:?}");
             let errs = t3.expect_err("kernel gate must refuse the inverted three-rim wall");
             assert!(
@@ -107,7 +107,7 @@ fn cone_trunc_flipped_wall_refuses() {
     );
     match import(&text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
             panic!("flipped cone_trunc wall imported (t3={t3:?}) — rider missed the cone arm");
         }
         Ok(_) => panic!("wireframe"),
@@ -141,7 +141,7 @@ fn conic_trimmed_flip_slips_both_gates() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(2.5)).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness()).unwrap().body;
     let phi: f64 = 0.3;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.25),
@@ -155,7 +155,7 @@ fn conic_trimmed_flip_slips_both_gates() {
         product_name: "cutcyl".to_owned(),
         ..step_export::StepOptions::default()
     };
-    let honest_text = step_export::step_string(cut, &options).unwrap();
+    let honest_text = step_export::step_string(cut, &options, Tol::witness()).unwrap();
     // Flip the FIRST cylinder wall face's sense in the text.
     let surf_id = honest_text
         .lines()
@@ -180,7 +180,7 @@ fn conic_trimmed_flip_slips_both_gates() {
     match import(&honest_text) {
         Ok(StepImport::Solid { body, .. }) => {
             assert!(
-                topo::validate_geometric(&body).is_ok(),
+                topo::validate_geometric(&body, Tol::witness()).is_ok(),
                 "honest control green"
             );
         }
@@ -188,8 +188,8 @@ fn conic_trimmed_flip_slips_both_gates() {
     }
     match import(&flipped_text) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body);
-            let vol = topo::mass_properties(&body).map(|p| p.volume);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
+            let vol = topo::mass_properties(&body, Tol::witness()).map(|p| p.volume);
             println!("CONIC-SLIP flipped wall: imported, t3={t3:?} vol={vol:?}");
         }
         Ok(_) => panic!("wireframe"),

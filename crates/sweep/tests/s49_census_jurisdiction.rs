@@ -58,7 +58,7 @@ fn cylinder(z0: f64, rot: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// A planar-only brick: half-width `h` about the axis, `z ∈ [z0, z0 +
@@ -74,13 +74,13 @@ fn brick(z0: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// The pair as one two-instance arena.
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b).unwrap();
+    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
     out
 }
 
@@ -144,7 +144,7 @@ fn planar_pair_refusals(body: &Body<f64>, errors: &[ValidationError]) -> Vec<(Fa
 fn a_cap_pair_in_rest_is_examined_by_the_proximity_arm() {
     for &turn in &[0.0_f64, 30.0, 45.0, 60.0] {
         let body = assembly(&cylinder(0.0, 0.0), &cylinder(1.0, turn));
-        let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+        let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("two solids in undeclared rest must never clear");
         let caps = faces_in_plane(&body, 1.0);
         assert_eq!(
@@ -173,7 +173,7 @@ fn a_cap_pair_in_rest_is_examined_by_the_proximity_arm() {
 fn cylinders_apart_still_clear_at_their_caps() {
     let body = assembly(&cylinder(0.0, 0.0), &cylinder(3.0, 60.0));
     assert_eq!(
-        validate_pseudomanifold(&body, &ContactRecords::default()),
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()),
         Ok(()),
         "a definitely separated pair must clear"
     );
@@ -189,7 +189,7 @@ fn cylinders_apart_still_clear_at_their_caps() {
 #[test]
 fn line_bounded_planar_faces_in_rest_stay_with_the_exact_sweeps() {
     let body = assembly(&brick(0.0, 0.5), &brick(1.0, 0.2));
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("an undeclared rest must be reported");
     assert!(
         errors
@@ -211,7 +211,7 @@ fn line_bounded_planar_faces_in_rest_stay_with_the_exact_sweeps() {
 #[test]
 fn a_cap_resting_on_a_line_bounded_face_is_examined_too() {
     let body = assembly(&brick(0.0, 1.0), &cylinder(1.0, 0.0));
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("two solids in undeclared rest must never clear");
     let touching = faces_in_plane(&body, 1.0);
     assert_eq!(
@@ -366,7 +366,7 @@ fn a_vf_record_defers_the_faces_at_its_own_interface_and_no_others() {
     assert_eq!(apart.len(), 1, "one wall holds neither of its ends");
 
     let errors =
-        validate_pseudomanifold(&body, &records).expect_err("an undeclared rest must be reported");
+        validate_pseudomanifold(&body, &records, Tol::witness()).expect_err("an undeclared rest must be reported");
     assert!(
         !errors
             .iter()

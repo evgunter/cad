@@ -426,6 +426,7 @@ pub fn mirror_across_plane<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use crate::tolerance::Tol;
     use super::*;
 
     /// The frame's twelve entries, in column order then translation —

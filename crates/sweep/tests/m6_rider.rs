@@ -39,8 +39,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, BooleanError> {
@@ -50,8 +50,9 @@ fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, B
         b,
         &BooleanDeclarations::none(),
         strategy,
+        Tol::witness(),
     )?;
-    Ok(topo::mass_properties(&out.body().expect("a body").body)
+    Ok(topo::mass_properties(&out.body().expect("a body").body, Tol::witness())
         .unwrap()
         .volume)
 }

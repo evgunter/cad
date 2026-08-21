@@ -7,6 +7,7 @@ mod common;
 
 use common::fixture;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use geom_core::Tol;
 
 /// Row 4: the curve-only fixture parses; the rational quadratic
 /// reconstructs exactly (`==` on control points / knots / weights —
@@ -166,7 +167,7 @@ fn prefixed_unit_scales_instead_of_refusing() {
         let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("expected a solid");
         };
-        (topo::mass_properties(&body).unwrap().volume, eps_in)
+        (topo::mass_properties(&body, Tol::witness()).unwrap().volume, eps_in)
     };
     let (v_m, eps_m) = of(&metres);
     let (v_mm, eps_mm) = of(&millimetres);
@@ -200,7 +201,7 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
         else {
             panic!("a solid")
         };
-        topo::mass_properties(&body).unwrap().volume
+        topo::mass_properties(&body, Tol::witness()).unwrap().volume
     };
     // The same metre unit, re-declared as an inch OVER that metre.
     let inch = plain.replace(

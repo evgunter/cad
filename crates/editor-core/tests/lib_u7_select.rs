@@ -30,19 +30,20 @@ use editor_core::{
     CancelToken, CapEnd, Dimension, EntityKind, EvalOptions, Expr, NamePat, Node, OpGroup,
     ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, evaluate,
 };
+use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
 }
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness())
 }
 
 /// A unit box as an extruded square, and its extrude node.
 fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
-        ProfileDoc::empty_derived("lib_u7_select"),
+        ProfileDoc::empty_derived("lib_u7_select", Tol::witness()),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -105,7 +106,7 @@ fn the_siblings_return_canonical_order() {
 #[test]
 fn the_siblings_and_the_selector_are_empty_for_a_valueless_node() {
     let (doc, p) = fixture::insert(
-        ProfileDoc::empty_derived("lib_u7_select"),
+        ProfileDoc::empty_derived("lib_u7_select", Tol::witness()),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],

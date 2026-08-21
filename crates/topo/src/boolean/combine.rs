@@ -69,8 +69,9 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     src: &Body<T>,
+    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solid_with(dst, dst_solid, src, Bridge::Recertify)
+    graft_solid_with(dst, dst_solid, src, Bridge::Recertify, tol)
 }
 
 /// How a transplanted edge DESCRIPTION crosses into the destination's
@@ -106,8 +107,9 @@ pub(crate) fn graft_solid_with<T: geom_core::Decide>(
     dst_solid: SolidKey,
     src: &Body<T>,
     bridge: Bridge,
+    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solids_with(dst, &[dst_solid], src, bridge)
+    graft_solids_with(dst, &[dst_solid], src, bridge, tol)
 }
 
 /// [`graft_solid_with`] for a source holding N solids: `dst_solids`

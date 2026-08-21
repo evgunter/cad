@@ -41,6 +41,7 @@ use topo::{
     Body, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate,
     validate_closed, validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 /// Tube: outer [1,3]², hole [1.5,2.5]², z ∈ [0.5, 3] (cutter strictly
 /// taller so the subtract pierces cleanly).
@@ -51,7 +52,7 @@ fn tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
         0.25,
         3.25,
     );
-    let BooleanResult::Body(t) = subtract(&outer.body, &cutter.body).expect("tube") else {
+    let BooleanResult::Body(t) = subtract(&outer.body, &cutter.body, Tol::witness()).expect("tube") else {
         panic!("tube subtract emptied");
     };
     t.body
@@ -61,7 +62,7 @@ fn tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
 /// above the plate, annulus 3 × 2).
 fn plate_with_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
     let plate = prism_z::<T>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 0.0, 1.0);
-    let BooleanResult::Body(u1) = union(&plate.body, &tube::<T>()).expect("plate|tube") else {
+    let BooleanResult::Body(u1) = union(&plate.body, &tube::<T>(), Tol::witness()).expect("plate|tube") else {
         panic!("plate|tube emptied");
     };
     u1.body
@@ -72,7 +73,7 @@ fn plate_with_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Bod
 /// design — the interval lane checks censuses instead).
 fn plate_with_tube_f64() -> Body<f64> {
     let u1 = plate_with_tube::<f64>();
-    let v = mass_properties(&u1).expect("u1 mass").volume;
+    let v = mass_properties(&u1, Tol::witness()).expect("u1 mass").volume;
     assert!((v - 22.0).abs() < 1e-12, "u1 volume {v} != 22.0 exact");
     u1
 }
@@ -84,7 +85,7 @@ fn depth2_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T
         0.75,
         2.75,
     );
-    let BooleanResult::Body(u2) = union(&plate_with_tube::<T>(), &pillar.body).expect("|pillar")
+    let BooleanResult::Body(u2) = union(&plate_with_tube::<T>(), &pillar.body, Tol::witness()).expect("|pillar")
     else {
         panic!("|pillar emptied");
     };
@@ -95,7 +96,7 @@ fn depth2_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T
 /// post.
 fn depth3_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
     let BooleanResult::Body(u2) =
-        union(&plate_with_tube::<T>(), &pillar_tube::<T>()).expect("|pillar tube")
+        union(&plate_with_tube::<T>(), &pillar_tube::<T>(), Tol::witness()).expect("|pillar tube")
     else {
         panic!("|pillar tube emptied");
     };
@@ -109,7 +110,7 @@ fn depth3_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T
         0.8125,
         2.6875,
     );
-    let BooleanResult::Body(u3) = union(&u2.body, &post.body).expect("|post") else {
+    let BooleanResult::Body(u3) = union(&u2.body, &post.body, Tol::witness()).expect("|post") else {
         panic!("|post emptied");
     };
     u3.body
@@ -144,7 +145,7 @@ fn tiers<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(bb: &BooleanBody<T
     assert_eq!(validate(&bb.body), Ok(()), "{label}: tier 1");
     assert_eq!(validate_closed(&bb.body), Ok(()), "{label}: tier 2");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts),
+        validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
         Ok(()),
         "{label}: tier 3′"
     );
@@ -163,12 +164,12 @@ fn issue105_doubly_nested_union_exact() {
         0.75,
         2.75,
     );
-    let BooleanResult::Body(u2) = union(&plate_with_tube_f64(), &pillar.body).expect("|pillar")
+    let BooleanResult::Body(u2) = union(&plate_with_tube_f64(), &pillar.body, Tol::witness()).expect("|pillar")
     else {
         panic!("|pillar emptied");
     };
     tiers(&u2, "u2");
-    let v = mass_properties(&u2.body).expect("u2 mass").volume;
+    let v = mass_properties(&u2.body, Tol::witness()).expect("u2 mass").volume;
     assert!(
         (v - 22.4375).abs() < 1e-12,
         "REGRESSION toward issue #105: pillar union volume {v} != 22.4375 \
@@ -199,14 +200,14 @@ fn issue106_depth2_nested_intersect_exact() {
     // `plate_with_tube_f64` (u1 = 22.0), so a miss below is the
     // intersect's fault, never a corrupt operand.
     let u2 = depth2_chain::<f64>();
-    let vu2 = mass_properties(&u2).expect("u2 mass").volume;
+    let vu2 = mass_properties(&u2, Tol::witness()).expect("u2 mass").volume;
     assert!((vu2 - 22.4375).abs() < 1e-12, "u2 volume {vu2} != 22.4375");
-    match intersect(&u2, &slab::<f64>()) {
+    match intersect(&u2, &slab::<f64>(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-2 intersect");
             // Tube annulus prism (10 faces) + pillar box (6).
             census(&bb, 2, 16, "depth-2 intersect");
-            let v = mass_properties(&bb.body).expect("mass").volume;
+            let v = mass_properties(&bb.body, Tol::witness()).expect("mass").volume;
             assert!(
                 (v - 3.25).abs() < 1e-12,
                 "REGRESSION toward issue #106: depth-2 nested intersect \
@@ -225,10 +226,10 @@ fn issue106_depth2_nested_intersect_exact() {
 /// precisely between depth 1 and depth 2.
 #[test]
 fn depth1_nested_intersect_control_exact() {
-    match intersect(&plate_with_tube_f64(), &slab::<f64>()) {
+    match intersect(&plate_with_tube_f64(), &slab::<f64>(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-1 control");
-            let v = mass_properties(&bb.body).expect("mass").volume;
+            let v = mass_properties(&bb.body, Tol::witness()).expect("mass").volume;
             assert!((v - 3.0).abs() < 1e-12, "control volume {v} != 3.0 exact");
         }
         other => panic!("depth-1 control did not build: {other:?}"),
@@ -255,7 +256,7 @@ fn pillar_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T>
         0.625,
         2.875,
     );
-    let BooleanResult::Body(t) = subtract(&outer.body, &cutter.body).expect("pillar tube") else {
+    let BooleanResult::Body(t) = subtract(&outer.body, &cutter.body, Tol::witness()).expect("pillar tube") else {
         panic!("pillar-tube subtract emptied");
     };
     t.body
@@ -290,17 +291,17 @@ fn pillar_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T>
 #[test]
 fn issue106_depth3_nested_intersect_probe() {
     let u3 = depth3_chain::<f64>();
-    let vu3 = mass_properties(&u3).expect("u3 mass").volume;
+    let vu3 = mass_properties(&u3, Tol::witness()).expect("u3 mass").volume;
     assert!(
         (vu3 - 22.3544921875).abs() < 1e-12,
         "depth-3 input chain u3 volume {vu3} != 22.3544921875 exact"
     );
-    match intersect(&u3, &slab::<f64>()) {
+    match intersect(&u3, &slab::<f64>(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-3 intersect");
             // Tube annulus (10) + pillar annulus (10) + post box (6).
             census(&bb, 3, 26, "depth-3 intersect");
-            let v = mass_properties(&bb.body).expect("mass").volume;
+            let v = mass_properties(&bb.body, Tol::witness()).expect("mass").volume;
             assert!(
                 (v - 3.203125).abs() < 1e-12,
                 "depth-3 nested intersect volume {v} != 3.203125 exact"
@@ -396,22 +397,22 @@ fn comb<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
 /// u2 = 16 + 6 + (21/128)×1.75 = 22.287109375.
 #[test]
 fn issue106_comb_island_intersect_probe() {
-    let BooleanResult::Body(u2) = union(&plate_with_tube_f64(), &comb::<f64>()).expect("|comb")
+    let BooleanResult::Body(u2) = union(&plate_with_tube_f64(), &comb::<f64>(), Tol::witness()).expect("|comb")
     else {
         panic!("|comb emptied");
     };
     tiers(&u2, "comb u2");
-    let vu2 = mass_properties(&u2.body).expect("u2 mass").volume;
+    let vu2 = mass_properties(&u2.body, Tol::witness()).expect("u2 mass").volume;
     assert!(
         (vu2 - 22.287109375).abs() < 1e-12,
         "comb chain u2 volume {vu2} != 22.287109375 exact"
     );
-    match intersect(&u2.body, &slab::<f64>()) {
+    match intersect(&u2.body, &slab::<f64>(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "comb intersect");
             // Tube annulus (10 faces) + comb prism (12 sides + 2 caps).
             census(&bb, 2, 24, "comb intersect");
-            let v = mass_properties(&bb.body).expect("mass").volume;
+            let v = mass_properties(&bb.body, Tol::witness()).expect("mass").volume;
             assert!(
                 (v - 3.1640625).abs() < 1e-12,
                 "comb intersect volume {v} != 3.1640625 exact"

@@ -11,6 +11,7 @@ use topo::{Body, FaceSurface, MefSite, MevSite, validate, validate_closed, valid
 
 mod common;
 use common::{describe_as_intersections, geometric_cube, line};
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -32,14 +33,15 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
                     r#loop: seed.r#loop,
                 },
                 p(1.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         let strut = |he| MevSite::Fan { he1: he, he2: he };
         let e_bc = body
-            .mev_line(strut(e_ab.he_minus), p(1.0, 1.0, 0.0))
+            .mev_line(strut(e_ab.he_minus), p(1.0, 1.0, 0.0), Tol::witness())
             .unwrap();
         let e_cd = body
-            .mev_line(strut(e_bc.he_minus), p(0.0, 1.0, 0.0))
+            .mev_line(strut(e_bc.he_minus), p(0.0, 1.0, 0.0), Tol::witness())
             .unwrap();
         let he_dc = body
             .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
@@ -48,25 +50,25 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
             .mef_chord(MefSite::Chords {
                 he1: he_dc,
                 he2: e_ab.he_plus,
-            })
+            }, Tol::witness())
             .unwrap();
         let e_aa = body
-            .mev_line(strut(e_ab.he_plus), p(0.0, 0.0, 1.0))
+            .mev_line(strut(e_ab.he_plus), p(0.0, 0.0, 1.0), Tol::witness())
             .unwrap();
         let e_bb = body
-            .mev_line(strut(e_bc.he_plus), p(1.0, 0.0, 1.0))
+            .mev_line(strut(e_bc.he_plus), p(1.0, 0.0, 1.0), Tol::witness())
             .unwrap();
         let e_cc = body
-            .mev_line(strut(e_cd.he_plus), p(1.0, 1.0, 1.0))
+            .mev_line(strut(e_cd.he_plus), p(1.0, 1.0, 1.0), Tol::witness())
             .unwrap();
         let e_dd = body
-            .mev_line(strut(f_bot.he_plus), p(0.0, 1.0, 1.0))
+            .mev_line(strut(f_bot.he_plus), p(0.0, 1.0, 1.0), Tol::witness())
             .unwrap();
         let chord = |he1, he2| MefSite::Chords { he1, he2 };
-        let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus)).unwrap();
-        body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus)).unwrap();
-        body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus)).unwrap();
-        body.mef_chord(chord(e_dd.he_minus, f_front.he_plus))
+        let f_front = body.mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness()).unwrap();
+        body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness()).unwrap();
+        body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness()).unwrap();
+        body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
             .unwrap();
         (body, seed)
     };
@@ -91,6 +93,7 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
                 he2: top_he,
             },
             pt(0.25, 0.25, 1.25),
+            Tol::witness(),
         )
         .unwrap();
     let planted = body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -105,14 +108,15 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
                 r#loop: planted.ring,
             },
             p(0.25, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let strut_at = |he| MevSite::Fan { he1: he, he2: he };
     let i_bc = body
-        .mev_line(strut_at(i_ab.he_minus), p(0.25, 0.25))
+        .mev_line(strut_at(i_ab.he_minus), p(0.25, 0.25), Tol::witness())
         .unwrap();
     let i_cd = body
-        .mev_line(strut_at(i_bc.he_minus), p(0.0, 0.25))
+        .mev_line(strut_at(i_bc.he_minus), p(0.0, 0.25), Tol::witness())
         .unwrap();
     // The ring loop's face is the TOP face; find_half_edge searches a
     // face's loops, so address the chord through the top face.
@@ -121,21 +125,21 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
         .mef_chord(MefSite::Chords {
             he1: he_dc,
             he2: i_ab.he_plus,
-        })
+        }, Tol::witness())
         .unwrap();
-    let i_aa = body.mev_line(strut_at(i_ab.he_plus), q(0.0, 0.0)).unwrap();
-    let i_bb = body.mev_line(strut_at(i_bc.he_plus), q(0.25, 0.0)).unwrap();
+    let i_aa = body.mev_line(strut_at(i_ab.he_plus), q(0.0, 0.0), Tol::witness()).unwrap();
+    let i_bb = body.mev_line(strut_at(i_bc.he_plus), q(0.25, 0.0), Tol::witness()).unwrap();
     let i_cc = body
-        .mev_line(strut_at(i_cd.he_plus), q(0.25, 0.25))
+        .mev_line(strut_at(i_cd.he_plus), q(0.25, 0.25), Tol::witness())
         .unwrap();
     let i_dd = body
-        .mev_line(strut_at(f_bot.he_plus), q(0.0, 0.25))
+        .mev_line(strut_at(f_bot.he_plus), q(0.0, 0.25), Tol::witness())
         .unwrap();
     let chord = |he1, he2| MefSite::Chords { he1, he2 };
-    let f_front = body.mef_chord(chord(i_aa.he_minus, i_bb.he_minus)).unwrap();
-    body.mef_chord(chord(i_bb.he_minus, i_cc.he_minus)).unwrap();
-    body.mef_chord(chord(i_cc.he_minus, i_dd.he_minus)).unwrap();
-    body.mef_chord(chord(i_dd.he_minus, f_front.he_plus))
+    let f_front = body.mef_chord(chord(i_aa.he_minus, i_bb.he_minus), Tol::witness()).unwrap();
+    body.mef_chord(chord(i_bb.he_minus, i_cc.he_minus), Tol::witness()).unwrap();
+    body.mef_chord(chord(i_cc.he_minus, i_dd.he_minus), Tol::witness()).unwrap();
+    body.mef_chord(chord(i_dd.he_minus, f_front.he_plus), Tol::witness())
         .unwrap();
     // Promote the ring: the cross-shell lmfkrh motion — the shell's
     // surface splits into two closed components (cube; inner box).
@@ -199,7 +203,7 @@ fn multi_shell_lifecycle_replay_is_byte_identical() {
 fn revert_involution_and_tiers() {
     let mut cube = geometric_cube::<f64>();
     describe_as_intersections(&mut cube.body);
-    assert_eq!(validate_geometric(&cube.body), Ok(()));
+    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let original = format!("{:?}", cube.body);
     let reverted = cube.body.revert().unwrap();
     // Reverted bodies are tier-2 currency: every structural invariant
@@ -208,7 +212,7 @@ fn revert_involution_and_tiers() {
     // DESIGN (it is ∖'s transient operand, never an at-rest solid).
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
-        validate_geometric(&reverted),
+        validate_geometric(&reverted, Tol::witness()),
         Err(vec![topo::ValidationError::NegativeVolume])
     );
     // Genuinely reversed: some plane normal is negated.
@@ -230,8 +234,8 @@ fn revert_involution_and_tiers() {
 fn revert_negates_volume() {
     let mut cube = geometric_cube::<f64>();
     describe_as_intersections(&mut cube.body);
-    let props = topo::mass_properties(&cube.body).unwrap();
-    let rev_props = topo::mass_properties(&cube.body.revert().unwrap()).unwrap();
+    let props = topo::mass_properties(&cube.body, Tol::witness()).unwrap();
+    let rev_props = topo::mass_properties(&cube.body.revert().unwrap(), Tol::witness()).unwrap();
     assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
     assert_eq!(
         rev_props.surface_area.to_bits(),
@@ -247,10 +251,10 @@ fn revert_negates_volume() {
 fn split_edge_preserves_tier3_at_rest() {
     let mut cube = geometric_cube::<f64>();
     describe_as_intersections(&mut cube.body);
-    assert_eq!(validate_geometric(&cube.body), Ok(()));
+    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge; // A → B chord, params [0, 1]
-    let created = cube.body.split_edge(edge, 0.5).unwrap();
-    assert_eq!(validate_geometric(&cube.body), Ok(()));
+    let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
+    assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     // The new vertex sits at the carrier midpoint.
     let p = cube.body.get_point(created.point).unwrap();
     assert_eq!((p.x, p.y, p.z), (0.5, 0.0, 0.0));
@@ -301,12 +305,13 @@ fn merge_coplanar_same_key_pair() {
             MefSite::Chords { he1, he2 },
             line(pa, pc),
             FaceSurface::Inherit,
+            Tol::witness(),
         )
         .unwrap();
     assert_eq!(cube.body.faces().count(), 7);
     assert_eq!(validate_closed(&cube.body), Ok(()));
     // Merge back.
-    let outcome = cube.body.merge_coplanar_faces().unwrap();
+    let outcome = cube.body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(outcome.groups[0].killed_edges, vec![diagonal.edge]);
     assert!(outcome.groups[0].rings_made.is_empty());
@@ -315,7 +320,7 @@ fn merge_coplanar_same_key_pair() {
     assert_eq!(validate_closed(&cube.body), Ok(()));
     // Deterministic no-op on the already-maximal result.
     let before = format!("{:?}", cube.body);
-    assert_eq!(cube.body.merge_coplanar_faces().unwrap().groups, vec![]);
+    assert_eq!(cube.body.merge_coplanar_faces(Tol::witness()).unwrap().groups, vec![]);
     assert_eq!(format!("{:?}", cube.body), before);
 }
 
@@ -359,7 +364,7 @@ fn merge_coplanar_declared_vs_numeric() {
             .unwrap();
         let surface = surface_for_split(&cube.body);
         cube.body
-            .mef(MefSite::Chords { he1, he2 }, line(pa, pc), surface)
+            .mef(MefSite::Chords { he1, he2 }, line(pa, pc), surface, Tol::witness())
             .unwrap();
         cube.body
     };
@@ -375,7 +380,7 @@ fn merge_coplanar_declared_vs_numeric() {
             pt(0.0, 1.0, 1.0),
         ]))
     });
-    let outcome = bit_equal.merge_coplanar_faces().unwrap();
+    let outcome = bit_equal.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![]);
     assert_eq!(bit_equal.faces().count(), 7);
     // Declared, N6 same-source rung: stamp BOTH descriptions with one
@@ -407,7 +412,7 @@ fn merge_coplanar_declared_vs_numeric() {
     for k in &coplanar_keys {
         same_source.set_surface_source(*k, src.clone()).unwrap();
     }
-    let outcome = same_source.merge_coplanar_faces().unwrap();
+    let outcome = same_source.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(same_source.faces().count(), 6);
     // Declared, per-call surface pair (F5): same geometry, fresh
@@ -433,7 +438,7 @@ fn merge_coplanar_declared_vs_numeric() {
         .collect();
     assert_eq!(pair.len(), 2, "{pair:?}");
     let outcome = declared
-        .merge_coplanar_faces_declared(&[(pair[0], pair[1])])
+        .merge_coplanar_faces_declared(&[(pair[0], pair[1])], Tol::witness())
         .unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(declared.faces().count(), 6);
@@ -447,7 +452,7 @@ fn merge_coplanar_declared_vs_numeric() {
             u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
         })
     });
-    let outcome = numeric.merge_coplanar_faces().unwrap();
+    let outcome = numeric.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![]);
     assert_eq!(numeric.faces().count(), 7);
     assert_eq!(validate_closed(&numeric), Ok(()));
@@ -460,7 +465,7 @@ fn merge_coplanar_refuses_open_input() {
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let _ = seed;
     let before = format!("{body:?}");
-    let err = body.merge_coplanar_faces().unwrap_err();
+    let err = body.merge_coplanar_faces(Tol::witness()).unwrap_err();
     assert!(matches!(
         err,
         topo::MergeCoplanarError::InputNotClosed { .. }

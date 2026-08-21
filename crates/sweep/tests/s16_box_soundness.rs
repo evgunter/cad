@@ -69,7 +69,7 @@ fn cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
@@ -85,7 +85,7 @@ fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.4)).unwrap().body
+    extrude(&profile, Extrusion::Distance(0.4), Tol::witness()).unwrap().body
 }
 
 /// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
@@ -99,7 +99,7 @@ fn nested_box(cx: f64, h: f64) -> Body<f64> {
 /// The nested pair as one two-instance arena.
 fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
     let mut out = outer.clone();
-    topo::graft_disjoint(&mut out, inner).unwrap();
+    topo::graft_disjoint(&mut out, inner, Tol::witness()).unwrap();
     out
 }
 
@@ -129,11 +129,11 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
         // Tier 3 alone cannot see it — that is the #382 finding, and
         // the reason arm 2 exists at all.
         assert_eq!(
-            topo::validate_geometric(&body),
+            topo::validate_geometric(&body, Tol::witness()),
             Ok(()),
             "probe at {cx}: tier 3 does not compare solids"
         );
-        let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+        let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("a nested instance must refuse, never clear");
         assert!(
             errors.iter().any(|e| matches!(
@@ -161,7 +161,7 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     // `CensusUndecidable` and asserting that list empty makes a row
     // named "still cleared" green whenever the pair starts refusing for
     // some OTHER reason — the shape this file's section 2 exists about.
-    let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
+    let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
     assert!(
         verdict.is_ok(),
         "a separated pair must validate cleanly, not refuse: {verdict:?}"
@@ -197,7 +197,7 @@ fn a_body_above_the_cylinder_is_still_cleared_by_containment() {
     // no x or y separation exists to clear the pair instead.
     let above = small_box(0.0, 0.2, 2.0);
     let body = assembly(&outer, &above);
-    let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
+    let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
     assert!(
         verdict.is_ok(),
         "a pair separated in z alone must validate cleanly, not refuse: {verdict:?}"
@@ -223,7 +223,7 @@ fn lofted() -> Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    loft_body::<f64>(&sections, &places, 2).unwrap().body
+    loft_body::<f64>(&sections, &places, 2, Tol::witness()).unwrap().body
 }
 
 /// **Why `NurbsExtentUnsupported` has no end-to-end row, pinned so the
@@ -259,7 +259,7 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     );
 
     let b = nested_box(20.0, 0.5);
-    let err = topo::boolean::union(&a, &b).expect_err("a NURBS operand must refuse typed");
+    let err = topo::boolean::union(&a, &b, Tol::witness()).expect_err("a NURBS operand must refuse typed");
     assert!(
         matches!(err, BooleanError::CurvedEdgeUnsupported { .. }),
         "the operand gate's edge arm is what a lofted body meets, got {err:?}"

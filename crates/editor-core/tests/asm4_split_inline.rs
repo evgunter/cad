@@ -26,6 +26,7 @@ use editor_core::{
     SplitError, StableName, content_pin, evaluate, inline, load, product_named, save, split,
 };
 use fixture::{desc, insert, len, square, step};
+use geom_core::Tol;
 
 // ---- The stub store (the asm2a idiom: no files, full pin gate) ----
 
@@ -35,8 +36,8 @@ struct StubStore {
 }
 
 impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc) -> DocRef {
-        let pin = content_pin(&doc).expect("the pin computes");
+    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
+        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }
@@ -44,7 +45,7 @@ impl StubStore {
 }
 
 impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
             message: message.to_string(),
@@ -53,7 +54,7 @@ impl PartResolver for StubStore {
             .docs
             .get(&doc_ref.id)
             .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc).expect("the pin computes");
+        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
         if found != doc_ref.pin {
             return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
         }
@@ -69,13 +70,13 @@ fn with_resolver(store: StubStore) -> EvalOptions {
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts)
+    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
 /// A one-solid part document: a `side`-wide square extruded 1 tall,
 /// centered at `cx` (the asm2a fixture).
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -99,8 +100,8 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
 /// x = +5 — the flagship acceptance shape (row 1).
 fn two_cluster_assembly(label: &str) -> (StubStore, ProfileDoc, Vec<RecipeNodeId>) {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0));
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
+    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
@@ -129,7 +130,7 @@ fn census(body: &topo::Body<f64>) -> (usize, usize, usize, usize) {
 }
 
 fn volume_bits(body: &topo::Body<f64>) -> u64 {
-    topo::mass_properties(body)
+    topo::mass_properties(body, Tol::witness())
         .expect("mass properties")
         .volume
         .to_bits()
@@ -150,7 +151,7 @@ fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
 /// edits ARE the result" comparator undo leans on.
 fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -> ProfileDoc {
     for edit in edits {
-        doc = editor_core::apply(&doc, edit)
+        doc = editor_core::apply(&doc, edit, Tol::witness())
             .expect("the recorded edit replays")
             .doc;
     }
@@ -173,10 +174,10 @@ fn row1_split_one_cluster_preserves_structure_and_names() {
     };
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
-    let (body1, names1) = product_named(&doc, &ev1).expect("the unsplit product gathers");
+    let (body1, names1) = product_named(&doc, &ev1, Tol::witness()).expect("the unsplit product gathers");
 
     let cut = BTreeSet::from([ids[1]]);
-    let out = split(&doc, &cut, DocumentId::derive("asm4-r1-new")).expect("the split is legal");
+    let out = split(&doc, &cut, DocumentId::derive("asm4-r1-new"), Tol::witness()).expect("the split is legal");
 
     // The remainder instantiates the NEW document at its true pin.
     match out.remainder.node(out.instance) {
@@ -184,7 +185,7 @@ fn row1_split_one_cluster_preserves_structure_and_names() {
             assert_eq!(doc_ref.id, DocumentId::derive("asm4-r1-new"));
             assert_eq!(
                 doc_ref.pin,
-                content_pin(&out.part).expect("the part pins"),
+                content_pin(&out.part, Tol::witness()).expect("the part pins"),
                 "the reference pins the part document actually produced"
             );
         }
@@ -193,11 +194,11 @@ fn row1_split_one_cluster_preserves_structure_and_names() {
 
     // Evaluate the remainder against a store holding BOTH documents.
     let mut store2 = StubStore::default();
-    store2.insert(part("asm4-r1-part", 0.0, 1.0));
-    store2.insert(out.part.clone());
+    store2.insert(part("asm4-r1-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
     let opts2 = with_resolver(store2);
     let ev2 = run(&out.remainder, &opts2);
-    let (body2, names2) = product_named(&out.remainder, &ev2).expect("the split product gathers");
+    let (body2, names2) = product_named(&out.remainder, &ev2, Tol::witness()).expect("the split product gathers");
 
     assert_eq!(census(&body1), census(&body2), "censuses are equal");
     assert_eq!(
@@ -297,19 +298,19 @@ fn row1_split_plain_subtree_preserves_structure() {
     );
     let opts = EvalOptions::default();
     let ev1 = run(&doc, &opts);
-    let (body1, _) = product_named(&doc, &ev1).expect("gathers");
+    let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
     let cut = BTreeSet::from([p2, e2]);
-    let out = split(&doc, &cut, DocumentId::derive("asm4-r1p-new")).expect("legal");
+    let out = split(&doc, &cut, DocumentId::derive("asm4-r1p-new"), Tol::witness()).expect("legal");
     assert!(
         out.remainder.placements().is_empty(),
         "a plain cut leaves the remainder instance at identity"
     );
 
     let mut store = StubStore::default();
-    store.insert(out.part.clone());
+    store.insert(out.part.clone(), Tol::witness());
     let ev2 = run(&out.remainder, &with_resolver(store));
-    let (body2, _) = product_named(&out.remainder, &ev2).expect("gathers");
+    let (body2, _) = product_named(&out.remainder, &ev2, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body2));
     assert_eq!(volume_bits(&body1), volume_bits(&body2));
 }
@@ -326,10 +327,10 @@ fn row2_inline_inverts_split_and_undo_restores() {
     let snapshot = doc.clone();
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
-    let (body1, names1) = product_named(&doc, &ev1).expect("gathers");
+    let (body1, names1) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
     let cut = BTreeSet::from([ids[1]]);
-    let out = split(&doc, &cut, DocumentId::derive("asm4-r2-new")).expect("legal");
+    let out = split(&doc, &cut, DocumentId::derive("asm4-r2-new"), Tol::witness()).expect("legal");
     // Undo of the split: the input document is untouched, and the
     // recorded edits ARE the returned documents.
     assert!(doc.bit_eq(&snapshot), "split leaves its input untouched");
@@ -339,7 +340,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
     );
     assert!(
         replay(
-            ProfileDoc::empty(DocumentId::derive("asm4-r2-new")),
+            ProfileDoc::empty(DocumentId::derive("asm4-r2-new"), Tol::witness()),
             &out.part_edits
         )
         .bit_eq(&out.part),
@@ -347,11 +348,11 @@ fn row2_inline_inverts_split_and_undo_restores() {
     );
 
     let mut store2 = StubStore::default();
-    store2.insert(part("asm4-r2-part", 0.0, 1.0));
-    store2.insert(out.part.clone());
+    store2.insert(part("asm4-r2-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
 
     let remainder_snapshot = out.remainder.clone();
-    let inlined = inline(&out.remainder, out.instance, &store2).expect("the inline is legal");
+    let inlined = inline(&out.remainder, out.instance, &store2, Tol::witness()).expect("the inline is legal");
     assert!(
         out.remainder.bit_eq(&remainder_snapshot),
         "inline leaves its input untouched"
@@ -363,9 +364,9 @@ fn row2_inline_inverts_split_and_undo_restores() {
 
     // The round trip's identity with the ORIGINAL document.
     let mut store3 = StubStore::default();
-    store3.insert(part("asm4-r2-part", 0.0, 1.0));
+    store3.insert(part("asm4-r2-part", 0.0, 1.0), Tol::witness());
     let ev3 = run(&inlined.doc, &with_resolver(store3));
-    let (body3, names3) = product_named(&inlined.doc, &ev3).expect("gathers");
+    let (body3, names3) = product_named(&inlined.doc, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
     // The cut instance came back as a fresh node; its names correspond
@@ -427,7 +428,7 @@ fn row2_appearance_rides_the_bridge_both_ways() {
     );
 
     let cut = BTreeSet::from([ids[1]]);
-    let out = split(&doc, &cut, DocumentId::derive("asm4-r2a-new")).expect("legal");
+    let out = split(&doc, &cut, DocumentId::derive("asm4-r2a-new"), Tol::witness()).expect("legal");
     let RoleSeg::InPart { of } = &face.path[0] else {
         panic!("wrapped face");
     };
@@ -453,9 +454,9 @@ fn row2_appearance_rides_the_bridge_both_ways() {
     );
 
     let mut store2 = StubStore::default();
-    store2.insert(part("asm4-r2a-part", 0.0, 1.0));
-    store2.insert(out.part.clone());
-    let inlined = inline(&out.remainder, out.instance, &store2).expect("legal");
+    store2.insert(part("asm4-r2a-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
+    let inlined = inline(&out.remainder, out.instance, &store2, Tol::witness()).expect("legal");
     let back = inlined.node_map[&out.node_map[&ids[1]]];
     let restored = StableName {
         kind: face.kind,
@@ -479,7 +480,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
     let profile = doc.order()[0];
     let extrude = doc.order()[1];
     // The kept consumer's edge into the cut input…
-    match split(&doc, &BTreeSet::from([profile]), DocumentId::derive("n1")) {
+    match split(&doc, &BTreeSet::from([profile]), DocumentId::derive("n1"), Tol::witness()) {
         Err(SplitError::SeveredEdge {
             consumer,
             input,
@@ -491,7 +492,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
         other => panic!("expected SeveredEdge, got {other:?}"),
     }
     // …and the cut consumer's edge into the kept input.
-    match split(&doc, &BTreeSet::from([extrude]), DocumentId::derive("n2")) {
+    match split(&doc, &BTreeSet::from([extrude]), DocumentId::derive("n2"), Tol::witness()) {
         Err(SplitError::SeveredEdge {
             consumer,
             input,
@@ -508,7 +509,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
 /// references refuses typed naming the parameter and both nodes.
 #[test]
 fn row3_uncut_param_reference_refuses() {
-    let doc = ProfileDoc::empty(DocumentId::derive("asm4-r3p"));
+    let doc = ProfileDoc::empty(DocumentId::derive("asm4-r3p"), Tol::witness());
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
@@ -544,7 +545,7 @@ fn row3_uncut_param_reference_refuses() {
             distance: h(),
         },
     );
-    match split(&doc, &BTreeSet::from([p1, e1]), DocumentId::derive("n")) {
+    match split(&doc, &BTreeSet::from([p1, e1]), DocumentId::derive("n"), Tol::witness()) {
         Err(SplitError::UncutParamReference {
             param,
             cut_node,
@@ -562,6 +563,7 @@ fn row3_uncut_param_reference_refuses() {
         &doc,
         &BTreeSet::from([p1, e1, p2, e2]),
         DocumentId::derive("n"),
+        Tol::witness(),
     )
     .expect("a cut containing every referencing node carries the parameter");
     assert!(out.part.params().contains_key(&ParamName::new("h")));
@@ -572,13 +574,13 @@ fn row3_uncut_param_reference_refuses() {
 #[test]
 fn row3_inline_of_stale_pin_is_pin_mismatch() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm4-r3i-part", 0.0, 1.0));
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-r3i"));
+    let doc_ref = store.insert(part("asm4-r3i-part", 0.0, 1.0), Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-r3i"), Tol::witness());
     let (host, id) = insert(host, Node::instantiate_part(doc_ref));
     // The referenced document moves on under the same id: the pin the
     // host carries no longer holds.
-    store.insert(part("asm4-r3i-part", 0.0, 2.0));
-    match inline(&host, id, &store) {
+    store.insert(part("asm4-r3i-part", 0.0, 2.0), Tol::witness());
+    match inline(&host, id, &store, Tol::witness()) {
         Err(InlineError::Unresolved { failure }) => {
             assert_eq!(failure.fault, ResolveFault::PinMismatch);
         }
@@ -593,18 +595,19 @@ fn row3_inline_of_stale_pin_is_pin_mismatch() {
 fn row3_further_typed_refusals() {
     let (_, doc, ids) = two_cluster_assembly("asm4-r3f");
     assert!(matches!(
-        split(&doc, &BTreeSet::new(), DocumentId::derive("n")),
+        split(&doc, &BTreeSet::new(), DocumentId::derive("n"), Tol::witness()),
         Err(SplitError::EmptyCut)
     ));
     assert!(matches!(
-        split(&doc, &BTreeSet::from([ids[0]]), doc.id()),
+        split(&doc, &BTreeSet::from([ids[0]]), doc.id(), Tol::witness()),
         Err(SplitError::PartIdCollides { .. })
     ));
     assert!(matches!(
         split(
             &doc,
             &BTreeSet::from([RecipeNodeId(999)]),
-            DocumentId::derive("n")
+            DocumentId::derive("n"),
+            Tol::witness(),
         ),
         Err(SplitError::UnknownCutNode { .. })
     ));
@@ -612,8 +615,8 @@ fn row3_further_typed_refusals() {
     // A consumed instance cannot inline (the recipe cannot rewire the
     // consumer onto a spliced product).
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm4-r3f-part", 0.0, 1.0));
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"));
+    let doc_ref = store.insert(part("asm4-r3f-part", 0.0, 1.0), Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let (host, consumer) = insert(
         host,
@@ -624,7 +627,7 @@ fn row3_further_typed_refusals() {
             rotation_angle: fixture::ang(0.0),
         },
     );
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {
             assert_eq!((node, by), (inst, consumer));
         }
@@ -634,7 +637,7 @@ fn row3_further_typed_refusals() {
     // A placed instance of a PLAIN-geometry part cannot inline: the
     // frame is not something the spliced recipe can express (D-3's
     // refusal, the case v1 found).
-    let host2 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host2"));
+    let host2 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host2"), Tol::witness());
     let (host2, inst2) = insert(host2, Node::instantiate_part(doc_ref));
     let (host2, _) = step(
         host2,
@@ -643,7 +646,7 @@ fn row3_further_typed_refusals() {
             frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
         },
     );
-    match inline(&host2, inst2, &store) {
+    match inline(&host2, inst2, &store, Tol::witness()) {
         Err(InlineError::UnplaceableFrame { root }) => {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(root, part_doc.order()[1], "the plain extrude root is named");
@@ -651,9 +654,9 @@ fn row3_further_typed_refusals() {
         other => panic!("expected UnplaceableFrame, got {other:?}"),
     }
     // The same instance at IDENTITY inlines fine.
-    let host3 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host3"));
+    let host3 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host3"), Tol::witness());
     let (host3, inst3) = insert(host3, Node::instantiate_part(doc_ref));
-    inline(&host3, inst3, &store).expect("an identity-placed plain part inlines");
+    inline(&host3, inst3, &store, Tol::witness()).expect("an identity-placed plain part inlines");
 }
 
 // ---- Row 4: roots and placements, both sides ----
@@ -669,6 +672,7 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         &doc,
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-r4-new"),
+        Tol::witness(),
     )
     .expect("legal");
     let mapped = out.node_map[&ids[1]];
@@ -697,8 +701,8 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
     // sits at identity, and the part keeps the cut roots' LIST order
     // even where insertion order disagrees.
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm4-r4b-part", 0.0, 1.0));
-    let mut doc2 = ProfileDoc::empty(DocumentId::derive("asm4-r4b"));
+    let doc_ref = store.insert(part("asm4-r4b-part", 0.0, 1.0), Tol::witness());
+    let mut doc2 = ProfileDoc::empty(DocumentId::derive("asm4-r4b"), Tol::witness());
     let mut inst = Vec::new();
     for dx in [0.0_f64, 7.0, 14.0] {
         let (next, id) = insert(doc2, Node::instantiate_part(doc_ref));
@@ -727,6 +731,7 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         &doc2,
         &BTreeSet::from([inst[0], inst[2]]),
         DocumentId::derive("asm4-r4b-new"),
+        Tol::witness(),
     )
     .expect("legal");
     assert_eq!(
@@ -769,6 +774,7 @@ fn row5_interface_record_exists_and_round_trips() {
         &doc,
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-r5-new"),
+        Tol::witness(),
     )
     .expect("legal");
     match out.remainder.node(out.instance) {
@@ -777,12 +783,12 @@ fn row5_interface_record_exists_and_round_trips() {
         }
         other => panic!("expected the instance, got {other:?}"),
     }
-    let text = save(&out.remainder, &[]).expect("saves");
+    let text = save(&out.remainder, &[], Tol::witness()).expect("saves");
     assert!(
         !text.contains("\"interface\""),
         "the empty record is absent from the wire (pin stability)"
     );
-    let loaded = load(&text).expect("loads");
+    let loaded = load(&text, Tol::witness()).expect("loads");
     assert!(loaded.doc.bit_eq(&out.remainder), "the round trip is exact");
     match loaded.doc.node(out.instance) {
         Some(Node::InstantiatePart { interface, .. }) => {
@@ -801,30 +807,31 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     let (store, doc, ids) = two_cluster_assembly("asm4-per");
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
-    let (body1, _) = product_named(&doc, &ev1).expect("gathers");
+    let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
         DocumentId::derive("asm4-per-new"),
+        Tol::witness(),
     )
     .expect("legal");
-    let part_loaded = load(&save(&out.part, &[]).expect("part saves")).expect("part loads");
+    let part_loaded = load(&save(&out.part, &[], Tol::witness()).expect("part saves"), Tol::witness()).expect("part loads");
     let rem_loaded =
-        load(&save(&out.remainder, &[]).expect("remainder saves")).expect("remainder loads");
+        load(&save(&out.remainder, &[], Tol::witness()).expect("remainder saves"), Tol::witness()).expect("remainder loads");
     assert!(part_loaded.doc.bit_eq(&out.part));
     assert!(rem_loaded.doc.bit_eq(&out.remainder));
     assert_eq!(
-        content_pin(&part_loaded.doc).expect("pins"),
-        content_pin(&out.part).expect("pins"),
+        content_pin(&part_loaded.doc, Tol::witness()).expect("pins"),
+        content_pin(&out.part, Tol::witness()).expect("pins"),
         "the pin is stable across the wire"
     );
 
     let mut store2 = StubStore::default();
-    store2.insert(part("asm4-per-part", 0.0, 1.0));
-    store2.insert(part_loaded.doc);
+    store2.insert(part("asm4-per-part", 0.0, 1.0), Tol::witness());
+    store2.insert(part_loaded.doc, Tol::witness());
     let ev2 = run(&rem_loaded.doc, &with_resolver(store2));
-    let (body2, _) = product_named(&rem_loaded.doc, &ev2).expect("gathers");
+    let (body2, _) = product_named(&rem_loaded.doc, &ev2, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body2));
     assert_eq!(volume_bits(&body1), volume_bits(&body2));
 }
@@ -839,10 +846,10 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
 #[test]
 fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm4-min1-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     // A plain component (dyadic-exact volume, disjoint from the
     // instances) plus three singleton clusters.
-    let doc = ProfileDoc::empty(DocumentId::derive("asm4-min1"));
+    let doc = ProfileDoc::empty(DocumentId::derive("asm4-min1"), Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -884,10 +891,10 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     );
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
-    let (body1, names1) = product_named(&doc, &ev1).expect("gathers");
+    let (body1, names1) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
     let cut = BTreeSet::from([i1, i2]);
-    let out = split(&doc, &cut, DocumentId::derive("asm4-min1-new")).expect("legal");
+    let out = split(&doc, &cut, DocumentId::derive("asm4-min1-new"), Tol::witness()).expect("legal");
     assert_eq!(
         out.remainder.roots(),
         &[e, out.instance, i0],
@@ -900,9 +907,9 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     );
 
     let mut store2 = StubStore::default();
-    store2.insert(part("asm4-min1-part", 0.0, 1.0));
-    store2.insert(out.part.clone());
-    let inlined = inline(&out.remainder, out.instance, &store2).expect("inlines");
+    store2.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
+    store2.insert(out.part.clone(), Tol::witness());
+    let inlined = inline(&out.remainder, out.instance, &store2, Tol::witness()).expect("inlines");
     let back = |i: RecipeNodeId| inlined.node_map[&out.node_map[&i]];
     // The pinned collapse: [e, i2, i0, i1] round-trips to
     // [e, i2, i1, i0] (in correspondence) — the spliced block lands
@@ -921,9 +928,9 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
 
     // The full D-4 identity holds regardless, round trip vs original.
     let mut store3 = StubStore::default();
-    store3.insert(part("asm4-min1-part", 0.0, 1.0));
+    store3.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     let ev3 = run(&inlined.doc, &with_resolver(store3));
-    let (body3, names3) = product_named(&inlined.doc, &ev3).expect("gathers");
+    let (body3, names3) = product_named(&inlined.doc, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
     for (name, _) in names1.iter() {
@@ -978,7 +985,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
-    match split(&doc, &BTreeSet::from([ids[1]]), DocumentId::derive("n")) {
+    match split(&doc, &BTreeSet::from([ids[1]]), DocumentId::derive("n"), Tol::witness()) {
         Err(SplitError::BodyNameCrossesCut { name }) => {
             assert_eq!(*name, body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
@@ -1033,6 +1040,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         &doc,
         &BTreeSet::from([cut_p, cut_e]),
         DocumentId::derive("n"),
+        Tol::witness(),
     ) {
         Err(SplitError::NameStraddlesCut { name }) => {
             assert_eq!(*name, straddler);
@@ -1080,6 +1088,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         &doc,
         &BTreeSet::from([cut_p, cut_e, decl]),
         DocumentId::derive("n"),
+        Tol::witness(),
     ) {
         Err(SplitError::PartNameReachesRemainder { node, name }) => {
             assert_eq!(node, decl);
@@ -1110,8 +1119,8 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
             },
         },
     );
-    let doc_ref = store.insert(part_doc);
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-param-host"));
+    let doc_ref = store.insert(part_doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-param-host"), Tol::witness());
     let (host, _) = step(
         host,
         DocEdit::SetDocParam {
@@ -1123,7 +1132,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         },
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::ParamConflict { param }) => {
             assert_eq!(param, ParamName::new("L"));
             let msg = format!("{}", InlineError::ParamConflict { param });
@@ -1140,12 +1149,12 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     // earlier — the inline door is the backstop under test).
     let mut store = StubStore::default();
     let part_doc = part("asm4-min2-eps-part", 0.0, 1.0);
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-eps-host"));
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-eps-host"), Tol::witness());
     let moved_eps = host.epsilon() * 0.5;
     let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
-    let doc_ref = store.insert(part_doc);
+    let doc_ref = store.insert(part_doc, Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::EpsilonSeam { host_eps, part_eps }) => {
             assert_eq!(host_eps.to_bits(), host.epsilon().to_bits());
             assert_eq!(part_eps.to_bits(), moved_eps.to_bits());
@@ -1163,18 +1172,18 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     // key into a saved snapshot and load it back).
     let mut store = StubStore::default();
     let part_doc = part("asm4-min2-meta-part", 0.0, 1.0);
-    let text = save(&part_doc, &[]).expect("saves");
+    let text = save(&part_doc, &[], Tol::witness()).expect("saves");
     let injected = text.replace(
         "\"metadata\": {}",
         "\"metadata\": {\n    \"note\": \"x\"\n  }",
     );
     assert_ne!(text, injected, "the fixture's metadata key was found");
-    let carrying = load(&injected).expect("the carrying document loads").doc;
+    let carrying = load(&injected, Tol::witness()).expect("the carrying document loads").doc;
     assert_eq!(carrying.metadata().len(), 1);
-    let doc_ref = store.insert(carrying);
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"));
+    let doc_ref = store.insert(carrying, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::PartCarriesMetadata { key }) => {
             assert_eq!(key, "note");
             let msg = format!("{}", InlineError::PartCarriesMetadata { key });
@@ -1190,7 +1199,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
 fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     use editor_core::EntityKind;
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm4-min2-name-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm4-min2-name-part", 0.0, 1.0), Tol::witness());
 
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
@@ -1216,7 +1225,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::ForeignInstanceName { name }) => {
             assert_eq!(*name, foreign);
             let msg = format!("{}", InlineError::ForeignInstanceName { name });
@@ -1230,7 +1239,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
 
     // InstanceBodyNameReferenced: the instance's own output-body name
     // has no spliced correspondent.
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-body-host"));
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-body-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let body_name = StableName {
         kind: EntityKind::Body,
@@ -1244,7 +1253,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::InstanceBodyNameReferenced { name }) => {
             assert_eq!(*name, body_name);
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
@@ -1285,10 +1294,10 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         Node::declare_rest(vec![(stranded.clone(), anchor)]),
     );
     let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
-    let doc_ref = store.insert(part_doc);
-    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-stranded-host"));
+    let doc_ref = store.insert(part_doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-stranded-host"), Tol::witness());
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &store) {
+    match inline(&host, inst, &store, Tol::witness()) {
         Err(InlineError::StrandedPartName { name }) => {
             assert_eq!(*name, stranded);
             let msg = format!("{}", InlineError::StrandedPartName { name });

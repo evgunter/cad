@@ -29,6 +29,7 @@ use topo::{
     Body, CensusContact, ContactRecords, TangentLocus, TangentLocusError, ValidationError,
     VvContact, tangent_locus, validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -42,7 +43,7 @@ fn cube_at(dx: f64, dy: f64, dz: f64) -> Body<f64> {
 /// Grafts `b`'s solid into `a` (two instances in one arena).
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b).unwrap();
+    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
     out
 }
 
@@ -61,11 +62,11 @@ fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
     let b = cube_at(0.5, 0.5, 0.5);
     let body = assembly(&a, &b);
     assert_eq!(
-        topo::validate_geometric(&body),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "the #382 finding: tier 3 alone cannot see inter-solid overlap"
     );
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the aggregate 3′ census refuses the overlap");
     // The guilty pair is NAMED: a proper edge-face pierce between the
     // instances (categorically undeclarable — crossing, not touching).
@@ -87,7 +88,7 @@ fn disjoint_instances_validate_at_three_prime_with_no_records() {
     let b = cube_at(3.0, 0.0, 0.0);
     let body = assembly(&a, &b);
     assert_eq!(
-        validate_pseudomanifold(&body, &ContactRecords::default()),
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()),
         Ok(()),
         "disjoint instances have nothing to declare"
     );
@@ -133,7 +134,7 @@ fn stacked() -> (Body<f64>, ContactRecords) {
 fn a_declared_touching_two_instance_assembly_validates_at_three_prime() {
     let (body, records) = stacked();
     assert_eq!(
-        validate_pseudomanifold(&body, &records),
+        validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),
         "the declared planar Rest interface certifies (R2-b's evidence row)"
     );
@@ -142,7 +143,7 @@ fn a_declared_touching_two_instance_assembly_validates_at_three_prime() {
 #[test]
 fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
     let (body, _) = stacked();
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("scan-to-bless is banned across the seam");
     assert!(
         errors
@@ -287,7 +288,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
         face_a: fa,
         face_b: fb,
     });
-    let errors = validate_pseudomanifold(&body, &records)
+    let errors = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("an unconfirmed patch record must never bless the corners");
     // The record DID back the four corner v-v events (no undeclared
     // finding survives) — the refusal must come from the record's own
@@ -365,7 +366,7 @@ fn r1_delta_probe_bridged_nested_pair_stays_loud() {
     let vb = body.vertices().last().unwrap().0;
     let mut records = ContactRecords::default();
     records.vv.push(VvContact { a: va, b: vb });
-    let errs = validate_pseudomanifold(&body, &records)
+    let errs = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the bridge must not silence the nested pair");
     assert!(
         errs.iter()

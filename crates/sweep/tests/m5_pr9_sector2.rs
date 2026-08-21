@@ -40,7 +40,7 @@ fn cylinder_body() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn filleted_block() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn a_fillet_grade_tangency_must_carry_and_does() {
     // TangentIntersection (the upgrade pass descended), the body is
     // tier-3 valid, and the MARK records the tangency.
     let body = filleted_block();
-    let marks = topo::contact_marks(&body).expect("the filleted block is tier-3 valid");
+    let marks = topo::contact_marks(&body, Tol::witness()).expect("the filleted block is tier-3 valid");
     let tangent_edges: Vec<_> = body
         .edges()
         .filter(|(_, e)| {
@@ -197,9 +197,9 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         param_start: t0,
         param_end: t1,
     };
-    body.set_edge_curve(edge, spec)
+    body.set_edge_curve(edge, spec, Tol::witness())
         .expect("the conventional description certifies (residuals only)");
-    let errs = topo::validate_geometric(&body).expect_err("the must-carry fires");
+    let errs = topo::validate_geometric(&body, Tol::witness()).expect_err("the must-carry fires");
     assert!(
         errs.iter().any(|e| matches!(
             e,
@@ -225,7 +225,7 @@ fn a_g2_underdetermined_join_must_not_carry() {
     // conventional, and the body stays valid. No exemption list
     // anywhere — the zero-side margin IS the exemption.
     let body = cylinder_body();
-    let marks = topo::contact_marks(&body).expect("the disc cylinder is tier-3 valid");
+    let marks = topo::contact_marks(&body, Tol::witness()).expect("the disc cylinder is tier-3 valid");
     let mut saw_underdetermined = 0;
     for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {

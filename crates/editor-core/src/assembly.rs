@@ -342,16 +342,17 @@ impl core::error::Error for AssemblyError {}
 pub fn assemble<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
     let product =
-        product_recorded(doc, evaluation).map_err(|e| AssemblyError::Product(Box::new(e)))?;
+        product_recorded(doc, evaluation, tol).map_err(|e| AssemblyError::Product(Box::new(e)))?;
     let Product {
         body,
         names,
         mut contacts,
     } = product;
     let minted = mint(doc, evaluation, &names, &mut contacts)?;
-    match topo::validate_pseudomanifold(&body, &contacts) {
+    match topo::validate_pseudomanifold(&body, &contacts, tol) {
         Ok(()) => Ok(Assembly {
             body,
             names,
@@ -731,6 +732,7 @@ mod attribution {
     use topo::{CensusContact, DeclaredContact, EntityId, StaleDeclaration, ValidationError};
 
     use super::{Attribution, FaceKey, MintedDeclaration, attribute};
+    use geom_core::Tol;
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, RoleSeg, StableName};
     use crate::node::RecipeNodeId;

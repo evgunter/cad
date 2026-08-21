@@ -471,6 +471,7 @@ fn mint_run<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
 
     /// The survivor-validation invariants: odd counts and dirty codes
@@ -485,8 +486,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut a = crate::fixtures::ops_cube().body;
-        let mut b = crate::fixtures::ops_cube().body;
+        let mut a = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut b = crate::fixtures::ops_cube(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -533,8 +534,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube().body;
-        let mut bbody = crate::fixtures::ops_cube().body;
+        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -580,8 +581,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube().body;
-        let mut bbody = crate::fixtures::ops_cube().body;
+        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).

@@ -29,16 +29,17 @@ fn holed_box<T: geom_core::Decide>(w: f64, holes: &[f64]) -> Body<T> {
     let mut body = Body::<T>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let strut = |body: &mut Body<T>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), Tol::witness())
             .unwrap()
     };
-    let mef = |body: &mut Body<T>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+    let mef = |body: &mut Body<T>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness()).unwrap();
     let e_ab = body
         .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
             pt(w, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, w, 2.0, 0.0);
@@ -60,7 +61,7 @@ fn holed_box<T: geom_core::Decide>(w: f64, holes: &[f64]) -> Body<T> {
         let hole = strut(&mut body, f_front.he_plus, x0, y0, 2.0);
         let kill = body.kemr(hole.he_plus, hole.he_minus).unwrap();
         let s_pq = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(x1, y0, 2.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(x1, y0, 2.0), Tol::witness())
             .unwrap();
         let s_qr = strut(&mut body, s_pq.he_minus, x1, y1, 2.0);
         let s_rs = strut(&mut body, s_qr.he_minus, x0, y1, 2.0);
@@ -127,8 +128,8 @@ fn two_hole_box_split_between_rehomes_both_ways() {
     assert_eq!(above.shells().count(), 1);
     // Volumes: total 6·2·2 − 2·(1·1·2) = 20, split 10/10.
     let (va, vb) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
     );
     assert!((va - 10.0).abs() < 1e-12, "above {va}");
     assert!((vb - 10.0).abs() < 1e-12, "below {vb}");
@@ -153,8 +154,8 @@ fn split_through_hole_two_section_polygons() {
     assert_eq!(rings(below), 0);
     assert_eq!(rings(above), 2);
     let (va, vb) = (
-        mass_properties(above).unwrap().volume,
-        mass_properties(below).unwrap().volume,
+        mass_properties(above, Tol::witness()).unwrap().volume,
+        mass_properties(below, Tol::witness()).unwrap().volume,
     );
     // Total 20; below = 1·2·2 − (0.5·1·2 channel half) = 3.
     assert!((vb - 3.0).abs() < 1e-12, "below {vb}");

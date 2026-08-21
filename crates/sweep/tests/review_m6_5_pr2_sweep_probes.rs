@@ -33,13 +33,13 @@ fn box_at(x0: f64, l: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
+    extrude(&profile, Extrusion::Distance(l), Tol::witness()).unwrap().body
 }
 
 fn filleted_die() -> Body<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    fillet_edges(&cube0, &edges, 0.125, band())
+    fillet_edges(&cube0, &edges, 0.125, band(), Tol::witness())
         .expect("the fillet")
         .body
 }
@@ -58,6 +58,7 @@ fn x4_disjoint_boolean_over_a_filleted_body_refuses_at_the_extent() {
         &far,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     );
     match out {
         Err(topo::BooleanError::FallbackExtentUnsupported { .. }) => {}

@@ -94,6 +94,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
             },
             b,
             rim(sa, sb, a, b, place_bottom),
+            Tol::witness(),
         )
         .unwrap();
     let e_bc = body
@@ -104,6 +105,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
             },
             c,
             rim(sb, sc, b, c, place_bottom),
+            Tol::witness(),
         )
         .unwrap();
     // Bottom cap: outward −z, loop C→B→A; the closing mef edge runs
@@ -116,11 +118,12 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
             },
             rim(sc, sa, c, a, place_bottom),
             FaceSurface::New(plane(&[c, b, a])),
+            Tol::witness(),
         )
         .unwrap();
     // Struts (ExtrudedPoint descriptions — the real sweep shape).
     let strut = |body: &mut Body<T>, at, s0, p0, p_top| {
-        body.mev(MevSite::Fan { he1: at, he2: at }, p_top, strut_spec(s0, p0))
+        body.mev(MevSite::Fan { he1: at, he2: at }, p_top, strut_spec(s0, p0), Tol::witness())
             .unwrap()
     };
     let e_aa = strut(&mut body, e_ab.he_plus, sa, a, a1);
@@ -136,6 +139,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
             },
             rim(sa, sb, a1, b1, place_top),
             FaceSurface::New(plane(&[a, b, b1, a1])),
+            Tol::witness(),
         )
         .unwrap();
     let f_bc = body
@@ -146,6 +150,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
             },
             rim(sb, sc, b1, c1, place_top),
             FaceSurface::New(plane(&[b, c, c1, b1])),
+            Tol::witness(),
         )
         .unwrap();
     let f_ca = body
@@ -156,6 +161,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
             },
             rim(sc, sa, c1, a1, place_top),
             FaceSurface::New(plane(&[c, a, a1, c1])),
+            Tol::witness(),
         )
         .unwrap();
     // The seed face survives as the top cap (outward +z: A′ B′ C′).
@@ -183,7 +189,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     // Prefer-intrinsic enforcement (D2, ratified 2026-07-19): every
     // prism edge is a definitely-transverse plane-pair corner, so at
     // rest the un-upgraded body names all nine — and nothing else.
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert_eq!(errs.len(), 9, "{errs:?}");
     assert!(
         errs.iter()
@@ -192,7 +198,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     );
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
         Some(EdgeGeometry::Intersection { .. })
@@ -222,7 +228,7 @@ fn e2e_prism_dual_lane_matches_f64() {
     let (mut d, _, _) = triangle_prism::<Dual64>();
     common::describe_as_intersections(&mut f);
     common::describe_as_intersections(&mut d);
-    assert_eq!(validate_geometric(&d), Ok(()));
+    assert_eq!(validate_geometric(&d, Tol::witness()), Ok(()));
     let fr: Vec<f64> = f
         .curves()
         .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
@@ -259,6 +265,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         .mev_line(
             MevSite::Fan { he1: he, he2: he },
             Point3::new(f64::NAN, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
@@ -271,6 +278,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             MefSite::Chords { he1: he, he2: he },
             EdgeCurveSpec::self_loop_circle_at(Point3::origin()),
             FaceSurface::Shared(stale_surface),
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::StaleGeometry { .. }), "{err:?}");
@@ -286,6 +294,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             MefSite::Chords { he1: he, he2: he },
             bad,
             FaceSurface::Inherit,
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
@@ -310,7 +319,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         .unwrap();
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
     spec.description = EdgeGeometry::Seam { surface: foreign };
-    let err = body.set_edge_curve(ek, spec).unwrap_err();
+    let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -326,7 +335,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         origin: p0 + Vec3::new(0.0, 0.0, 100.0 * eps()),
         dir: (p1 - p0) / p0.distance(p1),
     };
-    let err = body.set_edge_curve(ek, spec).unwrap_err();
+    let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "setter cert failure mutated body");
 
@@ -349,7 +358,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     let t = common::geometric_cube::<f64>();
     let mut body = t.body;
     common::describe_as_intersections(&mut body);
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 
     let old_surface = body.get_face(t.seed.face).unwrap().surface;
     // Replace the top cap's plane with one shifted definitely off the
@@ -370,7 +379,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     );
     // Tiers 1–2 still structurally clean; tier 3 reports the swap.
     assert_eq!(validate_closed(&body), Ok(()));
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     let not_adjacent = errs
         .iter()
         .filter(|e| matches!(e, ValidationError::DescriptionNotAdjacent { .. }))
@@ -399,13 +408,14 @@ fn lamina() -> (Body<f64>, topo::MvfsCreated, topo::MefCreated) {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
     (body, seed, split)
 }
@@ -432,7 +442,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
     body.set_face_surface(split.face, FaceSurface::New(tilted))
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(!errs.is_empty());
     assert!(
         errs.iter()
@@ -448,7 +458,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
         .unwrap();
     body.set_face_surface(split.face, FaceSurface::Shared(key))
         .unwrap();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
 /// SURVIVES: the mvfs seed story — Nurbs at rest is refused by name
@@ -461,7 +471,7 @@ fn survives_nurbs_seed_gate_and_clear() {
     // failures verbatim, not geometric reports.
     let mut body = Body::<f64>::new();
     let _open_seed = body.mvfs(Point3::origin()).unwrap();
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
             .all(|e| !matches!(e, ValidationError::UncertifiableSurface { .. })),
@@ -478,7 +488,7 @@ fn survives_nurbs_seed_gate_and_clear() {
     let key = body
         .set_face_surface(split.face, FaceSurface::New(flat.clone()))
         .unwrap();
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter().any(
             |e| matches!(e, ValidationError::UncertifiableSurface { face } if *face == seed.face)
@@ -488,7 +498,7 @@ fn survives_nurbs_seed_gate_and_clear() {
     // Clearing it through the public setter makes tier 3 pass.
     body.set_face_surface(seed.face, FaceSurface::Shared(key))
         .unwrap();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let _ = seed;
 }
 
@@ -536,7 +546,7 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
         param_start: 0.0,
         param_end: core::f64::consts::PI,
     };
-    body.set_edge_curve(edge, spec).unwrap();
+    body.set_edge_curve(edge, spec, Tol::witness()).unwrap();
     // The arc's apex is 0.5 m off the front face's plane (y = 0): tier
     // 3 reports exactly that face-boundary breach — plus the
     // prefer-intrinsic report for the same edge (the arc is a
@@ -546,7 +556,7 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     // whole arc).
     let front = t.mefs[1].face;
     assert_eq!(
-        validate_geometric(&body),
+        validate_geometric(&body, Tol::witness()),
         Err(vec![
             ValidationError::TransverseNotIntrinsic { edge },
             ValidationError::PlanarBoundaryResidual { face: front, edge },
@@ -593,13 +603,13 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     // A 1-turn-wrong interval is refused by the gate (as before —
     // interior samples caught it; now the winding bound names it).
     assert!(matches!(
-        body.set_edge_curve(edge, mk(PI + TAU)).unwrap_err(),
+        body.set_edge_curve(edge, mk(PI + TAU), Tol::witness()).unwrap_err(),
         EulerOpError::Certification { .. }
     ));
     // The 8-turn-wrong interval — the exact schedule alias — is now
     // refused by the same typed gate, and the body is untouched.
     assert!(matches!(
-        body.set_edge_curve(edge, mk(PI + 8.0 * TAU)).unwrap_err(),
+        body.set_edge_curve(edge, mk(PI + 8.0 * TAU), Tol::witness()).unwrap_err(),
         EulerOpError::Certification {
             error: geom_brep::CertifyError::WindingExceeded
         }
@@ -611,9 +621,9 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     // reports the transverse arc's conventional description; what
     // matters here is that no certification/winding error remains: the
     // S1 gate's job is the winding.)
-    body.set_edge_curve(edge, mk(PI)).unwrap();
+    body.set_edge_curve(edge, mk(PI), Tol::witness()).unwrap();
     assert_eq!(
-        validate_geometric(&body),
+        validate_geometric(&body, Tol::witness()),
         Err(vec![
             ValidationError::TransverseNotIntrinsic { edge },
             ValidationError::PlanarBoundaryResidual {
@@ -644,13 +654,14 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
     let split = body
         .mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
     // Self-loop circular face at B (scaffolding circle in the z = 0
     // plane, center (2,0,0), radius 1).
@@ -658,7 +669,7 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
         .mef_chord(MefSite::Chords {
             he1: seg.he_minus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
     let z0 = Surface::Plane {
         origin: Point3::origin(),
@@ -689,7 +700,7 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
         .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     assert_eq!(
-        validate_geometric(&body),
+        validate_geometric(&body, Tol::witness()),
         Err(vec![
             ValidationError::TransverseNotIntrinsic { edge: seg.edge },
             ValidationError::TransverseNotIntrinsic { edge: split.edge },
@@ -734,6 +745,7 @@ fn fixed_n4_raw_mev_precondition_paths() {
             },
             p,
             spec.clone(),
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
@@ -748,7 +760,7 @@ fn fixed_n4_raw_mev_precondition_paths() {
         .find(|&(_, s)| s != s1)
         .expect("prism has half-edges at distinct vertices");
     let err = body
-        .mev(MevSite::Fan { he1, he2 }, p, spec.clone())
+        .mev(MevSite::Fan { he1, he2 }, p, spec.clone(), Tol::witness())
         .unwrap_err();
     assert!(
         matches!(err, EulerOpError::FanStartMismatch { .. }),
@@ -759,7 +771,7 @@ fn fixed_n4_raw_mev_precondition_paths() {
     // Lone on a non-empty (cycle) loop: LoopNotEmpty from the raw op.
     let cycle_loop = body.get_half_edge(he1).unwrap().parent_loop;
     let err = body
-        .mev(MevSite::Lone { r#loop: cycle_loop }, p, spec.clone())
+        .mev(MevSite::Lone { r#loop: cycle_loop }, p, spec.clone(), Tol::witness())
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "lone-on-cycle mutated body");
@@ -783,6 +795,7 @@ fn fixed_n4_raw_mef_precondition_paths() {
             MefSite::Chords { he1, he2: stale },
             spec.clone(),
             FaceSurface::Inherit,
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::StaleKey { .. }), "{err:?}");
@@ -804,6 +817,7 @@ fn fixed_n4_raw_mef_precondition_paths() {
             MefSite::Chords { he1, he2 },
             spec.clone(),
             FaceSurface::Inherit,
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::NotSameLoop { .. }), "{err:?}");
@@ -815,6 +829,7 @@ fn fixed_n4_raw_mef_precondition_paths() {
             MefSite::Lone { r#loop: l1 },
             spec.clone(),
             FaceSurface::Inherit,
+            Tol::witness(),
         )
         .unwrap_err();
     assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }), "{err:?}");

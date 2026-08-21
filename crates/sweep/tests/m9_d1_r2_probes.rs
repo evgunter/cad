@@ -18,6 +18,7 @@ use profile::{ProfileLoop, ProfileVertex, RawLoop, ValidatedProfile};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
 use topo::{validate, validate_closed};
+use geom_core::Tol;
 
 /// The canonical vertex index whose authored sketch point is `p`.
 fn canon_index(vp: &ValidatedProfile<f64>, li: usize, p: Point2<f64>) -> usize {
@@ -58,7 +59,7 @@ fn full_off_center_ball_poles_land_on_their_authored_canonical_indices() {
     let lo = canon_index(&vp, 0, p2(0.0, 0.5));
     let hi = canon_index(&vp, 0, p2(0.0, 2.5));
     assert_ne!(lo, hi);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_pole_at(&t, 0, lo, p2(0.0, 0.5));
     assert_pole_at(&t, 0, hi, p2(0.0, 2.5));
@@ -74,7 +75,7 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
         let vp = validated(vec![off_center_meridian()]);
         let lo = canon_index(&vp, 0, p2(0.0, 0.5));
         let hi = canon_index(&vp, 0, p2(0.0, 2.5));
-        let t = revolve(&vp, axis_y(), Revolution::Partial(theta)).unwrap();
+        let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
         // Tiers 1-2 only: a band face with NO rims and non-coplanar
         // meridians is volume-uncomputable (props_band_coplanar), a
         // mass-props scope limit orthogonal to the pole export —
@@ -109,7 +110,7 @@ fn full_two_segment_axis_run_exports_run_ends_and_only_run_ends() {
     let top = canon_index(&vp, 0, p2(0.0, 2.0));
     let mid = canon_index(&vp, 0, p2(0.0, 1.0));
     let off = canon_index(&vp, 0, p2(1.5, 1.0));
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_pole_at(&t, 0, bot, p2(0.0, 0.0));
     assert_pole_at(&t, 0, top, p2(0.0, 2.0));
@@ -140,7 +141,7 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
         let vp = validated(vec![outer.clone(), hole.clone()]);
         let lo = canon_index(&vp, 0, p2(0.0, -2.0));
         let hi = canon_index(&vp, 0, p2(0.0, 2.0));
-        let t = revolve(&vp, axis_y(), Revolution::Partial(theta)).unwrap();
+        let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
         // Tiers 1-2 only: a band face with NO rims and non-coplanar
         // meridians is volume-uncomputable (props_band_coplanar), a
         // mass-props scope limit orthogonal to the pole export —
@@ -172,7 +173,7 @@ fn full_ball_with_subdivided_diameter_exports_run_end_poles_only() {
     let south = canon_index(&vp, 0, p2(0.0, -1.0));
     let north = canon_index(&vp, 0, p2(0.0, 1.0));
     let mid = canon_index(&vp, 0, p2(0.0, 0.0));
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_pole_at(&t, 0, south, p2(0.0, -1.0));
     assert_pole_at(&t, 0, north, p2(0.0, 1.0));

@@ -26,6 +26,7 @@ use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey};
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::provenance::Provenance;
+use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
     /// Partitions `shell`'s faces into connected components of the
@@ -200,6 +201,7 @@ impl<T: Decide> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::Point3;
 
     use super::*;
@@ -224,12 +226,13 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: seg.he_plus,
             he2: seg.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         let strut = body
             .mev_line(
@@ -238,16 +241,17 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let grow = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
             .unwrap();
         body.mef_chord(MefSite::Chords {
             he1: grow.he_plus,
             he2: grow.he_minus,
-        })
+        }, Tol::witness())
         .unwrap();
         let promoted = body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell, seed.face, promoted.face)
@@ -285,7 +289,7 @@ mod tests {
     /// A connected shell is a deterministic no-op.
     #[test]
     fn movefac_connected_shell_is_a_noop() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let shells = body.movefac(cube.seed.shell).unwrap();
@@ -296,7 +300,7 @@ mod tests {
     /// Stale shell: typed error, body untouched.
     #[test]
     fn movefac_stale_shell_is_typed() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let err = body.movefac(ShellKey::default()).unwrap_err();

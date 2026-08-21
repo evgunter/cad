@@ -15,8 +15,10 @@ use crate::tags::{
     workspace_error_tag,
 };
 use pncad::document::Dimension;
+use pncad::tolerance::Tol;
 use std::collections::BTreeMap;
 use std::path::Path;
+
 
 #[test]
 fn dimension_tags_are_stable() {
@@ -246,10 +248,11 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// quantity boundary's `DimensionError` either.
 #[test]
 fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+    let tol = Tol::witness();
     use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
     use pncad::prelude::SketchPlane;
 
-    let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe");
+    let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe", tol);
     let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite corners");
     let applied = apply(
@@ -260,9 +263,10 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
                 loops: vec![square],
             }),
         },
+        tol,
     )
     .expect("the profile inserts");
-    let text = save(&applied.doc, &[]).expect("the document saves");
+    let text = save(&applied.doc, &[], tol).expect("the document saves");
     let (header, body) = text.split_once("\n{").expect("a header line then the body");
     let body = format!("{{{body}");
     let saved: serde_json::Value = serde_json::from_str(&body).expect("the save body is JSON");
@@ -308,7 +312,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
             "{header}\n{}",
             serde_json::to_string(&mutated).expect("re-serializing")
         );
-        let err = pncad::document::load(&text)
+        let err = pncad::document::load(&text, tol)
             .err()
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
@@ -346,9 +350,9 @@ fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value
 /// two tags' spellings against the wire).
 #[test]
 fn persist_error_tags_are_stable() {
-    let header = pncad::document::load("not a header").expect_err("garbage refuses");
+    let header = pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
     assert_eq!(persist_error_tag(&header), "header");
-    let unknown = pncad::document::load("schema: 9999\n{}").expect_err("a future schema refuses");
+    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness()).expect_err("a future schema refuses");
     assert_eq!(persist_error_tag(&unknown), "unknown_schema");
 }
 
@@ -399,23 +403,23 @@ fn step_import_error_tags_are_stable() {
 fn path_error_tags_are_stable() {
     use pncad::prelude::{Open, Start, circle, p2};
 
-    let zero = circle(p2(0.0, 0.0), 0.0).expect_err("a zero radius refuses");
+    let zero = circle(p2(0.0, 0.0), 0.0, Tol::witness()).expect_err("a zero radius refuses");
     assert_eq!(path_error_tag(&zero), "nonpositive_circle_radius");
 
     let tangent = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
         .expect("a leg east")
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .expect_err("a corner tangent to its incoming leg refuses");
     assert_eq!(path_error_tag(&tangent), "junction_tangent");
 
     let overdetermined = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
         .expect("a leg east")
         .tangent()
-        .tangent_arc_to(Start)
+        .tangent_arc_to(Start, Tol::witness())
         .expect_err("a tangent LINE close refuses always");
     assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
 }
@@ -528,8 +532,8 @@ fn crate_lints_match_the_workspace_minus_unsafe_code() {
 /// the ids are for.
 #[test]
 fn two_python_authored_documents_are_two_parts_in_one_workspace() {
-    let a = crate::identity::interactive().expect("OS entropy");
-    let b = crate::identity::interactive().expect("OS entropy");
+    let a = crate::identity::interactive(Tol::witness()).expect("OS entropy");
+    let b = crate::identity::interactive(Tol::witness()).expect("OS entropy");
     assert_ne!(
         a.id(),
         b.id(),
@@ -546,9 +550,9 @@ fn two_python_authored_documents_are_two_parts_in_one_workspace() {
     std::fs::create_dir_all(&dir).expect("a scratch workspace directory");
 
     let mut store = pncad::workspace::Workspace::open(&dir).expect("an empty workspace opens");
-    let first = store.create(&a).expect("the first document writes");
+    let first = store.create(&a, Tol::witness()).expect("the first document writes");
     let second = store
-        .create(&b)
+        .create(&b, Tol::witness())
         .expect("the second document writes beside it");
     assert_ne!(first, second, "two parts, two files");
     assert_eq!(
@@ -570,11 +574,11 @@ fn two_python_authored_documents_are_two_parts_in_one_workspace() {
 #[test]
 fn a_labelled_document_is_the_same_part_every_time() {
     assert_eq!(
-        crate::identity::derived("plate-param").id(),
-        crate::identity::derived("plate-param").id()
+        crate::identity::derived("plate-param", Tol::witness()).id(),
+        crate::identity::derived("plate-param", Tol::witness()).id()
     );
     assert_ne!(
-        crate::identity::derived("plate-param").id(),
-        crate::identity::derived("bracket").id()
+        crate::identity::derived("plate-param", Tol::witness()).id(),
+        crate::identity::derived("bracket", Tol::witness()).id()
     );
 }

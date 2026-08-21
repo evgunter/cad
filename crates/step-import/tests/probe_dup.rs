@@ -5,6 +5,7 @@
 mod common;
 use common::census;
 use step_import::{ImportOptions, StepImport, import_step};
+use geom_core::Tol;
 
 fn box_step() -> String {
     let path = concat!(
@@ -20,7 +21,7 @@ fn report(tag: &str, text: &str) {
             println!(
                 "{tag}: SOLID census (solids,shells,faces,edges,verts)={:?} tier3={:?}",
                 census(&body),
-                topo::validate_geometric(&body).map(|()| "ok")
+                topo::validate_geometric(&body, Tol::witness()).map(|()| "ok")
             );
         }
         Ok(StepImport::Wireframe { .. }) => println!("{tag}: WIREFRAME"),

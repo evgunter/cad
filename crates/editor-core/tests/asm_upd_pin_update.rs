@@ -31,6 +31,7 @@ use editor_core::{
     evaluate, load, mixed_pins, product, save, update_references,
 };
 use fixture::{desc, insert, len, square, step};
+use geom_core::Tol;
 
 // ---- The versioned stub store ----
 
@@ -46,8 +47,8 @@ struct VersionShelf {
 
 impl VersionShelf {
     /// Shelves `doc` under its own true pin and returns the reference.
-    fn shelve(&mut self, doc: ProfileDoc) -> DocRef {
-        let pin = content_pin(&doc).expect("the pin computes");
+    fn shelve(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
+        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
         let id = doc.id();
         self.docs.insert((id, pin), doc);
         DocRef { id, pin }
@@ -55,7 +56,7 @@ impl VersionShelf {
 }
 
 impl editor_core::PartResolver for VersionShelf {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         self.docs
             .get(&(doc_ref.id, doc_ref.pin))
             .cloned()
@@ -74,7 +75,7 @@ fn with_shelf(shelf: VersionShelf) -> EvalOptions {
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts)
+    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
 /// An evaluation carrying a WARM prior — the incremental editing
@@ -82,7 +83,7 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 /// fresh evaluation rebuilds the part cache from nothing, so it cannot
 /// serve yesterday's geometry no matter how the node is keyed.
 fn run_warm(doc: &ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, Some(prior), &CancelToken::new(), opts)
+    evaluate::<f64>(doc, Some(prior), &CancelToken::new(), opts, Tol::witness())
 }
 
 // ---- Fixtures ----
@@ -91,7 +92,7 @@ fn run_warm(doc: &ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Ev
 /// The id is a parameter, so two DIFFERENT contents can share one
 /// identity — which is exactly what "two versions of a part" means.
 fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
-    let doc = ProfileDoc::empty(id);
+    let doc = ProfileDoc::empty(id, Tol::witness());
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -114,7 +115,7 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
 /// An assembly instantiating `refs` in order, each a root, the i-th
 /// displaced 10·i along +x so the solids stay disjoint.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label));
+    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for (i, r) in refs.iter().enumerate() {
         let (next, id) = insert(doc, Node::instantiate_part(*r));
@@ -145,13 +146,13 @@ fn pin_at(doc: &ProfileDoc, node: RecipeNodeId) -> DocRef {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness()).expect("mass properties").volume
 }
 
 /// The assembly's whole-product volume, gathered through the shelf.
 fn product_volume(doc: &ProfileDoc, opts: &EvalOptions) -> f64 {
     let ev = run(doc, opts);
-    volume(&product(doc, &ev).expect("the product gathers"))
+    volume(&product(doc, &ev, Tol::witness()).expect("the product gathers"))
 }
 
 // ---- Row 1: the primitive ----
@@ -163,8 +164,8 @@ fn product_volume(doc: &ProfileDoc, opts: &EvalOptions) -> f64 {
 #[test]
 fn row1a_update_moves_the_pin_and_only_the_pin() {
     let id = DocumentId::derive("asm-upd-r1a-part");
-    let v1 = content_pin(&part_version(id, 1.0)).expect("pin");
-    let v2 = content_pin(&part_version(id, 2.0)).expect("pin");
+    let v1 = content_pin(&part_version(id, 1.0), Tol::witness()).expect("pin");
+    let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
     assert_ne!(v1, v2, "the two versions really are different content");
 
     let (doc, ids) = assembly("asm-upd-r1a-asm", &[DocRef { id, pin: v1 }]);
@@ -172,7 +173,7 @@ fn row1a_update_moves_the_pin_and_only_the_pin() {
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: v2,
-        })
+        }, Tol::witness())
         .expect("the update is accepted");
 
     assert_eq!(pin_at(&applied.doc, ids[0]).pin, v2, "the version moved");
@@ -189,15 +190,15 @@ fn row1a_update_moves_the_pin_and_only_the_pin() {
 #[test]
 fn row1b_the_update_replays_bit_identically() {
     let id = DocumentId::derive("asm-upd-r1b-part");
-    let v1 = content_pin(&part_version(id, 1.0)).expect("pin");
-    let v2 = content_pin(&part_version(id, 2.0)).expect("pin");
+    let v1 = content_pin(&part_version(id, 1.0), Tol::witness()).expect("pin");
+    let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
 
     let mut rec = fixture::Recorder::new();
     let asm_id = rec.doc.id();
     let node = rec.insert(Node::instantiate_part(DocRef { id, pin: v1 }));
     rec.push(DocEdit::UpdateReference { node, new_pin: v2 });
 
-    let replayed = ProfileDoc::replay(asm_id, &rec.edits).expect("the log replays");
+    let replayed = ProfileDoc::replay(asm_id, &rec.edits, Tol::witness()).expect("the log replays");
     assert!(
         replayed.bit_eq(&rec.doc),
         "replay reproduces the updated document bit for bit"
@@ -211,8 +212,8 @@ fn row1b_the_update_replays_bit_identically() {
 #[test]
 fn row1c_the_three_refusals_each_name_their_subject() {
     let id = DocumentId::derive("asm-upd-r1c-part");
-    let v1 = content_pin(&part_version(id, 1.0)).expect("pin");
-    let v2 = content_pin(&part_version(id, 2.0)).expect("pin");
+    let v1 = content_pin(&part_version(id, 1.0), Tol::witness()).expect("pin");
+    let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
     let (doc, ids) = assembly("asm-upd-r1c-asm", &[DocRef { id, pin: v1 }]);
     // A live NON-instance node to aim at.
     let (doc, profile) = insert(
@@ -229,7 +230,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     match doc.apply(&DocEdit::UpdateReference {
         node: ids[0],
         new_pin: v1,
-    }) {
+    }, Tol::witness()) {
         Err(EditError::PinUnchanged { node, pin }) => {
             assert_eq!(node, ids[0]);
             assert_eq!(pin, v1);
@@ -244,7 +245,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     match doc.apply(&DocEdit::UpdateReference {
         node: profile,
         new_pin: v2,
-    }) {
+    }, Tol::witness()) {
         Err(EditError::UpdateOnNonInstance { node }) => {
             assert_eq!(node, profile);
             let msg = EditError::UpdateOnNonInstance { node }.to_string();
@@ -258,7 +259,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     match doc.apply(&DocEdit::UpdateReference {
         node: ghost,
         new_pin: v2,
-    }) {
+    }, Tol::witness()) {
         Err(EditError::UnknownNode { id }) => {
             assert_eq!(id, ghost);
             let msg = EditError::UnknownNode { id }.to_string();
@@ -278,9 +279,9 @@ fn row1c_the_three_refusals_each_name_their_subject() {
 fn row2_elaboration_updates_every_matching_site_and_only_those() {
     let x = DocumentId::derive("asm-upd-r2-x");
     let y = DocumentId::derive("asm-upd-r2-y");
-    let x1 = content_pin(&part_version(x, 1.0)).expect("pin");
-    let x2 = content_pin(&part_version(x, 2.0)).expect("pin");
-    let y1 = content_pin(&part_version(y, 3.0)).expect("pin");
+    let x1 = content_pin(&part_version(x, 1.0), Tol::witness()).expect("pin");
+    let x2 = content_pin(&part_version(x, 2.0), Tol::witness()).expect("pin");
+    let y1 = content_pin(&part_version(y, 3.0), Tol::witness()).expect("pin");
 
     let (doc, ids) = assembly(
         "asm-upd-r2-asm",
@@ -310,7 +311,7 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
 
     let mut moved = doc.clone();
     for e in &edits {
-        moved = moved.apply(e).expect("the group applies").doc;
+        moved = moved.apply(e, Tol::witness()).expect("the group applies").doc;
     }
     assert_eq!(pin_at(&moved, ids[0]).pin, x2);
     assert_eq!(pin_at(&moved, ids[2]).pin, x2);
@@ -328,8 +329,8 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
 fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
     let x = DocumentId::derive("asm-upd-r2b-x");
     let absent = DocumentId::derive("asm-upd-r2b-absent");
-    let x1 = content_pin(&part_version(x, 1.0)).expect("pin");
-    let x2 = content_pin(&part_version(x, 2.0)).expect("pin");
+    let x1 = content_pin(&part_version(x, 1.0), Tol::witness()).expect("pin");
+    let x2 = content_pin(&part_version(x, 2.0), Tol::witness()).expect("pin");
     let (doc, ids) = assembly("asm-upd-r2b-asm", &[DocRef { id: x, pin: x1 }; 2]);
 
     match update_references(&doc, absent, x2) {
@@ -347,7 +348,7 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: x2,
-        })
+        }, Tol::witness())
         .expect("the first site moves")
         .doc;
     assert_eq!(
@@ -363,7 +364,7 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
         .apply(&DocEdit::UpdateReference {
             node: ids[1],
             new_pin: x2,
-        })
+        }, Tol::witness())
         .expect("the second site moves")
         .doc;
     match update_references(&done, x, x2) {
@@ -388,9 +389,9 @@ fn row2b_no_such_reference_and_already_pinned_refuse_separately() {
 fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
     let x = DocumentId::derive("asm-upd-r4-x");
     let y = DocumentId::derive("asm-upd-r4-y");
-    let x1 = content_pin(&part_version(x, 1.0)).expect("pin");
-    let x2 = content_pin(&part_version(x, 2.0)).expect("pin");
-    let y1 = content_pin(&part_version(y, 3.0)).expect("pin");
+    let x1 = content_pin(&part_version(x, 1.0), Tol::witness()).expect("pin");
+    let x2 = content_pin(&part_version(x, 2.0), Tol::witness()).expect("pin");
+    let y1 = content_pin(&part_version(y, 3.0), Tol::witness()).expect("pin");
 
     let (uniform, ids) = assembly(
         "asm-upd-r4-asm",
@@ -410,7 +411,7 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
         .apply(&DocEdit::UpdateReference {
             node: ids[2],
             new_pin: x2,
-        })
+        }, Tol::witness())
         .expect("the staged half applies")
         .doc;
     let report = mixed_pins(&staged);
@@ -432,14 +433,14 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
 
     // Reports, never gates: the mixed-pin document is a first-class
     // value at every door.
-    assert!(save(&staged, &[]).is_ok(), "a mixed-pin document saves");
+    assert!(save(&staged, &[], Tol::witness()).is_ok(), "a mixed-pin document saves");
     assert_eq!(
         mixed_pins(
             &staged
                 .apply(&DocEdit::UpdateReference {
                     node: ids[0],
                     new_pin: x2,
-                })
+                }, Tol::witness())
                 .expect("finishing the migration applies")
                 .doc
         ),
@@ -458,20 +459,20 @@ fn row4_the_lint_reports_staged_multiplicity_and_nothing_else() {
 fn row5a_a_moved_pin_is_a_different_memo_entry() {
     let id = DocumentId::derive("asm-upd-r5a-part");
     let mut shelf = VersionShelf::default();
-    let r1 = shelf.shelve(part_version(id, 1.0));
-    let r2 = shelf.shelve(part_version(id, 2.0));
+    let r1 = shelf.shelve(part_version(id, 1.0), Tol::witness());
+    let r2 = shelf.shelve(part_version(id, 2.0), Tol::witness());
     let opts = with_shelf(shelf);
 
     let (doc, ids) = assembly("asm-upd-r5a-asm", &[r1, r1]);
     let before = run(&doc, &opts);
     assert_eq!(before.part_evaluations, 1, "one version, one evaluation");
-    let vol_before = volume(&product(&doc, &before).expect("gathers"));
+    let vol_before = volume(&product(&doc, &before, Tol::witness()).expect("gathers"));
 
     let staged = doc
         .apply(&DocEdit::UpdateReference {
             node: ids[1],
             new_pin: r2.pin,
-        })
+        }, Tol::witness())
         .expect("the update applies")
         .doc;
     let after = run(&staged, &opts);
@@ -481,7 +482,7 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
     );
     // Version 1 is a 1×1×1 unit; version 2 is 2×2×1. The staged
     // assembly is one of each; the un-updated one is unchanged.
-    let vol_after = volume(&product(&staged, &after).expect("gathers"));
+    let vol_after = volume(&product(&staged, &after, Tol::witness()).expect("gathers"));
     assert!(
         (vol_before - 2.0).abs() < 1e-9,
         "two v1 solids: {vol_before}"
@@ -493,12 +494,12 @@ fn row5a_a_moved_pin_is_a_different_memo_entry() {
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: r2.pin,
-        })
+        }, Tol::witness())
         .expect("the second site moves")
         .doc;
     let ev = run(&done, &opts);
     assert_eq!(ev.part_evaluations, 1, "one version again, one evaluation");
-    let vol_done = volume(&product(&done, &ev).expect("gathers"));
+    let vol_done = volume(&product(&done, &ev, Tol::witness()).expect("gathers"));
     assert!((vol_done - 8.0).abs() < 1e-9, "two v2 solids: {vol_done}");
 }
 
@@ -511,15 +512,15 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
     let part_id = DocumentId::derive("asm-upd-r5b-part");
     let sub_id = DocumentId::derive("asm-upd-r5b-sub");
     let mut shelf = VersionShelf::default();
-    let p1 = shelf.shelve(part_version(part_id, 1.0));
-    let p2 = shelf.shelve(part_version(part_id, 2.0));
+    let p1 = shelf.shelve(part_version(part_id, 1.0), Tol::witness());
+    let p2 = shelf.shelve(part_version(part_id, 2.0), Tol::witness());
 
     // The sub-assembly at each of the part's versions — two versions of
     // ONE sub-assembly id, because the pin it carries is its content.
     let (sub_v1, _) = assembly_under(sub_id, &[p1]);
     let (sub_v2, _) = assembly_under(sub_id, &[p2]);
-    let s1 = shelf.shelve(sub_v1);
-    let s2 = shelf.shelve(sub_v2);
+    let s1 = shelf.shelve(sub_v1, Tol::witness());
+    let s2 = shelf.shelve(sub_v2, Tol::witness());
     assert_ne!(s1.pin, s2.pin, "the sub-assembly's own pin moved with it");
     let opts = with_shelf(shelf);
 
@@ -534,7 +535,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: s2.pin,
-        })
+        }, Tol::witness())
         .expect("the update applies")
         .doc;
     let vol_after = product_volume(&updated, &opts);
@@ -549,7 +550,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
 /// An assembly under an EXPLICIT id (the nested row needs two contents
 /// sharing one identity, which the label-derived helper cannot give).
 fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let mut doc = ProfileDoc::empty(id);
+    let mut doc = ProfileDoc::empty(id, Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
         let (next, node) = insert(doc, Node::instantiate_part(*r));
@@ -573,8 +574,8 @@ fn assembly_under(id: DocumentId, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNod
 fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     let id = DocumentId::derive("asm-upd-r5c-part");
     let mut shelf = VersionShelf::default();
-    let r1 = shelf.shelve(part_version(id, 1.0));
-    let r2 = shelf.shelve(part_version(id, 2.0));
+    let r1 = shelf.shelve(part_version(id, 1.0), Tol::witness());
+    let r2 = shelf.shelve(part_version(id, 2.0), Tol::witness());
     let opts = with_shelf(shelf);
 
     let (doc, ids) = assembly("asm-upd-r5c-asm", &[r1, r1]);
@@ -590,7 +591,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
         control.part_evaluations, 0,
         "the prior really does serve instantiate nodes"
     );
-    let vol_control = volume(&product(&doc, &control).expect("gathers"));
+    let vol_control = volume(&product(&doc, &control, Tol::witness()).expect("gathers"));
     assert!((vol_control - 2.0).abs() < 1e-9, "two v1 solids");
 
     // One site updated, re-evaluated over the SAME warm prior: the
@@ -600,7 +601,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
         .apply(&DocEdit::UpdateReference {
             node: ids[1],
             new_pin: r2.pin,
-        })
+        }, Tol::witness())
         .expect("the update applies")
         .doc;
     let warm_staged = run_warm(&staged, &cold, &opts);
@@ -608,7 +609,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
         warm_staged.part_evaluations, 1,
         "only the moved reference does part work"
     );
-    let vol_staged = volume(&product(&staged, &warm_staged).expect("gathers"));
+    let vol_staged = volume(&product(&staged, &warm_staged, Tol::witness()).expect("gathers"));
     assert!((vol_staged - 5.0).abs() < 1e-9, "v1 + v2: {vol_staged}");
 
     // The second site moves over the STAGED prior: the old version is
@@ -617,12 +618,12 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: r2.pin,
-        })
+        }, Tol::witness())
         .expect("the update applies")
         .doc;
     let warm_done = run_warm(&done, &warm_staged, &opts);
     assert_eq!(warm_done.part_evaluations, 1, "one reference moved");
-    let vol_done = volume(&product(&done, &warm_done).expect("gathers"));
+    let vol_done = volume(&product(&done, &warm_done, Tol::witness()).expect("gathers"));
     assert!((vol_done - 8.0).abs() < 1e-9, "two v2 solids: {vol_done}");
 }
 
@@ -635,12 +636,12 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
     let part_id = DocumentId::derive("asm-upd-r5d-part");
     let sub_id = DocumentId::derive("asm-upd-r5d-sub");
     let mut shelf = VersionShelf::default();
-    let p1 = shelf.shelve(part_version(part_id, 1.0));
-    let p2 = shelf.shelve(part_version(part_id, 2.0));
+    let p1 = shelf.shelve(part_version(part_id, 1.0), Tol::witness());
+    let p2 = shelf.shelve(part_version(part_id, 2.0), Tol::witness());
     let (sub_v1, _) = assembly_under(sub_id, &[p1]);
     let (sub_v2, _) = assembly_under(sub_id, &[p2]);
-    let s1 = shelf.shelve(sub_v1);
-    let s2 = shelf.shelve(sub_v2);
+    let s1 = shelf.shelve(sub_v1, Tol::witness());
+    let s2 = shelf.shelve(sub_v2, Tol::witness());
     let opts = with_shelf(shelf);
 
     let (top, ids) = assembly("asm-upd-r5d-top", &[s1]);
@@ -650,18 +651,18 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
         control.part_evaluations, 0,
         "the nested prior serves the instantiate node too"
     );
-    let vol_before = volume(&product(&top, &control).expect("gathers"));
+    let vol_before = volume(&product(&top, &control, Tol::witness()).expect("gathers"));
     assert!((vol_before - 1.0).abs() < 1e-9, "one v1 solid");
 
     let updated = top
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: s2.pin,
-        })
+        }, Tol::witness())
         .expect("the update applies")
         .doc;
     let warm = run_warm(&updated, &cold, &opts);
-    let vol_after = volume(&product(&updated, &warm).expect("gathers"));
+    let vol_after = volume(&product(&updated, &warm, Tol::witness()).expect("gathers"));
     assert!((vol_after - 4.0).abs() < 1e-9, "one v2 solid: {vol_after}");
 }
 
@@ -676,25 +677,25 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
 #[test]
 fn row6_the_assembly_pin_moves_on_update_and_states_history() {
     let id = DocumentId::derive("asm-upd-r6-part");
-    let v1 = content_pin(&part_version(id, 1.0)).expect("pin");
-    let v2 = content_pin(&part_version(id, 2.0)).expect("pin");
+    let v1 = content_pin(&part_version(id, 1.0), Tol::witness()).expect("pin");
+    let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
 
     let (before, ids) = assembly("asm-upd-r6-asm", &[DocRef { id, pin: v1 }]);
     let after = before
         .apply(&DocEdit::UpdateReference {
             node: ids[0],
             new_pin: v2,
-        })
+        }, Tol::witness())
         .expect("applies")
         .doc;
-    let pin_before = content_pin(&before).expect("pin");
-    let pin_after = content_pin(&after).expect("pin");
+    let pin_before = content_pin(&before, Tol::witness()).expect("pin");
+    let pin_after = content_pin(&after, Tol::witness()).expect("pin");
     assert_ne!(pin_before, pin_after, "a pin move moves the assembly's pin");
 
     // Reached-by-update == authored-directly: identity is state.
     let (direct, _) = assembly("asm-upd-r6-asm", &[DocRef { id, pin: v2 }]);
     assert_eq!(
-        content_pin(&direct).expect("pin"),
+        content_pin(&direct, Tol::witness()).expect("pin"),
         pin_after,
         "the log is not part of the content"
     );
@@ -710,20 +711,20 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
         new_pin: v2,
     };
     let a = before
-        .apply(&unrelated)
+        .apply(&unrelated, Tol::witness())
         .expect("applies")
         .doc
-        .apply(&update)
+        .apply(&update, Tol::witness())
         .expect("applies")
         .doc;
-    let b = after.apply(&unrelated).expect("applies").doc;
+    let b = after.apply(&unrelated, Tol::witness()).expect("applies").doc;
     assert_eq!(
-        content_pin(&a).expect("pin"),
-        content_pin(&b).expect("pin"),
+        content_pin(&a, Tol::witness()).expect("pin"),
+        content_pin(&b, Tol::witness()).expect("pin"),
         "the two edits commute into one content"
     );
     assert_ne!(
-        content_pin(&a).expect("pin"),
+        content_pin(&a, Tol::witness()).expect("pin"),
         pin_after,
         "and the unrelated edit still moves the pin on its own"
     );
@@ -738,8 +739,8 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 #[test]
 fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     let id = DocumentId::derive("asm-upd-r7-part");
-    let v1 = content_pin(&part_version(id, 1.0)).expect("pin");
-    let v2 = content_pin(&part_version(id, 2.0)).expect("pin");
+    let v1 = content_pin(&part_version(id, 1.0), Tol::witness()).expect("pin");
+    let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
 
     let mut rec = fixture::Recorder::new();
     let asm_id = rec.doc.id();
@@ -748,8 +749,8 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
 
     // Snapshot = the EMPTY document, log = everything: the load
     // replays the update through `apply`'s own doors.
-    let text = save(&ProfileDoc::empty(asm_id), &rec.edits).expect("the document saves");
-    let loaded = load(&text).expect("the document loads");
+    let text = save(&ProfileDoc::empty(asm_id, Tol::witness()), &rec.edits, Tol::witness()).expect("the document saves");
+    let loaded = load(&text, Tol::witness()).expect("the document loads");
     assert_eq!(loaded.edits.len(), rec.edits.len(), "the log persisted");
     assert_eq!(pin_at(&loaded.doc, node).pin, v2, "the replay lands on v2");
     assert!(
@@ -758,7 +759,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     );
 
     // Undo across the load: replay every edit but the last.
-    let undone = ProfileDoc::replay(asm_id, &loaded.edits[..loaded.edits.len() - 1])
+    let undone = ProfileDoc::replay(asm_id, &loaded.edits[..loaded.edits.len() - 1], Tol::witness())
         .expect("the shortened log replays");
     assert_eq!(
         pin_at(&undone, node).pin,

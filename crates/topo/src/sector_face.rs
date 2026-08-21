@@ -63,6 +63,7 @@ use geom_core::Decide;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::face_outward_normal;
+use geom_core::Tol;
 
 /// Which charted carrier a sector's face sits on — the arms with a
 /// wired outward-normal-at-the-vertex construction.
@@ -201,13 +202,14 @@ pub(crate) fn resolve<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
     use crate::fixtures::prism;
 
     /// A sphere face, installed on a prism's side face so the orbit
     /// around one of its vertices walks a sphere-carried sector.
     fn sphere_sided_prism() -> (crate::Body<f64>, crate::entity::FaceKey) {
-        let p = prism(3);
+        let p = prism(3, Tol::witness());
         let face = p.face_side[0];
         let mut body = p.body;
         body.set_face_surface(
@@ -229,7 +231,7 @@ mod tests {
     /// limited to.
     #[test]
     fn corrupt_names_the_entity_that_did_not_resolve() {
-        let p = prism(3);
+        let p = prism(3, Tol::witness());
         let bogus = crate::entity::HalfEdgeKey::default();
         match resolve(&p.body, p.t[0], bogus) {
             Err(SectorFaceError::Corrupt(EntityId::HalfEdge(k))) => assert_eq!(k, bogus),

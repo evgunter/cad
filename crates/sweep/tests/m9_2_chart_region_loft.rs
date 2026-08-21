@@ -15,6 +15,7 @@ use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, ChartRegionError, FaceKey, Pcurve, chart_region_overlap};
+use geom_core::Tol;
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -82,7 +83,7 @@ fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    let body = sweep::loft_body::<f64>(&sections, &places, 2)
+    let body = sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body;
     let wall = nurbs_wall(&body);
@@ -114,7 +115,7 @@ fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
         ])]
     };
     let sections = vec![bulged(), bulged()];
-    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1)
+    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1, Tol::witness())
         .expect("the bulged prism builds")
         .body;
     // Find the arc wall: the NURBS face whose rims are IsoArc.

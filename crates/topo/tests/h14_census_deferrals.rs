@@ -30,6 +30,7 @@ use topo::{
     Body, CensusContact, ContactRecords, EntityId, FaceKey, LoopBoundary, ValidationError,
     VertexKey, VfContact, VvContact, validate_pseudomanifold,
 };
+use geom_core::Tol;
 
 /// A cube of side `side` with its minimum corner at `(dx, dy, dz)`.
 fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
@@ -39,7 +40,7 @@ fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
 /// The pair as one two-instance arena.
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b).unwrap();
+    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
     out
 }
 
@@ -160,7 +161,7 @@ fn embedded() -> (Body<f64>, ContactRecords) {
 #[test]
 fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
     let (body, records) = embedded();
-    let errors = validate_pseudomanifold(&body, &records)
+    let errors = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("an instance inside another's material must never clear");
     assert!(
         !errors.iter().any(|e| matches!(
@@ -198,7 +199,7 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
 #[test]
 fn the_embedded_pair_is_refused_undeclared_too() {
     let (body, _) = embedded();
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared twin refuses");
     assert!(
         containment_refused(&errors, IN_BAND),
@@ -236,7 +237,7 @@ fn a_declared_stacked_assembly_still_clears_at_the_containment_arm() {
         records.vv.push(VvContact { a, b });
     }
     assert_eq!(
-        validate_pseudomanifold(&body, &records),
+        validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),
         "a declared stacked assembly clears on the containment arm's own margin"
     );

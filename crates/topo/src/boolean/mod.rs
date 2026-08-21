@@ -1210,8 +1210,9 @@ pub fn boolean_reduce<T: Decide + Bounds>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none())
+    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none(), tol)
 }
 
 /// [`boolean_reduce`] with declared coincidence intents (F5, M4
@@ -1228,8 +1229,9 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared_strategy(op, a_operand, b_operand, decls, SweepStrategy::Realized)
+    boolean_reduce_declared_strategy(op, a_operand, b_operand, decls, SweepStrategy::Realized, tol)
 }
 
 /// The differential suite's sweep-level door (PERF-PLAN §4.4 / C10,
@@ -1255,8 +1257,9 @@ pub fn sweep_traces<T: Decide + Bounds>(
     b_operand: &Body<T>,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
+    tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None)
+    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
@@ -1306,6 +1309,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         strategy,
         &ab_knobs,
         Some(&mut ab),
+        tol,
     )?;
     reduce::sweep_direction(
         &mut b,
@@ -1316,6 +1320,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         strategy,
         &ba_knobs,
         Some(&mut ba),
+        tol,
     )?;
     Ok((ab, ba))
 }
@@ -1356,6 +1361,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         strategy,
         &knobs,
         None,
+        tol,
     )?;
     reduce::sweep_direction(
         &mut b,
@@ -1366,6 +1372,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         strategy,
         &knobs,
         None,
+        tol,
     )?;
     let contacts = acc.finish();
 
@@ -1376,14 +1383,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
         let out =
-            vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, &declared, band)?;
+            vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, &declared, band, tol)?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
     }
     for &c in &contacts.b_on_a {
         let out =
-            vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, &declared, band)?;
+            vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, &declared, band, tol)?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);

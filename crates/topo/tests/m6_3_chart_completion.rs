@@ -171,6 +171,7 @@ where
                 param_start: t0,
                 param_end: t1,
             },
+            Tol::witness(),
         )
         .expect("the general-circle edge certifies");
     let edge = body.get_edge(made.edge).expect("edge resolves");
@@ -233,6 +234,7 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
 /// enclosure-style — the evidence the lane genuinely left `f64`.
 #[cfg(feature = "interval")]
 mod certified {
+    use geom_core::Tol;
     use geom_core::interval::Interval;
 
     use super::*;

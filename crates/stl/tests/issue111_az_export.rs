@@ -57,6 +57,7 @@ fn az_counter() -> Body<f64> {
             vec![lp(&A_OUTLINE), lp(&A_COUNTER)],
         ),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -81,10 +82,11 @@ fn az_counter() -> Body<f64> {
             ])],
         ),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .unwrap()
     .body;
-    match topo::intersect(&a, &z) {
+    match topo::intersect(&a, &z, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("A×Z intersect did not produce a body ({other:?})"),
     }
@@ -92,7 +94,7 @@ fn az_counter() -> Body<f64> {
 
 #[test]
 fn survives_az_intersect_exports_watertight_stl() {
-    let mesh = tessellate(&az_counter(), 1e-2).expect("tessellate A×Z");
+    let mesh = tessellate(&az_counter(), 1e-2, Tol::witness()).expect("tessellate A×Z");
     assert_eq!(
         check_mesh(&mesh),
         Ok(()),

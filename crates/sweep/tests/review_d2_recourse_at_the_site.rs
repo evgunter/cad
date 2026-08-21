@@ -91,9 +91,9 @@ fn only_recourse(err: &FilletError, expect: Option<&str>, what: &str) {
 /// path ever re-attaches it.
 #[test]
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
-    let body = cube(L);
+    let body = cube(L, Tol::witness());
     let edges = edges_of(&body);
-    let err = fillet_edges(&body, &edges[..1], R, band())
+    let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
         matches!(err, FilletError::UnsupportedRunOut { .. }),
@@ -108,11 +108,11 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
 /// anyway.
 #[test]
 fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
-    let body = cube(L);
+    let body = cube(L, Tol::witness());
     let edges = edges_of(&body);
     let mut req = edges.clone();
     req.push(edges[0]);
-    let err = fillet_edges(&body, &req, R, band()).expect_err("a repeated edge");
+    let err = fillet_edges(&body, &req, R, band(), Tol::witness()).expect_err("a repeated edge");
     assert!(
         matches!(err, FilletError::RepeatedEdge { edge } if edge == edges[0]),
         "expected the repeated-edge refusal naming the key, got {err:?}"
@@ -126,11 +126,11 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
 /// one.
 #[test]
 fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
-    let mut body = cube(L);
-    let other = cube(L);
-    topo::instance::graft_disjoint_all(&mut body, &other).expect("a disjoint graft");
+    let mut body = cube(L, Tol::witness());
+    let other = cube(L, Tol::witness());
+    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness()).expect("a disjoint graft");
     let edges = edges_of(&body);
-    let err = fillet_edges(&body, &edges[..1], R, band())
+    let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(
         matches!(err, FilletError::UnsupportedBody { solids, .. } if solids == 2),

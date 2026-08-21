@@ -117,6 +117,7 @@ use super::{PlaneSide, SectorEntry, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{FaceKey, VertexKey};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Rule (a): reclassify both bounding entries of every
 /// plane-coplanar sector (module docs for the derivation). Sweeps
@@ -346,6 +347,7 @@ pub(crate) fn face_extent<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use super::*;
     use crate::entity::HalfEdgeKey;
     use crate::splitting::SectorEntryKind;
@@ -453,7 +455,7 @@ mod tests {
     /// vacuous, and it asserts that gap rather than just the maximum.
     #[test]
     fn an_isolated_ring_vertex_contributes_its_distance() {
-        let mut cube = crate::fixtures::ops_cube();
+        let mut cube = crate::fixtures::ops_cube(Tol::witness());
         // The BOTTOM face, whose own cycle stops at the far bottom
         // corner; the seed (top) face already reaches the body's
         // farthest vertex, which would make the row vacuous.

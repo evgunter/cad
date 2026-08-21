@@ -37,7 +37,7 @@ fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
     };
     assert_eq!(topo::validate(&body), Ok(()));
     assert_eq!(topo::validate_closed(&body), Ok(()));
-    let g = topo::validate_geometric(&body);
+    let g = topo::validate_geometric(&body, Tol::witness());
     println!("a3 tier3 result: {g:?}");
     assert_eq!(g, Ok(()), "the in-band landing is retired: tier 3 is green");
 }
@@ -66,7 +66,7 @@ fn a3_sweep_all_tiers() {
             Ok(StepImport::Solid { body, .. }) => {
                 let t1 = topo::validate(&body).is_ok();
                 let t2 = topo::validate_closed(&body).is_ok();
-                let t3 = topo::validate_geometric(&body);
+                let t3 = topo::validate_geometric(&body, Tol::witness());
                 if !(t1 && t2 && t3.is_ok()) {
                     println!("a3sweep eps={eps:e} {name}: t1={t1} t2={t2} t3={t3:?}");
                 } else {
@@ -133,7 +133,7 @@ fn a1_control_box_face_sense_flip() {
             println!(
                 "a1 box-flip: imported; t2={:?} t3={:?}",
                 topo::validate_closed(&body),
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -152,7 +152,7 @@ fn a1_control_sphere_sense_flip() {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1 sphere-flip: imported; t3={:?}",
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -215,12 +215,12 @@ fn a1_double_flipped_torus() {
         panic!("the equivalent re-encoding of a valid torus must import");
     };
     assert_eq!(normalizations.len(), 1, "still one reported normalization");
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         v > 0.0,
         "a right-side-out ring has positive volume, got {v}"
     );
-    assert_eq!(topo::validate_geometric(&body), Ok(()), "tier 3");
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()), "tier 3");
 }
 
 /// A1, **resolved**: the original imports; the sense-flip does not.
@@ -332,7 +332,7 @@ fn a1_control_box_bound_flip() {
             println!(
                 "a1bb imported; t2={:?} t3={:?}",
                 topo::validate_closed(&body),
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -363,10 +363,10 @@ fn a1_inside_out_cone_apex() {
         assert_ne!(text, orig, "{label}: replacement must hit");
         match import_step(&text, &ImportOptions::default()) {
             Ok(StepImport::Solid { body, .. }) => {
-                let v = topo::mass_properties(&body).map(|p| p.volume);
+                let v = topo::mass_properties(&body, Tol::witness()).map(|p| p.volume);
                 println!(
                     "a1ca {label}: imported t3={:?} vol={:?}",
-                    topo::validate_geometric(&body),
+                    topo::validate_geometric(&body, Tol::witness()),
                     v
                 );
                 panic!("a1ca {label}: an inside-out cone_apex must refuse pre-body (M6-6 rider)");
@@ -518,7 +518,7 @@ fn a4_inference_on_demoted_bounds() {
     );
     match import_step(&text, &ImportOptions::default()) {
         Ok(StepImport::Solid { body, .. }) => {
-            println!("a4inf imported t3={:?}", topo::validate_geometric(&body));
+            println!("a4inf imported t3={:?}", topo::validate_geometric(&body, Tol::witness()));
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => {
@@ -549,7 +549,7 @@ fn a6_unit_edges() {
     assert_ne!(t, orig);
     match import_step(&t, &ImportOptions::default()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(&body).unwrap().volume;
+            let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }
         Ok(_) => panic!(),

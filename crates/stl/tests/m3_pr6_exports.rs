@@ -22,6 +22,7 @@ use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
 mod common;
 use common::brick;
+use geom_core::Tol;
 
 fn stl_dir() -> String {
     let dir = std::env::var("REVIEW_STL_DIR").unwrap_or_else(|_| {
@@ -45,18 +46,18 @@ fn stl_dir() -> String {
 fn corner_kiss_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let BooleanResult::Body(r) = union(&a, &b).unwrap() else {
+    let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts), Ok(()));
+    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
     // Shell count pinned alongside exact volume: admesh's parts=N alone
     // cannot distinguish a legit assembly from a wrongly-disconnected
     // one-part result (review R7b).
     assert_eq!(r.body.shells().count(), 2);
-    let m = mass_properties(&r.body).unwrap();
+    let m = mass_properties(&r.body, Tol::witness()).unwrap();
     assert_eq!(m.volume, 2.0);
     assert_eq!(m.surface_area, 12.0);
-    let mesh = mesh::tessellate(&r.body, 1e-2).unwrap();
+    let mesh = mesh::tessellate(&r.body, 1e-2, Tol::witness()).unwrap();
     check_mesh(&mesh).unwrap();
     let v = signed_volume(&mesh);
     assert!((v - 2.0).abs() < 1e-9, "mesh volume {v}");
@@ -72,18 +73,18 @@ fn corner_kiss_assembly_exports() {
 fn tangent_edge_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
-    let BooleanResult::Body(r) = union(&a, &b).unwrap() else {
+    let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("tangent-edge union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts), Ok(()));
+    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()), Ok(()));
     // Shell count pinned alongside exact volume: admesh's parts=N alone
     // cannot distinguish a legit assembly from a wrongly-disconnected
     // one-part result (review R7b).
     assert_eq!(r.body.shells().count(), 2);
-    let m = mass_properties(&r.body).unwrap();
+    let m = mass_properties(&r.body, Tol::witness()).unwrap();
     assert_eq!(m.volume, 2.0);
     assert_eq!(m.surface_area, 12.0);
-    let mesh = mesh::tessellate(&r.body, 1e-2).unwrap();
+    let mesh = mesh::tessellate(&r.body, 1e-2, Tol::witness()).unwrap();
     check_mesh(&mesh).unwrap();
     let v = signed_volume(&mesh);
     assert!((v - 2.0).abs() < 1e-9, "mesh volume {v}");

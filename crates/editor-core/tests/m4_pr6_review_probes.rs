@@ -19,7 +19,7 @@ use fixture::{desc, insert, len};
 use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
-    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
+    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -45,10 +45,11 @@ fn small() -> (ProfileDoc, String) {
                 value: 2.5,
             },
         },
+        Tol::witness(),
     )
     .unwrap()
     .doc;
-    let text = save(&doc, &[]).unwrap();
+    let text = save(&doc, &[], Tol::witness()).unwrap();
     (doc, text)
 }
 
@@ -60,7 +61,7 @@ fn small() -> (ProfileDoc, String) {
 /// the attack surface SHRANK to the placement.)
 #[test]
 fn attack_all_ones_nan_slips_save_door() {
-    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
+    let doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut d = desc(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -69,7 +70,7 @@ fn attack_all_ones_nan_slips_save_door() {
     );
     d.plane.placement.translation.y = f64::from_bits(u64::MAX); // a NaN
     let (doc, _) = insert(doc, Node::Profile(d));
-    match save(&doc, &[]) {
+    match save(&doc, &[], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: editor_core::persist::NonFiniteSite::Profile { node, index },
         }) => {
@@ -116,7 +117,7 @@ fn attack_duplicate_json_keys() {
         "\"q\": {\"Continuous\":{\"dim\":\"Length\",\"value\":9.75}}, \"q\": {",
     );
     assert_ne!(dup_param, text, "fixture must contain the param");
-    match load(&dup_param) {
+    match load(&dup_param, Tol::witness()) {
         Err(PersistError::Parse { message, .. }) => {
             assert!(
                 message.contains("duplicate document parameter key") && message.contains("\"q\""),
@@ -142,7 +143,7 @@ fn attack_duplicate_node_keys() {
         format_args!("{entry}{entry}"),
         &text[end..]
     );
-    match load(&doubled) {
+    match load(&doubled, Tol::witness()) {
         Err(PersistError::Parse { message, .. }) => {
             assert!(
                 message.contains("duplicate snapshot node key"),
@@ -168,7 +169,7 @@ fn attack_noncanonical_integer_keys() {
         format_args!("{entry}{alias}"),
         &text[end..]
     );
-    match load(&doubled) {
+    match load(&doubled, Tol::witness()) {
         Err(_) => {}
         Ok(_) => panic!("\"0\" and \"00\" both accepted as node id 0 — silent last-wins"),
     }
@@ -194,7 +195,7 @@ fn attack_long_decimal_strings() {
         let expect: f64 = s.parse().unwrap(); // Rust core: correctly rounded
         let crafted = text.replace("\"value\": 2.5", &format!("\"value\": {s}"));
         assert_ne!(crafted, text);
-        let loaded = load(&crafted).expect("valid file");
+        let loaded = load(&crafted, Tol::witness()).expect("valid file");
         let Some(DocParam::Continuous { value, .. }) =
             loaded.doc.params().get(&ParamName::new("q"))
         else {
@@ -215,7 +216,7 @@ fn attack_inf_via_big_exponent() {
     for s in ["1e999", "-1e999", "1e309"] {
         let crafted = text.replace("\"value\": 2.5", &format!("\"value\": {s}"));
         assert_ne!(crafted, text);
-        match load(&crafted) {
+        match load(&crafted, Tol::witness()) {
             Err(PersistError::Parse { .. }) => {}
             Ok(l) => panic!(
                 "{s} loaded as {:?}",
@@ -238,10 +239,10 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         )
     };
-    let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes");
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
-        let a = apply(doc, &e).unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
+        let a = apply(doc, &e, Tol::witness()).unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
         *doc = a.doc;
         edits.push(e);
         a.record.minted
@@ -465,23 +466,23 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(&mut doc, DocEdit::SetTolerance { eps: amb });
 
     // Round-trip as a FULL LOG from an empty snapshot.
-    let text = save(&ProfileDoc::empty_derived("m4_pr6_review_probes"), &edits).expect("save log");
-    let loaded = load(&text).expect("load log");
+    let text = save(&ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()), &edits, Tol::witness()).expect("save log");
+    let loaded = load(&text, Tol::witness()).expect("load log");
     assert_eq!(loaded.edits, edits, "edit log round-trip");
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
     // AND as a snapshot.
-    let text2 = save(&doc, &[]).expect("save snapshot");
-    let loaded2 = load(&text2).expect("load snapshot");
+    let text2 = save(&doc, &[], Tol::witness()).expect("save snapshot");
+    let loaded2 = load(&text2, Tol::witness()).expect("load snapshot");
     assert!(loaded2.doc.bit_eq(&doc));
     // Replay identity fingerprint.
     let fp = |d: &ProfileDoc| {
-        let ev = evaluate::<f64>(d, None, &CancelToken::new(), &EvalOptions::default());
+        let ev = evaluate::<f64>(d, None, &CancelToken::new(), &EvalOptions::default(), Tol::witness());
         format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
     };
     assert_eq!(fp(&doc), fp(&loaded.doc), "log replay fingerprint");
     assert_eq!(fp(&doc), fp(&loaded2.doc), "snapshot replay fingerprint");
     // Canonical bytes.
-    assert_eq!(save(&loaded2.doc, &[]).unwrap(), text2);
+    assert_eq!(save(&loaded2.doc, &[], Tol::witness()).unwrap(), text2);
 }
 
 /// ATTACK 6: truncation ladder — typed refusal at every cut, never a
@@ -492,7 +493,7 @@ fn attack_truncation_ladder() {
     let n = text.len();
     for i in 1..=10 {
         let cut = &text[..(n * i / 11)];
-        match load(cut) {
+        match load(cut, Tol::witness()) {
             Err(
                 PersistError::Parse { .. }
                 | PersistError::Header { .. }
@@ -523,7 +524,7 @@ fn attack_byte_flips() {
         let Ok(s) = String::from_utf8(b) else {
             continue;
         };
-        let _ = load(&s); // must not panic; Result either way
+        let _ = load(&s, Tol::witness()); // must not panic; Result either way
     }
 }
 
@@ -534,7 +535,7 @@ fn attack_epsilon_doors_in_file() {
     let amb = format!("{:?}", doc.epsilon());
     let neg = text.replace(&format!("\"epsilon\": {amb}"), "\"epsilon\": -0.0");
     assert_ne!(neg, text, "epsilon field present as {amb}");
-    match load(&neg) {
+    match load(&neg, Tol::witness()) {
         Err(PersistError::Snapshot(_)) => {}
         other => panic!("-0.0 epsilon must refuse as snapshot invariant, got {other:?}"),
     }
@@ -553,7 +554,7 @@ fn attack_header_spellings() {
         format!("schema: 0{v}"),
     ] {
         let t = format!("{h}\n{body}");
-        match load(&t) {
+        match load(&t, Tol::witness()) {
             Err(PersistError::Header { .. }) => {}
             other => panic!("non-canonical header {h:?} must refuse typed, got {other:?}"),
         }
@@ -561,7 +562,7 @@ fn attack_header_spellings() {
     // The canonical spelling still loads. (M5 PR 10: the version is
     // read from `SCHEMA_VERSION`, not a literal — a schema bump must
     // not silently turn this row into a too-old refusal probe.)
-    assert!(load(&format!("schema: {v}\n{body}")).is_ok());
+    assert!(load(&format!("schema: {v}\n{body}"), Tol::witness()).is_ok());
 }
 
 /// ATTACK 10: appearance key referencing a DELETED node (< next_id,
@@ -594,10 +595,11 @@ fn attack_meta_order_canonical() {
                 key: "k".into(),
                 value: tree(order),
             },
+            Tol::witness(),
         )
         .unwrap()
         .doc;
-        save(&d, &[]).unwrap()
+        save(&d, &[], Tol::witness()).unwrap()
     };
     assert_eq!(
         mk(true),
@@ -622,6 +624,7 @@ fn duplicate_keys_refuse_in_every_map() {
                 bytes: vec![0x11],
             },
         },
+        Tol::witness(),
     )
     .unwrap()
     .doc;
@@ -636,6 +639,7 @@ fn duplicate_keys_refuse_in_every_map() {
             name: body.clone(),
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
+        Tol::witness(),
     )
     .unwrap()
     .doc;
@@ -648,10 +652,11 @@ fn duplicate_keys_refuse_in_every_map() {
             key: "k".into(),
             value: MetaValue::Map(m),
         },
+        Tol::witness(),
     )
     .unwrap()
     .doc;
-    let text = save(&doc, &[]).unwrap();
+    let text = save(&doc, &[], Tol::witness()).unwrap();
 
     // (surgery pattern, expected section words)
     let cases: [(&str, &str, &str); 5] = [
@@ -684,7 +689,7 @@ fn duplicate_keys_refuse_in_every_map() {
     for (needle, replacement, expected) in cases {
         let crafted = text.replacen(needle, replacement, 1);
         assert_ne!(crafted, text, "fixture must contain {needle:?}");
-        match load(&crafted) {
+        match load(&crafted, Tol::witness()) {
             Err(PersistError::Parse { message, .. }) => assert!(
                 message.contains(expected),
                 "expected {expected:?} in refusal, got: {message}"

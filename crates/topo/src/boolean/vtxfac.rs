@@ -52,6 +52,7 @@ use crate::entity::HalfEdgeKey;
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Output of one vertex-on-face classification.
 #[derive(Debug)]
@@ -83,6 +84,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     op: BooleanOp,
     declared: &super::DeclaredPairs,
     band: Band,
+    tol: Tol,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
     // Both halves of the pierced face's oriented datum, from the one
@@ -379,6 +381,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         },
         p,
         geom_brep::EdgeCurveSpec::line_between(p_u, p),
+        tol,
     )?;
     // (2) detach as an empty-loop ring at the pierce vertex.
     let kemr = pierced_body.kemr(chord.he_plus, chord.he_minus)?;

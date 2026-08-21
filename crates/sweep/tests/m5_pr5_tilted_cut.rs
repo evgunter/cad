@@ -40,7 +40,7 @@ fn disc() -> ValidatedProfile<f64> {
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0)).unwrap().body
+    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness()).unwrap().body
 }
 
 /// Every certified `Ellipse` edge of a body, with its curve.
@@ -83,7 +83,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
         // quadrature enclosure's bounds (construction row, the S9
         // flip pattern; the enclosure itself is pinned in
         // `m5_pr11_quad_props.rs`).
-        if let Err(errs) = validate_geometric(part) {
+        if let Err(errs) = validate_geometric(part, Tol::witness()) {
             panic!("tier 3 passes end to end since PR 11: {errs:?}");
         }
         // The section boundary: exactly two ellipse arcs (one per wall
@@ -140,7 +140,7 @@ fn perpendicular_cut_stays_rung_1_circles() {
     };
     for part in [above, below] {
         assert_eq!(validate_closed(part), Ok(()));
-        assert_eq!(validate_geometric(part), Ok(()));
+        assert_eq!(validate_geometric(part, Tol::witness()), Ok(()));
         assert!(ellipse_edges(part).is_empty(), "no ellipse minted");
         // The section boundary circles sit at z = 0.5 with radius 0.5.
         let mut section_circles = 0;
@@ -176,7 +176,7 @@ fn axis_parallel_cut_splits_through_rim_crossings() {
     };
     for part in [above, below] {
         assert_eq!(validate_closed(part), Ok(()));
-        assert_eq!(validate_geometric(part), Ok(()));
+        assert_eq!(validate_geometric(part, Tol::witness()), Ok(()));
         assert!(ellipse_edges(part).is_empty(), "ruling sections are lines");
     }
 }
@@ -256,6 +256,7 @@ fn tangent_plane_refuses_typed() {
 /// surfaces (the exact-in-ℝ claim, certified).
 #[cfg(feature = "interval")]
 mod interval {
+    use geom_core::Tol;
     use super::*;
     use geom_core::{Bounds, Interval, Real};
 
@@ -326,7 +327,7 @@ fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, B
     for part in [above, below] {
         assert_eq!(validate(part), Ok(()));
         assert_eq!(validate_closed(part), Ok(()));
-        if let Err(errs) = validate_geometric(part) {
+        if let Err(errs) = validate_geometric(part, Tol::witness()) {
             panic!("tier 3 passes end to end since PR 11: {errs:?}");
         }
     }
@@ -621,7 +622,7 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
         assert!(topo::pcurves::validate_pcurves(&part, band).is_empty());
         // And a fresh mint over the same body is accepted and clean.
         let mut again = part.clone();
-        topo::mint_pcurves(&mut again).unwrap();
+        topo::mint_pcurves(&mut again, Tol::witness()).unwrap();
         assert!(topo::pcurves::validate_pcurves(&again, band).is_empty());
         // The curved wall pieces really do carry caches (the row would
         // be vacuous on an all-planar body).

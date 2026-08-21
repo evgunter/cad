@@ -18,6 +18,7 @@ use editor_core::{
     StableName, WitnessDatum, content_pin, header_document_id, load, save,
 };
 use fixture::{desc, insert, len, step};
+use geom_core::Tol;
 
 /// The shared exemplar: a block (profile + extrude) and a document
 /// param, under a derived id.
@@ -28,7 +29,7 @@ fn exemplar(
     editor_core::RecipeNodeId,
     editor_core::RecipeNodeId,
 ) {
-    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -64,7 +65,7 @@ fn exemplar(
 fn row1_same_construction_same_pin() {
     let (a, _, _) = exemplar("asm1-row1");
     let (b, _, _) = exemplar("asm1-row1");
-    assert_eq!(content_pin(&a).unwrap(), content_pin(&b).unwrap());
+    assert_eq!(content_pin(&a, Tol::witness()).unwrap(), content_pin(&b, Tol::witness()).unwrap());
 }
 
 /// Row 2a — history independence: two DIFFERENT edit paths reaching
@@ -106,7 +107,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
             },
         },
     );
-    assert_eq!(content_pin(&a).unwrap(), content_pin(&b).unwrap());
+    assert_eq!(content_pin(&a, Tol::witness()).unwrap(), content_pin(&b, Tol::witness()).unwrap());
     // And through the persistence door: the two saves carry DIFFERENT
     // edit logs over one origin; both load-replay to the same pin.
     let (origin, _, _) = exemplar("asm1-row2");
@@ -125,25 +126,25 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         },
     }];
     log_b.extend(log_a.clone());
-    let loaded_a = load(&save(&origin, &log_a).unwrap()).unwrap();
-    let loaded_b = load(&save(&origin, &log_b).unwrap()).unwrap();
+    let loaded_a = load(&save(&origin, &log_a, Tol::witness()).unwrap(), Tol::witness()).unwrap();
+    let loaded_b = load(&save(&origin, &log_b, Tol::witness()).unwrap(), Tol::witness()).unwrap();
     assert_ne!(loaded_a.edits, loaded_b.edits, "the histories differ");
     assert_eq!(
-        content_pin(&loaded_a.doc).unwrap(),
-        content_pin(&loaded_b.doc).unwrap()
+        content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
+        content_pin(&loaded_b.doc, Tol::witness()).unwrap()
     );
     // The loaded pin is the EDITED state's pin, not the origin's — a
     // load that skipped replay would degrade both branches to the
     // origin pin and the equality above would hold vacuously (R1
     // NOTE-1); this line is what catches it.
     assert_eq!(
-        content_pin(&loaded_a.doc).unwrap(),
-        content_pin(&a).unwrap(),
+        content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
+        content_pin(&a, Tol::witness()).unwrap(),
         "the replayed load pins as the 0.9 state, never the origin"
     );
     assert_ne!(
-        content_pin(&loaded_a.doc).unwrap(),
-        content_pin(&origin).unwrap()
+        content_pin(&loaded_a.doc, Tol::witness()).unwrap(),
+        content_pin(&origin, Tol::witness()).unwrap()
     );
 }
 
@@ -152,7 +153,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
 #[test]
 fn row2_undone_edit_pin_unchanged() {
     let (doc, _, _) = exemplar("asm1-row2b");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let (edited, _) = step(
         doc,
         DocEdit::SetDocParam {
@@ -163,7 +164,7 @@ fn row2_undone_edit_pin_unchanged() {
             },
         },
     );
-    assert_ne!(content_pin(&edited).unwrap(), before, "the edit moved it");
+    assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before, "the edit moved it");
     let (undone, _) = step(
         edited,
         DocEdit::SetDocParam {
@@ -174,7 +175,7 @@ fn row2_undone_edit_pin_unchanged() {
             },
         },
     );
-    assert_eq!(content_pin(&undone).unwrap(), before);
+    assert_eq!(content_pin(&undone, Tol::witness()).unwrap(), before);
 }
 
 /// Row 3 (and row 5) — id retarget: equal content under two ids
@@ -185,8 +186,8 @@ fn row3_row5_id_excluded_from_pin() {
     let (b, _, _) = exemplar("asm1-id-b");
     assert_ne!(a.id(), b.id(), "distinct ids");
     assert_eq!(
-        content_pin(&a).unwrap(),
-        content_pin(&b).unwrap(),
+        content_pin(&a, Tol::witness()).unwrap(),
+        content_pin(&b, Tol::witness()).unwrap(),
         "equal content, equal pins — the id answers \"which part\", \
          the pin \"which version\""
     );
@@ -196,7 +197,7 @@ fn row3_row5_id_excluded_from_pin() {
 #[test]
 fn row4_node_edit_moves_pin() {
     let (doc, _, extrude) = exemplar("asm1-row4a");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let (edited, _) = step(
         doc,
         DocEdit::SetParam {
@@ -205,14 +206,14 @@ fn row4_node_edit_moves_pin() {
             expr: len(0.625),
         },
     );
-    assert_ne!(content_pin(&edited).unwrap(), before);
+    assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
 }
 
 /// Row 4b — a document-param edit moves the pin.
 #[test]
 fn row4_param_edit_moves_pin() {
     let (doc, _, _) = exemplar("asm1-row4b");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let (edited, _) = step(
         doc,
         DocEdit::SetDocParam {
@@ -223,17 +224,17 @@ fn row4_param_edit_moves_pin() {
             },
         },
     );
-    assert_ne!(content_pin(&edited).unwrap(), before);
+    assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
 }
 
 /// Row 4c — an ε change moves the pin (ε is semantic: the A2 seam).
 #[test]
 fn row4_epsilon_change_moves_pin() {
     let (doc, _, _) = exemplar("asm1-row4c");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let eps = doc.epsilon();
     let (edited, _) = step(doc, DocEdit::SetTolerance { eps: eps * 2.0 });
-    assert_ne!(content_pin(&edited).unwrap(), before);
+    assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
 }
 
 /// Row 4e — an appearance edit moves the pin (D-3 as amended:
@@ -243,7 +244,7 @@ fn row4_epsilon_change_moves_pin() {
 #[test]
 fn row4_appearance_edit_moves_pin() {
     let (doc, _, extrude) = exemplar("asm1-row4e");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let cap = StableName {
         kind: EntityKind::Face,
         node: extrude,
@@ -257,7 +258,7 @@ fn row4_appearance_edit_moves_pin() {
         },
     );
     assert!(!painted.appearance().is_empty(), "the edit landed");
-    assert_ne!(content_pin(&painted).unwrap(), before);
+    assert_ne!(content_pin(&painted, Tol::witness()).unwrap(), before);
 }
 
 /// Row 4f — a metadata edit moves the pin (D-3 as amended). The
@@ -267,7 +268,7 @@ fn row4_appearance_edit_moves_pin() {
 #[test]
 fn row4_metadata_edit_moves_pin() {
     let (doc, _, extrude) = exemplar("asm1-row4f");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let body = StableName {
         kind: EntityKind::Body,
         node: extrude,
@@ -283,7 +284,7 @@ fn row4_metadata_edit_moves_pin() {
             value: MetaValue::Map(m),
         },
     );
-    assert_ne!(content_pin(&annotated).unwrap(), before);
+    assert_ne!(content_pin(&annotated, Tol::witness()).unwrap(), before);
 }
 
 /// Row 4d — a witness change moves the pin (branch selection is
@@ -291,7 +292,7 @@ fn row4_metadata_edit_moves_pin() {
 #[test]
 fn row4_witness_change_moves_pin() {
     let (doc, profile, _) = exemplar("asm1-row4d");
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let (edited, _) = step(
         doc,
         DocEdit::ReWitness {
@@ -302,7 +303,7 @@ fn row4_witness_change_moves_pin() {
             },
         },
     );
-    assert_ne!(content_pin(&edited).unwrap(), before);
+    assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
 }
 
 /// Row 8 — a v4 file refuses TYPED with the regenerate recourse (the
@@ -312,7 +313,7 @@ fn row4_witness_change_moves_pin() {
 fn row8_v4_file_refuses_typed() {
     let v4 = include_str!("golden/v4_golden.cad");
     assert_eq!(v4.lines().next(), Some("schema: 4"));
-    match load(v4) {
+    match load(v4, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -346,17 +347,17 @@ fn row8_v4_file_refuses_typed() {
 #[test]
 fn header_id_line_round_trips_and_tamper_refuses() {
     let (doc, _, _) = exemplar("asm1-header");
-    let text = save(&doc, &[]).unwrap();
+    let text = save(&doc, &[], Tol::witness()).unwrap();
     let mut lines = text.lines();
     assert_eq!(lines.next(), Some(&format!("schema: {SCHEMA_VERSION}")[..]));
     assert_eq!(lines.next(), Some(&format!("id: {}", doc.id())[..]));
     assert_eq!(header_document_id(&text).unwrap(), doc.id());
-    assert_eq!(load(&text).unwrap().doc.id(), doc.id());
+    assert_eq!(load(&text, Tol::witness()).unwrap().doc.id(), doc.id());
 
     // Tamper the header id line: typed IdMismatch naming both ids.
     let other = DocumentId::derive("asm1-header-tampered");
     let tampered = text.replace(&format!("id: {}", doc.id()), &format!("id: {other}"));
-    match load(&tampered) {
+    match load(&tampered, Tol::witness()) {
         Err(PersistError::IdMismatch { header, snapshot }) => {
             assert_eq!(header, other);
             assert_eq!(snapshot, doc.id());
@@ -366,7 +367,7 @@ fn header_id_line_round_trips_and_tamper_refuses() {
 
     // A missing id line refuses in header terms.
     let headerless = text.replacen(&format!("id: {}\n", doc.id()), "", 1);
-    match load(&headerless) {
+    match load(&headerless, Tol::witness()) {
         Err(PersistError::HeaderId { .. }) => {}
         got => panic!("a missing id line must refuse HeaderId, got {got:?}"),
     }
@@ -392,7 +393,7 @@ fn doc_ref_display_and_serde() {
     let (doc, _, _) = exemplar("asm1-docref");
     let r = DocRef {
         id: doc.id(),
-        pin: content_pin(&doc).unwrap(),
+        pin: content_pin(&doc, Tol::witness()).unwrap(),
     };
     let shown = r.to_string();
     assert_eq!(shown, format!("{}@{}", doc.id(), &r.pin.hex()[..12]));
@@ -410,7 +411,7 @@ fn doc_ref_display_and_serde() {
 #[test]
 fn row4_doc_metadata_in_preimage_via_crafted_save() {
     let (doc, _, _) = exemplar("asm1-row4-meta");
-    let text = save(&doc, &[]).unwrap();
+    let text = save(&doc, &[], Tol::witness()).unwrap();
     let needle = "\"metadata\": {}";
     assert_eq!(
         text.matches(needle).count(),
@@ -418,16 +419,16 @@ fn row4_doc_metadata_in_preimage_via_crafted_save() {
         "exactly the snapshot's one empty metadata map"
     );
     let crafted = text.replace(needle, "\"metadata\": {\"units\": \"mm\"}");
-    let twin = load(&text).unwrap();
-    let loaded = load(&crafted).unwrap();
+    let twin = load(&text, Tol::witness()).unwrap();
+    let loaded = load(&crafted, Tol::witness()).unwrap();
     assert_eq!(
         loaded.doc.metadata().get("units").map(String::as_str),
         Some("mm"),
         "the crafted map survived the load doors"
     );
     assert_ne!(
-        content_pin(&loaded.doc).unwrap(),
-        content_pin(&twin.doc).unwrap(),
+        content_pin(&loaded.doc, Tol::witness()).unwrap(),
+        content_pin(&twin.doc, Tol::witness()).unwrap(),
         "metadata is content: dropping it from the preimage must fail HERE"
     );
 }
@@ -443,7 +444,7 @@ fn row4_doc_metadata_in_preimage_via_crafted_save() {
 fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
     let nodes_before = doc.len();
-    let before = content_pin(&doc).unwrap();
+    let before = content_pin(&doc, Tol::witness()).unwrap();
     let (with_extra, extra) = insert(
         doc,
         Node::Profile(desc(
@@ -456,7 +457,7 @@ fn stated_consequence_undone_insert_moves_pin() {
     let (undone, _) = step(with_extra, DocEdit::DeleteNode { id: extra });
     assert_eq!(undone.len(), nodes_before, "the node itself is gone");
     assert_ne!(
-        content_pin(&undone).unwrap(),
+        content_pin(&undone, Tol::witness()).unwrap(),
         before,
         "counter residue pins as a new version — the spec's stated consequence"
     );

@@ -64,9 +64,10 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::sizing::{Tol, cap_angular, ceil_count, sagitta_step, torus_grid_step};
+use crate::sizing::{SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
+use geom_core::Tol;
 
 /// Tessellates one curved face into outward-wound triangles,
 /// appending interior grid points to `positions`.
@@ -76,7 +77,7 @@ pub(crate) fn tessellate_curved(
     surface: &Surface<f64>,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     positions: &mut Vec<Point3<f64>>,
-    tol: &Tol,
+    tol: &SizingTols,
 ) -> Result<Vec<[u32; 3]>, TessellateError> {
     let face = body
         .get_face(fk)
@@ -689,6 +690,7 @@ mod tests {
     //! argument rests on, the refusal itself, and the sweep showing
     //! nothing this build authors trips it.
 
+    use geom_core::Tol;
     use super::*;
     use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
@@ -804,7 +806,7 @@ mod tests {
             ProfileVertex::new(p2(0.0, -1.0), 1.0),
             ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
             .unwrap()
             .body
     }
@@ -817,21 +819,21 @@ mod tests {
             ProfileVertex::new(p2(0.0, -1.0), 1.0),
             ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
             .unwrap()
             .body
     }
 
     fn cone_body() -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
             .unwrap()
             .body
     }
 
     fn washer() -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
             .unwrap()
             .body
     }
@@ -841,14 +843,14 @@ mod tests {
             ProfileVertex::new(p2(2.0, -0.5), 1.0),
             ProfileVertex::new(p2(2.0, 0.5), 1.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
             .unwrap()
             .body
     }
 
     fn wedge(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
             .unwrap()
             .body
     }
@@ -859,7 +861,7 @@ mod tests {
     /// *because the walk is hardest there*.
     fn axis_wedge(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
             .unwrap()
             .body
     }
@@ -870,7 +872,7 @@ mod tests {
     /// the other hardest-walk shape.
     fn mirror_nappe(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
+        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta), Tol::witness())
             .unwrap()
             .body
     }
@@ -891,7 +893,7 @@ mod tests {
         ]);
         let n = lp.vertices().len();
         lp = lp.with_tangent_joints((0..n).collect());
-        extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
+        extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness())
             .unwrap()
             .body
     }
@@ -907,19 +909,19 @@ mod tests {
             p2(4.0, 4.0),
             p2(0.0, 4.0),
         ]);
-        let slab = extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
+        let slab = extrude(&validated(vec![lp]), Extrusion::Distance(1.0), Tol::witness())
             .unwrap()
             .body;
         let half = ProfileLoop::new(vec![
             ProfileVertex::new(p2(0.0, -0.5), 1.0),
             ProfileVertex::new(p2(0.0, 0.5), 0.0),
         ]);
-        let ball = revolve(&validated(vec![half]), axis_y(), Revolution::Full)
+        let ball = revolve(&validated(vec![half]), axis_y(), Revolution::Full, Tol::witness())
             .unwrap()
             .body;
         let ball =
-            topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(2.0, 2.0, 1.2))).unwrap();
-        topo::boolean::subtract(&slab, &ball)
+            topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)), Tol::witness()).unwrap();
+        topo::boolean::subtract(&slab, &ball, Tol::witness())
             .expect("the die pip cuts")
             .body()
             .expect("a pip is a dent, not a void")
@@ -994,7 +996,7 @@ mod tests {
                 // Not `ok &= …`: the second split of a failed first is
                 // meaningless, and the first failure is the reportable
                 // one.
-                if let Err(e) = b.split_edge(ek, t0 + (t1 - t0) * f) {
+                if let Err(e) = b.split_edge(ek, t0 + (t1 - t0) * f, Tol::witness()) {
                     failed = Some(format!("edge {i} @{f}: split_edge {e:?}"));
                     break;
                 }
@@ -1003,7 +1005,7 @@ mod tests {
                 skipped.push(why);
                 continue;
             }
-            match topo::transform_rigid(&b, &placement) {
+            match topo::transform_rigid(&b, &placement, Tol::witness()) {
                 Ok(placed) => out.push((i, placed)),
                 Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
             }
@@ -1134,7 +1136,7 @@ mod tests {
                     // refuse identically before and after. What must
                     // never happen is `Ok` plus a dirty mesh — the #653
                     // defect's signature.
-                    match crate::tessellate(&placed, 0.1) {
+                    match crate::tessellate(&placed, 0.1, Tol::witness()) {
                         Ok(mesh) => {
                             checked += 1;
                             here += 1;
@@ -1250,7 +1252,7 @@ mod tests {
     fn no_fixture_refuses_through_the_public_entry_point() {
         for (name, body) in fixtures() {
             for delta in [0.25, 0.04] {
-                let mesh = crate::tessellate(&body, delta)
+                let mesh = crate::tessellate(&body, delta, Tol::witness())
                     .unwrap_or_else(|e| panic!("{name} at delta={delta} refused: {e:?}"));
                 crate::validate::check_mesh(&mesh)
                     .unwrap_or_else(|e| panic!("{name} at delta={delta} meshed dirty: {e:?}"));
@@ -1563,6 +1565,7 @@ mod tests {
             &validated(vec![lp]),
             axis_y(),
             Revolution::Partial(core::f64::consts::FRAC_PI_2),
+            Tol::witness(),
         )
         .unwrap()
         .body;
@@ -1573,8 +1576,8 @@ mod tests {
             .certified()
             .unwrap()
             .params();
-        body.split_edge(ek, t0 + (t1 - t0) * 0.312_9).unwrap();
-        body.split_edge(ek, t0 + (t1 - t0) * 0.156_45).unwrap();
+        body.split_edge(ek, t0 + (t1 - t0) * 0.312_9, Tol::witness()).unwrap();
+        body.split_edge(ek, t0 + (t1 - t0) * 0.156_45, Tol::witness()).unwrap();
         // Deliberately irrational-ish: an axis-aligned or dyadic
         // placement keeps the sub-edge azimuths bitwise equal and the
         // row goes green for the wrong reason.
@@ -1584,7 +1587,7 @@ mod tests {
             Affine3::rotation_about_axis(Point3::origin(), irr, 1.0 / 3.0).linear,
             Vec3::new(0.117, -0.339_1, 5.001_7),
         );
-        topo::transform_rigid(&body, &placement).unwrap()
+        topo::transform_rigid(&body, &placement, Tol::witness()).unwrap()
     }
 
     /// **THE REGRESSION ROW (issue #653).** This body meshed
@@ -1625,7 +1628,7 @@ mod tests {
              box means the iso-side runs stopped working"
         );
 
-        let mesh = crate::tessellate(&body, 0.1).expect("must not refuse");
+        let mesh = crate::tessellate(&body, 0.1, Tol::witness()).expect("must not refuse");
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
         assert_eq!(n, 42, "the pre-guard triangle count, unchanged");

@@ -28,6 +28,7 @@ use editor_core::{
     BooleanValue, Evaluation, NodeResult, ProductError, ProfileDoc, RecipeNodeId, ValuePayload,
 };
 use step_export::{StepExportError, StepOptions, step_string};
+use geom_core::Tol;
 
 /// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
 /// evaluation-side arms carry the ids to ask the caller's own
@@ -127,6 +128,7 @@ pub fn step_for_node(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
     options: &StepOptions,
+    tol: Tol,
 ) -> Result<String, ExportError> {
     let result = evaluation
         .result(node)
@@ -154,7 +156,7 @@ pub fn step_for_node(
             });
         }
     };
-    step_string(body, options).map_err(ExportError::Step)
+    step_string(body, options, tol).map_err(ExportError::Step)
 }
 
 /// Serializes the WHOLE DOCUMENT's product — the gather of every
@@ -178,7 +180,8 @@ pub fn export_document_step(
     evaluation: &Evaluation<f64>,
     doc: &ProfileDoc,
     options: &StepOptions,
+    tol: Tol,
 ) -> Result<String, ExportError> {
-    let body = editor_core::product(doc, evaluation).map_err(ExportError::Product)?;
-    step_string(&body, options).map_err(ExportError::Step)
+    let body = editor_core::product(doc, evaluation, tol).map_err(ExportError::Product)?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
 }

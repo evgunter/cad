@@ -57,6 +57,7 @@ use crate::node::RecipeNodeId;
 use geom_core::linalg::frame::FrameError;
 use geom_core::linalg::{Affine3, Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate};
+use geom_core::Tol;
 
 pub mod coset;
 pub mod solve;
@@ -123,11 +124,11 @@ impl MateFrame {
     ///
     /// [`FrameError`] when the axis has no definite direction or the
     /// reference has no definite perpendicular offset from it.
-    pub fn placement(&self) -> Result<Affine3<f64>, FrameError> {
+    pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
         let eye = Point3::new(self.origin[0], self.origin[1], self.origin[2]);
         let axis = Vec3::new(self.axis[0], self.axis[1], self.axis[2]);
         let reference = Vec3::new(self.reference[0], self.reference[1], self.reference[2]);
-        geom_core::linalg::frame::point_at(eye, eye + axis, reference)
+        geom_core::linalg::frame::point_at(eye, eye + axis, reference, tol)
     }
 }
 

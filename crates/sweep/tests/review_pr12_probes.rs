@@ -31,7 +31,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h)).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness()).unwrap().body
 }
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -48,8 +48,8 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap().body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 /// PROBE A: pips first, then request ALL edges (box + rims) — where
@@ -57,7 +57,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 /// the assembly refusal.
 #[test]
 fn probe_a_pipped_cube_all_edges() {
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let pipped = boolean_op_with(
         BooleanOp::Subtract,
@@ -65,6 +65,7 @@ fn probe_a_pipped_cube_all_edges() {
         &ball,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .unwrap()
     .body()
@@ -91,7 +92,7 @@ fn probe_a_pipped_cube_all_edges() {
         }
         Err(e) => println!("PROBE A: battery refuses: {e}"),
     }
-    match fillet_edges(&pipped, &edges, 0.12, band()) {
+    match fillet_edges(&pipped, &edges, 0.12, band(), Tol::witness()) {
         Ok(_) => println!("PROBE A: fillet_edges SUCCEEDED (composition works!)"),
         Err(e) => println!("PROBE A: fillet_edges refuses: {e}"),
     }
@@ -116,9 +117,9 @@ fn probe_b_hexagonal_prism_over_refusal() {
     let edges = all_edges(&body);
     assert_eq!(edges.len(), 18);
     for r in [0.30 * a, 0.45 * a, 0.499 * a, 0.51 * a, 0.6 * a, 0.8 * a] {
-        match fillet_edges(&body, &edges, r, band()) {
+        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
             Ok(f) => {
-                let t3 = topo::validate_geometric(&f.body).is_ok();
+                let t3 = topo::validate_geometric(&f.body, Tol::witness()).is_ok();
                 println!("PROBE B: r={r:.3} builds, tier3 ok = {t3}");
             }
             Err(e) => println!("PROBE B: r={r:.3} refuses: {e}"),
@@ -130,7 +131,7 @@ fn probe_b_hexagonal_prism_over_refusal() {
 /// each rim arc's he_plus run WITH its carrier?
 #[test]
 fn probe_d_rim_arc_orientation() {
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let pipped = boolean_op_with(
         BooleanOp::Subtract,
@@ -138,6 +139,7 @@ fn probe_d_rim_arc_orientation() {
         &ball,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .unwrap()
     .body()
@@ -188,13 +190,13 @@ fn probe_e_hexagon_tier3_error() {
         .collect();
     let body = prism(&pts, 4.0);
     let edges = all_edges(&body);
-    let f = fillet_edges(&body, &edges, 0.3, band()).expect("builds");
-    println!("PROBE E: tier3 = {:?}", topo::validate_geometric(&f.body));
+    let f = fillet_edges(&body, &edges, 0.3, band(), Tol::witness()).expect("builds");
+    println!("PROBE E: tier3 = {:?}", topo::validate_geometric(&f.body, Tol::witness()));
     println!(
         "PROBE E: props = {:?}",
-        topo::mass_properties(&f.body).map(|p| (p.volume, p.volume_pad))
+        topo::mass_properties(&f.body, Tol::witness()).map(|p| (p.volume, p.volume_pad))
     );
-    if let Err(errs) = topo::validate_geometric(&f.body) {
+    if let Err(errs) = topo::validate_geometric(&f.body, Tol::witness()) {
         for e in &errs {
             let txt = format!("{e:?}");
             if let Some(i) = txt.find("FaceKey(") {
@@ -223,9 +225,9 @@ fn probe_e_hexagon_tier3_error() {
 /// edge/face pair the pierce door names, and that face's surface kind.
 #[test]
 fn probe_g_door_a_fields() {
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     let edges = all_edges(&c);
-    let blank = fillet_edges(&c, &edges, 0.12, band()).unwrap().body;
+    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness()).unwrap().body;
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let err = boolean_op_with(
         BooleanOp::Subtract,
@@ -233,6 +235,7 @@ fn probe_g_door_a_fields() {
         &ball,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .expect_err("door A");
     println!("PROBE G: {err}");
@@ -243,9 +246,9 @@ fn probe_g_door_a_fields() {
 /// does the scan then reach the true pierce door, and on which pair?
 #[test]
 fn probe_h_door_a_closed_tool() {
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     let edges = all_edges(&c);
-    let blank = fillet_edges(&c, &edges, 0.12, band()).unwrap().body;
+    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness()).unwrap().body;
     // Two pips on the top face (the diag pair of face value 2 layout,
     // scaled): a multi-ball closed-group tool, unioned first.
     let b1 = ball_at(0.09, Vec3::new(0.28, 0.28, 1.04));
@@ -256,6 +259,7 @@ fn probe_h_door_a_closed_tool() {
         &b2,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .unwrap()
     .body()
@@ -268,6 +272,7 @@ fn probe_h_door_a_closed_tool() {
         &tool,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .map(|_| ())
     .expect_err("door A multi");
@@ -278,9 +283,9 @@ fn probe_h_door_a_closed_tool() {
 /// refusal variant, faithfully replicated from the die test.
 #[test]
 fn probe_i_door_a_full_tool() {
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     let edges = all_edges(&c);
-    let blank = fillet_edges(&c, &edges, 0.12, band()).unwrap().body;
+    let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness()).unwrap().body;
     let (pip_r, pip_h, pip_d, h) = (0.09, 0.05, 0.22, 0.5);
     let layout = |n: u32| -> Vec<(f64, f64)> {
         let c = vec![(0.0, 0.0)];
@@ -350,6 +355,7 @@ fn probe_i_door_a_full_tool() {
             &ball_at(pip_r, *c),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         )
         .unwrap()
         .body()
@@ -363,6 +369,7 @@ fn probe_i_door_a_full_tool() {
         &tool,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .map(|_| ())
     .expect_err("door A full");
@@ -397,10 +404,10 @@ fn probe_f_skinny_triangle_refusal_boundary() {
     let body = prism(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.15)], 2.0);
     let edges = all_edges(&body);
     for r in [0.05, 0.06, 0.07, 0.072, 0.0735, 0.075, 0.08] {
-        match fillet_edges(&body, &edges, r, band()) {
+        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
             Ok(f) => {
                 let t2 = topo::validate_closed(&f.body).is_ok();
-                let mesh_ok = mesh::tessellate(&f.body, 5e-3)
+                let mesh_ok = mesh::tessellate(&f.body, 5e-3, Tol::witness())
                     .ok()
                     .map(|m| mesh::validate::check_mesh(&m).is_ok());
                 println!("PROBE F: r={r} builds, tier2={t2}, mesh watertight={mesh_ok:?}");
@@ -414,23 +421,24 @@ fn probe_f_skinny_triangle_refusal_boundary() {
 /// battery pass, does construction succeed, and what do the tiers say?
 #[test]
 fn probe_c_oblique_trihedron() {
-    let c1 = cube(1.0);
+    let c1 = cube(1.0, Tol::witness());
     // A slab rotated so one face slices the (1,1,1) corner obliquely.
-    let c2 = cube(3.0);
+    let c2 = cube(3.0, Tol::witness());
     let rot = Affine3::rotation_about_axis(
         Point3::new(1.0, 1.0, 1.0),
         Vec3::new(1.0, -1.0, 0.0).normalize(),
         0.4,
     );
     let c2 =
-        topo::transform_rigid(&c2, &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45))).unwrap();
-    let c2 = topo::transform_rigid(&c2, &rot).unwrap();
+        topo::transform_rigid(&c2, &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)), Tol::witness()).unwrap();
+    let c2 = topo::transform_rigid(&c2, &rot, Tol::witness()).unwrap();
     let out = boolean_op_with(
         BooleanOp::Intersect,
         &c1,
         &c2,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     );
     let body = match out {
         Ok(o) => o.body().unwrap().body.clone(),
@@ -446,13 +454,13 @@ fn probe_c_oblique_trihedron() {
         body.vertices().count()
     );
     let edges = all_edges(&body);
-    match fillet_edges(&body, &edges, 0.08, band()) {
+    match fillet_edges(&body, &edges, 0.08, band(), Tol::witness()) {
         Ok(f) => {
             println!(
                 "PROBE C: builds; tier1 {:?} tier2 {:?} tier3 {:?}",
                 topo::validate(&f.body).is_ok(),
                 topo::validate_closed(&f.body).is_ok(),
-                topo::validate_geometric(&f.body)
+                topo::validate_geometric(&f.body, Tol::witness())
             );
         }
         Err(e) => println!("PROBE C: fillet refuses: {e}"),

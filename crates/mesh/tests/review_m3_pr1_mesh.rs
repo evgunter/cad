@@ -29,14 +29,14 @@ fn tessellate_refuses_null_scaffold_typed() {
     )
     .validate(Tol::witness())
     .unwrap();
-    let mut body: Body<f64> = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
-    let mesh_before = tessellate(&body, 0.01).unwrap();
+    let mut body: Body<f64> = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap().body;
+    let mesh_before = tessellate(&body, 0.01, Tol::witness()).unwrap();
     let v = body.vertices().next().map(|(k, _)| k).unwrap();
     let he = body.get_vertex(v).unwrap().emanating.unwrap();
     let created = body
         .mev_null(MevSite::Fan { he1: he, he2: he }, NewVertexSide::Above)
         .unwrap();
-    let err = tessellate(&body, 0.01).unwrap_err();
+    let err = tessellate(&body, 0.01, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, TessellateError::NullScaffoldEdge { edge } if edge == created.edge),
         "tessellation must refuse the null edge typed, got {err:?}"
@@ -47,7 +47,7 @@ fn tessellate_refuses_null_scaffold_typed() {
     // valid) diagonal. Positions and triangle counts are identical;
     // replay determinism (same history -> same mesh) is unaffected.
     body.kev(created.he_plus).unwrap();
-    let mesh_after = tessellate(&body, 0.01).unwrap();
+    let mesh_after = tessellate(&body, 0.01, Tol::witness()).unwrap();
     assert_eq!(
         format!("{:?}", mesh_before.positions),
         format!("{:?}", mesh_after.positions)

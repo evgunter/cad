@@ -77,7 +77,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options).unwrap()
+    step_string(body, &options, Tol::witness()).unwrap()
 }
 
 /// The curved half of the committed corpus.
@@ -666,7 +666,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             "SINGLE-SHELL: {name} is single-shell"
         );
         assert!(
-            step_string(body, &StepOptions::default()).is_ok(),
+            step_string(body, &StepOptions::default(), Tol::witness()).is_ok(),
             "SINGLE-SHELL: {name}"
         );
     }
@@ -718,7 +718,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     skeleton
         .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
         .unwrap();
-    match step_string(&skeleton, &StepOptions::default()) {
+    match step_string(&skeleton, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::UnsupportedSurface { kind, .. }) => {
             assert_eq!(kind, "nurbs placeholder", "CENSUS");
         }
@@ -932,7 +932,7 @@ fn epsilon_reaches_only_the_uncertainty_record() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        step_string(&body, &options).unwrap()
+        step_string(&body, &options, Tol::witness()).unwrap()
     };
     let tight = at(1e-9);
     let loose = at(1e-6);
@@ -981,7 +981,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        match step_string(&stubs, &options) {
+        match step_string(&stubs, &options, Tol::witness()) {
             Err(StepExportError::CurvedShellClassification { kind, .. }) => {
                 // The classifier walks a shell face-first and each
                 // face surface-then-carriers, so the entity it meets
