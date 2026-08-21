@@ -14,10 +14,17 @@
 mod corpus;
 mod fixture;
 
-/// The Probe lane (K-funnel registration): the document replays at the
-/// recording scalar with bit-identical decisions — the probe sweep's
-/// precondition, so the new predicates' margins join the telemetry
-/// without any registration step.
+/// The Probe lane (K-funnel registration): the document evaluates green
+/// at the recording scalar, which is the probe sweep's precondition —
+/// the new predicates' margins join the telemetry without a registration
+/// step.
+///
+/// **Greenness is what this asserts; bit-identity is what it is reaching
+/// for.** Nothing here compares a `Probe` result against an f64 one, and
+/// greenness is tolerance-dependent, so the claim holds at the ε the run
+/// used. `m4_pr8_k_probe`'s `run_doc` asserts the same predicate over
+/// every corpus document — this one included — at three ε on every
+/// merge; what this row adds is that this file executes.
 #[test]
 fn cut_cylinder_replays_at_probe() {
     let doc = corpus::cut_cylinder::document();

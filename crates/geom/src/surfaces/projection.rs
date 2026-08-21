@@ -159,16 +159,16 @@ impl<T: Bounds> NurbsSurface<T> {
         let mut best = (ku.domain().0, kv.domain().0);
         let mut best_d2 = f64::INFINITY;
         for iu in ku.first_span()..=ku.last_span() {
-            // Emptiness check and span validation are one step, in both
-            // directions; the window is then built once per span CELL —
-            // it is the same window for all `SEEDS_PER_SPAN²`
-            // evaluations below.
-            let Some(span_u) = ku.span(iu) else { continue };
             let (a0, a1) = (ku.knots()[iu], ku.knots()[iu + 1]);
             for iv in kv.first_span()..=kv.last_span() {
-                let Some(span_v) = kv.span(iv) else { continue };
+                // Emptiness check, span validation and window
+                // construction are one step in both directions; the
+                // window is then reused for all `SEEDS_PER_SPAN²`
+                // evaluations below.
+                let Some(win) = self.window(iu, iv) else {
+                    continue;
+                };
                 let (b0, b1) = (kv.knots()[iv], kv.knots()[iv + 1]);
-                let win = self.window_of(span_u, span_v);
                 for i in 0..PROJECT_SEEDS_PER_SPAN {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
