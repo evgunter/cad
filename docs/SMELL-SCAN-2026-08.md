@@ -9744,6 +9744,8 @@ closed"*. This one is decided-and-open.
 
 **What the ruling does NOT do — and the distinction is Evan's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds** — the quadrature arm declining internally while the rest genuinely validates, after which every certificate's value channel is compared bitwise to the `f64` build. Bounding that pass on `CertifiedBounds` would not harden it; it would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
 
+**Implemented by #883** (the `sweep/fillet` third of the door inventory) and, separately, by the `topo::chart_region` + `geom` projection PR that follows it — split so a decision flagged *"at least for now"* is independently revertible.
+
 *(Asked by Track H on claiming, 2026-08-21; the record of the question is below and in PR #867.)*
 
 **Original question, kept because the answer is only legible against it — ASKED 2026-08-21.** Track H
