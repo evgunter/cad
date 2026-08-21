@@ -9621,28 +9621,155 @@ enumerates "the four lane traits" will miss it.
 
 **Verdict:**
 
-## S88. D1 newly opened sole-`T: Bounds` doors that the sweep's own pattern cannot see
+## S88. FIXED IN PART by #875 — the `geom` half; the `profile` half is Track G's **G4**
 
-The D1 sweep's declared pattern is *"a line mentioning `dual` within a
-±4-line window of [a phrase list]"*, and its declared blind spot is a
-claim that states the premise without those words. That does not cover
-the larger set: sole-bound `T: Bounds` doors that never mention duals at
-all and that D1 nonetheless opened.
+**Scope, first, because the `FIXED` lead would otherwise read as the
+whole finding.** #875 closes the `geom` half only. The `profile` half —
+`crates/profile/src/fillet_select.rs` — belongs to **Track G's G4** and
+is untouched here; the receipt #875 hands it is in the enumeration
+below. `crates/geom-brep/` is likewise enumerated and not taken.
 
-`geom`'s public point-projection doors are the clearest —
-`project`/`project_seed`/`project_from_seed` are `T: Bounds` on
-`impl<T: Bounds> $Curve<T>` / `NurbsSurface<T>`
-(`crates/geom/src/projection.rs:111`, `curves/projection.rs:129`,
-`surfaces/projection.rs:146`), and a `Dual64` now instantiates the whole
-Newton lane through `mid()`. A word-boundary grep for `Dual` across
-those files plus `curves/boxes.rs` and `bvh/src/aabb.rs` returns one
-hit, and it is the word "dual" meaning "counterpart" in `pmin`'s doc.
-Treat the admits-table's six seams as a sample, not an enumeration; next
-sites are `geom-brep/src/ssi.rs:1187`'s `TubeScale<T: Bounds>` and
-`pcurve_cache::rational_arc_chain`, plus
-`crates/profile/src/fillet_select.rs:98`.
+**The row was not "fix a line".** The finding's point is that the
+admits-table's six seams were a *sample*, so the deliverable was the
+*census* — every sole-`T: Bounds` door the D1 ruling opened.
 
-**Verdict:**
+### The pattern, and what it could not match
+
+Grep the **shape**, not the symbol: the word `Dual` is exactly what a
+door of this class never says. The census greps the identifiers
+`\bBounds\b` and `\bEnclosure\b` over `crates/geom-core/`, `crates/geom/`
+(and, for the handoffs, `crates/bvh/`, `crates/geom-brep/`,
+`crates/profile/`), strips leading-`//` comment lines, and reads every
+surviving hit by hand — 21 in `geom/src`, 10 in `geom-core/src`.
+
+**The alias gap is the one that would sink this, and it is CLOSED for
+these two crates by construction, not by the grep.** `bounds-allowlist.sh`'s
+KNOWN GAP 3/4 is that a compound bound given a name (`ArcCarrierScalar`,
+`Bracket`) is invisible at its ~49 use sites. So the census also
+enumerates every `trait` **declared** in the two crates and reads its
+supertrait list: `ControlPoint<T: Real>`, `Real`, `Bounds`, `Enclosure`,
+`CertifiedEnclosure`, `CertifiedBounds`, `Decide: SpanLocate`,
+`SpanLocate: Sealed + Real`, `KinkJacobian: Real`, `sealed::Sealed`. Only
+the trait definitions themselves name a bracket door, so **no alias route
+into these crates exists** and the identifier grep is complete for them.
+
+**What it still cannot match**, stated rather than left to be
+discovered: (1) an alias declared in a **third** crate and used here —
+none exists today, and closing it needs the whole-tree version of the
+trait walk above, not a bigger regex; (2) a bound reached by a
+supertrait obligation, `bounds-allowlist.sh`'s KNOWN GAP 2, which the
+trait walk covers only because these crates' traits are few enough to
+read; (3) `crates/*/tests/`, deliberately — a test is not a door. What
+would close (1) and (2) for the tree is a `cargo`-driven walk of every
+generic parameter's resolved bound set, which is a `rustc` plugin or a
+`rust-analyzer` query, not a grep, and it is the only thing that closes
+them. **The census is accurate as of #875's merge base.**
+
+### The census — `crates/geom-core/`
+
+**None.** Its only generic bracket consumer, `spline::hull` (ten `pub`
+doors), is bounded by `CertifiedEnclosure`, which `Dual` does not
+implement and which D1 explicitly refused it. The `T: Bounds` occurrences
+in `geom-core/src` are the trait definition, three `impl Bounds for`
+blocks, `impl Bounds for Dual` itself, and test code. **D1 opened no door
+in the crate it changed.**
+
+### The census — `crates/geom/`, four modules, 13 public functions
+
+One line per door: what it is, whether a `Dual64` through it is
+meaningful, and the disposition.
+
+| Door | A `Dual64` through it | Disposition |
+|---|---|---|
+| `curves::boxes::circle_arc_aabb` (`:176`) | meaningful — the value channel's box, which by D9 *is* the plain-`f64` run's box | **fine**, by delegation; nothing written here |
+| `curves::boxes::ellipse_arc_aabb` (`:293`) | same | **fine**, same reason |
+| `curves::boxes::nurbs_curve_aabb` (`:376`) | same, and it is bracket reads only — no arithmetic | **fine**, same reason |
+| `surfaces::boxes::nurbs_surface_aabb` (`:25`) | same | **fine**, same reason |
+| `curves::boxes::Brk::of` (`:36`, `pub(crate)`) | the mechanism of the four above | **fine**; not a door |
+| `NurbsCurve{2,3}::project` (`curves/projection.rs:119`) | meaningful and **partly wrong** | → **issue #874** + docs |
+| `NurbsCurve{2,3}::project_seed` | meaningful — returns `f64`, so the type already says it carries no tangent | **fine**, and it is *why* the two above are wrong |
+| `NurbsCurve{2,3}::project_from_seed` | as `project` | → **issue #874** + docs |
+| `NurbsSurface::project` (`surfaces/projection.rs:136`) | as the curve half, in two parameters | → **issue #874** + docs |
+| `NurbsSurface::project_seed` | as the curve half | **fine** |
+| `NurbsSurface::project_from_seed` | as `project` | → **issue #874** + docs |
+| `projection::mid` (`:111`, `pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
+
+**"Fine, because —" is the disposition for five of the twelve, and the
+reason is one reason.** The box constructors' bracket read is
+**terminal**: it goes into an `f64` box and stops. Every endpoint a dual
+produces is its value channel's, which is the plain-`T` run's
+bit-identically, so a dual run's box *is* the base scalar's box —
+`topo::separation`'s delegation argument verbatim. Nothing is owed and
+**nothing was written at those four modules**: the general statement has
+one home, at `impl Bounds for Dual`, which already named boxes as what
+the impl opens.
+
+### What the census found that the finding did not: the projection lane is a wrong answer
+
+The projection doors read a bracket and feed the `f64` **back into** the
+computation — `mid()` selects the foot parameter and an `f64` struct
+field freezes it — so delegation makes the value right and says **nothing
+about the tangent**. Measured on a sliding degree-1 line and its bilinear
+surface twin, against central differences:
+
+```
+true dfoot.x/ds = 0      Dual64 says 1
+true dortho/ds  = 0      Dual64 says 4
+true ddist/ds   = 0      Dual64 says 0   (right, by the envelope theorem)
+```
+
+`foot` and both orthogonality residuals are **partials at a frozen `t*`**,
+short by the `C′(t*)·dt*/dp` term. `distance` survives because at a
+converged foot the orthogonality condition *is* the vanishing of that
+term's coefficient, and at a clamped domain-end foot `dt*/dp` is itself
+zero — so both exits of the lane leave it correct, and only it. Per this
+track's routing that is a **GitHub issue, not a smell row**: **#874**,
+carrying the reproduction, the per-field table and three dispositions.
+
+### The distinction, which is the durable part
+
+`impl Bounds for Dual`'s own sentence — *"what opens is the bracket half
+— boxes, pruning, and the `f64` margin payloads a typed refusal
+reports"* — is a three-item list, and **all three are terminal reads**.
+That is what made this class invisible: a bracket read is either
+**terminal**, where delegation is the whole story, or **fed back**, a
+selection that becomes a constant in the dual program, where delegation
+is not an argument at all. #875 writes that distinction and the census
+above at `dual.rs`, one short pointer at `real.rs`'s scope rule (kept
+short on purpose — **S85** is a live complaint about that block's
+growth, and **H-c** owns it), the freeze at `projection::mid`, and the
+per-field consequence at `Projection{2,3}` and `SurfaceProjection`.
+
+### What enforces it afterwards: nothing, and that is by design
+
+`scripts/gates/bounds-allowlist.sh` **cannot** see this class — a sole
+bracket bound is its planted **must-not-fire** self-test case
+(`plant_sole_bracket_bounds`), for the sound reason that firing would red
+every certification file in `geom` and `geom-brep`. So the sole bound is
+the form `real.rs`'s scope rule governs and no instrument watches, the
+census above is a snapshot nothing re-derives, and the next such door is
+invisible the day it is written. **A disclosed blind spot is a work
+order**: that is **S210**, unstaffed, with the cost of closing it.
+
+### Handed off, not taken
+
+- **Track G's G4** (`crates/profile/`): `fillet_select.rs::nearest_joint`
+  (`:169`) is the sole-bound door. **The finding's `:98` is a doc line,
+  not a door** — re-derive against the tree. `path/arc_fillet.rs:361`'s
+  `map_refusal<T: Bounds>` is a second sole-bound door the finding does
+  not name; the rest of that file is the ratified `Decide + Bounds` seam.
+- **`crates/geom-brep/`** (Track C's ground, no live orchestrator):
+  `ssi.rs:218`'s `impl<T: Bounds> TubeScale<T>` — **the finding's
+  `:1187` is `certify_rung3`'s doc, and `certify_rung3` is compound and
+  therefore shut at a dual by `CertifiedEnclosure`**; and
+  `ssi/certify.rs:{271,277,289}`'s `exact`, `exact3`, `composite_form`,
+  three private sole-bound helpers the finding does not name.
+  `pcurve_cache::rational_arc_chain` (`:1055`) is `Decide + Bounds` with
+  no `CertifiedEnclosure` — instantiable at a dual, and the same shape as
+  `topo::separation` and `chart_region_overlap`.
+- **`crates/bvh/`** (no track): `aabb.rs:87`'s
+  `Aabb::from_points<T: Bounds>` — terminal, sound by delegation, and the
+  one door every `geom` box constructor funnels into.
 
 ## S89. The one-home fix for the ring crossing minted three local aliases and a hand-counted tally
 
@@ -13063,6 +13190,82 @@ NOT fixed is the gap itself** — the wrapper property is still checked by
 nothing. That is **D114**.
 
 
+# Findings raised by the Track H lanes (2026-08-21)
+
+## S210. The sole-`T: Bounds` class has a rule, no instrument, and no census outside `geom`
+
+**Raised by H-d while producing S88's `geom` census.** `real.rs`'s
+`Bounds` scope rule says bracket extraction may appear only in
+certification and driver code, and that code writes `T: Bounds` as the
+parameter's **sole** bound. Every ratified amendment to that rule, and
+the whole of `scripts/gates/bounds-allowlist.sh`, is about the
+**compound** form — and the gate plants a sole bracket bound as an
+explicit **must-not-fire** self-test case (`plant_sole_bracket_bounds`),
+because firing on it would red every certification file in `geom` and
+`geom-brep`.
+
+So the form the rule actually prescribes is the form nothing watches.
+That was free while `Dual` had no `Bounds` impl: a sole-bound door was
+reachable only by scalars that certify. **The D1 ruling (2026-08-19)
+ended that in one stroke**, and S88 is what one crate's worth of the
+consequence looks like — four modules, twelve doors, one of them a
+reachable wrong answer (**#874**) that no grep for `Dual` could have
+found.
+
+**What is not censused.** S88 covers `geom-core` (none) and `geom`
+(four modules). Enumerated but handed off rather than taken:
+`geom-brep/src/ssi.rs:218`, `ssi/certify.rs:{271,277,289}`,
+`pcurve_cache.rs:1055`; `profile/src/{fillet_select.rs:169,
+path/arc_fillet.rs:361}`; `bvh/src/aabb.rs:87`. Nobody has walked
+`topo/`, `sweep/`, `editor-core/`, `mesh/` or `step-*` for the shape at
+all, and the doors that matter are the ones nobody would think to look
+for, since they never mention a dual.
+
+**What would close it, and what it costs.** Not a bigger regex — the
+gate's own KNOWN GAPs 1–4 are the proof, and a sole-bound matcher has a
+worse problem than the compound one: the population is large and mostly
+*legitimate*, so an allowlist of it is a roster nobody maintains. Two
+honest options. **(a)** A whole-tree walk of every `trait` declaration's
+supertrait list plus the identifier grep — what S88 did for two crates —
+producing a **census with a disposition per door**, re-derived per
+milestone rather than per merge. Cost: one lane per crate group, and it
+expires. **(b)** A `rustc`/`rust-analyzer` query over resolved bound
+sets, which is the only thing that sees an alias declared in another
+crate or a bound reached by a supertrait obligation. Cost: a real tool,
+and it is the only version that stays true.
+
+**Not H-d's to place.** The class spans Track G's ground (`profile/`),
+Track C's (`geom-brep/`), Track I's (`mesh/`) and `bvh/`, which no track
+owns — so a schedule row for it is an orchestrator's act, not a lane's,
+and one is deliberately not minted here.
+
+## S211. FIXED by #875 — two `geom` box modules call themselves allowlisted seams the gate structurally cannot see
+
+`geom/src/curves/boxes.rs:13` said *"certified-box driver code, an
+allowlisted [`Bounds`] seam (ratified 2026-07-29 …)"*, and
+`geom/src/surfaces/boxes.rs:5` said the same in one clause. Neither file
+is on `scripts/gates/bounds-allowlist.sh`'s list, and **neither can be**:
+both write a **sole** `T: Bounds`, which is the gate's planted
+must-not-fire case. The 2026-07-29 amendment they cite ratifies the box
+constructors to write the **compound** `Decide + Bounds` form — a
+permission neither module uses.
+
+So the sentence is wrong twice over, and in the direction that costs
+most: it tells a reader that a gate is watching this file. That is the
+same class as `bounds-allowlist.sh`'s own retracted GAP-4 mitigation —
+*"a false mitigation is worse than a disclosed hole because it tells the
+next author the door is shut"* — committed in the files the gate was
+written to leave alone. Both now say sole-bound, and say that the rule
+covers them while the gate does not.
+
+**A third member is not taken**: `bvh/src/lib.rs:56-61` says its `Bounds`
+reads are ratified *"(the CI discipline grep allowlists exactly these
+seams)"*, and `crates/bvh` appears nowhere in the gate's filters —
+`aabb.rs:87` is a sole bound too. `bvh` is outside Track H's scope
+(`geom-core/`, `geom/`) and no track owns it; the line is one clause and
+whoever next opens that crate should take it.
+
+
 # §A. Where I would start
 
 **Superseded 2026-08-19 by §D, and kept as written.** Three of its four items
@@ -15340,16 +15543,15 @@ Every row here is takeable today.
 | **H3** | **The `Bounds` trait's headline still calls it the certification door, and its ledger grew 50% under the fix meant to retarget it.** | **S85** |
 | **H4** | **The one-home fix for the ring crossing minted three local aliases and a hand-counted tally.** | **S89** |
 | **H5** | **The lane-trait collapse, `RingInterval`, and the scalar ladders** — Track C's **C-l**, never started. Expect it to split into two or three lanes; the sub-lane that *rewrites* `Dual` arithmetic rather than re-spelling it is **adversarial**, per C-R12. **535 refs across 15 files.** | C7 + **S33** |
-| **H6** | **D1's newly opened sole-`T: Bounds` doors that the sweep's own pattern cannot see** — the `geom` half only; the `profile` half is Track G's **G4**. | **S88** |
 | **H7** | **Reassociate the scaled square** — **ruled YES by Evan** (2026-08-21). `linalg/vec.rs`'s `orthonormal_basis` `b1` is byte-free (`s = ±1` multiplies exactly); `linalg/mat.rs::rotation_about`'s `t·x·x` moves `f64` bytes and re-cuts goldens, which is a chore and not a contract. **Sequencing, non-negotiable: convert the two sites, re-cut what moves, THEN widen the matcher** — widening first reds two ratified sites and greening that by allowlisting is S63's already-realised outcome for the third time. **Extend the `Dual` tangent guard with the change**, not after it. **ADVERSARIAL** — it moves `f64` bytes and re-cuts goldens; the sequencing is the risk, and getting it backwards is an outcome S63 has already realised twice. | **D109**(a) |
 | ~~**H8**~~ | ~~Roll-up members in these crates.~~ **DISSOLVED into H2 on claiming (H-R2).** **`S110(f)` was already CLOSED by #790** — the citation came from the frozen table, which predates #790, and was transcribed rather than re-derived when this track was constituted (**H-R1**; §H's own *re-derive after every merge* rule applies to a citation exactly as it does to a number). That leaves `S116(b)` as the row's whole content, and `S116(b)`'s `azimuth` half **is `S102`'s subject** — `surfaces.rs:26-30`'s *"The shared helper"* bullet, spelling the `radial`/`tangential` formula without naming `crate::azimuth`. Two lanes editing one merge's naming residue in one file is a conflict the schedule manufactured. | ~~S110(f)~~, **S116(b) → H2** |
 
 **Sequencing, set on claiming — three waves ordered by file collision, not by
-importance.** **Wave 1: `H1`, `H6`, `H7`** (disjoint files — `ring_interval.rs`,
+importance.** **Wave 1: `H1`, ~~`H6`~~ (**closed by #875**), `H7`** (disjoint files — `ring_interval.rs`,
 `geom`'s projection doors, `geom-core/src/linalg/`; `H1` first, as marked).
 **Wave 2: `H2`, `H3`+`H4` as one lane** — `H3`/`H4` both sit on `real.rs` and
-`from_certified`, which `H1` rewrites, and `H2`'s naming work wants `H6`'s doc
-changes landed under it. **Wave 3: `H5`**, in two or three sub-lanes. **`H5` goes
+`from_certified`, which `H1` rewrites, and `H2`'s naming work wants the doc
+changes that were `H6`'s landed under it (**#875**). **Wave 3: `H5`**, in two or three sub-lanes. **`H5` goes
 last for the reason `C-n` does**: 535 refs across 15 files is every file the other
 rows edit, and that is a property of the work rather than of the schedule. Full
 roster, and the argument for each adversarial marking, in `docs/SMELL-H-LOG.md`.
