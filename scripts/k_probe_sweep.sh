@@ -47,6 +47,68 @@ prefix=${K_SWEEP_PREFIX:-k-eps-}
 
 mkdir -p "$outdir/m2"
 
+# WHAT ACTUALLY RAN, one row per invocation:
+# `<mode><TAB><crate><TAB><module><TAB><passed><TAB><ignored>`.
+#
+# THE MODE IS THE SELECTION — `--ignored` or the default — and it is part
+# of the row because the two run DISJOINT halves of a suite. That is the
+# whole of D84: every document put `editor-core` on the executed side
+# because this script names it with `-p`, while the only thing it ran
+# there was the one `#[ignore]`d dump, and a second plain `#[test]` in
+# that very module had never executed either.
+#
+# THE IGNORED COLUMN IS WHAT CLOSES THE SET, and it is the reason a floor
+# alone is not enough. A floor catches a suite that stops running; it
+# cannot catch a suite that GROWS a test the rostered selections do not
+# reach. A module-filtered run under the DEFAULT selection reports every
+# `#[ignore]`d test it skipped, so `plain.ignored` is exactly the set the
+# plain half did not execute — and `probe-suite-census.sh
+# --check-executed` requires that number to equal what the `--ignored`
+# half actually ran. Add a plain `#[test]` and the plain run executes it;
+# add an `#[ignore]`d one and the two numbers part. Neither needs a
+# predicate over the source.
+#
+# Every count is the test runner's own, never what a filter could have
+# matched: a filter naming a suite whose tests carry no `#[ignore]`
+# selects the module and runs none of it, so reachability and execution
+# are different questions and only the second is worth a floor.
+#
+# NOT IN `$outdir`: re-cutting the committed baseline points this script
+# at `docs/k-report-data/`, and a stray dotfile does not belong in the
+# durable record.
+ran=$(mktemp)
+trap 'rm -f "$ran"' EXIT
+export RAN_TALLY="$ran"
+record_ran() {
+  printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" >> "$RAN_TALLY"
+}
+
+# One field of `test result: ok. 1 passed; 0 failed; 1 ignored; …`, which
+# is the runner's own account of what EXECUTED and what it skipped.
+# Defaults to 0 so a caller can never read the empty string.
+result_field() {
+  local n
+  n=$(awk -v f="$2;" '/^test result: ok\./ { for (i = 2; i <= NF; i++) if ($i == f) { print $(i-1) + 0; exit } }' "$1")
+  printf '%s' "${n:-0}"
+}
+
+# The tail every invocation shares: read the counts, record the row, and
+# refuse a selection that neither ran nor skipped anything — a renamed
+# module, a suite dropped from its crate's `tests/all.rs`, or a `#[ignore]`
+# that moved all produce exactly that, and cargo exits 0 over it. Sets
+# `sel_passed` and `sel_ignored` for the caller's own guards.
+finish_run() {
+  local mode=$1 pkg=$2 module=$3 log=$4
+  sel_passed=$(result_field "$log" passed)
+  sel_ignored=$(result_field "$log" ignored)
+  rm -f "$log"
+  record_ran "$mode" "$pkg" "$module" "$sel_passed" "$sel_ignored"
+  if [ "$((sel_passed + sel_ignored))" -lt 1 ]; then
+    echo "ERROR: \`$module::\` neither ran nor skipped a single test in $pkg under the $mode selection — the run recorded nothing and would have exited 0. Check the module name and that it is still \`#[path]\`-declared in that crate's tests/all.rs." >&2
+    exit 1
+  fi
+}
+
 # A NAME FILTER THAT MATCHES NOTHING EXITS 0. Every harness below is
 # selected by `--ignored <module>::` against an aggregated `--test all`
 # binary, so nothing about the selection is checked by cargo: a renamed
@@ -55,16 +117,15 @@ mkdir -p "$outdir/m2"
 # So the row count and the dump are both asserted here — this is the only
 # place that can tell the difference between "clean" and "ran nothing".
 run_dump() {
-  local eps=$1 label=$2 pkg=$3 filter=$4 out=$5 log passed
+  local eps=$1 label=$2 pkg=$3 module=$4 out=$5 log
   log=$(mktemp)
   echo "=== k-probe sweep @ eps=$eps ($label) ==="
   CAD_TOLERANCE_EPS=$eps CAD_K_REPORT_OUT="$out" \
     cargo test -p "$pkg" --features probe --test all -- \
-      --ignored --nocapture "$filter" | tee "$log"
-  passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' "$log" | head -1)
-  rm -f "$log"
-  if [ "${passed:-0}" -lt 1 ]; then
-    echo "ERROR: \`$filter\` matched no test in $pkg — the sweep recorded nothing and would have exited 0. Check the module name and its \`#[ignore]\`." >&2
+      --ignored --nocapture "$module::" | tee "$log"
+  finish_run ignored "$pkg" "$module" "$log"
+  if [ "$sel_passed" -lt 1 ]; then
+    echo "ERROR: \`$module::\` matched no \`#[ignore]\`d test in $pkg — the sweep recorded nothing and would have exited 0. Check the module's \`#[ignore]\`." >&2
     exit 1
   fi
   # `wc -l < missing` prints NOTHING, and `[ "" -lt 2 ]` errors — which
@@ -77,6 +138,51 @@ run_dump() {
   fi
 }
 
+# THE DEFAULT SELECTION, which `run_dump` above cannot reach. `--ignored`
+# runs ONLY `#[ignore]`d tests, so every plain `#[test]` in a probe suite
+# was unreachable from this script — including one inside a module the
+# sweep already named. This runs the other half, and records the
+# `#[ignore]`d complement the floor needs.
+#
+# WHAT THESE TESTS ASSERT, stated because it is what decides the
+# placement: one-sided GREENNESS at `Probe` — `failures(&ev).is_empty()`
+# — and not bit-identity against an f64 run, which no test in this tree
+# compares. Greenness is TOLERANCE-DEPENDENT, so this runs at a stated ε
+# rather than at whatever the ambient default happens to be.
+#
+# ONCE, NOT PER ε, and the reason is redundancy rather than ε-invariance.
+# `m4_pr8_k_probe`'s `run_doc` asserts the same predicate — plus `validate`,
+# `validate_closed` and `mass_properties` — over every corpus document, and
+# the loop below runs it at all three ε on every merge. So the ε sweep of
+# this property is already paid; what running the plain selection buys is
+# that these test bodies EXECUTE at all, and the complement count above.
+# Sweeping them would buy a third copy of an ε sweep that already exists.
+PLAIN_EPS=1e-9
+run_plain() {
+  local pkg=$1 module=$2 log
+  log=$(mktemp)
+  echo "=== probe suite (default selection) @ eps=$PLAIN_EPS: $pkg::$module ==="
+  CAD_TOLERANCE_EPS=$PLAIN_EPS \
+    cargo test -p "$pkg" --features probe --test all -- "$module::" | tee "$log"
+  finish_run plain "$pkg" "$module" "$log"
+}
+
+# DERIVED FROM THE ROSTER, not hand-listed beside it. The roster is the
+# executed set; a hand list here is a second copy of it that drifts, and
+# `--check-executed` would then be floored on rows nothing produces.
+#
+# BOUND FIRST, deliberately: a command substitution inside a process
+# substitution or a `for` list is not subject to `set -e`, so a census
+# that refused would print its error and leave this loop running zero
+# invocations — the silence one level up from the one the census exists
+# to remove. `ci.yml`'s probe loop is bound first for the same reason.
+roster=$(scripts/gates/probe-suite-census.sh --executed)
+[ -n "$roster" ] || { echo "ERROR: the probe census printed no executed-set roster." >&2; exit 1; }
+while IFS=$'\t' read -r mode pkg module _; do
+  [ "$mode" = plain ] || continue
+  run_plain "$pkg" "$module"
+done <<<"$roster"
+
 for eps in 1e-6 1e-9 1e-12; do
   corpus="$outdir/.corpus-$eps.csv"
   demos="$outdir/.demos-$eps.csv"
@@ -88,10 +194,10 @@ for eps in 1e-6 1e-9 1e-12; do
   # body, and this sweep is its only consumer). Without the feature the
   # corpus filters match nothing and the tour's `k-probe` mode refuses
   # loudly; either way this script is the thing that must pass it.
-  run_dump "$eps" corpus editor-core m4_pr8_k_probe:: "$corpus"
+  run_dump "$eps" corpus editor-core m4_pr8_k_probe "$corpus"
   # The M2-era instrument. `sweep` sets `autotests = false`, so there is
   # no `--test k_report` target and selection is by module prefix.
-  run_dump "$eps" "M2 corpus" sweep k_report:: "$m2"
+  run_dump "$eps" "M2 corpus" sweep k_report "$m2"
   echo "=== k-probe sweep @ eps=$eps (demo scenes) ==="
   (cd "$root/demos/tour" && CAD_TOLERANCE_EPS=$eps cargo run --features probe -- k-probe "$demos")
   # One header, then both bodies — corpus first, demos second.
@@ -105,3 +211,10 @@ for eps in 1e-6 1e-9 1e-12; do
     echo "wrote $merged and $m2"
   fi
 done
+
+# THE FLOOR ON WHAT RAN, and the complement that closes the set. Every
+# invocation above recorded both what it EXECUTED and what it SKIPPED;
+# this is what turns a sweep that selected everything and ran nothing
+# into a failure, and what catches a suite growing a test no selection
+# reaches. It is the only place with the evidence for either.
+scripts/gates/probe-suite-census.sh --check-executed < "$ran"

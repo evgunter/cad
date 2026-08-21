@@ -144,9 +144,32 @@ fn sharp_after_arc_arrival() {
         .iter()
         .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
         .expect("the authored anchor is a vertex");
+    // The declared set is POPULATED on this same chain — the opening
+    // fillet declares its own two joints — so the absence below is a
+    // statement about a working datum rather than about an empty one.
+    let declared = lp.tangent_joints();
+    assert_eq!(
+        declared.len(),
+        2,
+        "the opening fillet declares its two joints; got {declared:?}"
+    );
     assert!(
-        !lp.tangent_joints().contains(&anchor_idx),
-        "the sharp junction at the anchor is not declared tangent"
+        !declared.contains(&anchor_idx),
+        "the sharp junction at the anchor is not declared tangent, among {declared:?}"
+    );
+    // And the continuation is the sharp one that was authored: the leg
+    // leaves the anchor on the authored heading of 2.6 rad, where the
+    // arrival tangent is +y — a turn of ~1.03 rad, which is the corner
+    // the declared set must not contain. (A straightness check on the
+    // same segment is not here: `.line()` after `.angle()` emits a zero
+    // bulge by construction, so it could only restate the builder.)
+    let anchor_v = lp.vertices()[anchor_idx];
+    let next = lp.vertices()[(anchor_idx + 1) % lp.vertices().len()];
+    let leg = next.pos() - anchor_v.pos();
+    let heading = leg.y.atan2(leg.x);
+    assert!(
+        (heading - 2.6).abs() < 1e-9,
+        "the leg departs the anchor on the authored heading; got {heading}"
     );
     Profile::new(SketchPlane::xy(), vec![lp.clone()])
         .validate(Tolerance::get())
