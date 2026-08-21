@@ -4492,7 +4492,7 @@ hull-rule area (the +V meter's denominator, **deviation report pending**)"*.
 *Was the acceptance row written so it could not fail?* Yes — provably, by
 contrast with its neighbour in the same file. `m5_pr11_quad_props.rs:71`
 asserts `volume_pad < 1e-3 * half_exact` (a real tightness bound); the area row
-at `:80` asserts only `area_pad > 0.0` plus containment. **Both conditions get
+beside it asserts only `area_pad > 0.0` plus containment. **Both conditions get
 *easier* as the pad widens**, so no width regression can turn that row red.
 
 **FLAGGED AND PARTLY FIXED, remainder explicitly deferred.** PR #472 hit the
@@ -4505,6 +4505,15 @@ with re-measured floors — not smuggling under a guard."*
 *Lesson:* a quantity introduced as a denominator inherits no acceptance
 obligation, and containment-plus-positivity is monotone in the wrong direction
 — every certified **width** needs a row that goes red when it grows.
+
+**Re-opened as S60 and closed there in two pieces.** The acceptance row this
+finding names now pins `area_pad` to the `volume_pad` the kernel does meter —
+an identity of the lane's arithmetic, so it needs no metering rule to state —
+and both it and the loft site carry outer ceilings (S60's record has the
+derivation and the numbers). **The metering half is still open, as issue
+#870** — this finding's first paragraph remains an accurate description of the
+kernel, and #870 measures what it costs. Do not read S26 as closed on the
+strength of S60's `FIXED by`.
 
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
@@ -6620,7 +6629,7 @@ Everything that breaks is a **test**, and there are five sites:
 | `topo/tests/geometric_cube.rs:236` | `validate_geometric` on a `Dual64` body |
 | `topo/tests/review_m2_pr3.rs:224` | `validate_geometric` on a `Dual64` body |
 | `sweep/tests/extrude_acceptance.rs:565` | `validate_geometric` on a `Dual64` body |
-| `sweep/tests/m5_pr11_quad_props.rs:165` | `mass_properties` on a `Dual` body |
+| `sweep/tests/m5_pr11_quad_props.rs`, `dual_lane_keeps_the_closed_form_refusal` | `mass_properties` on a `Dual` body |
 | `topo/tests/fixture/mod.rs:302` | `certify_at_dual` — *"the dual lane's refusal, executed"* |
 
 They fall into two kinds. The last one is a test **of the refusing
@@ -8224,43 +8233,61 @@ seam whose whole purpose is that widening it requires ratification.
 **What the sweep found, and did not close here:** **S124** and **S125**
 below.
 
-## S60. S26 was never fixed — the area enclosure is still unmetered, and its acceptance row is still the canonical monotone-wrong pair
+## S60. FIXED by #873 — the area enclosure is pinned to the flux enclosure it rides on, and the unmetered kernel is measured and filed
 
-**[verified]** **Two independent agents, different files.** The
-`geom-brep/src` fix auditor and the new-tests auditor reached this from
-opposite ends.
+**Ruling I-R2 split the finding.** The acceptance rows are style and landed
+here; the in-kernel metering is a kernel-logic proposal **#472 deferred in
+writing**, and it is now **issue #870**, carrying the measurement that makes it
+answerable. No kernel change.
 
-`area.width()` appears **nowhere** in `crates/geom-brep/src/props/quad.rs`
-(grep count: 0). `mean_boundary_displacement` still reads `flux.width()`
-only and still uses `(area.lo()+area.hi())/2` as a bare lever.
-`QUAD2_AREA_PIECES = 64` (`:826`) is still a fixed pre-refinement
-resolution with no round recomputing it. `area` is still commented as
-*"a certified DENOMINATOR"* at `:1824`. quad.rs's 52 changed lines since
-the base are the `clamped_to` poison-laundering repair and doc prose —
-a different finding entirely.
+**The row that reports the defect is a COUPLING, not a ceiling.** On
+`cylinder_cut_face`, `area = |r·A_s|` and `flux = r²·A_s + o·A⃗` share one
+signed UV area, and `o·A⃗` is a closed form entering flux alone. With
+`area_pad = width(area)/2` and `volume_pad = width(flux)/6` that makes
 
-The acceptance row is unchanged at
-`crates/sweep/tests/m5_pr11_quad_props.rs:87`:
+    area_pad ≤ (3/r)·volume_pad
 
-```rust
-assert!(m.area_pad > 0.0, "the cut wall's area is a certified enclosure");
-assert!(m.surface_area - m.area_pad <= exact && exact <= m.surface_area + m.area_pad, …);
-```
+an identity of the lane's arithmetic — measured to hold within 5e-7 relative at
+every ε. `sweep/tests/m5_pr11_quad_props.rs` now asserts it, on **both** halves
+(the two areas are equal, and the previously untested `above` half is the wider
+of the two at ε = 1e-6). This is S26's complaint stated exactly: it goes red
+when the area bracket stops shrinking alongside the flux bracket the kernel
+*does* meter, rather than when the pad merely gets large; it bites identically
+on every ε leg; and **an area-only widening of 2 parts in 10⁹ turns it red**.
+It invents no metering rule, so #472's deferral is untouched — it transports a
+contract the kernel already enforces.
 
-Every degradation of the area enclosure makes **both** assertions
-easier. The volume row twelve lines up (`:68`) *does* carry a tightness
-ceiling (`volume_pad < 1e-3 * half_exact`), and that ceiling shape was
-newly added post-scan at `crates/sweep/tests/m5_s11_concave_sense.rs:494`.
-So the fix pass swept `volume_pad` and left `area_pad` — in the same
-file the scan drew the shape from. The only other tightness-relevant
-`area_pad` site, `crates/sweep/tests/m6_loft_body.rs:130`, asserts
-`.is_finite()`.
+**Ceilings are the outer backstop, for the one class the pin cannot see** —
+both brackets widening together. `m5_pr11_quad_props.rs` carries
+`area_pad < 3e-4·exact`, measured to fire at a **449×** joint widening at
+default ε and at **2.05×** on the ε = 1e-6 leg, which is where the lane sits at
+its structural maximum. `m6_loft_body.rs` carries `area_pad < 0.3 m²` on the
+patch lane, whose width is resolution-driven and ε-invariant; it fires when
+`QUAD2_AREA_PIECES` halves.
 
-**#472 deferred this. The tree matches the deferral, not the fix.** My
-dispatch brief said it was fixed and asked which faces changed
-disposition; that premise was wrong (§C15).
+**The anchor is a monotonicity, not one knob saturating.** Sweeping the piece
+count over 16..=4096 with the funnel forced to stop at round 0, the area
+half-width falls monotonically 3.05e-4 → 2.89e-9 and floors at ~2.9e-9 on
+accumulated rounding. Because the funnel's reachable set is `16·2^k`, the
+widest enclosure the lane can return is its initial count unrefined:
+**1.47e-4·exact** over both halves and all three ε legs.
 
-**Verdict:**
+**Four more members of the class, fixed in the same file set**: the loft's
+`Interval` row (folded both pads into its bracket and read neither),
+`m6_tube.rs`'s `Interval` row, `mass_props_interval.rs` (which widened its
+admitted band *by the enclosure's own width*), and `halves_sum_to_the_cylinder`
+(whose `+1e-9` slop was seven orders above the rounding scale its comment
+claimed, and whose band was 300× looser than the halves' actual agreement).
+**Three that no lane owns are S230**, recorded unrouted.
+
+**The kernel half — #870, open.** `area.width()` is read nowhere in
+`props/quad.rs`; the funnel meters `flux.width()` only; `QUAD2_AREA_PIECES` is
+fixed before the refinement rounds. #870 measures the cost on one ordinary
+body: the loft's flux enclosure refines to **1.2e-14** relative while its area
+enclosure stays at **7.8e-3**.
+
+**Verdict:** ACCEPTED, closed on the test half; the metering is #870, and the
+unrouted residue is S230.
 
 ## S61. FIXED by #798 — two gates were sited in a job that skips on the only change class that can break them
 
@@ -15244,6 +15271,70 @@ and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
 this got here. **Row: D122.**
 
+## S230. Certified widths with no ceiling, in crates no live track owns
+
+**Raised by lane I-b while closing S60 (#873).** The parent is **S26**, and
+the class is S26's own lesson stated as a rule: *every certified width needs a
+row that goes red when it grows.* This is not an S110 member — S110's class is
+vacuous assertions in shipped test files, and a containment row is not
+vacuous. It is a **live** assertion that happens to be monotone in the
+degrading direction, which is the sharper and narrower thing.
+
+**This row has no home, and that is part of the finding.**
+`crates/editor-core/` and `crates/pncad-py/` are outside Track I's scope
+(`props/`, `mesh/`, `census.rs`) and outside the scope of every other live
+track. **Nobody is scheduled to fix this.** Recorded unrouted rather than
+implied-owned; a reader should not infer a lane from its presence here.
+
+**The class is five live members, and this row is the two that had no owner.**
+The other three were in `crates/sweep/tests/`, which no lane owns either but
+which #873 was already editing, so it fixed them there: `m6_loft_body.rs`'s
+`Interval` row (folded both pads into its bracket and read neither),
+`m6_tube.rs`'s `Interval` row (containment only on a bracket whose width is the
+scalar's own, both quadrature pads being exactly zero on the closed-form torus
+lane), and `mass_props_interval.rs`, where the admitted band was widened *by
+the enclosure's own width* so every degradation satisfied the row twice over.
+**#873 found the last of those by executing a blind spot it had itself
+declared** — a width computed inline as `hi() - lo()` and never named — which
+is the argument for declaring them.
+
+Both members below carry the numbers I-b measured, because the measurement is
+what makes them actionable. **Measured at `5d4b88ab`**, dev profile, x86_64
+Linux, across CI's own ε matrix (`CAD_TOLERANCE_EPS` ∈ {default, 1e-6,
+1e-12}). Note the unit: `area_pad` and `volume_pad` are **half-widths** — the
+bracket is `value ± pad` — so each figure below is half the bracket it names.
+
+- **`crates/editor-core/tests/m5_pr11_corpus_curved.rs:75`** — containment
+  only on `volume_pad`, and it never reads `area_pad` at all. It runs the
+  **same** tilted-cut fixture as `sweep/tests/m5_pr11_quad_props.rs`, whose
+  volume row has carried a tightness ceiling since PR 11 and whose area row
+  gained one in #873. On that fixture's below half the certified widths are
+  `volume_pad` = 3.5356e-7 m³ and `area_pad` = 2.1214e-6 m² at default ε, and
+  3.0780e-4 m² at ε = 1e-6 — a five-order spread across the matrix that this
+  row cannot see in either quantity.
+- **`crates/pncad-py/tests/test_north_star.py:555-556`, `:1238-1239`** — the
+  Python door's rows on the shape (iii) loft. `:556` bounds `volume_pad` at
+  `1e-6` and asserts **nothing** about `area_pad`; `:1238-1239` is containment
+  only. On that same loft the measured widths are `volume_pad` =
+  **1.0725e-13 m³** and `area_pad` = **0.1986 m²** — 7.8e-3 of the body's
+  25.31 m² surface, eleven orders of magnitude apart, and **identical bits at
+  all three ε legs** because that width is resolution-driven, not
+  tolerance-driven. The Python door therefore reports a certified area of
+  25.31 ± 0.20 m² with no row that would notice the pad growing.
+
+- **`crates/editor-core/tests/review_m5_pr9_doc_probe.rs:151`** — the curved
+  boolean's `Interval` union row, containment only on the volume enclosure,
+  with nothing bounding its width. Same crate as the first member and the same
+  disposition: out of every live track's ground.
+
+The kernel-side reason the loft's area half-width is what it is — the area
+enclosure is never metered — is **issue #870**, not this row. This row is only
+about the missing ceilings.
+
+**What would close it**: a ceiling on each, derived from a measurement, at the
+sites named. The two `editor-core` rows and the Python rows are three separate
+crates' test suites; nothing here is a kernel change.
+
 ---
 
 ## Track G — the ground no track owns, and the passes that deleted their own evidence
@@ -15525,7 +15616,7 @@ waits on the other to start.**
 
 | # | Work | From |
 |---|---|---|
-| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an open ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These four rows are style and stand on their own; the correctness defect is #723's own. | **S60**, **S77**, **S80**, **S81**, S112(d) |
+| **I1** | **The `props/` cluster** — *"the largest cluster in the scan and the one with the most reachable wrong answers"*. S77, S80 and S81 are all descendants of **#723**'s unstated-extent shape. **#723 is an ISSUE — a wrong certified volume where a sphere meridian arc crosses a pole — and a style track does not fix it** (Evan, 2026-08-21). These rows are style and stand on their own; the correctness defect is #723's own. **S60 is done** (#873 — lane I-b, ceilings at both `area_pad` sites; its metering half is now issue **#870**), so the row is down to `props/{mod,curved}.rs`. | ~~S60~~, **S77**, **S80**, **S81**, S112(d) |
 | **I2** | **`mesh`'s ε ledger and its watertightness backstop** — S64 and S65 are *one conversation*. **S65 is Evan-only** (below). *Amended by* **I-R1**: S64 **lands**, and the PR that lands it opens the S65 question to Evan with both options priced — holding a false sentence in a shipped crate header to preserve a coupling is not what the pairing was for; what it protects is a reader finishing the ε ledger believing the story is closed, and a pointer at the claim site discharges that. | **S64**, **S65** |
 | **I3** | **A lever that degenerates to zero makes a guard fail open** — the same mechanism as the `props/` cluster, one crate over. | **S108**, **S109** |
 | **I4** | **The cylinder box's remaining halves.** Its *logic* half is filed as **issue #862** (over-width along the axis → false `CensusUndecidable`, plus the single-endpoint axial projection under `Interval`). **What stays here is style**: the acceptance suite in `boxes.rs` that **cannot go red for a box that is too big** (S110's class — `face_box` returning `[-1e300, 1e300]` passes the entire suite), and the module doc's *"looseness is free"* claim, **false for two of its three consumers**. | **S66**'s style halves |
@@ -15535,7 +15626,9 @@ waits on the other to start.**
 **Lanes, 2026-08-21 — five, and they do not map one-to-one onto these rows.**
 Recorded here so a reader of two PRs does not read them as one row.
 **I-a** = I1 minus S60, plus S112(d) (`props/{mod,curved}.rs`) — **adversarial**;
-**I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows);
+**I-b** = I1's S60 alone (`props/quad.rs` + the two `sweep/tests/` rows) —
+**landed**, its kernel half went to issue **#870** rather than into the diff
+(I-R2), and its unrouted residue is **S230**;
 **I-c** = I2 plus I6's S115(d) and S116(g) (`mesh/` prose and the ε ledger);
 **I-d** = I4 **and** I5 together (`boolean/boxes.rs`'s module doc is one
 header, and I5 is the citation I4's paragraph leans on) — both rows leave
