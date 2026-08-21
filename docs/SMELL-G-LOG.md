@@ -418,6 +418,47 @@ one screen up. A finding whose fix is *someone should decide something* owes a
 named decision-holder, and the same lane routed its other decision correctly, to
 a numbered issue with an owner.
 
+## Live state — 2026-08-21
+
+**Landed: G1 (#786), G2 (#787), G3 (#781), G8 (#834).** Four of eleven rows.
+
+| row | PR | state |
+|---|---|---|
+| **G5 + G10** | **#831** | re-check says **merge**; citation pass in; CI 21 green / 0 failed, k-lint and two render lanes still running |
+| **G6** | **#833** | adversarial **MERGE, no claim refuted**; style NOT CLEARED (18); fix pass running, plus an `S167`/`S168` renumber forced by **G-R13** |
+| **G7** | **#836** | style review running |
+| **G11** | **#837** | fix pass done; **`dirty` against `main`**, merging, which also clears a stalled `synchronize` |
+| **G4** | — | gated on Track F's **F1** ← Track E's **#753**. Evan's own S87/S88 ruling; not this orchestrator's to lift |
+| **G9** | — | gate on G8 **lifted** (#834 landed); Track C still gates S96 |
+
+**Issues filed:** #782 (nothing runs `cargo test` under `demos/`; two assertions
+red on `main`), #795, #796, #827, #829, and S167's `topo` signature change.
+
+**What the reviews are actually catching.** Every unit has gone NOT CLEARED on
+its first style review, and in **every** case the reviewer found the lane had
+re-minted its own finding's shape at the site it was correcting: a rider
+appended where a claim needed removing; a printed number replacing a stale
+number; a not-a-read error caught one level down and made one level up; a
+pointer *"listed at S67"* where nothing was listed; a sentence *"every line
+number below was re-checked"* above four that were not — that last one **inside
+the entry documenting the finding about stale citations**, found by a re-check
+and not by its author.
+
+That is consistent enough to be a property of the work rather than of the lanes.
+The provisional reading, to be written up when wave 2 closes: **a fix pass is
+executed at the altitude of the instance while the finding lives at the altitude
+of the class**, so the pass discharges the instance and re-creates the class one
+level up. The counter-measure that has actually worked is not care — it is
+**computing the claim**: the `sense_sign` inventory, the legend read out of the
+emitter, the census with a published definition and an anchor, the mirror
+citations resolved against a parsed `ci.yml`. Every one of those closed a class;
+every restated sentence re-opened one.
+
+**Two reviewers converging from opposite directions has now happened twice**
+(#834's `Debug`-string comparison, #833's *"exactly the ones no end-to-end row
+reaches"*), and both times neither lane alone would have produced the fix. That
+is the argument for the adversarial+style pairing on the rows that carry it.
+
 ## Landings
 
 | lane | row | PR | note |
