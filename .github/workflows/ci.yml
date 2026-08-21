@@ -660,11 +660,24 @@ jobs:
       #
       # SITED IN THIS JOB, not in one of its own (Evan's earlier
       # constraint: the guard must not add runner time). Actions bills PER
-      # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so a
-      # job of its own pays set-up, checkout, toolchain and cache restore
-      # (26 s measured on this workflow's light jobs) BEFORE it compiles
-      # anything, which cannot round to less than 2 billed minutes, plus a
-      # concurrent runner slot. A step pays only the incremental compile.
+      # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so
+      # billed minutes are the currency, not seconds.
+      #
+      # MEASURED, hosted (ubuntu-latest, 2 vCPU), tier `all`, run
+      # 32452728742: target install 3 s + check 17 s = 20 s. This job is
+      # 70 s without the guard and 90 s with it — BOTH inside 2 billed
+      # minutes, so the guard bills ZERO. A job of its own would pay
+      # set-up, checkout, toolchain and cache restore again (26 s measured
+      # on this workflow's light jobs), i.e. ~46 s = 1 billed minute, plus
+      # a concurrent runner slot. So: 0 as a step against 1 as a job.
+      #
+      # Locally, from an empty CARGO_TARGET_DIR on a 4-vCPU container, the
+      # same command is 23.5 s cold and 2.5 s warm.
+      #
+      # This is not on the critical path: the job finishes inside two
+      # minutes against `build + archive (interval)`, which is ~88% of a
+      # ~13 min run, so the 20 s is billed runner minutes and ZERO extra
+      # wall-clock for the run as a whole.
       #
       # This job rather than `clippy` because the guard is an UNSCOPED
       # workspace-wide ratchet and so are this job's other two rows, while
