@@ -389,6 +389,27 @@ while it is clean"* is an incentive, not a licence to skip the filter — and *"
 was told to hurry"* is the same shape of lid as *"I tried and could not"*: it
 names a pressure instead of a method. (F-c, 2026-08-20, on its own merge.)
 
+**When your claim is about what an assertion checks, quote the assertion — not
+the sentence above it.** This is the operative form of the session's structural
+failure and it is deliberately narrower than *"read the code"*, which is
+unfalsifiable advice. Quoting the assertion is **checkable by a reviewer**;
+reading carefully is not. (F-d, 2026-08-20, which proposed it after committing
+the failure and having it committed at it.)
+
+**Two instances in one session, same shape, different artifact.** A lane
+dismissed a sibling site by reading the **row's name** (*"refuses typed"*) when
+the premise was in the body. The orchestrator ruled — and relayed to Evan as
+settled — that two tests assert a bit-identical replay, because that is what
+their **docstrings** say; the assertions test one-sided greenness. In both cases
+**the prose was the artifact consulted and the code was three lines away.**
+
+**And the propagation is the dangerous half, not the original error.** The
+docstring claim survived a finding, an orchestrator ruling, an amendment, a
+relay to Evan and a lane brief — **five reads by three parties, none of which
+opened the test body** — because each was reading the previous read. **A claim
+restated four times is not four times corroborated; it is one claim with three
+echoes.**
+
 **If you run mutations, read your own diff before you open.** `git diff
 origin/main...HEAD --name-only -- ':(exclude)docs'` — two seconds. A lane here
 shipped a planted mutation into `geom-core` production code because it ran
