@@ -11609,8 +11609,8 @@ converted gates**, measured on the F-g lane container (a shared box at
 load average ~12, not a runner): 5.9 / 6.2 / 6.0 / 9.6 / 11.3 / 9.5 s
 against 0.5–1.0 s each before, and both halves of CI run every gate
 twice (`--selftest` then the gate). **On the hosted runner the whole
-`discipline` job is 24 s against a 23 s pre-change baseline and every
-gate step is 0–1 s** (runs `32434562255` and `32388258102`), so nothing
+`discipline` job is 30 s against a 23 s pre-change baseline and every
+gate step is 0–1 s** (runs `32439375293` and `32388258102`), so nothing
 is at risk today — the number is here because a tenfold aggregate
 change should be findable by the next person rather than discovered.
 
