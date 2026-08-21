@@ -290,13 +290,22 @@ impl RingInterval {
     }
 }
 
-/// The ring always certifies: it has two states and no decorations, so
-/// there is no domain-violation channel to consult. Poison is NaN
-/// endpoints, which [`RingInterval::from_bounds`] already rejects
-/// downstream — the refusal is the bracket's, not a separate one.
+/// The ring refuses exactly on poison. It has two states and no
+/// decorations, so [`RingInterval::is_poison`] IS its domain-violation
+/// channel: a poisoned ring stands for no real, and a pair of NaN
+/// endpoints is not a bracket of anything. Every other ring is a sound
+/// bracket read straight off storage.
+///
+/// The refusal is this door's own rather than a loan from
+/// [`RingInterval::from_bounds`]. Handing back `Some((NaN, NaN))` and
+/// leaving a downstream constructor to reject it is precisely what the
+/// trait's method doc excludes: what a generic `T: CertifiedEnclosure`
+/// consumer is promised is a bracket, not a NaN it has to re-check, and
+/// no consumer is obliged to funnel the pair through a constructor that
+/// happens to catch it.
 impl crate::real::CertifiedEnclosure for RingInterval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
-        Some((self.lo, self.hi))
+        (!self.is_poison()).then_some((self.lo, self.hi))
     }
 }
 
