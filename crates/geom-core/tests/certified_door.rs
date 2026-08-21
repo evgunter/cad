@@ -28,6 +28,18 @@
 //! guarantee degrades and a row that goes red only at the value someone
 //! thought of.
 //!
+//! **ITS PROBE-GATED CODE IS NOT EXECUTED BY CI**, and its siblings ARE:
+//! only `probe_lane` carries the feature gate, and no CI row passes
+//! `--features probe` to this target, while the five ungated rows and the
+//! `interval` one run on every merge. Rostering it would mean adding an
+//! invocation to `scripts/k_probe_sweep.sh`, whose job is dumping K-margin
+//! CSVs — the wrong home for a two-line agreement assertion. What actually
+//! holds the probe lane to the `f64` lane is that its impl *delegates*
+//! rather than restating the test, so the two cannot diverge without
+//! someone un-delegating it; this row is what goes red when they do. By
+//! hand: `cargo test -p geom-core --features probe --test all --
+//! certified_door::`.
+//!
 //! Refusal is not free-standing: what a refusal *does* is cross into the
 //! ring as poison. The last rows pin that, per corpus member, at
 //! [`RingInterval::from_certified`] — the one body every lane scalar
