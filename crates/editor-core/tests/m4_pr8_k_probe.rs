@@ -60,9 +60,10 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
     let bad = failures(&ev);
     assert!(
         bad.is_empty(),
-        "{}: corpus document must evaluate green at Probe (decisions \
-         are bit-identical to f64, so this can only mean the f64 rows \
-         are broken too):\n{}",
+        "{}: corpus document must evaluate green at Probe. Nothing here \
+         compares Probe against f64, so a red is either a Probe-lane \
+         divergence or an f64-lane break — the f64 corpus rows say \
+         which:\n{}",
         d.name,
         bad.join("\n")
     );
@@ -116,11 +117,21 @@ fn dump_corpus_k_samples() {
     }
 }
 
-/// The Probe lane's decisions must be bit-identical to f64's — the
-/// recording scalar is a wrapper, never a different arithmetic. Cheap
-/// standing pin: the whole corpus evaluates green at Probe (any
-/// divergence from the f64 rows' green would fail here first). Runs
-/// in the normal (non-ignored) suite.
+/// The whole corpus evaluates green at `Probe` — one-sided, and that is
+/// the whole of the assertion.
+///
+/// The property this reaches for is that the recording scalar is a
+/// WRAPPER and not a second arithmetic, i.e. that its decisions are
+/// bit-identical to f64's. **Nothing here compares the two**, and no
+/// test in this tree does; greenness at `Probe` is evidence for that
+/// claim, not a check of it. Greenness is also tolerance-dependent, so
+/// this says what it says at one ε.
+///
+/// Runs under the DEFAULT selection, which `scripts/k_probe_sweep.sh`
+/// invokes once per rostered suite. `run_doc` inside the `#[ignore]`d
+/// dump beside it asserts the same predicate over the same documents at
+/// all three ε, so what this row adds is that its body executes at all
+/// — not the property.
 #[test]
 fn corpus_evaluates_green_at_probe() {
     for d in documents() {
