@@ -190,7 +190,9 @@ mod tests {
     ///    of other crates is exactly the artifact this row replaced,
     ///    and reciting one beside a computed inventory would mint the
     ///    same defect one level out. The out-of-crate readers are
-    ///    inventoried once, at S67 in the scan document, where D6 is.
+    ///    inventoried once, in `docs/SMELL-SCAN-2026-08.md` at S67,
+    ///    beside D6's work order — a list that is recited and says so,
+    ///    in the document where a work order belongs.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
         const PINNED: [(&str, usize); 8] = [

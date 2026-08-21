@@ -8436,8 +8436,10 @@ three-name enumeration — `face_normal.rs:31-36` (module header),
 `face_normal.rs:93-98` (the guard test's admitted gap #1) and
 `boolean/reduce.rs:248-251` — no longer name anything. `face_normal`'s
 new row **`every_hand_multiply_of_the_face_sign_is_inventoried`** walks
-`topo/src`, counts every non-comment line reading `Face::sense_sign`,
-and pins the per-file inventory with a one-line disposition each:
+`topo/src`, counts every OCCURRENCE of `Face::sense_sign` in code —
+comments and literal bodies blanked by the shared
+`fixtures::code_only`, never by a `starts_with("//")` line test — and
+pins the per-file inventory with a one-line disposition each:
 `boolean/join.rs` 1, `boolean/rest.rs` 1, `boolean/solid_contain.rs` 2,
 `entity.rs` 1, `face_normal.rs` **0**, `merge_faces.rs` 3, `props.rs` 1,
 `validate.rs` 1 — **ten reads across seven files**, against an
@@ -8446,6 +8448,29 @@ instead of restating it, so the claim has one home rather than three.
 D6's stated sweep shape *is* the gate, which is why it could replace the
 sentence rather than correct it; **D6 itself is untouched** and the
 consolidation it schedules is still open.
+
+**The out-of-crate half is inventoried HERE, and the gate deliberately
+does not recite it.** `topo`'s guard walks `topo/src`, which is the tree
+that crate can see; D6's scope is the workspace. A roster of other
+crates sitting beside a computed inventory would mint this finding's own
+defect one level out, so the roster lives in this document instead —
+where a work order belongs — and the code points at it. Re-derived for
+this record rather than copied from the sentence it replaces: the
+production hand-multiplies of `Face::sense_sign` outside `topo` are
+**four** — `editor-core/src/names/emit_topo.rs:57` (a plane normal),
+`mesh/src/walk.rs:976-1015` (the chart area's sign, bound to a local at
+`:976-979` and applied at `:1015`), `sweep/src/fillet/build.rs:235` (a
+plane normal) and `sweep/src/fillet/battery.rs:232` (a normalized
+gradient) — plus two in a test oracle, `sweep/tests/common/orient.rs:93`
+and `:205`. Two crates that look like readers are not: **`geom-brep`
+reads nothing** — it does not depend on `topo` at all, and its eight
+`sense_sign` occurrences in `props/curved.rs` are a **parameter name**
+on a value `topo/src/props.rs:264` passes in, the rest being prose; and
+**`step-export`** reads `Face::sense` as the `same_sense` bit
+(`step-export/src/writer.rs:562`), never the `±1`, which is a different
+consumer and a legitimate one. **This list is recited, not computed,
+and says so**: it is D6's work order, and it goes stale the moment D6
+executes.
 
 **The finding's own citations, re-derived** (G-R5 corrects the quotation
 and is itself half right): the sentence *"Three such sites exist and are
@@ -8470,10 +8495,22 @@ axis `n̂ × d` merely negates every vertex ordinate — leaving the straddle
 test `sign(yᵢ) ≠ sign(yⱼ)`, the on-the-ray `Zero` graze and the crossing
 advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` (numerator and denominator both
 negated) unchanged. Negation is exact and both `sign_within` classifiers
-are symmetric about zero, so the verdict *and its refusals* are
-bit-identical either way. The derivation is now written at the site, and
-`review_m3_pr3_pil.rs`'s new row pins it over four fixtures including an
-oblique carrier and the typed `RayExhausted` arm. `solid_contain`'s
+are symmetric about zero, so **the verdict is bit-identical either
+way**, and a refusal is identical in variant, predicate and band.
+
+One thing is NOT bit-identical, and stating it is what keeps the
+sentence above true: an escalation carries the **signed** margin it
+refused on, so two mirrored refusals render as `Value(−m)` against
+`Value(m)`. That is diagnostic payload the type's own docs forbid
+branching on, so no verdict depends on it — but a differential row
+comparing whole `Debug` strings would red on it alone. The pin
+therefore compares variant, predicate and band, and separately asserts
+the two margins are exact negations. The derivation is written at
+`point_in_loop`, whose property it is, with a pointer from the producer
+that omits the flip; `review_m3_pr3_pil.rs`'s row pins it over six
+fixtures across four profiles, including an oblique carrier, a probe
+placed strictly inside the ambiguity band, and the typed `RayExhausted`
+arm. `solid_contain`'s
 `face_plane` threads the sign although its consumer is equally
 sign-blind; the difference is a **naming contract** — that door promises
 an outward normal — not a correctness one.
