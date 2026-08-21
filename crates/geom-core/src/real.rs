@@ -446,21 +446,23 @@ pub trait Real:
 ///
 /// **This replaced an AUDIT, not a wrong answer.** No dual run of this
 /// pass ever returned a bad value or a bad tangent, and the reason is
-/// worth keeping because it is what a future edit has to preserve if
-/// the bound is ever loosened: **no bracket-derived `f64` is fed back
-/// into the computation.** Every `Bounds` read across the three files
-/// is one of three terminal kinds — typed-error payloads on the `Err`
-/// path (`margin`, `radius`, `gap`, `arm`); `T::from_f64` of literal
-/// constants, which is not a bracket read at all; and selections whose
-/// `f64` is compared and DISCARDED, the returned value being the
-/// selected `T` with its tangent intact (the periodic-lift pick, the
-/// nearer-of-two pick, the corner-chart candidate score) — the
-/// `sugar.rs` "choice among already-classified constructions"
-/// precedent. There is **no `T::from_f64(<bracket-derived f64>)`
-/// anywhere in the seam**, which is the pattern that freezes a
-/// parameter and makes a dual's tangent wrong (`geom`'s projection
-/// doors, #874). `blend.rs`, where the blend geometry is actually
-/// built, is `T: Real` and reads no bracket at all.
+/// what a future edit must preserve if the bound is ever loosened.
+/// Every `Bounds` read across the three files is a **payload** or a
+/// **selection**, in this rule's own words above: typed-error payloads
+/// on the `Err` path (`margin`, `radius`, `gap`, `arm`); `T::from_f64`
+/// of literal constants, which is not a bracket read at all; and
+/// selections whose `f64` is compared and DISCARDED, the returned value
+/// being the selected `T` with its tangent intact (the periodic-lift
+/// pick, the nearer-of-two pick, the corner-chart candidate score) —
+/// the `sugar.rs` "choice among already-classified constructions"
+/// precedent. Every one of those selections is **locally constant in
+/// the input**, which is the test `geom::projection`'s `mid` states
+/// once and the reason freezing them costs nothing. **Nothing in the
+/// seam freezes a quantity that moves** — no `T::from_f64` of a
+/// bracket-derived `f64` anywhere — which is what makes a dual's
+/// tangent wrong at `geom`'s projection doors (#874). `blend.rs`, where
+/// the blend geometry is actually built, is `T: Real` and reads no
+/// bracket at all.
 ///
 /// So what the bound buys is not correctness but **durability**: the
 /// audit was fourteen reads that the next edit silently grows to
