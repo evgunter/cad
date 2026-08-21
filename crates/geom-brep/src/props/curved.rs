@@ -1523,8 +1523,7 @@ mod rim_level_review_probe {
         let b = RimLevel::Unit(d, d);
         let arms = RimArms::uniform(1.0);
         assert!(
-            !level_coincides("props_rim_level_group", a, b, &[], arms, band)
-                .expect("decides"),
+            !level_coincides("props_rim_level_group", a, b, &[], arms, band).expect("decides"),
             "the chord clears the band, so these are not one level"
         );
         let rim = Rim {
