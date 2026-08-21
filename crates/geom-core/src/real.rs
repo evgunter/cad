@@ -396,9 +396,26 @@ pub trait Real:
 /// which is the plain-`T` run's bit-identically (D9), so a dual run's
 /// certificate is the base scalar's certificate — the `f64` run's at
 /// `Dual<f64>`, the `Interval` run's at `Dual<Interval>`. No wrong
-/// certificate exists. Whether `separation` should nonetheless carry
-/// [`CertifiedEnclosure`] is a **#643-completeness** question, not D1's,
-/// and is deliberately left open here rather than answered in passing.
+/// certificate exists.
+///
+/// **Whether `separation` should nonetheless carry
+/// [`CertifiedEnclosure`] was a #643-completeness question left open
+/// here. It is answered NO**, and not on delegation — on the rule that
+/// doors tighten and passes keep their lanes. All three signatures
+/// return a NON-generic type (`Separation`, `Aabb`,
+/// `Result<(), PlacementsMeet>`), so no bracket read in them reaches a
+/// returned value and there is no tangent for a dual to get wrong. And
+/// the door is not free-standing: `Separation::of`/`certify`'s one
+/// production caller is `editor_core::eval::wire::wire_placed_union`,
+/// beneath `evaluate<T>` — the evaluation service, a MIXED pass whose
+/// node kinds are overwhelmingly non-certifying. A `CertifiedBounds`
+/// bound here would propagate straight into it and foreclose E4's
+/// dual-through-`evaluate` path over one node kind. The doors that DID
+/// tighten under Evan's 2026-08-21 ruling are the ones whose bracket
+/// read is FED BACK into the computation — `geom`'s point-projection
+/// lane freezes the foot parameter in an `f64` field, and its `foot`
+/// and `orthogonality` tangents are wrong at a dual for exactly that
+/// reason (#874).
 ///
 /// **Ratified extension (M5 PR 11, Evan's lane-split ruling):**
 /// `topo::props`'s certified-quadrature plumbing joins the compound
@@ -511,9 +528,11 @@ pub trait Real:
 /// is written in the ratified shape — `geom_brep::EdgeNurbsLane` has
 /// certified impls for `f64`, [`Probe`](crate::Probe) and the interval
 /// scalar and a **refusing** impl for [`Dual`](crate::Dual) — and it
-/// is precisely what keeps `Bounds` out of `topo`'s signatures: the
-/// attach and validate doors take the lane as an injected function,
-/// so no `topo` API grows a bracket bound.
+/// is precisely what keeps `Bounds` off `topo`'s DEFAULT doors: the
+/// lane is a SEPARATE door whose own impl block carries the lane
+/// bound (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)`
+/// parameterising the shared machinery behind it. Injection moves a
+/// bound onto a narrower signature; it does not remove one.
 ///
 /// **Extension (M9-2 PR-1, under the PR 11 precedent; retroactive
 /// Evan review per the self-merge convention):** `topo::chart_region` — the chart-region overlap
@@ -523,25 +542,27 @@ pub trait Real:
 /// structure** through the bracket — the spec-mandated C6 inventory
 /// gate (a `Harmonic` trig channel is straight only when its bracket
 /// is a point at exactly `0.0`; the `props.rs` rectangle-trim read)
-/// plus the bit-identical-region fast path — so `T: Decide + Bounds`
-/// is its honest signature; a sole-bound form is unsatisfiable. When
-/// this was ratified no dual path existed to split, because
-/// [`Dual`](crate::Dual) implemented no `Bounds` and the predicate was
-/// uninstantiable at dual scalars; the obligation stated here was that
-/// its first `Decide`-generic consumer would owe a `PropsQuadLane`-shape
-/// static lane with a refusing dual impl. **That obligation was
-/// discharged** — `ChartRegionLane`'s refusing `Dual` impl is the lane.
-/// Since the D1 ruling (2026-08-19) `Bounds` IS implemented for `Dual`,
-/// so the predicate is satisfiable at a dual, and the lane is now the
-/// whole guard **on the census path** — which is the honest scope of the
-/// claim, not "nothing else keeps a dual out". `chart_region_overlap` is
-/// `pub` and re-exported from `topo`'s root, and its own bound is
-/// `Decide + Bounds` with no [`CertifiedEnclosure`]; an external caller
-/// may therefore instantiate it at a dual and the lane never sees the
-/// call. That is the one thing this seam does not share with the other
-/// three (`props::quad_lane`, `pcurve_cache::fitted_lane`,
-/// `edge_nurbs::lane`), whose signatures carry `CertifiedEnclosure` and
-/// stay uninstantiable at a dual with or without their lanes.
+/// plus the bit-identical-region fast path — so a compound bound is its
+/// honest signature; a sole-bound form is unsatisfiable.
+///
+/// **The door and the lane guard different things, and both are
+/// needed.** `chart_region_overlap`'s own bound is
+/// `Decide + `[`CertifiedBounds`], which no [`Dual`](crate::Dual)
+/// satisfies, so the predicate is uninstantiable at a dual however it
+/// is reached — including from outside the crate, where the lane is
+/// never consulted. That makes this seam like the other three
+/// (`props::quad_lane`, `pcurve_cache::fitted_lane`,
+/// `edge_nurbs::lane`) rather than the exception it used to be.
+/// `ChartRegionLane`'s refusing `Dual` impl is NOT redundant with that:
+/// it is what lets the census — a MIXED pass with genuine
+/// non-certifying work at a dual — decline this one arm and keep going,
+/// which no bound on a whole function can express. The door refuses;
+/// the pass keeps its lane.
+///
+/// The tightening replaced an audit, not a wrong answer: this door
+/// returns `ChartOverlap`, which is not generic in `T`, so no bracket
+/// read in it reaches a returned value at all and a dual run's answer
+/// was the value channel's exactly.
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is

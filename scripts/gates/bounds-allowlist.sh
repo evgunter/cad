@@ -63,19 +63,19 @@
 # inventory gate (a Harmonic trig channel is straight only when
 # its bracket is a point at exactly 0.0, the props.rs
 # rectangle-trim read) and the bit-identical-region fast path —
-# so `Decide + Bounds` is its honest signature. The
-# PropsQuadLane-shape static lane that PR-1 owed its first
-# Decide-generic consumer (M9-2 PR-2's census arms) EXISTS:
-# `topo::chart_region::ChartRegionLane`, with a refusing `Dual`
-# impl, and `Bounds` IS implemented for `Dual` (D1, 2026-08-19).
+# so a compound bound is its honest signature. The bound is
+# `Decide + CertifiedBounds`, still compound and still firing here
+# correctly.
 #
-# SCOPE OF THE GUARD, since it is easy to overstate: the lane is
-# the whole guard on the CENSUS path, and only there. Alone among
-# the four lanes' doors this one's bound carries no
-# CertifiedEnclosure, and `chart_region_overlap` is `pub` and
-# re-exported from topo/src/lib.rs — so an EXTERNAL caller is
-# bounded by `Decide + Bounds`, which a dual satisfies, and the
-# lane is never consulted. See the real.rs rule entry.
+# THE DOOR AND THE LANE GUARD DIFFERENT THINGS, and the entry needs
+# both to stay true. `chart_region_overlap`'s own bound excludes
+# `Dual`, so the predicate is uninstantiable at a dual however it is
+# reached — including by an EXTERNAL caller through topo's root
+# re-export, where the lane is never consulted. That is now the same
+# posture as the other three lanes' doors.
+# `topo::chart_region::ChartRegionLane`'s refusing `Dual` impl is not
+# redundant with it: it is what lets the census, a MIXED pass, decline
+# this one arm and keep going. See the real.rs rule entry.
 # A NEW file writing a compound Bounds bound fails here until it
 # is ratified into the real.rs rule AND this allowlist.
 # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier

@@ -67,6 +67,55 @@
 //! inconclusive refusal carrying the last iterate and the last
 //! residuals, so a diagnosing consumer sees where the iteration died
 //! and nothing can be mistaken for a foot point.
+//!
+//! # Scalars
+//!
+//! `::project` and `::project_from_seed` bound
+//! `T: `[`geom_core::CertifiedBounds`], so a dual scalar cannot reach
+//! them. The reason is not that they certify — it is that they get the
+//! ANSWER wrong: [`mid`] selects the foot parameter and the two
+//! `Projection` types store it as `f64`, so at a dual the foot and the
+//! orthogonality residual come back as partials at a frozen `t*`,
+//! missing the term each type's own docs name. The bound makes that
+//! answer unreachable; it does not make it right, and issue **#874**
+//! stays open for the fix that would.
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::Point3;
+//! fn admitted(c: &NurbsCurve3<f64>, p: Point3<f64>) {
+//!     let _ = c.project(p);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0277
+//! use geom::NurbsCurve3;
+//! use geom_core::{Dual64, Point3};
+//! fn evicted(c: &NurbsCurve3<Dual64>, p: Point3<Dual64>) {
+//!     let _ = c.project(p);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0277
+//! use geom::NurbsSurface;
+//! use geom_core::{Dual64, Point3};
+//! fn evicted(s: &NurbsSurface<Dual64>, p: Point3<Dual64>) {
+//!     let _ = s.project_from_seed(p, 0.5, 0.5);
+//! }
+//! ```
+//!
+//! [`project_seed`](NurbsCurve3::project_seed) is deliberately NOT on
+//! that bound. It returns `f64`, so it carries no tangent to be wrong
+//! about — and its returning `f64` is what freezes `t*` in the first
+//! place.
+//!
+//! ```
+//! use geom::NurbsCurve3;
+//! use geom_core::{Dual64, Point3};
+//! fn still_admitted(c: &NurbsCurve3<Dual64>, p: Point3<Dual64>) -> f64 {
+//!     c.project_seed(p)
+//! }
+//! ```
 
 use geom_core::Bounds;
 

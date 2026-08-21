@@ -10141,6 +10141,33 @@ the three-item list rather than a section. The mathematics moved to
 `geom/src/projection.rs`, which is in neither contested block and is
 where the freeze physically happens.
 
+### The structural half, added by H-g (PR 2 of `S90`'s implementation)
+
+#875 wrote the census and the corrected mathematics; it left the doors
+open. **`{NurbsCurve2, NurbsCurve3, NurbsSurface}::{project,
+project_from_seed}` now bound `T: CertifiedBounds`**, so the wrong
+tangent is UNREACHABLE rather than fixed — **#874 stays open** for the
+fix that would make it right (carry `dt*/dp` through the
+implicit-function theorem), and the tightening is one of the three
+dispositions that issue lists, taken structurally.
+
+**`project_seed` and the box constructors are deliberately NOT
+tightened.** `project_seed` returns `f64`, so it carries no tangent to
+be wrong about — and its returning `f64` is *why* the other two are
+wrong. The box constructors (`curves::boxes`, `surfaces::boxes`,
+`Brk::of`, `bvh::Aabb::from_points`) read a bracket only into an `f64`
+`Aabb`, so a dual run's box IS the base scalar's box; evicting duals
+there would remove a capability that works. **The bound follows the
+defect, not the class of the bound.**
+
+`geom/tests/dual_foot_tangent.rs` survives the eviction with its subject
+changed: it now measures the TRUE derivatives by central difference at
+`f64` — the numbers a #874 fix must reproduce — and records what
+`Dual64` reported as prose, because that half can no longer be executed
+in-tree. The eviction itself is pinned by `compile_fail,E0277` rows in
+`geom/src/projection.rs`'s module docs, which is where a doctest is
+actually collected.
+
 ### Handed off, not taken
 
 - **Track G's G4** (`crates/profile/`): `fillet_select.rs::nearest_joint`
@@ -14099,6 +14126,58 @@ that duplicate it — keeping each site's *own* argument for anything the
 postcondition does not say. `Brk` is the one that may need more than a
 doc link: it is a bracket carrier with no certified door, so the question
 of whether it should have one is a design question, not a doc edit.
+
+## S213. `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one
+
+**Raised by H-g on implementing `S90`'s ruling**, out of Track H's
+`S210`–`S229` block; re-derived against `main` at merge time, since
+`S210`, `S211` and `S212` were all taken by sibling lanes while this was
+being written.
+
+`crates/geom-core/src/real.rs`, the M7-8 entry of the `Bounds` scope
+rule, says of `geom_brep::EdgeNurbsLane`:
+
+> *"…it is precisely what keeps `Bounds` out of `topo`'s signatures: the
+> attach and validate doors take the lane as an injected function, so no
+> `topo` API grows a bracket bound."*
+
+**The second clause is false as a description of the technique.** What
+`topo/src/euler.rs:2173-2199` actually does is open a **separate door**
+carrying the lane bound on its own impl block —
+
+```rust
+impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+    pub fn set_edge_curve_nurbs_lane(...) {
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec_nurbs_lane)
+    }
+}
+```
+
+— and the `_via(..., f)` injection is how the shared machinery is
+parameterised *behind* that door, not how the bound is avoided. The
+euler.rs comment beside it is accurate and says the opposite of the
+real.rs sentence: *"Raising the whole Euler surface to that bound would
+push it through hundreds of `T: Decide` signatures … so the lane is a
+SEPARATE DOOR onto the same shared machinery."* **Injection moved the
+bound onto a narrower signature; it never removed one.**
+
+**Why this is a finding and not a typo.** The true half — no *default*
+`topo` door grows a bracket bound — is a claim about this repo's API.
+The false half reads as a claim about the *technique*, and that is what
+a reader carries off: *injection avoids a bound*. It did exactly that
+here. Implementing `S90`'s ruling turned up a door reachable from
+`editor_core::eval::evaluate`, and the lane went to its orchestrator
+offering "function injection" as an option that keeps the bound off
+`evaluate` — sourced from this sentence — which cost a round trip
+before reading `euler.rs` showed there is no such technique in the tree.
+A ratified doc that misdescribes a mechanism is worse than one that
+omits it, because the omission does not get quoted.
+
+**The fix** is one sentence, and it is in H-g's PR: say that the lane is
+a separate door whose own impl block carries the bound, and that
+injection parameterises the machinery behind it. **What is NOT claimed:**
+that the other three lanes' entries misdescribe themselves — they were
+read and they do not. This is one sentence about one lane.
 
 # §A. Where I would start
 

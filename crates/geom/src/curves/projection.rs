@@ -53,7 +53,7 @@
 //! via [`NurbsCurve3::project_from_seed`], the raw-Newton entry that
 //! exists for exactly those fixtures and for warm-started consumers.
 
-use geom_core::{Bounds, Point2, Point3, Real};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 use crate::projection::{
@@ -137,20 +137,10 @@ macro_rules! nurbs_project {
             pub iterations: usize,
         }
 
+        /// The seeding sweep is not a certification door: it returns
+        /// `f64`, so it carries no tangent to be wrong about and any
+        /// scalar with a bracket may run it.
         impl<T: Bounds> $Curve<T> {
-            /// Projects `p` onto the curve: the fixed seeding sweep
-            /// (module docs) followed by [`Self::project_from_seed`].
-            /// Deterministic bit-for-bit per D9.
-            ///
-            /// # Errors
-            ///
-            /// [`ProjectionInconclusive`] when Newton's fixed budget
-            /// expires without meeting an acceptance condition (a NaN
-            /// input point lands here too — poison converges nowhere).
-            pub fn project(&self, p: $Point<T>) -> Result<$Projection<T>, ProjectionInconclusive> {
-                self.project_from_seed(p, self.project_seed(p))
-            }
-
             /// The fixed-count seeding sweep (module docs: the seeding
             /// rule). Public for warm-start consumers and the planted
             /// wrong-branch fixtures; `project` = this + Newton.
@@ -176,6 +166,21 @@ macro_rules! nurbs_project {
                     }
                 }
                 best_t
+            }
+        }
+
+        impl<T: CertifiedBounds> $Curve<T> {
+            /// Projects `p` onto the curve: the fixed seeding sweep
+            /// (module docs) followed by [`Self::project_from_seed`].
+            /// Deterministic bit-for-bit per D9.
+            ///
+            /// # Errors
+            ///
+            /// [`ProjectionInconclusive`] when Newton's fixed budget
+            /// expires without meeting an acceptance condition (a NaN
+            /// input point lands here too — poison converges nowhere).
+            pub fn project(&self, p: $Point<T>) -> Result<$Projection<T>, ProjectionInconclusive> {
+                self.project_from_seed(p, self.project_seed(p))
             }
 
             /// Newton on the orthogonality condition from an explicit
