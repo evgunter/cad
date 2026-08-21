@@ -12904,7 +12904,7 @@ empty-tree case does not produce) and `lib.sh`'s *"defines no
 `gate_selftest`"* guard, unreachable while every gate defines one;
 `gate-roster.sh` × 3; `probe-suite-census.sh` × 3 (including the
 nested-suite diagnosis inside the command substitution that motivated
-the stdout→stderr move); `interval-square-allowlist.sh:153`,
+the stdout→stderr move); `interval-square-allowlist.sh`'s *"every source … is test-only"* guard (cited as `:153` when the member was written and `:161` at that commit — named rather than numbered here, per **G-R13**),
 `kernel-serde-free.sh:79`, `signed-zero-one-home.sh:96`,
 `test-aggregation.sh:67`, `test-features-dev-only.sh:271,277`.
 **`lib.sh` says a guard never shown to fire is not a guard**; this is
