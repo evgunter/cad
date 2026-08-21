@@ -1,18 +1,10 @@
 //! **The mismatched-r probe** (LIB-ONARC §1.1).
 //!
-//! Executed at the PRE-dissolution head (the commit that introduced
-//! this file), the same authored chain pinned the retired
-//! `Radius@OnArc` hole: the mismatched radius was accepted unguarded,
-//! the emitted run's recovered carrier matched NEITHER the derived nor
-//! the true circle (bulge computed from angles alone about the derived
-//! centre, chord anchored off it), and nothing refused until the late
-//! validate pass (`TangencyContradicted`).
-//!
-//! RE-POINTED at the dissolution (§2c amendment): the arrival verb now
-//! emits its own run to the anchor along the TRUE carrier, and a
-//! mismatched `r` is a LEGAL new tangent carrier constructed at the
-//! tip — sound by construction for every authored `r`. The same chain
-//! now emits mutually consistent segments and validates.
+//! The arrival verb emits its own run to the anchor along the TRUE
+//! carrier (§2c amendment), so a mismatched `r` is a LEGAL new tangent
+//! carrier constructed at the tip — sound by construction for every
+//! authored `r`. The chain below emits mutually consistent segments
+//! and validates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tolerance};

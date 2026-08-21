@@ -301,8 +301,7 @@ fn main() {
     // under two captions — silently, and after the first STL had
     // already been clobbered. Checked here, before any cell runs.
     //
-    // This is the whole of what the retired `scenes.len() ==
-    // WILD_CELLS.len()` assertion was reaching for. There is no
+    // There is no
     // separate "every scene got a file" check, because with distinct
     // names there is nothing left for one to catch: `run_cell` writes
     // `{name}.stl` from the same field the manifest then names, and

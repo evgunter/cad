@@ -69,20 +69,12 @@
 //!   therefore small but real, and left visibly so rather than shrunk
 //!   until the blunt end stops showing.
 //!
-//! **Every blade section here is straight lines, and that is now
-//! OUTSTANDING WORK rather than a constraint.** Until #306 the skin
-//! lane carried integral sections only, so an arc — a rational NURBS —
-//! skinned to a rational wall whose carrier had no
-//! `speed_lower_bound`, and the body refused at assembly. #306 landed
-//! the span meter's rational arm and that refusal RETIRED (the pin
-//! that asserted it, `sweep`'s `m7_skin_integral` Pin 4, has flipped to
-//! the positive statement). The kite and the diamond are what the
-//! blades were given while the arcs were unavailable; they have not
-//! been revisited since the door opened. Giving the blades their
-//! lanceolate arcs back is a real follow-up, not a settled choice —
-//! and it wants checking against the QUADRATURE half of the rational
-//! bank, which #306 did not retire (`QuadratureUnsupported` keeps its
-//! own pins, and this stop prints an exact volume for every body).
+//! **Every blade section here is straight lines, and that is
+//! OUTSTANDING WORK rather than a constraint.** Giving the blades
+//! their lanceolate arcs back is a real follow-up, not a settled
+//! choice — and it wants checking against the QUADRATURE half of the
+//! rational bank, which is not retired (`QuadratureUnsupported` keeps
+//! its own pins, and this stop prints an exact volume for every body).
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -539,27 +531,13 @@ const SEPAL_STATIONS: usize = 13;
 /// The section is a [`Kite`] of four straight lines, and the spine
 /// runs through its chord's midpoint, i.e. through the midrib.
 ///
-/// **Why straight lines and not the crescent's arcs — a reason that
-/// has since EXPIRED.** The skin lane used to carry INTEGRAL sections
-/// only. An arc is a rational NURBS, a rational section skins to a
-/// rational wall, and a rational carrier had no `speed_lower_bound` —
-/// `nurbs_span_meter` came back `Invalid` and the body refused at
-/// assembly (`geom-brep`'s rung-3 span meter; the same poison #207
-/// removed for INTEGRAL inputs it never claimed to remove for
-/// rational ones). That is why this blade is a kite.
-///
-/// **#306 landed the meter's rational arm and the refusal retired.**
-/// A rational section skinned along a curved path now builds and its
-/// seam carriers meter positively — `sweep`'s `m7_skin_integral`
-/// Pin 4 was written to flip when this happened, and it has flipped.
-/// So the kite is no longer the honest limit of the vocabulary; it is
-/// simply what the blade was given before the door opened, and it has
-/// not been revisited since. **Restoring the lanceolate arcs is
-/// outstanding work on this stop**, with one thing to check first:
-/// #306 retired the span meter's half of the rational bank and not
-/// the QUADRATURE half, and every body in this stop prints an exact
-/// volume, so an arc-walled blade may meet `QuadratureUnsupported`
-/// where the kite does not.
+/// **Restoring the lanceolate arcs is outstanding work on this
+/// stop** — the kite is what the blade was given, not a limit of the
+/// vocabulary — with one thing to check first: the span meter's half
+/// of the rational bank is retired and the QUADRATURE half is not,
+/// and every body in this stop prints an exact volume, so an
+/// arc-walled blade may meet `QuadratureUnsupported` where the kite
+/// does not.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.
@@ -787,12 +765,9 @@ impl Plan {
 /// segment), and the spine may not turn past π — the loft's stacking
 /// trilean is an END-TO-END statement, `cos(curl/2)` for a planar arc
 /// spine, so past a half turn of total position stacking it refuses
-/// `ReversedStacking` (its own filed frontier, #368). The OLD second wall —
-/// "not much past 2.5 radians", PR #316's measured `nurbs_span_meter`
-/// collapse at curl 3.0 — RETIRED with M8-14 (#222): the integral
-/// speed meter scans per span now, and
+/// `ReversedStacking` (its own filed frontier, #368).
 /// `review_probes::the_spine_curl_wall_re_measured` pins both sides
-/// of the re-measured truth (3.0 builds, 3.5 refuses typed).
+/// of the curl wall (3.0 builds, 3.5 refuses typed).
 fn lofted_blade<S: Scalar>(
     base: (f64, f64, f64),
     dir: (f64, f64, f64),
@@ -1663,8 +1638,7 @@ pub fn wall_probes<S: Scalar>() {
 // construction code, plus the finding-13 tessellation table
 // re-measured. Kept as tests so a silent placement regression
 // (finding 11: sign/handedness errors produce a valid solid in the
-// wrong place) fails loud here — verified to catch a flipped
-// `-spec.turn` in `tube_arc` during the review.
+// wrong place) fails loud here.
 // ---------------------------------------------------------------
 
 #[cfg(test)]
@@ -1753,10 +1727,9 @@ mod review_probes {
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
     /// end tangent THERE is `t`.
     ///
-    /// The frames come from `sweep::revolved_caps` (LIB-U5):
-    /// this used to scan every face of the body for a planar carrier
-    /// and hope the right one turned up. Which of the two ends
-    /// answers is the revolve's business, so both are offered — that
+    /// The frames come from `sweep::revolved_caps` (LIB-U5). Which of
+    /// the two ends answers is the revolve's business, so both are
+    /// offered — that
     /// is a two-element check against NAMED caps, not a search of the
     /// whole boundary.
     fn assert_cap(caps: &WedgeFrames<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
@@ -1833,9 +1806,8 @@ mod review_probes {
     #[test]
     fn lantern_axes_are_the_stored_stem_tangents() {
         let ps = pieces();
-        // The bud is no longer a small lantern on one axis — it is
-        // three partial revolves on three tilted ones, so its claim is
-        // a different one and lives in
+        // The bud is three partial revolves on three tilted axes, so
+        // its claim is a different one and lives in
         // `the_buds_three_axes_form_the_authored_tripod`.
         for (name, t, cen, rad) in [("lily_lantern", T2, SPHERE1_C, FLOWER_GLOBE)] {
             let b = body(&ps, name);
@@ -2391,27 +2363,17 @@ mod review_probes {
         s.atan2(c)
     }
 
-    /// **The spine curl wall, RE-MEASURED (M8-14, #222).** PR #316's
-    /// probe table measured leaf-geometry lofts building through
-    /// curl 2.5 rad and refusing at 3.0 (`nurbs_span_meter`
-    /// `ParamSpan` escalation — the integral speed meter's single
-    /// global chord collapsing once a seam carrier turns far enough
-    /// from its own chord), and the demo prose stated "not much past
-    /// 2.5 radians" as a live wall. The per-span meter RETIRED that
-    /// wall — 2.8 and 3.0 build now — and the re-measurement found
-    /// the NEXT one, which this probe pins from both sides: past
-    /// spine turn π the loft refuses `ReversedStacking`, because the
-    /// stacking trilean is an END-TO-END statement (mean last-section
-    /// displacement against the first section's normal — for a planar
-    /// arc spine that is `cos(curl/2)`, negative past π), not a
-    /// per-slab one. That wall is GEOMETRY-INDEPENDENT of the meter
-    /// fix and is filed as its own frontier (#368); if either side
-    /// of this pin moves, re-derive the
+    /// **The spine curl wall, pinned from both sides.** Through π the
+    /// loft builds; past spine turn π it refuses `ReversedStacking`,
+    /// because the stacking trilean is an END-TO-END statement (mean
+    /// last-section displacement against the first section's normal —
+    /// for a planar arc spine that is `cos(curl/2)`, negative past π),
+    /// not a per-slab one. That wall is filed as its own frontier
+    /// (#368); if either side of this pin moves, re-derive the
     /// `lofted_blade` prose with it.
     #[test]
     fn the_spine_curl_wall_re_measured() {
-        // The retired wall: through π the blade builds — including
-        // PR #316's measured refusals at 2.8 and 3.0.
+        // Through π the blade builds.
         for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0] {
             let out = try_lofted_blade::<f64>(
                 LEAF_A_BASE,

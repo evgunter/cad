@@ -53,10 +53,6 @@ mod orientation_oracle;
 mod rev_probe;
 #[path = "review_k4_probe.rs"]
 mod review_k4_probe;
-// `review_pad_probe.rs` (`print_enclosures`) retired 2026-08-13: it
-// asserted nothing, and `kernel_sidecars.rs` pins the same fixtures'
-// volume AND pad byte-exactly. File deleted, so this list and
-// `every_suite_file_is_aggregated` stay in agreement.
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
