@@ -56,6 +56,16 @@ pub enum ProgramTarget {
 /// (V2's table: coordinates/lengths/radii `Length`, angle/turn/phase
 /// `Angle`, bulge and director components `Scalar`).
 ///
+/// It is a second spelling of a vocabulary `profile` declares once,
+/// and it has to be: a step here carries `Expr`s and serializes, and
+/// G1 layering keeps both out of the kernel crate. What holds the two
+/// in step is not this comment — [`LoopProgram::from_recorded`] below
+/// is exhaustive on [`profile::Step`], so a verb the transition table
+/// gains breaks this file at compile, and
+/// `tests/switch_program_vocabulary.rs` is the census that makes it
+/// break for the right reason: the verb has to arrive HERE, not merely
+/// be discharged in `from_recorded`'s error arm.
+///
 /// Fields are public data (the node-slot pattern: dimensions are
 /// checked at the edit door via [`ProfileProgram::slots`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
@@ -351,10 +361,17 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     }
 }
 
-/// The argument roles of one chain step, enumeration order = the
-/// step's own field order (deterministic; pinned by tests).
 /// The argument roles of one arc spec; `second` selects the arrival
-/// (spec₂) role twins so a fused step's two specs never collide.
+/// (spec₂) role twins.
+///
+/// The twins cover the positional roles only. `Bulge`, `Sweep` and
+/// `ArcLen` have none, because none of them is an arrival mode (§2c:
+/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
+/// `Center` alone), so no recording surface can put one in second
+/// position. Enumeration stays total over the data type regardless,
+/// and for a HAND-BUILT step whose two specs are the SAME one of
+/// those three the reused role addresses the incoming spec's argument
+/// twice and the arrival's not at all — issue #829.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -365,9 +382,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // Bulge is never an arrival (§2c); a second-position Bulge is
-        // unrepresentable from the recording surface, but slot
-        // enumeration must stay total over the data type.
+        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
             out.push(A::Bulge);
@@ -403,6 +418,8 @@ fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     }
 }
 
+/// The argument roles of one chain step, enumeration order = the
+/// step's own field order (deterministic; pinned by tests).
 fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     use ProgramStep as P;
     use StepArg as A;
@@ -662,6 +679,11 @@ fn res_target(
 }
 
 /// Resolves one chain step to its scalar-valued mirror.
+///
+/// This is the direction the compiler cannot check: it MATCHES
+/// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
+/// table gains is invisible here. The census in
+/// `tests/switch_program_vocabulary.rs` is what sees it.
 fn res_step(
     s: &ProgramStep,
     env: &ParamEnv<f64>,

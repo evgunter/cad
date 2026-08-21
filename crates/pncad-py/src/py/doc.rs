@@ -10,7 +10,9 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{edit_error_tag, expr_dimension_error_tag, persist_error_tag};
+use crate::tags::{
+    edit_error_tag, expr_dimension_error_tag, persist_error_tag, workspace_error_tag,
+};
 use pncad::document as d;
 
 /// Raise `EditError` carrying the refusal's stable tag.
@@ -203,6 +205,15 @@ impl Doc {
     fn new(py: Python<'_>, label: Option<&str>) -> PyResult<Self> {
         let inner = match label {
             Some(label) => crate::identity::derived(label),
+            // The tag is the store's own, through `crate::tags`, not a
+            // literal chosen here: `interactive` refuses with the whole
+            // `WorkspaceError` vocabulary, and which of its arms a
+            // caller sees is that enum's fact to state, not this raise
+            // site's to assume. Only `randomness_unavailable` is
+            // reachable through this door today — `random_document_id`
+            // has one failure arm — but that is a fact about ANOTHER
+            // crate, and a literal here would go on being written
+            // confidently over a second arm the day one appears.
             None => crate::identity::interactive().map_err(|err| {
                 typed_err(
                     py,
@@ -210,7 +221,7 @@ impl Doc {
                     err.to_string(),
                     &[(
                         "variant",
-                        PyString::new(py, "randomness_unavailable")
+                        PyString::new(py, workspace_error_tag(&err))
                             .unbind()
                             .into_any(),
                     )],
