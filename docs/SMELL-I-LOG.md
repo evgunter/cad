@@ -219,19 +219,19 @@ before the merge, so answering saves a round.
 
 ## Lane roster
 
-**Wave 1 — opened 2026-08-21, four lanes; I-e sequenced behind I-c.** No file
-overlap between any two concurrent lanes. *(The table below shows five rows
-because I-e is listed with its gate; four were opened.)*
-`crates/mesh/` carries two of this track's five lanes and they are
+**Wave 1 — opened 2026-08-21, four lanes, no file overlap between any two.**
+**I-e was the fifth and is now dispatched**, its gate lifted by I-c's landing.
+`crates/mesh/` carries two of this track's five lanes and they were
 **sequenced, not concurrent**: I-e waits on I-c because both read
 `mesh/src/curved.rs`, from opposite ends (I-c its module header and the ε
-ledger, I-e `entries_off_bbox` and the guards).
+ledger, I-e `entries_off_bbox` and the guards). **I-c has landed as #872**
+and left this roster; `curved.rs` below its module header is untouched, so
+I-e starts from that merge with the guard bodies exactly as it found them.
 
 | lane | rows | scope | review | state |
 |---|---|---|---|---|
 | **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | dispatching |
-| **I-c** | **I2** (**S64**; **S65** to Evan) + **I6**'s **S115(d)**, **S116(g)** | `mesh/src/{lib.rs,sizing.rs,walk.rs}`, `mesh/src/curved.rs` **header only** | style | dispatching |
-| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)** | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
+| **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)**, and **S116(g)**'s residue (the guard bodies — I-c narrowed it to them in #872; routed here by **I-R7**) | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **dispatched** — gate lifted by #872 (`ecc1d492`) |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
 **C-m** (S27, `props/quad.rs`'s four quadrature engines) — **not scheduled
@@ -245,10 +245,49 @@ consolidates and the fix comes first. The lane is described in a comment on
 
 | lane | PR | lanes | state |
 |---|---|---|---|
-| **I-c** | **#872** (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
+| **I-c** | **#872** — **MERGED** `ecc1d492` (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
 | **I-b** | **#873** — **MERGED** `82887044` (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
 
 ## Landings
+
+### I-c — **S64**, the ε ledger, #872 — **MERGED** `ecc1d492`
+
+**Deleted a stale roster, shipped a taxonomy that was wrong, then reversed
+course and computed it.** That arc is the unit. The first review's verdict —
+*a wrong list reds a reader; a wrong taxonomy does not* — was proved on the
+lane itself, in the PR arguing that prose is insufficient: the two-kind
+partition missed `trimmed.rs`'s ε-as-an-addend, and its replacement count
+(*"six reads"*) reached a round number by **two errors cancelling**.
+
+**The fix pass answered ruling I-R8 by computing**, and took the structural
+point rather than disclosing around it: `code_only` **and** the recursive walk
+now live in `crates/test-utils`, because `crate_sources` being `pub(crate)` is
+*the identical obstacle `code_only` was moved to remove*, and re-forking it had
+reproduced exactly the defect the sharing was for. The port is verified
+**semantics-identical over 500,000 adversarial inputs**, so *"the collapse is a
+deletion"* is established rather than claimed.
+
+**The pin reds for the right reason** — a planted read in `mesh/src/sub/hidden.rs`
+names the file — and its disclosures went **2 → 5**, one of them genuinely
+unsound rather than conservative: **production code after a trailing test
+module is invisible to the cut, and nothing checks it.**
+
+**Every cardinal is gone.** `Tol` now says it holds neither a roster of the
+reads nor a partition of their kinds, with the reason at the site: *a partition
+is a count by another name, which is the thing that went stale here.*
+
+**The `br"`/`cr"` hole was fixed before a caller could trust it** — D61's own
+recurring defect, present a **third** time in the shared reader, with the
+demonstration turned into a row asserting both halves.
+
+**Its residues:** **`S231`** (unowned), issues **#868** (the missing typed
+warning channel S115(d) had disclosed and nobody had filed), **#881** and
+**#882** — the last a **pre-existing flake in shared test infrastructure**,
+`vacuity::caught` swapping the process-global panic hook from parallel threads,
+reproduced 15/200 with the lane's own change reverted. **S117 and D61 both
+carried stale claims this unit could not leave standing**, including a
+sequencing pointer that resolved to a landed lane and a lane that does not own
+the file: **`topo::fixtures::code_only`'s collapse is unowned.**
 
 ### I-d — **S66**'s style halves and **S97**, #876 — **MERGED** `90a3385f`
 

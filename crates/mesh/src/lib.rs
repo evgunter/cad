@@ -46,8 +46,15 @@
 //! adjacent surface, D4 ¶2) rather than exactly on the surface, and
 //! f64 rounding of the evaluations themselves. The honest promise is
 //! therefore δ + ε (+ rounding); grid sizing targets δ/2 so the slack
-//! never decides in practice. ε is never *read* for sizing — mesh
-//! structure is a function of (body, δ) alone (D9).
+//! never decides in practice.
+//!
+//! **No sizing function reads ε**, and *"mesh structure is a function
+//! of (body, δ)"* holds **for every body in the tree** — a statement
+//! about the tree, not a theorem, and weaker than *"ε cannot move an
+//! emitted coordinate"*, which is false. ε arrives once, in
+//! [`fn@tessellate`]; `sizing::Tol`'s doc states what its reads may do
+//! and where that claim stops, and `tests/all.rs`'s
+//! `the_eps_inventory_is_pinned` computes where they are (D9).
 //!
 //! # Watertightness and the memo-key contract
 //!
@@ -56,8 +63,12 @@
 //! polyline endpoints are the topology vertices' points bitwise. Every
 //! boundary polyline segment is inserted as a CDT constraint in both
 //! adjacent faces, so the two triangulations conform to the same
-//! segments and the mesh is watertight by construction (validated by
-//! [`validate::check_mesh`]).
+//! segments and the mesh is watertight by construction.
+//! [`validate::check_mesh`] re-derives that over an emitted mesh and
+//! is what the acceptance suites run — but **[`fn@tessellate`] does
+//! not call it**, so a mesh whose construction argument failed is
+//! returned as `Ok` unless the caller runs it — a qualifier this crate
+//! now carries at every site that names `check_mesh` as a backstop.
 //!
 //! **Invariant (ratified via PR #32): per-face tessellation is a pure
 //! function of (face surface, loops, per-edge chord points, δ).** This
@@ -134,6 +145,11 @@
 //! corner points; `curved::pole_columns` is what guarantees that
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
+//! The `debug_assert` that re-derives the conclusion over each pole
+//! patch is **debug-only**, so a release build carries the floor and
+//! nothing else; `curved`'s module header states that asymmetry and
+//! points at the open decision (`SMELL-SCAN-2026-08.md` S65).
+//!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
 //! bands (no rim in the loop) disambiguate their azimuth half via the
@@ -219,7 +235,9 @@
 //! topology or feed anything back into a body, so the Q1 reified-
 //! predicate discipline does not apply (its comparisons are honest
 //! display-layer choices, backstopped by the per-triangle certificates
-//! and [`validate::check_mesh`]). Genericity over `Real` would buy
+//! — which [`fn@tessellate`] does check — and by
+//! [`validate::check_mesh`], which it does not; see above).
+//! Genericity over `Real` would buy
 //! nothing here (a mesh of intervals is not a displayable artifact) and
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
