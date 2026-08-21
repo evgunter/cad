@@ -224,7 +224,6 @@ ledger, I-e `entries_off_bbox` and the guards).
 | **I-a** | **I1** minus S60 — **S77, S80, S81, S112(d)** | `geom-brep/src/props/{mod.rs,curved.rs}` | **ADVERSARIAL** + style | dispatching |
 | **I-b** | **I1**'s **S60** | `geom-brep/src/props/quad.rs`, `sweep/tests/m5_pr11_quad_props.rs`, `sweep/tests/m6_loft_body.rs` | style | dispatching |
 | **I-c** | **I2** (**S64**; **S65** to Evan) + **I6**'s **S115(d)**, **S116(g)** | `mesh/src/{lib.rs,sizing.rs,walk.rs}`, `mesh/src/curved.rs` **header only** | style | dispatching |
-| **I-d** | **I4** + **I5** — **S66**'s style halves, **S97** | `topo/src/boolean/boxes.rs`, `topo/src/census.rs` (**doc only**), `sweep/tests/s16_box_soundness.rs` | style | dispatching |
 | **I-e** | **I3** (**S108**, **S109**) + **I6**'s **S114(f)** | `mesh/src/{curved.rs,trimmed.rs,planar.rs,budget.rs}`, `mesh/tests/budget_meter.rs` | **ADVERSARIAL** + style | **sequenced behind I-c** |
 
 **Struck from this track's schedule, with a pointer rather than a deletion:**
