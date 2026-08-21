@@ -645,6 +645,11 @@ tesslint_gate() {
 # same reason it is unscoped there. `rustup target add` is idempotent and
 # is part of the row on purpose: a row that silently degrades to "target
 # not installed, nothing checked" is not a guard.
+#
+# `&&`-chained, where the hosted half runs each leg under `!cancelled()`:
+# this is ONE run_row and can carry only one verdict, so compiling the
+# later legs after a red buys nothing here. The leg ORDER is the same in
+# both halves, which is the part the masking argument rests on.
 wasm_check() {
   rustup target add wasm32-unknown-unknown \
     && cargo check --workspace --exclude pncad --exclude pncad-py \

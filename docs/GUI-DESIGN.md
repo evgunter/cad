@@ -387,9 +387,9 @@ favor** — the whole kernel plus `editor-core` compiles to
 reading on every code-tier run, in three `wasm32 check` steps. They
 are `cargo check` against the wasm32 target, so they establish that
 the crates *compile*, not that they link or run. (Named by step and
-not by job on purpose: the job this first landed in was deleted by a
-CI-minutes audit three hours later, which is the drift this whole
-sweep is about. `local-scripts/ci-local.sh` carries the `HOSTED
+not by job on purpose: the job this first landed in was deleted by the
+CI-minutes audit that landed the same day, which is the drift this
+whole sweep is about. `local-scripts/ci-local.sh` carries the `HOSTED
 MIRROR:` marker that `scripts/check-ci-mirror-parity.py` checks, and
 that is the citation which cannot go stale silently.)
 
