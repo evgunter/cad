@@ -416,6 +416,30 @@ body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
 
 ## Incidents
 
+### Conflict markers reached the register, because `&&` swallowed a failed merge
+
+**2026-08-21, orchestrator.** I ran `git merge origin/main --no-edit 2>&1|tail -1
+&& python3 …` in one chain. The merge **failed with a conflict** in
+`SMELL-I-LOG.md`'s spend table — but `tail -1` exited 0, so the chain continued,
+the edit script ran over a conflicted file, and `git add -A && git commit && git
+push` sent **`<<<<<<< HEAD` / `>>>>>>> origin/main` to the branch.**
+
+Caught one command later by grepping for markers rather than by trusting the
+push. **This is Track G's recorded incident of the same name, reproduced** —
+that log has *"A pipe swallowed a merge failure, and conflict markers reached
+the register"* — so a documented incident on a neighbouring track did not
+prevent it here. Reading someone else's postmortem is not a control.
+
+**The conflict itself was benign and is the expected kind**: the lanes had
+written richer versions of the `S232`/`S234`/`S235` rows I had drafted, with
+measurements I did not have. Resolved by keeping **theirs** and adding the one
+row only mine had (`S233`) — which is the recording convention's *keep both
+sides* working exactly as intended.
+
+**The control that would have worked** is not "be careful": it is never putting
+a merge behind a pipe, and grepping the tree for markers before every push.
+The second half is cheap and mechanical and is now what I do.
+
 ### The same defect, committed by the orchestrator, in the PR documenting it
 
 **2026-08-21, two hours after the entry below.** I reopened #723, wrote the
