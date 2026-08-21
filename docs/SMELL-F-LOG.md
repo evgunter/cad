@@ -389,6 +389,26 @@ while it is clean"* is an incentive, not a licence to skip the filter — and *"
 was told to hurry"* is the same shape of lid as *"I tried and could not"*: it
 names a pressure instead of a method. (F-c, 2026-08-20, on its own merge.)
 
+**Verify a post-condition against the artifact, not against your account of what
+you did to it.** Check the *tree*, not your diff: `grep '^| \*\*F-x\*\* |'` on the
+merged result should match exactly the rows the convention allows. **"I deleted
+the row" is not checkable; "one match remains and it is the reservation" is.**
+
+**The route this arrived by is new and worth knowing.** A lane's roster row
+survived its own landing because the row existed in **two** tables — the wave-2
+*gated* table where it lived when the lane opened, and the *dispatched* table the
+orchestrator added later. The landing PR deleted the one in its brief; four
+subsequent `origin/main` merges auto-merged the other back in, and **every
+conflict the lane resolved was in the other tables, so that line never presented
+itself for a decision.** Nobody ignored it; nothing ever asked.
+
+**It is the echo structure in a different medium** (F-d's own reading): *"I
+verified my record edits against my own diff four times, and each check was
+reading the previous check rather than the tree."* Not a claim wider than its
+evidence — **a post-condition verified against the diff instead of against the
+tree.** A row you never touched cannot appear in your diff, which is precisely
+why the diff cannot tell you whether it should have been touched.
+
 **When your claim is about what an assertion checks, quote the assertion — not
 the sentence above it.** This is the operative form of the session's structural
 failure and it is deliberately narrower than *"read the code"*, which is
