@@ -8631,7 +8631,8 @@ drifted; the rows are `:596-616` and `:623-635`): with `face_box` returning
 `[-1e300, 1e300]` on every arm that has a box, **`boxes.rs`'s own six rows pass,
 and so does the whole `topo` lib suite — 448 rows**. Five rows in `topo/tests/`
 red, all at that catastrophic magnitude, none inside the module whose contract
-it is. `no_arm_claims_more_than_the_construction_its_rule_states` states each
+it is. Four rows — one per arm,
+`the_*_arms_box_is_exactly_the_construction_its_rule_states` — state each
 arm's box as a **formula in the fixture's own parameters** — the construction
 the rule's own docs state, written out — and pins `face_box` to it on all six
 faces in both directions. It reds on `[-1e300, 1e300]`; it also reds on one
@@ -8678,8 +8679,9 @@ over-width as a refusal — `separation.rs` (non-overlap IS the grant),
 the sphere-extent fallback's cylinder arm, which the finding did not count. Only
 `boolean/reduce.rs`'s C10 tree prunes. The header now states the property rather
 than the roster, and the roster is **computed**:
-`every_door_that_reads_a_face_box_is_inventoried` walks `topo/src` and pins the
-four call sites per file with the direction each reads, four blind spots
+`every_door_that_reads_a_box_is_inventoried` walks `topo/src` and pins the
+call sites of BOTH rules per file — face and edge, because the header's claim
+is about *a box* and the conic over-width lives on the edge rule with the direction each reads, four blind spots
 disclosed — including that it pins *where* the doors are, not what each does
 with looseness.
 
@@ -11968,6 +11970,16 @@ and S112(c) exists to hand it the fact rather than to decide it.
 Ordered by value for time, with an eye to not polishing code that is
 about to move.
 
+**Dated as written, and superseded by §D — the same standing §A has.**
+This is an ordering proposed at the second scan's close; §D is the live
+schedule and each finding's own heading is its live status. Several
+subjects ordered below have since closed, so a bullet here arguing that
+something is unguarded is evidence about the day it was written. **It is
+not maintained against the findings it names**, and a reader deciding
+what to do next should read §D. (Checked and corrected below: the S66
+bullet, whose premise #876 falsified. The other bullets were not
+rewritten — see that PR's report for what was and was not checked.)
+
 **First, because they are cheap and they make everything else
 trustworthy — the instruments.** S59, S61, S62, S63 and S73 all say the
 same thing: several of the mechanisms this project uses to *know* things
@@ -11980,9 +11992,13 @@ a green board is weaker evidence than it looks.
 **Second, the two soundness questions.** S66 (the cylinder box widened
 along its own axis, now feeding a containment test) is the only finding
 in this scan that can produce a wrong answer rather than a missing
-check, and it has no counter-row that could catch it. S86 (`RingInterval`
-laundering NaN through `certified_bracket`) is the same class one layer
-down.
+check. **The "no counter-row could catch it" half of this bullet is no
+longer true — #876 wrote two**, one that reds at the over-width's exact
+magnitude and one that separates in z, and it observed the wrong answer
+(a solid entirely above another, reported as inside it). The defect
+itself is open as **issue #862** and is what this bullet's priority
+argument now rests on. S86 (`RingInterval` laundering NaN through
+`certified_bracket`) is the same class one layer down.
 
 **Third, the three "the fix pass had the file open" rows**, because they
 are small and they close S60/S68/S74's classes rather than instances:
@@ -13287,6 +13303,101 @@ superset, erring outward) and stop characterising what looseness costs, rather
 than to recite a door list one crate below the doors.
 
 **Not fixed by #876**, which is Track I's and does not edit `crates/geom/`.
+
+
+## S234. The door inventory computes the roster's KEYS and none of its content — the direction column, which is the whole argument
+
+**Raised by I-d (#876) as its own guard's disclosed blind spot, and
+lifted out of that list deliberately.** `boolean/boxes.rs`'s
+`every_door_that_reads_a_box_is_inventoried` walks `topo/src` and pins,
+per file, every call of `face_box` / `face_box_rule` / `edge_box` /
+`edge_box_rule`. It computes **where** the doors are. The module header
+it guards makes a claim about **what each does with looseness** —
+`reduce.rs` prunes, `separation.rs` grants on non-overlap, `ops.rs`
+refuses unless the box clears, `census.rs` arm 2 refuses on a containing
+box — and **nothing computes that column.**
+
+**Why it is a finding and not a disclosure.** The direction column is the
+entire content of the header's argument; a door roster without it is a
+grep result. So the row computes the half that was never in doubt and
+recites the half that is. A door that changes its reading **without
+moving** — `reduce.rs` growing a second use that grants rather than
+prunes, `ops.rs`'s scan being rewired — leaves the header's dispositions
+false and the guard green. That is **S66's own shape one level up**, in
+the fix for S66.
+
+Worse in one specific way: the guard's assert message **instructs the
+next author to hand-write a direction into the module docs**. It mints a
+kept-in-step-by-hand invariant in the same diff that removed one, and
+per Q6 a disclosed deviation owes an issue number or a named unit. This
+row is that owner. **On Track I this is the third declared blind spot to
+come back as a finding.**
+
+**What would close it, and it is writable today.** One row per door that
+*executes* the direction: widen the box the door reads and assert the
+door's verdict moves the way the header says. #876 demonstrated the
+mechanism by hand for two of the four while proving its own rows could
+red — `face_box → [-1e300, 1e300]` reds five rows in `topo/tests/`
+(prune-side), and census's `reach_box` widened axially reds
+`a_body_above_the_cylinder_is_still_cleared_by_containment`
+(refuse-side). Four such rows would make the header's column a computed
+claim rather than a recited one; the guard above would then pin **where**
+and the rows would pin **which way**.
+
+**Not fixed by #876**, whose scope was the sentence and the ceiling rows.
+Three blind spots remain in that guard's disclosure list and belong
+there: an out-of-crate door (impossible today — all four functions are
+`pub(crate)`), a door reading through a wrapper defined in `boxes.rs`,
+and a call spelled through an alias, re-export or macro.
+
+## S235. The exact conic box exists, is public, and has no production caller; `topo` re-derives a looser one by hand
+
+**Raised by I-d (#876) while measuring S66's second over-width.** S16's
+class, a fourth instance nobody counted, and it **outlives #862's fix**.
+
+`geom::curves::boxes::circle_arc_aabb` (and `ellipse_arc_aabb`) computes
+the conic's true per-coordinate amplitude `Aᵢ = √((û_i·a)² + (v̂_i·b)²)`
+through the outward `Brk` bracket, **and** restricts it to the certified
+span via an extremal-angle interval — so it is tighter than
+`topo::boolean::boxes::EdgeBoxRule::ConicAmplitude` on **two** counts,
+orientation and span. It is `pub`. It takes exactly the two parameters
+`geom_brep::EdgeCurve::params()` already hands `edge_box`. `git grep` for
+its callers returns `crates/geom/tests/curves/boxes.rs` **and nothing
+else.**
+
+Meanwhile `edge_box` hand-derives `|û_i|·a + |v̂_i|·b` — the
+triangle-inequality bound over the same quantity, span-blind, and **not a
+function of the locus**: two `Curve3::Circle` values describing one
+circle with `u_ref` rotated in the plane get boxes `r√2` against `r`
+apart. It is not latent. Measured through the public API on
+`s16_box_soundness.rs`'s extruded three-arc `cylinder()`, **four of six
+carriers** take the wide branch at factor 1.366, so that body's cap faces
+claim `x, y ∈ [−0.683, 0.683]` against a true `[−0.5, 0.5]`.
+
+**This is not "someone should write the tight version".** The tight
+version ships. The finding is that there are two constructions of one box
+and **the correct one is the unused one** — which is exactly S16's
+subject (*"Three face bounding-box constructions with three different
+soundness rules"*, FIXED by #620, which unified two of three at the
+SURFACE level). This is the curve level, and it was not in that count.
+
+**The two halves separate, and only one of them is #862's.**
+
+- **Correctness / tightness → #862.** The axial over-width is a
+  *deletion*. The conic amplitude is a **tightening**, which carries the
+  obligation `EdgeBoxRule`'s NURBS bullet already states in writing: it
+  would start pruning pairs that are examined today, so a rung-3 operand
+  gate has to admit the kind first. Adopting `circle_arc_aabb` also
+  changes the box's SPAN behaviour, not only its width — a larger
+  behavioural step, worth landing separately.
+- **Structure → this row.** Even after both land, *why are there two
+  constructions and why was the correct one the unused one* is
+  unanswered, and answering it is what stops a fifth from appearing. A
+  row that lives only on #862 retires when the defect does; the
+  duplication would not.
+
+**Not fixed by #876**, which documented the arm, pinned the current
+formula so tightening it is loud, and changed no arithmetic.
 
 
 # §A. Where I would start

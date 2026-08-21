@@ -9,6 +9,16 @@
 //! predicate runs on a box; classification is untouched (`reduce`
 //! module docs).
 //!
+//! **The contract is not fully held today, and no consumer may recite
+//! it as though it were.** Issue **#862** holds the cases: the slab
+//! arm's axial projection reads single bracket endpoints, and the
+//! conic arm takes `hi().abs()`, which is not an upper bound on `|x|`
+//! when the lower endpoint is larger in magnitude — so under an
+//! `Interval` scalar there are loci this module does not enclose. The
+//! `f64` lane is unaffected. Cite the sentence above with #862
+//! attached or not at all; `separation`'s door does, and it is the
+//! one where a box-level non-overlap is a GRANT.
+//!
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
@@ -32,9 +42,12 @@
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The four are not
-//! recited: `every_door_that_reads_a_face_box_is_inventoried` below
-//! walks `topo/src` and pins them per file with the direction each
-//! reads looseness in, so a fifth door cannot land unargued.
+//! recited: `every_door_that_reads_a_box_is_inventoried` below walks
+//! `topo/src` and pins them per file — both rules, face and edge — so
+//! a fifth door cannot land unargued. **It pins WHERE the doors are
+//! and not which way each reads**, which is the column that carries
+//! the argument above; that gap is `S234` and has an owner rather
+//! than a disclosure.
 //!
 //! [`sweep_pad`] is sized so the padding can never lose an accepted
 //! pair at the sweep's door (its derivation below).
@@ -120,6 +133,17 @@ fn corrupt(what: &'static str) -> BooleanError {
 ///   along the surface, so the face's axial extremes lie on its
 ///   boundary), widened by the full radius in every coordinate.
 ///
+///   **The axial coordinate carries the pad TWICE**, and this is the
+///   rule rather than an accident of the code: the arm pads the axial
+///   RANGE before building the slab, and the final `padded` pads
+///   every coordinate again. The second application is dominated by
+///   the first — an axial offset of `pad` is at most `pad` in any
+///   world coordinate, which `padded` already adds — so it is
+///   redundant width. Redundant width is not free here (see the door
+///   list above), and removing it is a TIGHTENING that changes which
+///   pairs three of the four doors refuse, so it is **#862**'s
+///   alongside the two over-widths and not a style pass's.
+///
 ///   **Widening the AXIAL coordinate by the radius claims more than
 ///   the construction needs**, and this doc is the only place that
 ///   has ever said so: the boundary already bounds the axial extent
@@ -127,8 +151,9 @@ fn corrupt(what: &'static str) -> BooleanError {
 ///   claimed over `z ∈ [−r, 1 + r]`. Over-width, not unsoundness —
 ///   but three of the four doors above read over-width as a refusal.
 ///   **Issue #862** holds it, together with the axial projection's
-///   single-endpoint bracket reads. The ceiling row below allows
-///   exactly this much and no more, and goes red the day #862 lands.
+///   single-endpoint bracket reads. The
+///   `the_cylinder_arms_box_is_exactly_…` row below allows exactly
+///   this much and no more, and goes red the day #862 lands.
 /// - [`WholeBall`](Self::WholeBall) — **Sphere.** A band's belly
 ///   bulges past its poles and seam arcs, so the box is the whole ball
 ///   `center ± r`; every surface point is within `r` of the center.
@@ -162,8 +187,8 @@ fn corrupt(what: &'static str) -> BooleanError {
 /// asks for, and no cheaper one is known per kind. That looseness is
 /// not free (module docs: three of four doors read it as a refusal),
 /// so it is bounded rather than open-ended:
-/// `no_arm_claims_more_than_the_construction_its_rule_states` below
-/// pins every arm to exactly the construction stated here.
+/// the four `the_*_arms_box_is_exactly_the_construction_its_rule_states`
+/// rows below pin every arm to exactly the construction stated here.
 pub(crate) enum FaceBoxRule<'a, T: Real> {
     /// Hull the boundary's certified loci — see the type docs.
     BoundaryHull,
@@ -413,8 +438,10 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   and today its only callers are `geom`'s own tests. Taking it is
 ///   a TIGHTENING, so it carries the same obligation the NURBS arm
 ///   states: it would start pruning pairs that are examined today.
-///   All of this is **#862**'s; the ceiling row below spells the
-///   current formula out so tightening it is loud.
+///   The correctness half is **#862**'s and the *two constructions,
+///   the correct one unused* half is **`S235`**; the
+///   `the_planar_arms_box_is_exactly_…` row below spells the current
+///   formula out so tightening it is loud.
 /// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
 ///   edge whose carrier is null scaffolding. Nothing is certified
 ///   about the locus, so nothing is claimed; the chord is NOT a bound
@@ -560,14 +587,36 @@ fn vertex_point<T: Decide + Bounds>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    //! **The superset contract, asserted against the locus itself.**
+    //! **Two contracts, and they need opposite assertions.**
     //!
-    //! Every row here samples the face's TRUE locus and asserts the box
-    //! contains every sample. That is the contract (module docs), and
-    //! it is the assertion that degrades correctly: a rule that drops
-    //! any part of the bulge goes red, not only the one that drops all
-    //! of it, and the spans are swept rather than chosen so no single
-    //! fixture can be the reason it passes.
+    //! The **locus** rows sample the face's true locus and assert the
+    //! box contains every sample. The spans are swept rather than
+    //! chosen, so a rule that drops part of the bulge reds and not
+    //! only one that drops all of it, and no single fixture can be
+    //! the reason a row passes.
+    //!
+    //! **That family degrades in ONE direction only, and saying
+    //! otherwise is the thing S66 exists to refute.** `holds(&b, p)`
+    //! is satisfied by any bigger box, so a `face_box` returning
+    //! `[-1e300, 1e300]` on every arm that has one passes every locus
+    //! row here — and passes the whole `topo` lib suite. Over-width
+    //! is not slower work at three of this module's four doors
+    //! (module docs); it is a refusal, and therefore an answer. A
+    //! suite of locus rows is **not** an adequate guard for this
+    //! module, and a reader who leaves this header believing it is
+    //! has been told the wrong thing.
+    //!
+    //! So the **ceiling** rows —
+    //! `the_*_arms_box_is_exactly_the_construction_its_rule_states` —
+    //! state each arm's box as a formula in the fixture's own
+    //! parameters and pin it on all six faces in BOTH directions.
+    //! Neither family subsumes the other: the locus rows check the
+    //! rule against the geometry, the ceiling rows check the code
+    //! against the rule.
+    //!
+    //! `every_door_that_reads_a_box_is_inventoried` is neither — it
+    //! reads source, not geometry, and guards the module docs' door
+    //! list rather than any box.
 
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
@@ -957,6 +1006,29 @@ mod tests {
         );
     }
 
+    /// **The ceiling side of the contract, shared by the four rows
+    /// below: an arm's box is EXACTLY the construction its rule
+    /// states.**
+    ///
+    /// Each row states its arm's box as a FORMULA in the fixture's
+    /// own parameters and pins [`face_box`] to it on all six faces in
+    /// **both** directions — widening beyond the stated construction
+    /// reds it, and so does narrowing, which the locus rows see only
+    /// once it crosses the locus. One row per arm, so a red names its
+    /// arm before the message does.
+    ///
+    /// **Three terms below are deviations rather than rule, and each
+    /// is named as one**: `axial_overwidth`, `redundant_axial_pad`
+    /// and `overwide_half_extent`, all **#862**'s. They are spelled
+    /// as their own terms rather than folded into the construction so
+    /// a reader can tell which quantities are the rule and which are
+    /// the bug — a term whose name did not say it was wrong would
+    /// ratify the very thing these rows exist to flag. The day any of
+    /// them lands, its row reds at a named line and whoever fixes it
+    /// deletes the term and its sentence together. Pinned here rather
+    /// than fixed here: a correctness defect does not get fixed in a
+    /// style pass.
+    ///
     /// The six faces of `got` agree with `want` to within the
     /// arithmetic's own rounding. [`Aabb::padded`] alone moves each
     /// face by an ulp, and the fixture's trigonometry by a few more;
@@ -982,57 +1054,22 @@ mod tests {
         }
     }
 
-    /// **The other half of the contract: no arm claims MORE than the
-    /// construction its rule states.**
+    /// **`BoundaryHull`, conic-fed** — the rim is a circle, so its
+    /// [`EdgeBoxRule::ConicAmplitude`] box is the FULL turn's
+    /// whatever the span (the arc's own extremes are deliberately not
+    /// recovered) and the two radii chords lie inside it. Flat in z.
     ///
-    /// Every locus row above is monotone in the widening direction —
-    /// `holds(&b, p)` and `b.max_y >= r` are both satisfied by a
-    /// bigger box — so a `face_box` returning `[-1e300, 1e300]` on
-    /// every arm that has a box passes all of them. It passes the
-    /// whole `topo` lib suite. That is the wrong shape for this
-    /// module: three of its four doors (module docs) read a box that
-    /// is too big as a REFUSAL, not as slower work, so over-width is
-    /// a reachable wrong answer and nothing here could see it.
-    ///
-    /// This row states each arm's box as a FORMULA in the fixture's
-    /// own parameters — the construction the rule's docs state,
-    /// written out — and pins [`face_box`] to it on all six faces, in
-    /// both directions. Widening beyond the stated construction reds
-    /// it; so does narrowing, which the locus rows see only once it
-    /// crosses the locus.
-    ///
-    /// **Two formulas below carry an over-width, and both name it as
-    /// one.** `axial_overwidth` is the full radius the cylinder arm
-    /// adds along its own axis, where the boundary already bounds the
-    /// extent exactly. `overwide_half_extent` is what the conic arm
-    /// claims per coordinate in place of the circle's true half
-    /// extent. Both are issue **#862**, and both are spelled as their
-    /// own named terms rather than folded into the construction, so a
-    /// reader can tell which quantities are the rule and which are
-    /// the bug — a term whose name did not say it was wrong would
-    /// ratify the very thing this row exists to flag. The day either
-    /// lands, this row goes red at a named line and whoever fixes it
-    /// deletes the term and its sentence together. Pinned here rather
-    /// than fixed here: a correctness defect does not get fixed in a
-    /// style pass.
+    /// The circle's TRUE half extent is `r` in every coordinate.
+    /// `overwide_half_extent` is what the arm claims instead —
+    /// `|û_i|·a + |v̂_i|·b`, which for a circle named from a `u_ref`
+    /// at φ is `r·(|cos φ| + |sin φ|)`: equal to `r` only at an
+    /// axis-aligned φ, and `r√2` at 45°. A function of the NAME, not
+    /// of the locus, and #862's. **The φ sweep is what makes this row
+    /// see it at all** — at φ = 0 the two agree and the arm looks
+    /// tight.
     #[test]
-    fn no_arm_claims_more_than_the_construction_its_rule_states() {
+    fn the_planar_arms_box_is_exactly_the_construction_its_rule_states() {
         let pad = pad();
-
-        // **BoundaryHull, conic-fed.** The rim is a circle, so its
-        // `EdgeBoxRule::ConicAmplitude` box is the FULL turn's
-        // whatever the span — the arc's own extremes are deliberately
-        // not recovered — and the two radii chords lie inside it.
-        // Flat in z.
-        //
-        // The circle's TRUE half extent is `r` in every coordinate.
-        // `overwide_half_extent` is what the arm claims instead —
-        // `|û_i|·a + |v̂_i|·b`, which for a circle named from a
-        // `u_ref` at φ is `r·(|cos φ| + |sin φ|)`: equal to `r` only
-        // at an axis-aligned φ, and `r√2` at 45°. A function of the
-        // NAME, not of the locus, and #862's. The φ sweep is what
-        // makes this row see it at all — at φ = 0 the two agree and
-        // the arm looks tight.
         for &r in &[0.001, 1.0, 250.0] {
             for span_deg in [10.0_f64, 90.0, 179.0, 181.0, 300.0, 359.0] {
                 for phi_deg in [0.0_f64, 45.0, 137.0] {
@@ -1062,37 +1099,56 @@ mod tests {
                 }
             }
         }
+    }
 
-        // **CylinderSlab.** The axial range is the boundary's own,
-        // padded once inside the arm and once by the final `padded`;
-        // the radial half-width is the radius. `axial_overwidth` is
-        // #862's — the same radius added along the axis, where the
-        // boundary already bounds the extent exactly.
+    /// **`CylinderSlab`** — the axial range is the boundary's own and
+    /// the radial half-width is the radius.
+    ///
+    /// Two of the three axial terms are the rule's stated deviations
+    /// rather than its construction, and both are #862's.
+    /// `axial_overwidth` is the full radius added along the axis,
+    /// where the boundary already bounds the extent exactly.
+    /// `redundant_axial_pad` is the arm's own pad on the axial RANGE,
+    /// applied before the slab is built and then again by the final
+    /// [`Aabb::padded`] — so the axial coordinate carries the pad
+    /// twice and the radial ones once. Both are stated at
+    /// [`FaceBoxRule::CylinderSlab`], so this row transcribes the
+    /// RULE and not an implementation detail: removing the inner pad
+    /// reds this row at the term that names it.
+    #[test]
+    fn the_cylinder_arms_box_is_exactly_the_construction_its_rule_states() {
+        let pad = pad();
         for &r in &[0.002, 1.0, 40.0] {
             for span_deg in [30.0_f64, 170.0, 200.0, 350.0] {
                 let (z0, z1) = (-0.25 * r, 0.75 * r);
                 let (body, face) = cyl_wall(r, 0.0, span_deg.to_radians(), z0, z1);
                 let b = face_box(&body, face, pad).unwrap();
                 let axial_overwidth = r;
+                let redundant_axial_pad = pad;
                 agrees_with_the_rule(
                     &b,
                     &Aabb {
                         min_x: -r - pad,
                         min_y: -r - pad,
-                        min_z: z0 - 2.0 * pad - axial_overwidth,
+                        min_z: z0 - pad - redundant_axial_pad - axial_overwidth,
                         max_x: r + pad,
                         max_y: r + pad,
-                        max_z: z1 + 2.0 * pad + axial_overwidth,
+                        max_z: z1 + pad + redundant_axial_pad + axial_overwidth,
                     },
                     r,
                     &format!("the cylinder arm (r = {r}, span = {span_deg}°)"),
                 );
             }
         }
+    }
 
-        // **WholeBall.** `center ± r`, reading nothing from the
-        // boundary — so the trim the fixture carries must not appear
-        // in the box at all.
+    /// **`WholeBall`** — `center ± r`, reading nothing from the
+    /// boundary, so the trim the fixture carries must not appear in
+    /// the box at all. No deviation terms: this arm claims exactly
+    /// what its rule states.
+    #[test]
+    fn the_sphere_arms_box_is_exactly_the_construction_its_rule_states() {
+        let pad = pad();
         for &r in &[0.002, 1.0, 40.0] {
             let c = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
@@ -1121,11 +1177,15 @@ mod tests {
                 &format!("the sphere arm (r = {r})"),
             );
         }
+    }
 
-        // **ControlNet.** The hull of the net, and nothing else: the
-        // fixture's net spans the unit cube, its own boundary lies in
-        // `z = 0`, and the box must be the net's hull rather than
-        // anything read off the face's boundary.
+    /// **`ControlNet`** — the hull of the net and nothing else. The
+    /// fixture's net spans the unit cube while its own boundary lies
+    /// in `z = 0`, so a box read off the BOUNDARY would be visibly
+    /// different from one read off the net. No deviation terms.
+    #[test]
+    fn the_nurbs_arms_box_is_exactly_the_construction_its_rule_states() {
+        let pad = pad();
         let (body, face, net) = nurbs_bulge_face();
         let b = face_box(&body, face, pad).unwrap();
         agrees_with_the_rule(
@@ -1143,58 +1203,82 @@ mod tests {
         );
     }
 
-    /// **The door inventory** — the module docs' four doors, computed
+    /// **The door inventory** — the module docs' door list, computed
     /// rather than recited.
     ///
     /// The header states which direction each consumer reads a loose
-    /// box in. That is a roster, and a roster is right only until a
-    /// fifth door lands. This row walks `topo/src` and counts every
-    /// CALL of [`face_box`] and [`face_box_rule`] in code — comments
-    /// and literals blanked by [`crate::source_walk::CodeOnly`], the
-    /// more competent of this crate's two readers (that there are two
-    /// is S117/D61's, not this row's) — pinned per file:
+    /// box in. That is a roster, and a roster is right only until the
+    /// next door lands. This row walks `topo/src` and counts every
+    /// CALL of [`face_box`], [`face_box_rule`], [`edge_box`] and
+    /// [`edge_box_rule`] in code — comments and literals blanked by
+    /// [`crate::source_walk::CodeOnly`], the more competent of this
+    /// crate's two readers — pinned per file.
     ///
-    /// - `boolean/reduce.rs` — the C10 candidate tree. **Prunes**:
-    ///   loose is slower work, never a different answer. The only
-    ///   door for which that is true.
-    /// - `boolean/ops.rs` — the sphere-extent fallback's
-    ///   cylinder-face arm. **Refuses**: the ball's certified extent
-    ///   must CLEAR the face box, or the pair is
-    ///   `FallbackExtentUnsupported`.
+    /// **Both rules, not just the face one.** The header's claim is
+    /// about *a box*, and [`EdgeBoxRule`]'s conic arm is where the
+    /// sharper of the two over-widths lives (#862). A walk that
+    /// matched only `face_box` would attribute that arm's cost to a
+    /// door list computed for a different function, and an
+    /// edge-box-only door would land green.
+    ///
+    /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
+    ///   **Prunes**: loose is slower work, never a different answer.
+    ///   The only door for which that is true.
+    /// - `boolean/ops.rs` — the sphere-extent fallback, face and
+    ///   edge: the cylinder-face arm clears a [`face_box`] against
+    ///   the ball's extent, and the scan's near-boundary test walks
+    ///   the face's [`edge_box`]es against the germ circle's box.
+    ///   **Refuses**: whichever box fails to clear turns the pair
+    ///   into `FallbackExtentUnsupported`.
     /// - `separation.rs` — the placement certificate. **Refuses**:
     ///   non-overlap IS the grant.
-    /// - `census.rs` — `reach_box`, which reads the RULE here and
-    ///   re-derives the arithmetic (#700). **Refuses**: arm 2 clears
-    ///   only on a definitely negative margin against a CONTAINING
-    ///   box, so over-width is a false `CensusUndecidable`.
+    /// - `census.rs` — `reach_box` and `edge_reach`, which read the
+    ///   RULES here and re-derive the arithmetic (#700). **Refuses**:
+    ///   arm 2 clears only on a definitely negative margin against a
+    ///   CONTAINING box, so over-width is a false `CensusUndecidable`.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
-    /// site, every call in it is this suite's own, and its count
-    /// would churn on each row added here while pinning nothing.
+    /// site, every call in it is this suite's own or one arm calling
+    /// another, and its count would churn on each row added here
+    /// while pinning nothing.
+    ///
+    /// **This row is a member of S117's population** — a
+    /// source-text guard over `.rs` in this workspace. It reuses the
+    /// shared reader rather than minting a sixth, which answers the
+    /// half of S117 about how they lex; it does not answer the half
+    /// about how many there are, and it makes that number larger.
     ///
     /// **What this cannot match**, stated rather than implied:
     ///
     /// 1. A door in another CRATE. The walk is `topo/src` because
-    ///    that is the tree this crate can see. Both functions are
+    ///    that is the tree this crate can see. All four functions are
     ///    `pub(crate)`, so no such door can exist today — that, and
     ///    not a survey, is what carries the claim out of crate.
     /// 2. A door reading a box through a helper defined here: a
     ///    wrapper's own callers are invisible to a textual walk.
     /// 3. A call spelled through an alias or a re-export, or one a
     ///    macro assembles.
-    /// 4. **The direction itself.** This pins where the doors are,
-    ///    not what each does with looseness. A door that changes its
-    ///    reading without moving leaves the dispositions above stale
-    ///    and this row green.
+    ///
+    /// **What it cannot match that is a FINDING rather than a
+    /// disclosure: the direction itself.** This pins where the doors
+    /// are, not what each does with looseness — and the direction
+    /// column is the whole content of the header's argument, so a
+    /// roster without it is a grep result. A door that changes its
+    /// reading without moving leaves the dispositions above stale and
+    /// this row green. That is this module's own defect one level up,
+    /// recorded as **S232**'s sibling `S234` rather than left in the
+    /// list above, because a disclosure with no owner is how the
+    /// fifth instance gets found by accident.
     #[test]
-    fn every_door_that_reads_a_face_box_is_inventoried() {
+    fn every_door_that_reads_a_box_is_inventoried() {
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 1),
-            ("boolean/reduce.rs", 1),
-            ("census.rs", 1),
+            ("boolean/ops.rs", 2),
+            ("boolean/reduce.rs", 3),
+            ("census.rs", 2),
             ("separation.rs", 1),
         ];
         const HOME: &str = "boolean/boxes.rs";
+        const DOORS: [&str; 4] = ["face_box(", "face_box_rule(", "edge_box(", "edge_box_rule("];
         let root = crate::source_walk::src_root();
         let mut found: Vec<(String, usize)> = Vec::new();
         for path in crate::source_walk::crate_sources() {
@@ -1208,8 +1292,7 @@ mod tests {
             }
             let text = std::fs::read_to_string(&path).expect("a readable source file");
             let code = crate::source_walk::CodeOnly::of(&text);
-            let calls = code.as_str().matches("face_box(").count()
-                + code.as_str().matches("face_box_rule(").count();
+            let calls: usize = DOORS.iter().map(|d| code.as_str().matches(d).count()).sum();
             if calls > 0 || PINNED.iter().any(|(pinned, _)| *pinned == rel) {
                 found.push((rel, calls));
             }
@@ -1221,9 +1304,10 @@ mod tests {
             .collect();
         assert_eq!(
             found, pinned,
-            "a door that reads a face box arrived, left or moved. The module docs' \
-             looseness list is that roster: record the door there with the direction it \
-             reads a loose box in — pruning, or refusing — and here with its count."
+            "a door that reads a box from this module arrived, left or moved. What the \
+             module docs owe is not this count but the DIRECTION the new door reads \
+             looseness in — pruning, or refusing — and nothing computes that (S234). \
+             Update both, and read S234 before trusting the list you are updating."
         );
     }
 

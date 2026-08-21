@@ -1055,8 +1055,9 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    closure's own comment carries what is LEFT of the reason for a
 ///    second arithmetic, which since the D1 ruling is an allowlist
 ///    gate and not a type fact; **#700** is where whether it survives
-///    is decided, and nothing compares the two derivations today). A kind with no cheap sound box refuses
-///    WITHOUT a distance test rather than under-claiming its reach. A
+///    is decided, and nothing compares the two derivations today). A
+///    kind with no cheap sound box refuses WITHOUT a distance test
+///    rather than under-claiming its reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
 ///    boss-on-plate class) — the record has to name both sides of the
