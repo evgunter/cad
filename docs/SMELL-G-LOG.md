@@ -133,8 +133,8 @@ from the orchestrator.
 | **G-a** | D71, D72 | S127, S128 |
 | ~~**G-b**~~ (landed, #787) | D73, D74 — **unused, returned**; **D79** used | S129 and **S130** used; S135, S136 free |
 | ~~**G-c**~~ (landed, #781) | D75–D77 — **unused, returned** | S131, S132, S133 — **all spent** |
-| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S169** used; S170 returned |
-| unassigned | D72, D73, D74, D76, D77, D80 | S128, S135, S136, S170 |
+| ~~**G-f**~~ (G7, landed #836) | **D75** used; D76 returned | **S170** used; **S169** abandoned on a collision with Track F |
+| unassigned | D72, D73, D74, D76, D77, D80 | S128, S135, S136 |
 
 **G-a used D71 and D78, and S127 and S134** (see *Landings*); D72 and S128 came
 back. **The `unassigned` line above is a reconciliation across three landings**
@@ -145,6 +145,17 @@ own record. It is the orchestrator's to confirm, not a lane's to assert.
 orchestrator's assignment — the block is spent. §D's Track G number paragraph
 says so, so a reader of the schedule does not read it as a fourth
 double-allocation.
+
+**`S169` was minted twice, and G-f's finding is `S170`.** Track F's F-d took
+`S169` for the stand-down residue in **#825** and G-f took it for the sixth
+`Step` copy, on branches an hour apart that could not see each other; #825
+merged first, so G-f moved to the other number it already held. Found on the
+pre-landing re-merge of `origin/main`, not by review. **The mechanism is the
+lesson, not the clash**: a reserved block stops exactly this, and drawing from
+*above* the block — which both tracks were told to do once their blocks were
+spent — puts every track back on one unsynchronised sequence. The next
+exhausted block wants a second reservation, not another draw. No `D` number
+collided.
 
 **G-f was dispatched under a lane letter this roster gives to G8.** The brief
 opens *"implementer lane G-f on Track G, row G7, finding S106"*; the wave-2
@@ -362,9 +373,10 @@ over a document, wire, slot and Python vocabulary that never learned it.
   `verb_tags_are_structure` never checked. Both negative-controlled.
 - **`StepArg` is `node.rs:84`**, not `program.rs`, and is a role vocabulary,
   not a verb one. **The count is six, not five**, and the five S4 names span
-  two crates, not three — **S169**/D75 records the sixth (`pncad-py`'s PATHS
+  two crates, not three — **S170**/D75 records the sixth (`pncad-py`'s PATHS
   surface and its `.pyi`), the only copy with neither compile guard nor
-  census.
+  census. (Raised as `S169`; renumbered before landing — see the number
+  reservation above.)
 - **Issue #829** raised, not fixed: a hand-built fused step with two
   `Sweep`/`ArcLen`/`Bulge` specs enumerates one role twice and leaves the
   arrival spec's argument unaddressable. The fix adds variants to a persisted

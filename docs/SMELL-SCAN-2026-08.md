@@ -612,7 +612,7 @@ started, and one because sealing MOVED where the coverage gap lives:
 
 | Concept | Copies | Anchor |
 |---|---|---|
-| profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table / `pncad-py`'s PATHS lattice + its `.pyi` — **6**. **Was 5 across 3 crates; the five named span TWO crates** (`profile` and `editor-core`), so the three-crate count was only ever true of a copy the row did not name. Corrected by **S169**; the `editor-core` half is closed by **S106** | `program.rs:64`, `persist/wire.rs:255`, `profile/src/path/program.rs:190`, `pncad-py/src/py/path.rs` |
+| profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table / `pncad-py`'s PATHS lattice + its `.pyi` — **6**. **Was 5 across 3 crates; the five named span TWO crates** (`profile` and `editor-core`), so the three-crate count was only ever true of a copy the row did not name. Corrected by **S170**; the `editor-core` half is closed by **S106** | `program.rs:64`, `persist/wire.rs:255`, `profile/src/path/program.rs:190`, `pncad-py/src/py/path.rs` |
 | `RoleSeg` → `SegTag` | kernel enum → editor-core fieldless mirror → `pncad` re-export → a **second** 40-variant py mirror → 40-arm `to_kernel` → 40-arm inverse tripwire → 1316-line `.pyi` | `pncad-py/src/py/select.rs:82` |
 | node kinds | ~10 parallel match tables; `rg Node::Fillet` → 24 non-test hits in 10 files | `node.rs:423`, `eval/mod.rs:1325` |
 | "which `RoleSeg` args are sub-names" | 4 sites | `resolve/mod.rs:969`, `refactor.rs:540`, `names/select.rs:296`, `eval/mod.rs:2040` |
@@ -9798,7 +9798,7 @@ the silent hop is not where this finding put it.
   `ProgramStep`, `WireStep`, `StepArg`, the content-key tag table). The
   sixth is `pncad-py`'s hand-written PATHS lattice plus its stub — the
   only one of the six with neither a compile guard nor a census.
-  Recorded as **S169**.
+  Recorded as **S170**.
 
 **What was done.**
 
@@ -9833,7 +9833,7 @@ to `StepArg`, which is persisted inside `SlotId`; that is a persistence
 decision, not a style fix.
 
 
-## S169. The PATHS verb vocabulary's sixth copy is the Python surface, and it is the only silent one
+## S170. The PATHS verb vocabulary's sixth copy is the Python surface, and it is the only silent one
 
 `crates/pncad-py/src/py/path.rs` binds the PATHS lattice state for
 state, one `#[pymethods]` block per state, and
@@ -13590,6 +13590,15 @@ above it** — G7 was issued `S169`/`S170` from outside `S127`–`S136` by the
 orchestrator. A finding number in a Track G row outside that range is therefore
 not a mis-allocation; the allocator is still the one orchestrator.
 
+**`S169` was nonetheless minted twice**, on two branches that could not see each
+other: Track F's F-d took it for the stand-down residue (**#825**, now in
+`main`) and G7 took it for the sixth `Step` copy. Drawing from *outside* a
+reserved block puts two tracks back on one sequence, which is the failure the
+blocks exist to prevent — so what needs extending is the reservation, not the
+draw. **G7's finding is `S170`**, the other number the same orchestrator had
+already given it; F-d's `S169` stands, because it landed first. No `D` number
+collided.
+
 **Three edges this table did not carry, and one it carried wrongly**, all
 re-derived from the branches rather than from the schedule (G-R1 through G-R7 in
 the track log):
@@ -13631,7 +13640,7 @@ tessellation pin are red on main).
 |---|---|---|---|---|---|
 | **D71** | **The local gate has no `oracle-certify` mirror, and nothing enforces ci.yml ↔ ci-local.sh JOB parity.** Fell out of G1's fix pass: `ci-local.sh` carried both sentences G1 corrected in `ci.yml`, and under it the transcendental and `+ −` pads have no containment guard at all. Two decisions, neither a patch: does the local gate carry a ~250s GMP build, and is job parity enforced (like `gate-roster.sh` does for gate scripts) or declared per job? | **S127** | `local-scripts/{ci-local.sh,gate.sh}`, `scripts/gates/` | **ACCEPTED**, unstaffed | style |
 | **D78** | **What is still one-directional in the interval backend after G1.** Three items: `powi`'s tightness ceiling is a deferral with a downstream consumer, not an unguardable; the oracle tier's upper constraint is a scale-free ratio and misses a fixed absolute over-widening on non-monotone shapes with wide boxes; S116(r)'s consumer-side caveat at `crates/geom-core/src/interval.rs:135-143` is outside G1's fence and unclosed. **`copysign`'s placement is NOT on this list — it is S1's.** | **S134** | `interval-transcendentals/tests/`, and `crates/geom-core/src/interval.rs` for the third item | **ACCEPTED**, unstaffed | ADVERSARIAL for the first two |
-| **D75** | **The PATHS verb vocabulary's sixth copy is `pncad-py`'s, and nothing anchors it.** Fell out of G7: with a probe verb added to `transition_table!` and `editor-core`'s two exhaustive matches discharged, the workspace — `pncad-py --all-targets` included — compiles clean, so the Python surface and its stub simply do not gain the verb. S4's row counts five copies and names no `pncad-py` file. Not a patch: the question is whether the `Step` mirror and the `RoleSeg` mirror share one census. | **S169** | `pncad-py/src/py/path.rs`, `pncad-py/pncad.pyi`, and a test | **ACCEPTED**, unstaffed | style |
+| **D75** | **The PATHS verb vocabulary's sixth copy is `pncad-py`'s, and nothing anchors it.** Fell out of G7: with a probe verb added to `transition_table!` and `editor-core`'s two exhaustive matches discharged, the workspace — `pncad-py --all-targets` included — compiles clean, so the Python surface and its stub simply do not gain the verb. S4's row counts five copies and names no `pncad-py` file. Not a patch: the question is whether the `Step` mirror and the `RoleSeg` mirror share one census. | **S170** | `pncad-py/src/py/path.rs`, `pncad-py/pncad.pyi`, and a test | **ACCEPTED**, unstaffed | style |
 | **G4** | **`profile`'s fifth lane trait, blanket-implemented, which D1 never looked at** — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole `path::family` arc surface today, re-exported from `pncad`. **Per Evan's ruling this is mechanical**: `CertifiedBounds` is the bound that excludes a dual. **Was gated on F1; that gate lifts with #791** (see the note below). **Two corrections #791's lane owes this row.** (a) The widened matcher fires on **none of G4's own sites** — `arc_fillet.rs` is allowlisted by file, the ~49 uses in `family.rs`/`program.rs` reach the bound through the alias NAME and are invisible to any grep, and `geom`'s doors are sole bounds outside the class — so a **green gate here is not ratification evidence**; what #791 delivers is that `real.rs`'s rule is true and enforced against new spellings. (b) **D68/S124 is a VISIBILITY defect and G4 does not discharge it**: changing what `ArcCarrierScalar` is bound to leaves all ~49 uses exactly as invisible. | **S87** (and S88's `profile` half) | `profile/src/path/{arc_fillet,family}.rs`, `profile/src/lib.rs`, `pncad/src/profile.rs` | **ACCEPTED — RULED** (the admitting set) | **ADVERSARIAL** |
 
 > **G4's gate: cleared by Track F, 2026-08-20.** F1's fix is #791; its style review re-derived the widened matcher's effect independently and found the ratification precondition met in both operand orders — `real.rs`'s sentence is now true. **One correction G4 must carry, from that review: the widened matcher fires on nothing G4 actually writes**, because every `CertifiedBounds` use in the tree is a *sole* bound and the gate's class is compound bounds only. So **a green gate on G4's conversion is not ratification evidence** — G4 owes its own argument that each converted door should exclude a dual, and cannot cite the gate as having checked it. (#791 is NOT CLEARED on other grounds — two matcher blindnesses, F-R10 — none of which bear on this precondition.)
