@@ -12733,6 +12733,66 @@ S60/S66's rows; and a general gate re-proposes exactly what Evan declined.
 
 ---
 
+## S167. Merging a PR destroys its in-flight checks, and the wreckage is permanently unreproducible
+
+**The branch-side twin of S162, found by lane F-c diagnosing its own merge.**
+
+Merging a PR deletes `refs/pull/<n>/merge`. Any check still running then fails
+at **checkout**, not at its subject:
+
+    ##[error]fatal: couldn't find remote ref refs/pull/790/merge
+
+**And it cannot be re-run.** A `pull_request`-event run can never check out a
+merged PR's ref again, so `--failed` re-fails identically, forever. The record
+keeps two red jobs on a landed PR that **nothing was rendered or compared** in.
+
+**The verified instance, in two attempts — and the second is what makes this a
+finding rather than a footnote.**
+
+**Attempt 1 is the race.** #790 merged at `23:19:42Z` while
+`render lanes / demo tour (scene inputs)` and
+`render lanes / wild-corpus montage` were still running; both failed at
+`23:19:44Z`, then `:20:00` and `:20:15`, on the checkout.
+
+**Attempt 2 is the trap.** A `gh run rerun --failed` seventeen minutes later —
+quiet repo, no race left to lose — failed **identically** at `23:36:30Z`
+(`run_attempt 2`, confirmed via the jobs API). The wreckage is not a flake that
+clears on retry; **the obvious remedy reproduces it exactly, forever**, because
+the ref it needs no longer exists.
+
+So anyone who finds two red `render lanes` jobs on a merged PR and does the
+natural thing gets two red `render lanes` jobs again — and *that* reads as a
+real, reproducible defect rather than a dead ref. **The retry does not just fail
+to help; it manufactures corroborating evidence for the wrong conclusion.**
+
+What actually settled it was a run **neither party created**: `1c760e94`, on
+another track's branch, which **contains** the merge commit `2866eb99` and shows
+both lanes `success`.
+
+**Why it is worth a finding rather than a shrug.** *It looks exactly like a
+defect.* Two red jobs named `render lanes` on a merged PR read as a rendering
+regression, they are the last word that PR's board will ever carry, and the
+obvious remedy — re-run the failures — is structurally guaranteed to reproduce
+them. A reader six weeks from now has no way to tell this from a real failure
+except by knowing this paragraph exists.
+
+**The operational tension it exposes, which had not been stated.** *Do not sit
+CONFLICTING* — a PR in that state runs **no** checks at all, a silent CI outage —
+pulls toward merging the moment a PR is clean. *Do not merge with checks in
+flight* pulls the other way. **Both are correct.** The resolution costs seconds
+and is compatible with merging fast: **filter the check runs, then merge** —
+`gh api …/check-runs`, reject anything whose `conclusion` is not `success`.
+`MERGEABLE / UNSTABLE` means *some check is not green and this word will not
+tell you which*; it is a status whose method is hidden, which is why it reads as
+settled.
+
+**Together with S162 this is one shape, on both sides of the merge:** *the record
+of a verification can be destroyed by the act of landing it.* On `main` the run
+is **cancelled** and a docs-tier successor goes green over it; on the branch the
+run is **killed at checkout** and stays red forever. Row: **D113**.
+
+---
+
 ## S162. A code merge's full run is cancelled by the docs-tier pushes behind it, and the board goes green having run two jobs
 
 **Found by Track F's lane F-b, 2026-08-20, in the composition of two
