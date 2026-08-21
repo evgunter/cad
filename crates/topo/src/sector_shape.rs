@@ -504,8 +504,8 @@ mod tests {
             .iter()
             .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))
             .collect();
-        let home = crate::fixtures::src_root().join("sector_shape.rs");
-        let files = crate::fixtures::crate_sources();
+        let home = crate::source_walk::src_root().join("sector_shape.rs");
+        let files = crate::source_walk::crate_sources();
         assert!(
             files.contains(&home),
             "the walk found {} file(s) but not the home module — it is not reading topo/src",

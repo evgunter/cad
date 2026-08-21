@@ -107,8 +107,8 @@ mod tests {
     ///    pattern appears, so the textual pair never matches.
     #[test]
     fn the_planar_sense_flip_lives_in_one_place() {
-        let home = crate::fixtures::src_root().join("face_normal.rs");
-        let files = crate::fixtures::crate_sources();
+        let home = crate::source_walk::src_root().join("face_normal.rs");
+        let files = crate::source_walk::crate_sources();
         assert!(
             files.contains(&home),
             "the walk did not find face_normal.rs"
@@ -206,9 +206,9 @@ mod tests {
             ("validate.rs", 1),
         ];
         let needle = concat!("sense", "_sign");
-        let root = crate::fixtures::src_root();
+        let root = crate::source_walk::src_root();
         let mut found: Vec<(String, usize)> = Vec::new();
-        for path in crate::fixtures::crate_sources() {
+        for path in crate::source_walk::crate_sources() {
             let text = std::fs::read_to_string(&path).expect("a readable source file");
             let reads = crate::fixtures::code_only(&text).matches(needle).count();
             let rel = path
