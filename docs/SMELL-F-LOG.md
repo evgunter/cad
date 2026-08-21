@@ -189,6 +189,26 @@ reader learns from the file rather than from the invocation. What D44 actually
 found is a test whose disposition was decided by a filter nobody read; either
 disposition is defensible, being decided by accident is not.
 
+**CLOSED by #844, and one of the ruling's premises did not survive the lane's
+re-derivation.** The *dispositions* stand — the one non-`#[ignore]`d test runs,
+the rest are documentary plus a floor. The *criterion* does not: **of 17
+censused probe suites exactly two contain any `#[ignore]`d test, and both are on
+the executed side.** There is no population of "thirteen `--ignored` dump
+harnesses"; every unexecuted suite is a plain `#[test]`, unrun because nothing
+runs `cargo test -p <crate> --features probe` at all, and several are the
+Probe-lane halves of ordinary suites rather than dumps. The lane did not decide
+their fate — that is **D111** — and it did not restate any total; it made the
+*accident* impossible instead, by requiring every censused suite to be either
+rostered as executed or to say so in its own header. **Evan may want to re-rule
+on the corrected population.** The lane also found a second live instance the
+ruling could not have seen: `m4_pr8_k_probe.rs`'s `corpus_evaluates_green_at_probe`,
+a plain `#[test]` inside the module the sweep DOES name, documented as
+*"Runs in the normal (non-ignored) suite"* and never once run (**S165**).
+**Cost, since the ruling asked for it and the discharge did not retire the
+question**: both preconditions together are **2.60 s** of the sweep step's
+112.96 s, from step timestamps on run **32431100922** (hosted `ubuntu-latest`,
+2 vCPU) — one sample, one tree, and no claim about the critical path.
+
 ### F-R6's caveat, and why it changes the lane's default
 
 The ruling reads as *convert, then grandfather the residue*, but the caveat
