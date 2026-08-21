@@ -92,7 +92,7 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | **F-R1** | **Is F8 gated on E-a (#753)?** §D's Track F preamble says *"Nothing in F1–F3 or F8 may open until that lands"* and calls the gate a **file-overlap** gate; F8's own scope cell says its file is *"neither of E-a's two files"*. The two sentences cannot both be operative. | **F8 stays gated, and the preamble is right for a reason it does not give.** #753's actual file set was read from the PR, not from the schedule: it is ten files, not two, and it includes `.github/workflows/ci.yml` and `local-scripts/ci-local.sh`. D44's defect is that `k_probe_sweep.sh` filters CI's probe run to 2 of 16 suites — a fix that makes CI run the other fourteen is an edit to the *invocation*, which lives in `ci.yml`. So the overlap is real; the scope cell simply counted E-a's files from §D's Scope column instead of from the branch. **Recorded as a finding, because the schedule cell is a claim site** (`SMELL-C-LOG` C-R11). | orchestrator, 2026-08-20 |
 | **F-R2** | **F4's S84 half is `crates/geom-brep/tests/m5_pr7_ssi.rs`, which is the single code file Track C's open #734 edits.** §D's Track F table names no edge here. | **F4 waits for #734.** Not split: S84 is one of four members of *one missing idiom*, and a lane that closes three and reports the fourth is the half-fix this document already records as §C13. The whole row sequences behind #734 rather than fragmenting the class. | orchestrator, 2026-08-20 |
 | **F-R3** | **F6 and issue #746 are the same file** — `tools/tess-lint/src/lib.rs`. #746 is Track C's **C15**, the positional-ordinal join, and F6's row explicitly excludes it as part 2 of S73. | **F6 opens, and declares the boundary rather than assuming it.** C15 is *unstaffed* — a row and an issue, no `C-` lane letter — so there is nothing to collide with today, and holding an edge-free row against an unstaffed one is how a register stops executing (§C3). The lane's brief fences it off `compare`'s key and off the `else { continue }` arm, and its PR says so, so that whoever takes #746 can see the boundary from the tree. | orchestrator, 2026-08-20 |
-| **F-R5** | **F8 / D44 — is 14-of-16 probe suites type-checked-but-never-run a cost posture or a defect?** Re-derived before asking: there are **16** probe-gated suites under `crates/*/tests`, and `k_probe_sweep.sh:91,94` executes exactly two module filters (`m4_pr8_k_probe::`, `k_report::`). Separately, `editor-core/tests/m5_pr5_corpus_probe.rs:21` is a plain `#[test] fn cut_cylinder_replays_at_probe()` with **no `#[ignore]`**, registered at `all.rs:153`, which has never executed in CI — the only thing that runs that crate's probe feature passes `--ignored m4_pr8_k_probe::`. | **SPLIT** (Evan, 2026-08-20). The thirteen `--ignored` dump harnesses are **posture**: they are opt-in instruments by design, and the deliverable there is documentary plus a **floor pinning the executed set** so it cannot silently shrink further — S61's ruling one file over, *a gate must be sited where it can fire on its own inputs*. The plain non-`#[ignore]`d test is **not** posture and gets run — **conditional on Evan's caveat: *"ensure the accidental-looking skipped test isn't, like, super compute intensive."*** See the note below; the measurement is F-h's, and it is a gate on the ruling, not a footnote to it. | Evan, 2026-08-20 |
+| **F-R5** | **F8 / D44 — is 14-of-16 probe suites type-checked-but-never-run a cost posture or a defect?** Re-derived before asking: there are **16** probe-gated suites under `crates/*/tests`, and `k_probe_sweep.sh:91,94` executes exactly two module filters (`m4_pr8_k_probe::`, `k_report::`). Separately, `editor-core/tests/m5_pr5_corpus_probe.rs:21` is a plain `#[test] fn cut_cylinder_replays_at_probe()` with **no `#[ignore]`**, registered at `all.rs:153`, which has never executed in CI — the only thing that runs that crate's probe feature passes `--ignored m4_pr8_k_probe::`. | **SPLIT** (Evan, 2026-08-20) — **but read the caveat section below before acting on this cell: its DISPOSITIONS stand and were implemented by #844, while the population it describes does not exist, and the amendment's placement argument was WITHDRAWN by the orchestrator on 2026-08-20.** The thirteen `--ignored` dump harnesses are **posture**: they are opt-in instruments by design, and the deliverable there is documentary plus a **floor pinning the executed set** so it cannot silently shrink further — S61's ruling one file over, *a gate must be sited where it can fire on its own inputs*. The plain non-`#[ignore]`d test is **not** posture and gets run — **conditional on Evan's caveat: *"ensure the accidental-looking skipped test isn't, like, super compute intensive."*** See the note below; the measurement is F-h's, and it is a gate on the ruling, not a footnote to it. | Evan, 2026-08-20 |
 | **F-R6** | **F1 / S59 — widening the compound-`Bounds` matcher reds every site spelled `Decide + CertifiedBounds`, which `real.rs:787` says *"still needs ratification"*. The gate has been blind to that spelling, so none of them was ever ratified.** What happens to the pre-existing population? | **Convert what should exclude a dual; grandfather only the residue** (Evan, 2026-08-20) — the mechanical fix the S87/S88 ruling already describes, with an allowlist entry carrying a one-line reason for whatever genuinely remains, and only new sites coming to Evan. **With the caveat that is the operative half:** *"be careful with grandfathering; if it's semantically wrong or suggests that the relevant code should be moved into a different layer then that should be done instead."* So an allowlist entry is a **last** resort, not a default landing place, and the lane owes a per-site reason of a kind that survives being read back. See the note below. | Evan, 2026-08-20 |
 | **F-R4** | **F7's members live in six crates' `tests/`, and Track E's open #763 rewrites `crates/*/tests/all.rs` in nine of them.** | **F7 opens, and does not delete test files.** Editing a member's body is disjoint from `all.rs`; *removing* one is not, because the aggregation module names it. Where F7's sort concludes a member should be deleted rather than repaired, the lane records the conclusion and leaves the deletion to a follow-up row — it does not take `all.rs` out from under #763. | orchestrator, 2026-08-20 |
 
@@ -174,6 +174,22 @@ budget one: the test asserts a bit-identical replay, not a margin distribution,
 so sweeping it per ε would state a per-ε claim the test does not make. It would
 also have been 3× the cost, but that is no longer the reason.
 
+**WITHDRAWN by the orchestrator, 2026-08-20, and the reason is this track's own
+subject.** *"Bit-identical replay"* is what the **docstring** says; what both
+tests assert is `failures(&ev).is_empty()` — **one-sided greenness at `Probe`,
+which is tolerance-dependent**, with no comparison against an f64 run anywhere.
+The ruling above was written from a doc comment and not from the assertion, in
+a track whose subject is guards whose prose outruns their code, and it was
+relayed to Evan as settled. **The conclusion survives; the reason given for it
+does not.** F-h re-decided the placement on the real facts and kept "once,
+outside the loop" on a different ground — **redundancy**: `run_doc`, inside the
+`#[ignore]`d dump the sweep has always run, asserts the same predicate over
+every corpus document at all three ε, so the ε sweep of the property is already
+paid and what the default selection adds is that the bodies execute. It runs at
+a **stated** ε (1e-9) rather than at the ambient default, which was a fourth,
+unnamed ε. **The gap between those docstrings and those assertions is itself a
+finding: S168, with D114 for the assertion nobody has written.**
+
 **Two honesty conditions on those numbers.** They are **one sample**, and job
 durations move with runner and cache state — F-h states which run each number
 came from (`memories/perf-measurement-lane.md`) and re-takes them if `main` has
@@ -188,6 +204,26 @@ sentence at the site saying it is an opt-in instrument and why, so the next
 reader learns from the file rather than from the invocation. What D44 actually
 found is a test whose disposition was decided by a filter nobody read; either
 disposition is defensible, being decided by accident is not.
+
+**CLOSED by #844, and one of the ruling's premises did not survive the lane's
+re-derivation.** The *dispositions* stand — the one non-`#[ignore]`d test runs,
+the rest are documentary plus a floor. The *criterion* does not: **of 17
+censused probe suites exactly two contain any `#[ignore]`d test, and both are on
+the executed side.** There is no population of "thirteen `--ignored` dump
+harnesses"; every unexecuted suite is a plain `#[test]`, unrun because nothing
+runs `cargo test -p <crate> --features probe` at all, and several are the
+Probe-lane halves of ordinary suites rather than dumps. The lane did not decide
+their fate — that is **D111** — and it did not restate any total; it made the
+*accident* impossible instead, by requiring every censused suite to be either
+rostered as executed or to say so in its own header. **Evan may want to re-rule
+on the corrected population.** The lane also found a second live instance the
+ruling could not have seen: `m4_pr8_k_probe.rs`'s `corpus_evaluates_green_at_probe`,
+a plain `#[test]` inside the module the sweep DOES name, documented as
+*"Runs in the normal (non-ignored) suite"* and never once run (**S165**).
+**Cost, since the ruling asked for it and the discharge did not retire the
+question**: both preconditions together are **2.60 s** of the sweep step's
+112.96 s, from step timestamps on run **32431100922** (hosted `ubuntu-latest`,
+2 vCPU) — one sample, one tree, and no claim about the critical path.
 
 ### F-R6's caveat, and why it changes the lane's default
 
@@ -249,10 +285,10 @@ sub-block, from the orchestrator.
 | **F-b** | D63, D64 | S119, S120 |
 | **F-c** | D65, D66, D67 | S121, S122, S123 |
 | **F-e** | D68, D69 — **both used** | S124, S125 — **both used** |
-| **F-d** | D70 | S126 |
+| **F-d** | D70, **D107**, **D115** — all used | S126, **S161**, **S169** — all used |
 | **F-f** | **D101** | **S157** |
 | **F-e** (2nd) | D102, D103, **D106** — all used | S158, S159 — **both used** |
-| unassigned (2nd block) | D107–D110 | S161–S166 |
+| unassigned (2nd block) | D108–D110 | S162–S166 |
 
 **Second block claimed 2026-08-20: `D101`–`D110` and `S157`–`S166`.** The first
 block is spent. Taken beyond Track E's `D81`–`D100` / `S137`–`S156` and Track
@@ -333,6 +369,55 @@ the qualifier that makes a claim exactly true, and scope your evidence out
 loud: a green `-p onecrate` run is evidence about one crate. **A measurement is
 a measurement of a tree** — name which tree each number came from.
 
+**Filter the check runs, then merge — never merge on `MERGEABLE / UNSTABLE`.**
+`UNSTABLE` means *some check is not green and this word will not tell you which*:
+a status whose method is hidden, which is why it reads as settled. Two commands,
+seconds: `gh api …/check-runs`, reject anything whose `conclusion` is not
+`success`.
+
+**This resolves a real tension in these instructions, and both halves are
+correct.** *Do not sit CONFLICTING* — such a PR runs **no** checks at all, a
+silent CI outage — pulls toward merging the moment a PR is clean. *Do not merge
+with checks in flight* pulls the other way, because **merging deletes
+`refs/pull/<n>/merge` and any running check dies at checkout** (S167/D113) —
+permanently, since a `pull_request` run can never check that ref out again, so
+the retry reproduces the failure and corroborates the wrong conclusion.
+Filtering first satisfies both.
+
+**If you are told to hurry, that is not a method.** The orchestrator's *"take it
+while it is clean"* is an incentive, not a licence to skip the filter — and *"I
+was told to hurry"* is the same shape of lid as *"I tried and could not"*: it
+names a pressure instead of a method. (F-c, 2026-08-20, on its own merge.)
+
+**If you run mutations, read your own diff before you open.** `git diff
+origin/main...HEAD --name-only -- ':(exclude)docs'` — two seconds. A lane here
+shipped a planted mutation into `geom-core` production code because it ran
+`git add -A && git commit` from a second shell **while its mutation script was
+mid-run**: the commit captured the mutated file, and the script's own
+`git checkout --` then restored it to the mutated *committed* state. Nothing that
+lane ran would have caught it; that one command would have, by showing a single
+non-test hunk in a lane whose whole subject is tests. (F-d, 2026-08-20.)
+**Never blanket-substitute a string over a document that contains a template of
+it** — the same lane's `#NNN` → `#825` pass corrupted the two template lines
+every future lane reads.
+
+**When you disclose that something cannot be demonstrated, say what class of
+demonstration you tried.** This is sharper than the standing *a disclosed blind
+spot is a work order, not a discharge*, and it was earned the hard way: a lane
+reported in complete good faith that an assertion had no possible receipt,
+because *"two `loft_body` mutations were both rejected by certification"*. The
+receipt was one line away — a **fixture swap**, not a code mutation. Its own
+verdict afterwards: *"a claim about my method wearing the clothes of a claim
+about the world — and disclosing it honestly made it **harder** to catch, not
+easier."*
+
+**The refinement, which inverts the obvious reading:** what made that lid hold
+was that the disclosure was **specific**. *"Two mutations, both rejected by
+certification"* reads as a search, and a search that names its results invites
+trust rather than a second look — where a vague *"I could not"* would have
+invited one. **Specificity about the conclusion is what closes the question;
+specificity about the method is what reopens it.** (F-c, 2026-08-20.)
+
 **Your final report**, ≤150 lines, states: what you changed and why that shape;
 what you swept with and **what that pattern could not match**; every claim
 resting on a measurement and what guards it; which of the style brief's
@@ -349,7 +434,6 @@ Track C's open lanes, or with Track E's.
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
 | **F-a** | **F5** (S92) | `smellf/f5-door-registries` | `topo/src/review_m1_pr5_internal.rs`, `topo/src/pcurves.rs` | style | **dispatched** 2026-08-20 |
-| **F-c** | **F7** (S110, sort first) | `smellf/f7-cannot-go-red` | six crates' `tests/`, `memories/test-suite-cost.md` | style | **dispatched** 2026-08-20 |
 
 Lane clones are `~/.local/share/cad-work/smellf-{a,b,c}/cad`. They are
 **reused** stale lanes from finished work, renamed and reset to `origin/main`
@@ -365,10 +449,19 @@ live in that directory and two of them share `scripts/ci-filter.py`.
 
 | lane | row | branch | scope | review | state |
 |---|---|---|---|---|---|
-| **F-d** | **F4** (S76, S78, S84, S91) | `smellf/f4-guards-that-pass` | `topo/src/review_d18.rs`, `sweep/tests/review_d2_adv_probes.rs`, `geom-brep/tests/`, `geom-core/src/spline/knots.rs` | **ADVERSARIAL** (S76, S78) + style | **dispatched** |
-| **F-f** | **F2** (S61/S62 + D58–D60) | — | `ci.yml`, `ci-filter.py`, `probe-suite-census.sh`, `gate-roster.sh`, `ci-local.sh` | style | queued behind F-e |
 | **F-g** | **F3** (S63) | — | `scripts/gates/{no-extra-real-bounds,bit-identity-debug-only,interval-square-allowlist,lib.sh}`, `ci-filter.py` | style; **ADVERSARIAL** for the `x*x → powi(2)` conversions | queued — owns `lib.sh` |
-| **F-h** | **F8** (D44, D45) | — | `scripts/k_probe_sweep.sh`, `ci.yml`, `docs/` | style | queued behind F-f |
+
+**F-d landed** (#825, merge `335f267e`); its roster row left the table above per
+the recording convention, and the landing is recorded below. **It left late**:
+the row was deleted from the *gated* wave-2 table in the landing PR, then
+reappeared in the *dispatched* table above when wave 2 opened, and four
+`origin/main` merges carried it back in without the lane noticing. Removed here.
+
+**F-h's PR is open** (#844) and its roster row left the table above per the
+recording convention; the landing is recorded below.
+
+**F-f's PR is open** (#798); its roster row left the table above per the
+recording convention, which the landing PR carries.
 
 **F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
@@ -383,7 +476,6 @@ to place or decline.
 
 | lane | row | gated on | why |
 |---|---|---|---|
-| **F-d** | **F4** (S76, S78, S84, S91) | Track C's **#734** | F-R2 — file overlap at `geom-brep/tests/m5_pr7_ssi.rs` |
 | **F-e** | **F1** (S59) | Track E's **#753** | `scripts/gates/`, and the widened matcher's own conversions |
 | **F-f** | **F2** (S61/S62 + D58–D60) | Track E's **#753** | the same two files, plus `ci-local.sh` |
 | **F-g** | **F3** (S63) | Track E's **#753** | `scripts/gates/`, `scripts/ci-filter.py` |
@@ -710,6 +802,85 @@ when the review lands, which is why it trails.
 
 ## Landings
 
+- **F-h — F8 / D84 + D85 (and S110(a))**, PR **#844**, opened 2026-08-20;
+  awaiting style review. The executed probe-suite set has a floor keyed on
+  **tests that ran** — `k_probe_sweep.sh` records the runner's own `N passed`
+  line per invocation and `probe-suite-census.sh --check-executed` floors it
+  against a `RUN_FLOOR` roster — and the two corpus preconditions
+  (`m5_pr5_corpus_probe::cut_cylinder_replays_at_probe` and
+  `m4_pr8_k_probe::corpus_evaluates_green_at_probe`) run **once, before the ε
+  loop**, per F-R5 as amended. **Every censused suite now declares its
+  disposition** — rostered as executed, or `NOT EXECUTED BY CI` in its own header — and the gate refuses a suite on neither side or
+  on both, which is what makes the next drift visible.
+
+  **Three things the lane re-derived rather than transcribed, all of which move
+  the record.**
+
+  1. **F-R5's *"thirteen `--ignored` dump harnesses"* is not the population.**
+     Of 17 censused probe suites, exactly **two** contain any `#[ignore]`d
+     test — `editor-core::m4_pr8_k_probe` and `sweep::k_report` — and **both
+     are on the executed side**. Every unexecuted suite is a plain `#[test]`,
+     and several are the Probe-lane halves of ordinary suites rather than dump
+     harnesses. The ruling's *dispositions* survive; its stated *criterion*
+     does not, and Evan may want to re-rule on that basis. Placed as **D111**,
+     not decided in lane.
+  2. **A second instance sat inside the suite everyone counted as executed.**
+     `m4_pr8_k_probe.rs` has two `#[test]`s and one `#[ignore]`, so the filter
+     that reaches the module the sweep DOES name ran the dump and never
+     `corpus_evaluates_green_at_probe` — whose docstring says *"Runs in the
+     normal (non-ignored) suite."* → **S165**, fixed here. This is why the
+     roster's key carries the **selection**, not just the module.
+  3. **This brief's own routing cell did not resolve.** It said to strike D84
+     and D85 from the *E-a table*; both live in **Track E's `### The rows`
+     table**, and the E-a table holds D104 alone. Both rewritten in place as
+     `FIXED by #844` per the convention that table already uses for D23.
+
+  **D85 split two-and-two** (`24 binaries` survives, `12 aggregators` is
+  history, the `all.rs` header pointer collapses, `test-aggregation.sh`'s two
+  are dated history), with a **fourth instance not in the row and sharper than
+  any of them** → **S166**: `ci.yml` cited `test-aggregation.sh` as *asserting*
+  a target count it does not assert, and the count was wrong. The design call
+  the row closed on is answered **no**, with D23's own verdict (c) as the
+  reason.
+
+  **STYLE REVIEW: NOT CLEARED, three MAJORs, all demonstrated by planting, all
+  fixed in the same PR.** Each was the fix reproducing what it closes, and two
+  of the three were shapes the PR body had itself named.
+
+  - **M1 — two of the fourteen disposition sentences were FALSE, and the gate
+    required them.** `topo/tests/review_m3_pr2.rs` and
+    `geom-core/tests/k_stats_doors.rs` are **item**-gated: their ungated halves
+    run on every merge, and the first already said so 290 lines below the
+    sentence the lane added. **Root cause, which is the durable part: the
+    census predicate counts FILES and a disposition is a property of TESTS.**
+    Fixed with **two** sentences, the gate choosing which is owed by the cfg
+    FORM it found and refusing the other in both directions, so the false
+    blanket cannot be written. The granularity question itself went to D111.
+  - **M2 — the wiring guard passed on a commented-out call**, a plain grep with
+    no comment strip, in the file whose own header argues that prose satisfying
+    a floor is the mistake its census predicate was hardened against. Now
+    matched against the script with comment lines stripped, materialised rather
+    than piped, and planted.
+  - **M3 — the floor's key dropped the mode one level down.** Appending a plain
+    `#[test]` to a module rostered only under `ignored` left every count met
+    and the new test unrun — D84's own defect, one selection in, inside the fix
+    whose central sentence is *"naming the suite is not naming the selection."*
+    **Fixed by a COMPLEMENT RULE rather than a tighter floor**: every rostered
+    suite is invoked once under the default selection, and the `#[ignore]`d
+    count it reports skipped must equal what the `--ignored` selection ran. The
+    two halves then cover the suite with nothing left over, from the runner's
+    own numbers. The plain invocations are derived from the roster rather than
+    hand-listed beside it.
+
+  **Two MINORs narrowed the headline.** The preconditions assert a strict
+  subset of what `run_doc` — inside the already-executing dump — asserts at
+  three ε over the same documents, so **the files were unrun and the properties
+  were never unguarded**; D84's record and S165 now say so. And neither asserts
+  bit-identity (see the F-R5 withdrawal above) → **S168 / D114**.
+
+  **D112 was reserved and is unused**; returned. **S168 and D114 taken** from
+  the third block, per the orchestrator.
+
 - **F-e — F1 / S59**, PR **#791**, opened 2026-08-20; **CLEARED 2026-08-20**
   after a style review (NOT CLEARED → F-R10, F-R11) and a targeted
   verification pass (F-R15), both addressed in the same PR; **held for the
@@ -823,6 +994,11 @@ when the review lands, which is why it trails.
   fact sits **adjacent to it** in the header, so a reader who sees it fire
   learns in the same breath that the neighbouring multi-line form is silent.
   That adjacency is the difference between a partial catch and false comfort.
+
+*(The F-f entry further down is a PR that has NOT merged. It is kept here
+because the recording convention puts a unit's record in its own landing PR;
+it becomes a landing when #798 does.)*
+
 
 ### F6 (S73 parts 1 and 3) — **CLEARED 2026-08-20**, the track's first
 
@@ -948,7 +1124,200 @@ needs a parameterization of code the brief marked read-only, and it deserves its
 own review rather than riding a clearance. **The evidence is written into the
 row, which is the thing that was at risk.**
 
+- **F-c — F7 (S110)**, PR **#790**, opened 2026-08-20; **NOT CLEARED** at
+  style review (26 findings), re-worked in the same PR. The sort ran and
+  the review reproduced every receipt in it and confirmed all ten
+  placements: **(c)(d)(e)(f)** closed in lane, **(g)(h)(j)** already
+  closed by #787 and #786, **(a)(b)(i)** disposition (b). **(d) is not
+  disposition (a)** — a working tripwire that goes red on its documented
+  trigger, missing only the premise that puts its operand in the class
+  the re-gate exists for — so **S110(d) was over-stated, which is a
+  finding about the scan.** Two of S110's own claims about (c) did not
+  survive re-derivation.
+
+  **The review's largest finding was not the lane's.** §D's F7 row and
+  the lane brief both routed (a)(b)(i) to *"C23's class … the
+  test-suite-cost sweep"*, and no such target exists; the lane complied
+  with a citation instead of testing it, and with F7 struck in the same
+  commit three members would have been marked ROUTED with no scheduled
+  home. Re-homed by the orchestrator — **(a) to F8**, whose probe-suite
+  finding it *is*, **(b) and (i) to D104** — and #790 carries the
+  corrected record plus a note that the target was tested.
+
+  **Three findings were the lane's own, all fixed in place.** The one
+  assertion whose receipt the lane declared impossible had a one-line
+  receipt: its red condition is a property of the *operand*, so the
+  demonstration is a **fixture swap**, not a code mutation — *"no
+  mutation models it"* was a claim about the method presented as a claim
+  about the world, and honest disclosure made it harder to catch, not
+  easier. (f)'s new assertion was blind to half the contract it quoted,
+  because the fixture gave both curves the same knot vector; the carrier
+  now carries its own and both halves of the merge are demonstrated. And
+  the (f) fix had minted **S110(h)'s exact shape** one line down by
+  hoisting an `unwrap()` past an `is_ok()` — the fifth instance of *the
+  fix reproducing the defect it closes* on this track, which is a
+  standing hazard of a pass that has the file open and the defect in
+  mind rather than carelessness.
+
+  F-R4 held throughout: a test **function** was deleted, no test **file**
+  was, and `crates/*/tests/all.rs` was never touched. New rows **D65**
+  (S121, re-filed as a five-site class in four crates after the review
+  found three more), **D66** (S122) and **D67** (S123) — F-c's block is
+  fully spent.
+
+### F-f / F2 (S61, S62, D58–D60) — #798, OPEN, not merged; style review returned NOT CLEARED and was answered
+
+**What it built.** A new `ci.yml` job, `mirror`, with no `if:` — so it runs on
+every tier, including the docs-only runs where every job carrying one is skipped
+— and the single declared exception to the `rm -rf local-scripts .claude` prune,
+because its subject is the agreement between the two halves of CI. Three checks
+are sited in it: `gate-roster.sh` (moved, and now reading the local half's
+loop), `probe-suite-census.sh --citations` (the citation half, whose inputs are
+prose), and a new `scripts/check-ci-mirror-parity.py`. The local half runs the
+same three **above** its own `TIER=docs` early exit, because the rule binds both
+halves.
+
+**What is worth carrying forward, beyond the row.**
+
+- **The docs-tier skip is untouched**, per Evan's ruling. The unit moved guards,
+  not the posture. `discipline` still skips on docs tier and still should.
+- **A hand-maintained roster gets a completeness check, not a longer list.**
+  Both halves of this unit take that shape: the citation half's `CITING_FILES`
+  is now checked against every citation in the tree, and the population of
+  checks outside `scripts/gates/` is *derived* from the two halves rather than
+  enumerated. Two prior enumerations of that population had each missed a member
+  — the second found by another track by accident (#794/D86) — which is the
+  argument for the shape.
+- **A permission bit is not a registration mechanism.** `lib.sh` is excluded by
+  name in both halves now, and a non-executable member of `scripts/gates/` is a
+  failure rather than a skip. Re-confirmed by planting on the merge base first:
+  fifteen files on disk, *"all 14 gates"*, exit 0.
+- **The exception to a structural rule is itself gated.** `mirror` keeping
+  `local-scripts/` weakens `ci-filter.py`'s claim unless exactly one job does
+  it, so the checker verifies that over every workflow file — `render.yml`
+  included, which is the file a sweep reading `ci.yml` would miss.
+- **A rule the repo has paid for twice deserves a check, not a comment.** The
+  first version left *a gate must be sited where it can fire on its own inputs*
+  as prose in three script headers; the reviewer restored the exact S61 state in
+  one commit with nothing firing. Claim 7 now pins the siting itself, in both
+  halves, and distinguishes a definition above the local exit from a run.
+- **Read structure with a reader, not a regex.** The bash version of the parity
+  check missed an uppercase job name and passed a checked-out job reading
+  `local-scripts/`. Four of the review's five MAJORs were text-processing
+  failures; the structural half is stdlib python now and Bails on anything it
+  cannot parse.
+- **A self-test that cannot reproduce the real invocation proves nothing.**
+  `lib.sh`'s harness runs a gate inside `if out=$(…)`, where bash suppresses
+  errexit — the one condition under which a `set -euo pipefail` gate dies at a
+  failing matcher before printing its diagnosis. Both of this unit's own
+  instances are fixed, and its cases now run the gate as a subprocess. The
+  harness itself is `lib.sh`, lane F-g's, escalated as **S157**.
+
+### F4 (S76, S78, S84, S91) — landed by lane F-d
+
+- **F-d — F4 (S76, S78, S84, S91), PR #825**, opened 2026-08-20 off
+  `origin/main` at 80f0ae1c, re-merged through round 2. All four closed. **The
+  missing idiom has a home**: `crates/test-utils/src/vacuity.rs` — `Exposure`,
+  a tally reported before every floor and asserted, plus `stood_down`.
+  `test_utils`' own header said it held *"exactly one thing"*; it now holds two.
+  Named `vacuity`/`Exposure` rather than `census`/`Census` because the style
+  review found the latter colliding head-on with `topo`'s production `census`
+  module, which is why three call sites in that very crate had been spelled out
+  in full.
+- **S76 was measured before it was asserted**, because `ci.yml` cites the row by
+  name. Mutation phases reached: **6 of 7** operators on the spent-graft row and
+  **5 of 7** on its twin, so the floors are green and **no `ci.yml` edit is
+  needed** — the F4 brief's stop-and-report condition did not fire. The measuring
+  also showed the twin's own `oks > 0` to be nearly unfalsifiable on that fixture
+  (one loop-keyed operator survives a fully nulled arena), which is why both rows
+  floor over operators rather than over a total.
+- **`kemr` / `mfkrh_plug`: landed as S161 / D107** on the orchestrator's
+  assignment, and the prose is fixed at both sites. Two different defects wore one
+  sentence: `mfkrh_plug` is a **classification** error (it reaches no
+  `link_half_edges` at all, so it is out of the floor's class — `LINK_OPS` — while
+  still being driven and printed), and `kemr` is a **coverage** gap (it is in the
+  class and nothing gets it past its plan phase). Only the first is closed here.
+- **Both reviews found the row's own subject reproduced inside its fix**, in
+  different places, and neither was mine. The all-rim floor counted a request
+  *shape* rather than an outcome and was strictly implied by a floor twenty lines
+  above it; and `mfkrh_plug` — the operator whose survival of a nulled arena is the
+  whole reason `oks > 0` was unfalsifiable — was in the list the replacement floor
+  counted over. **Naming the trap in the PR body did not prevent either.** Fixed
+  by flooring `Filleted::band_faces`, the receipt `rim_phase` leaves, and by
+  splitting `LINK_OPS` out of `OPS`.
+- **The LINK_OPS slack is documented as deliberate at the constant**, per the
+  clearance: 4 against today's 5, because at 5 the floor becomes a coverage
+  *target* pinned to a measurement and the next legitimate precondition change
+  reds a healthy row, while at 4 a genuine loss still reds and the exposure line
+  reports the drop for anyone reading. The comment says *do not "fix" it to 5*.
+- **A floor that fired on something true, caught before it shipped.** The first
+  version of the tear-planting floor required every trial to have corrupted its
+  body and reds at **26 of 27** on an intact tree — a single draw may legitimately
+  find no eligible entity for its kind. Rewritten per *kind* (all nine landed
+  somewhere, list derived from `TEARS`), which is the claim the sweep's own docs
+  make; measured over three seeds, every kind lands 6–13 times. The fixture was
+  not touched.
+- **Placed**: **S126** (the silent whole-row stand-down, population 13 in three
+  files) and **D70**, which schedules it. Reserved numbers used exactly; none
+  taken beyond the assignment.
+- **One additive production hunk, declared**: `SsiDomain::floor_scale_for`
+  (`geom-brep/src/ssi.rs`), six lines beside `SsiDomain::floor`. The metre-clamp
+  fix had minted a *second* spelling of a conversion `m5_pr7_ssi.rs` already had
+  at three sites as `floor_m / eps()` — which agrees with the derivation only
+  because `SSI_FLOOR == 1.0` and `band().zero() == eps()`, neither stated
+  anywhere. Putting the identity beside the thing it inverts gives all five sites
+  across two files one door. No behaviour change.
+- **`stood_down` is not the tree's only spelling, and the residue is now a row.**
+  Converted the three sites in the file this lane edited (`wall_stand_down`
+  included, now a thin local vocabulary over it); the rest are **S169 / D115**.
+  Re-derived on the merged tree rather than transcribed: **ten in-row sites in
+  four files**, of which the finding is really **three byte-identical
+  `println!("SKIPPED: FitSampleBudget stand-down at this ε")`** that announce a
+  stand-down and nothing about what was not asserted. **A claim of mine was wrong
+  and is corrected in the module doc**: I had written that two of those files were
+  under another lane's hand — #790 is merged and touches none of them, and no live
+  lane names any. Four further `SKIPPED` sites are the ratified whole-binary
+  `interval_lane_skipped_no_certified_coverage_here` idiom and are excluded.
+- **No GitHub issue and no design PR.** Nothing found here was a kernel-logic
+  defect: the ε-relative floor clamp under S84 is a fixture defect in a test,
+  not a defect in `ssi`, and the fit budget it was hiding is D9's documented
+  constant behaving as documented.
+
+
 ## Incidents
+
+### F-d shipped a planted mutation and a template-corrupting substitution (2026-08-20)
+
+**One cause, two symptoms: a mechanical edit that reached further than intended
+and was not read back before committing.**
+
+1. **`geom-core/src/spline/knots.rs`'s `span_offset_in` shipped with
+   `if t < knots[p]` in place of `!(t > knots[p])`**, so NaN stopped routing to
+   the first span. Six `test` jobs red (run 32420701703). It was F-d's own
+   red-demonstration mutation for S91: the mutation script edits, runs, then
+   `git checkout --` reverts — and a `git add -A && git commit` issued from
+   another shell **while the script was mid-run** captured the mutated file, after
+   which the script's revert restored it *to the mutated committed state*. The
+   commit is `cd6b1f9e`, message *"S78 record: the corpus is 8 of 11 today"*.
+2. **A blanket `#NNN` → `#825` substitution over `docs/SMELL-F-LOG.md`** hit the
+   two **templates** — the *Recording convention* line and the standing lane
+   header's — so the instruction telling the next lane what to write would have
+   read *"FIXED by #825"*. Both restored.
+
+**Neither was caught by anything F-d ran**, and that is the transferable part.
+Clippy passes on the mutation; the failing NaN row was in a suite not re-run after
+the merge; and the branch's own `git diff --stat` was read on the final tree,
+where the mutation looked intentional. **The remedies are mechanical, not
+resolutions to be careful:** never `git add -A` while a mutation script is
+running (stage explicit paths, or commit before it starts), and never run a
+blanket substitution over a document that contains a *template* of the string
+being substituted — the two sites were spelled identically to the four real ones.
+
+**The standing obligation this hardens:** a lane that produces red demonstrations
+by mutation must diff its branch against `origin/main` **restricted to production
+files** before opening, and read every `docs/` hunk rather than the summary.
+`git diff origin/main...HEAD --name-only -- ':(exclude)docs'` is a two-second check
+that would have shown one non-test hunk in a lane whose whole subject was tests.
 
 ### F-a claimed its record edits and shipped without them (2026-08-20)
 
