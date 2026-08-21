@@ -43,6 +43,6 @@ pub use real::{Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real};
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use tolerance::{
-    EpsilonSource, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
+    EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,
 };

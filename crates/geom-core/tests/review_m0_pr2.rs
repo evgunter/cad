@@ -85,6 +85,7 @@
 
 use geom_core::tolerance::{DEFAULT_EPS, ENV_EPS};
 use geom_core::{Real, Tolerance, ToleranceEnvErrorKind, ToleranceError};
+use geom_core::Tol;
 
 // ---------------------------------------------------------------------
 // Realistic M0–M2-style consumer code written against `geom_core::Real`
@@ -318,7 +319,7 @@ fn tolerance_child(mode: &str) {
     match mode {
         // Plain first-touch via get(): committed value + recorded errors.
         "get" => {
-            let t = Tolerance::get();
+            let t = Tol::witness().get();
             assert_eq!(t.eps, expected_eps(), "committed eps");
             let errors = Tolerance::env_init_errors();
             match std::env::var(CHILD_EXPECT_ERR).as_deref() {
@@ -348,7 +349,7 @@ fn tolerance_child(mode: &str) {
         "init-then-get" => {
             let mine = Tolerance::with_eps(7e-7);
             assert_eq!(Tolerance::init(mine), Ok(()));
-            assert_eq!(Tolerance::get(), mine, "env (1e-6) must be ignored");
+            assert_eq!(Tol::witness().get(), mine, "env (1e-6) must be ignored");
             assert!(
                 Tolerance::env_init_errors().is_empty(),
                 "init never consults the environment, records nothing"
@@ -366,7 +367,7 @@ fn tolerance_child(mode: &str) {
         // get() first (commits from env), then a late init must fail typed
         // and leave the committed value untouched.
         "get-then-init" => {
-            let committed = Tolerance::get();
+            let committed = Tol::witness().get();
             assert_eq!(committed.eps, 3e-8, "env value wins on first get");
             let attempted = Tolerance::with_eps(5e-5);
             assert_eq!(
@@ -376,14 +377,14 @@ fn tolerance_child(mode: &str) {
                     attempted,
                 })
             );
-            assert_eq!(Tolerance::get().eps, 3e-8, "unchanged after late init");
+            assert_eq!(Tol::witness().get().eps, 3e-8, "unchanged after late init");
         }
         // env_init_errors() before any get(): must force init and answer.
         "error-first" => {
             let errors = Tolerance::env_init_errors();
             assert_eq!(errors.len(), 1, "malformed env recorded before any get");
             assert_eq!(errors[0].kind, ToleranceEnvErrorKind::Unparsable);
-            assert_eq!(Tolerance::get().eps, DEFAULT_EPS);
+            assert_eq!(Tol::witness().get().eps, DEFAULT_EPS);
         }
         // Invalid init value: typed error, global left uncommitted, so a
         // following get() still resolves from env.
@@ -393,7 +394,7 @@ fn tolerance_child(mode: &str) {
                 Err(ToleranceError::InvalidValue { value: -1.0 })
             );
             assert_eq!(
-                Tolerance::get().eps,
+                Tol::witness().get().eps,
                 9e-9,
                 "rejected init must leave the global uncommitted for env"
             );
@@ -407,7 +408,7 @@ fn tolerance_child(mode: &str) {
                     .map(|_| {
                         s.spawn(|| {
                             barrier.wait();
-                            let t = Tolerance::get();
+                            let t = Tol::witness().get();
                             let e = !Tolerance::env_init_errors().is_empty();
                             (t.eps.to_bits(), e)
                         })

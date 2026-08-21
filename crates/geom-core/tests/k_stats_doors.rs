@@ -30,9 +30,10 @@ use geom_core::k_stats::{
     Verdict, decide, decide_flagged, decide_invariant, start_verdict_log, take_verdict_log,
 };
 use geom_core::{Band, Margin, Sign};
+use geom_core::Tol;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// The fixture interleaves the doors deliberately — a run that grouped

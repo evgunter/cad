@@ -9,7 +9,7 @@
 //! touch of the global).
 //!
 //! Deliberately NO explicit `init`: the global self-initializes from the
-//! environment on the first `Band::linear()` call, so the CI interval
+//! environment on the first `Band::linear(Tol::witness())` call, so the CI interval
 //! job's `CAD_TOLERANCE_EPS` run genuinely exercises a different band —
 //! every assertion is written relative to the run's ε, never to a fixed
 //! value. (The multipliers 0.5, 3, 20 are safely interior to their
@@ -24,8 +24,8 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real,
 
 #[test]
 fn interval_classification_tracks_the_global_tolerance() {
-    let band = Band::linear().expect("the run's eps is sane, so K*eps cannot overflow");
-    let eps = Tolerance::get().eps;
+    let band = Band::linear(Tol::witness()).expect("the run's eps is sane, so K*eps cannot overflow");
+    let eps = Tol::witness().get().eps;
 
     // Point enclosures land where their f64 margins would (the two
     // `Decide` instantiations implement the same decision table).
