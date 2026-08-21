@@ -458,7 +458,22 @@ recording convention; the landing is recorded below.
 **F-f's PR is open** (#798); its roster row left the table above per the
 recording convention, which the landing PR carries.
 
-**F-g's PR is open** (#849), carrying **F3 (S63)**, **S157** (the harness — F-f's
+**F-g's PR is open** (#849), **NOT CLEARED on its first style review and
+fixed**: three MAJORs and thirteen style findings, plus an adversarial pass
+that cleared the two numeric lines and refuted three claims made about them.
+**Two of the three MAJORs were the fix reproducing its own defect** — a
+statement view built and then applied to only one of the two spellings it was
+built for, so verbatim `rustfmt` output still passed; and a `debug_assert`
+escape written as a per-line substring test, which printed *verbatim the
+evidence-free sentence S63 was written against*. The third was **a claim, not a
+defect**: the PR reported five `probe-suite-census.sh` self-test cases as having
+silently run the wrong half, and both trees were executed against it — a
+subshell inherits a non-exported variable, so nothing was ever green that should
+not have been. **What happened is that the change dodged a hazard it would
+itself have created, and wrote it up as a hazard it found.** *A fix that dodges
+a hazard it created reads, afterwards, exactly like a fix that found one*, and
+only execution against the OLD tree separates them. Struck from the record, the
+commit comment and the PR body. It carries **F3 (S63)**, **S157** (the harness — F-f's
 row, never placed in §D as `D101`, so there was no row to strike) and
 **S125/D69**. Its row left the table above. **It crossed into three files F1/F2
 had just landed, and every crossing was forced by the harness fix rather than
