@@ -153,3 +153,18 @@ CONFLICTING as a loud failure.
 of one session.** PR/issue bodies and anything else to-be-published go
 to LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`), never the
 scratchpad; orchestrator briefs state this.
+
+**Reclaiming a finished lane is the ORCHESTRATOR's job, not a lane's.** A
+lane cannot judge whether a sibling directory is live and should not try —
+it should free its own and *report* the rest. Only the orchestrator knows
+which agents have reported. **Do it when a review returns, not when a lane
+runs out of disk**: a review lane's `target/` is pure waste the moment its
+report is in hand, and review lanes are the biggest consumers — one
+adversarial reviewer held 12G, more than any implementer lane. On one track
+six finished reviewers and three merged implementers were holding **23G**
+with nothing unpushed; reclaiming took free space from 2.4G to 27G, after
+disk had already hit 100% and killed a live lane's tool output twice.
+`local-scripts/clean-lanes.sh` refuses anything with unpushed commits or
+untracked files, so it is safe to run in bulk — but it needs **absolute
+paths**; a bare lane name is refused with *"does not exist / cannot
+resolve"*, which reads like a missing directory rather than a usage error.

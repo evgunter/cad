@@ -16,6 +16,22 @@ encouraged to merge their own PRs to main.
 and a clean logical narrative of what changed — keeping them in separate
 streams beats compromising either.
 
+**A PR body can close an issue by describing it.** GitHub scans the PR
+**body** (and commit messages, never the diff) for
+`close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved` immediately
+followed by an issue reference, with **no negation, tense or subject
+analysis** — so *"whoever closes #723 finds the lane waiting there"* and
+*"a style track does not fix #723"* both close the issue on merge. This
+repo's documents park lanes *at* the issue they wait on and PR bodies
+narrate that constantly, so the hazard is structural, not a slip:
+**#723 was closed twice in three hours by two different authors, the
+second time by the PR documenting the first.** There is no way to write
+about the failure mode without triggering it — quoting fires it too. The
+only safe forms break the token adjacency (drop the `#`, or put a word
+between). **Scan every PR body and commit message before publishing;
+make it mechanical, not remembered** — the one lane that was told to scan
+found a live hit, and the orchestrator who told it did not scan its own.
+
 **How to apply:** commit early and often without polishing messages; put
 the careful writeup in the PR description; merge with a merge commit
 (`gh pr merge --merge`, never `--squash`/`--rebase`). Exception (confirmed
