@@ -453,6 +453,31 @@ rigidly coupled through the shared `a_s` (ratio exactly 6.000 at every ε, the
 body's `r = 0.5`). So the unmetered risk is concentrated in the **patch** lanes
 — which is a sharper work order than S26's own text ever produced.
 
+### Disk hit 100% with two lanes live, and the biggest consumer was a finished reviewer
+
+**2026-08-21.** The machine filled to **252K free** mid-run, killing tool output
+twice in lane I-a. The lane freed only its own (`target/debug/incremental`, then
+its whole `target/`, rebuilding with `CARGO_INCREMENTAL=0`) and **reported the
+rest rather than deleting another agent's directory** — correctly: it could not
+know whether `rev-i-a-adv`, at **12G**, was still live.
+
+It was not. **Six finished review lanes and three merged implementer lanes were
+holding 23G**, and every one of them had zero untracked files and nothing
+unpushed. `local-scripts/clean-lanes.sh` checks exactly that before deleting.
+**2.4G free → 27G free.**
+
+**The lesson is about who can safely reclaim.** A lane cannot judge a sibling's
+liveness and should not try; **the orchestrator is the only party that knows
+which agents have reported**, so reclaiming finished lanes is the
+orchestrator's job and should happen **when a review returns**, not when a lane
+runs out of disk. A review lane's `target/` is pure waste the moment its report
+is in hand, and review lanes are the largest consumers on this track — the
+adversarial one alone was 12G, larger than any implementer lane.
+
+**Also worth knowing:** `clean-lanes.sh` needs **absolute paths** — bare lane
+names are refused with *"does not exist / cannot resolve"*, which reads like a
+missing directory rather than a usage error.
+
 ## Incidents
 
 ### Conflict markers reached the register, because `&&` swallowed a failed merge
