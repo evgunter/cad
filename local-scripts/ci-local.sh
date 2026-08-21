@@ -651,6 +651,21 @@ tesslint_gate() {
     --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv)
 }
 
+# The wasm32 guard (#807), local half of ci.yml's `wasm32 check` step.
+# ONE LEG, the interval one, on Evan's ruling of 2026-08-21 that the
+# purely-additive lint suffices for the default build. Read that step's
+# comment for the subsumption argument, for the lint residual this guard
+# now inherits, and for the dated third-party graph measurement the
+# argument rests on. Unscoped here for the same reason it is unscoped
+# there. `rustup target add` is idempotent and is part of the row on
+# purpose: a row that silently degrades to "target not installed,
+# nothing checked" is not a guard.
+wasm_check() {
+  rustup target add wasm32-unknown-unknown \
+    && cargo check --workspace --exclude pncad --exclude pncad-py \
+         --features interval --target wasm32-unknown-unknown
+}
+
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
 # and cheap; the cargo rows are already package-scoped by $SCOPE).
 # shellcheck disable=SC2086
@@ -664,6 +679,8 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # — it is a workspace-wide ratchet over a fixed crate set, not a
 # per-closure row. See scripts/doc-gate.sh for the flags and the list.
 run_row "rustdoc (gate)"               scripts/doc-gate.sh
+# HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
+run_row "wasm32 check (#807)"          wasm_check
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Mirror of ci.yml's `test`
