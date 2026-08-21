@@ -298,9 +298,25 @@ pub enum ContactMark {
 
 /// A structural or geometric defect found by the validators. Closed
 /// enum, D3 style: each tier's PRs add variants as compiler-guided
-/// extensions — every match site is forced to say what it does with the
-/// new failure kinds, which is exactly the loudness the house style
-/// wants. (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
+/// extensions.
+///
+/// **The obligation that closedness buys falls on the sites that
+/// CLASSIFY**, and it is not stylistic. A match that maps this enum
+/// onto a SMALLER vocabulary — a caller's verdict, a recourse, a tag —
+/// must say what it does with each new failure kind, because a
+/// wildcard there answers for the new kind silently and no existing
+/// row can notice: the rows that exist exercise the variants the named
+/// arms already handle. `editor_core`'s `attribute` is the one such
+/// site outside this crate, and what it decides is whether an assembly
+/// was refused or merely could not be certified.
+///
+/// A site that EXTRACTS carries no such obligation — a
+/// `find_map`/`filter_map` picking one variant out and answering
+/// `None` to the rest is asking a question, not giving an answer, and
+/// its `_` arm IS the question. Several rows in this crate's own tests
+/// are that shape and are meant to be.
+///
+/// (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
 /// diagnostics with `f64` payloads.)
 #[derive(Clone, Debug, PartialEq)]
 pub enum ValidationError {

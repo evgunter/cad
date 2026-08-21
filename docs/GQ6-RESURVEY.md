@@ -254,8 +254,8 @@ belongs; it is not a reason to exclude the crate from a wasm check.
 **Guarded since #807** (§Q6). This table was a reading of one tree at
 one revision on one toolchain and nothing re-took it, so any dependency
 bump could turn a `clean` cell red while every existing row stayed
-green. `ci.yml`'s `doc` job now re-takes it on every code-tier run, in
-three legs: the kernel plus `editor-core` unflagged, the same set with
+green. CI now re-takes it on every code-tier run, in three `wasm32
+check` steps (cited by step and not by job — see GUI-DESIGN §GQ6): the kernel plus `editor-core` unflagged, the same set with
 `--features interval`, and the whole workspace under the `wasm_js`
 backend cfg. The unflagged legs run **first** on purpose — a kernel
 crate that grew its own `getrandom` edge would be masked by the third

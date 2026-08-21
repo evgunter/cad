@@ -39,7 +39,7 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{export_error_tag, node_error_tag};
+use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
 use pncad::topo;
 
@@ -241,11 +241,14 @@ impl Body {
     /// Shared shape for the validator doors, which all return
     /// `Result<(), Vec<ValidationError>>`.
     ///
-    /// `ValidationError` has no `Display` and no curated tag mapping,
-    /// so the exception carries the failure COUNT as structured data
-    /// and the `Debug` rendering as the human message. Per-variant
-    /// tags are the same mechanical work `crate::tags` does for edits,
-    /// deferred with the rest of the read-back surface.
+    /// `ValidationError` has no curated tag mapping, so the exception
+    /// carries the failure COUNT as structured data and a rendering of
+    /// the whole list as the human message. Per-variant tags are the
+    /// same mechanical work `crate::tags` does for edits, deferred
+    /// with the rest of the read-back surface — and so is the choice
+    /// to render the list with `Debug`: the enum does implement
+    /// `Display`, one prose sentence with recourse per finding, and
+    /// nothing composes it here.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -695,6 +698,11 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
         Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
             inner: Arc::new(body),
         }),
+        // Not a refusal variant: the import SUCCEEDED and produced
+        // the other arm of `StepImport`, which this door does not
+        // adopt. Its tag is the arm's name and shares the namespace
+        // with `step_import_error_tag`'s, which contains no
+        // `wireframe`.
         Ok(pncad::step_import::StepImport::Wireframe { .. }) => Err(typed_err(
             py,
             ErrorClass::StepImport,
@@ -704,11 +712,21 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
                 PyString::new(py, "wireframe").unbind().into_any(),
             )],
         )),
+        // The tag is the importer's own, through `crate::tags`. Every
+        // arm of `StepImportError` is reachable here, and the entity
+        // id and line that would tell them apart live in the message
+        // prose — so one literal for all twenty-one would make them
+        // indistinguishable to a caller.
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
             err.to_string(),
-            &[("variant", PyString::new(py, "refused").unbind().into_any())],
+            &[(
+                "variant",
+                PyString::new(py, step_import_error_tag(&err))
+                    .unbind()
+                    .into_any(),
+            )],
         )),
     }
 }
