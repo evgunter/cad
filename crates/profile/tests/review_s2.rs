@@ -557,9 +557,9 @@ struct CornerCounts {
 /// whose geometry demands the enclosing (ρ < 0) tangency, the lattice
 /// door never emits one, so whatever it built must swallow NEITHER
 /// carrier: |P − O| + R stays above r. Called from `check_corner`'s
-/// enclosing arm and from both enclosing pins' `Ok` paths, which
-/// carried three copies of this arithmetic and this message between
-/// them.
+/// enclosing arm and from `report_moved_refuse_pin`, which is what both
+/// enclosing pins call; the three copies of this arithmetic and this
+/// message that used to sit at those sites are gone.
 fn assert_swallows_nothing(
     pf: Point2<f64>,
     center: Point2<f64>,
@@ -573,6 +573,39 @@ fn assert_swallows_nothing(
         "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the \
          boundary claim itself has moved — {}",
         d + radius,
+        ctx()
+    );
+}
+
+/// **What both enclosing pins do with an `Ok` — one function, because
+/// they were one function written twice.**
+/// `the_lattice_door_never_emits_an_enclosing_tangency` (the six-row
+/// table) and `enclosing_fillet_swallows_both_leg_carriers` (the mined
+/// corner) pin the same refusal at the same door, and their `Ok` arms
+/// carried the same `fillet_segment` → `circle_from_bulge` → per-carrier
+/// boundary check → same panic, with neither site naming the other.
+/// Nothing in either declared the copy, which is why no marker
+/// vocabulary could have found it (smell-scan S133).
+///
+/// The boundary check runs BEFORE the panic on purpose: a pin that is
+/// being flipped deliberately should report what got built, and a build
+/// that swallows a carrier is a different and much larger failure than
+/// a build that merely moved the pin.
+fn report_moved_refuse_pin(
+    lp: &ProfileLoop<f64>,
+    r: f64,
+    carriers: &[(Point2<f64>, f64)],
+    what: &str,
+    ctx: &dyn Fn() -> String,
+) -> ! {
+    let (t1, t2, b) = fillet_segment(lp, r, ctx);
+    let (pf, _) = circle_from_bulge(t1, t2, b);
+    for (center, radius) in carriers {
+        assert_swallows_nothing(pf, *center, *radius, r, ctx);
+    }
+    panic!(
+        "{}: the pinned REFUSE branch moved — {what} now BUILDS (a non-swallowing \
+         fillet, verified above); re-pin deliberately",
         ctx()
     );
 }
@@ -1005,6 +1038,10 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// the only way to emit them, and no shipped door authors corners.
 /// Whether one ever should is issue #827 — a capability decision, not a
 /// regression, and not this suite's to make.)
+///
+/// Its mined twin is `enclosing_fillet_swallows_both_leg_carriers`,
+/// which pins the same refusal at the same door on one corner nobody
+/// would author; both `Ok` arms are `report_moved_refuse_pin`.
 #[test]
 fn the_lattice_door_never_emits_an_enclosing_tangency() {
     let cases = enclosing_cases();
@@ -1038,18 +1075,13 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
                 // built: whatever it is, it must not be the enclosing
                 // tangency (the emitted fillet swallows neither
                 // carrier).
-                let (t1, t2, b) = fillet_segment(&lp, case.r, &|| name.to_string());
-                let (pf, _) = circle_from_bulge(t1, t2, b);
-                for leg in [case.leg_in, case.leg_out] {
+                let carriers = [case.leg_in, case.leg_out].map(|leg| {
                     let OracleLeg::Arc { center, radius, .. } = leg else {
                         panic!("{name}: the table is arc x arc by construction");
                     };
-                    assert_swallows_nothing(pf, center, radius, case.r, &|| name.to_string());
-                }
-                panic!(
-                    "{name}: the pinned REFUSE branch moved — the row now BUILDS (a \
-                     non-swallowing fillet, verified above); re-pin deliberately"
-                );
+                    (center, radius)
+                });
+                report_moved_refuse_pin(&lp, case.r, &carriers, "the row", &|| name.to_string());
             }
         }
         saw_ccw |= sigma > 0.0;
@@ -1386,8 +1418,10 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 /// table test pins: the geometry still DEMANDS the enclosing tangency
 /// (both rho < 0, re-derived), and **the door refuses**, on every band.
 /// The wider boundary allows a non-swallowing build as well, so the
-/// `Ok` arm checks that property first — via `assert_swallows_nothing`,
-/// the one home of that check — and only then reports the pin as moved.
+/// `Ok` arm checks that property first — via `report_moved_refuse_pin`,
+/// the one home of that arm — and only then reports the pin as moved.
+/// The table twin is `the_lattice_door_never_emits_an_enclosing_tangency`,
+/// which pins the same refusal over six authored rows.
 #[test]
 fn enclosing_fillet_swallows_both_leg_carriers() {
     let corner = p2(0.4141246232685536, -0.9332926788663134);
@@ -1424,15 +1458,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         Err(_) => {}
         Ok(lp) => {
             let ctx = || "enclosing_fillet_swallows_both_leg_carriers".to_string();
-            let (t1, t2, b) = fillet_segment(&lp, r, &ctx);
-            let (pf, _) = circle_from_bulge(t1, t2, b);
-            for (o, rl) in [(o1, r1), (o2, r2)] {
-                assert_swallows_nothing(pf, o, rl, r, &ctx);
-            }
-            panic!(
-                "the pinned REFUSE branch moved — the mined corner now BUILDS (a \
-                 non-swallowing fillet, verified above); re-pin deliberately"
-            );
+            report_moved_refuse_pin(&lp, r, &[(o1, r1), (o2, r2)], "the mined corner", &ctx);
         }
     }
 }
