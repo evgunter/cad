@@ -1229,9 +1229,11 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 /// azimuth window — the S9 statement asked of the mate's chart. Both
 /// operands' chords of one polygon side therefore select the same
 /// geometric arc, which is what keeps the zip's seams
-/// antiparallel-congruent. (Selection logic mirrors [`chord_spec`]'s
-/// S9 block deliberately — same margins, same predicate names, same
-/// refusal cases — with the window supplied instead of derived.)
+/// antiparallel-congruent. The arc selection itself is [`select_arc`],
+/// the one body this lane SHARES with [`chord_spec`]'s S9 block — same
+/// margins, same predicate names, same refusal cases because it is the
+/// same code; what differs is only that the window arrives from the
+/// mate's face instead of being derived here.
 #[allow(clippy::too_many_arguments)]
 fn bool_planar_chord_spec<T: Decide>(
     body: &mut Body<T>,
@@ -1785,13 +1787,15 @@ impl ChordJoiner {
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
-                // SENSE HAZARD (M5 S11, banked): this mef re-mint
-                // stamps `sense: true` on the new fragment. Splitting
-                // a reversed (`sense: false`) face here would silently
-                // reset the bit — the fragment must INHERIT `oldf`'s
-                // sense before curved booleans make such splits
-                // reachable (`Body::set_face_sense` docs; guard:
-                // review_s11_adv's touching-union probe).
+                // The fragment INHERITS `oldf`'s orientation bit.
+                // Both arms hand `mef` the parent's surface, and
+                // `mint_face_surface_and_sense` returns the parent's
+                // sense whenever the fragment lands on it: a piece of
+                // a reversed wall is the same surface region with the
+                // same material side, so stamping `true` here would
+                // mint a silently inside-out fragment. Guard: sweep's
+                // `m5_s12_curved_ops.rs`, the row named
+                // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                 let created = match spec {
                     None => body.mef_chord(site)?,
                     Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
@@ -2016,7 +2020,23 @@ impl ChordJoiner {
     }
 }
 
-/// The face's plane normal (F5-gated: always a `Plane`).
+/// The face's **chart** plane normal (F5-gated: always a `Plane`),
+/// deliberately without the face's sense folded in.
+///
+/// Its one consumer is [`point_in_loop`], which reads the normal only
+/// to recover the loop's PLANE and whose verdict is exactly invariant
+/// under `n̂ ↦ −n̂`. **That derivation lives at `point_in_loop`**,
+/// under the function whose property it is rather than under the
+/// five-line producer that relies on it; the consequence here is that
+/// ring re-homing cannot move a ring on the sense bit, and
+/// `tests/review_m3_pr3_pil.rs` pins it.
+///
+/// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
+/// which multiplies although its own consumer is equally sign-blind,
+/// is a naming contract rather than a correctness one: that door
+/// promises an OUTWARD normal to whoever calls it next. This one
+/// promises a chart normal and is named for it, so it is not a site
+/// of [`crate::face_normal`]'s hand-multiply inventory.
 fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,

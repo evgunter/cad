@@ -65,6 +65,15 @@ set -euo pipefail
 # `gate_require_crate_sources`, since this gate's subject is manifests.
 require_crate_manifests() {
   GATE_SCAN_NOUN="crate manifest"
+  # `find` on a missing `crates/` exits non-zero, and under `pipefail`
+  # that killed the gate AT THIS ASSIGNMENT — the diagnosis below was
+  # unreachable, and nothing could see it because no self-test fixture
+  # ever handed the gate a tree without one. S157, found by the empty-
+  # tree case `lib.sh` now plants for every gate.
+  if [ ! -d crates ]; then
+    gate_error "$(gate_name): no crates/ under $PWD — the gate scanned nothing, which is not a pass"
+    exit 1
+  fi
   GATE_SCAN_FILES=$(find crates -mindepth 2 -maxdepth 2 -name Cargo.toml | wc -l)
   if [ "$GATE_SCAN_FILES" -eq 0 ]; then
     gate_error "$(gate_name): no crates/*/Cargo.toml under $PWD — the gate scanned nothing, which is not a pass"
@@ -76,8 +85,11 @@ gate() {
   require_crate_manifests
   local hits
   # A parse failure or a missing `tomllib` must FAIL, never pass quiet:
-  # a gate that cannot read its subject has not cleared it.
-  hits=$(python3 - <<'PY'
+  # a gate that cannot read its subject has not cleared it. The `if`
+  # is what makes that a DIAGNOSIS: the bare assignment died here under
+  # errexit, so a CI reader got the reader's own sentence with no gate
+  # name and no `::error::` annotation around it (S157).
+  if ! hits=$(python3 - <<'PY'
 import glob, sys
 
 try:
@@ -128,7 +140,10 @@ for path in sorted(glob.glob("crates/*/Cargo.toml")):
 
 print("\n".join(sorted(set(bad))), end="")
 PY
-)
+  ); then
+    gate_error "$(gate_name): the manifest reader failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
+    exit 1
+  fi
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate depends on serde — persistence is the document layer's job (DESIGN.md's serde row). Describe the bytes ABOVE the boundary with a \`#[serde(with)]\` module in editor-core's \`persist::kernel_wire\`, or ratify the new layering in DESIGN.md."
@@ -181,13 +196,14 @@ plant_dev() {
 
 gate_selftest() {
   gate_selftest_clean
+  gate_selftest_without_tool python3 "the manifest reader failed"
   gate_selftest_case "a kernel crate depends on serde" plant_inline
   gate_selftest_case "a kernel crate depends on serde" plant_dotted
   gate_selftest_case "a kernel crate depends on serde" plant_renamed
   gate_selftest_case "a kernel crate depends on serde" plant_subtable
   gate_selftest_case "a kernel crate depends on serde" plant_dev
-  printf '%s selftest OK: passes a clean fixture, fires on all five planted spellings\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, fires on all five planted spellings, and diagnoses a reader that fails rather than dying at the assignment that captured it\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
-gate_main "a kernel crate depends on serde" plant_inline
+gate_main
