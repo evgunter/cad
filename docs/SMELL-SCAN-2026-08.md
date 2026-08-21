@@ -9726,7 +9726,100 @@ The first scan's own closing rule for the retired unscheduled table says
 a finding *"leaves a verdict and no row only if the verdict is
 closed"*. This one is decided-and-open.
 
-**Verdict:**
+**Verdict: ANSWERED — Evan, 2026-08-21: *"tightening to `CertifiedBounds` works at least for now."* Answer (4).** The fillet seam's three public entry points take `<T: Decide + CertifiedBounds>`, which makes an external `Dual64` instantiation a **compile error** rather than a thing an audit has to keep being true about. *"At least for now"* is part of the ruling and is recorded as such: this closes the seam, it does not settle whether a fillet battery should ever be differentiable.
+
+**What the ruling does NOT do — and the distinction is Evan's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds** — the quadrature arm declining internally while the rest genuinely validates, after which every certificate's value channel is compared bitwise to the `f64` build. Bounding that pass on `CertifiedBounds` would not harden it; it would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
+
+*(Asked by Track H on claiming, 2026-08-21; the record of the question is below and in PR #867.)*
+
+**Original question, kept because the answer is only legible against it — ASKED 2026-08-21.** Track H
+owns `geom-core/` and this is the one row in its ground that is a
+decision rather than work, so it goes out at constitution rather than
+when a neighbour stalls on it: **`H-c` edits the same `real.rs` doc
+block** (S85 is that block's 234-line growth) and **`H-f` inherits the
+seam** (C7 is the lane-trait collapse this refusal would live in).
+
+**The state of the seam, checked against the tree rather than
+transcribed.** `real.rs:470-477` says *"What is owed is a lane, or a
+written reason it needs none, and it is owed on the **public**
+surface"*, and `scripts/gates/bounds-allowlist.sh:24-31` points at that
+paragraph as the ONE home rather than restating it — calling it a
+**STANDING OBLIGATION** and naming the lapse plainly: *"the fillet seam
+is the one allowlisted seam with NO refusing lane behind it, and the
+guard that made that acceptable — `Bounds` having no `Dual` impl — has
+lapsed."* The enumeration behind it is real and was done twice
+independently (PR #682's body): every predicate's `Ok`/`Err` comes from
+a `decide(...)`, ten reads are typed-error payloads, four are
+selections, and **nothing mints a certificate object**.
+
+**So the question is not whether the seam is understood — it is what
+that understanding discharges.** Three answers, and the row wants one:
+
+1. **The lane is owed now.** The sibling residues from the same D1
+   ruling each got a number — `ContentBits for Dual` → #687, the census
+   box duplication → #700, the `Enclosure` gate gap → #701. This one is
+   the *largest* of them and got neither an issue nor a plan unit, which
+   looks like an oversight rather than a decision. If so it wants an
+   issue and a Track H row, and `H-f` is where it would land.
+2. **The written reason is already sufficient**, in which case the
+   paragraph IS the discharge and the finding closes — but then the
+   sentence *"what is owed is a lane, or a written reason it needs
+   none"* should stop describing the obligation as outstanding, because
+   two documents currently read it as live and a third gate points at
+   it.
+3. **The verdict is closed and the prose is the residue** — i.e. the
+   answer is (2) plus an edit, and the only work is making the three
+   sites agree.
+
+**`real.rs:394`'s *"#643-completeness question … deliberately left open
+here"* is in the same position** and takes the same answer; whichever
+way this goes, it should not need asking twice.
+
+**CORRECTION, same day, on Evan's question — there is a fourth answer
+and it is much cheaper than (1).** The question above was written as if
+"the lane is owed" meant building a `PropsQuadLane`-style trait. It
+probably does not. **#643 already shipped the type-level mechanism**:
+`CertifiedEnclosure` is implemented for exactly `f64`, `Interval`,
+`RingInterval` and `Probe` — **never for `Dual`** — and `real.rs:800`
+gives the pair a sole-bound spelling, `pub trait CertifiedBounds: Bounds
++ CertifiedEnclosure {}` with a blanket impl. So a seam that wants duals
+out does not need a lane to refuse them at runtime; it needs a **bound
+that does not type-check**.
+
+**The fillet seam is one word from that.** `fillet_edges`
+(`build.rs:127`), `ring_clearance` (`surgery.rs:775`) and `run_battery`
+(`battery.rs:828`) are each `<T: Decide + Bounds>`. Tightening all three
+to `<T: Decide + CertifiedBounds>` makes an external `Dual64`
+instantiation a **compile error**, leaves both real scalars (`f64`,
+`Interval`) untouched, and does not change a line of the bodies. It stays
+a compound bound, so it still fires `scripts/gates/bounds-allowlist.sh`
+and still needs ratification — which is correct, and is the thing being
+ratified here.
+
+4. **Tighten the bound to `Decide + CertifiedBounds`** — three words, not
+   a lane. Costs: it **evicts** duals rather than hardening the seam (see
+   below), and it is only right if nothing should ever differentiate
+   through the fillet battery.
+
+**The wrinkle that decides between (2) and (4), and it is written down in
+exactly one place** — S44's *"What this does NOT settle"*: at plain
+`Interval` a caller hardens a `Decide + Bounds` seam by adding
+`CertifiedEnclosure`, because the scalar satisfies both. At
+`Dual<Interval>` that same upgrade **evicts** rather than hardens. So
+*"harden this seam"* and *"keep duals out of this seam"* are the **same
+edit**, and there is no spelling that does one without the other. (4) is
+therefore not a free tightening: it is a decision that the fillet battery
+is not a differentiable surface, taken at the API.
+
+**Track H is not proposing an answer.** What it will say is that the
+current state — decided-and-open, pointed at from a gate, with no
+register that executes — is the state the first scan's closing rule
+exists to forbid, and that the real choice is now (2) versus (4): *is the
+audit the discharge, or should a dual stop type-checking here?* Option
+(1) as originally written — build a refusing lane — is very likely the
+wrong shape, because three of the four existing lane traits are already
+redundant for the guarantee and only their typed refusals are load-bearing
+(see `C7`/`H5`).
 
 ## S91. FIXED by #825 — the span search is now checked against a definitional oracle, not against itself
 
