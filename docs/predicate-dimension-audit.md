@@ -314,19 +314,19 @@ which is what actually moves the number.
 | pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_azimuth_frame / sphere_chart_pole_frame / polar & meridional rates | metre projections/norms at six of the seven frame callers; on the CONE ruling lane's F13 fallback the frame input is a UNIT radial's projection — dimensionless. Tie-break-only either way (N5: the trilean picks between two formulas identical mod τ — verdict-neutral), and that lane is F13-flagged one decision earlier | m (mixed on the F13 lane) | OK as tie-break (N5; row corrected at the clause-(i) fix pass, review MIN-1) |
-| props/curved.rs:145/150 | props_rim_axis_parallel / center_on_axis | sin×r_c; perpendicular offset | m | OK |
+| props/curved.rs (`require_rim_incidence`) | props_rim_axis_parallel / props_rim_center_on_axis | sin×r_c; perpendicular offset | m | OK |
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (#89's unit) |
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
 | props/curved.rs (`du_of_rims`) | props_rim_dir_group | (±1 diff) × `RimArms::azimuth` ∈ {0, ±2·arm} | m | OK (note N2) |
 | props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
 | props/curved.rs (`s_f_from_rim`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit) |
-| props/curved.rs:313/421 | props_meridian_axial / generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
-| props/curved.rs:323/343/451/553/677 | props_meridian_on_surface / rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
-| props/curved.rs:337/444/549/671 | props_circle_axis_class | cos × r_c | m | OK (note N3) |
-| props/curved.rs:372/484/589/740 | props_face_extent | m levels; sin-levels ×R; dt×minor | m | OK |
-| props/curved.rs:430 | props_meridian_apex | apex-line distance | m | OK |
-| props/curved.rs:487/488 | props_cone_nappe | slant levels (m) bare | m | OK |
-| props/curved.rs:576/598/695/706/728 | sphere/torus meridian checks | lengths / sin×R / cos×minor | m | OK |
+| props/curved.rs (`cylinder_boundary`'s line arm / `cone_boundary`'s line arm) | props_meridian_axial / props_meridian_generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
+| props/curved.rs (the four `*_boundary` parses) | props_meridian_on_surface / props_rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
+| props/curved.rs (the four `*_boundary` parses) | props_circle_axis_class | cos × r_c | m | OK (note N3) |
+| props/curved.rs (`require_extent`, called from all four flux lanes) | props_face_extent | m levels; sin-levels ×R; dt×minor | m | OK |
+| props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
+| props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
+| props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
 | props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | OK (note N7; N1 RETIRED. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in a suite CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
@@ -694,6 +694,29 @@ Flagged, NOT fixed here (dispositions):
   documented; the funnel routing (which would also push editor verdict
   rows into the N5 verdict-log channel) remains the editor-layer
   owner's scope call.
+
+**Every `props/curved.rs` row above is cited BY TARGET NAME, not by
+line** (S176(a)). The line numbers they carried were written against a
+2026-08 tree and had already rotted at #877's merge base; #877 moved
+200+ lines of the file and would have rotted the rest. A row whose
+citation cannot be resolved is a row nobody re-derives.
+
+**The audited POPULATIONS move under #877** — recorded here because
+this document's rows are about what is recorded, and all audited probe
+suites are green:
+
+- **sphere `props_rim_level_group`**: two decides per comparison became
+  **one**. The pair is `(sin v, 0)`, so the old second component was
+  `0 − 0` and always decided `Zero`; the chord folds it away. Same
+  verdict, one fewer sample.
+- **torus `props_rim_level_group`**: the recorded margin changes from a
+  per-component value at `major` to the chord at `minor` (N1's
+  retirement). Different number, and it is the exact one.
+- **`props_rim_side`**: now records on faces the gate previously
+  refused before reaching it — `boundary_material_sign`'s three
+  linearly-leveled arms run the premise first, so the population loses
+  the non-rectangular faces it used to include and the K stream stops
+  carrying sides that were a property of loop-flattening order.
 
 Notes (verified honest, kept for the design conversation):
 

@@ -6187,17 +6187,27 @@ of the two happened?**
   `Subgroup::Se3 | Subgroup::Empty` without making the match
   non-exhaustive, and moving the structural answer into it keeps one
   place per variant.
-- `same_level`'s structurally-impossible arm manufactures its error by
-  feeding `f64::NAN` into `classify` and letting the funnel escalate —
-  a decision predicate used as a `throw`; `unreachable_zero` returns a
-  4-tuple of NaNs into live flux arithmetic (`props/curved.rs:350`,
-  `:1090`). **STILL OPEN** — D2 (bug-vs-invalid-state) territory, gated
+- The rim-level rule's structurally-impossible arm manufactures its
+  error by feeding `f64::NAN` into `classify` and letting the funnel
+  escalate — a decision predicate used as a `throw`; `unreachable_zero`
+  returns a 4-tuple of NaNs into live flux arithmetic
+  (`props/curved.rs`, `mixed_levels` and `unreachable_zero` — cited by
+  target name per **S176(a)**; **`same_level` no longer exists**, the
+  two rim-level spellings having been unified into `level_coincides`
+  by **#877 / S81**, and this bullet named it). **STILL OPEN** — the
+  idiom survived the unification unchanged, it is now at one site
+  instead of two, and it is D2 (bug-vs-invalid-state) territory gated
   on Wave 0.
 - `Rim` stores the same traversal direction twice (`d_u: T` and
   `d_u_sign: Sign`), and the exact one is compared through the tolerance
   funnel — subtracting two exactly-±1 values and banding a result that
-  is always 0 or ±2 (`props/curved.rs:330`, `:384`). **STILL OPEN** —
-  which of the two representations is authoritative is a design call.
+  is always 0 or ±2 (`props/curved.rs`, `Rim`'s two fields and
+  `du_of_rims`' `props_rim_dir_group` decide — cited by target name per
+  **S176(a)**; the line numbers were written against a tree #877 moved).
+  **STILL OPEN** — which of the two representations is authoritative is
+  a design call. #877 did not touch it: the margin is now levered at
+  `RimArms::azimuth` rather than a bare `arm`, which is the same
+  comparison at a named lever.
 - **FIXED by #627.** Removed, with its `eprintln!` block. Nothing in
   CI, `scripts/`, `local-scripts/` or any manifest enabled it; the only
   other mention was a history note in `review_s1_probes.rs`, reworded so
@@ -7835,8 +7845,9 @@ hand-multiply class (`boolean::solid_contain::face_plane`,
 ---
 ## S58. FIXED IN PART by #714 — "This face's domain is an iso-rectangle" was re-derived per consumer, in three representations, and no two agreed on what it meant
 
-- **Where**: `crates/geom-brep/src/props/curved.rs:421` (`du_of_rims` /
-  `props_du_consistent`), `crates/mesh/src/curved.rs`
+- **Where**: `crates/geom-brep/src/props/curved.rs` (`du_of_rims` /
+  `props_du_consistent` — by target name per **S176(a)**, the line
+  moved under #877), `crates/mesh/src/curved.rs`
   (`require_swept_rectangle` / `entries_off_bbox`, added by #648),
   `crates/geom-brep/src/props/curved.rs` (`torus()`'s `props_rim_level`)
 - **Importance**: high
@@ -9511,31 +9522,60 @@ Tier 3's curved check 6 turns the wrong half into a
 `CurvedSenseInverted`, and check 7 being gated on `errors.is_empty()`,
 that wrong diagnosis suppressed the honest refusal.
 
+**The wrong answer the unit removed, measured.** Twelve rotations of
+one cylinder staircase-plus edge cycle through `boundary_material_sign`
+on the parent: **eight answered `Encoded(Positive)` and four answered
+`Encoded(Negative)`** — same face, same geometry, opposite material
+sides, decided by where the half-edge flattening started — while
+`curved_face` refused the same loop. An independently constructed
+five-step staircase reproduces 8/4 exactly. All twelve now refuse.
+
 **The fix is structural, not a second call.** `curved::linear_rim_side`
-now owns the premise and the side together and is the ONLY route to
-`s_f_from_rim` for the three linearly-leveled kinds, so a door cannot
-reach the second without the first. All twelve rotations now refuse.
-The **torus arm is genuinely exempt and says why at the arm**: it
-derives no side from an extreme — it reads the anchor meridian's chart
-orientation and the rim sharing the meridian's `t0` vertex, both
-structural facts about one corner of the boundary — so the global
-`lo + hi − 2v` inference the premise underwrites is not on that path.
+owns the premise and the side together, and the side derivation is
+**nested inside it**, so there is no module-private door a later arm
+could reach without the premise.
 
-**What moves in behaviour:** faces that are not iso-rectangles stop
-being *diagnosed* by the curved check-6 arm and become exempt there
-(the check-7 posture its callers already owe an error). No fixture in
-the workspace moved — `geom-brep`, `topo`, `step-import`, `sweep` and
-`mesh` are green unchanged — which is a fact about the corpus, not a
-justification: no in-tree fixture builds a non-rectangular curved face
-that also reaches tier 3, because the flux lane refuses it first, which
-is exactly the asymmetry the finding describes. Rows:
-`the_material_side_gate_refuses_a_plus_domain_at_every_rotation` (red
-on the parent, verified) and its control
-`the_material_side_gate_answers_one_sign_on_a_rectangle` (every
-rotation answers, and all answer the same sign — a gate that refused
-everything would make check 6 vacuous).
+**All four kinds, including the torus — the exemption was wrong.** An
+earlier draft of this fix exempted the torus arm on the argument that
+it derives no side from an extreme: it reads the anchor meridian's
+chart orientation and the rim sharing that meridian's `t0` vertex,
+*"both structural facts about one corner"*. **That argument is false
+and was refuted by execution.** The cancellation it relies on — the
+anchor-end choice flipping together with `dv/dt` — needs the two rims
+FLANKING the anchor meridian to carry opposite `d_u`. Every corner of a
+rectangle does; a **reflex** corner does not. On the L-domain
+`[0,1.1]×[0.2,0.45] ∪ [0,0.5]×[0.45,0.7]` the meridian at the notch is
+flanked by two rims both at `d_u = −1`, and the six rotations answer
+**`+ + − − + +`** while `curved_face` refuses all six. One corner is
+true and not sufficient; the **pair** is what is needed, and only a
+rectangle guarantees the pair. The premise now runs on the torus arm
+too, through the same `torus_ends` derivation the flux lane uses.
+Row: `the_material_side_gate_refuses_a_torus_l_domain_at_every_rotation`.
 
-## S81. FIXED by #877 — one rule, one metric, one lever, one fail direction
+**What moves in behaviour, with the honest reason.** Faces whose domain
+is not an iso-rectangle stop being *diagnosed* by tier 3's curved check
+6 and become exempt there — the posture its callers already owe an
+error. **No in-tree fixture moved**, and the reason is narrower than
+"nothing reaches the gate": instrumenting the gate's four arms and
+running the workspace gives **29 refusals, 13 of them this PR's own new
+rows and 16 pre-existing** — `step-import`'s `tier_gate` (12) and its
+`s58_iso_rectangle` (4), all on `cross.step` and `tee.step` walls. **On
+the parent those 16 got definite answers, split exactly 8 `Positive` /
+8 `Negative`** — one of each per body, which is precisely the
+arbitrariness this row removes. The suites stay green because those
+bodies are refused elsewhere, not because the gate never met them.
+
+**The coverage given up, written down.** Twelve face-instances lose
+check-6 coverage: `cross.step` and `tee.step`'s cylinder walls are now
+exempt from the sense-vs-boundary gate at every ε row. That is the
+correct consequence of a correct fix — an answer that depended on
+flattening order was never coverage — but it is a real loss and it is
+recorded at `ValidationError::CurvedSenseInverted`'s own doc, which now
+enumerates the exempt set in full. **Zero in-tree fixtures reach the
+TORUS arm on a non-rectangle**, so that half of the fix is guarded only
+by the row this PR adds.
+
+## S81. FIXED by #877 — one rule, one metric, one lever, and one answer where they used to differ
 
 `same_level` and `require_rims_at_extremes` both decided *"are these two
 `RimLevel`s the same level"* and disagreed on three axes. Both now call
@@ -9553,9 +9593,13 @@ rather than averaged:
   traversal difference — which `du_of_rims` still meters at `major`,
   through the new `RimArms { level, azimuth }`. One scalar doing both
   jobs is what let the two sites drift; two named fields cannot.
-* **Fail direction — refusal wins.** The mixed-representation arm
-  refuses at both sites; `Ok(false)` let a caller that only groups
-  carry on.
+* **Fail direction — refusal wins, and this is narrower than it
+  sounds.** What was unified is the **mixed-representation** arm: it
+  refuses at both sites now, where `same_level` answered `Ok(false)`
+  and let a caller that only groups carry on. The ORDINARY fail
+  direction is still `Err` at the predicate and `Ok(false)` at the
+  grouping, correctly — "these are different levels" is an answer when
+  you are grouping and a refusal when you are requiring.
 
 **This changes decisions, and here is the one that moved.** On a
 1 m / 1 mm gasket (`major/minor = 1000`) a band face whose bottom rim
@@ -9597,7 +9641,11 @@ scalar two functions metered two ways.
 ## S82. N7 now governs a refusal in the accepting direction, unscheduled and unrowed
 
 Carrying the rim rule to the sphere carried `RimLevel::Unit(sin v, 0)`
-with it (`props/curved.rs:963-972`, `:472-481`), so the predicate's
+with it (`props/curved.rs`, `sphere_boundary`'s rim arm — the
+`level: RimLevel::Unit(sin_v, T::zero())` push — and `RimLevel::Unit`'s
+own doc; **cited by target name per S176(a)**, because #877 moved 200+
+lines of this file and the two line ranges these were written against
+now land in unrelated code), so the predicate's
 margin is `R·|Δ sin v|` — the axial separation, which collapses as
 `cos v̄ → 0`. Two genuinely distinct near-polar rims therefore decide
 `Zero` and the predicate **passes** a non-rectangular domain.

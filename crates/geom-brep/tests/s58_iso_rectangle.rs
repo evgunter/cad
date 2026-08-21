@@ -690,3 +690,99 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
         "a rimless domain whose meridians span two great circles must be refused"
     );
 }
+
+/// **The torus arm of the gate needs the premise too, and the reason
+/// it looked exempt is a reflex corner.**
+///
+/// The torus does not read *which extreme* off `lo + hi − 2v`; it
+/// takes `s_f = d_u(rim at the anchor meridian's `t0` vertex) ×
+/// dv/dt(that meridian)`. That looks corner-local and therefore
+/// shape-free, and it is not: the anchor-end choice cancels against
+/// `dv/dt` only when the two rims FLANKING the meridian carry opposite
+/// `d_u`. Every corner of a rectangle does. A reflex corner does not —
+/// in the L below the meridian at the notch (`u = 0.5`) is flanked by
+/// two rims both traversed the same way, the cancellation fails, and
+/// the answer becomes a property of where the cycle started.
+///
+/// **Measured on this branch's parent: `+ + − − + +` across the six
+/// rotations of one edge cycle**, while `curved_face` refused all six.
+/// Goes red if the premise stops running on the torus gate arm.
+#[test]
+fn the_material_side_gate_refuses_a_torus_l_domain_at_every_rotation() {
+    let (rr, r0) = (0.020f64, 0.005f64);
+    let s = Surface::Torus {
+        center: p3(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        major_radius: rr,
+        minor_radius: r0,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
+        edge(
+            Curve3::Circle {
+                center: p3(0.0, 0.0, r0 * v.sin()),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: rr + r0 * v.cos(),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            u0,
+            u1,
+            a,
+            b,
+        )
+    };
+    let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
+        edge(
+            Curve3::Circle {
+                center: p3(rr * u.cos(), rr * u.sin(), 0.0),
+                axis: v3(u.sin(), -u.cos(), 0.0),
+                radius: r0,
+                u_ref: v3(u.cos(), u.sin(), 0.0),
+            },
+            v0,
+            v1,
+            a,
+            b,
+        )
+    };
+    let band = Band::linear().unwrap();
+    // L: [0, 1.1] x [0.2, 0.45]  u  [0, 0.5] x [0.45, 0.7].
+    let l = vec![
+        rim(0.2, 0.0, 1.1, 0, 1),
+        mer(1.1, 0.2, 0.45, 1, 2),
+        rim(0.45, 1.1, 0.5, 2, 3),
+        mer(0.5, 0.45, 0.7, 3, 4),
+        rim(0.7, 0.5, 0.0, 4, 5),
+        mer(0.0, 0.7, 0.2, 5, 0),
+    ];
+    refuses_on_rim_level("torus L", &s, &l);
+    for (k, rot) in rotations(&l).into_iter().enumerate() {
+        match boundary_material_sign(&s, &rot, band) {
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_level",
+            }) => {}
+            other => panic!(
+                "rotation {k}: the torus gate answered on a domain the flux lane \
+                 refuses: {other:?}"
+            ),
+        }
+    }
+    // The control: a torus rectangle still encodes ONE side.
+    let rect = vec![
+        rim(0.2, 0.0, 1.1, 0, 1),
+        mer(1.1, 0.2, 0.7, 1, 2),
+        rim(0.7, 1.1, 0.0, 2, 3),
+        mer(0.0, 0.7, 0.2, 3, 0),
+    ];
+    let sides: Vec<Sign> = rotations(&rect)
+        .into_iter()
+        .map(|rot| match boundary_material_sign(&s, &rot, band) {
+            Ok(MaterialSign::Encoded(side)) => side,
+            other => panic!("the torus control rectangle was not encoded: {other:?}"),
+        })
+        .collect();
+    assert!(
+        sides.iter().all(|x| *x == sides[0]),
+        "one face, one side: {sides:?}"
+    );
+}

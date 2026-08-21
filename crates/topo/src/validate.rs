@@ -529,9 +529,29 @@ pub enum ValidationError {
     /// comparand, no new margin: the derived side reuses the flux
     /// lanes' already-length-metered named decides. Posture inherited
     /// from check 7: only a DEFINITE disagreement refuses; an
-    /// escalated/degenerate/out-of-inventory derivation is exempt, and
-    /// the **rimless** sphere band (whose boundary encodes no side —
-    /// its `s_f` IS the bit) stays exempt as the documented residual.
+    /// escalated/degenerate/out-of-inventory derivation is exempt.
+    ///
+    /// **What is exempt, in full**, because this set is larger than a
+    /// reader expects and it grew:
+    ///
+    /// * the **rimless** sphere band — its boundary encodes no side at
+    ///   all (`s_f` IS the bit), the documented residual;
+    /// * a face whose **domain is not an iso-parameter rectangle**.
+    ///   `props`' side derivation runs the `props_rim_level` predicate
+    ///   before answering, on all four curved kinds, because
+    ///   `lo + hi − 2v` reads *which extreme is this rim at* and that
+    ///   is a material side only on a rectangle. Such a face returns
+    ///   `Err` and is exempt HERE, which is correct — without the
+    ///   premise it returned a definite ±1 that depended on where
+    ///   `loop_edges` started the cycle, and this arm turned that into
+    ///   a refusal that also suppressed check 7's honest
+    ///   `VolumeUncomputable { NotIsoRectangle }` through the
+    ///   `errors.is_empty()` gate. **The coverage is real and is
+    ///   given up on purpose**: the corpus's `cross.step` and
+    ///   `tee.step` walls are exempt here now, and the flux lane
+    ///   refuses those bodies anyway;
+    /// * conic-trimmed faces the quadrature lane owns, and NURBS.
+    ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
     /// dimples) PASS: their traversals already place the material on
     /// the anti-chart-normal side — the gate refuses lone bit flips,

@@ -1,7 +1,16 @@
 //! Per-face integral properties over the **exact** B-rep (M2 PR 7):
-//! closed-form face contributions to the divergence-theorem volume and
-//! the surface area. Key-free like the rest of this crate — the owning
-//! body flattens each face loop into [`LoopEdge`]s and injects them.
+//! face contributions to the divergence-theorem volume and the surface
+//! area. Key-free like the rest of this crate — the owning body
+//! flattens each face loop into [`LoopEdge`]s and injects them.
+//!
+//! **Two lanes, and this header describes one of them.** Everything
+//! below is the CLOSED-FORM lane: the M2 analytic surfaces over
+//! structurally verified iso-parameter rectangles. The other is
+//! [`quad`], the certified-quadrature lane — NURBS patches, conic-
+//! trimmed faces, an enclosure with a `pad` rather than an exact
+//! number — and it is `pub`, larger than this lane, and governed by
+//! its own module docs. A claim here about "every face" or "no
+//! fallback" is a claim about the closed-form lane only.
 //!
 //! # Formulation
 //!
@@ -74,8 +83,11 @@
 //! their meridian plane at the surface's radii) are certified as
 //! consistency residuals through the crate's
 //! [`decide`](crate::dihedral) funnel, and a definite failure of any
-//! of them is a typed [`PropsError`] — scope-boxed fail-loud, no
-//! silent quadrature fallback.
+//! of them is a typed [`PropsError`] — scope-boxed fail-loud. **No
+//! silent quadrature fallback**: the [`quad`] lane exists and is
+//! `pub`, but nothing here routes to it on a refusal. A caller that
+//! wants it asks for it, so a refusal from this lane is a refusal the
+//! caller sees.
 //!
 //! **The rectangle itself is ONE named predicate** —
 //! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
