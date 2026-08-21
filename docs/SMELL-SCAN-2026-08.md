@@ -2453,9 +2453,9 @@ its own.)
 
 ## S14. `Span` validity is prose, and the guard's removal turned poison into a documented panic
 
-**HALF ONE FIXED by #845 and HALF TWO by #846 — and S14 stays open,
-with its problem statement, because two of its halves do not.** #823
-split this row into **S14(a)** (the `Span`/`KnotVector` pairing) and
+**S14(a) IS CLOSED — all three halves are in (#845, #846, #848) — and
+S14 STAYS OPEN, with its problem statement, because S14(b) does not.**
+#823 split this row into **S14(a)** (the `Span`/`KnotVector` pairing) and
 **S14(b)** (the graft, of which §S70 is the documentation residue);
 Evan's ruling on #823 then split S14(a) itself. State:
 
@@ -2474,30 +2474,44 @@ Evan's ruling on #823 then split S14(a) itself. State:
   never bounded**. It also ended a state in which two `pub` predicates
   on one `KnotVector` disagreed about one index (`span(i)` refusing
   what `admits` accepted).
-- **S14(a), half three — open, dispatched as E-u:** the three `pub`
-  `NurbsSurface::{eval,ders,ders3}_in_span` doors take an unbranded
-  `SurfaceWindow` and index `self.control` off its foreign `base`.
-  **Still a live D9 violation**, demonstrated on #846's branch through
-  `window_at` — a *total* public door, so #845's removal of `window_of`
-  does not reach it — and reported in that PR rather than committed as a
-  `should_panic`. Neither half one nor half two reaches it: poison in a
-  basis row does not stop an index.
+- **S14(a), half three — #848, done:** `NurbsSurface::admits` — both
+  directions' `KnotVector::admits` plus
+  `win.stride() == knots_v.control_count()` — asked at the three `pub`
+  `NurbsSurface::{eval,ders,ders3}_in_span` doors, which took an
+  unbranded `SurfaceWindow` and indexed `self.control`/`self.weights`
+  off its foreign `base`. **Neither of the other two halves reached
+  it**, and the asymmetry is the part worth carrying: `window_at` is a
+  *total* public mint, so #845 does not touch it, and #846 poisons the
+  basis ROW while the loop bound comes from `self.knots_*` and the flat
+  index from the window — **poison in a row does not stop an index**.
+  Demonstrated as a panic first (`index out of bounds: the len is 9 but
+  the index is 9`, `self.weights[idx]`), then inverted;
+  `stride` shown necessary as well as sufficient. **The stride compare
+  is the term with no one-dimensional analogue**, and it is what makes
+  an admitted window bit-identical to one this surface would have
+  minted itself.
 - **S14(b) — open and unscheduled.** Row 0 reframed its first question
   and did not answer it.
 
-**The residue #846 accepts, deliberately:** two vectors of equal degree
-and equal control count, whose index `i` is a nonempty span in both,
-admit each other's span `i`, so evaluation is a wrong answer rather than
-a refusal. That is the same species as `hull::span_indices`'s
-length-only `coeffs` check one line away, and it is stated at the type
-rather than implied away.
+**The residue #846 and #848 accept, deliberately, in both dimensions:**
+two vectors — or two surfaces — of equal degree and equal control count,
+whose index `i` is a nonempty span in both, admit each other's span `i`
+and window, so evaluation is a wrong answer rather than a refusal. That
+is the same species as `hull::span_indices`'s length-only `coeffs` check
+one line away, and it is stated at both types rather than implied away.
+Closing it wants the brand, not a compare, and nothing here pays for
+one.
 
-**The `Where` citations below are the ORIGINAL ones and they no longer
-resolve to what they quoted** — #846 rewrote all three module docs,
+**The `Where` citations below are the ORIGINAL ones and none of them
+resolves to what it quoted** — #846 rewrote all three module docs,
 including `hull.rs:80`'s self-declared panic, which was this row's own
-evidence. Re-derived at #846's head, the row's surviving half is
-`crates/geom/src/surfaces/nurbs.rs` — `SurfaceWindow`'s not-branded
-concession and its three `_in_span` doors.
+evidence, and #848 rewrote `SurfaceWindow`'s not-branded concession,
+whose *"panics (loudly, correctly)"* was the surviving copy of the same
+sentence, together with the two relocated copies of it that #846's own
+sweep and #848's first pass both missed (`knots.rs`'s `Span` doc, which
+pointed AT the surface hole, and `geom/tests/surfaces/m5_pr7_ders3.rs`'s
+suite header). **S14(a) has no live claim site left.** What stands is
+S14(b): §S70's graft footnote, unscheduled.
 
 **CHANNEL and decision record: #823**, the design conversation this row
 was ruled from. S14 had no channel from 2026-08-18 to 2026-08-20 and its
@@ -9816,7 +9830,100 @@ The first scan's own closing rule for the retired unscheduled table says
 a finding *"leaves a verdict and no row only if the verdict is
 closed"*. This one is decided-and-open.
 
-**Verdict:**
+**Verdict: ANSWERED — Evan, 2026-08-21: *"tightening to `CertifiedBounds` works at least for now."* Answer (4).** The fillet seam's three public entry points take `<T: Decide + CertifiedBounds>`, which makes an external `Dual64` instantiation a **compile error** rather than a thing an audit has to keep being true about. *"At least for now"* is part of the ruling and is recorded as such: this closes the seam, it does not settle whether a fillet battery should ever be differentiable.
+
+**What the ruling does NOT do — and the distinction is Evan's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds** — the quadrature arm declining internally while the rest genuinely validates, after which every certificate's value channel is compared bitwise to the `f64` build. Bounding that pass on `CertifiedBounds` would not harden it; it would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
+
+*(Asked by Track H on claiming, 2026-08-21; the record of the question is below and in PR #867.)*
+
+**Original question, kept because the answer is only legible against it — ASKED 2026-08-21.** Track H
+owns `geom-core/` and this is the one row in its ground that is a
+decision rather than work, so it goes out at constitution rather than
+when a neighbour stalls on it: **`H-c` edits the same `real.rs` doc
+block** (S85 is that block's 234-line growth) and **`H-f` inherits the
+seam** (C7 is the lane-trait collapse this refusal would live in).
+
+**The state of the seam, checked against the tree rather than
+transcribed.** `real.rs:470-477` says *"What is owed is a lane, or a
+written reason it needs none, and it is owed on the **public**
+surface"*, and `scripts/gates/bounds-allowlist.sh:24-31` points at that
+paragraph as the ONE home rather than restating it — calling it a
+**STANDING OBLIGATION** and naming the lapse plainly: *"the fillet seam
+is the one allowlisted seam with NO refusing lane behind it, and the
+guard that made that acceptable — `Bounds` having no `Dual` impl — has
+lapsed."* The enumeration behind it is real and was done twice
+independently (PR #682's body): every predicate's `Ok`/`Err` comes from
+a `decide(...)`, ten reads are typed-error payloads, four are
+selections, and **nothing mints a certificate object**.
+
+**So the question is not whether the seam is understood — it is what
+that understanding discharges.** Three answers, and the row wants one:
+
+1. **The lane is owed now.** The sibling residues from the same D1
+   ruling each got a number — `ContentBits for Dual` → #687, the census
+   box duplication → #700, the `Enclosure` gate gap → #701. This one is
+   the *largest* of them and got neither an issue nor a plan unit, which
+   looks like an oversight rather than a decision. If so it wants an
+   issue and a Track H row, and `H-f` is where it would land.
+2. **The written reason is already sufficient**, in which case the
+   paragraph IS the discharge and the finding closes — but then the
+   sentence *"what is owed is a lane, or a written reason it needs
+   none"* should stop describing the obligation as outstanding, because
+   two documents currently read it as live and a third gate points at
+   it.
+3. **The verdict is closed and the prose is the residue** — i.e. the
+   answer is (2) plus an edit, and the only work is making the three
+   sites agree.
+
+**`real.rs:394`'s *"#643-completeness question … deliberately left open
+here"* is in the same position** and takes the same answer; whichever
+way this goes, it should not need asking twice.
+
+**CORRECTION, same day, on Evan's question — there is a fourth answer
+and it is much cheaper than (1).** The question above was written as if
+"the lane is owed" meant building a `PropsQuadLane`-style trait. It
+probably does not. **#643 already shipped the type-level mechanism**:
+`CertifiedEnclosure` is implemented for exactly `f64`, `Interval`,
+`RingInterval` and `Probe` — **never for `Dual`** — and `real.rs:800`
+gives the pair a sole-bound spelling, `pub trait CertifiedBounds: Bounds
++ CertifiedEnclosure {}` with a blanket impl. So a seam that wants duals
+out does not need a lane to refuse them at runtime; it needs a **bound
+that does not type-check**.
+
+**The fillet seam is one word from that.** `fillet_edges`
+(`build.rs:127`), `ring_clearance` (`surgery.rs:775`) and `run_battery`
+(`battery.rs:828`) are each `<T: Decide + Bounds>`. Tightening all three
+to `<T: Decide + CertifiedBounds>` makes an external `Dual64`
+instantiation a **compile error**, leaves both real scalars (`f64`,
+`Interval`) untouched, and does not change a line of the bodies. It stays
+a compound bound, so it still fires `scripts/gates/bounds-allowlist.sh`
+and still needs ratification — which is correct, and is the thing being
+ratified here.
+
+4. **Tighten the bound to `Decide + CertifiedBounds`** — three words, not
+   a lane. Costs: it **evicts** duals rather than hardening the seam (see
+   below), and it is only right if nothing should ever differentiate
+   through the fillet battery.
+
+**The wrinkle that decides between (2) and (4), and it is written down in
+exactly one place** — S44's *"What this does NOT settle"*: at plain
+`Interval` a caller hardens a `Decide + Bounds` seam by adding
+`CertifiedEnclosure`, because the scalar satisfies both. At
+`Dual<Interval>` that same upgrade **evicts** rather than hardens. So
+*"harden this seam"* and *"keep duals out of this seam"* are the **same
+edit**, and there is no spelling that does one without the other. (4) is
+therefore not a free tightening: it is a decision that the fillet battery
+is not a differentiable surface, taken at the API.
+
+**Track H is not proposing an answer.** What it will say is that the
+current state — decided-and-open, pointed at from a gate, with no
+register that executes — is the state the first scan's closing rule
+exists to forbid, and that the real choice is now (2) versus (4): *is the
+audit the discharge, or should a dual stop type-checking here?* Option
+(1) as originally written — build a refusing lane — is very likely the
+wrong shape, because three of the four existing lane traits are already
+redundant for the guarantee and only their typed refusals are load-bearing
+(see `C7`/`H5`).
 
 ## S91. FIXED by #825 — the span search is now checked against a definitional oracle, not against itself
 
@@ -14467,6 +14574,7 @@ has been discharged.
 | ~~**E-q**~~ | **#681**, still open | `memories/` | style | **Swept as #826 — the TENTH surface, which #681's list does not contain.** E-l reported it and did not sweep it; adding a surface is the issue owner's call, and Evan made it. **The disposition rule is NOT §Q6's**: *"most of the stuff in memories that cites a specific measurement should just be deleted. memories is definitely not the place for historical anecdotes, but it's also not really the place for live data."* So each block is an **anecdote** (delete the number, keep the rule — the default), **live data** (repoint at whatever re-takes it), or **neither** (a ratified constant or protocol threshold — kept, with the reason). **21 blocks re-derived at `e1500076`, E-l's count exactly, and it did not move.** Instrument run not retyped, but `--marker ''` alone yields **one block per file** — `find("")` is 0 on every line, so nothing ends a block; #681's `.md` row names *"paragraph-blocking"* as the replacement and that is not in the script, so it was added as a flag. That is the variant E-l ran. **Its own blind spot, and `min` is the sharp one**: the time-unit arm lists `seconds?|minutes?` and **not `min`**, so `memories/git-workflow.md` scored **zero blocks** while carrying `~5-7 min` / `35-70 min` / `30G cache` / `(then-5G-RAM)/251G box`. **Eight files carry measurement edits and in five of them at least one edit site was reached by reading, not by the instrument** — including `tessellation-budget.md`'s densest numbers, its findings list, which sits outside every flagged block. #681's carried hole (bytes, percent, counts and bare factors reach only through the vocabulary arm) is worst on exactly this surface. 21 is a floor, not a census. **The one live-data case the brief warned about checks out**: `docs/ASM-LOG.md:292` and `:361` route the **TESS-SPLIT dispatch** through this memory, so `SAFE_ASPECT = 5` could not simply be deleted — it now names `mesh::nurbs_cert::SAFE_ASPECT`, whose own doc carries the derivation. The two copies had **already diverged** (ASM-LOG says *"≤ ~4"*), as had `agent-lane-operations.md`'s `4–8 GB target/` against `disk-watchdog.sh`'s own `5-8G`. Second half of the unit: `memories/cad-working-style.md`'s memory-writing criteria gain the rule, in one bullet after *No live counters*. **D97 handed back unused.** |
 | **E-s** | **S14(a), half one** | `geom/src/surfaces/{nurbs,projection}.rs`, `mesh/src/nurbs_cert.rs`, `step-import/src/recognize.rs` | style | **DONE — #845.** Evan's ruling on #823, first of its two changes: `NurbsSurface::window_of` leaves the public surface. **Private, not deleted** — `window`, `window_at` and the three located-span seeds in `ders`/`ders3`/`eval` all mint through it inside `nurbs.rs`, so there is an internal use; nothing outside the module has one. **The caller list re-derived: 8 call sites, not the ruling's ‘eleven’** — 3 out of module (all three the ruling names, all resolving) and 5 in, the count of *eleven* being `window_of` grep hits including the definition and two doc mentions. **The ruling's ‘each becomes shorter’ is right once in three, and the reason is mechanical**: rustfmt's default `single_line_let_else_max_width` is 50 and this tree has no `rustfmt.toml`, so `let Some(win) = surface.window(u, v) else { continue };` is 52–55 columns and formats across three lines, where each of the two one-line span lookups it replaces fits on one. `mesh` shrinks by 3 code lines (its lookups were already three-line); `projection.rs` and `recognize.rs` are line-neutral. What does drop everywhere is a lookup (2 → 1) and two live bindings. **One behaviour note, stated because it is real and small**: the u-direction emptiness skip moves from the outer loop into the inner one at all three sites, so an empty u-span now costs one `window()` per v-span instead of being skipped whole; results are identical. **The model idiom is `geom-brep/src/ssi/enclose.rs:540`** — the ruling and the brief both site it under `geom/src/surfaces/`, where there is no `ssi` module. |
 | ~~**E-r**~~ | ~~**#807**~~ | `.github/workflows/ci.yml`'s `fmt` job, `local-scripts/ci-local.sh`, `docs/GUI-DESIGN.md`, `docs/GQ6-RESURVEY.md` | style | **Landed as #840 — the one row of #681's §Q6 sweep that was unguarded rather than unguardable.** Evan's constraint was *"i don't want to add even more github action runner time; can we make one of the builds we're already doing in ci be wasm?"*, and the answer is **a step, not a job**: the two `build + archive` jobs cannot be retargeted (their nextest archives are DOWNLOADED AND RUN by the six `test` shards (3 ε x 2) and by `test (interval)`, so a wasm binary deletes the matrix — verified against the jobs, not assumed), so the saving is in the job overhead a new job would duplicate. Sited in **`fmt`** (renamed `rustfmt + rustdoc (gate) + wasm32`, since a job name narrower than its contents is how a red run gets read as the wrong failure) — first in `doc`, which **#852 then deleted**, folding it into `fmt`; re-derived rather than re-applied, and the seat is the same one: unscoped, where `clippy` is the filter's per-closure row. **The currency changed with #852**, which established that Actions bills *per job, rounded up to the minute*: a job of its own pays ~26 s of set-up before it compiles anything. **The billed cost was re-measured for the one-leg guard and it is 0 OR 1, not a flat 0**: `fmt`'s baseline straddles the 60 s boundary, so cold (64 s -> 84 s) the guard is +0 and warm (53 s -> 66 s) it is +1, while a job of its own would bill 1 always. **Counter-intuitively, cutting three legs to one did not reduce the billed cost** — with three legs both sides of the comparison sat over the boundary and the guard was +0 twice. Wall-clock fell ~25 s; billed minutes did not. The two currencies disagree here, and the ruling that chose one leg was about coverage, not about this number. Nothing in the argument rests on the sccache trial — that is wired into `build`/`build-interval` only. **`--features interval` does cross**, and the reason is structural: the gmp-backed `inari` oracle is a dev-dependency of a path dependency and never enters the graph. **ONE LEG, the interval one** — Evan's ruling, 2026-08-21: *"do add wasm cross compiling for the interval build only. the lint for having interval be purely additive suffices."* `--features interval` compiles a **superset** of the default build, for two independent reasons: cargo features are additive for the dependency graph, and `scripts/check-interval-cfg-additive.py` forbids `cfg(not(feature = "interval"))` in this repo's crates and runs on the same code-tier PR runs. **That lint's syntactic residual is now the guard's**, and is stated at both claim sites. **The one hole outside the lint** — feature unification making a *third-party* crate compile less under `interval` — was **measured** by a `cargo tree -e features` diff: not one line present under default features is absent under `--features interval`, so it is unoccupied at this dependency set, and the command and re-take condition are recorded at the step. **Dropped, with written reasons at the claim sites rather than silence**: the default-features leg (now guarded transitively) and the whole-workspace `wasm_js` leg — which leaves **§4's third row, the `pncad` façade fix, unguarded again**, said so at the row. **Falsified against the surviving leg**: a `std::os::unix` path in `interval-transcendentals` reds it, and so does a `getrandom` edge planted on `topo` — a **default-path** crate — which is the subsumption demonstrated rather than argued. **`check` is not `build`**: it establishes that the crates compile, and nothing about linking or running, which both documents now say. **Two record corrections**: `pncad-py`'s *"PyO3 targets a native CPython"* exclusion is about `--features python`, not the default path — `pyo3` is optional and the crate checks clean on wasm32; and the guard's cost is job-overhead-bound, measured on hosted CI and reported at the PR. |
+| ~~**E-u**~~ | **S14(a), half three** | `geom/src/surfaces/nurbs.rs`, `geom/tests/surfaces/{span_window_pairing,m5_pr7_ders3}.rs`, `geom-core/src/spline/knots.rs` (one paragraph) | **ADVERSARIAL** | **Landed as #848 — S14(a) is closed and the last live D9 violation on this row is deleted.** `NurbsSurface::admits` = both directions' `KnotVector::admits` + `win.stride() == knots_v.control_count()`, asked at `eval_in_span`, `ders_in_span` and `ders3_in_span` before any indexing; **three tests, seven integer compares** after #846's third compare landed. The refusal is **all-poison**, matching the shape `hull` already has (private fallible check, total public door returning poison) and the one #846 gave the curve doors — not a fourth spelling. **Reproduced before it was fixed**: `small.eval_in_span(big.window_at(0.75, 0.75), 0.5, 0.5)` on 4x4 and 3x3 degree-2 nets, public doors and safe Rust throughout, panicking `index out of bounds: the len is 9 but the index is 9` at `self.weights[idx]`. **Why neither other half reached it**: `window_at` is a TOTAL public mint, so #845's privatisation of `window_of` does not touch it, and #846's guard poisons a basis ROW while the loop bound comes from `self.knots_*` and the flat index from the window — **poison in a row does not stop an index**; confirmed by removing only the surface guard on the merged tree and watching the same panic return. **Sufficiency derived per door**: all three read exactly `{base + i*stride + j : 0 <= i <= pu, 0 <= j <= pv}` with `pu`/`pv` from THIS surface's vectors (basis rows are sized from `self.knots_*`, never from the window, and #846's poison row keeps that length), so one derivation covers three doors — degree agreement turns `first_control + p` back into `span.index()`, `index <= last_span()` bounds it by `n - 1` per direction, and `stride == nv` collapses the maximum to `span_u.index()*nv + span_v.index() <= nu*nv - 1`. Equivalently: an admitted window is **bit-identical to the one this surface would have minted**. **The stride compare is not implied by the other two** — a 4x4 net's window at `(3, 1)` has both spans admitted by a 4x2 net and still puts `row(1)` at flat index 12 in an 8-element array. **Each compare falsified separately, and the first two attempts at it were wrong** — both in the class the brief names. Attempt one: the demonstrated 4x4/3x3 pair is OVER-DETERMINED, so deleting the index compare left the suite green (#846's `span_fixtures::vectors()` failure one dimension up); fixed with an isolating fixture added locally, no shared fixture reordered. Attempt two, after re-merging #846: that fixture went over-determined AGAIN, by the new nonemptiness compare — and the right answer was a **theorem, not a third fixture**. **On a clamped knot vector `span_is_nonempty(i)` implies `i <= last_span()`**, because every index above `last_span()` sits in the trailing run of `degree + 1` equal knots, and `KnotVector` has no unclamped constructor — so no fixture can separate those two compares, and the sharpest plant for the pair deletes both. The index compare is what makes the bound argument legible and what would carry it if an unclamped vector ever became constructible; it is not a second independent filter today. That redundancy is inside #846's predicate, so it is reported and not filed. With the predicate assertion suppressed each deletion gives a real out-of-bounds panic (len 16, len 9, len 8), and removing the whole surface guard on the merged tree reproduces the original panic with #846 fully live. **The adversarial review cleared the mechanism and blocked on the SWEEP, which is the finding worth carrying.** The fix made the same sentence false in **two other files** and the first revision scoped its prose pass to one: `geom-core/src/spline/knots.rs`'s `Span` doc — **#846's own pointer at this hole**, a D9-status claim asserting the kernel still panics here — and `geom/tests/surfaces/m5_pr7_ders3.rs` twice, which is **row 9 of this unit's own caller census**, opened for its call sites and not read for its prose. A census and a prose sweep are different passes over one file list. **And the census pattern was wrong**: the door names find the doors, but the class is *reads a control net off a window* and its pattern is `win.row(` / `.stride()` / `.base()`, which finds two further files — `mesh/src/nurbs_cert.rs:1264,1338` (a **panicking index** off a window, the exact shape just fixed, one crate over, self-minted so safe today) and `geom-brep/src/ssi/enclose.rs:412,445` (`.get`-poison, a fourth spelling now that a public predicate exists). Neither is a live defect — every window in the tree is self-minted, traced site by site — and neither is filed; both are named for the orchestrator. **#846 also moved underneath this lane**, gaining a third compare (`span_is_nonempty`), which made this unit's *"an admitted foreign span may be EMPTY here"* false; corrected, and pinned by a row so the inheritance is not assumed. **The residue that survives, stated at both types**: equal degrees, equal control counts and a span index nonempty in both admit each other and answer wrongly — closing it wants the brand, not a compare. **No performance number, and the reason is stated rather than deferred**: there is no evaluator benchmark in the tree (no `benches/`, no `criterion` — verified), this is O(1) at an O(p^2) door, #463's 6-10% came from *per-basis-term* allocation, and the scheduled proxy is `docs/perf-data/rebuild-latency/<epoch>-<sha>.json`, written on every merge to main. |
 
 ### The rows
 
