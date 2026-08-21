@@ -300,6 +300,64 @@ being on no list and unable to be on one. Its third member,
 `bvh/src/lib.rs:56-61`, is in no track's ground and is named in the record
 rather than taken.
 
+### H-R7. The eval seam: a door beneath `evaluate` is not tightenable alone
+
+**Found by H-g, 2026-08-21, after CI falsified its own caller analysis.**
+`sweep::fillet::build::fillet_edges` **is** reachable from a mixed pass:
+
+```
+evaluate<T: Decide + ContentBits + Bounds + Send + Sync + PropsQuadLane>   (pub)
+  → run_op<same>  →  wire.rs:110 dispatch  →  wire_fillet<T: Decide + Bounds>
+      → fillet_edges
+```
+
+So tightening the door drags `CertifiedBounds` onto `wire_fillet`,
+`run_op` and **`evaluate`'s public bound** — tightening a **pass**, over
+**one** node kind, foreclosing E4's dual-through-`evaluate` path for **all**
+of them. That is the thing H-R3 forbids, reached from the direction H-R3
+licenses.
+
+**`real.rs:470-477` named this caller and we both read past it.** It says
+*"the one production caller (`editor_core::eval`'s fillet wiring)"* and
+then argues from **reachability** (`ContentBits` has no `Dual` impl).
+H-R3's question is about the **bound**, and reachability does not answer
+it. **The paragraph H-g deleted this morning as discharged was right about
+the eval seam and wrong about nothing** — the bound discharges the
+obligation at the **public surface** and does not discharge it at the eval
+seam, and *the paragraph never distinguished the two*. That is the finding,
+and it is worth more than either half.
+
+**It is not a fillet quirk.** H-g answered `real.rs:394`'s
+#643-completeness question **NO** on this rule and found the same shape at
+`Separation::{of,certify,image}` — non-generic returns, so every read is
+terminal, **and** their one production caller is `wire_placed_union`
+beneath the same `evaluate`. **Two of two doors examined beneath the eval
+seam behave this way.**
+
+**The standing rule, and it amends H-R4's inventory.** A door's
+tightenability has a second question the inventory did not ask:
+
+1. Is the door's own bracket read terminal or fed back? *(H-R4)*
+2. **Is the door reachable from `evaluate` — or from any pass whose bound
+   is a lane trait rather than a scalar capability?** If yes, tightening
+   the door is a decision about the **pass**, and belongs to whoever owns
+   the pass's scalar policy.
+
+`chart_region_overlap` and `geom`'s `::project`/`::project_from_seed`
+**pass both tests** — re-checked without truncation, the projection doors'
+only non-test callers already carry `CertifiedEnclosure`
+(`edge_nurbs.rs:283`, `ssi/certify.rs:433`), so neither moves. **Those
+proceed. The fillet seam is with Evan.**
+
+**Method note, recorded because the failure is generic.** H-g's first
+caller analysis piped a repo-wide grep through `| head -30` and the
+thirtieth line was not the last; it reported *"no in-repo caller moves"*
+on a truncated list, and **CI caught it rather than the lane**. A
+truncating pager on an enumeration that is the evidence for a completeness
+claim is now named in every Track H brief. The lane self-reported it
+before anything else, which is why this row is a ruling and not an
+incident.
+
 ---
 
 ## Sequencing
