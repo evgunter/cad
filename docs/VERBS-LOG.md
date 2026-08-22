@@ -52,3 +52,19 @@ VERBS-1 drawn per v4 (arm mapping held at the orchestrator lane
 until merge rows land in MODEL-AB-LOG, per blinding). Lane
 `verbs-rim`, branch `verbs/rim`. State-sync PR for these docs opens
 at this seam.
+
+## Q8 conversation OPEN; two more surveys out (2026-08-21)
+
+- State-sync #906 MERGED (plan, log, VERBS-RIM spec on main).
+- **VERBS-RIM implementer DISPATCHED** (lane verbs-rim, branch
+  verbs/rim, spec on main; wall-clock start ~02:57Z 08-22).
+- **OFFSET-DESIGN opened as #907** (branch verbs/offset-design) —
+  the Q8 design conversation, proposals O1–O6, awaiting Evan.
+  The fork most needing his call is O4: sealed shell as
+  boolean-family (`B − offset_inward(B,t)`, keeping "voids are born
+  only from booleans" intact) vs a third void source.
+- Substrate surveys dispatched (opus, read-only) for the next two
+  conversations: PATTERNS/MIRROR (D8 instancing, reflection's
+  orientation-sensitive site classes, G8 multi-operand gap) and
+  DRAFT (surgery-pattern generalization, face replacement,
+  re-intersection reach). Conversations open when they return.
