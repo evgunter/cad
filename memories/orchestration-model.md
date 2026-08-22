@@ -53,11 +53,14 @@ Evan only at genuine design forks.
 **Standing operational rules** (the incidents that earned them live
 in git history and the M-logs, not here):
 
-- **Session start**: install + arm the scripted monitor suite — `cp
-  local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
-  an up-to-date checkout, then arm each installed copy as a persistent
-  Monitor (checkouts switch refs). Glob the directory; do not maintain
-  a named list.
+- **Monitors are tools, not mandates (Evan, 2026-08-22)**: arm, tune,
+  re-cadence, or disarm any of them at will to suit the session's
+  present purposes. The default remains useful at session start —
+  `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`
+  from an up-to-date checkout, then arm the installed copies as
+  persistent Monitors (checkouts switch refs; glob the directory, do
+  not maintain a named list) — but it is a default, not an
+  obligation.
 - **Away-channel arming**: the script fails loud (exit 78) without its
   routing env. Arm as `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
