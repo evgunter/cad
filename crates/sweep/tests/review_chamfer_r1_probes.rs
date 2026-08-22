@@ -249,6 +249,104 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     );
 }
 
+/// **A ringed support face carries its ring through a chamfer** — the
+/// one surgery path the PR's own fixtures never drive under
+/// `BlendKind::Chamfer`: `ring_clearance_pass` folding a support
+/// face's RING against the chamfer's trimlines, then the carve
+/// keeping the ring on the shrunk face. The part is a real one — a
+/// dimpled spacer: a cube with a hemispherical dimple sunk into its
+/// top face (boolean subtract), then every box edge broken. The
+/// dimple's rim ring must survive on the shrunk top face, the twelve
+/// strips and eight patches must mint, and the volume must be the
+/// chamfered-box closed form minus exactly the hemisphere.
+#[test]
+fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
+    let l = 1.0;
+    let d = 0.1;
+    let r = 0.15;
+    let cube = prism(&[(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)], l);
+    let box_edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();
+    // A ball centred ON the top face: subtracting sinks a
+    // hemispherical dimple whose rim is a ring of that face.
+    let ball = {
+        use geom_core::{Affine3, Vec2, Vec3};
+        use sweep::{Revolution, RevolveAxis, revolve};
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex::new(Point2::new(0.0, -r), 1.0),
+            ProfileVertex::new(Point2::new(0.0, r), 0.0),
+        ]);
+        let vp = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tol::witness())
+            .expect("a ball profile validates");
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        };
+        let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+            .expect("the ball revolves")
+            .body;
+        // Stand the revolve's pole axis (y) up along z so the face
+        // plane cuts a clean latitude rim, then centre it on the top
+        // face.
+        let upright = topo::transform_rigid(
+            &ball,
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                core::f64::consts::FRAC_PI_2,
+            ),
+            Tol::witness(),
+        )
+        .expect("the ball stands up");
+        topo::transform_rigid(
+            &upright,
+            &Affine3::translation(Vec3::new(0.5, 0.5, l)),
+            Tol::witness(),
+        )
+        .expect("the ball translates")
+    };
+    let dimpled = {
+        use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+        boolean_op_with(
+            BooleanOp::Subtract,
+            &cube,
+            &ball,
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+            Tol::witness(),
+        )
+        .expect("the dimple subtracts")
+        .body()
+        .expect("a body")
+        .body
+        .clone()
+    };
+    let surviving: Vec<EdgeKey> = box_edges
+        .into_iter()
+        .filter(|k| dimpled.get_edge(*k).is_some())
+        .collect();
+    assert_eq!(surviving.len(), 12, "every box edge survives the dimple");
+    let out = chamfer_edges(&dimpled, &surviving, d, band(), Tol::witness())
+        .expect("the dimpled spacer's twelve edges chamfer around its ring");
+    assert_eq!(topo::validate(&out.body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&out.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(out.blend_faces.len(), 12, "a strip per box edge");
+    assert_eq!(out.corner_faces.len(), 8, "a patch per corner");
+    let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
+    let want = l.powi(3) - 6.0 * l * d * d + 16.0 / 3.0 * d.powi(3)
+        - 0.5 * 4.0 / 3.0 * core::f64::consts::PI * r.powi(3);
+    assert!(
+        (props.volume - want).abs() <= 1e-9 * want,
+        "chamfered box minus the hemisphere: {} vs {want}",
+        props.volume
+    );
+}
+
 /// **The fail-loud contract at an overrunning corner.** At a sharp
 /// wedge corner the chamfer's foot slides `d/tan(θ/2)` along the
 /// boundary — far beyond `d` — and the clearance screen skips
@@ -300,6 +398,36 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
                 props.volume
             );
         }
+    }
+}
+
+/// **A nonpositive setback refuses — but by asserting a false fact.**
+/// There is no positivity door on `distance`, and the predicate that
+/// used to catch a nonpositive size for the FILLET (radius headroom)
+/// is correctly not metered for a chamfer — so `d = 0` and `d < 0`
+/// fall through to corner-independence, whose margin is levered by
+/// the setback itself, and the consumer reads "VertexKey(..) is a
+/// trihedron with DEPENDENT support normals" about a cube corner
+/// whose normals are exactly orthonormal. Fail-loud holds (no body is
+/// returned); the diagnosis and its recourse are wrong. Pinned so the
+/// current verdict is visible; recorded as a review finding.
+#[test]
+fn a_nonpositive_setback_refuses_but_misnames_the_corner() {
+    let pad = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
+    let edges = all_edges(&pad);
+    for d in [0.0, -0.1] {
+        let err = chamfer_edges(&pad, &edges, d, band(), Tol::witness())
+            .expect_err("a nonpositive setback must not mint a body");
+        assert!(
+            matches!(
+                err,
+                FilletError::FilletCornerUnsupported {
+                    corner: sweep::fillet::CornerConfig::DependentNormals,
+                    ..
+                }
+            ),
+            "today's decided (mislabeled) verdict at d = {d}: {err:?}"
+        );
     }
 }
 
