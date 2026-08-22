@@ -89,8 +89,9 @@ fi
 
 FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd}"
 
-# ---- per-scene budget ----------------------------------------------
-# Wall-clock budget for ONE scene in ONE fresh freecadcmd process,
+# ---- per-PROCESS budget --------------------------------------------
+# Wall-clock budget for ONE fresh freecadcmd process — at the default
+# B=1 that is one scene, which is what the name records.
 # FreeCAD's startup included. What it must clear is not the typical
 # scene but the worst LEGITIMATE one, and on this workload that is set
 # by machine contention, not by the scene: measured over full passes of
@@ -105,17 +106,33 @@ FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/
 # genuinely that slow — a wedge does not get faster with a bigger
 # budget.
 #
-# THIS KNOB STAYS PER-SCENE WHEN ONE PROCESS RENDERS SEVERAL. A batch of
-# N scenes gets N x this, so the number means the same thing at every
-# batch size and only the process it is applied to changes. N x is
-# generous on purpose — a batch pays ONE startup, and startup is most of
-# a typical scene — because this budget's job is to BOUND A HANG, not to
-# detect a slow scene. The alternative, a per-scene watchdog INSIDE the
-# process, was rejected on the root cause: the hang it would have to
-# interrupt is a mutex re-entry on FreeCAD's own main thread, which
-# never gets back to a bytecode boundary and never releases the GIL, so
-# neither a Python signal handler nor a watchdog thread would ever run.
-# Only a process outside can kill it, and `timeout` is that process.
+# THIS BUDGET IS PER PROCESS, NOT PER SCENE (Evan, 2026-08-22). A batch
+# of N scenes gets THIS number, not N x it. The name predates batching
+# and is kept because at the default B=1 a process IS a scene, so it
+# still reads true where almost everyone meets it.
+#
+# Why not N x. The budget's job is to BOUND A HANG, and a bound that
+# scales with the batch is not a bound: at B=5 an N x budget lets a
+# wedge burn 2 x 5 x 300s = 50 minutes, five times today's worst case,
+# on a lane whose render step carries no outer `timeout-minutes` of its
+# own. A flat budget makes the worst case INVARIANT under the batch
+# size — 2 x this, at every B — so raising B trades no latency risk at
+# all. It is also still generous: a batch pays ONE startup, and startup
+# is most of a typical scene, so N scenes in one process take far less
+# than N x one scene.
+#
+# WHAT IT COSTS, stated because it is a real edge: on a CONTENDED box,
+# where a scene can take minutes, a large batch could exhaust a budget
+# that N separate scenes would not. That does not bite at the B=1
+# default this file ships, and anyone raising B on a loaded box should
+# raise this with it.
+#
+# The alternative, a per-scene watchdog INSIDE the process, was rejected
+# on the root cause: the hang it would have to interrupt is a mutex
+# re-entry on FreeCAD's own main thread, which never gets back to a
+# bytecode boundary and never releases the GIL, so neither a Python
+# signal handler nor a watchdog thread would ever run. Only a process
+# outside can kill it, and `timeout` is that process.
 SCENE_TIMEOUT="${FREECAD_SCENE_TIMEOUT:-300}"
 # Grace between the budget's SIGTERM and SIGKILL to the scene process.
 SCENE_KILL_GRACE=5
@@ -155,8 +172,8 @@ esac
 #
 # WHAT IT COSTS, AND WHY THE DEFAULT IS NOT "ALL OF THEM". The process
 # boundary is what bounds a hang. At batch B a wedge costs B scenes'
-# work and up to 2 x B x SCENE_TIMEOUT of wall clock before the pass
-# gives up, against 2 x SCENE_TIMEOUT at B=1. That is the whole trade
+# work before the pass gives up. The WALL CLOCK it can burn doing so
+# is 2 x SCENE_TIMEOUT at every B — see the budget note — so the trade
 # and it is linear in B, so a SMALL batch takes most of the startup
 # saving while keeping a hang's blast radius to a fraction of a pass.
 #
@@ -279,7 +296,7 @@ render_batch() {
     local log="$LOGDIR/$bid.log" attempt start rc stalled name missing
     # `what` is a SUFFIX, empty for a batch of one, so a single-scene
     # process reports "rendered in 5s" exactly as it always has.
-    local n=$# budget=$(( SCENE_TIMEOUT * $# )) what="" frames="the frame was"
+    local n=$# budget=$SCENE_TIMEOUT what="" frames="the frame was"
     [ "$n" -eq 1 ] || { what=" $n scenes"; frames="the frames were"; }
     BATCH_REASON=""; BATCH_TIMED_OUT=0; BATCH_SECS=0
     for attempt in 1 2; do
