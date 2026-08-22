@@ -70,8 +70,10 @@ print("  sidecar says 0.36225803729804673 /", "362258037.2980467")
 def near_tangency(globe, top, mouth, lip_r, lip_drop, tag):
     r, b = globe, mouth
     rm = math.sqrt(r**2 - b**2)
-    P = (rm, -b); Q = (lip_r, -b - lip_drop)
-    d = (Q[0]-P[0], Q[1]-P[1]); dl = math.hypot(*d)
+    P = (rm, -b)
+    Q = (lip_r, -b - lip_drop)
+    d = (Q[0]-P[0], Q[1]-P[1])
+    dl = math.hypot(*d)
     dist = abs(P[0]*d[1] - P[1]*d[0]) / dl          # centre->carrier line
     tang = (-P[1]/r, P[0]/r)
     dot = abs(d[0]*tang[0] + d[1]*tang[1]) / dl

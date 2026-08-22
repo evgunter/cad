@@ -22,7 +22,7 @@
 import os
 import sys
 
-import Part  # noqa: F401  (FreeCAD's Part workbench)
+import Part  # FreeCAD's Part workbench; freecadcmd puts it on sys.path
 
 path = os.environ["STEP_FILE"]
 shape = Part.Shape()
