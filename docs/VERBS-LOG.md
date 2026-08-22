@@ -301,3 +301,26 @@ RING (ungated), draft v1 + the kind-general moldability checker,
 mirror (own door, u↦−u, audit-checklist scope), the SegPat
 instance-index predicate, and hole-feature sugar (behind P4's
 lowering ruling).
+
+## ARCEVAL MERGED (#922); the class is serial (2026-08-22)
+
+Ordinal-62 single review: APPROVE-WITH-FIXES 0/2/3 — its
+unique-signal run proved both #921 rows green at 1e-12; MINOR-1
+(the escalation arm's 2x ceiling ADMITTED the pre-fix defect —
+verified by plant, fixed to a bit-exact pin) and MINOR-2 (the
+affine sibling, now filed as #924). Fix pass landed every item +
+both probe suites; its CI drew (interval, 1e-12) — the #921 point —
+and exposed the mechanism: **the class's membership is discovered
+serially** (shard cancellation hid member 3 behind members 1-2), so
+a green-1e-12-before-merge gate would deadlock the fix chain.
+**Adjudication: #922 merged as a proven strict improvement at the
+red point** (two rows greened, member 3's escalation moved sample
+3 → 8 — byte-for-byte compared against pristine main, not argued).
+The distinct NaN'd SSI row found at the same point is #925 (thin
+filing, routed toward #762's guard family, a Wave-2 rider). The
+lane continues with verbs/arceval2: the m5_s13 member re-scoped
+under the same ratified ruling. The structural class retirement
+(triple restrict) now has three recorded consumers on #921 and
+will be scheduled as its own unit. After arceval2, (interval,
+1e-12) on main is red on exactly one enumerated row (#925), which
+is the state #920's re-draw compares against.
