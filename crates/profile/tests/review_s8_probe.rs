@@ -170,35 +170,35 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
 mod dominance {
     use std::f64::consts::TAU;
 
-    pub(crate) fn signed_swept(from: f64, to: f64, turn: f64) -> f64 {
+    pub(super) fn signed_swept(from: f64, to: f64, turn: f64) -> f64 {
         let s = ((to - from) * turn).rem_euclid(TAU);
         s - TAU * (s / TAU + 0.5).floor()
     }
 
     /// `+1` or `−1` with equal probability.
-    pub(crate) fn sign(rng: &mut test_utils::fuzz::Rng) -> f64 {
+    pub(super) fn sign(rng: &mut test_utils::fuzz::Rng) -> f64 {
         if rng.unit() < 0.5 { 1.0 } else { -1.0 }
     }
 
     #[derive(Clone, Copy)]
-    pub(crate) struct Arc {
-        pub ox: f64,
-        pub oy: f64,
-        pub r: f64,
-        pub turn: f64,
-        pub corner_angle: f64,
-        pub len: f64,
+    pub(super) struct Arc {
+        pub(super) ox: f64,
+        pub(super) oy: f64,
+        pub(super) r: f64,
+        pub(super) turn: f64,
+        pub(super) corner_angle: f64,
+        pub(super) len: f64,
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub(crate) struct Survivor {
-        pub sb_in: f64,
-        pub sb_out: f64,
+    pub(super) struct Survivor {
+        pub(super) sb_in: f64,
+        pub(super) sb_out: f64,
     }
 
     /// Survivors + signed offset radii for an arc×arc corner (the
     /// reviewer's `classify`, verbatim semantics).
-    pub(crate) fn classify(
+    pub(super) fn classify(
         a1: &Arc,
         a2: &Arc,
         sgn: f64,
@@ -247,7 +247,7 @@ mod dominance {
 
     /// Dominance + no-enclosing bookkeeping for one classified corner.
     /// `stats` = (two-survivor count, violations, enclosing-involved).
-    pub(crate) fn tally(surv: &[Survivor], rho1: f64, rho2: f64, stats: &mut (u64, u64, u64)) {
+    pub(super) fn tally(surv: &[Survivor], rho1: f64, rho2: f64, stats: &mut (u64, u64, u64)) {
         if surv.len() != 2 {
             return;
         }

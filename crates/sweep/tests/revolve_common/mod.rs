@@ -1,8 +1,9 @@
 //! Shared helpers for the revolve acceptance suites (M2 PR 5).
-//! Each `revolve_*.rs` integration binary includes this via
-//! `mod revolve_common;`.
-#![allow(dead_code)] // each test binary uses a subset
-#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
+//! Each `revolve_*.rs` suite includes this via `mod revolve_common;`,
+//! so it is loaded once per suite inside the crate's one aggregated
+//! test binary (`tests/all.rs`).
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_brep::EdgeGeometry;
 use geom_core::Tol;

@@ -57,11 +57,11 @@ use geom_core::Tol;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct CompletedSection {
     /// The null face (two coincident loops).
-    pub face: FaceKey,
+    pub(crate) face: FaceKey,
     /// The loop through the minted above copies.
-    pub above_loop: LoopKey,
+    pub(crate) above_loop: LoopKey,
     /// The loop through the original below-side vertices.
-    pub below_loop: LoopKey,
+    pub(crate) below_loop: LoopKey,
 }
 
 /// The joining sweep (module docs). Mutates `red.body` in place;

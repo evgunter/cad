@@ -11,8 +11,8 @@
 //! `src/test_support_impl.rs` docs give the rule for all three.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![allow(dead_code)] // each integration test uses the subset it needs
-#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};

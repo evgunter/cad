@@ -125,8 +125,8 @@ truck-stepio = "0.3.0"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
-# unsafe (the exception budget lives in vetted dependencies, per L4). Public
-# API is documented.
+# unsafe (the exception budget lives in vetted dependencies). Public API is
+# documented.
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
@@ -135,19 +135,42 @@ missing_docs = "warn"
 # crate may call it. That assumption is false here: this workspace's only
 # consumers are its own members plus `pncad`/`pncad-py`, so nothing outside
 # the tree can be the caller such an item is being kept for. This lint is
-# what sees them: a `pub` that is a lie about reachability is caught at
-# compile time, in every crate at once, rather than by whoever opens the
-# file next. Where a narrower keyword would be wrong — a facade whose door
-# opens under a `cfg` the current build does not have — the item carries an
-# `allow` that says which arm the `pub` is for.
+# what sees them: a `pub` that is a lie about reachability becomes a
+# compile-time warning rather than something whoever opens the file next
+# has to notice.
+#
+# WHAT IT DOES NOT SEE, so the clean run is not read as a census: struct
+# fields (a bare `pub` field of a `pub(crate)` struct is not linted — it
+# hides no corpse, because `dead_code` DOES report an unread field whatever
+# its keyword, but the keyword still claims a reach the type cannot give
+# it); items an external macro expands to; and `demos/`, `tools/` and
+# `interval-transcendentals/`, which are `exclude`d from this workspace and
+# inherit no `[lints]` table.
+#
+# Two shapes carry an `allow` rather than a narrower keyword.
+#
+# 1. A facade whose door opens under a `cfg` the current build does not
+#    have: `pub` is right for the widest arm and unreachable under the
+#    narrowest, so the `allow` names the arm the `pub` is for.
+#    `crates/topo/src/test_support_impl.rs` is the whole population.
+# 2. A `tests/` helper module — and here the allow is not a judgement
+#    call, because THE DEFECT ABOVE CANNOT OCCUR IN A TEST BINARY. A test
+#    binary has no external API, so `dead_code` is not blinded by `pub`
+#    there: an unused `pub` helper is already reported, by name. Demoting
+#    those helpers would buy no coverage that another lint does not
+#    already give. (Counterfactual, re-run against this tree: drop the
+#    `#![allow(dead_code)]` from `crates/mesh/tests/common/mod.rs` and
+#    `cargo check -p mesh --all-targets` names all 19 of that file's `pub`
+#    helpers.) Each helper tree carries one file-level allow citing this
+#    paragraph; none of them restates it.
 unreachable_pub = "warn"
 
+[workspace.lints.clippy]
 # D9: the kernel never panics on any INPUT — every input-reachable failure
-# is a typed error. The panic family is linted from line one (L5); CI's
-# `-D warnings` makes these hard errors there. Test code may allow the
-# unwrap/expect/panic lints per-module (`#[allow(...)]` on `mod tests` /
-# `#![allow(...)]` in integration-test files) — panicking is a test's
-# failure mechanism.
+# is a typed error. CI's `-D warnings` makes this family hard errors. Test
+# code may allow the unwrap/expect/panic lints per-module (`#[allow(...)]`
+# on `mod tests` / `#![allow(...)]` in integration-test files) — panicking
+# is a test's failure mechanism.
 #
 # `unreachable` is DELIBERATELY ABSENT from this family (D9's D2 addendum,
 # ratified 2026-08-19). It is the sanctioned mechanism for a kernel bug the
@@ -169,13 +192,12 @@ unreachable_pub = "warn"
 # belong in it and the lint stays off.
 #
 # It remains a useful instrument to RUN. `cargo clippy --workspace --lib
-# -- -W clippy::indexing_slicing` prints the tree's index expressions, and
-# some of them read better rewritten — that output is something to browse
-# while doing style work, not a queue anyone owes. Its own limits: `--lib`
-# only, so no tests, benches, or `tools/` binaries, and clippy is blind
-# inside `macro_rules!` bodies. It shows a sample of the shape, not all
-# of it.
-[workspace.lints.clippy]
+# -- -W clippy::indexing_slicing` prints the index expressions of the
+# workspace's LIBRARIES — not the tree's: no tests, no benches, no
+# `tools/` binaries, and clippy is blind inside `macro_rules!` bodies.
+# Some of what it prints reads better rewritten; that output is something
+# to browse while doing style work, a sample of the shape rather than a
+# census of it, and not a queue anyone owes.
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"

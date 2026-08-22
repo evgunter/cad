@@ -28,8 +28,8 @@
 //! whose geometry is not dyadic (arcs) carry no mass pin and are
 //! pinned on validity + counts instead.
 
-#![allow(dead_code)] // shared across test binaries; not all use all of it
-#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::collections::{BTreeMap, BTreeSet};
 
