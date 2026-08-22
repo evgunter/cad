@@ -58,7 +58,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   PKGS=<comma-separated members, empty for docs, all members for `all`>
   CARGO_SCOPE=--workspace | -p a -p b ...
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
-  RUN_EDITOR_CORE=true|false    persistence / corpus / rebuild-latency rows
+  RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
@@ -491,11 +491,22 @@ def _all_tier(root: str) -> dict[str, str]:
 # watertight    builds bodies profile -> sweep -> topo -> mesh and writes
 #               them with `cargo run -p stl --example export_acceptance`;
 #               everything it touches is under stl's (dev-)dependency graph.
+#               ITS HOSTED HALF MOVED TO nightly.yml (2026-08-22) and runs
+#               there UNGATED — once a day is not a bill worth filtering — so
+#               this signal's only remaining consumer is ci-local.sh. It is
+#               kept rather than deleted because the local gate is the half
+#               that pays for an unfiltered row, in a developer's wall clock.
 # step-import   runs FreeCAD over the COMMITTED fixtures in
 #               crates/step-export/tests/fixtures (no cargo build at all),
 #               which are byte-golden against the step-export writer.
-# editor-core   persistence (D6.*), band-4 corpus (D1), rebuild latency —
-#               all `cargo test -p editor-core --test ...`.
+# editor-core   the named `cargo test -p editor-core --test ...` rows. THREE
+#               OF THE FOUR WENT AWAY on 2026-08-22 and the signal survives on
+#               the fourth: `persistence` and `band 4 corpus` were deleted
+#               outright (their modules are ordinary tests in the archive, and
+#               the jobs re-ran them at two fixed ε, defeating the ε sampling
+#               for exactly those modules), and `rebuild latency` moved to
+#               nightly.yml. What still reads this is ci.yml's `test-interval`
+#               job — its two named interval rows — plus ci-local.sh.
 # pncad-py      the python-suite row builds the wheel from pncad-py, whose
 #               dependency graph is the whole façade stack (pncad ->
 #               editor-core -> ... ), so `pncad-py in closure` is exactly
