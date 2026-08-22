@@ -68,6 +68,8 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_K_LINT=true|false         k-lint (gate) row
   LANE=default|interval|both    which COMPILE MODE this run gates (see below)
   EPS=default|<value>|all       which tolerance row this run gates
+  KLINT_ROW=<unification>|all   which of `k-lint (gate)`'s five feature
+                                unifications this run gates (see below)
 
 CONFIGURATION SAMPLING (2026-08-22, Evan's ask after the minutes audit).
 The hosted gate used to run every point of {default, interval} x {default,
@@ -94,7 +96,11 @@ follow, and both are the point rather than side effects:
 `hashlib`, not `hash()`: the builtin is salted per process (PYTHONHASHSEED)
 and would break both properties on the first re-run.
 
-NO SEED MEANS NO SAMPLING — LANE=both, EPS=all. Fails OPEN into MORE work,
+THE THIRD SAMPLED DIMENSION (2026-08-22) is `k-lint (gate)`'s five FEATURE
+UNIFICATIONS — see `KLINT_ROWS`. It is drawn under a salt of its own, like
+lane and eps, so all thirty points of the matrix stay reachable.
+
+NO SEED MEANS NO SAMPLING — LANE=both, EPS=all, KLINT_ROW=all. Fails OPEN into MORE work,
 matching every other signal here. local-scripts/ci-local.sh passes no seed
 and therefore still runs the whole matrix: it is not billed by the minute,
 and with the hosted gate sampling, the local gate is now the only lane that
@@ -561,6 +567,56 @@ LANES: tuple[str, ...] = ("default", "interval")
 # CAD_TOLERANCE_EPS is a parse error by design (geom-core/src/tolerance.rs).
 EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 
+# `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS, sampled one per run
+# (2026-08-22). That job bills 8-10 minutes and the reason is not one slow
+# check: it compiles demos/tour and the kernel crates FIVE TIMES OVER, once
+# per unification below, and those five share almost no artifacts —
+# `--release` and dev are different profiles, and `budget` and `probe` are
+# opt-in features gated at a module boundary, so each is its own fingerprint
+# for every crate that sees it.
+#
+#   dev-default      demos/tour + demos/wild + the three tools/ crates,
+#                    `cargo fmt --check` / `clippy --all-targets` / `cargo
+#                    test`, dev profile, default features
+#   release-default  the #99 ε pin: `cargo test --release --test
+#                    eps_regression` in demos/tour, default features
+#   release-budget   the tessellation-budget sweep (`cargo run --release
+#                    --features budget`) and the tess-lint gate over its CSV
+#   dev-budget       `cargo clippy`/`cargo test -p mesh --features budget`,
+#                    which is also where MIN-1's per-triangle certificate
+#                    falsifier runs
+#   dev-probe        the probe-gated test targets (compile + listing) and the
+#                    K-telemetry sweep (`--features probe`, dev), and the
+#                    large-K lint over the CSVs it writes
+#
+# THE PROFILE IS THE FIRST TOKEN, deliberately: ci.yml keys this job's
+# `Swatinem/rust-cache` entry on it, so the two dev draws and the two release
+# draws each share a cache lane instead of one lane thrashing between
+# profiles. Renaming a row means reading that expression.
+#
+# SOUND FOR THE SAME REASON THE ε DRAW IS, and it was checked ROW BY ROW
+# rather than assumed (2026-08-22). Sampling covers a detector whose subject
+# PERSISTS in the tree — a clippy finding, a failed assertion, a grown
+# triangle budget, a probe suite that stopped compiling all stay broken until
+# someone fixes them, so a later draw finds them. It is unsound for a
+# detector of ABSENCE, whose subject merges once and leaves no future red.
+# None of the five is one: the census gate that would notice a probe suite
+# DISAPPEARING (`probe-suite-census.sh` in its default mode, with its
+# CENSUS_FLOOR) is sited in `discipline`, which is unconditional and not
+# sampled — what rides here is only the behavioural half, and a suite that
+# stops being built stays unbuilt.
+#
+# WHAT IT COSTS, said out loud because two ratified review outcomes name
+# these rows as UNCONDITIONAL and this makes them 1-in-5: MIN-1's certificate
+# falsifier (dev-budget) and `crates/sweep/tests/k_report.rs` +
+# docs/K-REPORT.md's "on every building merge" (dev-probe). Neither claim is
+# checked by any gate — the census greps for the STEP NAME, not for how often
+# it runs — so nothing goes red; the sentences simply become false in that
+# one word, and are owed a correction.
+KLINT_ROWS: tuple[str, ...] = (
+    "dev-default", "release-default", "release-budget", "dev-budget", "dev-probe",
+)
+
 # WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE. A change to interval code is
 # exactly the change whose interval lane a sampled run must not skip, and
 # waiting an expected two runs to find that out is the one case where the
@@ -629,12 +685,18 @@ def decorate(
     # selected, and keeping the two apart is what lets the local gate consume
     # the same output while ignoring these two keys entirely.
     if seed is None:
-        res["LANE"], res["EPS"] = "both", "all"
+        res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
     else:
         res["LANE"] = (
             "interval" if _forces_interval(files) else _sample(seed, "lane", LANES)
         )
         res["EPS"] = _sample(seed, "eps", EPS_ROWS)
+        # A THIRD SALT, drawn off the same seed and independent of the other
+        # two. `_sample`'s docstring says why the salt is not optional: two
+        # dimensions off one unsalted digest are the same number, which would
+        # tie the k-lint row to the lane and leave 20 of the 30 points of this
+        # matrix unreachable for the rest of the project's life.
+        res["KLINT_ROW"] = _sample(seed, "klint", KLINT_ROWS)
     return res
 
 
@@ -951,6 +1013,7 @@ def selftest() -> None:
                 {"TIER": "all", "RUN_BUILD": "true"})
 
     _selftest_docs_premise()
+    _selftest_sampling()
     print(
         "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
         "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
@@ -964,8 +1027,59 @@ def selftest() -> None:
         "executes, including one named by a spelling the scan cannot resolve; "
         "the closure follows dev-dependency "
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
-        "not on their prose"
+        "not on their prose; and the three sampled dimensions fail open with no seed, "
+        "repeat under the same seed, and are drawn independently enough that every one "
+        "of the 30 matrix points is reachable"
     )
+
+
+def _selftest_sampling() -> None:
+    """THE THREE DRAWS, and the one property that cannot be seen by reading a
+    single run's output: INDEPENDENCE.
+
+    A wrong salt here does not fail loudly. Every run still prints a lane, an
+    ε and a k-lint row, every one of them is a legal value, and the gate goes
+    green for as long as anyone cares to look — but the same digest feeding
+    two dimensions makes them one dimension, and the points that pairing
+    excludes are then unreachable FOREVER rather than rare. That is the exact
+    shape of failure the sampling premise cannot survive: "repetition covers
+    the matrix" is false about a point no seed can draw.
+
+    So this walks synthetic seeds and requires the whole product to appear.
+    It is deterministic — the seeds are counted, not random — so it cannot
+    flake, and it is in-process because `decorate` is a pure function of
+    (result, files, seed) and a subprocess would only be slower.
+    """
+    # A file list that does not PIN the lane: `_forces_interval` is a floor
+    # over the sampling and would make every draw here `interval`.
+    files = ["crates/geom-core/src/lib.rs"]
+    base = {"TIER": "closure", "PKGS": "geom-core", "CARGO_SCOPE": "-p geom-core"}
+
+    got = decorate(dict(base), files, None)
+    for key, want in (("LANE", "both"), ("EPS", "all"), ("KLINT_ROW", "all")):
+        if got[key] != want:
+            raise SystemExit(f"SELFTEST FAILED: no seed must fail open into more work — "
+                             f"{key} is {got[key]!r}, want {want!r}")
+
+    one = decorate(dict(base), files, "deadbeef")
+    two = decorate(dict(base), files, "deadbeef")
+    if (one["LANE"], one["EPS"], one["KLINT_ROW"]) != (two["LANE"], two["EPS"], two["KLINT_ROW"]):
+        raise SystemExit("SELFTEST FAILED: the same seed drew two different points — the draw is "
+                         "not a function of the SHA, so a re-run of a red gate can come back green")
+
+    seen: set[tuple[str, str, str]] = set()
+    for i in range(4000):
+        d = decorate(dict(base), files, f"{i:040x}")
+        seen.add((d["LANE"], d["EPS"], d["KLINT_ROW"]))
+    want_points = {(l, e, k) for l in LANES for e in EPS_ROWS for k in KLINT_ROWS}
+    missing = want_points - seen
+    if missing:
+        raise SystemExit(
+            "SELFTEST FAILED: over 4000 seeds these matrix points were never drawn: "
+            f"{sorted(missing)}. Two dimensions sharing a salt (or one drawn without "
+            "one) collapse into a single number and make part of the product "
+            "unreachable — check `_sample`'s salt argument at every call site in "
+            "`decorate`")
 
 
 def _selftest_docs_premise() -> None:
@@ -1014,7 +1128,7 @@ def main() -> int:
     ap.add_argument(
         "--seed",
         help="head SHA to key the configuration sample on; omit to run the "
-        "whole matrix (LANE=both, EPS=all)",
+        "whole matrix (LANE=both, EPS=all, KLINT_ROW=all)",
     )
     args = ap.parse_args()
     if args.selftest:

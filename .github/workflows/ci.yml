@@ -268,6 +268,9 @@ jobs:
       # matrices read `eps`.
       lane: ${{ steps.classify.outputs.LANE }}
       eps: ${{ steps.classify.outputs.EPS }}
+      # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
+      # five feature unifications this run gates. Only that job reads it.
+      klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2276,6 +2279,43 @@ jobs:
     # its probe sweep records margins from every kernel crate. So it runs
     # whenever anything builds at all.
     if: github.event_name == 'pull_request' && needs.filter.outputs.run_k_lint == 'true'
+    #
+    # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the same
+    # configuration-sampling ruling that draws the lane and the ε; the roster
+    # and the soundness argument are at `KLINT_ROWS` in scripts/ci-filter.py).
+    #
+    # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
+    # largest line item in the gate — and the cost is not one slow check: the
+    # steps below compile demos/tour and the kernel crates FIVE TIMES, once
+    # per unification, and the five share almost nothing. `--release` and dev
+    # are different profiles; `budget` and `probe` are opt-in features gated
+    # at a module boundary, so every crate that sees one carries a different
+    # fingerprint under it. No cache configuration collapses five distinct
+    # compilations into one — only running fewer of them does.
+    #
+    # EACH STEP CARRIES ITS OWN `if:` naming the row it belongs to, rather
+    # than a matrix: the rows are not interchangeable (two of them consume a
+    # CSV the step above them wrote), and a matrix would pay this job's setup
+    # and cache restore five times to run one row's worth of work.
+    # `klint_row == 'all'` is the no-seed spelling and runs everything; the
+    # hosted `filter` job always passes a seed, so it is the local half's
+    # value and a safety net rather than a live path here.
+    #
+    # SAID OUT LOUD, because two ratified review outcomes read on the steps
+    # below as UNCONDITIONAL and are now 1-in-5:
+    #   * MIN-1's per-triangle certificate falsifier, in `dev-budget`. The
+    #     step's own comment says making the row conditional "reopens a
+    #     ratified review outcome and must be said out loud" — this is that
+    #     sentence, and the falsifier now runs on an expected 1 run in 5
+    #     rather than on every build-triggering change.
+    #   * `crates/sweep/tests/k_report.rs` and docs/K-REPORT.md both say the
+    #     probe harness is type-checked and run "on every building merge".
+    #     With `dev-probe` sampled that is false in those four words. The
+    #     census gate greps for the STEP NAME, not for how often it runs, so
+    #     nothing reds — the sentences are simply owed a correction.
+    # Both are PERSISTENCE-detectors (a failed falsification, a probe suite
+    # that stopped compiling, stay broken until fixed), which is what makes
+    # the sampling sound; frequency is the only thing given up.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2291,9 +2331,19 @@ jobs:
         run: rm -rf local-scripts .claude
 
       - uses: dtolnay/rust-toolchain@stable
+      # ONE CACHE LANE PER PROFILE, keyed on the drawn row's first token.
+      # A `--release` artifact and a dev one share no fingerprint, so a
+      # single entry would be overwritten by whichever profile ran last and
+      # served cold to the other; two entries let each draw restore what a
+      # previous run of its own profile left. The features do NOT get lanes
+      # of their own: `budget` and `probe` are gated at a module boundary
+      # inside WORKSPACE crates, and Swatinem/rust-cache evicts workspace
+      # crates before saving, so what an entry actually holds is the
+      # third-party dependency graph — which the feature selection barely
+      # moves and the profile moves entirely.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: k-lint
+          key: k-lint-${{ startsWith(needs.filter.outputs.klint_row, 'release') && 'release' || 'dev' }}
           workspaces: |
             .
             demos/tour
@@ -2308,8 +2358,10 @@ jobs:
       # (the wild-corpus montage generator) rides the same row for the
       # same reason.
       - name: demos tour fmt + clippy
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       # THE #99 ε PIN, ARMED. `--all-targets` above type-checks the test
       # targets and runs none of them, so until this row landed nothing
@@ -2345,8 +2397,10 @@ jobs:
       # this row to the whole suite is owed the moment #782 is decided —
       # #782 carries that obligation and the split.
       - name: demos tour eps pin (#99)
+        if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/tour && cargo test --release --test eps_regression
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
       # NO `cargo doc` STEP HERE, and that is the fix rather than an
       # omission: this crate's prose — which carries the gate's own
@@ -2357,6 +2411,7 @@ jobs:
       # workspace, this one included, from a DERIVED list. Adding a
       # third copy is never the answer to a fourth root.
       - name: tess-lint tool fmt + clippy + tests (the three exit voices)
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/tess-lint
           cargo fmt --check
@@ -2375,6 +2430,7 @@ jobs:
       # to uncovered BY MOVING; the rustdoc gate reads them now because
       # it reads every cargo root, not because this row remembers to.
       - name: tess-meter tool fmt + clippy + tests
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/tess-meter
           cargo fmt --check
@@ -2403,6 +2459,7 @@ jobs:
       # dropping it, stops the falsifier running — that reopens a
       # ratified review outcome and must be said out loud.
       - name: mesh budget meter + certificate falsifier (feature = budget)
+        if: contains(fromJSON('["dev-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cargo clippy -p mesh --all-targets --features budget -- -D warnings
           cargo test -p mesh --features budget
@@ -2465,8 +2522,10 @@ jobs:
       # baseline still carries it); re-cutting the baseline runs the
       # script without this flag.
       - name: tessellation-budget sweep (every tour scene, per face)
+        if: contains(fromJSON('["release-budget", "all"]'), needs.filter.outputs.klint_row)
         run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
       - name: tessellation-budget lint (gate — a grown budget fails this row)
+        if: contains(fromJSON('["release-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/tess-lint && cargo run -- \
             ../../target/tess-budget-fresh.csv \
@@ -2534,6 +2593,7 @@ jobs:
       # None of the link is waste: `scripts/k_probe_sweep.sh` runs
       # `--test all` on the next step but one, and this primes it.
       - name: compile and list every probe-gated test target
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: |
           set -euo pipefail
           crates=$(scripts/gates/probe-suite-census.sh --crates)
@@ -2569,8 +2629,10 @@ jobs:
       # `--ignored` half ran, so a suite cannot grow a test no selection
       # reaches.
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/k-lint && cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \

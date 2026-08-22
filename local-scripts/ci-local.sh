@@ -817,6 +817,15 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # that path-depend on nine members between them, and the probe sweep
 # records margins from every kernel crate — no minimal root set, so
 # these run whenever anything builds.
+#
+# ALL FIVE FEATURE UNIFICATIONS, EVERY TIME (2026-08-22). The hosted
+# `k-lint (gate)` job now draws ONE of {dev-default, release-default,
+# release-budget, dev-budget, dev-probe} per run — it bills 8-10 minutes
+# precisely because those five compile the tour and the kernel five times
+# over. Nothing bills this script by the minute, so it keeps running the
+# whole product, exactly as it keeps running every lane and every ε: local
+# is a strict superset of any hosted run, and that is now true of three
+# sampled dimensions rather than two.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour eps pin (#99)"        demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift

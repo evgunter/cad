@@ -324,7 +324,7 @@ render_batch() {
             # that is merely slow keeps writing to its log, a wedged
             # session goes silent. Both outcomes are the same failure.
             stalled=$(( $(date +%s) - $(stat -c %Y "$log") ))
-            BATCH_REASON="freecadcmd exceeded the ${budget}s budget (${n} x ${SCENE_TIMEOUT}s), no frame for:${missing} (silent for the last ${stalled}s)"
+            BATCH_REASON="freecadcmd exceeded the ${budget}s budget (one process, ${n} scene(s)), no frame for:${missing} (silent for the last ${stalled}s)"
             BATCH_TIMED_OUT=1
             if [ "$attempt" -eq 1 ]; then
                 echo "  [$bid] TIMED OUT after ${budget}s — process tree killed, retrying the whole batch once in a fresh process (silent for the last ${stalled}s)" >&2
@@ -476,10 +476,11 @@ wedged() {
     local name=$1 rd=$2 bid=${3:-$1}
     local stage="$STAGE_ROOT/$rd" unit="scene '$name'" budget=$SCENE_TIMEOUT
     if [ "$bid" != "$name" ]; then
-        # A batched process: the budget was the batch's, and the scene
-        # named is the earliest one in it that never got a frame.
+        # A batched process: the budget is the PROCESS's — one
+        # SCENE_TIMEOUT however many scenes it carried, so `budget` is
+        # already right — and the scene named is the earliest one in
+        # the batch that never got a frame.
         unit="batch '$bid' (${RENDER_BATCH} scenes), no frame for scene '$name'"
-        budget="$(( SCENE_TIMEOUT * RENDER_BATCH ))"
     fi
     cat >&2 <<EOF
 
