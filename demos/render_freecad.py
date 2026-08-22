@@ -301,26 +301,32 @@ def main():
 #
 # The success path never reaches this: main() ends in os._exit(0).
 def _print_traceback():
-    """Put the current exception's traceback on stderr, now."""
+    """Put the current exception's traceback on stderr, NOW.
+
+    Every arm below is blind and silent on purpose — that is what the
+    noqa markers claim and this is the claim: it is the last thing that
+    will ever describe this failure, and a reporter that raises on its
+    way out reports nothing at all.
+    """
     try:
         text = traceback.format_exc()
-    except BaseException:  # pragma: no cover — formatting itself failed
+    except Exception:  # noqa: BLE001 — formatting failed; say SOMETHING anyway
         text = "render_freecad: exception whose traceback could not be formatted\n"
     try:
         # stdout first, so the per-scene log keeps its ordering.
         sys.stdout.flush()
-    except BaseException:
+    except Exception:  # noqa: BLE001, S110 — ordering is a nicety, the text is not
         pass
     try:
         sys.stderr.write(text)
         sys.stderr.flush()
         return
-    except BaseException:
+    except Exception:  # noqa: BLE001, S110 — fall through to the raw fd
         pass
     # Last resort: the raw fd, which has no Python-level buffer to lose.
     try:
         os.write(2, text.encode("utf-8", "replace"))
-    except BaseException:
+    except Exception:  # noqa: BLE001, S110 — nothing left to try, and no way to say so
         pass
 
 
