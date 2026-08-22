@@ -174,3 +174,23 @@ untouched), chamfered-cube acceptance with closed-form mass
 properties, no tessellation-gate rows. Difficulty M logged
 pre-dispatch; consumes block VERBS-1 slot 2. Lane verbs-chamfer,
 branch verbs/chamfer.
+
+## CHAMFER landed as #920; ordinal-61 single review out (2026-08-22)
+
+Implementation complete on PR #920 (head 86a8e49b; CI green
+32563903264 after one mid-flight red round — fmt/rustdoc gate,
+evaluation-code discipline, render lanes — fixed in-lane). The
+report's headlines: surgery PARAMETERIZED (`blend_surgery` +
+`BlendKind`, feet become plan data) with bit-identity evidence for
+fillets; the chamfer geometry is convexity-free by derivation
+(branch-free outward folds — #644 sidestepped, not half-fixed);
+predicates 1/3 not metered (rolling-ball facts with no ruled
+analog); three disclosed deviations each with a filed schedule
+(#917 shared refusal vocabulary, #918 recipe-layer door, #919
+concave deferral); chamfer_edges placed INSIDE fillet/build.rs to
+stay within the ratified bounds allowlist. **Ordinal 61 claimed**
+(through 60/RIM at dispatch) — not a third — single fable review,
+lane verbs-chamfer-r1, frozen head 86a8e49b, probe branch
+verbs/chamfer-r1-probes requested. Review charter includes the
+mid-flight CI red's fix commits (C7: cause vs symptom, render
+re-baseline honesty).
