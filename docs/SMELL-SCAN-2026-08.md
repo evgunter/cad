@@ -23,12 +23,16 @@ is not a broken pointer** (the same rule `memories/docs-ledger.md` states for
 deleted documents). Read the PR named beside the citation; where none is named,
 `git log -G'^## S61\.' -- docs/SMELL-SCAN-2026-08.md` finds the commit that
 removed the record and `git show <sha>^:docs/SMELL-SCAN-2026-08.md` prints it.
-(`-G` matches added/removed lines; `-S` counts occurrences and would miss the
-deleting commit whenever the ID is still named somewhere in the file — as `S61`
-is, one line above. For a member rather than a whole finding, `-G` the member's
-own opening instead, e.g. `-G'^- \(a\) \*\*FIXED by #787'`.) The surviving
-sentence is written to stand without the lookup; the lookup is for the reader
-who wants the evidence behind it.
+**Use `-G`, which matches added and removed LINES.** `-S` counts occurrences of
+the string across the whole file, so it reports a commit only when that count
+CHANGES — and a prune that deletes a record while the same commit leaves or adds
+mentions of the ID elsewhere can net to no change and go unreported. `-G` cannot
+net out that way. For a member rather than a whole finding, `-G` the member's
+own opening line instead, e.g.
+`git log -G'^- \(a\) \*\*FIXED by #787' -- docs/SMELL-SCAN-2026-08.md`. Both
+forms are executed against this branch, not assumed. The surviving sentence is
+written to stand without the lookup; the lookup is for the reader who wants the
+evidence behind it.
 
 **Source comments cite these IDs too, and they are deliberately not chased.**
 `crates/` carries comments naming a finding or a decision of this file by
