@@ -118,3 +118,30 @@ verbs-rim-r1 / verbs-rim-r2; probe branches verbs/rim-r1-probes /
 -r2-probes requested for authorship-preserving adoption. Reviewer
 models are recorded per protocol (not a secret); the IMPLEMENTER
 arm stays off-record until the merge row.
+
+## Ordinal-60 dual returned; fix pass running (2026-08-22)
+
+Both reviewers: **APPROVE-WITH-FIXES**. R1 (fable) 0/2/3, one
+silent dev (surgery.rs:494's premise invalidated by the PR itself
+— the passing dome rim now reaches resolve_rim live). R2 (opus)
+5/4/3, three silent devs — the prose sweep stopped at the crate
+boundary (docs/KERNEL-VERBS.md's own defect entry and
+demos/README's klein row still state the fixed defect verbatim),
+chain_g1's gating-parity sentence is false (the dihedral never
+gated a collapsed arm — the missing gate IS #554's mechanism), and
+the design ruling itself was unpinned (a planted closed-case
+bolt-on passed the PR's whole suite; only R2's open-arcs row reds
+under it). Both independently REFUTED the PR body's "no verdicts
+change on >240° open arcs" (near-period open arcs flip refusal
+class, honest direction) — the defect was never really about
+closure. Substance converged, labels converged; the divergent
+tails were each real (the R1/R2 pattern holding).
+
+Fix pass dispatched to the implementer lane with the adjudicated
+union, including an ORCHESTRATOR AMENDMENT to the spec's ruling
+(within its extension clause): the lever moves to the module's
+existing named 9-sample CHAIN_SAMPLES schedule — one sample
+vocabulary, tighter lever, C7 residue dissolved. Both probe
+branches adopt authorship-preserving. VERBS-ARMS' scope now owns
+the one-edge closed-chain shape (plan row amended) — the
+verb-level full-revolve unlock is ARMS' acceptance, not RIM's.
