@@ -204,7 +204,7 @@ pub(crate) struct NurbsFaceBound {
 impl NurbsFaceBound {
     /// The per-triangle deviation certificate `Q/4` (module docs) for
     /// a triangle whose UV corners are `uv`.
-    pub fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
+    pub(crate) fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
         let au = max3(uv[0][0], uv[1][0], uv[2][0]) - min3(uv[0][0], uv[1][0], uv[2][0]);
         let av = max3(uv[0][1], uv[1][1], uv[2][1]) - min3(uv[0][1], uv[1][1], uv[2][1]);
         0.25 * (self.muu * au.powi(2) + 2.0 * self.muv * au * av + self.mvv * av.powi(2))
@@ -213,7 +213,7 @@ impl NurbsFaceBound {
     /// The `(h_u, h_v)` UV grid steps for sizing target `delta_s`
     /// (module docs) — `f64::INFINITY` for an unconstrained direction
     /// ([`crate::sizing::ceil_count`] turns that into one cell).
-    pub fn grid_steps(&self, delta_s: f64) -> (f64, f64) {
+    pub(crate) fn grid_steps(&self, delta_s: f64) -> (f64, f64) {
         let step = |group: f64| {
             if group > 0.0 {
                 (delta_s / (2.0 * group)).sqrt()
@@ -540,7 +540,7 @@ impl NurbsCellGrid {
     /// back to the whole-patch schedule (module docs), only the tests
     /// read this; the certificate lookup uses the field directly.
     #[cfg(test)]
-    pub fn u_cuts(&self) -> &[f64] {
+    fn u_cuts(&self) -> &[f64] {
         &self.u_cuts
     }
 
@@ -548,12 +548,12 @@ impl NurbsCellGrid {
     /// consumers go through [`Self::band_schedule`] now, so only the
     /// tests read this.
     #[cfg(test)]
-    pub fn v_cuts(&self) -> &[f64] {
+    fn v_cuts(&self) -> &[f64] {
         &self.v_cuts
     }
 
     /// The certified bound of cell `(ci, ri)`.
-    pub fn bound(&self, ci: usize, ri: usize) -> NurbsFaceBound {
+    pub(crate) fn bound(&self, ci: usize, ri: usize) -> NurbsFaceBound {
         self.bounds[ci * (self.v_cuts.len() - 1) + ri]
     }
 
@@ -565,7 +565,7 @@ impl NurbsCellGrid {
     /// The budget meter is that consumer and it is opt-in, so in a
     /// default build nothing calls this.
     #[cfg_attr(not(feature = "budget"), allow(dead_code))]
-    pub fn cells(&self) -> impl Iterator<Item = CellBound> + '_ {
+    pub(crate) fn cells(&self) -> impl Iterator<Item = CellBound> + '_ {
         let rows = self.v_cuts.len() - 1;
         let cols = self.u_cuts.len() - 1;
         (0..cols).flat_map(move |ci| {
@@ -589,7 +589,7 @@ impl NurbsCellGrid {
     /// the per-triangle certificate, taken from the raw per-cell
     /// bounds of every covered cell, still refuses loudly if a
     /// triangle reaches further.
-    pub fn row_bound(&self, ri: usize) -> NurbsFaceBound {
+    fn row_bound(&self, ri: usize) -> NurbsFaceBound {
         let cols = self.u_cuts.len() - 1;
         let mut m = NurbsFaceBound {
             muu: 0.0,
@@ -606,7 +606,7 @@ impl NurbsCellGrid {
     }
 
     /// The v-band index containing `v` (clamped as [`Self::cell_lo`]).
-    pub fn row_of(&self, v: f64) -> usize {
+    fn row_of(&self, v: f64) -> usize {
         Self::cell_lo(&self.v_cuts, v)
     }
 
@@ -651,7 +651,7 @@ impl NurbsCellGrid {
     ///
     /// [`TessellateError::ResolutionOverflow`] via
     /// [`crate::sizing::ceil_count`], as the uniform schedule.
-    pub fn band_schedule(
+    pub(crate) fn band_schedule(
         &self,
         patch: NurbsFaceBound,
         u: (f64, f64),
@@ -750,7 +750,7 @@ impl NurbsCellGrid {
     /// For the common case — the trimmed lane places its grid lines on
     /// the cell boundaries, so a grid triangle's box lies inside ONE
     /// cell — this is exactly that cell's own certificate.
-    pub fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
+    pub(crate) fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
         let u_lo = min3(uv[0][0], uv[1][0], uv[2][0]);
         let u_hi = max3(uv[0][0], uv[1][0], uv[2][0]);
         let v_lo = min3(uv[0][1], uv[1][1], uv[2][1]);

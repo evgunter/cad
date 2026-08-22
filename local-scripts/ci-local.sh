@@ -50,6 +50,25 @@
 # shards for wall-clock fan-out; the shards' union is exactly the row,
 # so the unsharded rows here gate the same test set.
 #
+# THIS HALF RUNS THE WHOLE MATRIX; HOSTED SAMPLES IT (2026-08-22). Hosted
+# CI now gates ONE point of {default, interval} x {default, 1e-6, 1e-12}
+# per run, drawn deterministically from the head SHA — the argument is in
+# scripts/ci-filter.py's CONFIGURATION SAMPLING note, and the currency it
+# buys is billed runner minutes. Nothing bills this half by the minute, so
+# nothing here is sampled: every lane and every eps row still runs on one
+# tree.
+#
+# THAT MAKES THIS THE ONLY LANE THAT RUNS EVERY POINT ON ONE TREE, which
+# is a heavier claim than this file used to carry and is worth stating in
+# both directions. It is NOT drift: local is a strict SUPERSET of any
+# hosted run, so a tree this half calls green was gated at every point
+# hosted could have drawn. And it is the reason to reach for this half
+# deliberately — before a merge that would be expensive to get wrong,
+# hosted's verdict covers one point of six and this one covers all of
+# them. The row SEMANTICS are still identical, which is what the mirror
+# convention is about; what differs is how many of them a given run
+# executes.
+#
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
 # line-tables-only. Those are hosted-runner throughput knobs — they cut
@@ -107,6 +126,7 @@ RUN_STL=true
 RUN_STEP_EXPORT=true
 RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
+RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
 RUN_TOPO_RELEASE=true
 if [ "$FULL" -eq 1 ]; then
@@ -115,6 +135,7 @@ else
   if [ -z "$BASE" ]; then
     BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)
   fi
+  # HOSTED MIRROR: filter / classify the change set
   echo "=== change filter: classifying against $BASE"
   # No `local`/subshell tricks: read the KEY=value lines straight into the
   # variables above. If the script itself dies, the defaults stand and the
@@ -128,6 +149,7 @@ else
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
       RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
+      RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
       RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
     esac
@@ -144,9 +166,24 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # No cargo, no build slot: greps over three files, milliseconds.
 # `gate-roster.sh` runs again inside the discipline loop on a building change
 # set; running a grep twice is cheaper than a second hand-written roster.
+# The change filter's own self-test belongs here for a reason of its own: the
+# `docs` branch it exercises is the one path in that script that fails OPEN,
+# and a change widening it classifies ITSELF as docs — so the tier that would
+# skip this row is the tier the row is about.
+# The python lint row belongs here for the same reason and one more: some of
+# the repo's Python files live under local-scripts/ itself (this file's own
+# tree), which every hosted job except `mirror` deletes before it runs. On the
+# gate of record a missing binary is a hard failure — the script reads
+# GITHUB_ACTIONS for that, so no flag here can disarm it. Here, off that gate,
+# REQUIRE_RUFF is left unset on purpose, so a box without the pinned ruff SKIPS
+# LOUDLY — naming the version it wanted — instead of blocking a developer's
+# whole battery on a tool they have not installed. Set REQUIRE_RUFF=1 to
+# promote that skip to a failure on this box too.
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
+# HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -154,6 +191,9 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/ci-filter.py --selftest || rc=1
+  python3 scripts/check-python-lint.py --selftest || rc=1
+  python3 scripts/check-python-lint.py || rc=1
   return $rc
 }
 echo
@@ -300,6 +340,13 @@ manifest_selftest() {
 # (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
 # This row is a sanctioned automated render — renderer-free, and
 # `git diff --exit-code` un-does the question of drift by failing on it.
+#
+# The two markers below are the LANES this row reproduces, in render.yml
+# rather than in ci.yml: the same `cargo run --release -- ../out` the `tour`
+# lane runs, and the same `demos/render-uv.sh` the `uv` lane runs. What it
+# does not reproduce is their re-baseline, which is the sentence above.
+# HOSTED MIRROR: tour / demo tour (STL + STEP + UV SVGs + scenes.json)
+# HOSTED MIRROR: uv / compose (demos/render-uv.sh)
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
@@ -307,6 +354,7 @@ uv_sheet_drift() {
     git diff --exit-code --stat HEAD -- demos/renders-uv/
 }
 
+# HOSTED MIRROR: watertight / admesh check (watertight/manifold, no repair accepted)
 watertight() {
   command -v admesh >/dev/null || { echo "ERROR: admesh not installed (apt admesh, or build 0.98.4+ from source)"; return 1; }
   cargo run -p stl --example export_acceptance -- target/stl-acceptance && \
@@ -316,20 +364,23 @@ watertight() {
 # External STEP import acceptance (M4 PR 7): FreeCAD/OCC imports the
 # committed fixtures (kept byte-golden against the writer by the cargo
 # test suite), asserting validity + exact counts + volume. The script
-# SKIPS LOUDLY (exit 0) when freecadcmd is absent so this row stays
-# hermetic on machines without FreeCAD — see its header for FREECADCMD
-# discovery and REQUIRE_FREECAD.
+# SKIPS LOUDLY (exit 0) HERE when freecadcmd is absent, so this row stays
+# hermetic on machines without FreeCAD; REQUIRE_FREECAD=1 promotes that skip
+# to a failure on a box known to have it. On the gate of record the same
+# absence is fatal and no flag can say otherwise — see the script's header.
+# HOSTED MIRROR: step-import / freecad import check (validity, counts, volume)
 step_import() {
   scripts/check_step.sh
 }
 
-# Mirror of hosted's `release-corruption` job. The ONE row in either
-# gate that compiles the release profile: two suites in crates/topo split
+# The ONE row in either gate that compiles the release profile: two
+# suites in crates/topo split
 # their expectations on `cfg(debug_assertions)`, so the ordinary rows
 # above can only ever run one half. Scoped to `-p topo --lib` — the
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
+# HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
   log=$(mktemp) || return 1
@@ -357,8 +408,8 @@ topo_release() {
   return "$rc"
 }
 
-# Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
-# wheel path — maturin build, venv, pip install, unittest discover.
+# LIB PY-CI. Hosted runs the wheel path — maturin build, venv, pip
+# install, unittest discover.
 # The local row is the staged-cdylib fallback run-python-tests.sh
 # exists for: same cargo-built extension module, same interpreter
 # contract, same unittest discovery over the same tests/ directory —
@@ -367,6 +418,7 @@ topo_release() {
 # maturin). The script takes the build slot itself; nested under
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
+# HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -387,19 +439,29 @@ nextest_check() {
   return 1
 }
 # shellcheck disable=SC2086
+# HOSTED MIRROR: test / run archived tests
 test_default() { nextest_check && cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
 test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
+# HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
-# The interval rows run ONLY the tests the feature adds, exactly as
-# hosted's `test-interval` legs do — same script, same set difference, so
-# the two gates cannot drift. See that job's header in .github/workflows/
-# ci.yml for the measurement (42% of hosted test time was re-execution)
-# and for why it is sound (the feature is additive, and
-# check-interval-cfg-additive.py above gates that it stays so).
+# The interval rows run ONLY the tests the feature adds. NO HOSTED MIRROR
+# ANY MORE (2026-08-22): hosted's `test-interval` now runs the WHOLE suite,
+# because configuration sampling draws ONE lane per run and the default legs
+# this selection subtracts are not running on an interval draw. See that
+# job's header in .github/workflows/ci.yml.
+#
+# THE SELECTION IS STILL RIGHT HERE, and the asymmetry is the point rather
+# than drift: this half runs BOTH lanes over one tree, so the 42% of test
+# time that is re-execution of already-executed code is the pure waste it
+# always was. The soundness premise is the one hosted still relies on — the
+# feature is additive, and check-interval-cfg-additive.py above gates that
+# it stays so.
+#
+# This is the script's only caller now, declared in
+# scripts/check-ci-mirror-parity.py's MIRROR_EXEMPT with that reason.
 INTERVAL_SEL="target/ci-local/interval-selection.txt"
-# HOSTED MIRROR: test-interval / derive the interval-only test selection
 # shellcheck disable=SC2086
 interval_selection() {
   mkdir -p target/ci-local \
@@ -417,6 +479,17 @@ interval_selection() {
 # `none()` the selection script emits for a scope carrying no
 # interval-gated tests. Any other filter that selects nothing still
 # fails the row.
+#
+# THE MARKER BELOW CITES A HOSTED STEP THAT RUNS MORE THAN THIS ROW DOES, and
+# says so rather than implying equivalence. Hosted's `test-interval / run
+# archived tests` executes the WHOLE interval archive at one sampled eps,
+# because a sampled run draws one lane and has no default legs to lean on;
+# this row executes the interval-only difference at both eps rows, because
+# this half runs both lanes over one tree. The JOB correspondence the marker
+# asserts is real — both are the interval-feature test row of their half —
+# and the difference in what each executes is the declared asymmetry recorded
+# at INTERVAL_SEL above and in MIRROR_EXEMPT.
+# HOSTED MIRROR: test-interval / run archived tests
 # shellcheck disable=SC2086
 interval_tests() {
   nextest_check && interval_selection || return 1
@@ -435,11 +508,13 @@ interval_eps() {
     -E "$sel" $extra
 }
 # shellcheck disable=SC2086
+# HOSTED MIRROR: lint-interval / doc-tests (interval)
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 
 # M4 PR 6 spec D6: the three persistence obligations as NAMED rows
 # (also covered by the workspace rows; named = attributable).
 # ε battery {1e-6, 1e-12} — see the run_row block below.
+# HOSTED MIRROR: persistence / save/load/replay-identity (D6.1) + float bits (D2) + golden v1
 persist_roundtrip() {
   local e
   for e in 1e-6 1e-12; do
@@ -454,6 +529,7 @@ persist_interval() { nextest_check && cargo nextest run -p editor-core --feature
 
 # M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
 # the workspace rows; named = attributable).
+# HOSTED MIRROR: corpus / evaluation, exact mass pins, counted reuse, vocabulary totality
 corpus_eps() {
   local e
   for e in 1e-6 1e-12; do
@@ -481,6 +557,7 @@ corpus_interval() { nextest_check && cargo nextest run -p editor-core --features
 # it 5x (its two assertions are a strict subset of the corpus row's —
 # see the rustdoc on rebuild_latency_table). THIS row is the one that
 # runs it. Mirrors ci.yml's `rebuild latency (reporting)` job.
+# HOSTED MIRROR: rebuild-latency / per-document full-rebuild + incremental-recompute table
 rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::; }
 
 # M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
@@ -495,18 +572,11 @@ rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocaptur
 # u128 rational arithmetic. NOT `+` and `-` (their pads are bounded from
 # above here but a dropped one shows only against the oracle), and NOT
 # the seven transcendentals (their truth needs a multi-precision
-# reference). Hosted mirror: ci.yml's `interval-backend` job.
+# reference).
 #
-# THIS SCRIPT HAS NO MIRROR OF ci.yml's `oracle-certify` JOB, which is
-# what covers the two directions above that this row cannot. So on the
-# hosted pipeline a dropped transcendental pad is caught; under
-# `gate.sh`, which documents itself as the merge gate when hosted Actions
-# is unavailable, it is not. Nothing enforces ci.yml <-> ci-local.sh JOB
-# parity (gate-roster.sh enforces gate-SCRIPT parity, which is a
-# different set), so this comment is the only thing recording the gap.
-# Filed as smell-scan S127 / §D row D71; adding the row here means a
-# ~250s GMP+MPFR build in the local gate, which is why it is a decision
-# rather than an oversight.
+# The two directions this row cannot cover — a dropped `+`/`-` pad, and a
+# dropped transcendental pad — belong to `oracle_certify` below.
+# HOSTED MIRROR: interval-backend / tests (default features — the oracle stack must stay out)
 interval_backend() {
   (cd interval-transcendentals \
     && cargo fmt --check \
@@ -518,20 +588,55 @@ interval_backend() {
   fi
 }
 
+# The differential certification lane: `certify.rs` against inari+MPFR as
+# oracle. It covers what `interval_backend` above provably cannot — a
+# dropped `+`/`-` pad (whose truth is exactly computable but not with a
+# u128 comparator) and a dropped transcendental pad (whose truth needs a
+# multi-precision reference at all).
+#
+# WHAT IT COSTS, AND WHEN. The build is GMP and MPFR from C source: 234s
+# of a ~250s hosted job (#480). READ THE GATING CONDITION BEFORE READING
+# THAT AS A STANDING COST — `RUN_INTERVAL_ORACLE` is keyed on
+# ci-filter.py's ORACLE_PATHS, four paths under `interval-transcendentals/`
+# (src/, tests/, Cargo.toml, Cargo.lock), and that code is stable: 2 of the
+# last 400 first-parent merges touched it, both during the crate's
+# creation. On every other change set this row prints SKIPPED and costs
+# nothing. It is here because the alternative is a half of CI that misses
+# a class of defect the other half catches, and `--full` forces it like
+# every other row.
+#
+# `RUSTFLAGS` matches the hosted job: inari's rounding primitives sit
+# behind cfg(all(target_feature = "avx", target_feature = "fma")) and it
+# raises a compile_error! without them. Set on this row only, so the
+# kernel's codegen is untouched — the repo pins no target-cpu floor.
+# HOSTED MIRROR: oracle-certify / certify against the oracle
+oracle_certify() {
+  if ! grep -q avx2 /proc/cpuinfo || ! grep -q fma /proc/cpuinfo; then
+    echo "ERROR: this box does not meet the x86-64-v3 floor inari needs (avx2 + fma)"
+    return 1
+  fi
+  (cd interval-transcendentals \
+    && RUSTFLAGS="-C target-cpu=x86-64-v3" CAD_FUZZ_EFFORT="8" \
+       cargo test --release --features oracle-inari -- --nocapture)
+}
+
 # Demos hygiene (M4 PR 8b pickup): demos/tour is workspace-excluded, so
 # the workspace fmt/clippy rows above never see it — fmt drift and
 # clippy errors accumulated invisibly until 8b. This row keeps them from
-# silently returning. Hosted mirror: the ci.yml `k-lint` job runs the
-# same two commands before its probe sweep (the tour must build there
-# anyway — the demo scenes are half the lint's subject matter).
+# silently returning. Hosted runs the same two pairs before its probe
+# sweep (the tour must build there anyway — the demo scenes are half the
+# lint's subject matter); the markers below are what holds that true.
+# HOSTED MIRROR: k-lint / demos tour fmt + clippy
+# HOSTED MIRROR: k-lint / demos wild fmt + clippy
 demos_hygiene() {
   (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings) && \
     (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
-# Hosted mirror: ci.yml's "demos tour eps pin (#99)" row. Scoped to the
-# integration test for the reason stated there — `--bin demo-tour`'s
-# unit tests carry two rows that are red on main (issue #782).
+# Scoped to the integration test for the reason stated at the hosted
+# step — `--bin demo-tour`'s unit tests carry two rows that are red on
+# main (issue #782).
+# HOSTED MIRROR: k-lint / demos tour eps pin (#99)
 demos_eps_pin() {
   (cd demos/tour && cargo test --release --test eps_regression)
 }
@@ -600,28 +705,24 @@ klint_gate() {
 # delta to get the number down is the one forbidden move. What the
 # absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
-  # `cargo doc` too, for the reason given at tessmeter_tool below: this
-  # crate is workspace-excluded, so doc-gate.sh never sees the prose
-  # that carries the gate's own rules and its report legend.
+  # No `cargo doc` here: it used to carry a copy of one, because
+  # doc-gate.sh was `cargo doc --workspace` and could not see a
+  # workspace-EXCLUDED crate. It iterates every cargo root now, so the
+  # copy is gone from both halves rather than maintained in two.
   (cd tools/tess-lint && cargo fmt --check && \
     cargo clippy --all-targets -- -D warnings && \
-    RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-      cargo doc --no-deps --document-private-items && \
     cargo test)
 }
 # The meter's CONSUMER half.
-# HOSTED MIRROR: k-lint / tess-meter tool fmt + clippy + doc + tests
+# HOSTED MIRROR: k-lint / tess-meter tool fmt + clippy + tests
 # The CSV schema, the counterfactual schedules and the split optimizer
 # live here, outside the kernel, and so do their tests.
 tessmeter_tool() {
-  # `cargo doc` too: scripts/doc-gate.sh is `cargo doc --workspace` and
-  # `tools/` is workspace-excluded, so this crate's prose has no other
-  # gate (stated at doc-gate.sh; a row covering every excluded root is
-  # owed).
+  # No `cargo doc` here either — see tesslint_tool above. This crate's
+  # ~1,050 lines of prose are read by the rustdoc gate row below,
+  # which covers every cargo root and not just the workspace.
   (cd tools/tess-meter && cargo fmt --check && \
     cargo clippy --all-targets -- -D warnings && \
-    RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-      cargo doc --no-deps --document-private-items && \
     cargo test)
 }
 # The meter's kernel half.
@@ -651,7 +752,7 @@ tesslint_gate() {
     --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv)
 }
 
-# The wasm32 guard (#807), local half of ci.yml's `wasm32 check` step.
+# The wasm32 guard (#807).
 # ONE LEG, the interval one, on Evan's ruling of 2026-08-21 that the
 # purely-additive lint suffices for the default build. Read that step's
 # comment for the subsumption argument, for the lint residual this guard
@@ -673,18 +774,31 @@ run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "scene manifest reader (demos)" manifest_selftest
+# HOSTED MIRROR: fmt / rustfmt
 run_row "rustfmt"                      cargo fmt --all --check
+# HOSTED MIRROR: clippy / clippy (default features)
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
-# — it is a workspace-wide ratchet over a fixed crate set, not a
-# per-closure row. See scripts/doc-gate.sh for the flags and the list.
-run_row "rustdoc (gate)"               scripts/doc-gate.sh
+# — it is a tree-wide ratchet over a derived root set, not a per-closure
+# row. See scripts/doc-gate.sh for the flags and the derivation.
+#
+# `--selftest` FIRST, exactly as the hosted row does it and as every
+# gate in scripts/gates/ does it: the script's flags and its loop over
+# the cargo roots outside the workspace can each be dropped and leave it
+# green over a broken tree. That script is not IN scripts/gates/ (its
+# header says why), but `gate-roster.sh` names it in OUTLIER_GATES and
+# checks this wiring anyway — dropping either half of the line below
+# reds that gate.
+rustdoc_gate() {
+  scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
+}
+run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
-# src/tolerance.rs — three orders either side. Mirror of ci.yml's `test`
-# matrix over the default archive; the first row compiles, the eps rows
+# src/tolerance.rs — three orders either side. Over the default archive;
+# the first row compiles, the eps rows
 # reuse target/ (build-once is automatic locally — see the header).
 run_row "test (eps = default)"         test_default
 run_row "test (eps = 1e-6)"            test_eps 1e-6
@@ -692,6 +806,7 @@ run_row "test (eps = 1e-12)"           test_eps 1e-12
 # Doc-tests: nextest never runs them; hosted keeps them in the build
 # jobs, this script as their own rows.
 run_row "doc-tests"                    doc_tests
+# HOSTED MIRROR: lint-interval / clippy (interval)
 run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --features interval -- -D warnings
 run_row "test (interval)"              interval_tests
 run_row "test (interval, eps = 1e-6)"  interval_eps
@@ -707,6 +822,11 @@ run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can
 # never contain a change to it — this row belongs to tier `all` only.
 run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
+# Keyed on PATHS, not on the tier: every change under that workspace is
+# tier `all`, and re-certifying on most merges is not what a 250s GMP
+# build is for. Fires on a change to the certified sources or their
+# pinning — 2 of the last 400 first-parent merges.
+run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" oracle_certify
 # demos/tour, tools/k-lint and tools/tess-lint are excluded workspaces
 # that path-depend on nine members between them, and the probe sweep
 # records margins from every kernel crate — no minimal root set, so

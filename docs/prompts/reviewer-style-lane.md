@@ -65,6 +65,12 @@ this project has accumulated is *self-declared in prose at the copy site* —
 prose. `rg -n 'verbatim|re-derived|ported from|mirror of' crates/*/src` over
 the touched area costs seconds.
 
+**A clean prose sweep is evidence about the prose, not about the copies.**
+That grep finds only the **disclosed** copies; the undisclosed ones are the
+majority, and only their *data* can find them — the same constant, the same
+literal ladder, the same magic number written twice with no sentence admitting
+it. Run the constants grep beside the prose sweep.
+
 **And when the PR body reports a sweep, ask what its pattern could not match.**
 Do not accept "swept clean" unless the sweep says what it was blind to; run your
 own, shaped differently, over the same area.

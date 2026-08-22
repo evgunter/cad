@@ -65,7 +65,14 @@ plan's existence — the register itself never schedules.
    `git show 60941420:crates/sweep/src/fillet/blend.rs`
    (`corner_contact_circle`, `BlendArm::name`) — re-mint, never
    restore; minting tori from curved supports makes #889's missing
-   `R > r` validate check load-bearing — it lands here.
+   `R > r` validate check load-bearing — it lands here. VERBS-RIM's
+   review added a fourth co-requisite: **the one-edge CLOSED chain**
+   — post-RIM, a supported closed rim passes the battery and
+   `fillet_edges` refuses `UnsupportedChain` ("fewer than two
+   links"), and a closed single-link chain never receives a
+   wrap-around G1 check — so the verb-level unlock for full solids
+   of revolution (the #554 consequence that remains) is THIS unit's
+   acceptance, not RIM's.
 4. **VERBS-TUBEWALL (S)** — `tube_along_arc` grows a wall/inner-
    radius parameter so hollow tubes keep the door's exact-intent
    storage. No design record yet: the unit PR carries the (small)

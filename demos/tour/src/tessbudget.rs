@@ -9,7 +9,7 @@
 //! reads the rows and names the findings. The tour is the right driver
 //! for the same reason it is the K sweep's: it is the only place that
 //! holds every scene the kernel can build, and it holds each one
-//! exactly once ([`crate::tour`]).
+//! exactly once ([`crate::walk_tour`]).
 //!
 //! ```sh
 //! cargo run --features budget -- tess-budget /tmp/b.csv              # sizing

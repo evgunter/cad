@@ -491,12 +491,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, FilletError> {
-    // Likely dead in practice: the battery screens a single rim arc
-    // as a run-out (an open chain at a partially-requested corner)
-    // before a one-link CLOSED chain can reach here — kept as a typed
-    // guard on the closure invariant, not a reachable door. It stays
-    // typed rather than becoming row 4 because nothing IN THIS CALL
-    // proves the screen ran.
+    // LIVE, not a dead guard: a single CLOSED edge (a full revolve's
+    // latitude rim) seeds its own one-link closed chain, and a
+    // plane–sphere rim passes the whole battery — so this door is the
+    // refusal such a request actually reads. The one-edge torus band
+    // it would need is not built here; until it is, the refusal is
+    // the typed frontier for full-revolve rim fillets.
     let link0 = chain.first();
     if chain.link_count() < 2 {
         return Err(unbuilt_chain(

@@ -2,7 +2,8 @@
 //! public profile/sweep/boolean APIs only (the same shapes as the M3
 //! STL review suites: bricks, the pocketed die, the corner-kiss
 //! assembly, the voided subtract).
-#![allow(dead_code)] // each consumer uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
@@ -216,7 +217,7 @@ pub fn lily_lantern() -> Body<f64> {
         .body
 }
 
-/// A revolved washer: the rectangle [1,2]×[0,1] swept fully — genus 1,
+/// A revolved washer: the rectangle `[1,2]×[0,1]` swept fully — genus 1,
 /// two annuli and two full-2π cylinder walls. Its BORE wall and its
 /// under-side annulus both carry `sense: false` (S11), so this is the
 /// corpus's two-`.F.` body. Exact volume 3π.
