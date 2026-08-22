@@ -2,7 +2,8 @@
 //! body builders (through public profile/sweep APIs only), the
 //! full-mesh acceptance check, exact surface distances, and the D9
 //! byte-identity dump.
-#![allow(dead_code)] // each test binary uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
 use geom_core::Tol;

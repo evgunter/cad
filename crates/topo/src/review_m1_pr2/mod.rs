@@ -32,7 +32,7 @@ use crate::{Body, EntityId, LoopBoundary};
 /// Debug-formatted payload, plus the provenance record of every topology
 /// entity. Two bodies (or one body before/after a failed op) are equal
 /// iff their snapshots are string-equal.
-pub fn deep_snapshot(body: &Body<f64>) -> String {
+pub(crate) fn deep_snapshot(body: &Body<f64>) -> String {
     let mut s = String::new();
     use std::fmt::Write;
     for (k, v) in body.solids() {
@@ -104,7 +104,7 @@ pub fn deep_snapshot(body: &Body<f64>) -> String {
 }
 
 /// The coordinates of a half-edge's start vertex.
-pub fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {
+pub(crate) fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {
     let v = body.get_half_edge(he).unwrap().start;
     let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     (p.x, p.y, p.z)
@@ -112,7 +112,7 @@ pub fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {
 
 /// Walks a face's outer loop and returns the start coordinates of each
 /// half-edge in `next` order.
-pub fn face_polygon(body: &Body<f64>, face: crate::FaceKey) -> Vec<(f64, f64, f64)> {
+pub(crate) fn face_polygon(body: &Body<f64>, face: crate::FaceKey) -> Vec<(f64, f64, f64)> {
     let f = body.get_face(face).unwrap();
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
         panic!("face has an empty outer loop");
@@ -127,7 +127,7 @@ pub fn face_polygon(body: &Body<f64>, face: crate::FaceKey) -> Vec<(f64, f64, f6
 /// Signed area of a 3D polygon projected onto the plane with orthonormal
 /// basis (u, v). Positive iff the polygon winds counterclockwise as seen
 /// from the tip of n = u x v.
-pub fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64, f64, f64)) -> f64 {
+pub(crate) fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64, f64, f64)) -> f64 {
     let dot = |a: (f64, f64, f64), b: (f64, f64, f64)| a.0 * b.0 + a.1 * b.1 + a.2 * b.2;
     let pts2: Vec<(f64, f64)> = poly.iter().map(|&p| (dot(p, u), dot(p, v))).collect();
     let n = pts2.len();
@@ -145,7 +145,7 @@ pub fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64, f64, f
 /// by the caller (h = genus; as reviewed, "not derivable structurally
 /// until PR 5" — the validator's component pass derives it now, but the
 /// probe keeps its independent caller-supplied form).
-pub fn euler_poincare_holds(body: &Body<f64>, shells: i64, genus: i64) -> bool {
+pub(crate) fn euler_poincare_holds(body: &Body<f64>, shells: i64, genus: i64) -> bool {
     let v = body.vertices().count() as i64;
     let e = body.edges().count() as i64;
     let f = body.faces().count() as i64;

@@ -7,7 +7,8 @@
 //! invariants. Nothing here pairs arena order against the writer's
 //! walk order — the known trap (`memories/step-curved-subset.md`): the
 //! two coincide on simple extrusions and diverge on boolean results.
-#![allow(dead_code)] // each consumer uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::PathBuf;
