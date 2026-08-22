@@ -18,11 +18,19 @@ one per montage lane (#159: "our tessellation vs FreeCAD"):
                  re-tessellate it: the FreeCAD/OCC reference lane
                  (export -> OCC import -> render, dogfooded end-to-end).
 
-`scene=NAME` renders exactly one scene, which is how render.sh drives
-BOTH lanes: one freecadcmd process per scene under a per-scene budget,
-because a warm session that renders many scenes deadlocks partway
-through (#224 follow-up). Rendering several scenes in one invocation
-still works, for hand runs.
+`scene=NAME` restricts the pass to that scene; REPEAT it to render a
+BATCH of scenes in one process (`scene=a scene=b scene=c`). Whatever
+order the keywords come in, the scenes are rendered in scenes.json
+order, so a batch's frames do not depend on how it was spelled.
+
+That is how render.sh drives BOTH lanes: `CAD_RENDER_BATCH` scenes per
+freecadcmd process (default 1 — one process per scene, as it has been
+since #224) under a budget of that many per-scene budgets. The warm
+session that deadlocked partway through in #224 was root-caused in
+2026-08 to FreeCAD's notification area re-entering its own mutex under
+the offscreen plugin, and is disabled below; the process boundary is
+kept as what BOUNDS a future hang, which is why the batch is a knob
+with a small default and not "render everything in one process".
 
 Both selectors are BARE keywords, not --flags: freecadcmd's own option
 parser rejects unknown dashed tokens and its --pass passthrough drops
@@ -32,7 +40,7 @@ untouched. Camera = the manifest's (elev, azim, up), in matplotlib
 scene from one definition of that spec (`manifest`), one of them using
 it forwards and this one using the inverse derived from it.
 
-Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene=NAME] <outdir> <renderdir>
+Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene=NAME]... <outdir> <renderdir>
 """
 
 import math
@@ -231,17 +239,23 @@ def render_scene(scene, objs, view, renderdir):
 def main():
     args = sys.argv[1:]
     use_step = "step" in args
-    only = next((a.split("=", 1)[1] for a in args if a.startswith("scene=")), None)
+    # Every scene= keyword, not just the first: one of them is a scene,
+    # several are a BATCH. The selection filters the manifest's own
+    # list, so the render order is scenes.json order however the batch
+    # was spelled -- a batch's frames must not depend on argv order.
+    only = [a.split("=", 1)[1] for a in args if a.startswith("scene=")]
     pos = [
         a for a in args if a not in ("mesh", "step") and not a.startswith("scene=")
     ]
     outdir, renderdir = Path(pos[-2]), Path(pos[-1])
     renderdir.mkdir(parents=True, exist_ok=True)
     scenes = manifest.read_scenes(outdir)
-    if only is not None:
-        scenes = [s for s in scenes if s.name == only]
-        if not scenes:
-            raise SystemExit(f"unknown scene: {only}")
+    if only:
+        wanted = list(dict.fromkeys(only))
+        scenes = [s for s in scenes if s.name in set(wanted)]
+        unknown = [n for n in wanted if n not in {s.name for s in scenes}]
+        if unknown:
+            raise SystemExit(f"unknown scene(s): {', '.join(unknown)}")
     doc = App.newDocument("scenes")
     by_scene = import_bodies(doc, scenes, outdir, use_step)
     view = Gui.activeDocument().activeView()
