@@ -151,12 +151,6 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 /// tier-3 refusal), so `validate_geometric` stays inside the
 /// `Certified` branch, exactly where it always was.
 #[test]
-#[cfg_attr(
-    not(nightly_suite),
-    ignore = "nightly-only: 6.0 s of rational quadrature over the same arc-loft class; never red in \
-     the repository's entire life. A tier-3 admission is a property of the tree, so it \
-     stays broken until a nightly reads it."
-)]
 fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let loft = loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
@@ -252,13 +246,6 @@ const ARC_LOFT_PAD_AT_DEFAULT_EPS: f64 = 1.009_875_4e-6;
 /// own internal consistency plus the pad ceiling; the accuracy oracle
 /// is the prism row above, which shares every line of the lane.
 #[test]
-#[cfg_attr(
-    not(nightly_suite),
-    ignore = "nightly-only: 8.6 s -- a rational quadrature over a varying-scale arc loft, the second \
-     most expensive test in the workspace; never red in the repository's entire life. The \
-     accuracy oracle for this lane is the arc PRISM row beside it, which shares every line \
-     of it and still runs nightly with this one."
-)]
 fn arc_loft_is_volume_computable_with_a_pinned_pad() {
     let loft = loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],

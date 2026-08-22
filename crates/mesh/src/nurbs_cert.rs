@@ -2081,12 +2081,6 @@ mod tests {
     /// lane awaits the topo pcurve frontier
     /// (`z1r_rational_wall_full_body_frontier_pin`).
     #[test]
-    #[cfg_attr(
-        not(nightly_suite),
-        ignore = "nightly-only: 3.2 s of lattice falsification over rational carriers; never red in the \
-     repository's entire life, and its sibling nurbs_cert rows cover the same certificate \
-     on every PR at a fraction of the cost."
-    )]
     fn rational_z1_lattice_falsification() {
         // Per-fixture deltas: the steep-weight `wavy_rational`'s bound
         // is conservative (documented — a bound, not an estimate), so

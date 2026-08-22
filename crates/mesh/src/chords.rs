@@ -919,13 +919,6 @@ mod tests {
     /// the bound-honesty claim that is this fixture's actual point, is
     /// δ-free and untouched.
     #[test]
-    #[cfg_attr(
-        not(nightly_suite),
-        ignore = "nightly-only: 3.2 s -- an extreme-weight carrier through the chord pass; never red in \
-     the repository's entire life. mesh builds at opt-level 2 in both CI lanes (the \
-     [profile.dev.package.mesh] stanza), so this row is expensive in wall clock at every \
-     opt level, not only at opt-2."
-    )]
     fn r1_extreme_weight_carrier() {
         let base = wiggle();
         let w: Vec<f64> = (0..base.control().len())

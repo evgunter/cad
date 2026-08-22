@@ -263,12 +263,6 @@ fn slab() -> SsiDomain {
 /// below still pins the refusal typed, and then SAYS, by name, every
 /// property this run did not cover.
 #[test]
-#[cfg_attr(
-    not(nightly_suite),
-    ignore = "nightly-only: 3.5 s -- an SSI march plus its CERT_SAMPLES certificate over a planted \
-     fixture; never red in the repository's entire life. A planted fixture the march stops \
-     finding stays unfound until the next run of this row."
-)]
 fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let (s, c) = (sphere(), threaded_cylinder());
     // BUDGET: whichever ε the run resolved, the operation either

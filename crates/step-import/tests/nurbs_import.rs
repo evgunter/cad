@@ -218,14 +218,6 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 ///   escalation would arrive here as an escalation and fail this
 ///   match.
 #[test]
-#[cfg_attr(
-    not(nightly_suite),
-    ignore = "nightly-only: 34 s solo at CI's opt-2 settings even after the 2026-08-22 quadrature cut \
-     (was 42 s), the most expensive test in the workspace by 3x and ~13% of the default \
-     lane's whole execution; never red in the repository's entire life. Its subject \
-     PERSISTS in the tree -- a reader that stopped reading RATIONAL_B_SPLINE_SURFACE \
-     weights stays broken -- so the nightly finds it, one day later."
-)]
 fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");

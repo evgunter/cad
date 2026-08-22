@@ -386,12 +386,6 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 /// through a widened gate. Every posture is pinned below, including
 /// the fixed schedule's own quadrature-budget frontier.
 #[test]
-#[cfg_attr(
-    not(nightly_suite),
-    ignore = "nightly-only: 5.8 s -- a full mixed arc-prism import plus the at-rest gate's rational \
-     quadrature; never red in the repository's entire life. The Intersection-pcurve arm it \
-     pins is structural and persists in the tree."
-)]
 fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
     let text = step_export::step_string(
