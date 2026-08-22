@@ -254,7 +254,11 @@ for ec in arcs:
     loc, axis, rdir = placement(ref(args(ENT[circle][1])[1]))
     ydir = cross(axis, rdir)
 
-    def angle(p):
+    # The default arguments are the point: this arc's placement is bound at
+    # `def` time, so the function cannot read a later iteration's frame no
+    # matter where the call moves to. Closing over the loop variables would
+    # say the same thing only as long as nobody moved the call.
+    def angle(p, loc=loc, ydir=ydir, rdir=rdir):
         d = sub(p, loc)
         return math.atan2(dot(d, ydir), dot(d, rdir))
 

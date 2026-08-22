@@ -45,9 +45,9 @@ from pathlib import Path
 # found by this file's own location.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import FreeCAD as App  # noqa: E402
+import FreeCAD as App
 
-import manifest  # noqa: E402
+import manifest
 
 # THE WEDGE, AND WHY THIS IS THE FIRST THING THIS FILE DOES.
 #
@@ -95,10 +95,11 @@ _notify = App.ParamGet("User parameter:BaseApp/Preferences/NotificationArea")
 _notify.SetBool("NotificationAreaEnabled", False)
 _notify.SetBool("NonIntrusiveNotificationsEnabled", False)
 
-import FreeCADGui as Gui  # noqa: E402
+import FreeCADGui as Gui  # noqa: E402 — after the wedge above, which must run before Gui loads
 
 Gui.showMainWindow()
 
+# The E402 markers on all three: the GUI must exist before they import.
 import Mesh  # noqa: E402
 import Part  # noqa: E402
 from pivy import coin  # noqa: E402
@@ -123,6 +124,9 @@ def camera_rotation(scene):
     pos_d = (math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el))
     up_d = (0.0, 0.0, 1.0)
     axes = scene.display_to_world()
+    # The E731 marker below: a one-expression rebasing of a triple into the
+    # scene's world axes, used three lines down and nowhere else; a `def`
+    # would separate it from the `axes` it closes over.
     to_world = lambda v: App.Vector(*manifest.apply_axes(axes, v))  # noqa: E731
     z_cam = to_world(pos_d)  # camera looks along -z_cam
     z_cam.normalize()

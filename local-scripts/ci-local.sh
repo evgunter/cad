@@ -151,10 +151,20 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # `docs` branch it exercises is the one path in that script that fails OPEN,
 # and a change widening it classifies ITSELF as docs — so the tier that would
 # skip this row is the tier the row is about.
+# The python lint row belongs here for the same reason and one more: some of
+# the repo's Python files live under local-scripts/ itself (this file's own
+# tree), which every hosted job except `mirror` deletes before it runs. On the
+# gate of record a missing binary is a hard failure — the script reads
+# GITHUB_ACTIONS for that, so no flag here can disarm it. Here, off that gate,
+# REQUIRE_RUFF is left unset on purpose, so a box without the pinned ruff SKIPS
+# LOUDLY — naming the version it wanted — instead of blocking a developer's
+# whole battery on a tool they have not installed. Set REQUIRE_RUFF=1 to
+# promote that skip to a failure on this box too.
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
+# HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -163,6 +173,8 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
+  python3 scripts/check-python-lint.py --selftest || rc=1
+  python3 scripts/check-python-lint.py || rc=1
   return $rc
 }
 echo
