@@ -1,6 +1,6 @@
 //! **Closed rims meter an honest lever arm** (#554's acceptance
-//! rows). The battery's lever is the maximum pairwise chord over the
-//! samples `{t0, (t0+t1)/2, t1}`, so a full revolve's latitude rim —
+//! rows). The battery's lever is the maximum pairwise chord over its
+//! own per-link sample schedule, so a full revolve's latitude rim —
 //! a CLOSED edge whose endpoint chord is structurally zero — meters
 //! ~its diameter and its dihedral is decided honestly.
 //!
@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Surface;
+use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -68,36 +68,43 @@ fn edge_sides(body: &Body<f64>, edge: EdgeKey) -> (Surface<f64>, Surface<f64>, b
     (surf(e.he_plus), surf(e.he_minus), start == end)
 }
 
-/// The widest edge matching a two-sided support predicate and a
-/// closedness requirement (widest by the lever functional, so a body
-/// with two matching rims hands back the deliberate one).
-fn find_edge(
+/// The analytic radius of an edge's carrier, when it is a circle —
+/// the fixture-side handle for selecting a rim (never a restatement
+/// of the kernel's lever functional).
+fn carrier_radius(body: &Body<f64>, edge: EdgeKey) -> Option<f64> {
+    let e = body.get_edge(edge)?;
+    let c = body.get_curve_geom(e.curve)?.certified()?;
+    match c.carrier() {
+        Curve3::Circle { radius, .. } => Some(*radius),
+        _ => None,
+    }
+}
+
+/// The one edge matching a two-sided support predicate, a closedness
+/// requirement, and an analytic carrier radius (each fixture below
+/// mints its deliberate rim at a known radius).
+fn find_rim(
     body: &Body<f64>,
     closed: bool,
+    rim_r: f64,
     pair: impl Fn(&Surface<f64>, &Surface<f64>) -> bool,
 ) -> EdgeKey {
-    let hit = body
+    let hits: Vec<EdgeKey> = body
         .edges()
         .map(|(k, _)| k)
         .filter(|k| {
             let (a, b, c) = edge_sides(body, *k);
-            c == closed && (pair(&a, &b) || pair(&b, &a))
+            c == closed
+                && (pair(&a, &b) || pair(&b, &a))
+                && carrier_radius(body, *k).is_some_and(|r| (r - rim_r).abs() < 1e-9)
         })
-        .max_by(|x, y| lever_of(body, *x).total_cmp(&lever_of(body, *y)));
-    hit.expect("an edge matches the requested supports")
-}
-
-/// The battery's lever functional, restated here as the test's own
-/// oracle: the maximum pairwise chord over `{t0, mid, t1}` of the
-/// edge's carrier.
-fn lever_of(body: &Body<f64>, edge: EdgeKey) -> f64 {
-    let e = body.get_edge(edge).unwrap();
-    let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    let (t0, t1) = c.params();
-    let mid = (t0 + t1) / 2.0;
-    let carrier = c.carrier();
-    let (p0, pm, p1) = (carrier.eval(t0), carrier.eval(mid), carrier.eval(t1));
-    (p1 - p0).norm().max((pm - p0).norm()).max((p1 - pm).norm())
+        .collect();
+    assert_eq!(
+        hits.len(),
+        1,
+        "exactly one rim at radius {rim_r} matches the requested supports"
+    );
+    hits[0]
 }
 
 /// A neck-and-flare ring: a cylinder wall meeting a cone wall at a
@@ -132,18 +139,14 @@ fn full_and_partial_revolve_refuse_the_same_honest_spine_unsupported() {
         matches!(a, Surface::Cone { .. }) && matches!(b, Surface::Cylinder { .. })
     };
     let full = neck_flare(Revolution::Full);
-    let rim = find_edge(&full, true, is_pair);
-    assert!(
-        lever_of(&full, rim) > 1.9,
-        "a closed radius-1 rim meters ~its diameter"
-    );
+    let rim = find_rim(&full, true, 1.0, is_pair);
     match fillet_edges(&full, &[rim], 0.05, band(), tol()) {
         Err(FilletError::SpineUnsupported { .. }) => {}
         other => panic!("closed rim: expected the honest SpineUnsupported, got {other:?}"),
     }
 
     let part = neck_flare(Revolution::Partial(1.0));
-    let arc = find_edge(&part, false, is_pair);
+    let arc = find_rim(&part, false, 1.0, is_pair);
     match fillet_edges(&part, &[arc], 0.05, band(), tol()) {
         Err(FilletError::SpineUnsupported { .. }) => {}
         other => panic!("open rim: expected SpineUnsupported unchanged, got {other:?}"),
@@ -165,12 +168,29 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         ],
         Revolution::Full,
     );
-    let seam = find_edge(&ball, false, |a, b| {
-        matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
-    });
+    let seams: Vec<EdgeKey> = ball
+        .edges()
+        .map(|(k, _)| k)
+        .filter(|k| {
+            let (a, b, closed) = edge_sides(&ball, *k);
+            !closed && matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
+        })
+        .collect();
+    assert!(!seams.is_empty(), "a full ball carries a seam meridian");
+    let seam = seams[0];
+    // The fixture-side witness that the edge is nowhere near
+    // degenerate: its two poles sit the ball's diameter apart (plain
+    // geometry — the kernel's lever is never restated here).
+    let e = ball.get_edge(seam).unwrap();
+    let vp = |v| {
+        let vx = ball.get_vertex(v).unwrap();
+        *ball.get_point(vx.point).unwrap()
+    };
+    let p0 = vp(ball.get_half_edge(e.he_plus).unwrap().start);
+    let p1 = vp(ball.half_edge_end(e.he_plus).unwrap());
     assert!(
-        lever_of(&ball, seam) > 1.9,
-        "a pole-to-pole meridian levers ~the ball's diameter"
+        (p1 - p0).norm() > 1.9,
+        "the seam meridian's endpoints span ~the ball's diameter"
     );
     match fillet_edges(&ball, &[seam], 0.05, band(), tol()) {
         Err(FilletError::TangentialEdge { margin, .. }) => {
@@ -200,7 +220,7 @@ fn a_dome_equator_rim_decides_convex_at_an_honest_lever() {
         ],
         Revolution::Full,
     );
-    let rim = find_edge(&dome, true, |a, b| {
+    let rim = find_rim(&dome, true, 1.0, |a, b| {
         matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
     });
     let req = FilletRequest {
@@ -242,7 +262,7 @@ fn a_boss_root_rim_decides_concave_at_an_honest_lever() {
         ],
         Revolution::Full,
     );
-    let rim = find_edge(&boss, true, |a, b| {
+    let rim = find_rim(&boss, true, rim_r, |a, b| {
         matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
     });
     let req = FilletRequest {

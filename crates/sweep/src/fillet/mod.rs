@@ -50,10 +50,10 @@
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`FilletError::FilletCornerUnsupported`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
-//! assembly's valence and convexity doors both), and every chain whose
-//! spine is not a line or a circle ([`FilletError::SpineUnsupported`] —
-//! the canal-surface approximating-blend lane, banked as its own
-//! reviewed unit). A corner whose configuration is the supported one
+//! assembly's valence and convexity doors both), and every link whose
+//! support pair is outside the analytic-arm table
+//! ([`FilletError::SpineUnsupported`] — the canal-surface
+//! approximating-blend lane, banked as its own reviewed unit). A corner whose configuration is the supported one
 //! but whose edges are not all requested is a **run-out**, which is
 //! about the request rather than the configuration and refuses as
 //! [`FilletError::UnsupportedRunOut`].
@@ -235,9 +235,11 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "fillet edges whose supports are pla
 /// surgery's ring carry-through check).
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the fillet radius, or move the feature whose ring sits inside the blend's setback";
-/// The recourse for a general spine — it names the banked unit.
-pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose rolling-ball spine is a line or a circle; general spines need \
-     the canal-surface approximating blend, which is not implemented";
+/// The recourse for a support pair outside the analytic-arm table —
+/// it names the banked unit.
+pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
+     plane–sphere); other pairs need the canal-surface approximating blend, which is \
+     not implemented";
 
 /// A fillet refusal. Closed enum, D3 style. Every variant is one of
 /// three things, and the D2 addendum row it belongs to is stated on
@@ -318,7 +320,8 @@ pub enum FilletError {
     TangentialEdge {
         /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
-        /// `((n_a × n_b)·τ̂)·arm`, meters — definitely zero here.
+        /// `((n_a × n_b)·τ̂)·arm`, meters — decided Zero at the
+        /// metered lever.
         margin: f64,
     },
     /// **Predicate 3**: the spine (the rolling-ball centre locus, an
@@ -362,11 +365,15 @@ pub enum FilletError {
         /// The run-out policy that WOULD handle it.
         policy: RunOutPolicy,
     },
-    /// The chain's rolling-ball spine is neither a line nor a circle:
-    /// the blend is a canal surface, the kernel's first approximating
-    /// SURFACE, banked as its own reviewed unit.
+    /// The link's support pair has no analytic blend arm in the
+    /// battery's table (only plane–plane and plane–sphere are
+    /// implemented). The refusal is minted from the PAIR, not from
+    /// the spine the pair would trace — a coaxial curved pair's spine
+    /// can be a perfectly good circle and still land here. The
+    /// general lane is the canal-surface approximating blend, banked
+    /// as its own reviewed unit.
     SpineUnsupported {
-        /// The link whose supports force a general spine.
+        /// The link whose support pair has no analytic arm.
         edge: EdgeKey,
         /// The support pair, as text (the honest blocker).
         supports: &'static str,
@@ -569,8 +576,8 @@ impl fmt::Display for FilletError {
             ),
             Self::SpineUnsupported { edge, supports } => write!(
                 f,
-                "fillet: the {supports} support pair at edge {edge:?} gives a general \
-                 rolling-ball spine — {FILLET3_SPINE_KIND_RECOURSE}"
+                "fillet: the {supports} support pair at edge {edge:?} has no analytic \
+                 blend arm — {FILLET3_SPINE_KIND_RECOURSE}"
             ),
             Self::Escalated { site, source } => {
                 let recourse = match source.predicate {

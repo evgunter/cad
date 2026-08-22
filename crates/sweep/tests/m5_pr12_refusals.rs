@@ -278,9 +278,10 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
 }
 
 /// The canal-surface lane's front door: a plane–cylinder support pair
-/// has a general rolling-ball spine, so the blend is a canal surface
-/// — the kernel's first approximating SURFACE, banked as its own
-/// reviewed unit. The refusal NAMES it.
+/// is outside the analytic-arm table (plane–plane / plane–sphere),
+/// so its blend needs the canal surface — the kernel's first
+/// approximating SURFACE, banked as its own reviewed unit. The
+/// refusal NAMES it.
 #[test]
 fn spine_unsupported_names_the_canal_surface_unit() {
     let body = cylinder();

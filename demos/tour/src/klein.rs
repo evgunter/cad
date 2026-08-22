@@ -495,10 +495,10 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
 }
 
 /// The lever arm every angular fillet predicate is metered against —
-/// the maximum pairwise chord over the edge's parameter samples
-/// `{t0, mid, t1}`, the battery's own functional. Findings entry 2
-/// is a statement about this number: it stays ~the rim's diameter
-/// whether or not the rim closes.
+/// the maximum pairwise chord over the battery's own per-link sample
+/// schedule (`sweep::fillet::battery::CHAIN_SAMPLES`). Findings
+/// entry 2 is a statement about this number: it stays ~the rim's
+/// diameter whether or not the rim closes.
 fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
     let e = body.get_edge(edge).expect("edge");
     let c = body
@@ -507,14 +507,21 @@ fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
         .certified()
         .expect("a revolved rim carries a certified carrier");
     let (t0, t1) = c.params();
-    let mid = (t0 + t1) / S::from_f64(2.0);
     let carrier = c.carrier();
-    let (p0, pm, p1) = (carrier.eval(t0), carrier.eval(mid), carrier.eval(t1));
-    (p1 - p0)
-        .norm()
-        .max((pm - p0).norm())
-        .max((p1 - pm).norm())
-        .f()
+    let n = pncad::sweep::fillet::battery::CHAIN_SAMPLES;
+    let pts: Vec<_> = (0..n)
+        .map(|i| {
+            let f = S::from_f64(f64::from(i) / f64::from(n - 1));
+            carrier.eval(t0 + (t1 - t0) * f)
+        })
+        .collect();
+    let mut best = S::from_f64(0.0);
+    for (i, a) in pts.iter().enumerate() {
+        for b in &pts[(i + 1)..] {
+            best = best.max((*b - *a).norm());
+        }
+    }
+    best.f()
 }
 
 /// The bottle stop.

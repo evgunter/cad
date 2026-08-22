@@ -496,8 +496,13 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
 /// approaching a full turn has an endpoint chord that collapses just
 /// as a closed rim's does — the same defect wearing an open edge. The
 /// metered lever must not collapse with it: past the 240° crossover
-/// it must stay at least the endpoint chord AND keep growing toward
-/// the rim's diameter.
+/// it must stay at least the endpoint chord AND hold near the rim's
+/// diameter. (The row originally asserted strict monotonicity in θ —
+/// a property of the three-sample schedule it was written against;
+/// under the battery's full CHAIN_SAMPLES schedule the lever is
+/// strictly TIGHTER at every θ but wiggles by ~1e-4·r as the best
+/// sample pair walks, so the pin here is the stronger diameter
+/// floor.)
 ///
 /// Pinned because the change to this class is DISCLOSED but otherwise
 /// unpinned: nothing else in the tree would go red if an
@@ -511,7 +516,6 @@ fn open_arcs_approaching_a_full_turn_do_not_collapse() {
         let r = rng.range(0.4, 2.0);
         let zone = rng.range(0.4, 1.1);
         let bore = rng.range(0.2, 0.8);
-        let mut prev = 0.0;
         let near_full = core::f64::consts::TAU - 0.0032;
         for theta in [4.2_f64, 5.0, 5.8, near_full] {
             let body = dome(r, zone, bore, Revolution::Partial(theta));
@@ -522,16 +526,19 @@ fn open_arcs_approaching_a_full_turn_do_not_collapse() {
                 lever >= chord,
                 "θ={theta}: the lever fell below the endpoint chord ({lever} < {chord})"
             );
+            // With samples every θ/8 ≤ π/4 apart, some pair sits
+            // within θ/16 of the diametral separation π, so the
+            // lever is ≥ 2r·cos(θ/32) ≥ 2r·cos(π/16) ≈ 1.96r on this
+            // whole range — the floor a collapsing lever cannot meet.
             assert!(
-                lever >= prev - 1e-12,
-                "θ={theta}: the lever is not monotone past the crossover ({lever} < {prev})"
+                lever >= 1.9 * r,
+                "θ={theta}: the lever fell off the diameter floor ({lever}, r = {r})"
             );
             assert!(
                 lever >= 2.0 * r * (theta / 4.0).sin() - 1e-9,
                 "θ={theta}: the lever is below the half-chord a three-sample schedule \
                  already has in hand ({lever})"
             );
-            prev = lever;
         }
         // The endgame: at a full turn less a whisker the endpoint
         // chord is ~0, and the lever must be ~the diameter anyway.
