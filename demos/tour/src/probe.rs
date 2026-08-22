@@ -123,6 +123,18 @@ pub fn run(out: Option<String>, tol: Tol) {
         || vec![plain("bracket", bodies::bracket(tol))],
         tol,
     );
+    // The chamfer verb's own K row: its four transferred `fillet3_*`
+    // predicates (clearance, chain G1, convexity sign, corner
+    // independence) reach the funnel only through a scene that runs
+    // them, and this is the scene that does.
+    sweep(
+        s,
+        t,
+        u,
+        "spacer",
+        || vec![plain("spacer", bodies::spacer(tol).0)],
+        tol,
+    );
     sweep(
         s,
         t,

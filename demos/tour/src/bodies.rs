@@ -347,7 +347,7 @@ fn stop(
 /// not, because there is no `Node::chamfer` yet to reach it through.
 /// A consumer wanting a chamfer in a RECIPE — with names, with a
 /// rebuild — cannot have one today.
-fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
+pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let (x, y, z) = (4.0, 2.4, 1.0);
     let setback = 0.15;
     let lp: ProfileLoop<S> = Open

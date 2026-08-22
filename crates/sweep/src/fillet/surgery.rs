@@ -200,11 +200,11 @@ struct Corner<'a, T: Real> {
     /// out to its own foot, so this array is the whole geometric
     /// difference between the two verbs' carves.
     feet: [Point3<T>; 3],
-    /// The corner ball's centre — the rolling ball's rest position,
-    /// which the octant's bounding arcs turn about. `None` for a
-    /// chamfer, whose patch is bounded by straight chords and has no
-    /// centre to turn about.
-    center: Option<Point3<T>>,
+    /// What the corner patch's bounding edges turn about: the rolling
+    /// ball's rest centre and its radius. `None` for a chamfer, whose
+    /// patch is bounded by straight chords — there is nothing to turn
+    /// about, which is the whole difference at a corner.
+    arc: Option<(Point3<T>, T)>,
     /// The corner patch's surface: the sphere octant's chart (the
     /// order-free pick, [`super::build::octant_chart`]), or the
     /// chamfer's plane through the three feet.
@@ -378,9 +378,8 @@ pub(crate) fn blend_surgery<T: Decide + Bounds>(
     };
 
     let mut rec = FilletNaming::default();
-    let (blend_faces, corner_faces, mut described) = blank_phase(
-        &mut body, &opens, &corners, &supports, radius, &mut rec, tol, kind,
-    )?;
+    let (blend_faces, corner_faces, mut described) =
+        blank_phase(&mut body, &opens, &corners, &supports, &mut rec, tol, kind)?;
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for rim in &rims {
@@ -522,7 +521,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
     // Any one incident link answers for all of them (`Corner`'s field
     // doc): the door admits convex links only.
     let convexity = links.first().convexity();
-    let (center, feet, surface) = match kind {
+    let (arc, feet, surface) = match kind {
         BlendKind::Fillet => {
             let ball = corner_ball([p; 3], normals, radius, true);
             // The ball at rest is at distance `radius` inside every
@@ -536,7 +535,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
             }
             let (u_ref, axis) = super::build::octant_chart(body, &faces, &links)?;
             (
-                Some(ball.center),
+                Some((ball.center, radius)),
                 feet,
                 Surface::Sphere {
                     center: ball.center,
@@ -555,7 +554,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
         links,
         faces,
         feet,
-        center,
+        arc,
         surface,
         convexity,
     })
@@ -1095,7 +1094,6 @@ fn blank_phase<T: Decide + Bounds>(
     opens: &[ConvexOpen<'_, T>],
     corners: &[Corner<'_, T>],
     supports: &[RequestedBoundary<T>],
-    radius: T,
     rec: &mut FilletNaming,
     tol: Tol,
     kind: BlendKind,
@@ -1261,8 +1259,8 @@ fn blank_phase<T: Decide + Bounds>(
                 .map_err(|e| op("corner-arc mef", e))?;
             described.push((
                 created.edge,
-                match c.center {
-                    Some(center) => ContactCarrier::CornerArc { center, radius },
+                match c.arc {
+                    Some((center, radius)) => ContactCarrier::CornerArc { center, radius },
                     None => ContactCarrier::Chord,
                 },
             ));
@@ -2017,7 +2015,7 @@ mod tests {
 
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
-    use super::{ConvexOpen, CornerLinks, FilletError, corner_plan, rim_trim_circles};
+    use super::{BlendKind, ConvexOpen, CornerLinks, FilletError, corner_plan, rim_trim_circles};
     use crate::fillet::blend::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
@@ -2150,7 +2148,8 @@ mod tests {
                 .also(*o)
                 .expect("every filtered link touches v");
         }
-        let convex = corner_plan(&body, corner_links, R).expect("the corner plans");
+        let convex =
+            corner_plan(&body, corner_links, R, BlendKind::Fillet).expect("the corner plans");
         assert!(convex.convexity.blend_sense(), "a convex octant is outward");
 
         let mut concave = links[0].clone();
