@@ -144,9 +144,17 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # No cargo, no build slot: greps over three files, milliseconds.
 # `gate-roster.sh` runs again inside the discipline loop on a building change
 # set; running a grep twice is cheaper than a second hand-written roster.
+# The python lint row belongs here for the same reason and one more: five of
+# the repo's Python files live under local-scripts/ itself (this file's own
+# tree), which every hosted job except `mirror` deletes before it runs. Hosted
+# sets REQUIRE_RUFF=1 so a missing binary reds the gate of record; here it is
+# left unset on purpose, so a box without the pinned ruff SKIPS LOUDLY —
+# naming the version it wanted — instead of blocking a developer's whole
+# battery on a tool they have not installed.
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -154,6 +162,8 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/check-python-lint.py --selftest || rc=1
+  python3 scripts/check-python-lint.py || rc=1
   return $rc
 }
 echo

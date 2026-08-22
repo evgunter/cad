@@ -14,6 +14,7 @@ prompt to move a NO row to YES.
 import math
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 from pncad import (
     ArcSide,
@@ -35,7 +36,6 @@ from pncad import (
     Node,
     Open,
     ParamName,
-    PathError,
     PatternKind,
     PlaneRelation,
     Radius,
@@ -522,7 +522,7 @@ def prism_loft(doc, heights):
     differ from one another (`lofted_at_z`)."""
     sections = [
         doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], elevation=z * m))
-        for pts, z in zip([PRISM_SQUARE, PRISM_TRAPEZOID, PRISM_SQUARE], heights)
+        for pts, z in zip([PRISM_SQUARE, PRISM_TRAPEZOID, PRISM_SQUARE], heights, strict=True)
     ]
     return doc.insert(Node.loft(sections, 2))
 
@@ -845,12 +845,12 @@ class TestAz(unittest.TestCase):
 
     The scene's own exact oracle: 880383/327680."""
 
-    A_OUTLINE = [
+    A_OUTLINE: ClassVar = [
         (0.0, 0.0), (0.625, 0.0), (0.8125, 1.0), (1.1875, 1.0),
         (1.375, 0.0), (2.0, 0.0), (1.125, 2.5), (0.875, 2.5),
     ]
-    A_COUNTER = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)]
-    Z_OUTLINE = [
+    A_COUNTER: ClassVar = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 2.0)]
+    Z_OUTLINE: ClassVar = [
         (-0.0625, 0.0), (2.5625, 0.0), (2.5625, 0.4375), (0.6875, 0.4375),
         (2.5625, 1.5625), (2.5625, 2.0), (-0.0625, 2.0), (-0.0625, 1.5625),
         (1.8125, 1.5625), (-0.0625, 0.4375),
@@ -941,7 +941,7 @@ class TestDiefillet(unittest.TestCase):
         """The text is a TOKEN. Something that is not a name at all is
         a boundary ValueError — there is no name grammar in Python to
         half-parse."""
-        doc, cube = self.build()
+        _doc, cube = self.build()
         with self.assertRaises(ValueError):
             Node.fillet(cube, self.R * m, ["the top edge"])
 
@@ -980,7 +980,7 @@ class DieScene:
 
     # (pip count, face normal, the two in-face axes, rotation carrying
     # +z to that normal) — demos/tour/src/diefillet.rs::placements.
-    FACES = [
+    FACES: ClassVar = [
         (1, (0, 0, 1), (1, 0, 0), (0, 1, 0), (0.0, 0.0, 1.0), 0.0),
         (6, (0, 0, -1), (1, 0, 0), (0, 1, 0), (1.0, 0.0, 0.0), math.pi),
         (2, (1, 0, 0), (0, 1, 0), (0, 0, 1), (0.0, 1.0, 0.0), math.pi / 2),
@@ -996,7 +996,7 @@ class DieScene:
         return {
             1: [(0.0, 0.0)],
             2: diag,
-            3: diag + [(0.0, 0.0)],
+            3: [*diag, (0.0, 0.0)],
             4: diag + anti,
             5: diag + anti + [(0.0, 0.0)],
             6: diag + anti + [(-d, 0.0), (d, 0.0)],

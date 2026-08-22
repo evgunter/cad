@@ -173,6 +173,18 @@ env:
   # 2026-05-22, so it clears the >=2-week dependency age policy by
   # weeks.
   TY_VERSION: "0.0.39"
+  # ruff, the Python linter (see ruff.toml and scripts/check-python-lint.py).
+  # Same pattern as nextest/maturin: pinned here as the single source of
+  # truth, installed from the official GitHub-release prebuilt at the
+  # pinned URL — no third-party action. 0.16.1 was published 2026-07-30,
+  # so it is ~3 weeks old at adoption (2026-08-22) and clears the ~2-week
+  # dependency-age rule (memories/review-and-dependency-policy.md) with
+  # margin; 0.16.4 (2026-08-20) would not. CI-only tooling — ruff never
+  # enters any shipped build graph, which is the class that rule is
+  # lenient about. THE LOCAL HALF READS THIS PIN: check-python-lint.py
+  # parses this line out of this file, so a developer's ruff that differs
+  # from CI's is reported rather than trusted.
+  RUFF_VERSION: "0.16.1"
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
@@ -332,6 +344,50 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh --citations
+      # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
+      # this job what it is are exactly the two ruff needs.
+      #
+      #   1. NO PRUNE. `local-scripts/` holds five of the repo's Python
+      #      files (including review-lily/), and every other checked-out
+      #      job deletes that tree before it does anything. A linter sited
+      #      anywhere else would silently cover 33 of 38 files while its
+      #      config claimed the repo — the same defect, in the fix.
+      #   2. NO `if:`. A change to `local-scripts/*.py` or `review/*.py`
+      #      classifies TIER=docs (scripts/ci-filter.py's `_is_docs`), on
+      #      which every `if: run_build` job is skipped. Those files are
+      #      this check's own inputs, so siting it under an `if:` would
+      #      make it unable to fire on the change class it is about —
+      #      S61's defect. `check-ci-mirror-parity.py`'s TIER_BLIND list
+      #      names this invocation, so claim 7 now enforces the siting.
+      #
+      # BILLING: this job measures 8-12 s wall and already bills a whole
+      # minute (docs/CI-MINUTES-2026-08.md: per job, rounded UP). The
+      # install is a ~10 MB prebuilt and ruff over 38 files is
+      # milliseconds, so the row lands inside the minute this job already
+      # costs. A standalone `python-lint` job would bill a second whole
+      # minute to do four seconds of work, and would also have to
+      # re-argue the prune exception that claim 6 keeps to exactly one
+      # job. The `python-suite` job is the other candidate and fails on
+      # both counts: it prunes local-scripts/, and it is
+      # `if: run_pncad_py`.
+      # Its own directory, added to PATH explicitly: this job installs no
+      # toolchain, so it may not assume ~/.cargo/bin exists the way the
+      # nextest and maturin steps do in jobs that set one up.
+      - name: install ruff (pinned, official prebuilt)
+        run: |
+          mkdir -p "$HOME/ruff-bin"
+          curl -LsSf "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
+          echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+      # REQUIRE_RUFF makes a missing or wrong-versioned binary a hard
+      # failure: the script's default is to skip loudly, which is right
+      # for a developer's box and wrong for the gate of record.
+      - name: python lint (ruff, every tracked .py and .pyi)
+        run: |
+          python3 scripts/check-python-lint.py --selftest
+          python3 scripts/check-python-lint.py
+        env:
+          REQUIRE_RUFF: "1"
 
   discipline:
     name: discipline (evaluation-code)

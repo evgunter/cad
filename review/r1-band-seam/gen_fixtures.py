@@ -19,7 +19,8 @@ rims must split at u_ref). Both faces are SEAMLESS periodic bands.
 Also doctors nist_ftc_11 for the C2 attack: rotate rim vertex #85 off
 the u_ref azimuth by delta (still on its rim circle).
 """
-import math, sys, os
+import math
+import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = "/home/evan/.local/share/cad-work/band-seam-review/cad"
@@ -139,10 +140,6 @@ write("band_d_invcyl.stp", body(t_bot=True, t_top=False, t_sense=True,
 # C2 attack: rotate ftc_11's rim vertex #85 (on circle #90, r=16,
 # center origin) off the u_ref azimuth by delta radians.
 ftc = open(FTC, errors="replace").read()
-for tag, delta in [("small", 6.25e-12 / 16e-3), ("big", 1.6e-6 / 16e-3)]:
-    # offsets in KERNEL metres: 6.25e-12*16e-3... express directly:
-    # arc offset = 16mm * delta; "small" => 1e-10 m, "big" => 1.6e-6 m.
-    pass
 def rotate_vertex(txt, delta):
     old = "#84=CARTESIAN_POINT('',(0.0,-16.0,0.0));"
     assert old in txt

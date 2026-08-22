@@ -53,7 +53,8 @@ rims, at z = Z1 and z = Z2, sitting at neither extreme.
                  two `kind != "xsplit"` guards that suppress the
                  single-face walls.
 """
-import math, sys
+import math
+import sys
 
 R, RI, H = 10.0, 6.0, 20.0          # mm
 Z1, Z2 = 6.0, 14.0
@@ -131,10 +132,19 @@ def build(kind):
     s.add("PRODUCT('xs','xs','',(#8))")
     s.add("PRODUCT_CONTEXT('',#2,'mechanical')")
     s.add("PRODUCT_DEFINITION_CONTEXT('part definition',#2,'design')")
-    s.n += 1; absr_slot = len(s.lines); s.lines.append(None)
-    world = s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)); assert world == 14
-    s.n += 1; msb_slot = len(s.lines); s.lines.append(None); msb = 15
-    s.n += 1; shell_slot = len(s.lines); s.lines.append(None); shell = 16
+    s.n += 1
+    absr_slot = len(s.lines)
+    s.lines.append(None)
+    world = s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0))
+    assert world == 14
+    s.n += 1
+    msb_slot = len(s.lines)
+    s.lines.append(None)
+    msb = 15
+    s.n += 1
+    shell_slot = len(s.lines)
+    s.lines.append(None)
+    shell = 16
 
     # ---- vertices ----------------------------------------------------
     pos, V = {}, {}

@@ -243,7 +243,7 @@ def _all_tier(root: str) -> dict[str, str]:
     try:
         dir_of, _ = _members(root)
         pkgs = ",".join(sorted(dir_of.values()))
-    except Exception:
+    except Exception:  # noqa: BLE001 — fail OPEN to the whole workspace, like the caller below
         pkgs = ""
     return {"TIER": "all", "PKGS": pkgs, "CARGO_SCOPE": "--workspace"}
 

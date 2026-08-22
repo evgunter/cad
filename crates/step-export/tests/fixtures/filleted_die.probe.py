@@ -254,9 +254,14 @@ for ec in arcs:
     loc, axis, rdir = placement(ref(args(ENT[circle][1])[1]))
     ydir = cross(axis, rdir)
 
+    # B023 on `loc`/`ydir`/`rdir`: bugbear flags a closure over a loop
+    # variable because such a closure usually outlives the iteration that
+    # bound it. This one does not — `angle` is defined, called twice on the
+    # next line, and rebound on the next pass; there is no later call to
+    # read a stale binding.
     def angle(p):
-        d = sub(p, loc)
-        return math.atan2(dot(d, ydir), dot(d, rdir))
+        d = sub(p, loc)  # noqa: B023
+        return math.atan2(dot(d, ydir), dot(d, rdir))  # noqa: B023
 
     sweep = (angle(p1) - angle(p0)) % (2.0 * math.pi)
     worst = max(worst, abs(sweep - math.pi / 2.0))

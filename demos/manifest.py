@@ -267,7 +267,7 @@ def _selftest():
     # Integer coordinates, so the three products sum exactly in any
     # order.
     def dot(a, b):
-        return sum(x * y for x, y in zip(a, b))
+        return sum(x * y for x, y in zip(a, b, strict=True))
 
     pairs = (
         ((2.0, -5.0, 11.0), (3.0, 7.0, -2.0)),
@@ -354,7 +354,7 @@ def _selftest():
             try:
                 read_scenes(d)
             except SystemExit as e:
-                for want in wanted + ("re-run the generator",):
+                for want in (*wanted, "re-run the generator"):
                     assert want in str(e), (path, want, str(e))
             else:
                 raise AssertionError(f"a manifest missing {path} must refuse")

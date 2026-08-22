@@ -279,7 +279,7 @@ FREECAD_TEXTS = [
 MATPLOTLIB_TEXTS = [
     ("Software", "Matplotlib version3.10.3, https://matplotlib.org/")
 ]
-WILD_TEXTS = MATPLOTLIB_TEXTS + [("Author", WILD_AUTHOR)]
+WILD_TEXTS = [*MATPLOTLIB_TEXTS, ("Author", WILD_AUTHOR)]
 
 
 def selftest():
