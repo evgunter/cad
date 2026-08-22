@@ -103,6 +103,17 @@ TIER_BLIND = (
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a
 # confession, not a disposition: it says a check runs in one half only.
 MIRROR_EXEMPT = {
+    "scripts/interval-only-selection.py": (
+        "local",
+        "the interval lane's set difference against the default build's test "
+        "list. Its hosted mirror was retired 2026-08-22 with configuration "
+        "sampling: a sampled run draws ONE lane, so on an interval draw the "
+        "default legs the selection subtracts are not running and their 93% "
+        "of the suite would be gated by nothing. The local half still runs "
+        "both lanes on one tree, where the overlap is the pure re-execution "
+        "it always was, so the script keeps exactly one caller; ci-local.sh "
+        "says so at the row",
+    ),
     "demos/render-uv.sh": (
         "local",
         "the committed UV sheet drift row. Its hosted mirror was retired "
@@ -1055,8 +1066,37 @@ def plant_clean(t: str) -> None:
         fh.write('if [ "$TIER" = docs ]; then\n  exit 0\nfi\n')
         for i, n in enumerate(names):
             fh.write(f"# HOSTED MIRROR: discipline / mirrored step {i}\nscripts/{n}\n")
-        fh.write("demos/render-uv.sh\ncd tools/toolcrate && cargo test\n")
-    open(os.path.join(t, "demos/render-uv.sh"), "w").close()
+        # EVERY local-only exemption, DERIVED. The orphan check requires each
+        # MIRROR_EXEMPT path to be named by the side it is exempted into, so a
+        # clean fixture that hardcodes one of them reds the whole selftest the
+        # next time an entry is added — and reds it as "FAILED on a clean
+        # fixture", which points at this builder rather than at the new entry.
+        for path in _local_only_exempt():
+            fh.write(f"{path}\n")
+        fh.write("cd tools/toolcrate && cargo test\n")
+    for path in _local_only_exempt():
+        os.makedirs(os.path.join(t, os.path.dirname(path)), exist_ok=True)
+        open(os.path.join(t, path), "w").close()
+
+
+def _local_only_exempt() -> list[str]:
+    """MIRROR_EXEMPT paths the LOCAL half is expected to name.
+
+    A `want` this does not understand is raised rather than skipped: a
+    silently-dropped exemption would leave the fixture unclean in a way whose
+    error message names the fixture, which is the confusion this exists to
+    prevent.
+    """
+    out = []
+    for path, (want, _reason) in sorted(MIRROR_EXEMPT.items()):
+        if want != "local":
+            raise Bail(f"{path}: MIRROR_EXEMPT declares want={want!r}, which the selftest's clean "
+                       "fixture does not know how to satisfy — it can only name a path into the LOCAL "
+                       "half. An exemption the fixture cannot satisfy reds the whole selftest as "
+                       '"FAILED on a clean fixture", naming the fixture instead of the entry,'
+                       + teach("`_local_only_exempt`"))
+        out.append(path)
+    return out
 
 
 def _run(root: str, hosted: bool = False) -> tuple[int, str]:
