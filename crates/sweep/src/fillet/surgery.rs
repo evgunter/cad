@@ -222,11 +222,12 @@ struct Corner<'a, T: Real> {
 
 /// One closed (plane–sphere) chain resolved onto its supports.
 ///
-/// The plane side is ONE face (the rim is one of its rings). The
-/// sphere side is per-arc: a revolve-minted cap arrives as half-cap
-/// faces split by meridian seam edges through the pole, so each rim
-/// arc bounds its own sphere face and consecutive arcs meet at a rim
-/// vertex where exactly one MERIDIAN edge descends into the cap.
+/// The plane side is ONE face. The sphere side is per-arc: on a LADDER
+/// rim a revolve-minted cap arrives as half-cap faces split by meridian
+/// seam edges through the pole, so each rim arc bounds its own sphere
+/// face and consecutive arcs meet at a rim vertex where exactly one
+/// MERIDIAN edge descends into the cap. [`RimShape`] carries what is
+/// true of each shape beyond that.
 struct RimPlan<'a, T: Real> {
     chain: &'a Chain<T>,
     /// The planar support.
@@ -1679,7 +1680,7 @@ fn seam_split_param<T: Decide + Bounds>(
     }
     Err(unbuilt_chain(
         rim,
-        "the sphere trimline does not cross a rim meridian inside its span",
+        "a trimline does not cross its support's seam meridian inside its span",
     ))
 }
 
