@@ -342,3 +342,14 @@ application; #762 confirmed UNRELATED on the call graph and stays
 open as a Wave-2 rider). NEXT after SSIFLAT: block VERBS-2 draw +
 VERBS-RING (ratified definition, the void-door factoring) and the
 VERBS-ARMS spec. Seam sweep: verbs-chamfer lane.
+
+## VERBS-RING spec committed; block VERBS-2 drawn (2026-08-22)
+
+docs/VERBS-RING-SPEC.md: the ratified O4 definition executed — the
+void-insertion door factored callable-without-SSI (behavior-
+preserving for booleans, bit-identical), FullRevolveHoles retired
+with containment certified FROM THE PROFILE's own validated 2-D
+margins (no 3-D box tests — #750 stays out of the unit), klein
+wall 6 flips, the curved-two-shell STEP refusal recorded as the
+known standing gate. Difficulty M logged pre-draw; block VERBS-2
+drawn (mapping lane-private per blinding); lane verbs-ring next.
