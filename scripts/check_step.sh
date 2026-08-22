@@ -19,14 +19,18 @@
 # have it.
 #
 # ON THE GATE OF RECORD A MISSING FreeCAD IS FATAL, AND THAT DOES NOT REST ON
-# A FLAG. `GITHUB_ACTIONS` is set by the runner itself: no edit to this repo
-# can unset it, which is exactly what an edit to `REQUIRE_FREECAD=1` in ci.yml
-# could do. Deleting that assignment used to turn this row into "SKIP, exit 0,
-# no STEP fixture verified" on every PR thereafter, with nothing reading the
-# flag to notice — a check that does not run LESS often but stops running at
-# all. The declaration is kept anyway and is CHECKED below, for the reason it
-# was written: it is the workflow saying out loud, where a reader of the job
-# meets it, that this row is not allowed to skip.
+# A FLAG. `GITHUB_ACTIONS` is set by the runner itself and no edit to this repo
+# can unset it, which is the whole difference between it and `REQUIRE_FREECAD`:
+# a variable this repo assigns is a variable this repo can stop assigning, and
+# the failure that produces is not "the check runs less often" but "SKIP, exit
+# 0, no STEP fixture verified", on every PR, with nothing left reading the flag
+# to notice. A check that can be switched off entirely is the kind worth a
+# condition an edit cannot reach.
+#
+# THE DECLARATION IS KEPT ANYWAY, AND CHECKED BELOW. It is the workflow saying
+# out loud, where a reader of the job meets it, that this row is not allowed to
+# skip — and a declaration nothing reads is the defect this row exists to end,
+# so it does not get re-minted inside the fix for it.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"

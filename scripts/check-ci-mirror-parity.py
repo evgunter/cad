@@ -124,13 +124,13 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 MIRROR_MARKER_FLOOR = 38
 
 # The clean fixture's dimension — HOW MANY mirrored rows the miniature repo
-# has — which used to be this same constant. It is a different quantity that
-# happened to share a number: one is a claim about this repo's local half, the
-# other is how big a test tree needs to be to exercise a citation. Sharing the
-# knob meant a deliberate change to the production floor silently resized every
-# case, and made the fixture cost scale with a number that has nothing to do
-# with it. Three rows is what the cases need: enough that "the markers deleted"
-# and "a marker naming the wrong job" are distinguishable from an empty half.
+# has. SEPARATE FROM THE FLOOR ABOVE, and it has to be: one is a claim about
+# this repo's local half and the other is how big a test tree needs to be to
+# exercise a citation. One knob for both would put the fixture's size under a
+# production decision, so moving the floor would silently resize every case and
+# the fixture's cost would scale with a number that has nothing to do with it.
+# Three rows is what the cases need: enough that "the markers deleted" and "a
+# marker naming the wrong job" are distinguishable from an empty half.
 FIXTURE_MIRRORED_ROWS = 3
 
 # The shape a `NO LOCAL MIRROR:` reason has to have. A FLOOR ON FORM, and only
@@ -1182,9 +1182,10 @@ def selftest() -> None:
     def reason_detached(t):    _sub(t, HOSTED_HALF, "  # NO LOCAL MIRROR: nothing is archived on one machine\n", "  # NO LOCAL MIRROR: detached\n\n  # NO LOCAL MIRROR: nothing is archived on one machine\n")
     # A reason that satisfies "not empty" and says what an empty one says.
     def reason_placeholder(t): _sub(t, HOSTED_HALF, "  # NO LOCAL MIRROR: nothing is archived on one machine\n", "  # NO LOCAL MIRROR: n/a\n")
-    # TWO reasons in one block. Only one is read, so which one wins is a
-    # question of writing order — an empty one first and a real one second
-    # used to be accepted while the same pair reversed fired.
+    # TWO reasons in one block. Only one can be read, so any rule that picks
+    # between them makes the verdict depend on writing order: the same two
+    # lines reversed would say something different about the same job. Neither
+    # order is accepted.
     def reason_twice(t):       _sub(t, HOSTED_HALF, "  # NO LOCAL MIRROR: nothing is archived on one machine\n", "  # NO LOCAL MIRROR:\n  # NO LOCAL MIRROR: nothing is archived on one machine\n")
     # A WHOLE SECOND FILE as the place to put an unmirrored job. This one
     # prunes correctly and parses cleanly, so every other claim passes it;
