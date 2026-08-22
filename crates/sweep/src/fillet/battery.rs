@@ -787,7 +787,8 @@ fn classify_arm<T: Bounds>(
             },
             Surface::Plane { origin, .. },
         ) => {
-            let mut b = plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius, senses.0);
+            let mut b =
+                plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius, senses.0);
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
             Ok((BlendArm::PlaneSphereTorus, b))
         }

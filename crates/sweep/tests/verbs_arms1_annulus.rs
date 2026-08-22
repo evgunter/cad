@@ -204,7 +204,9 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
     // The same site with a genuine kink: the tangent leaving the vertex
     // rotated by a degree.
     let tau_in = c.carrier().deriv(t1);
-    let off = tau_in.cross(geom_core::Vec3::new(1.0, 2.0, 3.0)).normalize();
+    let off = tau_in
+        .cross(geom_core::Vec3::new(1.0, 2.0, 3.0))
+        .normalize();
     let kinked = tau_in + off * (0.02 * tau_in.norm());
     match chain_g1(tau_in, kinked, arm, vertex, band()) {
         Err(FilletError::ChainNotG1 { .. }) => {}
@@ -326,7 +328,8 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         "the partial revolve leaves open plane–sphere arcs"
     );
     match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {}
+        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
+        }
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),
     }
 }

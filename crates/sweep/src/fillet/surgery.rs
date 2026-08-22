@@ -2109,9 +2109,9 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // EXISTING geometry; the piece still touching the rim vertex is the
     // rim-side one. ----
     let split = |body: &mut Body<T>,
-                     seam: EdgeKey,
-                     target: Point3<T>,
-                     site: &'static str|
+                 seam: EdgeKey,
+                 target: Point3<T>,
+                 site: &'static str|
      -> Result<(VertexKey, EdgeKey, EdgeKey), FilletError> {
         let t = seam_split_param(body, seam, l0.edge, target)?;
         let created = body.split_edge(seam, t, tol).map_err(|e| op(site, e))?;
@@ -2136,11 +2136,11 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // that moves to the NEW face is the rim side, so each support keeps
     // its own key and the strips are the new faces. ----
     let trim_circle = |body: &mut Body<T>,
-                           lp: LoopKey,
-                           foot: VertexKey,
-                           rim_side: EdgeKey,
-                           far_side: EdgeKey,
-                           site: &'static str|
+                       lp: LoopKey,
+                       foot: VertexKey,
+                       rim_side: EdgeKey,
+                       far_side: EdgeKey,
+                       site: &'static str|
      -> Result<topo::MefCreated, FilletError> {
         let walk = loop_walk(body, lp)
             .ok_or_else(|| not_intact(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
@@ -2185,7 +2185,11 @@ fn rim_phase_annulus<T: Decide + Bounds>(
             .ok_or_else(|| not_intact(EntityId::Edge(l0.edge), "a rim edge"))?;
         let ph = plane_side_half(body, l0, rim.plane)
             .ok_or_else(|| not_intact(EntityId::Edge(l0.edge), "a rim edge's plane-side half"))?;
-        if ed.he_plus == ph { ed.he_minus } else { ed.he_plus }
+        if ed.he_plus == ph {
+            ed.he_minus
+        } else {
+            ed.he_plus
+        }
     };
     let sphere_loop = loop_of_half(body, sphere_half).ok_or_else(|| {
         not_intact(

@@ -266,7 +266,10 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
     else {
         panic!("a plane–sphere blend is a torus");
     };
-    assert!((center - p(0.0, 0.0, r)).norm() < 1e-14, "the ball rests ABOVE the plane");
+    assert!(
+        (center - p(0.0, 0.0, r)).norm() < 1e-14,
+        "the ball rests ABOVE the plane"
+    );
     assert!((major_radius - s).abs() < 1e-12);
     assert!((minor_radius - r).abs() < 1e-15);
     assert!(
