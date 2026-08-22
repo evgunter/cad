@@ -77,27 +77,26 @@
 //!    `docs/KERNEL-VERBS.md` being paid for by hand, once per wall.
 //!    NOT a probe: there is no verb to call, so there is no refusal
 //!    to pin.
-//! 2. **`fillet_edges` on a FULL solid of revolution refuses
-//!    `TangentialEdge`, and the verdict is false** (wall 1, #554). A full
-//!    revolve's latitude rims are CLOSED circles: start vertex ==
-//!    end vertex. The fillet battery's lever arm is
-//!    `|carrier(t1) − carrier(t0)|`, the straight-line chord between
-//!    those endpoints — which is 5.5e-17 m on a closed rim instead of
-//!    the rim's diameter — and every angular predicate is levered
-//!    against it, so the dihedral classifier reads Zero and reports
-//!    "the supports share a tangent plane". They do not: the neck
-//!    cylinder and the body cone meet at 30°. The SAME profile
-//!    revolved PARTIALLY (open rims, chord 0.27 m) refuses
-//!    `SpineUnsupported` instead — the honest answer. Both are probed
-//!    here, one after the other, because the pair is the evidence.
-//! 3. **The cone×cylinder fillet arm is missing** (wall 2) — the
+//! 2. **A closed rim now meters an honest lever arm** (wall 1 — the
+//!    pair with wall 2 is the evidence). A full revolve's latitude
+//!    rims are CLOSED circles: start vertex == end vertex, so an
+//!    endpoint chord collapses to ~0 there. The battery's lever arm
+//!    is the maximum pairwise chord over the samples
+//!    `{t0, mid, t1}`, which meters a full circular rim at ~its
+//!    diameter — so the neck→flare corner on the FULL revolve
+//!    refuses `SpineUnsupported`, the same honest answer the SAME
+//!    profile revolved PARTIALLY gets. (This pair once split: the
+//!    endpoint-chord lever read ~0 on the closed rim and the
+//!    dihedral classifier decided Zero — a false `TangentialEdge` on
+//!    a 30° corner, #554. Both forms are still probed back to back
+//!    because agreement between them is exactly what #554 restored.)
+//! 3. **The cone×cylinder fillet arm is missing** (walls 1, 2) — the
 //!    `constant-radius fillet on CURVED support pairs` row. Recorded,
 //!    NOT wanted: Evan's reading (2026-08-16) is that the meridian
 //!    arc is the better answer for coaxial supports, because the
 //!    blend is then a constructed part of the shape instead of a
-//!    post-hoc roll. Wall 2 stands as the record of what the verb
-//!    says today, and as the control for wall 1 — it is the same
-//!    corner with an honest lever arm.
+//!    post-hoc roll. Both walls stand as the record of what the verb
+//!    says today, at an honest lever on both rims.
 //! 4. **No boolean may touch a Cone or a Torus face** (walls 3, 4).
 //!    The operand gate is per-FACE-KIND and it rejects the whole
 //!    body: `union` refuses `CurvedBooleanUnsupported { kind: Torus }`
@@ -495,10 +494,12 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
         .collect()
 }
 
-/// The straight-line chord between an edge's endpoints — the lever
-/// arm every angular fillet predicate is metered against. Findings
-/// entry 2 is a statement about this number.
-fn endpoint_chord<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
+/// The lever arm every angular fillet predicate is metered against —
+/// the maximum pairwise chord over the battery's own per-link sample
+/// schedule (`sweep::fillet::battery::CHAIN_SAMPLES`). Findings
+/// entry 2 is a statement about this number: it stays ~the rim's
+/// diameter whether or not the rim closes.
+fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
     let e = body.get_edge(edge).expect("edge");
     let c = body
         .get_curve_geom(e.curve)
@@ -506,7 +507,21 @@ fn endpoint_chord<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
         .certified()
         .expect("a revolved rim carries a certified carrier");
     let (t0, t1) = c.params();
-    (c.carrier().eval(t1) - c.carrier().eval(t0)).norm().f()
+    let carrier = c.carrier();
+    let n = pncad::sweep::fillet::battery::CHAIN_SAMPLES;
+    let pts: Vec<_> = (0..n)
+        .map(|i| {
+            let f = S::from_f64(f64::from(i) / f64::from(n - 1));
+            carrier.eval(t0 + (t1 - t0) * f)
+        })
+        .collect();
+    let mut best = S::from_f64(0.0);
+    for (i, a) in pts.iter().enumerate() {
+        for b in &pts[(i + 1)..] {
+            best = best.max((*b - *a).norm());
+        }
+    }
+    best.f()
 }
 
 /// The bottle stop.
@@ -718,14 +733,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         (2, 2),
         "each sharp band has two cone×cylinder corners, one per wall"
     );
-    let (chord_full, chord_part) = (
-        endpoint_chord(&sharp_full, full_edges[0]),
-        endpoint_chord(&sharp_part, part_edges[0]),
+    let (lever_full, lever_part) = (
+        lever_arm(&sharp_full, full_edges[0]),
+        lever_arm(&sharp_part, part_edges[0]),
     );
     println!(
-        "   the fillet battery's lever arm on this corner: {chord_full:.3e} m when the \
-         rim is CLOSED (full revolve), {chord_part:.3e} m when it is open (partial). \
-         Same corner, same 30° dihedral."
+        "   the fillet battery's lever arm on this corner: {lever_full:.3e} m when the \
+         rim is CLOSED (full revolve), {lever_part:.3e} m when it is open (partial). \
+         Same corner, same 30° dihedral, honest levers both."
     );
     crate::walls::wall(
         "bottle",
@@ -739,13 +754,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        // The claim is the FALSEHOOD: a 40° dihedral reported as
-        // tangential, because the closed rim's endpoint chord is the
-        // lever arm and it is zero.
-        |e| matches!(e, FilletError::TangentialEdge { .. }),
-        "delete the sharp-band probe — and check WHY it passed: if the answer is \
-         still `TangentialEdge` on a transverse corner, the wall did not move, the \
-         report did",
+        // The honest refusal, and the SAME one wall 2 gets: the
+        // closed rim meters ~its diameter, the dihedral signs
+        // definitely, and what is actually missing is the
+        // cone×cylinder arm (findings entry 3).
+        |e| matches!(e, FilletError::SpineUnsupported { .. }),
+        "author the bulb's blends with fillet_edges instead of in the meridian",
     );
     crate::walls::wall(
         "bottle",

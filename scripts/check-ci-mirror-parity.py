@@ -41,10 +41,15 @@ Four things that claim does NOT cover, none of them hidden:
 WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order.
 Claims 1-4 are about PATHS, so a hosted row that runs work inline — `cargo` in a
 `run:` block, with no `scripts/` or `demos/` path to match — is outside them.
-That is the residue **S127 / D71** records at this file's `interval_backend`
-row: `ci.yml`'s `oracle-certify` job has no local mirror, and nothing enforces
-ci.yml <-> ci-local.sh JOB parity. Claim 5 closes the `tools/` corner of it by
-name; the rest is a bigger claim than this file makes. Claim 6 reads
+Claim 9 is what covers that population: it is about JOBS rather than paths, and
+it is deliberately coarse — one citation per hosted job, not per row inside it,
+because a hosted job's steps and a local row's function body are not the same
+partition of the work and pretending they are would be a checker of a
+coincidence. What it proves is that no hosted JOB is unaccounted for locally.
+It does NOT prove the two run the same commands, and it does not prove the
+local row a citation sits above still exists — a marker is a comment, and
+deleting the row under it leaves the citation resolving perfectly well against
+the hosted step it names. Claim 6 reads
 `.github/workflows/*.yml` and nothing else that can trigger a checkout, so a
 composite action under `.github/actions/` is outside it. And, as everywhere,
 wiring is not execution: a step disabled by an `if:` on the STEP still satisfies
@@ -83,6 +88,10 @@ TIER_BLIND = (
     "scripts/gates/gate-roster.sh",
     "scripts/gates/probe-suite-census.sh --citations",
     "scripts/check-ci-mirror-parity.py",
+    # Not because its inputs are prose — because a change WIDENING the
+    # filter's docs branch classifies itself as docs, so the tier that would
+    # skip this self-test is the tier it is about.
+    "scripts/ci-filter.py --selftest",
     # The python linter. Its inputs are every tracked .py and .pyi, some of
     # them under `local-scripts/` — a tree whose changes classify TIER=docs and
     # which every hosted job but `mirror` deletes at checkout. Sited anywhere
@@ -123,11 +132,36 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 # population cannot silently SHRINK, and there is nothing to derive it from. A
 # marker is a sentence someone chose to write; no file lists which sentences
 # ought to exist. Lowering it is a decision, and reads as one in a diff.
-MIRROR_MARKER_FLOOR = 13
+MIRROR_MARKER_FLOOR = 38
+
+# The clean fixture's dimension — HOW MANY mirrored rows the miniature repo
+# has. SEPARATE FROM THE FLOOR ABOVE, and it has to be: one is a claim about
+# this repo's local half and the other is how big a test tree needs to be to
+# exercise a citation. One knob for both would put the fixture's size under a
+# production decision, so moving the floor would silently resize every case and
+# the fixture's cost would scale with a number that has nothing to do with it.
+# Three rows is what the cases need: enough that "the markers deleted" and "a
+# marker naming the wrong job" are distinguishable from an empty half.
+FIXTURE_MIRRORED_ROWS = 3
+
+# The shape a `NO LOCAL MIRROR:` reason has to have. A FLOOR ON FORM, and only
+# on form — no checker can read whether a reason is TRUE, and this one does not
+# pretend to. What it buys is that a placeholder costs the same keystrokes as
+# saying the thing: `# NO LOCAL MIRROR: x` satisfies "not empty" while saying
+# exactly what an empty one says, and the error text for the empty case ("an
+# exception with no reason is where the next one goes") is as true of `x` as it
+# is of nothing at all. A subject, a verb and an object is the cheapest
+# description of a sentence that a machine can hold.
+NO_MIRROR_MIN_WORDS = 4
+NO_MIRROR_MIN_CHARS = 24
 
 SCRIPT_RE = re.compile(r"(?:^|[^A-Za-z0-9_/.-])((?:scripts|demos)/[A-Za-z0-9_/.-]+\.(?:sh|py))")
 COMMENT_RE = re.compile(r"^\s*#")
 MARKER_RE = re.compile(r"#\s*HOSTED MIRROR:\s*(.*?)\s*$")
+# Claim 9's confession, written in ci.yml AT THE JOB it excuses. Not a list in
+# this file: a central exception table is a place to put things, and nobody
+# reading the job would see that it is on it.
+NO_MIRROR_RE = re.compile(r"#\s*NO LOCAL MIRROR:\s*(.*?)\s*$")
 
 
 class Bail(Exception):
@@ -145,6 +179,8 @@ SELF = "scripts/check-ci-mirror-parity.py"
 # not there. They still owe the reader an action, and they say this so the
 # self-test can tell "no guidance needed" from "guidance forgotten".
 NO_TEACH = "There is nothing to extend here"
+# The same sentence as a suffix, for a message that ends in a full stop.
+NO_TEACH_TAIL = " " + NO_TEACH + "."
 
 
 def teach(where: str) -> str:
@@ -618,7 +654,7 @@ def unconditional(jobs: dict[str, "Job"], name: str, seen: frozenset[str] = froz
     return None
 
 
-def check(root: str) -> list[str]:
+def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     errs: list[str] = []
 
     def err(msg: str) -> None:
@@ -829,7 +865,32 @@ def check(root: str) -> list[str]:
                 "half of the pair. Move the row above the early exit")
 
     # CLAIM 8 — mirror citations resolve, job AND step.
-    steps = {(j.name, st.name) for j in ci_jobs.values() for st in j.steps if st.name}
+    #
+    # EVERY WORKFLOW FILE, not just ci.yml. A citation names `<job> / <step>`,
+    # and jobs live wherever a workflow file puts them: `render.yml` carries
+    # four of this repo's build lanes. Reading one file would make the job half
+    # of a citation resolvable only by coincidence of which file it landed in.
+    file_jobs: dict[str, dict[str, Job]] = {}
+    for wf in sorted(os.listdir(WORKFLOW_DIR)):
+        if wf.endswith((".yml", ".yaml")):
+            wf_path = f"{WORKFLOW_DIR}/{wf}"
+            file_jobs[wf_path] = {j.name: j for j in read_workflow(wf_path)}
+    all_jobs: dict[str, Job] = {}
+    job_file: dict[str, str] = {}
+    for wf_path, here in file_jobs.items():
+        for j in here.values():
+            if j.name in all_jobs:
+                # A `<job> / <step>` citation has no file half, so two jobs of
+                # one name make every citation of that name ambiguous — and the
+                # ambiguity is silent, because either one resolves.
+                err(f"job `{j.name}` is defined in both {job_file[j.name]} and {wf_path}. A HOSTED "
+                    "MIRROR citation names a job and a step and has no room for a file, so a "
+                    "duplicated job name makes every citation of it resolve against whichever "
+                    "workflow this check read first. Rename one")
+                continue
+            all_jobs[j.name] = j
+            job_file[j.name] = wf_path
+    steps = {(j.name, st.name) for j in all_jobs.values() for st in j.steps if st.name}
     # Markers ARE comments, so they are read from the raw file.
     with open(LOCAL_HALF, encoding="utf-8") as fh:
         markers = sorted({m.group(1) for line in fh.read().splitlines()
@@ -842,15 +903,116 @@ def check(root: str) -> list[str]:
             continue
         job_name, step_name = marker.split(" / ", 1)
         if (job_name, step_name) not in steps:
-            err(f"{LOCAL_HALF} cites a hosted mirror `{marker}`, and ci.yml has no step named "
-                f"`{step_name}` in job `{job_name}`. Renaming a step or moving it between jobs leaves "
-                "every sentence citing it quietly false")
-    if len(markers) < MIRROR_MARKER_FLOOR:
+            err(f"{LOCAL_HALF} cites a hosted mirror `{marker}`, and no workflow in {WORKFLOW_DIR}/ "
+                f"has a step named `{step_name}` in a job `{job_name}`. Renaming a step or moving it "
+                "between jobs leaves every sentence citing it quietly false")
+    if len(markers) < floor:
         err(f"{LOCAL_HALF} carries {len(markers)} HOSTED MIRROR marker(s), below the "
-            f"{MIRROR_MARKER_FLOOR} it had when this floor was set. Deleting a marker is how a citation "
+            f"{floor} it had when this floor was set. Deleting a marker is how a citation "
             "check becomes vacuous; if a row genuinely lost its hosted mirror, lower the floor deliberately")
 
+    # CLAIM 9 — JOB PARITY. Every job in ci.yml is either MIRRORED (some
+    # HOSTED MIRROR marker in the local half names it, and claim 8 above has
+    # already proved that citation resolves to a real step) or CONFESSED, by a
+    # `# NO LOCAL MIRROR: <reason>` comment written at the job itself.
+    #
+    # WHY THE HOSTED SIDE IS ENUMERATED AND THE LOCAL SIDE DECLARES. The two
+    # halves do not share a partition of the work — one hosted job can be
+    # three local rows and one local row can span two hosted jobs — so any
+    # rule that DERIVED the local list by a pattern and matched it against job
+    # names would be checking a coincidence, which is the mistake both this
+    # file's header and `gate-roster.sh`'s record having made. So the side
+    # that can be enumerated exactly is enumerated (the recogniser above), and
+    # the side that cannot is required to say, in writing, which hosted job
+    # each of its rows answers to.
+    #
+    # WHY THE REASON LIVES IN ci.yml AND NOT IN A TABLE HERE. A list of
+    # exceptions in this file is a place to put things, invisible from the job
+    # it excuses. At the job, it is in the diff of anyone adding a job and in
+    # front of anyone reading one. A confession with no reason is not a
+    # confession, so an empty one is an error; and a job that is both cited
+    # and excused has an expired confession, exactly as MIRROR_EXEMPT does.
+    # AND CLAIM 9 SPANS THEM TOO, for the reason that is the whole point of a
+    # parity gate: a rule that reads one file offers every other file as the
+    # place to put a job. `render.yml` is not hypothetical — it runs `cargo run
+    # -p tour` and `demos/render-uv.sh` on checked-out trees — so a check that
+    # stopped at ci.yml would have been declaring parity over a subset of the
+    # gate the whole time.
+    # PER FILE, against that file's OWN jobs: the placement rule ("the comment
+    # block that runs down to a job's key") is a property of one file's text,
+    # and reading it against a deduplicated job set would report a correctly
+    # placed reason as detached whenever some other file claimed the name.
+    excused: dict[str, str] = {}
+    for wf_path, here in file_jobs.items():
+        excused.update(_no_mirror_reasons(wf_path, here))
+    cited_jobs = {m.split(" / ", 1)[0] for m in markers if " / " in m}
+    for name in sorted(all_jobs):
+        reason = excused.get(name)
+        where = job_file[name]
+        if name in cited_jobs and reason is not None:
+            err(f"{where} job `{name}` carries `NO LOCAL MIRROR` and {LOCAL_HALF} cites it anyway "
+                f'("{reason}"). The confession has expired — delete it, so the comment stays a record '
+                "of jobs that have no local half rather than of ones that once did")
+            continue
+        if name in cited_jobs:
+            continue
+        if reason is None:
+            err(f"{where} job `{name}` has no local mirror: no `# HOSTED MIRROR: {name} / <step>` marker "
+                f"in {LOCAL_HALF} names it, and the job carries no `# NO LOCAL MIRROR:` line. A hosted "
+                "job with no local half is invisible to `local-scripts/gate.sh`, which documents itself "
+                "as the merge gate when hosted Actions is unavailable — that is how `oracle-certify` "
+                "went unmirrored. Mirror it and cite it, or write the reason it cannot be at the job")
+        elif not reason:
+            err(f"{where} job `{name}` carries a `# NO LOCAL MIRROR:` line with no reason after it. An "
+                "exception with no reason is where the next one goes: say why this job has no local "
+                "half, in the same line")
+        elif len(reason.split()) < NO_MIRROR_MIN_WORDS or len(reason) < NO_MIRROR_MIN_CHARS:
+            err(f'{where} job `{name}` carries the reason "{reason}", which is under '
+                f"{NO_MIRROR_MIN_WORDS} words or {NO_MIRROR_MIN_CHARS} characters. That is the empty "
+                "case spelled legally: it satisfies the check without saying what the check asked "
+                "for. Say what this job does that no local row can do")
+
     return errs
+
+
+def _no_mirror_reasons(path: str, jobs: dict[str, "Job"]) -> dict[str, str]:
+    """`# NO LOCAL MIRROR: <reason>` lines in a workflow, by the job each
+    excuses.
+
+    ONE PLACEMENT RULE, AND IT IS STRICT: the line must sit in the contiguous
+    comment block that runs down to a job's key. Anywhere else raises `Bail`.
+    The looser reading — walk up from the comment to whichever job came before
+    it — silently attributes a reason written BETWEEN two jobs to the one
+    ABOVE, so a confession meant for the job you are looking at excuses a
+    different job entirely and both look fine. A rule that can only be
+    satisfied one way is a rule a reader can check by eye.
+    """
+    with open(path, encoding="utf-8") as fh:
+        raw = fh.read().splitlines()
+    at_line = {j.line: j.name for j in jobs.values()}
+    out: dict[str, str] = {}
+    for i, line in enumerate(raw, 1):
+        m = NO_MIRROR_RE.search(line)
+        if not m:
+            continue
+        j = i + 1
+        while j <= len(raw) and raw[j - 1].strip().startswith("#"):
+            j += 1
+        if j not in at_line:
+            raise Bail(f"{path}:{i}: a `NO LOCAL MIRROR` line that is not against a job key — the "
+                       "first non-comment line below it is not the start of a job. Write it in the "
+                       "comment block that runs down to the key of the job it excuses, with no blank "
+                       "line between, so the job it names is the job it is read against."
+                       + NO_TEACH_TAIL)
+        name = at_line[j]
+        if name in out:
+            raise Bail(f"{path}:{i}: job `{name}` carries two `NO LOCAL MIRROR` lines. Only one of "
+                       "them would be read, and which one depends on the order they are written in "
+                       "— so an empty line followed by a real one reads as excused while the same "
+                       "two lines the other way round reads as a defect. A job has one reason or "
+                       "none." + NO_TEACH_TAIL)
+        out[name] = m.group(1)
+    return out
 
 
 # ---------------------------------------------------------------- self-test
@@ -864,12 +1026,15 @@ def plant_clean(t: str) -> None:
     for d in ("scripts/gates", "demos", "local-scripts", ".github/workflows", "tools/toolcrate"):
         os.makedirs(os.path.join(t, d), exist_ok=True)
     open(os.path.join(t, "tools/toolcrate/Cargo.toml"), "w").close()
-    names = [f"check-{i}.sh" for i in range(MIRROR_MARKER_FLOOR)]
+    names = [f"check-{i}.sh" for i in range(FIXTURE_MIRRORED_ROWS)]
     for n in names:
         open(os.path.join(t, "scripts", n), "w").close()
-    # Derived from TIER_BLIND, not listed beside it: claim 3 requires every
-    # named check to exist on disk, so a fixture that enumerates them fails the
-    # moment the list grows — which is a self-test breaking on a correct change.
+    # Derived from TIER_BLIND, not listed again: a second spelling of that
+    # tuple is a second roster, and this file's whole subject is rosters that
+    # drift from what they describe. It is also what keeps this fixture from
+    # breaking on a correct change: claim 3 requires every named check to exist
+    # on disk, so a fixture that enumerated them would fail the moment the list
+    # grew.
     for want in TIER_BLIND:
         open(os.path.join(t, want.split()[0]), "w").close()
     with open(os.path.join(t, HOSTED_HALF), "w") as fh:
@@ -877,14 +1042,25 @@ def plant_clean(t: str) -> None:
         fh.write(f"  {SITING_JOB}:\n    steps:\n      - uses: actions/checkout@v4\n")
         for want in TIER_BLIND:
             fh.write(f"      - name: sited {want}\n        run: {want}\n")
+        # A step the local half can cite without naming a TIER_BLIND path:
+        # the citation marker must survive the plants that delete those rows.
+        fh.write("      - name: sited rows\n        run: echo sited\n")
         fh.write("  discipline:\n    if: needs.filter.outputs.run_build == 'true'\n    steps:\n")
         fh.write("      - uses: actions/checkout@v4\n")
         fh.write("      - name: prune local-only tooling\n        run: rm -rf local-scripts .claude\n")
         for i, n in enumerate(names):
             fh.write(f"      - name: mirrored step {i}\n        run: scripts/{n}\n")
         fh.write("      - name: tools\n        run: cd tools/toolcrate && cargo test\n")
+        # A job with no local half, confessing at its own key — claim 9's
+        # other branch, exercised by the CLEAN fixture so the passing shape is
+        # covered as well as the failing ones.
+        fh.write("  # NO LOCAL MIRROR: nothing is archived on one machine\n")
+        fh.write("  archive:\n    steps:\n      - uses: actions/checkout@v4\n")
+        fh.write("      - name: prune\n        run: rm -rf local-scripts .claude\n")
+        fh.write("      - name: archived\n        run: echo hi\n")
     with open(os.path.join(t, LOCAL_HALF), "w") as fh:
         fh.write("#!/usr/bin/env bash\n")
+        fh.write(f"# HOSTED MIRROR: {SITING_JOB} / sited rows\n")
         for want in TIER_BLIND:
             fh.write(f"{want}\n")
         fh.write('if [ "$TIER" = docs ]; then\n  exit 0\nfi\n')
@@ -923,9 +1099,22 @@ def _local_only_exempt() -> list[str]:
     return out
 
 
-def _run(root: str) -> tuple[int, str]:
+def _run(root: str, hosted: bool = False) -> tuple[int, str]:
+    """One case's subprocess invocation, against the fixture.
+
+    `GITHUB_ACTIONS` IS CLEARED unless a case asks for it. The children are
+    being asked what they say about a miniature repo, not whether they are the
+    gate of record — and `--root` is refused on the gate of record, so leaving
+    an ambient `GITHUB_ACTIONS` in place would make every case below fail with
+    that refusal whenever the self-test itself runs on hosted CI. Which is
+    where it runs: the `mirror` job invokes `--selftest` before the real pass.
+    """
+    env = dict(os.environ)
+    env.pop("GITHUB_ACTIONS", None)
+    if hosted:
+        env["GITHUB_ACTIONS"] = "true"
     r = subprocess.run([sys.executable, os.path.abspath(__file__), "--root", root],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, env=env)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -976,6 +1165,14 @@ def selftest() -> None:
         rc, out = _run(t)
         if rc != 0:
             raise SystemExit(f"SELFTEST FAILED: the checker FAILED on a clean fixture\n{out}")
+        # `--root` carries the FIXTURE's marker floor, so on the gate of record
+        # it is a way to run the real repo against a floor of three. The same
+        # clean fixture, the same arguments, one environment variable the
+        # runner sets and no repo edit can unset.
+        rc, out = _run(t, hosted=True)
+        if rc == 0 or "refused on the gate of record" not in out:
+            raise SystemExit("SELFTEST FAILED: `--root` was accepted under GITHUB_ACTIONS, where it "
+                             f"would lower this gate's own floor\n{out}")
 
     def hosted_only(t):
         _append(HOSTED_HALF, "      - name: new\n        run: scripts/check-new.sh\n")(t)
@@ -1020,6 +1217,33 @@ def selftest() -> None:
     def marker_wrong_job(t):   _sub(t, LOCAL_HALF, "# HOSTED MIRROR: discipline / mirrored step 0", "# HOSTED MIRROR: k-lint / mirrored step 0")
     def marker_step_renamed(t): _sub(t, HOSTED_HALF, "- name: mirrored step 0", "- name: mirrored step zero")
     def markers_deleted(t):    _sub(t, LOCAL_HALF, "# HOSTED MIRROR: ", "# was: ")
+    def job_unmirrored(t):     _append(HOSTED_HALF, "  lonely:\n    steps:\n      - uses: actions/checkout@v4\n      - name: prune\n        run: rm -rf local-scripts .claude\n      - name: work\n        run: cargo test\n")(t)
+    def job_reason_empty(t):   _append(HOSTED_HALF, "  # NO LOCAL MIRROR:\n  lonely:\n    steps:\n      - uses: actions/checkout@v4\n      - name: prune\n        run: rm -rf local-scripts .claude\n      - name: work\n        run: cargo test\n")(t)
+    def confession_expired(t): _append(LOCAL_HALF, "# HOSTED MIRROR: archive / archived\n")(t)
+    def reason_detached(t):    _sub(t, HOSTED_HALF, "  # NO LOCAL MIRROR: nothing is archived on one machine\n", "  # NO LOCAL MIRROR: detached\n\n  # NO LOCAL MIRROR: nothing is archived on one machine\n")
+    # A reason that satisfies "not empty" and says what an empty one says.
+    def reason_placeholder(t): _sub(t, HOSTED_HALF, "  # NO LOCAL MIRROR: nothing is archived on one machine\n", "  # NO LOCAL MIRROR: n/a\n")
+    # TWO reasons in one block. Only one can be read, so any rule that picks
+    # between them makes the verdict depend on writing order: the same two
+    # lines reversed would say something different about the same job. Neither
+    # order is accepted.
+    def reason_twice(t):       _sub(t, HOSTED_HALF, "  # NO LOCAL MIRROR: nothing is archived on one machine\n", "  # NO LOCAL MIRROR:\n  # NO LOCAL MIRROR: nothing is archived on one machine\n")
+    # A WHOLE SECOND FILE as the place to put an unmirrored job. This one
+    # prunes correctly and parses cleanly, so every other claim passes it;
+    # claim 9 reading ci.yml alone was what let it through.
+    def second_file_job(t):
+        with open(os.path.join(t, ".github/workflows/aside.yml"), "w") as fh:
+            fh.write("jobs:\n  aside:\n    steps:\n      - uses: actions/checkout@v4\n"
+                     "      - name: prune\n        run: rm -rf local-scripts .claude\n"
+                     "      - name: work\n        run: cargo test\n")
+    # One job name in two files. A `<job> / <step>` citation has no file half.
+    def duplicate_job_name(t):
+        with open(os.path.join(t, ".github/workflows/aside.yml"), "w") as fh:
+            fh.write("jobs:\n  # NO LOCAL MIRROR: a second definition under one name, for this case\n"
+                     "  archive:\n    steps:\n      - uses: actions/checkout@v4\n"
+                     "      - name: prune\n        run: rm -rf local-scripts .claude\n"
+                     "      - name: archived\n        run: echo hi\n")
+
     def exemption_inverted(t):
         _sub(t, LOCAL_HALF, "demos/render-uv.sh\n", "")
         _append(HOSTED_HALF, "      - name: uv\n        run: demos/render-uv.sh\n")(t)
@@ -1047,24 +1271,37 @@ def selftest() -> None:
     _case("looks like a shell function definition", bad_func_spelling)
     _case("BOTH halves now name it", exemption_expired)
     _case("NEITHER half names it", exemption_orphaned)
-    _case("has no step named", marker_wrong_job)
-    _case("has no step named", marker_step_renamed)
+    _case("has a step named", marker_wrong_job)
+    _case("has a step named", marker_step_renamed)
     _case("below the", markers_deleted)
     _case("declared local-only in MIRROR_EXEMPT", exemption_inverted)
     # THE SITING RULE, both halves. These are the cases the reviewer's
     # experiment plants: hollow `mirror`, move the steps back into a job that
     # skips on docs tier; and, locally, move the row below the docs exit.
+    _case("has no local mirror", job_unmirrored)
+    _case("with no reason after it", job_reason_empty)
+    _case("The confession has expired", confession_expired)
+    _case("not against a job key", reason_detached)
+    _case("which is under", reason_placeholder)
+    _case("carries two `NO LOCAL MIRROR` lines", reason_twice)
+    _case("aside.yml job `aside` has no local mirror", second_file_job)
+    _case("is defined in both", duplicate_job_name)
     _case("carries an `if:`", _hollow_siting_job)
     _case("a definition above the exit is not a run", _local_row_below_exit)
     _case("never runs", _local_row_deleted)
     print("check-ci-mirror-parity selftest OK: every Bail names the symbol to extend or says there is "
-          "none; passes a clean fixture; fires on a one-sided row, a "
+          "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
+          "record; fires on a one-sided row, a "
           "one-sided gate MODE, a path both halves name that does not exist, an orphan script, a "
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
           "pruning, an unparseable workflow, a flush-style or three-space step block hiding a checked-out job, the siting job given a `needs:` onto a skipping job or `continue-on-error`, a merge key, an unknown job or step key, a tab, an unrecognised shell function spelling, an exemption that expired or was orphaned, a marker naming the wrong job or a renamed step, the markers "
-          "deleted, an inverted exemption, the sited steps moved back into an `if:` job, and the local "
-          "half's rows wrapped in a function called below its docs-tier exit, or deleted")
+          "deleted, an inverted exemption, the sited steps moved back into an `if:` job, the local "
+          "half's rows wrapped in a function called below its docs-tier exit, or deleted, a hosted JOB "
+          "with neither a citation nor a reason, a reason with nothing after it, a reason on a job the "
+          "local half cites anyway, a reason separated from its job key by a blank line, a reason too "
+          "short to be a sentence, two reasons against one job, a job in a SECOND workflow file with "
+          "neither a citation nor a reason, and one job name defined in two files")
 
 
 def _sub(t: str, path: str, a: str, b: str) -> None:
@@ -1111,10 +1348,32 @@ def main() -> int:
     if "--selftest" in args:
         selftest()
         return 0
+    # `--root` IS THE SELF-TEST'S AFFORDANCE and nothing else passes it, which
+    # is why the fixture's floor rides on it rather than on a flag of its own:
+    # a `--marker-floor` a real invocation could reach for would be a way to
+    # lower a merge gate that reads as a flag rather than as a decision.
+    #
+    # AND IT IS REFUSED ON THE GATE OF RECORD, because giving `--root` the
+    # power to lower the floor is precisely what makes it worth reaching for:
+    # `--root .` would run every claim against this repo with a floor of three,
+    # so thirty-five markers could go missing and the row would still pass. The
+    # condition is `GITHUB_ACTIONS`, which the runner sets and no edit to this
+    # repo can unset — the same reason `check-python-lint.py` reads it rather
+    # than a flag of its own. Off the gate of record the self-test uses it
+    # freely; that is what it is for.
+    floor = MIRROR_MARKER_FLOOR
     if "--root" in args:
+        if os.environ.get("GITHUB_ACTIONS"):
+            print("ERROR: check-ci-mirror-parity: `--root` is the self-test's fixture affordance and "
+                  "carries the fixture's marker floor with it, so it is refused on the gate of record: "
+                  "it would run the real repo against a floor of "
+                  f"{FIXTURE_MIRRORED_ROWS} instead of {MIRROR_MARKER_FLOOR}. Invoke the checker with "
+                  "no arguments, or `--selftest`.", file=sys.stderr)
+            return 1
         root = os.path.abspath(args[args.index("--root") + 1])
+        floor = FIXTURE_MIRRORED_ROWS
     try:
-        errs = check(root)
+        errs = check(root, floor)
     except Bail as exc:
         if os.environ.get("GITHUB_ACTIONS"):
             print(f"::error::check-ci-mirror-parity: {exc}")
@@ -1134,7 +1393,9 @@ def main() -> int:
           "or missing check under scripts/ or demos/, both tools/ crates' halves agree, every checked-out "
           f"job in {WORKFLOW_DIR}/ but `{SITING_JOB}` prunes local-only tooling before reading it, every "
           "tier-blind check is sited in a job that no `if:`, `needs:` chain or `continue-on-error` can "
-          "skip and above the local half's docs exit, and all hosted-mirror citations resolve")
+          "skip and above the local half's docs exit, all hosted-mirror citations resolve against every "
+          f"workflow in {WORKFLOW_DIR}/, and every job in every one of them is either cited by the local "
+          "half or says at its own key, in a sentence, why it has no local half")
     return 0
 
 
