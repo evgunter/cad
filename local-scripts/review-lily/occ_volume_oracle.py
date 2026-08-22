@@ -1,6 +1,8 @@
 # FreeCAD headless: import each lily STEP, report OCC volume (mm^3 internal),
 # compare against MY independently derived closed forms (m^3 -> mm^3).
-import math, sys, os
+import math
+import os
+import sys
 import Part
 
 def torus_seg(R, r, deg):
