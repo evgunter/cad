@@ -121,7 +121,7 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 # population cannot silently SHRINK, and there is nothing to derive it from. A
 # marker is a sentence someone chose to write; no file lists which sentences
 # ought to exist. Lowering it is a decision, and reads as one in a diff.
-MIRROR_MARKER_FLOOR = 32
+MIRROR_MARKER_FLOOR = 38
 
 # The clean fixture's dimension — HOW MANY mirrored rows the miniature repo
 # has — which used to be this same constant. It is a different quantity that
@@ -891,9 +891,9 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
             continue
         job_name, step_name = marker.split(" / ", 1)
         if (job_name, step_name) not in steps:
-            err(f"{LOCAL_HALF} cites a hosted mirror `{marker}`, and ci.yml has no step named "
-                f"`{step_name}` in job `{job_name}`. Renaming a step or moving it between jobs leaves "
-                "every sentence citing it quietly false")
+            err(f"{LOCAL_HALF} cites a hosted mirror `{marker}`, and no workflow in {WORKFLOW_DIR}/ "
+                f"has a step named `{step_name}` in a job `{job_name}`. Renaming a step or moving it "
+                "between jobs leaves every sentence citing it quietly false")
     if len(markers) < floor:
         err(f"{LOCAL_HALF} carries {len(markers)} HOSTED MIRROR marker(s), below the "
             f"{floor} it had when this floor was set. Deleting a marker is how a citation "
@@ -1208,8 +1208,8 @@ def selftest() -> None:
     _case("looks like a shell function definition", bad_func_spelling)
     _case("BOTH halves now name it", exemption_expired)
     _case("NEITHER half names it", exemption_orphaned)
-    _case("has no step named", marker_wrong_job)
-    _case("has no step named", marker_step_renamed)
+    _case("has a step named", marker_wrong_job)
+    _case("has a step named", marker_step_renamed)
     _case("below the", markers_deleted)
     _case("declared local-only in MIRROR_EXEMPT", exemption_inverted)
     # THE SITING RULE, both halves. These are the cases the reviewer's
