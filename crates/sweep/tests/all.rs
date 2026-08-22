@@ -173,6 +173,8 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_verbs_rim_lever_probes.rs"]
+mod review_verbs_rim_lever_probes;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
@@ -191,6 +193,10 @@ mod revolve_washer;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_rim_closed_lever.rs"]
+mod verbs_rim_closed_lever;
+#[path = "verbs_rim_r1_probes.rs"]
+mod verbs_rim_r1_probes;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

@@ -59,24 +59,26 @@ this register is where "what the kernel will not let me do" stops
 being a scattered note — the section schedules nothing, exactly like
 the table.
 
-- **`fillet_edges` mis-meters every closed rim.** The battery's lever
-  arm is `|carrier(t1) − carrier(t0)|`, the straight-line chord
-  between an edge's endpoints — which is ~0 for a FULL revolve's
-  latitude rims, whose start and end vertex are the same. Every
-  angular predicate is levered against it, so the dihedral classifier
-  decides Zero and returns `TangentialEdge`, i.e. "the supports share
-  a tangent plane", on supports that meet at 30°. **The verdict is
-  false, not merely unhelpful**: the same profile revolved PARTIALLY
-  (open rims, chord 0.27 m) refuses `SpineUnsupported` — the honest
-  answer. Consequence: no full solid of revolution can be filleted at
-  all, and the refusal misdescribes why. `klein::wall_probes` walls 1
-  and 2 are the pair, run back to back. Note what this does to reading
-  an existing probe: the lily's wall 6 refuses `TangentialEdge` at
-  margin exactly 0.0 and diagnoses it as a co-surface seam meridian,
-  which is honest — but it asks for EVERY edge of a full-revolve
-  lantern, so its refusal cannot distinguish that case from this one.
-  Measured 2026-08-16 (`crates/sweep/src/fillet/battery.rs`,
-  `extent_of` + `convexity_at`); filed as **#554**.
+- **`fillet_edges` still refuses every full-revolve rim — now
+  honestly.** The mis-metering half of this entry was FIXED by
+  VERBS-RIM (#554): the battery's lever arm is the maximum pairwise
+  chord over its own per-link sample schedule
+  (`crates/sweep/src/fillet/battery.rs`, `extent_of`), so a closed
+  latitude rim meters ~its diameter, its dihedral decides honestly,
+  and the false `TangentialEdge` ("the supports share a tangent
+  plane", on supports meeting at 30°) is gone — a co-surface seam's
+  refusal is now distinguishable from a closed transverse rim's.
+  What REMAINS: no full solid of revolution can be filleted at the
+  verb level. A closed rim is a one-link closed chain, and the
+  surgery's rim door refuses it typed (`UnsupportedChain`, "a closed
+  chain of fewer than two links") because the one-edge torus band is
+  not built; curved support pairs (cone×cylinder etc.) refuse
+  `SpineUnsupported` earlier, at the analytic-arm table. Both
+  remainders are VERBS-ARMS's territory. `klein::wall_probes` walls
+  1 and 2 now agree (`SpineUnsupported` on the full and the partial
+  revolve alike), and
+  `verbs_rim_r1_probes::a_passing_closed_rim_reaches_the_surgery_and_refuses_unsupported_chain`
+  pins the rim door live.
 - **`mesh::planar`'s banked sub-floor case is no longer synthetic.**
   That module's docs bank exactly one uncovered class — a planar
   face whose boundary points carry off-plane noise, where the chart
