@@ -415,7 +415,10 @@ sound rather than a cut. They land together on one branch.
   produces every artifact under the same name. **−2.8 to −4.2 billed
   min.**
 * **A nightly lane exists** (`.github/workflows/nightly.yml`), holding
-  `watertight`, the rebuild-latency table, the demoted tests and the
+  `watertight`, the rebuild-latency table, the demoted tests (seven at
+  the time of writing, DERIVED rather than listed — see *Demoting a test
+  to the nightly* below; measured on the real tree, the same derivation
+  correctly leaves out all 16 pre-existing plain `#[ignore]`s) and the
   opt-level calibration below. It does not run when main has not moved
   since it last ran — an append-only `nightly/<epoch>-<sha>` tag, with
   the tier question handed to `scripts/ci-filter.py` rather than to a

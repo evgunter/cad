@@ -725,8 +725,11 @@ jobs:
             extra="--no-tests=pass"
           else
             # One `|`-joined term per selected test — the filter's own shape,
-            # counted rather than re-derived.
-            n="$(printf '%s' "$sel" | tr '|' '\n' | wc -l | tr -d ' ')"
+            # counted rather than re-derived. `printf '%s\n'`, not `'%s'`:
+            # `wc -l` counts NEWLINES, so without the trailing one this
+            # under-reports by exactly one, every time, which is a wrong
+            # number in the one line that exists to be checked.
+            n="$(printf '%s\n' "$sel" | tr '|' '\n' | wc -l | tr -d ' ')"
           fi
           echo "demoted tests selected: $n"
           echo "nightly-only (demoted) tests selected: **$n**" >> "$GITHUB_STEP_SUMMARY"
