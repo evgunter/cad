@@ -83,6 +83,10 @@ TIER_BLIND = (
     "scripts/gates/gate-roster.sh",
     "scripts/gates/probe-suite-census.sh --citations",
     "scripts/check-ci-mirror-parity.py",
+    # Not because its inputs are prose — because a change WIDENING the
+    # filter's docs branch classifies itself as docs, so the tier that would
+    # skip this self-test is the tier it is about.
+    "scripts/ci-filter.py --selftest",
 )
 
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a
@@ -849,9 +853,11 @@ def plant_clean(t: str) -> None:
     names = [f"check-{i}.sh" for i in range(MIRROR_MARKER_FLOOR)]
     for n in names:
         open(os.path.join(t, "scripts", n), "w").close()
-    open(os.path.join(t, "scripts/gates/probe-suite-census.sh"), "w").close()
-    open(os.path.join(t, "scripts/check-ci-mirror-parity.py"), "w").close()
-    open(os.path.join(t, "scripts/gates/gate-roster.sh"), "w").close()
+    # Derived from TIER_BLIND, not listed again: a second spelling of that
+    # tuple is a second roster, and this file's whole subject is rosters that
+    # drift from what they describe.
+    for want in TIER_BLIND:
+        open(os.path.join(t, want.split()[0]), "w").close()
     with open(os.path.join(t, HOSTED_HALF), "w") as fh:
         fh.write("jobs:\n")
         fh.write(f"  {SITING_JOB}:\n    steps:\n      - uses: actions/checkout@v4\n")

@@ -144,9 +144,14 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # No cargo, no build slot: greps over three files, milliseconds.
 # `gate-roster.sh` runs again inside the discipline loop on a building change
 # set; running a grep twice is cheaper than a second hand-written roster.
+# The change filter's own self-test belongs here for a reason of its own: the
+# `docs` branch it exercises is the one path in that script that fails OPEN,
+# and a change widening it classifies ITSELF as docs — so the tier that would
+# skip this row is the tier the row is about.
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -154,6 +159,7 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/ci-filter.py --selftest || rc=1
   return $rc
 }
 echo

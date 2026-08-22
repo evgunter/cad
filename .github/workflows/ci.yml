@@ -326,6 +326,20 @@ jobs:
         run: |
           python3 scripts/check-ci-mirror-parity.py --selftest
           python3 scripts/check-ci-mirror-parity.py
+      # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
+      # its own rather than by association. `scripts/ci-filter.py` decides
+      # whether every `if: run_build` job below runs at all, and its `docs`
+      # branch is the one path in it that fails OPEN — a change set wrongly
+      # read as documentation skips the entire gate and reports green. A PR
+      # that widens that branch is a change to `scripts/ci-filter.py`, and
+      # the filter that classifies that PR is the WIDENED one out of the
+      # merge ref: a diff adding `scripts/` to `_is_docs` classifies itself
+      # as docs and skips the job that would have caught it. Sited here, in
+      # the job that carries no `if:`, the self-test runs on that PR anyway.
+      # No toolchain: the fixture ships a stub `cargo`, so this row is
+      # ~1.5 s of stdlib python and git.
+      - name: change filter selftest (the docs tier fails open)
+        run: python3 scripts/ci-filter.py --selftest
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
       - name: probe type-check loop citations

@@ -48,6 +48,7 @@ splitting the closure logic between two tools.
 Usage:
   ci-filter.py --base <ref>        classify `git diff --name-only <ref>...HEAD`
   ci-filter.py --files <path|->    classify an explicit newline-separated list
+  ci-filter.py --selftest          run the fixture battery below and exit
 
 Output: KEY=value lines on stdout, one per line, safe to append to
 $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
@@ -71,14 +72,26 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
 # Files that cannot move a hosted CI result.
 #
 # Documentation: deliberately narrow — only Markdown (anywhere) and the
-# memories/ tree. No crate includes a .md file into its docs (`include_str!`
-# is unused), so a .md change cannot move a doc-test.
+# memories/ tree.
+#
+# EXCEPT THE MARKDOWN A CRATE COMPILES IN, and that exception is DERIVED, not
+# listed. `crates/pncad/src/guide.rs` pulls `docs/GUIDE.md` and four pages
+# under `docs/guide/` into rustdoc with `#![doc = include_str!(...)]`, which
+# makes every Rust block in them a doctest, and `crates/pncad-py/tests/`
+# executes the python blocks out of the same two files. An edit to one of
+# those pages can therefore turn a build red — so it is not docs, and
+# `_compiled_markdown` below reads the sources on every run to say which pages
+# those are. The header of this file used to assert the opposite ("no crate
+# includes a .md file into its docs, `include_str!` is unused"); it was true
+# when written and had stopped being true, which is the whole argument for
+# deriving the set from the tree rather than restating it here.
 #
 # local-scripts/: the LOCAL half of the tooling split (2026-08-11). No
 # hosted job whose result is a build, a lint or a test may depend on
@@ -123,13 +136,139 @@ import sys
 #
 # Still an allowlist, still fails closed: a new top-level directory, or a
 # new file directly under scripts/, is unrecognised and lands in TIER=all.
-def _is_docs(path: str) -> bool:
+def _is_docs(path: str, consumed: frozenset[str] = frozenset()) -> bool:
+    if path in consumed:
+        return False
     return (
         path.startswith("memories/")
         or path.endswith(".md")
         or path.startswith("local-scripts/")
         or path.startswith(".claude/")
     )
+
+
+# `include_str!("x")` / `include_bytes!` / `include!`, capturing the literal
+# when there is one. A mention in prose (`\`include_str!\`ing the two lane
+# files`) carries no `(` and is not a match.
+_INCLUDE_RE = re.compile(r"\binclude(?:_str|_bytes)?!\s*\(\s*(\"[^\"\n]*\")?")
+# Every Rust tree in the repo, workspace members and excluded workspaces
+# alike: a page compiled into demos/tour's docs is compiled in just the same.
+_RUST_TREES = ("crates", "demos", "tools", "interval-transcendentals")
+
+
+def _compiled_markdown(root: str) -> frozenset[str]:
+    """Repo-relative `.md` paths that some Rust source compiles into a build.
+
+    FAILS CLOSED, twice over. An `include!` whose argument is not a plain
+    string literal could name a `.md` and cannot be resolved by reading, so it
+    raises `Bail` — TIER=all — rather than being skipped; and an unreadable
+    source does the same. The scan is a regex over every `.rs` file outside
+    `target/`, ~0.1 s on this tree, run before the docs branch is taken.
+    """
+    out: set[str] = set()
+    for tree in _RUST_TREES:
+        base_dir = os.path.join(root, tree)
+        if not os.path.isdir(base_dir):
+            continue
+        for base, dirs, names in os.walk(base_dir):
+            dirs[:] = [d for d in dirs if d != "target"]
+            for name in names:
+                if not name.endswith(".rs"):
+                    continue
+                src = os.path.join(base, name)
+                try:
+                    with open(src, encoding="utf-8") as fh:
+                        text = fh.read()
+                except OSError as exc:
+                    raise Bail(f"cannot read {src}: {exc}") from exc
+                for m in _INCLUDE_RE.finditer(text):
+                    lit = m.group(1)
+                    if lit is None:
+                        raise Bail(
+                            f"{os.path.relpath(src, root)} has an `include!` whose argument is not a "
+                            "string literal, so whether it compiles a .md into the build cannot be read "
+                            "here — and that is what decides the docs tier"
+                        )
+                    target = lit[1:-1]
+                    if not target.endswith(".md"):
+                        continue
+                    resolved = os.path.normpath(os.path.join(base, target))
+                    out.add(os.path.relpath(resolved, root).replace(os.sep, "/"))
+    return frozenset(out)
+
+
+# `--no-renames` IS LOad-BEARING, not a style flag. With rename detection on
+# — git's default since 2.9 — `git diff --name-only` prints a rename as its
+# DESTINATION PATH ONLY. So a source file moved out of a crate and into a
+# `.md` arrives here as one path that `_is_docs` accepts, the whole change set
+# classifies TIER=docs, and every build row is skipped over a deletion from a
+# crate. Turning rename detection off makes the pair arrive as a delete and an
+# add, and the delete side is unscopable, which is the answer the allowlist
+# already knows how to give. The cost is that a pure rename inside one crate
+# names two paths instead of one; both land in the same closure.
+_DIFF_FLAGS = ("--name-only", "--no-renames")
+
+
+def _markdown_read_by_python(root: str) -> frozenset[str]:
+    """Repo-relative `.md` paths that a python test under `crates/` READS.
+
+    The other half of the same fact. `crates/pncad-py/tests/test_guide.py`
+    executes the python code blocks out of the guide pages and out of
+    `crates/pncad-py/README.md`, so an edit to one of those can turn that
+    suite red exactly as a Rust `include_str!` can turn a doctest red — and
+    `_compiled_markdown` cannot see it, because there is no `include!` to
+    match.
+
+    The paths are built as `ROOT / "docs" / "guide" / "examples.md"`, so they
+    are read the way they are written: an `ast` walk over `/`-chains of string
+    constants, joined. WHAT THIS DOES NOT SEE, said plainly because a
+    disclosed blind spot is a work order: a page named any other way — an
+    f-string, a glob, a name assembled at runtime, a path read from a fixture
+    file. Those stay in the docs tier and their suite stays skippable. The
+    shape in use is the shape checked.
+    """
+    import ast
+
+    out: set[str] = set()
+
+    def parts(node: "ast.AST") -> list[str] | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return [node.value]
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+            left, right = parts(node.left), parts(node.right)
+            if left is None and isinstance(node.left, ast.Name):
+                left = []
+            if left is None or right is None:
+                return None
+            return left + right
+        return None
+
+    base_dir = os.path.join(root, "crates")
+    if not os.path.isdir(base_dir):
+        return frozenset()
+    for base, dirs, names in os.walk(base_dir):
+        dirs[:] = [d for d in dirs if d != "target"]
+        for name in sorted(names):
+            if not name.endswith(".py"):
+                continue
+            src = os.path.join(base, name)
+            try:
+                with open(src, encoding="utf-8") as fh:
+                    tree = ast.parse(fh.read(), filename=src)
+            except (OSError, SyntaxError) as exc:
+                raise Bail(f"cannot read {src}: {exc}") from exc
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Div):
+                    continue
+                chain = parts(node)
+                if chain and chain[-1].endswith(".md"):
+                    out.add("/".join(chain))
+    return frozenset(out)
+
+
+def _consumed_markdown(root: str) -> frozenset[str]:
+    """Markdown a BUILD OR A SUITE consumes, from both directions."""
+    return _compiled_markdown(root) | _markdown_read_by_python(root)
 
 
 def _run(cmd: list[str], cwd: str) -> str:
@@ -199,13 +338,14 @@ def classify(files: list[str], root: str) -> dict[str, str]:
         # it is a base ref we failed to resolve. Fail closed.
         raise Bail("empty change set")
 
-    if all(_is_docs(f) for f in files):
+    consumed = _consumed_markdown(root)
+    if all(_is_docs(f, consumed) for f in files):
         return {"TIER": "docs", "PKGS": "", "CARGO_SCOPE": ""}
 
     dir_of, deps = _members(root)
     seeds: set[str] = set()
     for f in files:
-        if _is_docs(f):
+        if _is_docs(f, consumed):
             continue
         parts = f.split("/")
         # ALLOWLIST: only a file inside a member's directory is scopable.
@@ -340,12 +480,291 @@ def decorate(res: dict[str, str], files: list[str] | None = None) -> dict[str, s
     return res
 
 
+# ---------------------------------------------------------------- self-test
+#
+# WHAT THIS IS AIMED AT. Every gate under `scripts/gates/` carries a
+# `--selftest`, and `lib.sh` states the reason: a guard never shown to fire is
+# not a guard. That sentence had never been applied one level up, to the script
+# that decides whether any of those gates run at all.
+#
+# The fail-CLOSED direction is the cheap half to test and the less interesting
+# one: `Bail` is caught in `main` and becomes TIER=all, so garbage runs
+# everything. THE BRANCH THAT MATTERS IS `_is_docs`. It is taken before any of
+# that, it is the one fail-OPEN path here, and when it is wrong the whole gate
+# is skipped on a change that builds. So the battery below is weighted at it
+# from both sides: change sets that MUST classify docs, and change sets that
+# must NOT — a path one character off a docs prefix, a non-`.md` file under
+# `docs/`, a `.md` beside a `.rs`, a rename, a deletion, an empty diff.
+#
+# THE FIXTURE IS A MINIATURE REPO and every case runs this script AS A
+# SUBPROCESS, the way both halves invoke it. `--files` cases go through stdin;
+# the `--base` cases run against a real git repo built in the fixture, because
+# the rename and empty-diff shapes are properties of how the file list is
+# OBTAINED and are invisible to a test that hands `classify` a list directly.
+#
+# The fixture ships a STUB `cargo` on PATH. The hosted job this runs in
+# installs no toolchain at all (`mirror` is greps and stdlib python), so a
+# self-test shelling out to the real cargo would be testing the runner image
+# and would report TIER=all — the safe answer — for the wrong reason on every
+# closure case. The stub also lets the closure cases state a dependency graph
+# small enough to read.
+_FIXTURE_PKGS = {
+    # `stl` reaches `topo` by a DEV-dependency: `cargo test -p stl` builds it,
+    # so the closure must propagate along that edge exactly like a normal one.
+    "geom-core": [],
+    "topo": [("geom-core", "normal")],
+    "stl": [("topo", "dev")],
+}
+
+
+def _plant_fixture(t: str) -> str:
+    import shutil
+
+    for pkg in _FIXTURE_PKGS:
+        os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
+        open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
+        open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+    # A page rustdoc compiles in, a page a python suite reads, and a page
+    # that is only prose. The docs tier must separate these three.
+    os.makedirs(os.path.join(t, "docs"), exist_ok=True)
+    for page in ("GUIDE.md", "PYPAGE.md", "PROSE.md"):
+        with open(os.path.join(t, "docs", page), "w") as fh:
+            fh.write("prose\n")
+    with open(os.path.join(t, "crates", "topo", "src", "guide.rs"), "w") as fh:
+        fh.write('#![doc = include_str!("../../../docs/GUIDE.md")]\n')
+    os.makedirs(os.path.join(t, "crates", "stl", "tests"), exist_ok=True)
+    with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
+        fh.write('PAGE = ROOT / "docs" / "PYPAGE.md"\n')
+    os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
+    os.makedirs(os.path.join(t, "bin"), exist_ok=True)
+    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    meta = {
+        "packages": [
+            {
+                "name": pkg,
+                "manifest_path": os.path.join(t, "crates", pkg, "Cargo.toml"),
+                "dependencies": [{"name": d, "kind": k} for d, k in deps],
+            }
+            for pkg, deps in _FIXTURE_PKGS.items()
+        ]
+    }
+    stub = os.path.join(t, "bin", "cargo")
+    with open(stub, "w") as fh:
+        fh.write("#!/bin/sh\n")
+        fh.write('[ "$1" = metadata ] || { echo "stub cargo: $*" >&2; exit 1; }\n')
+        fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
+    os.chmod(stub, 0o755)
+    return t
+
+
+def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+    env = dict(os.environ)
+    env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
+    r = subprocess.run(
+        [sys.executable, os.path.join(t, "scripts", "ci-filter.py"), *argv],
+        input=stdin, capture_output=True, text=True, env=env, cwd=t,
+    )
+    if r.returncode != 0:
+        raise SystemExit(f"SELFTEST FAILED: {argv} exited {r.returncode}\n{r.stdout}{r.stderr}")
+    out: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        k, _, v = line.partition("=")
+        out[k] = v
+    for key in ("TIER", "PKGS", "RUN_BUILD", "RUN_K_LINT", "RUN_INTERVAL_ORACLE"):
+        if key not in out:
+            raise SystemExit(f"SELFTEST FAILED: {argv} printed no {key} line\n{r.stdout}{r.stderr}")
+    return out
+
+
+def _expect(what: str, got: dict[str, str], want: dict[str, str]) -> None:
+    bad = {k: (v, got.get(k)) for k, v in want.items() if got.get(k) != v}
+    if bad:
+        detail = "; ".join(f"{k}: want {w!r}, got {g!r}" for k, (w, g) in sorted(bad.items()))
+        raise SystemExit(f"SELFTEST FAILED: {what} — {detail}\nfull output: {got}")
+
+
+def _files_case(t: str, what: str, files: list[str], **want: str) -> None:
+    _expect(what, _selftest_invoke(t, ["--files", "-"], "\n".join(files) + "\n"), want)
+
+
+def _git(t: str, *args: str) -> None:
+    env = dict(os.environ, GIT_AUTHOR_NAME="s", GIT_AUTHOR_EMAIL="s@e",
+               GIT_COMMITTER_NAME="s", GIT_COMMITTER_EMAIL="s@e")
+    subprocess.run(["git", "-C", t, *args], check=True, capture_output=True, env=env)
+
+
+def selftest() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+
+        # --- the docs branch, the direction it is ALLOWED to take.
+        for what, files in (
+            ("a design doc", ["docs/DESIGN.md"]),
+            ("prose anywhere", ["README.md", "crates/topo/src/NOTES.md"]),
+            ("the memories tree", ["memories/MEMORY.md", "memories/evan-profile.md"]),
+            ("the local half", ["local-scripts/ci-local.sh"]),
+            ("agent session config", [".claude/settings.json"]),
+            # The other side of the two rows below: a page NOTHING consumes
+            # stays in the docs tier. Widening `_is_docs`'s exception to all
+            # of `docs/` would pass those and fail this.
+            ("a page nothing consumes", ["docs/PROSE.md"]),
+        ):
+            _files_case(t, f"{what} must classify docs", files,
+                        TIER="docs", PKGS="", RUN_BUILD="false", RUN_K_LINT="false",
+                        RUN_INTERVAL_ORACLE="false")
+
+        # --- THE FAIL-OPEN FAMILY. Each of these is a change set that BUILDS,
+        # and a docs verdict on any of them skips every gate in the pipeline.
+        for what, files, tier in (
+            # One kernel source file in a change set of prose. `all()` is the
+            # whole guard against this, and `all()` over a list nobody tests
+            # is a claim.
+            ("a .rs beside a .md", ["docs/DESIGN.md", "crates/topo/src/lib.rs"], "closure"),
+            # `docs/` is not a docs PREFIX here and must not become one: the
+            # k-lint job's committed input lives under it.
+            ("a non-.md file under docs/", ["docs/k-report-data/margins.json"], "all"),
+            # One character off a docs prefix. `startswith("local-scripts/")`
+            # keeps the slash for exactly this reason.
+            ("a near-miss on the local-scripts prefix", ["local-scriptsy/tool.rs"], "all"),
+            ("a near-miss on the .claude prefix", [".claude-old/hook.sh"], "all"),
+            # The self-referential case: a diff that edits THIS FILE. If it
+            # ever classified docs, the run that could have caught the edit is
+            # the run the edit skips.
+            ("an edit to the filter itself", ["scripts/ci-filter.py"], "all"),
+            ("a gate script", ["scripts/gates/lib.sh"], "all"),
+            ("the hosted half", [".github/workflows/ci.yml"], "all"),
+            ("the lockfile", ["Cargo.lock"], "all"),
+            # A member manifest: feature unification has no per-crate scoping.
+            ("a member manifest", ["crates/topo/Cargo.toml"], "all"),
+            ("an unrecognised crate directory", ["crates/brand-new/src/lib.rs"], "all"),
+            ("an unrecognised top-level file", ["deny.toml"], "all"),
+            ("the excluded interval workspace", ["interval-transcendentals/src/lib.rs"], "all"),
+            # A .md rustdoc COMPILES IN: every Rust block in it is a doctest,
+            # so an edit to it can turn a build red. This is the live shape —
+            # `crates/pncad/src/guide.rs` does exactly this to `docs/GUIDE.md`
+            # and four pages under `docs/guide/`.
+            ("a page compiled into rustdoc", ["docs/GUIDE.md"], "all"),
+            # And the other consumer: a page a python suite executes.
+            ("a page a python suite reads", ["docs/PYPAGE.md"], "all"),
+        ):
+            _files_case(t, f"{what} must NOT classify docs", files,
+                        TIER=tier, RUN_BUILD="true", RUN_K_LINT="true")
+
+        # --- an empty change set is UNRESOLVED, never "nothing changed".
+        _expect("an empty change set must run everything",
+                _selftest_invoke(t, ["--files", "-"], ""),
+                {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true"})
+
+        # --- the dependent closure, including the dev-dependency edge.
+        _files_case(t, "a leaf crate seeds its dependents", ["crates/geom-core/src/lib.rs"],
+                    TIER="closure", PKGS="geom-core,stl,topo", RUN_STL="true",
+                    CARGO_SCOPE="-p geom-core -p stl -p topo")
+        _files_case(t, "a dependent crate does not seed its dependencies",
+                    ["crates/stl/src/lib.rs"], TIER="closure", PKGS="stl",
+                    RUN_STL="true", RUN_TOPO_RELEASE="false")
+
+        # --- the oracle signal, which is keyed on PATHS and not on the tier.
+        _files_case(t, "certified sources re-certify",
+                    ["interval-transcendentals/src/pad.rs"], RUN_INTERVAL_ORACLE="true")
+        _files_case(t, "the backend lockfile re-certifies",
+                    ["interval-transcendentals/Cargo.lock"], RUN_INTERVAL_ORACLE="true")
+        _files_case(t, "the derivation prose does not re-certify",
+                    ["interval-transcendentals/docs/pads.md"], RUN_INTERVAL_ORACLE="false")
+        _files_case(t, "a kernel change does not re-certify",
+                    ["crates/topo/src/lib.rs"], RUN_INTERVAL_ORACLE="false")
+
+        # --- THE `--base` CASES. Everything above hands the script a file
+        # list; these make it derive one, which is where the rename shape
+        # lives.
+        _git(t, "init", "-q", ".")
+        _git(t, "add", "-A")
+        _git(t, "commit", "-qm", "base")
+
+        os.makedirs(os.path.join(t, "docs"), exist_ok=True)
+        with open(os.path.join(t, "docs", "PLAN.md"), "w") as fh:
+            fh.write("prose\n")
+        _git(t, "add", "-A")
+        _git(t, "commit", "-qm", "prose")
+        _expect("a real docs-only commit classifies docs",
+                _selftest_invoke(t, ["--base", "HEAD~1"]), {"TIER": "docs"})
+
+        # THE RENAME. `git diff --name-only` reports a rename as its
+        # DESTINATION only, so a crate source moved to a .md arrives as one
+        # docs path and the deletion is invisible — TIER=docs over a change
+        # that empties a crate. `--no-renames` is what makes both sides
+        # visible; delete that flag and this case goes red.
+        _git(t, "mv", "crates/topo/src/lib.rs", "docs/moved.md")
+        _git(t, "commit", "-qm", "rename out of a crate")
+        _expect("a crate source renamed to a .md must not classify docs",
+                _selftest_invoke(t, ["--base", "HEAD~1"]),
+                {"TIER": "closure", "PKGS": "stl,topo", "RUN_BUILD": "true"})
+
+        _git(t, "rm", "-q", "crates/geom-core/src/lib.rs")
+        _git(t, "commit", "-qm", "delete")
+        _expect("a deleted crate source is still a crate change",
+                _selftest_invoke(t, ["--base", "HEAD~1"]),
+                {"TIER": "closure", "PKGS": "geom-core,stl,topo"})
+
+        _expect("a base that does not resolve runs everything",
+                _selftest_invoke(t, ["--base", "0000000000000000000000000000000000000000"]),
+                {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true"})
+        _expect("a base equal to HEAD is an empty diff, not a docs change",
+                _selftest_invoke(t, ["--base", "HEAD"]),
+                {"TIER": "all", "RUN_BUILD": "true"})
+
+    # An `include!` this reader cannot resolve could name a .md, so it takes
+    # the whole change set to TIER=all rather than guessing. Its own fixture:
+    # one unreadable include poisons every other verdict, which is the point.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "topo", "src", "gen.rs"), "w") as fh:
+            fh.write('const X: &str = include_str!(concat!(env!("OUT_DIR"), "/x.md"));\n')
+        _expect("an include! that cannot be read must not leave the docs tier open",
+                _selftest_invoke(t, ["--files", "-"], "docs/PROSE.md\n"),
+                {"TIER": "all", "RUN_BUILD": "true"})
+
+    _selftest_docs_premise()
+    print(
+        "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
+        "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
+        "not a non-.md file under docs/, not a path one character off a docs prefix, "
+        "not an edit to this script, a gate, the workflow, the lockfile or a member "
+        "manifest, not an unrecognised crate directory or top-level file, not an empty "
+        "diff, not a crate source renamed to a .md, and not a page that rustdoc compiles "
+        "in or a python suite executes; the closure follows dev-dependency "
+        "edges upward only; the oracle signal fires on certified sources and lockfile and "
+        "not on their prose"
+    )
+
+
+def _selftest_docs_premise() -> None:
+    """THE PREMISE THE DOCS TIER RESTS ON, read off the REAL tree rather than
+    asserted in a header. `_consumed_markdown` fails closed — an unreadable
+    source or an `include!` it cannot resolve raises `Bail`, which makes every
+    change set TIER=all — and the only trace of that in a real run is one line
+    on stderr inside the filter job. Here it is a red self-test instead."""
+    root = _repo_root()
+    consumed = _consumed_markdown(root)
+    for path in sorted(consumed):
+        if _is_docs(path, consumed):
+            raise SystemExit(f"SELFTEST FAILED: {path} is consumed by a build or a suite and still "
+                             "classifies as documentation")
+    print("ci-filter selftest: markdown this tree compiles or executes, and so keeps out of the docs "
+          "tier: " + (", ".join(sorted(consumed)) or "(none)"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--base", help="git ref/sha to diff HEAD against")
     src.add_argument("--files", help="file with a newline-separated list, or -")
+    src.add_argument("--selftest", action="store_true", help="run the fixture battery")
     args = ap.parse_args()
+    if args.selftest:
+        selftest()
+        return 0
     root = _repo_root()
 
     # `None` until a file list is actually in hand, so that a failure ANYWHERE
@@ -357,13 +776,11 @@ def main() -> int:
             raw = sys.stdin.read() if args.files == "-" else open(args.files).read()
         else:
             try:
-                raw = _run(
-                    ["git", "diff", "--name-only", f"{args.base}...HEAD"], root
-                )
+                raw = _run(["git", "diff", *_DIFF_FLAGS, f"{args.base}...HEAD"], root)
             except subprocess.CalledProcessError:
                 # Unrelated histories / shallow clone: fall back to the
                 # two-dot form rather than guessing.
-                raw = _run(["git", "diff", "--name-only", args.base, "HEAD"], root)
+                raw = _run(["git", "diff", *_DIFF_FLAGS, args.base, "HEAD"], root)
         files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
         res = classify(files, root)
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on anything at all
