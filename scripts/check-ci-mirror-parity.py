@@ -727,9 +727,10 @@ def check(root: str) -> list[str]:
         in_l = any(f"tools/{name}" in line for line in local_lines)
         if not (in_h and in_l):
             side = "the hosted half only" if in_h else ("the local half only" if in_l else "neither half")
-            err(f"tools/{name} is a workspace-excluded crate named by {side}. Nothing else "
-                "gates that tree — scripts/doc-gate.sh is `cargo doc --workspace` and cannot see it — so "
-                "a tool checked on one side only is checked on one side only")
+            err(f"tools/{name} is a workspace-excluded crate named by {side}. The only check "
+                "that reaches such a tree without being named in a row is scripts/doc-gate.sh, "
+                "which derives its cargo roots and so reads this one's PROSE — nothing else does, "
+                "so a tool fmt-ed, linted or tested on one side only is checked on one side only")
 
     # CLAIM 6 — the prune exception is EXACTLY ONE JOB, across every workflow
     # file. `render.yml` runs four checked-out lanes of its own through a
