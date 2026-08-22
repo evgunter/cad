@@ -164,3 +164,13 @@ verbs-rim-r1, verbs-rim-r2 (probe branches adopted; clones
 merged/pushed-clean). NEXT UNIT: VERBS-CHAMFER (block VERBS-1 slot
 2) — spec next; it rides the same fillet files, so it dispatches
 onto post-#910 main with #644's constraint live.
+
+## VERBS-CHAMFER at the door (2026-08-22)
+
+Spec committed (docs/VERBS-CHAMFER-SPEC.md): plane-plane ruled
+strip, symmetric setback v1, planar trihedral corner patch, #644
+quarantined (new corner code coherent from birth, corner_ball
+untouched), chamfered-cube acceptance with closed-form mass
+properties, no tessellation-gate rows. Difficulty M logged
+pre-dispatch; consumes block VERBS-1 slot 2. Lane verbs-chamfer,
+branch verbs/chamfer.
