@@ -286,20 +286,29 @@ There is nothing to assert that is both true and useful, which is the
 honest shape of Q6 here rather than an oversight. What IS derived is the
 root count: the gate's success line reports the number of roots the run
 actually documented, so the six above is checkable against any run's log
-and does not depend on this sentence being maintained.
+and does not depend on this sentence being maintained. The paragraph
+below re-takes the timings BY HAND, which is what maintaining an
+unguardable figure looks like — a deliberate act carrying the run id it
+came from, not a number that keeps itself true.
 
-**And the figures predate two widenings**, which is the same point
-arriving concretely. `--examples` was added to every pass, and pass 2
-went from default features to `--all-features` on every root but
-`interval-transcendentals` — so the `fmt` job now also builds
-`demos/tour` with `probe` and `budget` on. Neither was re-measured; the
-34 s → 87 s reading above is a floor for the current gate, not a
-reading of it. Both widenings were taken because each closed a hole the
-gate was silently green over, and each turned up a live break the moment
-it opened: an unresolved link in `crates/step-export`'s example tree,
-which no rustdoc lint had ever read, and another in
-`demos/tour/src/tessbudget.rs`, which exists only under the `budget`
-feature the old default-features pass never turned on.
+**Re-measured after two widenings, on run `32553404730`** (warm cache,
+code tier, same method): `--examples` was added to every pass, and pass 2 went
+from default features to `--all-features` on every root but
+`interval-transcendentals` — so the `fmt` job now also builds `demos/tour` with
+`probe` and `budget` on. `rustdoc (gate)` **87 s → 142 s** and the `fmt` job
+**135 s → 193 s**, which is **3 → 4 billed minutes**: another **+1 billed
+minute per code-tier PR run**, on top of the +1 above. The step breakdown from
+that run — rustfmt 3 s, rustdoc gate 142 s, wasm32 19 s, setup and cache 25 s —
+says where it all is, and it is all in the gate.
+
+Both widenings were taken because each closed a hole the gate was silently
+green over, and each turned up a live break the moment it opened: an unresolved
+link in `crates/step-export`'s example tree, which no rustdoc lint had ever
+read, and another in `demos/tour/src/tessbudget.rs`, which exists only under
+the `budget` feature the old default-features pass never turned on. Still off
+the critical path: 3.2 min against a 12 min `build + archive (interval)`. The
+`workspaces:`/`CARGO_TARGET_DIR` lever named above is now worth proportionally
+more, and is still unmeasured.
 
 ## Where that leaves a code-tier PR
 
