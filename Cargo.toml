@@ -164,6 +164,21 @@ missing_docs = "warn"
 #    helpers.) Each helper tree carries one file-level allow citing this
 #    paragraph; none of them restates it.
 unreachable_pub = "warn"
+# LOAD-BEARING — DO NOT REMOVE. This declares the `nightly_suite` cfg name so
+# `unexpected_cfgs` accepts it. Demoted tests carry
+# `#[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]`, and the
+# scheduled nightly job builds with `RUSTFLAGS="--cfg nightly_suite"` to run
+# exactly that set (a plain `#[ignore]` stays skipped in BOTH configurations,
+# which is the point). VERIFIED on rustc 1.97.0: with this line deleted, that
+# marker becomes `error: unexpected 'cfg' condition name: 'nightly_suite'`
+# under CI's `-D warnings` and the WHOLE WORKSPACE fails to build. Tidying it
+# away is not a cleanup, it is a red gate.
+#
+# Mirrored by hand in `crates/pncad-py/Cargo.toml` (see the header there) and
+# enforced by its `crate_lints_match_the_workspace_minus_unsafe_code` test —
+# edit both, and keep the line byte-identical: that test compares the manifests
+# textually.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly_suite)'] }
 
 [workspace.lints.clippy]
 # D9: the kernel never panics on any INPUT — every input-reachable failure

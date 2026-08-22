@@ -46,6 +46,7 @@ Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene
 import math
 import os
 import sys
+import traceback
 from pathlib import Path
 
 # freecadcmd runs this script with the render staging tree as its cwd,
@@ -275,4 +276,56 @@ def main():
     os._exit(0)
 
 
-main()
+# WHY main() IS NOT CALLED BARE, AND WHY THE PRINT IS HERE.
+#
+# freecadcmd SWALLOWS the traceback of anything this script raises: it
+# reports only "Unknown exception while processing file" and then treats
+# whatever argv is left as documents to open ("File format not supported:
+# .." — a symptom of the swallow, not the cause). Worse, the failure path
+# then runs FreeCAD's document teardown, which SIGSEGVs offscreen
+# (closeAllDocuments -> slotDeleteDocument -> setActiveDocument ->
+# runString -> PyException::PyException) — it crashes while building the
+# object that would have described the error. Ten render-lane failures
+# were undiagnosable for exactly this reason.
+#
+# So the traceback is printed HERE, at the innermost point that still has
+# it, and FLUSHED before the exception is allowed to continue outwards:
+# anything that defers output until interpreter shutdown or teardown may
+# never run at all. Then the exception is RE-RAISED unchanged — this
+# handler makes the failure visible, it does not change what failing
+# means, and it deliberately does not os._exit() over the teardown crash,
+# which would hide a second, real bug.
+#
+# BaseException, not Exception: the script's own errors are SystemExit,
+# and those are swallowed by freecadcmd just as thoroughly.
+#
+# The success path never reaches this: main() ends in os._exit(0).
+def _print_traceback():
+    """Put the current exception's traceback on stderr, now."""
+    try:
+        text = traceback.format_exc()
+    except BaseException:  # pragma: no cover — formatting itself failed
+        text = "render_freecad: exception whose traceback could not be formatted\n"
+    try:
+        # stdout first, so the per-scene log keeps its ordering.
+        sys.stdout.flush()
+    except BaseException:
+        pass
+    try:
+        sys.stderr.write(text)
+        sys.stderr.flush()
+        return
+    except BaseException:
+        pass
+    # Last resort: the raw fd, which has no Python-level buffer to lose.
+    try:
+        os.write(2, text.encode("utf-8", "replace"))
+    except BaseException:
+        pass
+
+
+try:
+    main()
+except BaseException:
+    _print_traceback()
+    raise
