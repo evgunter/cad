@@ -511,31 +511,21 @@ interval_eps() {
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 
-# M4 PR 6 spec D6: the three persistence obligations as NAMED rows
-# (also covered by the workspace rows; named = attributable).
-# ε battery {1e-6, 1e-12} — see the run_row block below.
-# HOSTED MIRROR: persistence / save/load/replay-identity (D6.1) + float bits (D2) + golden v1
-persist_roundtrip() {
-  local e
-  for e in 1e-6 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden:: || return 1
-  done
-}
-persist_eps_diff() { cargo test -p editor-core --test all -- m4_pr6_eps_diff::; }
-persist_refusal() { cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key::; }
-# Mirrors the named step in hosted's test-interval job (which runs it
-# out of the interval archive by binary_id).
+# THE `persist_roundtrip` / `persist_eps_diff` / `persist_refusal` /
+# `corpus_eps` ROWS STOOD HERE, AND ARE DELETED (2026-08-22) along with
+# the hosted `persistence` and `band 4 corpus` jobs they mirrored —
+# ci.yml carries the argument at the tombstone where those jobs were.
+# The short form: every module they named is an ordinary `#[test]` that
+# the `test (eps = ...)` rows above already run, at all three ε here and
+# at the drawn ε hosted, so the rows re-bought coverage they already had
+# and (hosted) pinned two ε bands the sampling exists to spread out.
+#
+# The two `(interval)` rows below are NOT part of that and stay: they
+# mirror named steps of the hosted `test-interval` job, which the
+# interval rows above do not cover — `interval_tests` runs the
+# interval-only selection, and these two are in its subtracted half.
 persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'; }
 
-# M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
-# the workspace rows; named = attributable).
-# HOSTED MIRROR: corpus / evaluation, exact mass pins, counted reuse, vocabulary totality
-corpus_eps() {
-  local e
-  for e in 1e-6 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus:: || return 1
-  done
-}
 corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
@@ -812,11 +802,7 @@ run_row "test (interval)"              interval_tests
 run_row "test (interval, eps = 1e-6)"  interval_eps
 run_row "doc-tests (interval)"         interval_doc_tests
 # Root package editor-core (persistence D6.*, band 4 corpus D1, latency D2).
-run_row_if "$RUN_EDITOR_CORE" "persist save/load/replay (D6.1)" persist_roundtrip
-run_row_if "$RUN_EDITOR_CORE" "persist eps-diff golden (D6.2)"  persist_eps_diff
-run_row_if "$RUN_EDITOR_CORE" "persist refusal (D6.3)"          persist_refusal
 run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
-run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (2 eps rows)"      corpus_eps
 run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
 run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can

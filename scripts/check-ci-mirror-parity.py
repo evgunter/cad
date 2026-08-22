@@ -132,7 +132,14 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 # population cannot silently SHRINK, and there is nothing to derive it from. A
 # marker is a sentence someone chose to write; no file lists which sentences
 # ought to exist. Lowering it is a decision, and reads as one in a diff.
-MIRROR_MARKER_FLOOR = 38
+# LOWERED 38 -> 36, 2026-08-22, deliberately and in the same diff as the
+# deletion the sentence above asks for: the hosted `persistence` and `band 4
+# corpus` jobs were deleted (ci.yml carries the argument at the tombstone
+# where they stood) and the two local rows that cited them went with them. The
+# rows did not lose a hosted mirror — the pair went away on both sides at
+# once, which is the one shape a floor cannot distinguish from a hollowing and
+# so has to be told about.
+MIRROR_MARKER_FLOOR = 36
 
 # The clean fixture's dimension — HOW MANY mirrored rows the miniature repo
 # has. SEPARATE FROM THE FLOOR ABOVE, and it has to be: one is a claim about
