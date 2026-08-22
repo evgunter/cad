@@ -37,6 +37,37 @@ shell/offset ("same principle applies"); O1 just instantiates it.
 **Recommendation**: build exactly this, as the first Wave-3 unit; it
 is small (S) and everything later consumes it.
 
+**Self-intersection, and the two doors this design leaves cheap
+(added at Evan's #907 note).** The offset definition carries no
+self-intersection special case; where d reaches the collapse
+threshold, the door REFUSES via the collapse predicate (O3's d vs
+1/κ_max, and for solid offsets the clearance margin) — loud, never a
+silently looped surface. Two future verbs are then cheap by
+construction, and naming them now is what keeps them cheap:
+
+- **Trimmed offset ("remove the loop the offset created")**: because
+  the spec is intensional, the untrimmed offset remains the
+  certification target and loop removal is a TOPOLOGY operation — a
+  self-intersection trim (self-SSI + region classification)
+  consuming the same `Offset(S,d)` spec — a separate verb, not a
+  mode of this one. The collapse predicate's failing samples
+  localize where loops form, which is exactly the trim's seed. No O1
+  decision forecloses it.
+- **Solved-distance offset ("offset by the distance that causes a
+  tangency here")**: d is a plain stored parameter, so a derived or
+  solved d composes through the recipe layer (D8 expressions)
+  without new offset machinery. The near-term spelling is the
+  user-supplied d DECLARED as intentional tangency through the
+  C7 declared-contact vocabulary — the same door M9 builds, which is
+  what makes the resulting kiss certifiable rather than an
+  undeclared-tangency refusal. The certified root-solve for d*
+  itself ("zero this clearance margin") is precisely the
+  margin-over-a-parameter-box machinery M10 owns; building it
+  earlier would duplicate that, so it banks until a consumer
+  demands it. (If one arrives sooner: the solve is 1-D and the
+  margin is already a certified monotone-in-d quantity near the
+  kiss, so the unit is small.)
+
 ## O2 — The approximating surface: lift the EdgeCurve triple one dimension
 
 The offset of a NURBS is not a NURBS (normalizing n(u,v) introduces
@@ -131,22 +162,49 @@ trigger it:
   sign). But DESIGN.md:348 ratifies "sweeps emit single-shell
   bodies; **voids are born only from booleans**".
 
-**The fork**: is a sealed shell (a) a third void source, revising
-that sentence, or (b) definitionally boolean-family —
-`shell(B, t) := B − offset_inward(B, t)`, so the ratified sentence
-stands because shell IS a boolean? **Recommendation: (b)** — it
-keeps the invariant's justification intact (void bookkeeping stays
-in one place), matches the verb's semantics exactly, and the open-
-faces variant factors through the same subtraction followed by the
-rim surgery (a composed Euler sequence on a clone, decided-then-
-mutated per the M6-1 surgery pattern, postcondition validated once
-at the end). Honest counterargument to (b): it makes shell's
-availability contingent on boolean operand support — a NURBS-walled
-body cannot be shelled until the curved-boolean lanes (Wave 2 /
-frontier (d)) cover its kinds, whereas a native shell construction
-could in principle run ahead of the booleans. That coupling is
-real; it is also honest about what the kernel can certify, and the
-teapot's revolve body is analytic-kind, inside what Wave 2 covers.
+**The fork, refined after Evan's #907 note** (the "voids are born
+only from booleans" sentence is revisable — it predates booleans
+existing, and the original reasons are not strongly held). The
+definition and the execution separate, and separating them answers
+the performance question:
+
+- **Definition**: `shell(B, t) := B − offset_inward(B, t)` —
+  semantically boolean-family, matching the verb's meaning exactly.
+- **Execution: the sealed case NEVER runs the general boolean
+  pipeline.** When the clearance/collapse predicate certifies the
+  inner offset strictly inside B (which shell's validity already
+  requires — d below the reach), the two boundaries provably do not
+  cross, so there is nothing for SSI, the crossing census, or the
+  classification walk to do; running them would be pure waste, and
+  worse, the general path's containment examination is extent-box
+  coarse (#750 — a non-convex container cannot certify), so routing
+  through it would REFUSE bodies the construction itself has
+  already proven nested. The sealed shell executes as the
+  DEGENERATE no-crossing arm: direct cavity insertion through the
+  boolean's own void-insertion door, factored so it is callable
+  without the SSI pipeline, with strict containment certified from
+  the offset construction (d vs reach — a by-construction margin,
+  not a post-hoc box test). Cost = offset mint + certification +
+  one structural insertion.
+- **The invariant, restated at its real value**: what the ratified
+  sentence protects is that cavity bookkeeping has ONE home. The
+  proposal is the weaker, sharper form — **every cavity is born
+  through the shared void-insertion door** — which booleans and
+  shell both satisfy; whether DESIGN.md:348's sentence is then
+  revised to name shell or left as-is with shell defined as
+  boolean-family becomes wording, not architecture. The DESIGN.md
+  edit rides this doc's ratification.
+- The open-faces variant runs the same offset construction and then
+  rim surgery (a composed Euler sequence on a clone, decided-then-
+  mutated per the M6-1 pattern, validated once) — no boolean
+  machinery there either.
+
+Residual honest coupling: a NURBS-walled body still cannot be
+shelled until the approximating-surface machinery covers its
+offset (O2/O3) — but that is the offset's own gate, not the boolean
+operand gate; the degenerate-arm execution removes the Wave-2
+dependency the earlier draft carried. The teapot needs only
+analytic offsets either way.
 
 ## O5 — Validator posture: re-derive per face, same as edges
 
