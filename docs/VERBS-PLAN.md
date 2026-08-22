@@ -78,9 +78,15 @@ plan's existence — the register itself never schedules.
    storage. No design record yet: the unit PR carries the (small)
    design elaboration; self-merges only if it stays a faithful
    elaboration of the door's existing contract.
-5. **VERBS-RING (M)** — retire `FullRevolveHoles`: the per-hole seam
-   surgery the revolve's own docs name as mechanical-but-unexercised
-   M2 scope. One-call hollow ring becomes available (register wall 6).
+5. **VERBS-RING (M)** — retire `FullRevolveHoles` under the #907
+   refined invariant (every cavity born through the shared
+   void-insertion door): the holed full revolve is DEFINED as
+   `revolve(outer) − revolve(hole-as-outer)` and executed as the
+   degenerate no-crossing arm. The unit FACTORS the boolean's
+   void-insertion door callable-without-SSI (its first consumer,
+   ahead of Wave 3's shell, which inherits it). One-call hollow
+   ring becomes available (register wall 6). **Gated on #907's
+   ratification** (which revises DESIGN.md's M2 bullet in place).
 
 ## Wave 2 — curved boolean breadth
 

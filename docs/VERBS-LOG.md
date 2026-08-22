@@ -174,3 +174,171 @@ untouched), chamfered-cube acceptance with closed-form mass
 properties, no tessellation-gate rows. Difficulty M logged
 pre-dispatch; consumes block VERBS-1 slot 2. Lane verbs-chamfer,
 branch verbs/chamfer.
+
+## CHAMFER landed as #920; ordinal-61 single review out (2026-08-22)
+
+Implementation complete on PR #920 (head 86a8e49b; CI green
+32563903264 after one mid-flight red round — fmt/rustdoc gate,
+evaluation-code discipline, render lanes — fixed in-lane). The
+report's headlines: surgery PARAMETERIZED (`blend_surgery` +
+`BlendKind`, feet become plan data) with bit-identity evidence for
+fillets; the chamfer geometry is convexity-free by derivation
+(branch-free outward folds — #644 sidestepped, not half-fixed);
+predicates 1/3 not metered (rolling-ball facts with no ruled
+analog); three disclosed deviations each with a filed schedule
+(#917 shared refusal vocabulary, #918 recipe-layer door, #919
+concave deferral); chamfer_edges placed INSIDE fillet/build.rs to
+stay within the ratified bounds allowlist. **Ordinal 61 claimed**
+(through 60/RIM at dispatch) — not a third — single fable review,
+lane verbs-chamfer-r1, frozen head 86a8e49b, probe branch
+verbs/chamfer-r1-probes requested. Review charter includes the
+mid-flight CI red's fix commits (C7: cause vs symptom, render
+re-baseline honesty).
+
+## CHAMFER fix pass done; #920 HOLDS on #921 (2026-08-22)
+
+Ordinal-61 review (single, per protocol): APPROVE-WITH-FIXES,
+0 MAJOR / 4 MINOR / 5 NOTE + 6 style. Fix pass complete at
+f47012a2, every disposition landed (NonpositiveSize door as plain
+typed refusal — input validity is not metered; both runtime
+fillet-worded strings fixed; #917 widened to the reviewer's full
+class enumeration; probe suite adopted fast-forward with one row
+moved WITH its finding; one public path per verb). The unit also
+exercised the new configuration-sampling CI for the first time in
+VERBS: three runs drew three different points, the census gate
+tripped and was resolved by ROSTERING the adopted probe suite
+(its set-equality roster row is the C4 claim), and the final draw
+(interval, 1e-12) exposed **#921** — two `carrier_matches_mapped_source`
+rows red ON MAIN at that point, bit-identical margins at f059298c,
+proven not the branch's. The lane refused to re-roll the draw.
+
+**#920 holds unmerged until #921 is decided** — merging on a red
+check with a "it's main's fault" argument is the habit the
+sampling design warns against; the honest path is: resolve #921,
+merge main into the branch (a real re-draw), green, merge. An
+investigation lane (i921) is tracing the enclosure's width on
+main; its report decides band-vs-enclosure-vs-row-contract, with
+Evan looped in if it is a genuine tolerance-design fork.
+
+## #921 adjudicated; VERBS-ARCEVAL dispatched (2026-08-22)
+
+The investigation traced the red to a manufactured width in
+SketchSegment::eval's arc branch: center reconstructed from a
+cancelling sub-arc chord and entering the evaluation twice —
+~100x the carrier-side width, ∝ 1/sin(θ/2), ε-independent
+(bit-identical enclosures at 1e-6 vs 1e-12), compounding through
+restrict. Ruling on the #921 thread: fix the arithmetic
+(a-anchored rotation, measured to green the m6 row), re-scope
+m5's Interval row to DEFINITE at ε ≥ 1e-9 + pinned honest
+escalation at 1e-12 (its hi ≤ ε at T=Interval is a conditioning
+claim; f64 holds the geometry claim at 8.9e-16), band widening
+REFUSED (no derivation; would launder arithmetic into tolerance
+policy). The triple-restrict redesign is banked on #921.
+VERBS-ARCEVAL dispatched (difficulty S logged pre-dispatch,
+block VERBS-1 slot 3; the investigator's lane continues as the
+implementer — full context, arm-consistent), branch verbs/arceval.
+#920 merges after this lands via a real re-draw.
+
+## Design-conversation rounds with Evan (2026-08-22, afternoon)
+
+- **#907 (Q8)**: two rounds folded. Round 1 — self-intersection
+  doors added to O1 (trimmed offset as a later topology verb over
+  the same intensional spec; solved-d tangency = declared-contact
+  spelling now, M10 root-solve banked); O4 rewritten as
+  definition-vs-execution (sealed shell = degenerate no-crossing
+  arm through the boolean's void-insertion door; #750 avoided
+  by-construction; Wave-2 coupling dropped). Round 2 — Evan's
+  sweep note: the refined invariant ("every cavity is born through
+  the shared void-insertion door") admits the holed full revolve
+  as its third producer, which IS VERBS-RING — the plan row is
+  redefined (RING factors the door, first consumer, gated on
+  ratification), and DESIGN.md's M2 bullet is revised in the PR.
+  Final 👍 requested (watchlisted).
+- **#908 (draft)**: Evan corrected DR1's cost reading — R1 bars
+  only exact conic special cases; fitted-NURBS plane×cone sections
+  are fine, so the cylinder arm is a fitted-SSI lane (plumbing),
+  not a ratified-decision change. DR6's checker confirmed
+  kind-general (normal enclosures exist per kind, not per verb).
+  Folded; 👍 requested (watchlisted).
+- ARCEVAL: PR #922 open, hosted draw missed the 1e-12 point
+  (pinned interval lane, default ε drawn) — ordinal-62 single
+  review dispatched with the 1e-12 repro as the reviewer's
+  unique-signal run.
+
+## OFFSET-DESIGN RATIFIED + MERGED (#907, 2026-08-22 👍)
+
+Q8's elaboration is on main: O1-O6 incl. both of Evan's rounds
+(self-intersection doors; O4 definition-vs-execution with the
+degenerate no-crossing arm; sweep-born cavities as the third
+producer) and the DESIGN.md M2-bullet revision ("every cavity is
+born through the shared void-insertion door"). **Wave 3 is
+design-ungated**, and **VERBS-RING's gate lifted** — it dispatches
+next after the ARCEVAL fix pass lands (block VERBS-1 slot 4, the
+block's last slot; spec = the ratified O4/RING definition, the
+door factoring, and the retirement of FullRevolveHoles).
+#908/#909 still await 👍 (one open question each, answered).
+
+## DRAFT-DESIGN RATIFIED + MERGED (#908, 2026-08-22 👍)
+
+DR1-DR6 on main with Evan's corrections: plane-only v1; the
+cylinder arm re-costed as a plane×cone fitted-SSI lane (R1
+untouched — its refusal bars only exact conic special-casing);
+the moldability checker rides kind-general. The draft VERB
+implementation queues behind Wave 1's remaining units per DR6's
+own sequencing; its register row now points at the ratified doc.
+Remaining conversation: #909 (one 👍 pending).
+
+## ALL THREE CONVERSATIONS RATIFIED + MERGED (2026-08-22)
+
+#909 (MIRROR-DESIGN) 👍'd and merged after the P1 user-invisibility
+round; its register-row conflict with #908 resolved in the merge,
+and the draft row's stale "re-opens R1" clause corrected to DR1's
+ratified form in the same resolution. **The program's design
+backlog with Evan is CLEAR**: Q8/offset-shell, draft, and
+patterns/mirror all ratified same-day. Implementable-when-scheduled
+design now exists for: Wave 3 entire (offset → shell → teapot),
+RING (ungated), draft v1 + the kind-general moldability checker,
+mirror (own door, u↦−u, audit-checklist scope), the SegPat
+instance-index predicate, and hole-feature sugar (behind P4's
+lowering ruling).
+
+## ARCEVAL MERGED (#922); the class is serial (2026-08-22)
+
+Ordinal-62 single review: APPROVE-WITH-FIXES 0/2/3 — its
+unique-signal run proved both #921 rows green at 1e-12; MINOR-1
+(the escalation arm's 2x ceiling ADMITTED the pre-fix defect —
+verified by plant, fixed to a bit-exact pin) and MINOR-2 (the
+affine sibling, now filed as #924). Fix pass landed every item +
+both probe suites; its CI drew (interval, 1e-12) — the #921 point —
+and exposed the mechanism: **the class's membership is discovered
+serially** (shard cancellation hid member 3 behind members 1-2), so
+a green-1e-12-before-merge gate would deadlock the fix chain.
+**Adjudication: #922 merged as a proven strict improvement at the
+red point** (two rows greened, member 3's escalation moved sample
+3 → 8 — byte-for-byte compared against pristine main, not argued).
+The distinct NaN'd SSI row found at the same point is #925 (thin
+filing, routed toward #762's guard family, a Wave-2 rider). The
+lane continues with verbs/arceval2: the m5_s13 member re-scoped
+under the same ratified ruling. The structural class retirement
+(triple restrict) now has three recorded consumers on #921 and
+will be scheduled as its own unit. After arceval2, (interval,
+1e-12) on main is red on exactly one enumerated row (#925), which
+is the state #920's re-draw compares against.
+
+## CHAMFER MERGED (#920) + ARCEVAL rows recorded (2026-08-22)
+
+The re-draw after the #921 chain came back green (32589961583,
+point (interval, default) — recorded per the sampling convention)
+and #920 merged; #554's sibling verb exists. Ledger rows CHAMFER
+(ordinal 61) and ARCEVAL (ordinal 62, the #922+#926 two-PR unit)
+are in MODEL-AB-LOG — block VERBS-1 is fully consumed
+(RIM fable / CHAMFER opus / ARCEVAL opus / SSIFLAT opus).
+In flight: VERBS-SSIFLAT (the SSIGUARD dispatch re-scoped after a
+model diagnosis — the #925 "NaN" is MANUFACTURED by ssi_refusal's
+error flattening (`MarginDiag::Enclosure → f64::NAN`), masking an
+honest ε-independent in-band escalation; the unit fixes the
+flattening seam + re-scopes the row per the ruling's fourth
+application; #762 confirmed UNRELATED on the call graph and stays
+open as a Wave-2 rider). NEXT after SSIFLAT: block VERBS-2 draw +
+VERBS-RING (ratified definition, the void-door factoring) and the
+VERBS-ARMS spec. Seam sweep: verbs-chamfer lane.
