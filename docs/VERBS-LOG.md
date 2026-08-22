@@ -219,3 +219,22 @@ merge main into the branch (a real re-draw), green, merge. An
 investigation lane (i921) is tracing the enclosure's width on
 main; its report decides band-vs-enclosure-vs-row-contract, with
 Evan looped in if it is a genuine tolerance-design fork.
+
+## #921 adjudicated; VERBS-ARCEVAL dispatched (2026-08-22)
+
+The investigation traced the red to a manufactured width in
+SketchSegment::eval's arc branch: center reconstructed from a
+cancelling sub-arc chord and entering the evaluation twice —
+~100x the carrier-side width, ∝ 1/sin(θ/2), ε-independent
+(bit-identical enclosures at 1e-6 vs 1e-12), compounding through
+restrict. Ruling on the #921 thread: fix the arithmetic
+(a-anchored rotation, measured to green the m6 row), re-scope
+m5's Interval row to DEFINITE at ε ≥ 1e-9 + pinned honest
+escalation at 1e-12 (its hi ≤ ε at T=Interval is a conditioning
+claim; f64 holds the geometry claim at 8.9e-16), band widening
+REFUSED (no derivation; would launder arithmetic into tolerance
+policy). The triple-restrict redesign is banked on #921.
+VERBS-ARCEVAL dispatched (difficulty S logged pre-dispatch,
+block VERBS-1 slot 3; the investigator's lane continues as the
+implementer — full context, arm-consistent), branch verbs/arceval.
+#920 merges after this lands via a real re-draw.
