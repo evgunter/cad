@@ -899,7 +899,12 @@ run_row "doc-tests (interval)"         interval_doc_tests
 # derivation is at `nightly_demoted` above.
 run_row_opt_in "$RUN_NIGHTLY" "nightly-only tests (demoted)" \
   "cadence lane — pass --nightly to run it" nightly_demoted
-# Root package editor-core (persistence D6.*, band 4 corpus D1, latency D2).
+# Root package editor-core. Three rows, not the six there were: the two
+# named eps batteries (persistence D6.*, band 4 corpus D1) went with the
+# hosted jobs that mirrored them on 2026-08-22 — the `test (eps = ...)`
+# rows above already run every one of those modules, at all three eps. What
+# is left is the two INTERVAL members, which those rows do not cover, and
+# the latency table (D2).
 run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
 run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
 run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
