@@ -418,3 +418,25 @@ via CertificateLimb). R1's full-suite 1e-12 runs established
 dispatched with the 8-item union incl. one class issue for the
 bare-f64 margin-field family both reviewers enumerated. ARMS-1
 landed as PR #932 meanwhile (CI running, report pending).
+
+## ARMS-1 report in; ordinal-64 review out (2026-08-22)
+
+PR #932 green (second run — the first tripped clippy/rustdoc on an
+exhaustive-match consumer, fixed at cause). The report's headlines:
+the annulus band mints via six Euler moves at the seam azimuth
+(census 4/8/4 → 5/10/5, χ = 0, volume_pad exactly 0.0 because a
+SEAM split keeps both supports iso-rectangles); open/N-link paths
+bit-identical via structural RimShape dispatch + verbatim lifts;
+the wrap-around G1 reuses the existing predicate names; the torus
+net landed in tier-3 check 1 with a planted horn red. Four
+disclosed deviations, the substantive one being deviation 3:
+plane_sphere_blend silently assumed the POCKET configuration and
+the dome exposed it — fixed by reading the material side from the
+sphere face's stored sense bit (R ∓ r fold, pocket branch
+bit-identical). Banked: every full-revolve wall is a 4-half-edge
+cycle with empty face.rings (ARMS-2's consumers will all be this
+shape); the same silent-side question must be asked of every arm
+ARMS-2 adds. **Ordinal 64 claimed** — not a third — single fable
+review at frozen f8f97d8e, lane verbs-arms1-r1, probe branch
+verbs/arms1-r1-probes. RING's PR #933 opened meanwhile (CI
+running, report pending); SSIFLAT fix pass still working.
