@@ -161,7 +161,7 @@ sort, not a live ranking.** Priority is Tracks J–X.
   - [Tracks J–X — the repartition](#tracks-jx--the-repartition-2026-08-21) — the live schedule: its rules, the twelve territories, and one table per track
   - [What this partition leaves out, said explicitly](#what-this-partition-leaves-out-said-explicitly)
   - [Last, deliberately](#last-deliberately) — the cross-cutting sweeps that go after everything else
-- [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
+- [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second, C26–C27 from the Track J lanes
 
 ---
 
@@ -1561,13 +1561,17 @@ then the docs should say it is a **decision** rather than a deferral."*
 Today the docs promise the brand and call it deferred, which is neither
 honest state.
 
-*One stale deferral worth its own look:* `indexing_slicing` was deferred
-in `M0-LOG.md:59` with *"revisit at PR 6"*. PR 6 completed the same day
-with no mention; nine milestones later the `Cargo.toml` comment still
-reads as though evaluation code does not yet exist. Issue #475 notes the
-S14 panic is *"one clippy's panic-family gate cannot see because it is
-an index expression"* — the one mechanism that would have caught it is
-held open by a stale 2026-07 deferral.
+*The `indexing_slicing` deferral this paragraph used to call stale is
+**RULED and closed** (Evan, 2026-08-22, landed by #904).* It was deferred
+in `M0-LOG.md:59` with *"revisit at PR 6"*; PR 6 completed the same day
+with no mention, and the log carrying the revisit clause was later deleted
+with `docs/archive/`, so the surviving comment described a condition nobody
+could meet. It is now a **decision** with its reason: an index panic is not
+an input-reachable failure, so the shape is not banned, and individual sites
+are rewritten at leisure. The `cargo clippy … -W clippy::indexing_slicing`
+invocation is recorded at the site as a browsing instrument, not a backlog.
+**Issue #475's premise no longer holds either**: the S14 panic it cites is
+closed by #846, which asks `KnotVector::admits` at every `*_in_span` door.
 
 # Tier 2 — significant
 
@@ -3545,7 +3549,8 @@ does not reach a certified door at all.
 - **Where**: `crates/topo/src/euler.rs:1940` (and 57 siblings),
   `crates/geom/src/curves/nurbs.rs:126`,
   `crates/mesh/src/walk.rs:395`, `crates/geom-core/src/spline/hull.rs:80`,
-  `docs/DESIGN.md:1100`, `Cargo.toml` (the `indexing_slicing` deferral)
+  `docs/DESIGN.md:1100` (`Cargo.toml`'s `indexing_slicing` deferral was
+  also a site until #904 ruled it a decision; it is no longer one)
 - **Importance**: high
 - **Confidence**: sure
 - **Raised by**: the S12/S14 steelman pass, 2026-08-18, which argues
@@ -9404,6 +9409,7 @@ places where a reasonable reader would think the fence ambiguous:
 | **D110** | `scripts/ci-filter.py` decides whether any gate runs at all and is the one script here with no test (S164) | Track F |
 | **D24** | A `pub` item dead workspace-wide is invisible to every mechanical check the repo runs; `[workspace.lints]` has no `unreachable_pub`. **Closes on a chosen mechanism that runs in CI** | Track E |
 | **D122** | Twelve `# noqa` markers, in six files, for three linters the repo does not run (S196). A cost decision — run one Python linter over the whole 38-file Python population, or delete the markers. **Not half.** If the answer is "run one", the CI wiring is this track's too | Track G |
+| **D181** | **`REQUIRE_FREECAD=1` can be deleted and `step import (freecad)` goes green having verified nothing** (`ci.yml:1788` → `scripts/check_step.sh:28-31`): it prints `check_step: SKIP`, exits 0, and nothing checks the flag. Identical in shape to the `REQUIRE_RUFF` hole #905 closed, found by that lane sweeping the class rather than its instance. **A "never" by Evan's rule** (2026-08-22): a defect that can stop a check running AT ALL, not one that makes it run less often. #905's fix is the template — key the fatal condition on `GITHUB_ACTIONS`, which the runner sets and no repo edit can unset, AND assert the declaration. **Note `scripts/check_step.sh` is in no track's fence**, so the row is placed here because `ci.yml` is | Track J lanes |
 
 ## Track K — the instruments, and what they cannot see
 
@@ -10352,3 +10358,90 @@ what is the maximum acceptable length of that answer, and where does it
 live?** A 234-line trait doc and a 130-line gate header are both past
 the point where the rule is findable, which is the failure mode that
 matters.
+
+## C26. Never-versus-sometimes: the grade a CI defect actually deserves
+
+**Ruled by Evan, 2026-08-22, while Track J was grading four of these at
+once:** *"it's very bad if an error can mean that a check **never** runs,
+but really not all that bad at all if an error means it only **sometimes**
+runs."*
+
+The reasoning is the second half: a check that runs less often still runs,
+so the next code PR catches what the skipped one missed, at no particular
+cost. A check that can be silently switched off entirely is caught by
+nothing, ever.
+
+**It re-graded four live findings the moment it was stated**, in both
+directions, which is why it is recorded rather than left in a thread:
+
+- `REQUIRE_RUFF` and `REQUIRE_FREECAD` — one env var away from a job that
+  prints `SKIP`, exits 0 and verifies nothing, on every PR, forever.
+  **Never. Severe.** The first is closed (#905); the second is `D181`.
+- A parity or roster gate scoped to one file, so a second file is
+  unchecked (`OUTLIER_GATES` before #903; claim 9's single-workflow scope).
+  **Never. Severe.**
+- A gate landing mode `0644`, invisible to every `[ -x ]` roster
+  derivation. **Never** — which is why `D59` was worth closing.
+- `_is_docs` misclassifying a change set, so a gate skips *that* PR.
+  **Sometimes. Cheap.** Worth a self-test case and nothing more.
+
+**The orchestrator graded the last of those a MAJOR and was wrong**, and
+the error has a shape worth naming: a defect that is *easy to demonstrate*
+reads as severe. A one-line edit that makes a self-test go green while a
+page falls out of the gate is a vivid reproduction — and it is still only
+"sometimes", because the doctests it skips run on every code PR anyway.
+Vividness is not severity.
+
+**How to apply it.** When deciding how hard to guard something, ask which
+kind it is. The first deserves a mechanism that cannot be defeated by an
+edit — key the fatal condition on something the environment sets, not on
+something the repo declares. The second deserves a case in a self-test.
+Do not spend the first budget on the second problem.
+
+## C27. Four things Track J's lanes found outside their rows
+
+Recorded here rather than as rows because each is either a class needing
+one decision or a fence question, and none belongs to the unit that found
+it. Every one was found by a lane sweeping the *shape* of its own fix
+rather than the symbol.
+
+**Two files are in no track's fence.** `crates/topo/src/separation.rs`
+appears in neither Track P's list nor Track Q's; `scripts/check_step.sh`
+appears in neither Track J's nor Track K's. Both were found by a lane
+asking where a row it wanted to file would go, and in both cases the lane
+declined to widen its own fence to swallow the file — which is the correct
+move and the reason the gap is visible at all. **The partition's headline
+rule is file territory, so a file in no territory is the one shape it
+cannot express.** A third instance would make this a re-partition question
+rather than two footnotes.
+
+**`pub` fields on non-`pub` types: 54 types, 239 fields, 33 files in
+`crates/*/src`.** Largest: `topo/src/fixtures.rs` (62), `profile/src/sugar.rs`
+(23), `mesh/src/nurbs_cert.rs` (15). Raised while closing `D24`, and
+deliberately **not** swept there — because the lane executed the case and
+found the shape does **not** reproduce `D24`: `dead_code` reports an unread
+field regardless of keyword, including a bare `pub` field of a `pub(crate)`
+struct (rustc 1.97.0). So no corpse hides behind a `pub` field; the fault is
+keyword honesty, not a reachability hole. That is what makes 54 a style
+question rather than a residue, and nine of them (`pub(super)` structs in
+`topo/src/boolean` and `topo/src/splitting`) are not obviously wrong as
+written. `crates/*/tests` is at **0** after `D24`'s fix — that population is
+closed. Note also that enum variants cannot carry visibility in Rust
+(E0449), so there is no variant half of this class.
+
+**The ladder-marker class: six dangling provenance markers.** Four `(L5)`
+in `topo/src`, two `(L7)` in `geom-core` — `M0-PLAN.md` and `M0-LOG.md` are
+both deleted, so the numbers resolve to nothing. Two more were resolved in
+passing by `D99`'s fix. **The right fix is one convention decision, not six
+edits**: either L-numbers get a surviving home, or the markers go. Left
+unfixed and disclosed per the style brief's Q6 rather than half-swept.
+
+**Nine findings whose heading names the open half while the body still
+opens with a closed record** — `S18 S19 S29 S32 S58 S66 S73 S110 S168
+S211`. Known when the second prune pass deferred them as cosmetic. **They
+are not cosmetic**: an adversarial reviewer read `S14`'s stale problem
+statement, which describes the pre-#846 tree, and raised a MAJOR against a
+ruling that had already been closed by that PR — costing the review a
+finding and the orchestrator the time to disprove it. The next reader to hit
+one is a lane deciding what to build. This is the last of the closed-content
+residue and it should go before the register is split.
