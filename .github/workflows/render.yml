@@ -298,6 +298,17 @@ jobs:
   scene-inputs:
     name: scene inputs + uv sheet + wild montage
     runs-on: ubuntu-latest
+    # THE MONTAGE LANES' REAL PRECONDITION, and the one thing the merge could
+    # have quietly cost. `montage` used to `needs: tour`, and a job that
+    # `needs` a FAILED job is skipped — so with the uv and wild lanes folded
+    # in here, a broken matplotlib venv would have silently taken the two
+    # FreeCAD lanes down with it, which is exactly the verdict independence
+    # this file's `fail-fast: false` existed to protect. What `montage`
+    # actually needs is the tour output, so that is what is published: this
+    # output is set the moment demos/out is on disk, BEFORE either of the two
+    # renderer-free halves runs, and `montage` reads it under `!cancelled()`.
+    outputs:
+      tour_ok: ${{ steps.tour-ok.outputs.ok }}
     # The uv and wild re-baseline steps commit their lane and post the
     # neutral check run. Nothing else in this job writes anything.
     permissions:
@@ -445,6 +456,17 @@ jobs:
           name: tour-out
           path: demos/out
           retention-days: 1
+      # See the `outputs:` note at the top of this job. Sited HERE — after the
+      # tour is on disk and uploaded, before the uv and wild halves run — so
+      # that what it reports is the montage lanes' precondition and nothing
+      # else. `-s`, not `-e`: a zero-byte scenes.json is not a tour.
+      - name: the tour output is on disk
+        id: tour-ok
+        if: ${{ env.TOUR_WANTED == 'true' }}
+        run: |
+          set -euo pipefail
+          test -s demos/out/scenes.json
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       # ---- the uv sheet: Python's standard library, tiling the tour's own
       # per-face SVGs. Renderer-free and byte-reproducible off-box.
@@ -626,7 +648,10 @@ jobs:
       contents: write
       checks: write
     needs: scene-inputs
-    if: ${{ contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
+    # `!cancelled()` plus the tour's OWN verdict, not the whole job's — see
+    # that job's `outputs:` note. A uv sheet or a wild montage that failed
+    # says nothing about whether these two lanes can draw.
+    if: ${{ !cancelled() && needs.scene-inputs.outputs.tour_ok == 'true' && contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
     # A wedged pass is bounded by render.sh's own per-process budget (two
     # attempts x the budget, per batch); this is the outer stop so a
     # pathological run cannot bill hours of nothing. Two lanes now, so twice
@@ -811,6 +836,7 @@ jobs:
           # job log otherwise.
           echo "runner: $(nproc) cores, $(free -g | awk '/^Mem:/{print $2}') GB, CAD_RENDER_JOBS=$CAD_RENDER_JOBS, CAD_RENDER_BATCH=$CAD_RENDER_BATCH"
           failed=""
+          verdicts=""
           for lane in kernel freecad; do
             wanted="KERNEL_WANTED"; [ "$lane" = freecad ] && wanted="FREECAD_WANTED"
             [ "${!wanted}" = "true" ] || { echo "::notice::$lane lane not requested by this dispatch"; continue; }
@@ -851,16 +877,20 @@ jobs:
             if [ "$status" -ne 0 ]; then
               echo "::error::[$lane] lane FAILED (exit ${status})"
               failed="${failed} ${lane}"
+              verdicts="${verdicts} ${lane}=FAILED"
               echo "${lane}_ok=false" >> "$GITHUB_OUTPUT"
             else
+              verdicts="${verdicts} ${lane}=ok"
               echo "${lane}_ok=true" >> "$GITHUB_OUTPUT"
             fi
           done
           # BOTH VERDICTS, ALWAYS. The matrix this replaces carried
           # `fail-fast: false` so that "did it break in BOTH lanes or only
           # one" survived; the loop above ran every requested lane to
-          # completion and this line reports the pair.
-          echo "lane verdicts: kernel=$(grep -c '^kernel_ok=true' "$GITHUB_OUTPUT" || true) freecad=$(grep -c '^freecad_ok=true' "$GITHUB_OUTPUT" || true)"
+          # completion and this line reports the pair, in one place, whether
+          # or not either failed.
+          echo "lane verdicts:${verdicts:- (no lane requested)}"
+          echo "lane verdicts:${verdicts:- (no lane requested)}" >> "$GITHUB_STEP_SUMMARY"
           if [ -n "$failed" ]; then
             echo "failed lanes:${failed}" >&2
             exit 1
