@@ -35,12 +35,20 @@ land next:
   plane supports only) — the drafted body would be one-way.
 
 **Recommendation**: v1 ships plane-only with a typed
-`DraftUnsupported`-class refusal naming the wall kind; the
-cylinder→cone arm is a SEPARATE later unit whose real content is
-re-opening R1's conic inventory — **that re-opening is Evan's call
-and this conversation does not make it**, it only records that the
-cost of cylinder draft is the conic trio plus (or after) Wave 2's
-operand-gate work, not the draft mechanism itself.
+`DraftUnsupported`-class refusal naming the wall kind.
+
+**The cylinder arm's cost, corrected per Evan's #908 note.** R1's
+"permanent" refusal bars only the *exact conic special cases*
+(parabola/hyperbola never join the analytic curve inventory); a
+generic plane×cone section as a **fitted NURBS curve** is fine —
+the ordinary Q8-family approximating-curve route the plane×NURBS
+lane already ships. So the cylinder→cone arm does NOT re-open R1:
+its real content is a **plane×cone fitted-SSI lane** (march + fit +
+certify, the `plane_nurbs_ssi` shape with a cone chart), sequenced
+with Wave 2's cone-operand work since they share the substrate.
+Still a separate later unit — but plumbing, not a ratified-decision
+change — plus (or after) Wave 2's per-face-KIND operand-gate
+re-scope so the drafted body is not boolean-dead.
 
 ## DR2 — Mechanism: a certified re-geom pass (a new small op class)
 
@@ -128,3 +136,13 @@ that straddles the neutral plane both ways) would mint, and
   lands — same pull-direction input, and it is the natural
   acceptance instrument for the verb (a drafted body should CERTIFY
   moldable at its own angle).
+  **Its reach is NOT plane-limited (answering Evan's #908
+  question)**: the checker consumes certified normal enclosures,
+  which exist per KIND, not per verb — closed forms for the five
+  analytic kinds and the patch-hull machinery for NURBS (the M5
+  substrate LONGTERM-IDEAS names). So it ships kind-general from
+  birth: it can certify (or honestly refuse, where an enclosure
+  is missing) the moldability of bodies the draft VERB cannot yet
+  touch — including imported parts — while draft itself is
+  plane-only. The asymmetry is useful, not accidental: the checker
+  is analysis over existing enclosures; the verb is construction.
