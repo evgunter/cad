@@ -161,7 +161,10 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     let geom_brep::PcurveCertifyError::FittedCertificate { limb, what, margin } = err else {
         panic!("the fitted door must refuse through its certificate arm: {err:?}");
     };
-    assert_eq!(limb, None, "an escalation names no limb, only its predicate");
+    assert_eq!(
+        limb, None,
+        "an escalation names no limb, only its predicate"
+    );
     assert_eq!(what, "ssi_hull_sup");
     let Some(geom_core::MarginDiag::Enclosure { lo, hi }) = margin else {
         panic!("the escalation must carry its enclosure: {margin:?}");
@@ -294,7 +297,10 @@ fn the_margin_is_legible_through_the_public_topo_door() {
     let mut body = Body::<Interval>::new();
     let seed = body.mvfs(p0).unwrap();
     let sph_key = body
-        .set_face_surface(seed.face, topo::FaceSurface::New(sphere::<Interval>(radius)))
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New(sphere::<Interval>(radius)),
+        )
         .unwrap();
     let anchor = body.mvfs(p1).unwrap();
     let pl_key = body
