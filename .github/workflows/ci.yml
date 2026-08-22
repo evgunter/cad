@@ -581,13 +581,22 @@ jobs:
         run: cargo fmt --all --check
       # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
       # comment can silently stop rendering with the gate green. The
-      # command, the flags, and the shrinking exclusion list all live in
-      # scripts/doc-gate.sh — one implementation, called from here and
-      # from local-scripts/ci-local.sh, the ci-filter.py arrangement.
-      # NOT scoped by the filter, deliberately: it is a workspace-wide
-      # ratchet over a fixed crate set, so scoping it to the change
+      # command and the flags live in scripts/doc-gate.sh — one
+      # implementation, called from here and from
+      # local-scripts/ci-local.sh, the ci-filter.py arrangement.
+      # NOT scoped by the filter, deliberately: it is a tree-wide
+      # ratchet over a derived root set, so scoping it to the change
       # closure would trade the ratchet's meaning for no measurable
       # time. It still respects the docs tier via this job's run_build.
+      #
+      # THE `--selftest` LINE IS PART OF THE GATE, not a nicety: the
+      # script's `-D warnings`, its `--document-private-items`, its
+      # `--bins` invocation and its loop over the cargo roots outside
+      # the workspace can each be dropped and leave it green over a
+      # broken tree. It is the same first line every scripts/gates/ gate
+      # gets — but this script is NOT in that directory (its header
+      # says why), so `gate-roster.sh` does not check this wiring and
+      # deleting the line reds nothing.
       #
       # Runs even when rustfmt failed: formatting and doc coverage are
       # independent verdicts, and the matrix-free merge must not turn
@@ -595,7 +604,9 @@ jobs:
       # a cancelled run still stops here.
       - name: rustdoc (gate)
         if: '!cancelled()'
-        run: scripts/doc-gate.sh
+        run: |
+          scripts/doc-gate.sh --selftest
+          scripts/doc-gate.sh
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
@@ -2239,19 +2250,19 @@ jobs:
         run: cd demos/tour && cargo test --release --test eps_regression
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-      # `cargo doc` here is the same stopgap #709 added to the
-      # tess-meter row below, for the same reason: `scripts/doc-gate.sh`
-      # covers workspace MEMBERS only, so this crate's prose — which
-      # carries the gate's own rules and its report legend — is outside
-      # it. The general hole (k-lint, demos/tour, demos/wild) is still
-      # open and is stated at the gate itself.
-      - name: tess-lint tool fmt + clippy + doc + tests (the three exit voices)
+      # NO `cargo doc` STEP HERE, and that is the fix rather than an
+      # omission: this crate's prose — which carries the gate's own
+      # rules and its report legend — was documented by a step #709
+      # hand-copied here and #738 copied again for tess-meter, one root
+      # at a time, with no shared home and nothing checking the copies.
+      # `scripts/doc-gate.sh` now iterates every cargo root outside the
+      # workspace, this one included, from a DERIVED list. Adding a
+      # third copy is never the answer to a fourth root.
+      - name: tess-lint tool fmt + clippy + tests (the three exit voices)
         run: |
           cd tools/tess-lint
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-            cargo doc --no-deps --document-private-items
           cargo test
       # The meter's CONSUMER half: the CSV schema, the counterfactual
       # schedules and the split optimizer, which is where they live now
@@ -2259,21 +2270,17 @@ jobs:
       # tests are the derivations' tests — the split optimizer's answer
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
-      # `cargo doc` too, as the tess-lint row above now also does.
-      # `scripts/doc-gate.sh` is `cargo doc --workspace` and the root
-      # manifest excludes `tools/`, so this crate's ~1,050 lines of
-      # prose — the slack factors, the anisotropy caveat, the boundary
-      # rule — are outside that gate. Documenting them here is a
-      # stopgap for THIS crate; the same hole still covers `k-lint`,
-      # `demos/tour` and `demos/wild`, and is stated at the gate
-      # itself.
-      - name: tess-meter tool fmt + clippy + doc + tests
+      # No `cargo doc` step here either, for the reason given at the
+      # tess-lint row above. This crate's ~1,050 lines of prose — the
+      # slack factors, the anisotropy caveat, the boundary rule — moved
+      # out of `crates/mesh/src/budget.rs` in #709 and went from covered
+      # to uncovered BY MOVING; the rustdoc gate reads them now because
+      # it reads every cargo root, not because this row remembers to.
+      - name: tess-meter tool fmt + clippy + tests
         run: |
           cd tools/tess-meter
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-            cargo doc --no-deps --document-private-items
           cargo test
       # THE METER'S KERNEL HALF, and the per-triangle certificate
       # falsifier with it. `mesh::budget` is gated at its module

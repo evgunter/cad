@@ -600,28 +600,24 @@ klint_gate() {
 # delta to get the number down is the one forbidden move. What the
 # absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
-  # `cargo doc` too, for the reason given at tessmeter_tool below: this
-  # crate is workspace-excluded, so doc-gate.sh never sees the prose
-  # that carries the gate's own rules and its report legend.
+  # No `cargo doc` here: it used to carry a copy of one, because
+  # doc-gate.sh was `cargo doc --workspace` and could not see a
+  # workspace-EXCLUDED crate. It iterates every cargo root now, so the
+  # copy is gone from both halves rather than maintained in two.
   (cd tools/tess-lint && cargo fmt --check && \
     cargo clippy --all-targets -- -D warnings && \
-    RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-      cargo doc --no-deps --document-private-items && \
     cargo test)
 }
 # The meter's CONSUMER half.
-# HOSTED MIRROR: k-lint / tess-meter tool fmt + clippy + doc + tests
+# HOSTED MIRROR: k-lint / tess-meter tool fmt + clippy + tests
 # The CSV schema, the counterfactual schedules and the split optimizer
 # live here, outside the kernel, and so do their tests.
 tessmeter_tool() {
-  # `cargo doc` too: scripts/doc-gate.sh is `cargo doc --workspace` and
-  # `tools/` is workspace-excluded, so this crate's prose has no other
-  # gate (stated at doc-gate.sh; a row covering every excluded root is
-  # owed).
+  # No `cargo doc` here either — see tesslint_tool above. This crate's
+  # ~1,050 lines of prose are read by the rustdoc gate row below,
+  # which covers every cargo root and not just the workspace.
   (cd tools/tess-meter && cargo fmt --check && \
     cargo clippy --all-targets -- -D warnings && \
-    RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-      cargo doc --no-deps --document-private-items && \
     cargo test)
 }
 # The meter's kernel half.
@@ -676,9 +672,19 @@ run_row "scene manifest reader (demos)" manifest_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
-# — it is a workspace-wide ratchet over a fixed crate set, not a
-# per-closure row. See scripts/doc-gate.sh for the flags and the list.
-run_row "rustdoc (gate)"               scripts/doc-gate.sh
+# — it is a tree-wide ratchet over a derived root set, not a per-closure
+# row. See scripts/doc-gate.sh for the flags and the derivation.
+#
+# `--selftest` FIRST, exactly as the hosted row does it and as every
+# gate in scripts/gates/ does it: the script's flags and its loop over
+# the cargo roots outside the workspace can each be dropped and leave it
+# green over a broken tree. That script is not IN scripts/gates/ (its
+# header says why), so `gate-roster.sh` does not check this wiring —
+# delete the selftest line from either half and no gate reds.
+rustdoc_gate() {
+  scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
+}
+run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
