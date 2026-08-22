@@ -160,4 +160,4 @@ pub use skin::{
 pub mod chamfer;
 pub mod fillet;
 
-pub use chamfer::{Chamfered, chamfer_edges};
+pub use fillet::build::{Chamfered, chamfer_edges};

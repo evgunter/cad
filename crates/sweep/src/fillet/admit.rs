@@ -1,6 +1,6 @@
 //! **The surgery's front door, as types.**
 //!
-//! [`super::surgery::fillet_surgery`] admits a verdict one clause at a
+//! [`super::surgery::blend_surgery`] admits a verdict one clause at a
 //! time — this chain is a single convex plane–plane link; this corner
 //! is trivalent with all three edges requested; this support face has
 //! its entire outer cycle requested. Each type here is one of those

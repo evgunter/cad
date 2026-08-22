@@ -2020,7 +2020,7 @@ mod tests {
     use crate::test_support::{L, R, all_links, cube};
 
     /// **The guard for the two cheapest row-4 proofs.**
-    /// `fillet_surgery`'s `unreachable!`s at the solid and shell reads
+    /// `blend_surgery`'s `unreachable!`s at the solid and shell reads
     /// both say *"checked at entry"* — and the check is ninety lines
     /// above them. Delete it and those two sentences become lies
     /// printed inside a panic, on a body that would otherwise be

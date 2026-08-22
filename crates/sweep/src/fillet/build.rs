@@ -61,10 +61,10 @@ use topo::{
     Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey,
 };
 
-use super::FilletError;
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{FilletRequest, Link, run_battery};
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
+use super::{BlendKind, FilletError};
 use geom_core::Tol;
 
 /// A filleted body: the rounded solid plus the keys of the faces the
@@ -237,4 +237,66 @@ pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
         Surface::Plane { normal, .. } => Some(*normal * f.sense_sign::<T>()),
         _ => None,
     }
+}
+
+// ------------------------------------------------------------------
+// The chamfer's front door.
+//
+// It lives beside `fillet_edges` rather than in `crate::chamfer`
+// because the two are one seam: the same battery, the same admission
+// tokens, the same composition surgery, and the same certified metric
+// payloads that the `Decide + Bounds` scope rule ratifies for exactly
+// these three files (`geom-core/src/real.rs`). `crate::chamfer` is
+// the verb's documented module and re-exports what is written here.
+// ------------------------------------------------------------------
+
+/// A chamfered body. The same record the fillet's assembly returns —
+/// `blend_faces` are the strips, `corner_faces` the flat patches, and
+/// `band_faces` is empty, since a chamfer has no closed-chain band.
+pub type Chamfered<T> = Filleted<T>;
+
+/// **Chamfer a set of a body's edges** at equal setback `distance`
+/// along both supports.
+///
+/// The battery runs FIRST and its refusal propagates unchanged — the
+/// same ordering contract [`fillet_edges`] keeps,
+/// for the same reason: nothing is minted before a verdict exists.
+///
+/// # Errors
+///
+/// [`FilletError::RepeatedEdge`] when the request names one edge
+/// twice; [`FilletError::ChamferArmUnsupported`] when a requested
+/// edge's supports are not both planes; any predicate refusal the
+/// battery raises, or [`FilletError::Escalated`] carrying the margin;
+/// [`FilletError::UnsupportedBody`], [`FilletError::UnsupportedChain`],
+/// [`FilletError::UnsupportedRunOut`],
+/// [`FilletError::UnsupportedGeometry`] or
+/// [`FilletError::FilletCornerUnsupported`] when the request is outside
+/// the assembly's front door; [`FilletError::BodyNotIntact`] when the
+/// body does not hold together where the plan reads it;
+/// [`FilletError::RingClearance`] when a carried-through ring does not
+/// clear a trimline; [`FilletError::Op`] / [`FilletError::Certify`]
+/// carrying an operator's or the pcurve pass's own typed refusal.
+pub fn chamfer_edges<T: Decide + Bounds>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    distance: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Chamfered<T>, FilletError> {
+    // A repeated edge is malformed for the chain walk (it would double
+    // a link), so it refuses before the battery samples anything.
+    let mut requested = edges.to_vec();
+    requested.sort_unstable();
+    if let Some(edge) = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]) {
+        return Err(FilletError::RepeatedEdge { edge });
+    }
+
+    let request = FilletRequest {
+        body,
+        edges: edges.to_vec(),
+        radius: distance,
+    };
+    let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
+    super::surgery::blend_surgery(body, &verdict, band, tol)
 }
