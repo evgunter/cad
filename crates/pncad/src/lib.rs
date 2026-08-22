@@ -116,17 +116,19 @@
 //! # A fifteen-line example
 //!
 //! ```
+//! use geom_core::Tol;
 //! use pncad::prelude::*;
 //!
+//! let tol = Tol::witness();
 //! let square: ClosedLoop<f64> = Open
 //!     .at(p2(0.0, 0.0))
-//!     .line_to(p2(1.0, 0.0))?
-//!     .line_to(p2(1.0, 1.0))?
-//!     .line_to(p2(0.0, 1.0))?
-//!     .line_to(Start)?;
-//! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()])?;
-//! let body = extrude(&profile, Extrusion::Distance(real(1.0)))?;
-//! let props = mass_properties(&body.body)?;
+//!     .line_to(p2(1.0, 0.0), tol)?
+//!     .line_to(p2(1.0, 1.0), tol)?
+//!     .line_to(p2(0.0, 1.0), tol)?
+//!     .line_to(Start, tol)?;
+//! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
+//! let body = extrude(&profile, Extrusion::Distance(real(1.0)), tol)?;
+//! let props = mass_properties(&body.body, tol)?;
 //! assert!((props.volume - 1.0).abs() < 1e-12);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```

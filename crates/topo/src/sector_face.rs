@@ -203,11 +203,12 @@ pub(crate) fn resolve<T: Decide>(
 mod tests {
     use super::*;
     use crate::fixtures::prism;
+    use geom_core::Tol;
 
     /// A sphere face, installed on a prism's side face so the orbit
     /// around one of its vertices walks a sphere-carried sector.
     fn sphere_sided_prism() -> (crate::Body<f64>, crate::entity::FaceKey) {
-        let p = prism(3);
+        let p = prism(3, Tol::witness());
         let face = p.face_side[0];
         let mut body = p.body;
         body.set_face_surface(
@@ -229,7 +230,7 @@ mod tests {
     /// limited to.
     #[test]
     fn corrupt_names_the_entity_that_did_not_resolve() {
-        let p = prism(3);
+        let p = prism(3, Tol::witness());
         let bogus = crate::entity::HalfEdgeKey::default();
         match resolve(&p.body, p.t[0], bogus) {
             Err(SectorFaceError::Corrupt(EntityId::HalfEdge(k))) => assert_eq!(k, bogus),

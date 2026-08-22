@@ -68,6 +68,7 @@ mod common;
 
 use common::tol;
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::path::PathNoCornerReason;
 use profile::{ArcSweep, Center, NoCornerReason, Open, PathError, ProfileLoop, Start};
 use test_utils::fuzz;
@@ -441,8 +442,9 @@ fn build_corner(
                     winding: leg_out.winding(),
                     p: next,
                 },
+                Tol::witness(),
             )?
-            .line_to(Start)?,
+            .line_to(Start, Tol::witness())?,
         (OracleLeg::Arc { center: c1, .. }, OracleLeg::Line { .. }) => {
             let (dx, dy) = leg_out.travel_dir(corner, false);
             Open.arc_fillet(
@@ -452,16 +454,17 @@ fn build_corner(
                     p: head,
                 },
                 r,
+                Tol::witness(),
             )?
-            .at(next)?
-            .toward(dx, dy)?
-            .line(0.25)?
-            .line_to(Start)?
+            .at(next, Tol::witness())?
+            .toward(dx, dy, Tol::witness())?
+            .line(0.25, Tol::witness())?
+            .line_to(Start, Tol::witness())?
         }
         (OracleLeg::Line { .. }, OracleLeg::Arc { center: c2, .. }) => {
             let (dx, dy) = leg_in.travel_dir(corner, true);
             Open.at(head)
-                .toward(dx, dy)?
+                .toward(dx, dy, Tol::witness())?
                 .fillet_arc(
                     r,
                     Center {
@@ -469,19 +472,20 @@ fn build_corner(
                         winding: leg_out.winding(),
                         p: next,
                     },
+                    Tol::witness(),
                 )?
-                .line_to(Start)?
+                .line_to(Start, Tol::witness())?
         }
         (OracleLeg::Line { .. }, OracleLeg::Line { .. }) => {
             let (dx1, dy1) = leg_in.travel_dir(corner, true);
             let (dx2, dy2) = leg_out.travel_dir(corner, false);
             Open.at(head)
-                .toward(dx1, dy1)?
-                .fillet(r)?
-                .at(next)?
-                .toward(dx2, dy2)?
-                .line(0.25)?
-                .line_to(Start)?
+                .toward(dx1, dy1, Tol::witness())?
+                .fillet(r, Tol::witness())?
+                .at(next, Tol::witness())?
+                .toward(dx2, dy2, Tol::witness())?
+                .line(0.25, Tol::witness())?
+                .line_to(Start, Tol::witness())?
         }
     };
     Ok(closed.loop_)
@@ -1319,7 +1323,7 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
     // says. The mined conditioning decides the outcome on the REFUSING
     // band, where the typed error carries `offset_radius` and this row
     // checks it against rho directly.
-    let eps = tol().eps;
+    let eps = tol().eps();
     if 2.53e-10 < eps {
         let lp = build_corner(corner, leg_in, leg_out, r).unwrap_or_else(|e| {
             panic!(
@@ -1511,7 +1515,7 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
     let lp = build_corner(corner, leg_in, leg_out, r).unwrap_or_else(|e| {
         panic!(
             "the ill-conditioned pin must still build at eps = {:e}; got {e:?}",
-            tol().eps
+            tol().eps()
         )
     });
 
@@ -1578,7 +1582,7 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
         false,
     );
     let r = 0.672_869_165_673_333_2;
-    let eps = tol().eps;
+    let eps = tol().eps();
 
     match build_corner(corner, leg_in, leg_out, r) {
         Err(PathError::FilletOffsetLeverTooShort {

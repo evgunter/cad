@@ -291,9 +291,10 @@ fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {

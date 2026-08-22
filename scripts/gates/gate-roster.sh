@@ -28,7 +28,7 @@
 # is the agreement between the two halves, so it is the one thing that
 # has to see both — and it is sited in the `mirror` job, which is the
 # single declared exception to the prune and the single job that runs on
-# every tier. `ci-mirror-parity.sh` checks that the exception stays
+# every tier. `scripts/check-ci-mirror-parity.py` checks that the exception stays
 # exactly one job. An earlier version of this header argued the opposite
 # — that the check needed nothing from `local-scripts/` because a
 # deletion touching only `local-scripts/ci-local.sh` classifies
@@ -70,6 +70,22 @@
 # were live evasions of the first version of this check, so the matcher
 # requires a real call on a non-comment line AND a `--selftest` call,
 # and the fixture below plants both evasions permanently.
+#
+# AND THE GATES THAT ARE NOT IN THE DIRECTORY. The roster is the
+# directory, so a gate SITED ELSEWHERE is watched by nothing — which was
+# a real hole rather than a hypothetical one: `scripts/doc-gate.sh`
+# obeys lib.sh's contract in full and sits outside because the local
+# half runs this whole directory in a loop inside its `discipline` row,
+# and a full `cargo doc --workspace --all-features` does not belong in a
+# row that is otherwise greps and one `cargo metadata`. Deleting
+# `--selftest` from either half's rustdoc row red nothing. OUTLIER_GATES
+# closes that without moving the file, and it is the same shape
+# `check-ci-mirror-parity.py`'s TIER_BLIND already uses: a NAMED PATH
+# that both halves must invoke. It is a hand-written list and therefore
+# the very thing the paragraph above argues against — so it is bounded
+# by the check that each entry EXISTS and is executable. A list that can
+# only be wrong by naming a file that is not there is a list that cannot
+# quietly shrink.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -79,6 +95,12 @@ LOCAL_HALF=local-scripts/ci-local.sh
 
 # The one member of scripts/gates/ that is sourced rather than run.
 NOT_A_GATE=lib.sh
+
+# Gates under lib.sh's contract that live OUTSIDE scripts/gates/. Each
+# is checked exactly as a member of the directory is: both halves must
+# run it AND its `--selftest`. See the header for why the list is
+# hand-written and what bounds it.
+OUTLIER_GATES=(scripts/doc-gate.sh)
 
 # A half with its comment lines removed: what would actually run.
 # MATERIALISED into a variable by every caller, never piped into a check:
@@ -185,10 +207,44 @@ gate() {
       { gate_error "$LOCAL_HALF's gate loop does not mention $NOT_A_GATE, so it is excluding it by mode rather than by name — that makes the executable bit the registration mechanism again, and a gate landing 0644 invisible locally"; rc=1; }
   fi
 
+  # THE GATES OUTSIDE THIS DIRECTORY. Same claim, one path at a time,
+  # against BOTH halves — the directory loop above covers the local half
+  # for free because that half has a loop; an outlier has no loop to
+  # ride, so each half is matched explicitly. `--selftest` is matched
+  # loosely (the local half spells the pair as `X --selftest && X` on
+  # one line) while the REAL call must end its command, so a row that
+  # self-tests a gate and never runs it still fails — the evasion the
+  # directory matcher already refuses.
+  local outlier
+  for outlier in ${OUTLIER_GATES[@]+"${OUTLIER_GATES[@]}"}; do
+    esc=${outlier//./\\.}
+    if [ ! -x "$outlier" ]; then
+      gate_error "$(gate_name): OUTLIER_GATES names $outlier, which is not an executable file under $PWD — a named path that is not there is a roster entry watching nothing, and this list has no filesystem to derive itself from. Fix the path or drop the entry deliberately"
+      rc=1
+      continue
+    fi
+    if ! grep -qE "(^|[[:space:]])$esc[[:space:]]*(\$|\||&|;)" <<<"$cmds"; then
+      gate_error "$HOSTED_HALF never RUNS $outlier — it is a gate under lib.sh's contract sited outside scripts/gates/, so this list is the only thing watching its wiring (naming it in a comment, or only self-testing it, does not run it)"
+      rc=1
+    fi
+    if ! grep -qE "(^|[[:space:]])$esc[[:space:]]+--selftest([[:space:]]|\$)" <<<"$cmds"; then
+      gate_error "$HOSTED_HALF runs $outlier without running its --selftest first — a guard that has never been shown to fire is not a guard, and a gate outside scripts/gates/ gets that check from here or from nowhere"
+      rc=1
+    fi
+    if ! grep -qE "(^|[[:space:]])$esc[[:space:]]*(\$|\||&|;)" <<<"$body"; then
+      gate_error "$LOCAL_HALF never RUNS $outlier. The rule is not hosted-side-only: a gate the local half does not run is a gate a developer cannot run before pushing, and the loop that covers scripts/gates/ does not reach outside it"
+      rc=1
+    fi
+    if ! grep -qE "(^|[[:space:]])$esc[[:space:]]+--selftest([[:space:]]|\$)" <<<"$body"; then
+      gate_error "$LOCAL_HALF runs $outlier without its --selftest — locally too, a guard that has never been shown to fire is not a guard"
+      rc=1
+    fi
+  done
+
   [ "$rc" -eq 0 ] || exit 1
-  GATE_SCAN_FILES=${#roster[@]}
-  printf '%s OK: ci.yml wires a self-tested step for all %s gates in scripts/gates/, and %s still runs the directory in a self-testing loop (wiring, not execution — see the header on `if:`)\n' \
-    "$(gate_name)" "${#roster[@]}" "$LOCAL_HALF"
+  GATE_SCAN_FILES=$((${#roster[@]} + ${#OUTLIER_GATES[@]}))
+  printf '%s OK: ci.yml wires a self-tested step for all %s gates in scripts/gates/ and for %s under lib.sh'"'"'s contract sited outside it, and %s runs the directory in a self-testing loop and names the outliers too (wiring, not execution — see the header on `if:`)\n' \
+    "$(gate_name)" "${#roster[@]}" "${#OUTLIER_GATES[@]}" "$LOCAL_HALF"
 }
 
 # This gate's subject is ci.yml, the gate directory, and the local
@@ -215,6 +271,62 @@ gate_plant_clean() {
     printf '  return $rc\n'
     printf '}\n'
   } > "$1/local-scripts/ci-local.sh"
+  # THE OUTLIERS, planted from the list itself rather than by name, so
+  # the fixture cannot fall behind an entry someone adds. Both halves
+  # wired the way the real ones are: the hosted half on two lines, the
+  # local half as the one-line `X --selftest && X` pair, which is also
+  # what keeps the two matchers honest about spelling.
+  local outlier
+  for outlier in ${OUTLIER_GATES[@]+"${OUTLIER_GATES[@]}"}; do
+    mkdir -p "$1/$(dirname "$outlier")"
+    printf '#!/usr/bin/env bash\n' > "$1/$outlier"
+    chmod +x "$1/$outlier"
+    {
+      # The step NAME is the basename, not the path: a fixture whose
+      # step name contained the path would satisfy the real-call
+      # matcher on its own, and the case that deletes the real call
+      # would pass for the wrong reason.
+      printf '      - name: %s\n        run: |\n' "$(basename "$outlier" .sh)"
+      printf '          %s --selftest\n' "$outlier"
+      printf '          %s\n' "$outlier"
+    } >> "$1/.github/workflows/ci.yml"
+    printf '%s --selftest && %s\n' "$outlier" "$outlier" \
+      >> "$1/local-scripts/ci-local.sh"
+  done
+}
+
+# THE OUTLIER LIST'S OWN FAILURES, one per half and one per mode. Before
+# OUTLIER_GATES existed, every one of these four was a silent green:
+# `scripts/doc-gate.sh` is not in scripts/gates/, so the roster loop
+# never looked at it.
+outlier_ci_yml_without() {
+  local root=$1 pattern=$2
+  grep -vE "$pattern" "$root/.github/workflows/ci.yml" > "$root/ci.yml.new"
+  mv "$root/ci.yml.new" "$root/.github/workflows/ci.yml"
+}
+
+plant_outlier_unwired_hosted() {
+  outlier_ci_yml_without "$1" "^ *${OUTLIER_GATES[0]}\$"
+}
+
+plant_outlier_hosted_selftest_deleted() {
+  outlier_ci_yml_without "$1" "^ *${OUTLIER_GATES[0]} --selftest\$"
+}
+
+plant_outlier_unwired_local() {
+  printf 'discipline() {\n  local rc=0 g\n  for g in scripts/gates/*.sh; do\n    [ "$(basename "$g")" = lib.sh ] && continue\n    "$g" --selftest || rc=1\n    "$g" || rc=1\n  done\n  return $rc\n}\n' \
+    > "$1/local-scripts/ci-local.sh"
+}
+
+plant_outlier_local_selftest_deleted() {
+  plant_outlier_unwired_local "$1"
+  printf '%s\n' "${OUTLIER_GATES[0]}" >> "$1/local-scripts/ci-local.sh"
+}
+
+# The list naming a path that is not there — the one way a hand-written
+# roster can rot that the filesystem cannot fix for it.
+plant_outlier_missing() {
+  rm -f "$1/${OUTLIER_GATES[0]}"
 }
 
 # A gate on disk that ci.yml does not mention at all.
@@ -285,7 +397,7 @@ plant_lib_invoked() {
   printf '          scripts/gates/lib.sh\n' >> "$1/.github/workflows/ci.yml"
 }
 
-# Nine known evasions, all permanent fixture cases, all run as real
+# Fourteen known evasions, all permanent fixture cases, all run as real
 # subprocesses by lib.sh's harness — the property this gate needs most,
 # because the `|| true` on every matcher in `gate()` is load-bearing and
 # nothing could observe its absence while the harness ran a gate
@@ -301,7 +413,14 @@ gate_selftest() {
   gate_selftest_case "never runs \"\$g\" --selftest" plant_local_no_selftest
   gate_selftest_case "excluding it by mode rather than by name" plant_local_mode_exclusion
   gate_selftest_case "SOURCED and not a gate" plant_lib_invoked
-  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, and a step running lib.sh\n' "$(gate_name)"
+  gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_unwired_hosted
+  gate_selftest_case "runs ${OUTLIER_GATES[0]} without running its --selftest" \
+    plant_outlier_hosted_selftest_deleted
+  gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_unwired_local
+  gate_selftest_case "runs ${OUTLIER_GATES[0]} without its --selftest" \
+    plant_outlier_local_selftest_deleted
+  gate_selftest_case "which is not an executable file" plant_outlier_missing
+  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

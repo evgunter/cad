@@ -103,8 +103,8 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
-    Tolerance, Vec2,
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol,
+    Vec2,
 };
 
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
@@ -754,9 +754,10 @@ impl<T: Real> ValidatedLoop<T> {
     /// rather than the answer guessing.
     ///
     /// ```
-    /// use geom_core::{Point2, Tolerance};
+    /// use geom_core::{Point2, Tol};
     /// use profile::{ArcSweep, Center, Open, Profile, SegmentKind, SketchPlane, Start};
     ///
+    /// let tol = Tol::witness();
     /// // The tour rocker's eye slot: two R = 1 lobes meeting tip to
     /// // tip, the TOP tip filleted at R = 1/4, the bottom left sharp.
     /// let tip = 0.75f64.sqrt();
@@ -773,10 +774,11 @@ impl<T: Real> ValidatedLoop<T> {
     ///             winding: ArcSweep::Ccw,
     ///             p: Start,
     ///         },
+    ///         tol,
     ///     )
     ///     .expect("the near candidate resolves the tip");
     /// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
-    ///     .validate(Tolerance::get())
+    ///     .validate(tol)
     ///     .expect("the eye slot validates");
     ///
     /// // One filleted corner, found by structure — no radius scan.
@@ -892,8 +894,8 @@ impl<T: Decide> Profile<T> {
     /// escalation (in-band margin, poisoned coordinate) surfaces as
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
-    pub fn validate(&self, tol: Tolerance) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ProfileError::Band)?;
+    pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;

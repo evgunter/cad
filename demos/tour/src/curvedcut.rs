@@ -28,7 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point2, Point3, Tolerance, Vec3};
+use pncad::geom_core::{Point2, Point3, Vec3};
 use pncad::profile::{Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
@@ -36,6 +36,7 @@ use pncad::topo::{Body, Curve3, EdgeGeometry};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// The cylinder's radius (m).
 const R: f64 = 1.0;
@@ -47,21 +48,21 @@ const PHI: f64 = 0.3;
 /// The disc profile: two half-circle arcs (bulge 1) of radius [`R`] —
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
 /// surface.
-fn disc<S: Scalar>() -> ValidatedProfile<S> {
+fn disc<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
     // Algebra-authored (LIB-G1): the one-step circle program form.
     let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R))
+    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R), tol)
         .expect("disc radius is positive")
         .into();
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(tol)
         .expect("the disc profile validates")
 }
 
 /// The cut: cylinder split by the tilted plane through mid-height.
 /// Returns (above, below) — both sides carry material.
-pub fn build<S: Scalar>() -> (Body<S>, Body<S>) {
-    let cylinder = extrude(&disc::<S>(), Extrusion::Distance(S::from_f64(H)))
+pub fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
+    let cylinder = extrude(&disc::<S>(tol), Extrusion::Distance(S::from_f64(H)), tol)
         .expect("extrude cylinder")
         .body;
     let plane = SplitPlane {
@@ -72,7 +73,7 @@ pub fn build<S: Scalar>() -> (Body<S>, Body<S>) {
             S::from_f64(PHI.cos()),
         ),
     };
-    let result = split(&cylinder, &plane).expect("the tilted cut splits the cylinder");
+    let result = split(&cylinder, &plane, tol).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("the section plane crosses the wall: both sides must be bodies");
     };
@@ -83,7 +84,7 @@ pub fn build<S: Scalar>() -> (Body<S>, Body<S>) {
 /// half carries, their semi-axes against the closed form (a = r/cos φ,
 /// b = r), the worst certificate residual, and the certified volume
 /// bracket against πr²H/2.
-fn section_narration<S: Scalar>(label: &str, body: &Body<S>) -> String {
+fn section_narration<S: Scalar>(label: &str, body: &Body<S>, tol: Tol) -> String {
     let mut arcs = 0usize;
     let mut worst = 0.0f64;
     for (_, edge) in body.edges() {
@@ -112,7 +113,7 @@ fn section_narration<S: Scalar>(label: &str, body: &Body<S>) -> String {
     // The PR 11 certified enclosure, asserted against the closed form:
     // the tilted plane passes through the axis midpoint, so EACH half
     // encloses exactly πr²H/2.
-    let m = pncad::topo::mass_properties(body).expect("the PR 11 quadrature lane computes");
+    let m = pncad::topo::mass_properties(body, tol).expect("the PR 11 quadrature lane computes");
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     let (v, pad) = (m.volume.f(), m.volume_pad);
     assert!(
@@ -132,10 +133,10 @@ fn section_narration<S: Scalar>(label: &str, body: &Body<S>) -> String {
 }
 
 /// The rendering stop (montage panel; the PR 11 flip, one place).
-pub fn stops() -> Vec<Stop> {
-    let (above, below) = build::<f64>();
-    let narration_above = section_narration("tiltedcut_above", &above);
-    let narration_below = section_narration("tiltedcut_below", &below);
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let (above, below) = build::<f64>(tol);
+    let narration_above = section_narration("tiltedcut_above", &above, tol);
+    let narration_below = section_narration("tiltedcut_below", &below, tol);
     vec![Stop {
         name: "tiltedcut",
         caption: "tilted cut (exact ellipse section)".to_string(),

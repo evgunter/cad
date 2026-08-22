@@ -43,6 +43,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::{CurveKey, SurfaceKey};
+use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
     /// Replaces `face`'s surface per the [`FaceSurface`] spec,
@@ -168,8 +169,9 @@ impl<T: Decide> Body<T> {
         &mut self,
         edge: EdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<CurveKey, EulerOpError> {
-        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec)
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec, tol)
     }
 
     /// [`Body::set_edge_curve`] with the certification door supplied by
@@ -186,7 +188,9 @@ impl<T: Decide> Body<T> {
             EdgeCurveSpec<T>,
             geom_core::Point3<T>,
             geom_core::Point3<T>,
+            Tol,
         ) -> Result<geom_brep::EdgeCurve<T>, EulerOpError>,
+        tol: Tol,
     ) -> Result<CurveKey, EulerOpError> {
         let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
@@ -249,7 +253,7 @@ impl<T: Decide> Body<T> {
             geom_brep::EdgeGeometry::MappedCurve(_) => {}
         }
 
-        let certified = certify(self, curve, p_start, p_end)?;
+        let certified = certify(self, curve, p_start, p_end, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.add_curve(certified);

@@ -14,12 +14,13 @@
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Point3, Tolerance, Vec3};
+use geom_core::{Point3, Vec3};
 
 use crate::euler::FaceSurface;
 use crate::fixtures::test_curve;
 use crate::validate::{ValidationError, validate, validate_geometric};
 use crate::{Body, MefSite, MevSite};
+use geom_core::Tol;
 
 fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -28,7 +29,7 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 /// A geometric digon pillow: two vertices, two chord edges, two
 /// coplanar faces (the z = 0 plane on both sides) — the minimal
 /// tier-3-clean body, and the coplanar-split smooth-dihedral case.
-fn coplanar_pillow() -> (Body<f64>, crate::MefCreated) {
+fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let seg = body
@@ -37,6 +38,7 @@ fn coplanar_pillow() -> (Body<f64>, crate::MefCreated) {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let plane = Surface::Plane {
@@ -52,6 +54,7 @@ fn coplanar_pillow() -> (Body<f64>, crate::MefCreated) {
             },
             EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)),
             FaceSurface::New(plane.clone()),
+            tol,
         )
         .unwrap();
     // The seed face shares the same geometric plane under its own key
@@ -65,22 +68,24 @@ fn coplanar_pillow() -> (Body<f64>, crate::MefCreated) {
 
 #[test]
 fn coplanar_split_is_smooth_and_tier3_clean() {
-    let (body, _) = coplanar_pillow();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    let tol = Tol::witness();
+    let (body, _) = coplanar_pillow(tol);
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
 #[test]
 fn wrong_cache_at_rest_is_rejected_by_tier3() {
+    let tol = Tol::witness();
     // Certified body; then swap one edge's stored curve for a certified
     // curve of DIFFERENT data (the scaffolding circle at a far point).
     // Attachment can't see it (raw arenas); tier 3's re-certification
     // must.
-    let (mut body, split) = coplanar_pillow();
+    let (mut body, split) = coplanar_pillow(tol);
     let curve_key = body.get_edge(split.edge).unwrap().curve;
     *body.curves.get_mut(curve_key).unwrap() =
-        crate::null::CurveGeom::Certified(test_curve(pt(50.0, 0.0, 0.0)));
+        crate::null::CurveGeom::Certified(test_curve(pt(50.0, 0.0, 0.0), tol));
     assert_eq!(validate(&body), Ok(()), "structurally still coherent");
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, tol).unwrap_err();
     assert!(
         errs.iter().any(|e| matches!(
             e,
@@ -92,18 +97,19 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
 
 #[test]
 fn offset_plane_at_rest_fails_planar_residuals() {
+    let tol = Tol::witness();
     // Move a face's stored plane 100·ε off its vertices: the
     // Newell-cache re-check (tier 3, check 3) reports every vertex of
     // that face.
-    let (mut body, split) = coplanar_pillow();
-    let eps = Tolerance::get().eps;
+    let (mut body, split) = coplanar_pillow(tol);
+    let eps = tol.eps();
     let surface_key = body.get_face(split.face).unwrap().surface;
     *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
         origin: pt(0.0, 0.0, 100.0 * eps),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, tol).unwrap_err();
     let off_plane = errs
         .iter()
         .filter(|e| matches!(e, ValidationError::PlanarFaceResidual { face, .. } if *face == split.face))
@@ -113,12 +119,13 @@ fn offset_plane_at_rest_fails_planar_residuals() {
 
 #[test]
 fn sliver_dihedral_at_rest_is_rejected() {
+    let tol = Tol::witness();
     // Tilt one face's plane by the run-scaled sliver angle 3ε: both
     // MappedCurve attachments were legal (conventional descriptions
     // carry no dihedral requirement), but at rest the wedge is
     // indeterminate — the material wedge-angle predicate escalates.
-    let (mut body, split) = coplanar_pillow();
-    let eps = Tolerance::get().eps;
+    let (mut body, split) = coplanar_pillow(tol);
+    let eps = tol.eps();
     let theta = 3.0 * eps;
     let surface_key = body.get_face(split.face).unwrap().surface;
     *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
@@ -126,7 +133,7 @@ fn sliver_dihedral_at_rest_is_rejected() {
         normal: Vec3::new(0.0, theta.sin(), theta.cos()),
         u_ref: Vec3::unit_x(),
     };
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, tol).unwrap_err();
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::SliverDihedral { .. })),
@@ -136,10 +143,11 @@ fn sliver_dihedral_at_rest_is_rejected() {
 
 #[test]
 fn dangling_description_is_a_tier1_error() {
+    let tol = Tol::witness();
     // An Intersection description whose surface key is ripped out of
     // the arena: the geometry-to-geometry reference check (tier 1,
     // pass 1) fires — alongside the face's own dangling reference.
-    let (mut body, split) = coplanar_pillow();
+    let (mut body, split) = coplanar_pillow(tol);
     let s_plus = body.get_face(split.face).unwrap().surface;
     let seed_face = body
         .get_loop(body.get_half_edge(split.he_plus).unwrap().parent_loop)
@@ -159,7 +167,7 @@ fn dangling_description_is_a_tier1_error() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    body.set_edge_curve(split.edge, spec).unwrap();
+    body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Rip the referenced surface out (raw removal past the hygiene
     // guard).
     body.surfaces.remove(s_plus);
@@ -173,10 +181,11 @@ fn dangling_description_is_a_tier1_error() {
 
 #[test]
 fn description_references_keep_a_surface_alive() {
+    let tol = Tol::witness();
     // A surface referenced ONLY by an edge description is not orphaned:
     // the hygiene guard refuses to remove it and tier 1 does not report
     // OrphanGeometry.
-    let (mut body, split) = coplanar_pillow();
+    let (mut body, split) = coplanar_pillow(tol);
     let s_plus = body.get_face(split.face).unwrap().surface;
     let seed_face = body
         .get_loop(body.get_half_edge(split.he_plus).unwrap().parent_loop)
@@ -195,7 +204,7 @@ fn description_references_keep_a_surface_alive() {
         s2: s_plus,
         witness: pt(0.5, 0.0, 0.0),
     };
-    body.set_edge_curve(split.edge, spec).unwrap();
+    body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
     // referenced only by the description — and must survive.
     body.set_face_surface(
@@ -212,7 +221,7 @@ fn description_references_keep_a_surface_alive() {
     // (Tier 3 now reports the adjacency incoherence — the description
     // names a surface that is no longer the face's — which is exactly
     // the loud trail this state should leave.)
-    let errs = validate_geometric(&body).unwrap_err();
+    let errs = validate_geometric(&body, tol).unwrap_err();
     assert!(
         errs.iter().any(|e| matches!(
             e,

@@ -10,7 +10,8 @@ use profile::RawLoop;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use geom_core::{Band, Point2, Tolerance};
+use geom_core::Tol;
+use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
 use sweep::{Extrusion, extrude};
@@ -18,7 +19,7 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -30,15 +31,17 @@ fn box_at(x0: f64, l: f64) -> Body<f64> {
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
+    extrude(&profile, Extrusion::Distance(l), Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn filleted_die() -> Body<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    fillet_edges(&cube0, &edges, 0.125, band())
+    fillet_edges(&cube0, &edges, 0.125, band(), Tol::witness())
         .expect("the fillet")
         .body
 }
@@ -57,6 +60,7 @@ fn x4_disjoint_boolean_over_a_filleted_body_refuses_at_the_extent() {
         &far,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     );
     match out {
         Err(topo::BooleanError::FallbackExtentUnsupported { .. }) => {}

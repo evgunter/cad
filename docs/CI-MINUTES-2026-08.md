@@ -134,9 +134,17 @@ test, clippy and k-lint. Preserves both write paths; drops ~65 of the
 **What it gives up:** the landed main commit is then never itself
 tested. PR runs test the merge-ref, so when main moves between a PR's
 last run and its merge — frequent at this repo's merge rate — that
-exact combination went untested. Pair the retirement with a
-**scheduled full run on main** so integration failures surface in one
-cheap run rather than one per merge.
+exact combination went untested.
+
+**The scheduled full run on main that would have paired with this is
+DECLINED** (Evan, 2026-08-22). The next PR's merge-ref is main plus
+that branch, so it tests the landed tree anyway; a scheduled run buys
+a second discovery of the same fact and costs a full gate per period
+whether or not anything landed. The residue is accepted, not
+outstanding: **a semantic conflict between two independently-green PRs
+surfaces on the next, innocent PR** rather than at the merge that
+caused it, and the person who gets the red did not write the code that
+caused it. The reading that goes with that is in ci.yml's header.
 
 ### F4 — sccache: the local revert does not transfer to CI — ON TRIAL
 
@@ -225,6 +233,16 @@ none of them is near the critical path (`build + archive (interval)` at
 |---|---|---|---|
 | test (interval) | 20 s | ~40 s | no — ends ~12.9 of 13.75 |
 | rustfmt + rustdoc | 46 s | ~54 s | no — ends ~1.5 |
+| persistence | 80 s | ~85 s | no |
+| band 4 corpus | 78 s | ~82 s | no |
+
+The persistence and corpus figures carry an inferred split: their
+`cargo test` step is 42–47 s of compile *plus* run, and the follow-on
+steps rounded to 0 s, so the added second-ε execution cannot be
+separated from the log. The bound is what matters — the extra ε row
+costs strictly less than the whole 46 s step, so even at the absurd
+worst case those jobs reach ~126 s, still six times under the critical
+path. **The run's wall clock does not move.**
 
 (The `rustfmt + rustdoc` row moved again with **#840**, which sites the
 #807 wasm32 guard in that same job: `fmt` is now `rustfmt + rustdoc
@@ -242,16 +260,63 @@ boundary has an unstable billed cost**, and a single measurement of one
 will read as a flat number when it is not. Both of the merges above
 that land "inside one billed minute" are worth re-reading with that in
 mind.)
-| persistence | 80 s | ~85 s | no |
-| band 4 corpus | 78 s | ~82 s | no |
 
-The persistence and corpus figures carry an inferred split: their
-`cargo test` step is 42–47 s of compile *plus* run, and the follow-on
-steps rounded to 0 s, so the added second-ε execution cannot be
-separated from the log. The bound is what matters — the extra ε row
-costs strictly less than the whole 46 s step, so even at the absurd
-worst case those jobs reach ~126 s, still six times under the critical
-path. **The run's wall clock does not move.**
+**2026-08-22, and it settles that instability the expensive way.** The
+rustdoc gate stopped being `cargo doc --workspace` and now also
+documents the six cargo roots the workspace excludes — `demos/tour`,
+`demos/wild`, the three `tools/` crates and `interval-transcendentals`
+— plus a `--selftest` in front of it (D40/D41). Measured on two
+code-tier runs, warm cache both: `rustdoc (gate)` **34 s → 87 s**, and
+the `fmt` job **87 s → 135 s**, which is **2 → 3 billed minutes**. It
+does not straddle any more; it bills 3. The two `cargo doc` steps this
+deleted from the `k-lint` job gave back nothing measurable (that job
+builds those crates for its own clippy and test rows, so their doc pass
+was reusing warm artifacts at ~1 s), so the change is **+1 billed minute
+per code-tier PR run**, not a transfer. The reason it costs what it
+costs is that the `fmt` job builds all six of those roots from cold —
+`Swatinem/rust-cache` in that job caches the kernel workspace's
+`target/` and not the excluded roots'. Declaring those roots to that
+action (its `workspaces:` input), or pointing the whole gate at one
+`CARGO_TARGET_DIR`, is the lever if this minute is ever worth
+collecting; neither was measured here. Still off the critical path:
+2.3 min against a 12 min `build + archive (interval)`.
+
+**These two figures are re-taken by nothing, and that is a decision.**
+No register in `ci.yml` re-measures them — R4 is the Python suite and
+has nothing to do with this job — so if the gate's cost drifts, this
+paragraph goes quietly stale the way a hand-written count does. The
+reason it is left that way rather than guarded: a *billed-minute* figure
+is not a property of the tree, it is a property of a runner on a day,
+and the paragraph directly above says why — this job straddles a minute
+boundary, so a guard pinning 3 would red on warm-cache noise and a guard
+pinning "≤ 3" would pass through the entire drift it exists to catch.
+There is nothing to assert that is both true and useful, which is the
+honest shape of Q6 here rather than an oversight. What IS derived is the
+root count: the gate's success line reports the number of roots the run
+actually documented, so the six above is checkable against any run's log
+and does not depend on this sentence being maintained. The paragraph
+below re-takes the timings BY HAND, which is what maintaining an
+unguardable figure looks like — a deliberate act carrying the run id it
+came from, not a number that keeps itself true.
+
+**Re-measured after two widenings, on run `32553404730`** (warm cache,
+code tier, same method): `--examples` was added to every pass, and pass 2 went
+from default features to `--all-features` on every root but
+`interval-transcendentals` — so the `fmt` job now also builds `demos/tour` with
+`probe` and `budget` on. `rustdoc (gate)` **87 s → 142 s** and the `fmt` job
+**135 s → 193 s**, which is **3 → 4 billed minutes**: another **+1 billed
+minute per code-tier PR run**, on top of the +1 above. The step breakdown from
+that run — rustfmt 3 s, rustdoc gate 142 s, wasm32 19 s, setup and cache 25 s —
+says where it all is, and it is all in the gate.
+
+Both widenings were taken because each closed a hole the gate was silently
+green over, and each turned up a live break the moment it opened: an unresolved
+link in `crates/step-export`'s example tree, which no rustdoc lint had ever
+read, and another in `demos/tour/src/tessbudget.rs`, which exists only under
+the `budget` feature the old default-features pass never turned on. Still off
+the critical path: 3.2 min against a 12 min `build + archive (interval)`. The
+`workspaces:`/`CARGO_TARGET_DIR` lever named above is now worth proportionally
+more, and is still unmeasured.
 
 ## Where that leaves a code-tier PR
 
@@ -264,8 +329,8 @@ The PR-side figure is deliberately modest. The three biggest line
 items — the two build jobs at 12 each and `k-lint` at 10 — are the
 critical path and were not touched; `renders` at 12 is F1, and is a
 feature rather than waste. What remains, in rough order of size, is
-F3's missing scheduled main run (owed), F5 (policy), F1's paired
-change to `render-hosted.sh`, and whatever F4 measures.
+F5 (policy), F1's paired change to `render-hosted.sh`, and whatever
+F4 measures.
 
 ## What did not land, and why
 
@@ -277,6 +342,160 @@ change to `render-hosted.sh`, and whatever F4 measures.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — the mitigation F3's trim pairs
-  with; the next PR adds it.
+* **a scheduled full run on main** — DECLINED (Evan, 2026-08-22), not
+  owed. The next PR's merge-ref is main plus that branch and tests the
+  landed tree anyway. See F3 for the residue that is accepted with it.
 * **draft-PR skip** — F5. Policy decision.
+
+## 2026-08-22 — configuration sampling, and the draft skip (F5)
+
+Evan's proposal, and the reason it is a separate section rather than a
+finding: the audit above tuned what each job costs, and this changes
+**what a run gates**. A code-tier run used to execute every point of
+{default features, `interval`} x {default eps, 1e-6, 1e-12}. It now
+gates ONE, drawn from the head SHA. The premise is that those six points
+almost always agree — which the `interval` additivity gate
+(`check-interval-cfg-additive.py`) and the runtime-eps contract already
+assert — so repetition covers the matrix: at the ~60 runs/hour measured
+under **Volume**, a break confined to one point surfaces within minutes.
+Nothing is shipped, so a briefly red main is affordable.
+
+### Why the draw is seeded, not random
+
+`scripts/ci-filter.py --seed <head sha>`, choice = `sha256(salt || seed)
+% n`, salted per dimension so lane and eps draw independently (an
+unsalted second draw ties eps to lane and leaves 2 of the 6 points
+unreachable). Two properties, both load-bearing:
+
+* **A re-run of the same commit draws the same point.** Under true
+  randomness a re-run of a red gate can come back green on a different
+  point. That reads as a flake and teaches a re-run habit that launders
+  real failures — the one failure mode that would make this change cost
+  more than it saves.
+* **The point is recoverable from the SHA alone**, so "which
+  configuration gated this commit" is answerable during a bisect without
+  the run's logs.
+
+### How often the points actually disagree — one verified instance
+
+The premise above says the six points "almost always" agree. That is not
+the same as "always", and the counterexample is same-day: **run
+`32556372010`** (PR #910's fix pass). Of its 32 jobs exactly one failed —
+`test (eps = 1e-6, 2/2)` — while `default` and `1e-12` both decided the
+same fixture cleanly. The cause was an adopted test's fixture margin
+(`chord_side`, 1.0000000000282557e-6) sitting inside 1e-6's zero band,
+and diagnosis found the fixture could not clear the whole matrix at any
+parameter value.
+
+**Read the premise as: disagreements are ε-band fixtures, they exist in
+practice, and this codebase produces them** — its tests deliberately probe
+bands, so a margin engineered near one ε's band is a recurring class
+rather than a freak.
+
+What sampling costs on that class is bounded and already priced in. Such a
+break is caught pre-merge on the draws that hit the offending ε — **1 in 3
+for this instance, not 1 in 6**, because the interval lane now runs the
+whole suite, so an ungated test like this one runs on either lane and only
+the ε draw matters. The other two draws merge it and it surfaces on main,
+which is exactly what "nothing is shipped, so a briefly red main is
+affordable" buys. The persistence argument applies unchanged: the fixture
+stays broken, so a later draw finds it.
+
+**Two consequences for anything that reads a green check.** "PR checks
+green" now attests one point. A review verdict issued "conditional on
+green", or a merge-row battery cell, should say WHICH point gated — the
+job names carry it (`test (eps = 1e-6, 1/2)`) and the SHA-recoverable draw
+makes it derivable after the fact.
+
+### What is NOT sampled, and the rule
+
+Sampling is sound for a detector whose subject **persists in the tree**:
+a test red at 1e-12 stays red, so a later draw still finds it. It is
+unsound for a detector of **absence** — a check dropped from one half of
+CI, a gate sited where it cannot fire — because an absence leaves no
+future red for a later draw to catch, and the thing it detects merges
+silently, once.
+
+So `mirror` is not sampled (and structurally cannot be:
+`check-ci-mirror-parity.py` requires it to run on every tier, since its
+own inputs are the docs-tier paths on which every `if: run_build` job
+skips). Neither are `discipline`, `fmt`, `k-lint`, the python suite or
+the render lanes.
+
+### The interval lane runs the whole suite again
+
+This reverses the 2026-08-13 interval-only selection **on the hosted
+half only**. That selection subtracted the tests the default legs had
+already run in the same run; a sampled run draws one lane, so on an
+interval draw those legs do not exist and their ~93% of the suite would
+be gated by nothing. `scripts/interval-only-selection.py` keeps exactly
+one caller — `local-scripts/ci-local.sh`, which still runs both lanes on
+one tree — and is declared in that script's `MIRROR_EXEMPT` with the
+reason.
+
+**`local-scripts/ci-local.sh` is now the only lane that runs every point
+on one tree**, and is deliberately not sampled: nothing bills it by the
+minute. Local is a strict superset of any hosted run.
+
+### Expected cost, derived not measured
+
+Per code-tier PR run, against the ~79 the audit above leaves:
+
+| | today | default draw | interval draw |
+|---|---|---|---|
+| build / build-interval | 24 | 12 | 12 |
+| test legs | 8 + 1 | 4 | 6 |
+| clippy / lint-interval | 5 | 2 | 3 |
+| **compile-mode subtotal** | **38** | **18** | **21** |
+
+So **~79 -> ~60 billed minutes**, about -23%, and the draw that skips the
+interval build also shortens the critical path. The draft skip (F5, now
+landed) then cuts the *count* of full runs, which multiplies against
+everything above and is the larger lever of the two.
+
+### Two things that were re-asked and did NOT change
+
+* **Sharding stays**, in both lanes. F2's arithmetic is unchanged by the
+  eps cut: merging the two shards saves 1 billed minute and costs ~66 s
+  of latency on the default lane, ~117 s on the interval lane — and the
+  run leg now sits directly behind the only build job on the critical
+  path, with nothing to hide behind. One minute of ~60 against ~9-14% of
+  wall clock is the wrong side of the trade.
+* **opt-level 2 stays.** Re-asked because the verdict rested on
+  amortising one compile over ten run legs and a sampled run has one.
+  Writing E for the row's opt-2 execution and r for the opt-0/opt-2
+  ratio, opt-2 wins while `E > (archive_2 - archive_0) / (r - 1)`:
+  break-even is 56 s against a ~119 s row on the default lane (r =
+  6.46), and 78 s against a ~234 s row on the interval lane (r = 7.08).
+  Margins of ~2x and ~3x. The interval lane is why it is not close, and
+  it got *more* expensive to execute under sampling, not less.
+
+### `ready_for_review` is load-bearing
+
+The default `pull_request` type set is `[opened, synchronize,
+reopened]`. Undrafting a PR pushes no commit, so a draft skip without
+this type would leave the skipped run as the PR's only run and every
+gate reporting green having executed nothing. A draft skip without it is
+not a saving, it is a hole.
+
+### Ranked next, unchanged by this
+
+1. **F1's paired change** — render lanes off PR runs *and*
+   `render-hosted.sh` defaulting to dispatch. 12 billed minutes, and the
+   largest single item left on the PR side.
+2. **The rustdoc gate's cache**, not its coverage. At 4 billed minutes
+   (the `fmt` job's re-measurement above) it is the obvious next
+   sampling candidate, and sampling it would be *sound* — a broken
+   intra-doc link persists in the tree, so a later draw finds it. It is
+   the wrong tool anyway: the gate's six roots are independent, so
+   sampling them buys latency proportionally rather than exploiting
+   near-certain agreement the way eps does, and the cost is not really
+   the roots — it is that `Swatinem/rust-cache` in that job caches the
+   kernel workspace's `target/` and not the excluded roots', so all six
+   build from cold every run. The `workspaces:` input, or one
+   `CARGO_TARGET_DIR`, is the lever named above and still unmeasured. It
+   costs no coverage at all. Measure that before sampling the gate.
+3. **A scheduled full run on main** — still owed from F3, and now owed
+   more: with the push run trimmed and the PR run sampled, no single
+   tree is gated at every point by hosted CI. Deliberately not bundled
+   here (Evan: "the PRs will get it").

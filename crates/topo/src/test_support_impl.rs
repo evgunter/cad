@@ -37,10 +37,19 @@
 //! release, the module is private and `topo::test_support` does not
 //! resolve. **Not public API, in any profile.**
 //!
-//! `cargo build --release` satisfies no arm of either gate, so nothing
-//! here is compiled at all. `cargo test --release` satisfies `test` —
-//! which is why `debug_assertions` alone cannot serve as the existence
-//! gate.
+//! **Which builds compile this module.** The `debug_assertions` arm is
+//! not "debug builds": it tracks the flag, and this workspace's
+//! `[profile.release]` sets `debug-assertions = true` (root
+//! `Cargo.toml`). So `cargo build --release` DOES satisfy that arm and
+//! this module is compiled — correctly, because the D1 postcondition
+//! assert it exists to serve is compiled in exactly the builds where
+//! that flag is on. The stanza is marked to come out before publishing;
+//! when it does, release stops satisfying the arm and this module stops
+//! existing there. Visibility does not ride along either way: the door's
+//! gate is `test`/`test-support`, which no profile turns on, so
+//! `topo::test_support` still does not resolve in a release build.
+//! `cargo test --release` satisfies `test` independently — which is why
+//! `debug_assertions` alone cannot serve as the existence gate.
 //!
 //! # Which home a new test item goes in (this crate has three)
 //!
@@ -88,6 +97,17 @@ use crate::body::Body;
 /// alongside the three geometry-arena lengths rather than restating
 /// the seven.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// `pub` is load-bearing under the `test`/`test-support` arms — the
+// `crate::test_support` door re-exports this type across the crate
+// boundary, and a `pub use` cannot widen a `pub(crate)` item. Under the
+// `debug_assertions` arm alone the door does not exist, so the same
+// declaration is genuinely unreachable from outside and the lint fires.
+// The two gates differ on purpose (this module's header states why), so
+// the reachable spelling of this type differs with them; `pub` is the
+// one that satisfies the widest arm. The narrow arm is not hypothetical:
+// `cargo check -p topo --lib --release` reaches this declaration and,
+// without this allow, warns on it.
+#[allow(unreachable_pub)]
 pub struct ArenaCounts {
     /// Solids in the body.
     pub solids: usize,

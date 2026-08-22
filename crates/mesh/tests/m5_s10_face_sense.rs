@@ -27,6 +27,7 @@
 mod common;
 
 use common::*;
+use geom_core::Tol;
 use mesh::validate::signed_volume;
 
 /// **Acceptance row (tessellation).** The unit ball is two rimless
@@ -55,7 +56,7 @@ fn tessellation_follows_the_band_sense() {
     for d in [0.1, 0.01, 0.002] {
         check_mesh_acceptance(&body, d, Some((v, a)));
     }
-    let honest = mesh::tessellate(&body, delta).unwrap();
+    let honest = mesh::tessellate(&body, delta, Tol::witness()).unwrap();
     assert!(
         signed_volume(&honest) > 0.0,
         "the unflipped ball meshes outward"
@@ -64,7 +65,7 @@ fn tessellation_follows_the_band_sense() {
     // Flip ONE band's sense bit and nothing else.
     let (face, _) = body.faces().next().unwrap();
     let flipped = body.flipped_face_sense_for_tests(face).unwrap();
-    let lied = mesh::tessellate(&flipped, delta).unwrap();
+    let lied = mesh::tessellate(&flipped, delta, Tol::witness()).unwrap();
 
     // The band's meridian branch moved by π: the emitted geometry is
     // NOT the same mesh. (Bitwise: if `walk.rs` ignored the bit these

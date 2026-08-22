@@ -22,7 +22,8 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{Pcurve, PcurveCache};
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude, loft_body};
@@ -103,12 +104,16 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
         extent: 2.0,
         floor_scale: 1.0,
     };
-    let branch =
-        match ssi::cylinder_sphere_ssi(&cylinder(), &sphere(), slab, Band::linear().unwrap()) {
-            Ok(out) => out.branches.into_iter().next().expect("two loops"),
-            Err(SsiError::FitSampleBudget { .. }) => return None,
-            Err(e) => panic!("the planted fixture: {e}"),
-        };
+    let branch = match ssi::cylinder_sphere_ssi(
+        &cylinder(),
+        &sphere(),
+        slab,
+        Band::linear(Tol::witness()).unwrap(),
+    ) {
+        Ok(out) => out.branches.into_iter().next().expect("two loops"),
+        Err(SsiError::FitSampleBudget { .. }) => return None,
+        Err(e) => panic!("the planted fixture: {e}"),
+    };
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
     };
@@ -147,7 +152,7 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
             &cylinder(),
             Some(&sphere()),
             window,
-            Band::linear().unwrap(),
+            Band::linear(Tol::witness()).unwrap(),
         )
         .expect("the fitted cache certifies through the M6-2 door"),
     )
@@ -167,7 +172,7 @@ fn loft_prism() -> Body<f64> {
         .iter()
         .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("loft builds")
         .body
 }
@@ -180,14 +185,16 @@ fn split_cylinder_half() -> Body<f64> {
         ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&disc, Extrusion::Distance(2.0)).unwrap().body;
+    let cylinder = extrude(&disc, Extrusion::Distance(2.0), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.0),
         normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(ref below) = result.below else {
         panic!("the lower side carries material");
     };
@@ -251,7 +258,7 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     let mut body = loft_prism();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Nurbs(_)));
     body.attach_pcurve(hek, cache.clone());
-    match mesh::tessellate(&body, 1e-2) {
+    match mesh::tessellate(&body, 1e-2, Tol::witness()) {
         Err(TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
                 note.contains("FITTED") && note.contains("UV speed bound"),
@@ -268,7 +275,7 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     let mut body = split_cylinder_half();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Cylinder { .. }));
     body.attach_pcurve(hek, cache);
-    match mesh::tessellate(&body, 1e-2) {
+    match mesh::tessellate(&body, 1e-2, Tol::witness()) {
         Err(TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(
                 note.contains("FITTED") && note.contains("boolean layer"),

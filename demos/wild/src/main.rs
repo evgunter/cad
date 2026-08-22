@@ -38,6 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::step_import::{ImportOptions, StepImport, import_step};
 use pncad::topo::Body;
@@ -166,10 +167,10 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 }
 
 /// Import + tessellate + export one cell; returns its manifest entry.
-fn run_cell(cell: &Cell, outdir: &str) -> String {
+fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     let name = cell.name;
     let text = fixture_text(cell.fixture);
-    let import = import_step(&text, &ImportOptions::default()).unwrap_or_else(|e| {
+    let import = import_step(&text, &ImportOptions::default(), tol).unwrap_or_else(|e| {
         panic!(
             "{name}: {} is a PINNED montage cell and must import; it refused: {e}. \
              The cell set drifted — reconcile WILD_CELLS with the license audit \
@@ -206,7 +207,7 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
     // whose hull bounds every NURBS patch). The wild has no closed
     // forms; the exact-vs-mesh volume row is the same end-to-end
     // sanity ribbon the tour prints.
-    let props = pncad::topo::mass_properties(&body)
+    let props = pncad::topo::mass_properties(&body, tol)
         .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"));
     let (lo, hi) = body.points().fold(
         ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
@@ -220,7 +221,7 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
     let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
     assert!(diag.is_finite() && diag > 0.0, "{name}: degenerate bbox");
     let delta = diag * cell.delta_frac;
-    let mesh = pncad::mesh::tessellate(&body, delta)
+    let mesh = pncad::mesh::tessellate(&body, delta, tol)
         .unwrap_or_else(|e| panic!("{name}: tessellation at delta {delta:e} failed: {e:?}"));
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
@@ -280,6 +281,9 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
 }
 
 fn main() {
+    // The montage is an entry point: it mints the run's tolerance
+    // witness once and hands it to every corpus body it builds.
+    let tol = Tol::witness();
     let outdir = std::env::args()
         .nth(1)
         .expect("usage: wild-montage <outdir>");
@@ -321,14 +325,14 @@ fn main() {
         .iter()
         .map(|cell| {
             println!("\n== {} ==", cell.fixture);
-            run_cell(cell, &outdir)
+            run_cell(cell, &outdir, tol)
         })
         .collect();
 
     // The pinned refusal row: still refusing, still the same class.
     println!();
     for (fixture, class) in WILD_REFUSALS {
-        match import_step(&fixture_text(fixture), &ImportOptions::default()) {
+        match import_step(&fixture_text(fixture), &ImportOptions::default(), tol) {
             Err(e) => {
                 let msg = e.to_string();
                 assert!(

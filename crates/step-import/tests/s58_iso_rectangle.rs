@@ -27,6 +27,7 @@
 //! make this suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(name: &str) -> String {
@@ -56,13 +57,15 @@ fn cross_volume() -> f64 {
 /// still measures exactly, pad 0 — the closed-form lane is untouched.
 #[test]
 fn rect_the_control_still_measures_exactly() {
-    let Ok(StepImport::Solid { body, .. }) =
-        import_step(&fixture("rect.step"), &ImportOptions::default())
-    else {
+    let Ok(StepImport::Solid { body, .. }) = import_step(
+        &fixture("rect.step"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    ) else {
         panic!("rect.step (the CONTROL) must still import as a solid");
     };
-    topo::validate_geometric(&body).expect("rect.step must still pass tier 3");
-    let mp = topo::mass_properties(&body).expect("rect.step must still measure");
+    topo::validate_geometric(&body, Tol::witness()).expect("rect.step must still pass tier 3");
+    let mp = topo::mass_properties(&body, Tol::witness()).expect("rect.step must still measure");
     assert_eq!(mp.volume_pad, 0.0, "the closed-form lane's pad is 0");
     let rel = (mp.volume - RECT_VOLUME).abs() / RECT_VOLUME;
     assert!(
@@ -78,7 +81,11 @@ fn rect_the_control_still_measures_exactly() {
 /// merely moving the refusal) fails this row.
 #[test]
 fn cross_the_649_fixture_refuses_at_import() {
-    let err = match import_step(&fixture("cross.step"), &ImportOptions::default()) {
+    let err = match import_step(
+        &fixture("cross.step"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    ) {
         Err(e) => e.to_string(),
         Ok(other) => {
             panic!("cross.step imported ({other:?}) — #649's 19%-low certified volume is back")
@@ -97,7 +104,12 @@ fn cross_the_649_fixture_refuses_at_import() {
 #[test]
 fn tee_the_one_sided_variant_still_refuses() {
     assert!(
-        import_step(&fixture("tee.step"), &ImportOptions::default()).is_err(),
+        import_step(
+            &fixture("tee.step"),
+            &ImportOptions::default(),
+            Tol::witness()
+        )
+        .is_err(),
         "tee.step must stay refused"
     );
 }
@@ -109,13 +121,15 @@ fn tee_the_one_sided_variant_still_refuses() {
 /// rather than certify 7.2533e-7 with pad 0.
 #[test]
 fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
-    let Ok(StepImport::Solid { mut body, .. }) =
-        import_step(&fixture("xsplit.step"), &ImportOptions::default())
-    else {
+    let Ok(StepImport::Solid { mut body, .. }) = import_step(
+        &fixture("xsplit.step"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    ) else {
         panic!("xsplit.step (rectangular sub-faces) must import as a solid");
     };
     let exact = cross_volume();
-    let before = topo::mass_properties(&body).expect("the sub-faced body measures");
+    let before = topo::mass_properties(&body, Tol::witness()).expect("the sub-faced body measures");
     let rel = (before.volume - exact).abs() / exact;
     assert!(
         rel < 1e-12 && before.volume_pad == 0.0,
@@ -125,7 +139,7 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     );
 
     let out = body
-        .merge_coplanar_faces()
+        .merge_coplanar_faces(Tol::witness())
         .expect("the merge itself is a legal Euler-op composition and still runs");
     // Exactly the two cylindrical walls, each of whose three
     // rectangular sub-faces shares one SurfaceKey. `is_empty()` alone
@@ -142,7 +156,7 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     );
 
     // The door: a wrong number is no longer available on the other side.
-    match topo::mass_properties(&body) {
+    match topo::mass_properties(&body, Tol::witness()) {
         Err(e) => {
             let s = format!("{e:?}");
             assert!(

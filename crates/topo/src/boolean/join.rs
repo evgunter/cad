@@ -114,6 +114,7 @@ use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::null::NullFacePair;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// One completed section-polygon **pair**: the 2-loop null face in
 /// each solid, with the loop roles as F9 data (IN copy = the loop
@@ -242,6 +243,7 @@ pub(super) fn bool_connect<T: Decide>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut sa = SolidJoin::new(red, Operand::A, band);
@@ -335,10 +337,10 @@ pub(super) fn bool_connect<T: Decide>(
         match (&ga, &gb) {
             (Sf::Plane { .. }, Sf::Plane { .. }) => {
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Planar)
+                    .join(&mut red.a, a1, a2, JoinLane::Planar, tol)
                     .map_err(BooleanError::Join)?;
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Planar)
+                    .join(&mut red.b, b1, b2, JoinLane::Planar, tol)
                     .map_err(BooleanError::Join)?;
             }
             (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
@@ -357,6 +359,7 @@ pub(super) fn bool_connect<T: Decide>(
                             window,
                             partner_key: &mut partner,
                         },
+                        tol,
                     )
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = partner {
@@ -370,7 +373,7 @@ pub(super) fn bool_connect<T: Decide>(
                     plane_key: sb.aux_partner.get(&germ.a_face).copied(),
                 };
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx))
+                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx), tol)
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = ctx.plane_key {
                     sb.aux_partner.insert(germ.a_face, k);
@@ -386,7 +389,7 @@ pub(super) fn bool_connect<T: Decide>(
                     plane_key: sa.aux_partner.get(&germ.b_face).copied(),
                 };
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx))
+                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx), tol)
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = ctx.plane_key {
                     sa.aux_partner.insert(germ.b_face, k);
@@ -405,6 +408,7 @@ pub(super) fn bool_connect<T: Decide>(
                             window,
                             partner_key: &mut partner,
                         },
+                        tol,
                     )
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = partner {
@@ -452,9 +456,9 @@ pub(super) fn bool_connect<T: Decide>(
     let mut resolved = Vec::with_capacity(completed.len());
     for c in completed {
         let (a_in_loop, a_out_loop) =
-            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band)?;
+            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band, tol)?;
         let (b_in_loop, b_out_loop) =
-            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band)?;
+            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band, tol)?;
         red.a.set_null_face_pair(
             c.a_face,
             NullFacePair::Boolean {
@@ -923,7 +927,7 @@ fn choose_roles<T: Decide>(
 /// Whether the prospective mef run `[h1 .. h2]` — the `next`-order arc
 /// from `h1` through `h2`, closed by the chord `end(h2) → start(h1)`
 /// (exactly the cycle the joiner's first `mef(Chords { he1: h1,
-/// he2: next(h2) })` walls off as the new face) — winds CCW around
+/// he2: next(h2, tol) })` walls off as the new face) — winds CCW around
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///
@@ -1287,6 +1291,7 @@ fn resolve_roles_geometric<T: Decide>(
     outer: LoopKey,
     ring: LoopKey,
     band: Band,
+    tol: Tol,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
     /// Which point of a region-loop half-edge anchors the probe.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1428,7 +1433,7 @@ fn resolve_roles_geometric<T: Decide>(
                                 continue;
                             }
                         }
-                        match super::solid_contain::point_in_solid(other_pristine, p, band)
+                        match super::solid_contain::point_in_solid(other_pristine, p, band, tol)
                             .map_err(BooleanError::Containment)?
                         {
                             super::solid_contain::SolidContainment::In => return Ok(Some(true)),

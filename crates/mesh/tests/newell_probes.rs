@@ -7,7 +7,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::RawLoop;
@@ -25,14 +26,18 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("profile validation")
 }
 
 fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    extrude(&validated(plane, vec![lp(poly)]), Extrusion::Distance(h))
-        .expect("extrude")
-        .body
+    extrude(
+        &validated(plane, vec![lp(poly)]),
+        Extrusion::Distance(h),
+        Tol::witness(),
+    )
+    .expect("extrude")
+    .body
 }
 
 fn prism(poly: &[(f64, f64)], h: f64) -> Body<f64> {
@@ -60,7 +65,7 @@ fn dump(m: &mesh::Mesh) -> String {
 /// Tessellate-or-typed: the only two acceptable outcomes. Returns the
 /// mesh when it tessellates so callers can pile on oracles.
 fn tessellate_or_typed(body: &Body<f64>, delta: f64, label: &str) -> Option<mesh::Mesh> {
-    match tessellate(body, delta) {
+    match tessellate(body, delta, Tol::witness()) {
         Ok(m) => {
             assert_eq!(check_mesh(&m), Ok(()), "{label}: mesh not watertight");
             assert!(signed_volume(&m) > 0.0, "{label}: non-positive volume");
@@ -116,7 +121,7 @@ fn probe_b_far_tie_determinism() {
     for (label, poly) in [("tie", &tie[..]), ("nudged", &nudged[..])] {
         let body = prism(poly, 1.0);
         let m1 = tessellate_or_typed(&body, 1e-2, label).expect("must tessellate");
-        let m2 = tessellate(&body, 1e-2).unwrap();
+        let m2 = tessellate(&body, 1e-2, Tol::witness()).unwrap();
         assert_eq!(dump(&m1), dump(&m2), "{label}: rebuild not byte-identical");
         assert!((signed_volume(&m1) - 4.0).abs() < 1e-6, "{label}");
     }
@@ -136,11 +141,11 @@ fn probe_c_needle_extent_ratio() {
     ] {
         let poly = [(0.0, 0.0), (len, 0.0), (len, 1.0), (0.0, 1.0)];
         let profile = Profile::new(SketchPlane::xy(), vec![lp(&poly)]);
-        let Ok(vp) = profile.validate(Tolerance::get()) else {
+        let Ok(vp) = profile.validate(Tol::witness()) else {
             eprintln!("{label}: profile validation refuses (typed, upstream)");
             continue;
         };
-        let body = extrude(&vp, Extrusion::Distance(1.0))
+        let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
             .expect("extrude")
             .body;
         if let Some(m) = tessellate_or_typed(&body, 1e-2, label) {
@@ -241,7 +246,7 @@ fn position_noise_subfloor_refusal_is_pinned_typed() {
     };
     // Well inside the refusal band (~ν² sub-floor): typed, exactly.
     for exp in [-30i32, -45, -60] {
-        match tessellate(&body_at(10.0f64.powi(exp)), 1e-2) {
+        match tessellate(&body_at(10.0f64.powi(exp)), 1e-2, Tol::witness()) {
             Err(mesh::TessellateError::Triangulation { .. }) => {}
             other => panic!(
                 "noise-1e{exp}: pinned typed Triangulation refusal drifted: \
@@ -313,11 +318,12 @@ fn probe_slit_washer_rebuild() {
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
+        Tol::witness(),
     )
     .expect("revolve")
     .body;
-    let m1 = tessellate(&body, 1e-2).unwrap();
-    let m2 = tessellate(&body, 1e-2).unwrap();
+    let m1 = tessellate(&body, 1e-2, Tol::witness()).unwrap();
+    let m2 = tessellate(&body, 1e-2, Tol::witness()).unwrap();
     assert_eq!(dump(&m1), dump(&m2), "washer rebuild not byte-identical");
     assert_eq!(check_mesh(&m1), Ok(()), "washer not watertight");
     assert!(triangle_count(&m1) > 0);

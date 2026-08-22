@@ -36,6 +36,7 @@ use crate::ident::ContentPin;
 use crate::program::ProfileDoc;
 
 use super::{PersistError, check};
+use geom_core::Tol;
 
 /// The canonical bytes of the CURRENT document state (module docs:
 /// the full serde form minus the `id` key; the edit log is absent
@@ -51,8 +52,8 @@ use super::{PersistError, check};
 /// [`PersistError::Serialize`] if the JSON writer itself fails or
 /// the serialized document is not the object shape this build wrote
 /// (unreachable short of a serde-impl bug; surfaced, not swallowed).
-pub fn canonical_bytes(doc: &ProfileDoc) -> Result<Vec<u8>, PersistError> {
-    check::validate_document(doc, &[])?;
+pub fn canonical_bytes(doc: &ProfileDoc, tol: Tol) -> Result<Vec<u8>, PersistError> {
+    check::validate_document(doc, &[], tol)?;
     let mut value = serde_json::to_value(doc).map_err(|e| PersistError::Serialize {
         message: e.to_string(),
     })?;
@@ -81,6 +82,6 @@ pub fn canonical_bytes(doc: &ProfileDoc) -> Result<Vec<u8>, PersistError> {
 /// # Errors
 ///
 /// Exactly [`canonical_bytes`]'s.
-pub fn content_pin(doc: &ProfileDoc) -> Result<ContentPin, PersistError> {
-    Ok(ContentPin::of_bytes(&canonical_bytes(doc)?))
+pub fn content_pin(doc: &ProfileDoc, tol: Tol) -> Result<ContentPin, PersistError> {
+    Ok(ContentPin::of_bytes(&canonical_bytes(doc, tol)?))
 }

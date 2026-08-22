@@ -38,7 +38,8 @@
 mod fixture;
 
 use geom_brep::{EnvelopeStatement, Pcurve};
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
+use geom_core::Tol;
 
 /// The full at-rest run at `f64`: build, validate, and read the
 /// certificate the tier-3 pass re-derived.
@@ -51,7 +52,7 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
         );
         return;
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
 
     // 1. The cache at rest IS fitted — the variant reached a body.
     for he in [built.he_plus, built.he_minus] {
@@ -153,8 +154,8 @@ fn the_dual_lane_refuses_a_fitted_cache_typed() {
 /// ε is never a literal here; this row states what the file relies on.
 #[test]
 fn the_band_is_the_runs_own() {
-    let band = Band::linear().unwrap();
-    assert_eq!(band.zero(), Tolerance::get().eps);
+    let band = Band::linear(Tol::witness()).unwrap();
+    assert_eq!(band.zero(), Tol::witness().get().eps);
 }
 
 // ==================================================================
@@ -178,6 +179,7 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 mod certified {
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};
+    use geom_core::Tol;
     use geom_core::{Band, Bounds, Interval};
 
     /// The same body, at the interval scalar: the C2 certificate is
@@ -214,7 +216,7 @@ mod certified {
             );
             return;
         };
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let cache = built
             .body
             .pcurve(built.he_plus)

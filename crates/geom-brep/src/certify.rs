@@ -494,7 +494,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// resolves the description's arena keys (injected by the owning
     /// body — this layer never touches arenas, see [`crate::keys`]);
     /// `band` is the run's linear band (callers build it once at
-    /// operation entry via `Band::linear()`).
+    /// operation entry via `Band::linear(tol)`).
     ///
     /// The check sequence (fixed order, D9; every check's margin is
     /// meters against `band`):
@@ -1568,18 +1568,19 @@ fn plane_nurbs_pair<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::{Affine3, Point2, Tolerance, Vec3};
+    use geom_core::Tol;
+    use geom_core::{Affine3, Point2, Vec3};
 
     use crate::edge_geometry::{MappedCurve, SketchSegment};
 
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     /// A resolver over a tiny fixed table (keys minted through a local

@@ -464,10 +464,11 @@ pub fn tangent_locus_relation<T: Decide>(
 mod tests {
     use super::*;
     use geom::Surface;
+    use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {

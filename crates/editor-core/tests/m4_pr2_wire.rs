@@ -13,10 +13,17 @@ use editor_core::{
     PatternKind, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, desc, insert, len, scl};
+use geom_core::Tol;
 use topo::{mass_properties, validate, validate_closed};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// A unit-square profile `[x0,x0+1]×[y0,y0+1]` on the xy plane plus
@@ -57,7 +64,7 @@ fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNod
 
 #[test]
 fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     // Unit square touching the axis: full revolve → cylinder r=1 h=1.
     let (doc, prof) = insert(
         doc,
@@ -83,13 +90,13 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body).unwrap().volume;
+    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
 }
 
 #[test]
 fn revolve_axis_out_of_plane_is_a_typed_refusal() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, prof) = insert(
         doc,
         Node::Profile(desc(
@@ -122,7 +129,7 @@ fn revolve_axis_out_of_plane_is_a_typed_refusal() {
 
 #[test]
 fn rotational_transform_wires_and_preserves_volume() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     let (doc, moved) = insert(
         doc,
@@ -139,14 +146,14 @@ fn rotational_transform_wires_and_preserves_volume() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let m = mass_properties(body).unwrap();
+    let m = mass_properties(body, Tol::witness()).unwrap();
     assert!((m.volume - 1.0).abs() < 1e-12);
     assert!((m.surface_area - 6.0).abs() < 1e-12);
 }
 
 #[test]
 fn linear_pattern_evaluates_instances_as_data() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, pat) = insert(
         doc,
@@ -166,7 +173,7 @@ fn linear_pattern_evaluates_instances_as_data() {
     assert_eq!(instances.len(), 3);
     for (i, inst) in instances.iter().enumerate() {
         assert_eq!(validate(inst), Ok(()));
-        assert_eq!(mass_properties(inst).unwrap().volume, 1.0); // dyadic exact
+        assert_eq!(mass_properties(inst, Tol::witness()).unwrap().volume, 1.0); // dyadic exact
         // Instance i sits at x offset 2i exactly (translation-only).
         let min_x = inst
             .points()
@@ -202,7 +209,7 @@ fn linear_pattern_evaluates_instances_as_data() {
 
 #[test]
 fn circular_pattern_rotates_about_the_datum_axis() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     // The z axis through the origin, as a datum.
     let (doc, axis) = insert(
@@ -230,14 +237,14 @@ fn circular_pattern_rotates_about_the_datum_axis() {
     assert_eq!(instances.len(), 4);
     for inst in instances {
         assert_eq!(validate(inst), Ok(()));
-        assert!((mass_properties(inst).unwrap().volume - 1.0).abs() < 1e-12);
+        assert!((mass_properties(inst, Tol::witness()).unwrap().volume - 1.0).abs() < 1e-12);
     }
 }
 
 #[test]
 fn typed_refusal_doors() {
     // Degenerate datum normal.
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, plane) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -257,7 +264,7 @@ fn typed_refusal_doors() {
     }
 
     // Non-positive pattern count.
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
     let (doc, pat) = insert(
         doc,
@@ -314,7 +321,7 @@ fn typed_refusal_doors() {
 
 #[test]
 fn declare_passes_through_and_boolean_accepts_it() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire");
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, a) = unit_cube(doc, 0.0, 0.0);
     let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
     // M4 PR 5: the flush contacts are DECLARED by name — this test's
@@ -339,7 +346,7 @@ fn declare_passes_through_and_boolean_accepts_it() {
     else {
         panic!("expected boolean body");
     };
-    assert_eq!(mass_properties(body).unwrap().volume, 1.5); // dyadic union
+    assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
 
     // A non-Declare node on the declare edge: typed refusal.
     let (doc2, bad) = insert(

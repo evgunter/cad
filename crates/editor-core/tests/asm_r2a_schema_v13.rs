@@ -29,6 +29,7 @@ use editor_core::{
     EntityKind, MateFrame, MatePrimitive, Node, PersistError, ProfileDoc, REGENERATE_RECOURSE,
     RecipeNodeId, RoleSeg, SCHEMA_VERSION, StableName, apply, load, save,
 };
+use geom_core::Tol;
 
 /// The prior live golden, kept as the REFUSAL fixture: a break nobody
 /// can demonstrate is a break nobody can trust (the M5 PR 10
@@ -58,7 +59,7 @@ fn the_checked_in_v12_file_is_really_v12() {
 /// that does not exist.
 #[test]
 fn v12_refuses_too_old() {
-    match load(V12) {
+    match load(V12, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -78,7 +79,7 @@ fn v12_refuses_too_old() {
 #[test]
 fn the_refusal_carries_the_regenerate_recourse() {
     for (label, bytes) in [("v12", V12), ("v11", V11)] {
-        let msg = match load(bytes) {
+        let msg = match load(bytes, Tol::witness()) {
             Err(e) => e.to_string(),
             Ok(_) => panic!("{label} must refuse"),
         };
@@ -94,7 +95,7 @@ fn a_mate_bearing_document_round_trips_at_v13() {
         id: DocumentId::derive("asm-r2a-schema-part"),
         pin: ContentPin([7u8; 32]),
     };
-    let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2a-schema"));
+    let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2a-schema"), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
         let applied = apply(
@@ -102,6 +103,7 @@ fn a_mate_bearing_document_round_trips_at_v13() {
             &DocEdit::InsertNode {
                 node: Node::instantiate_part(doc_ref),
             },
+            Tol::witness(),
         )
         .expect("an instance inserts");
         ids.push(applied.record.minted.expect("a minted id"));
@@ -139,10 +141,11 @@ fn a_mate_bearing_document_round_trips_at_v13() {
                 },
             },
         },
+        Tol::witness(),
     )
     .expect("a mate inserts")
     .doc;
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert_eq!(
         text.lines().next(),
         Some(&format!("schema: {SCHEMA_VERSION}")[..]),
@@ -152,6 +155,6 @@ fn a_mate_bearing_document_round_trips_at_v13() {
         text.contains("\"rest\""),
         "the class rides the SAME stable spelling a Declare pair's does: {text}"
     );
-    let back = load(&text).expect("loads").doc;
+    let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the mate round-trips bit for bit");
 }

@@ -68,6 +68,7 @@ use std::collections::BTreeMap;
 
 use common::prism_z;
 use geom_core::Sign;
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use topo::{BooleanResult, subtract};
 
@@ -121,14 +122,14 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
     // Corner overlap: generic crossing subtract.
     let a = box_at(&s, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = box_at(&s, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-    let r = subtract(&a, &b).expect("corner subtract");
+    let r = subtract(&a, &b, Tol::witness()).expect("corner subtract");
     let BooleanResult::Body(rb) = r else {
         panic!("corner: body out");
     };
     // The pseudomanifold census over the result (empty declarations):
     // the pm_census_* sweeps — including the fixed
     // `pm_census_ee_parallel` — decide every entity pair.
-    topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default())
+    topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default(), Tol::witness())
         .expect("corner census");
     // Through-pocket: the tool pierces the top and bottom faces, so
     // the result carries ring loops (the point-in-loop lane). This is
@@ -137,7 +138,7 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
     // it computes at every ε row, so ANY refusal here is now a finding.
     let a2 = box_at(&s, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let b2 = box_at(&s, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-    match subtract(&a2, &b2) {
+    match subtract(&a2, &b2, Tol::witness()) {
         Ok(BooleanResult::Body(_)) => {}
         Ok(other) => panic!("pocket: expected a body, got {other:?}"),
         Err(other) => panic!(
@@ -160,7 +161,7 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
 /// sample by sample.
 #[test]
 fn boolean_margin_streams_scale_linearly_with_the_model() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     // Since the F3+F4 fixes there is no skip arm: EVERY ε row in the
     // hosted matrix runs the full elementwise comparison below.
     println!("ε {eps:e}: both twins computed — running the full linearity pin");

@@ -52,6 +52,7 @@ use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom::Surface;
+use geom_core::Tol;
 
 /// One side of a split result: a real body, or the typed empty side
 /// (the plane missed the material on that side entirely — never an
@@ -218,6 +219,7 @@ pub(super) fn split_finish<T: Decide>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     let mut body = red.body;
     let solid = single_solid(&body)?;
@@ -293,10 +295,10 @@ pub(super) fn split_finish<T: Decide>(
     // `Intersection`; definitely-smooth ones (a flush ON-face
     // neighbor: the surfaces under-determine the locus) keep their
     // conventional chord per D2; escalations refuse typed. ----
-    let band = geom_core::Band::linear().map_err(SplitFinishError::Band)?;
+    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let section_faces: Vec<FaceKey> = section_side.keys().collect();
     for face in section_faces {
-        describe_section_boundary(&mut body, face, band)?;
+        describe_section_boundary(&mut body, face, band, tol)?;
     }
 
     // ---- Distribution: movefac every shell of the solid. ----
@@ -349,6 +351,7 @@ fn describe_section_boundary<T: Decide>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
+    tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
@@ -438,7 +441,7 @@ fn describe_section_boundary<T: Decide>(
                             spec
                         }
                     };
-                    body.set_edge_curve(edge, spec)?;
+                    body.set_edge_curve(edge, spec, tol)?;
                 }
                 // Smooth: the conventional chord stays (D2).
                 Ok(geom_brep::DihedralClass::Smooth) => {}

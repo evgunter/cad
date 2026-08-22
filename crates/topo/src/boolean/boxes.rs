@@ -623,12 +623,13 @@ mod tests {
     use geom::Curve3;
     use geom::Surface;
     use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+    use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
     /// The pad every row boxes with — the sweep's own, so a row that
     /// only passes because of a generous pad would have to say so.
     fn pad() -> f64 {
-        sweep_pad(Band::linear().unwrap())
+        sweep_pad(Band::linear(Tol::witness()).unwrap())
     }
 
     /// `p` is inside `b` — the containment the contract promises.
@@ -704,6 +705,7 @@ mod tests {
                 },
                 b,
                 arc,
+                Tol::witness(),
             )
             .unwrap();
         let e_bc = body
@@ -713,6 +715,7 @@ mod tests {
                     he2: e_ab.he_minus,
                 },
                 c,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -726,6 +729,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(c, a),
                 FaceSurface::Shared(plane),
+                Tol::witness(),
             )
             .unwrap()
             .face;
@@ -846,6 +850,7 @@ mod tests {
                 },
                 on(u1, z0),
                 bottom,
+                Tol::witness(),
             )
             .unwrap();
         let e_r = body
@@ -855,6 +860,7 @@ mod tests {
                     he2: e_b.he_minus,
                 },
                 on(u1, z1),
+                Tol::witness(),
             )
             .unwrap();
         let top = rim(&mut body, z1, false);
@@ -866,6 +872,7 @@ mod tests {
                 },
                 on(u0, z1),
                 top,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -879,6 +886,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
                 FaceSurface::Shared(cyl),
+                Tol::witness(),
             )
             .unwrap()
             .face;

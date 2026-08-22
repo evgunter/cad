@@ -115,7 +115,7 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
-/// **The ε inventory — `sizing::Tol`'s ledger written as a gate rather
+/// **The ε inventory — `sizing::SizingTols`'s ledger written as a gate rather
 /// than as a sentence.**
 ///
 /// Every `eps` identifier in the PRODUCTION half of `crates/mesh/src`
@@ -124,7 +124,7 @@ fn every_suite_file_is_aggregated() {
 /// below, so a new ε read cannot land without either appearing in this
 /// table or turning it red.
 ///
-/// **Why a gate and not a list.** `sizing::Tol` used to carry a list —
+/// **Why a gate and not a list.** `sizing::SizingTols` used to carry a list —
 /// *"ε reaches three places from here and no more"* — and it was short
 /// by one for two milestones: `walk::iso_side_starts` reads ε to decide
 /// whether a traversal opens an iso side or repeats its predecessor's
@@ -139,7 +139,7 @@ fn every_suite_file_is_aggregated() {
 /// on; a **terminal read** compares or adds it.
 ///
 /// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
-///   else: `Tolerance::get().eps` (two tokens on one line) and the
+///   else: `Tol::witness().get().eps` (two tokens on one line) and the
 ///   `Tol` field initialiser.
 /// - **`sizing.rs` — 1.** The `Tol::eps` field declaration. This
 ///   module computes every step and count in the crate and reads ε in
@@ -160,18 +160,26 @@ fn every_suite_file_is_aggregated() {
 ///   (`budget` feature). Counted after a cut since #887, which gave
 ///   the file its first test module; the total did not move, because
 ///   that module reads no ε.
-/// - **`walk.rs` — 12.** **Four** `eps` parameters (`gap_is_noise`,
+/// - **`walk.rs` — 13.** **Four** `eps` parameters (`gap_is_noise`,
 ///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
 ///   hand-offs (`closing_column`'s and `loop_polygon`'s two
 ///   `gap_is_noise` calls, `loop_polygon`'s calls to
-///   `iso_side_starts` and `closing_column`), and the crate's **three**
-///   terminal reads: `gap_is_noise`'s `gap * lever < eps` (one
-///   predicate, four call sites — the domain guard above plus three
-///   `debug_assert` detectors that gate nothing),
-///   `iso_side_starts`' `radial > eps`, and `pole_v`'s
-///   `norm() <= eps`. 4 + 5 + 3 = 12.
+///   `iso_side_starts` and `closing_column`), and **four** terminal
+///   reads: `gap_is_noise`'s `gap * lever < eps` (one predicate, four
+///   call sites — the domain guard above plus three `debug_assert`
+///   detectors that gate nothing), `iso_side_starts`' `radial > eps`,
+///   `pole_v`'s `norm() <= eps`, and `loop_polygon`'s
+///   `coincident_declared` closure, whose `d <= eps` asks whether two
+///   DECLARED vertices of one loop are the same point.
+///   4 + 5 + 4 = 13.
 ///
-/// Seven consumer sites, four terminal reads across the crate. **The
+///   It was **12** until `coincident_declared` landed. That read
+///   **gates nothing and moves no coordinate**: it is the condition of
+///   a `debug_assert` (D2 addendum row 5), so its only effect is to
+///   panic. It CAPTURES `eps` rather than taking it as a parameter,
+///   which is why only the terminal-read term moved.
+///
+/// Eight consumer sites, five terminal reads across the crate. **The
 /// per-file totals above are pinned; every other number in this doc is
 /// hand-written and is not.** They are checkable — each file's
 /// breakdown sums to its pinned total, which is the arithmetic a
@@ -192,7 +200,7 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What this cannot match, and it is a work order
 ///
-/// 1. **A read that does not spell `eps`.** `Tolerance::get().eps`
+/// 1. **A read that does not spell `eps`.** `Tol::witness().get().eps`
 ///    bound to another name, or ε reached through a helper that
 ///    already applied it, is invisible here. The mechanism that would
 ///    close that is a TYPE — ε as a newtype whose only operations are
@@ -241,7 +249,7 @@ fn the_eps_inventory_is_pinned() {
         ("sizing.rs", 1),
         ("tessellate.rs", 3),
         ("trimmed.rs", 1),
-        ("walk.rs", 12),
+        ("walk.rs", 13),
     ];
     // Both ways the suite runs: a plain `cargo test` against the baked
     // manifest dir, and a nextest ARCHIVE replayed with the per-test
@@ -304,7 +312,7 @@ fn the_eps_inventory_is_pinned() {
     assert_eq!(
         found, pinned,
         "the ε inventory moved. That is not a failure to silence: a read was added, \
-         removed or renamed, and `sizing::Tol`'s ledger plus this row's per-file \
+         removed or renamed, and `sizing::SizingTols`'s ledger plus this row's per-file \
          breakdown both owe an update. Classify the new read at its site — does it \
          REFUSE, CLASSIFY, or SCALE a number? — then re-pin."
     );

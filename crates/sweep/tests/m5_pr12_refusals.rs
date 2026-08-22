@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{
@@ -20,18 +21,18 @@ use sweep::fillet::{CornerConfig, FilletError, FilletSite, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
-fn tol() -> Tolerance {
-    Tolerance::get()
+fn tol() -> Tol {
+    Tol::witness()
 }
 
 fn band() -> Band {
-    Band::new(tol().eps, tol().k * tol().eps).unwrap()
+    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a
 /// classification (the S2 trio idiom).
 fn in_band() -> f64 {
-    5.0 * tol().eps
+    5.0 * tol().eps()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -48,7 +49,9 @@ fn boxy() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A cylinder: a three-arc circle extruded. Its rim edges are
@@ -68,7 +71,9 @@ fn cylinder() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A "D" prism: a square with one side replaced by a circular arc,
@@ -85,7 +90,9 @@ fn dee() -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below
@@ -191,8 +198,10 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
 
 /// A **same-surface smooth split** (the cylinder's two wall faces meet
 /// on one cylinder) is refused by predicate 5 with a margin of
-/// EXACTLY zero: the supports share a tangent plane, so there is no
-/// wedge for a ball to roll into. Pinned because it is the honest
+/// EXACTLY zero. Here the supports really do share a tangent plane —
+/// both sides are the same surface by construction, so the dihedral
+/// sine is structurally zero and there is no wedge for a ball to
+/// roll into. Pinned because it is the honest
 /// pre-construction answer for a whole class of requests a user will
 /// make by accident (selecting every edge of a curved body).
 #[test]
@@ -269,9 +278,10 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
 }
 
 /// The canal-surface lane's front door: a plane–cylinder support pair
-/// has a general rolling-ball spine, so the blend is a canal surface
-/// — the kernel's first approximating SURFACE, banked as its own
-/// reviewed unit. The refusal NAMES it.
+/// is outside the analytic-arm table (plane–plane / plane–sphere),
+/// so its blend needs the canal surface — the kernel's first
+/// approximating SURFACE, banked as its own reviewed unit. The
+/// refusal NAMES it.
 #[test]
 fn spine_unsupported_names_the_canal_surface_unit() {
     let body = cylinder();
@@ -431,7 +441,7 @@ fn trio_convexity_sign() {
     // Fix pass F6: a tangential edge gets its OWN situation, not a
     // convexity DISAGREEMENT with a chain verdict that was never taken.
     assert!(matches!(flat, FilletError::TangentialEdge { .. }));
-    assert!(format!("{flat}").contains("no wedge"));
+    assert!(format!("{flat}").contains("no definite wedge side"));
     // In band.
     let escalated = convexity_at(
         Vec3::new(1.0, 0.0, 0.0),

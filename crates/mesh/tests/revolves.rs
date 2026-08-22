@@ -8,6 +8,7 @@
 mod common;
 
 use common::*;
+use geom_core::Tol;
 
 #[test]
 fn ball_tessellates_with_pole_fans() {
@@ -28,7 +29,7 @@ fn ball_pole_fan_structure() {
     // (already covered by check_mesh; here pin that the poles ARE mesh
     // vertices of some triangles — the fans exist).
     let body = ball();
-    let mesh = mesh::tessellate(&body, 0.05).unwrap();
+    let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).unwrap();
     let mut pole_ids = Vec::new();
     for (i, p) in mesh.positions.iter().enumerate() {
         if (p.x.abs() < 1e-12) && (p.z.abs() < 1e-12) && ((p.y.abs() - 1.0).abs() < 1e-12) {
@@ -141,7 +142,7 @@ fn apex_wedges_never_size_to_a_single_azimuth_column() {
 fn sphere_pole_faces_are_floored_too_though_they_never_needed_it() {
     let body = sphere_wedge(core::f64::consts::FRAC_PI_4);
     check_mesh_acceptance(&body, 0.05, None);
-    let tris: usize = mesh::tessellate(&body, 0.05)
+    let tris: usize = mesh::tessellate(&body, 0.05, Tol::witness())
         .expect("sphere wedge tessellates")
         .patches
         .iter()

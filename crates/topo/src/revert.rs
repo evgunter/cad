@@ -262,6 +262,7 @@ impl<T: Real> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use crate::fixtures::ops_cube;
+    use geom_core::Tol;
 
     /// **CONSTRUCTION row, flipped from the M3 refusal pin** (S9
     /// pattern; the retired `UnsupportedSurface` record is on
@@ -274,7 +275,7 @@ mod tests {
     /// `crates/sweep/tests/m5_s12_curved_ops.rs`.)
     #[test]
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let before: Vec<bool> = cube.body.faces().map(|(_, f)| f.sense).collect();
         assert!(before.iter().all(|s| *s), "mvfs/mef mint sense: true");
         let reverted = cube.body.revert().expect("S12: curved revert is wired");

@@ -34,6 +34,7 @@ use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{MefSite, MevSite};
 use crate::fixtures::{deep_snapshot, ops_cube};
 use crate::{Body, EulerOpError};
+use geom_core::Tol;
 
 /// Strut count for the torn-body evidence row. On the workspace's
 /// effort dial rather than a private one: `CAD_FUZZ_EFFORT=15`
@@ -58,14 +59,15 @@ fn p(x: f64) -> Point3<f64> {
 /// row also pins that the refusal is a `StaleKey`, never a panic.
 #[test]
 fn d18_split_edge_refuses_a_dangling_prev_of_he_minus() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut body = cube.body;
     let edge = cube.mevs[0].edge;
     let hm = body.get_edge(edge).unwrap().he_minus;
     body.get_half_edge_mut(hm).unwrap().prev = HalfEdgeKey::default();
 
     let before = deep_snapshot(&body);
-    let err = body.split_edge(edge, 0.5).unwrap_err();
+    let err = body.split_edge(edge, 0.5, tol).unwrap_err();
     assert_eq!(
         err,
         EulerOpError::StaleKey {
@@ -85,14 +87,15 @@ fn d18_split_edge_refuses_a_dangling_prev_of_he_minus() {
 /// rather than replacing one.
 #[test]
 fn d18_split_edge_still_refuses_a_dangling_next_of_he_plus() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut body = cube.body;
     let edge = cube.mevs[0].edge;
     let hp = body.get_edge(edge).unwrap().he_plus;
     body.get_half_edge_mut(hp).unwrap().next = HalfEdgeKey::default();
 
     let before = deep_snapshot(&body);
-    let err = body.split_edge(edge, 0.5).unwrap_err();
+    let err = body.split_edge(edge, 0.5, tol).unwrap_err();
     assert_eq!(
         err,
         EulerOpError::StaleKey {
@@ -109,7 +112,7 @@ fn d18_split_edge_still_refuses_a_dangling_next_of_he_plus() {
 
 /// The digon pillow, built by operators: two vertices, two edges, two
 /// faces. `kef` applies to either half of the second edge.
-fn pillow() -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
+fn pillow(tol: Tol) -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
@@ -118,13 +121,17 @@ fn pillow() -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
         .unwrap();
     (body, seg, split)
 }
@@ -139,7 +146,8 @@ fn pillow() -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
 /// unit's `kef` half.
 #[test]
 fn d18_kef_refuses_a_dangling_prev_of_he() {
-    let (mut body, _seg, split) = pillow();
+    let tol = Tol::witness();
+    let (mut body, _seg, split) = pillow(tol);
     let he = split.he_minus;
     body.get_half_edge_mut(he).unwrap().prev = HalfEdgeKey::default();
 
@@ -171,6 +179,7 @@ fn d18_kef_refuses_a_dangling_prev_of_he() {
 /// that row would need re-checking.
 #[test]
 fn d18_torn_body_fixture_leaves_every_prev_live() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
@@ -179,6 +188,7 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let mut anchor = seg.he_minus;
@@ -189,8 +199,8 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
                     he1: anchor,
                     he2: anchor,
                 },
-                #[allow(clippy::cast_precision_loss)]
                 p(2.0 + i as f64),
+                tol,
             )
             .unwrap();
         anchor = strut.he_minus;
@@ -200,7 +210,7 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
         let mut other = Body::<f64>::new();
         let s = other.mvfs(p(0.0)).unwrap();
         let sg = other
-            .mev_line(MevSite::Lone { r#loop: s.r#loop }, p(1.0))
+            .mev_line(MevSite::Lone { r#loop: s.r#loop }, p(1.0), tol)
             .unwrap();
         sg.he_plus
     };

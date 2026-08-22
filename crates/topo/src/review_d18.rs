@@ -72,6 +72,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::fixtures::{deep_snapshot, ops_cube};
+use geom_core::Tol;
 #[cfg(not(debug_assertions))]
 use test_utils::vacuity::Exposure;
 
@@ -89,7 +90,7 @@ fn p(x: f64) -> Point3<f64> {
 /// same arena) rather than on the body under test: a `mev`/`kev` round
 /// trip anchored on a shared vertex rebinds `start` anchors and would
 /// perturb the fixture this helper is meant to leave alone.
-fn recycled_dead_half_edge(body: &mut Body<f64>) -> HalfEdgeKey {
+fn recycled_dead_half_edge(body: &mut Body<f64>, tol: Tol) -> HalfEdgeKey {
     let seed = body.mvfs(p(50.0)).unwrap();
     let seg = body
         .mev_line(
@@ -97,6 +98,7 @@ fn recycled_dead_half_edge(body: &mut Body<f64>) -> HalfEdgeKey {
                 r#loop: seed.r#loop,
             },
             p(51.0),
+            tol,
         )
         .unwrap();
     let dead = seg.he_plus;
@@ -119,10 +121,11 @@ fn recycled_dead_half_edge(body: &mut Body<f64>) -> HalfEdgeKey {
 /// succeeds, so the row cannot pass by refusing everything.
 #[test]
 fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut base = cube.body;
     let edge = cube.mevs[0].edge;
-    let recycled = recycled_dead_half_edge(&mut base);
+    let recycled = recycled_dead_half_edge(&mut base, tol);
     for dead in [HalfEdgeKey::default(), recycled] {
         let mut body = base.clone();
         let hm = body.get_edge(edge).unwrap().he_minus;
@@ -136,7 +139,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
         );
         body.get_half_edge_mut(hm).unwrap().prev = dead;
         let before = deep_snapshot(&body);
-        let err = body.split_edge(edge, 0.5).unwrap_err();
+        let err = body.split_edge(edge, 0.5, tol).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::StaleKey {
@@ -152,7 +155,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
     }
     // Control: undamaged, the same call succeeds.
     let mut body = base;
-    let control = body.split_edge(edge, 0.5);
+    let control = body.split_edge(edge, 0.5, tol);
     assert!(control.is_ok(), "control split: {control:?}");
 }
 
@@ -164,6 +167,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
 /// could not silently turn this into a walk test.
 #[test]
 fn kef_dangling_prev_of_he_is_typed_and_atomic() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
@@ -172,6 +176,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let strut = body
@@ -181,15 +186,19 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
                 he2: seg.he_minus,
             },
             p(2.0),
+            tol,
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: strut.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: strut.he_minus,
+            },
+            tol,
+        )
         .unwrap();
-    let recycled = recycled_dead_half_edge(&mut body);
+    let recycled = recycled_dead_half_edge(&mut body, tol);
     let base = body;
 
     let mut control = base.clone();
@@ -238,6 +247,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
 /// vacuously.
 #[test]
 fn split_edge_new_check_covers_every_coincidence_shape() {
+    let tol = Tol::witness();
     use core::f64::consts::PI;
 
     use crate::entity::EdgeKey;
@@ -247,8 +257,8 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "generic cube edge",
             0.5,
-            Box::new(|| {
-                let cube = ops_cube();
+            Box::new(move || {
+                let cube = ops_cube(tol);
                 let edge = cube.mevs[0].edge;
                 (cube.body, edge)
             }),
@@ -256,8 +266,8 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "strut: next(he_plus) == he_minus",
             0.5,
-            Box::new(|| {
-                let cube = ops_cube();
+            Box::new(move || {
+                let cube = ops_cube(tol);
                 let mut body = cube.body;
                 let anchor = cube.mevs[0].he_plus;
                 let strut = body
@@ -267,6 +277,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                             he2: anchor,
                         },
                         p(2.0),
+                        tol,
                     )
                     .unwrap();
                 (body, strut.edge)
@@ -275,7 +286,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "full-period self-loop edge (a one-half-edge loop each side)",
             PI,
-            Box::new(|| {
+            Box::new(move || {
                 let mut body = Body::<f64>::new();
                 let seed = body.mvfs(p(0.0)).unwrap();
                 let seg = body
@@ -284,13 +295,17 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                             r#loop: seed.r#loop,
                         },
                         p(1.0),
+                        tol,
                     )
                     .unwrap();
                 let circ = body
-                    .mef_chord(MefSite::Chords {
-                        he1: seg.he_minus,
-                        he2: seg.he_minus,
-                    })
+                    .mef_chord(
+                        MefSite::Chords {
+                            he1: seg.he_minus,
+                            he2: seg.he_minus,
+                        },
+                        tol,
+                    )
                     .unwrap();
                 (body, circ.edge)
             }),
@@ -298,7 +313,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "two-half-edge loop (segment: both halves in one loop)",
             0.5,
-            Box::new(|| {
+            Box::new(move || {
                 let mut body = Body::<f64>::new();
                 let seed = body.mvfs(p(0.0)).unwrap();
                 let seg = body
@@ -307,6 +322,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                             r#loop: seed.r#loop,
                         },
                         p(1.0),
+                        tol,
                     )
                     .unwrap();
                 (body, seg.edge)
@@ -316,7 +332,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
     for (label, t, build) in shapes {
         let (mut control, edge) = build();
         assert!(
-            control.split_edge(edge, t).is_ok(),
+            control.split_edge(edge, t, tol).is_ok(),
             "{label}: control split must succeed"
         );
         let (mut body, edge) = build();
@@ -326,7 +342,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         let before = deep_snapshot(&body);
         // Not caught: a panic here IS the finding and should carry its
         // own message and backtrace.
-        let err = body.split_edge(edge, t).unwrap_err();
+        let err = body.split_edge(edge, t, tol).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::StaleKey {
@@ -530,7 +546,7 @@ fn tear_landed(tear: Tear) -> String {
 /// [`LINK_OPS`] is therefore what the floor counts over, and
 /// `mfkrh_plug` is not in it.
 #[cfg(not(debug_assertions))]
-fn hammer(body: &Body<f64>) -> Exposure {
+fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     use crate::entity::{EdgeKey, LoopKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
@@ -551,13 +567,13 @@ fn hammer(body: &Body<f64>) -> Exposure {
         note(
             "mev_line",
             body.clone()
-                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0))
+                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
                 .is_ok(),
         );
         note(
             "mef_chord",
             body.clone()
-                .mef_chord(MefSite::Chords { he1: he, he2: he })
+                .mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
                 .is_ok(),
         );
         for &other in halves.iter().take(4) {
@@ -571,34 +587,40 @@ fn hammer(body: &Body<f64>) -> Exposure {
                             he2: other,
                         },
                         p(42.0),
+                        tol,
                     )
                     .is_ok(),
             );
             note(
                 "mef_chord",
                 body.clone()
-                    .mef_chord(MefSite::Chords {
-                        he1: he,
-                        he2: other,
-                    })
+                    .mef_chord(
+                        MefSite::Chords {
+                            he1: he,
+                            he2: other,
+                        },
+                        tol,
+                    )
                     .is_ok(),
             );
         }
     }
     for &edge in &edges {
         for t in [0.25, 0.5, 0.75] {
-            note("split_edge", body.clone().split_edge(edge, t).is_ok());
+            note("split_edge", body.clone().split_edge(edge, t, tol).is_ok());
         }
     }
     for &l in &loops {
         note(
             "mef_chord",
-            body.clone().mef_chord(MefSite::Lone { r#loop: l }).is_ok(),
+            body.clone()
+                .mef_chord(MefSite::Lone { r#loop: l }, tol)
+                .is_ok(),
         );
         note(
             "mev_line",
             body.clone()
-                .mev_line(MevSite::Lone { r#loop: l }, p(43.0))
+                .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
                 .is_ok(),
         );
         note("mfkrh_plug", body.clone().mfkrh_plug(l).is_ok());
@@ -627,14 +649,15 @@ fn hammer(body: &Body<f64>) -> Exposure {
 #[cfg(not(debug_assertions))]
 fn torn_bodies_never_reach_a_row_four_unreachable() {
     use test_utils::fuzz;
+    let tol = Tol::witness();
     let mut rng = fuzz::start("review_d18::torn_bodies_row_four");
     let trials = fuzz::scaled(3);
     let mut census = Exposure::new("review_d18 torn sweep");
     for trial in 0..trials {
         for tear in TEARS {
-            let cube = ops_cube();
+            let cube = ops_cube(tol);
             let mut body = cube.body;
-            let dead = recycled_dead_half_edge(&mut body);
+            let dead = recycled_dead_half_edge(&mut body, tol);
             // Compound the tears: one on the first pass, more as the
             // trial index rises, so single and multiple corruption both
             // get exercised. Each planting is snapshotted individually,
@@ -648,7 +671,7 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
                     census.note(&tear_landed(kind));
                 }
             }
-            census.merge(&hammer(&body));
+            census.merge(&hammer(&body, tol));
         }
     }
     census.report();
@@ -715,13 +738,14 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
 #[test]
 #[cfg(not(debug_assertions))]
 fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut src = cube.body;
     src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
-    let mut dst = ops_cube().body;
+    let mut dst = ops_cube(tol).body;
     let before = deep_snapshot(&dst);
     assert!(
-        crate::graft_disjoint_all_keyed(&mut dst, &src).is_err(),
+        crate::graft_disjoint_all_keyed(&mut dst, &src, tol).is_err(),
         "the torn source must refuse to graft"
     );
     assert_ne!(
@@ -730,7 +754,7 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
         "this row only means something if the refusal really did leave \
          `dst` partially written; if the graft ever becomes atomic, retire it"
     );
-    let census = hammer(&dst);
+    let census = hammer(&dst, tol);
     census.report();
     census.require(
         CALLS,

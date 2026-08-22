@@ -28,6 +28,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, Vec3};
 use geom_core::predicate::Band;
 
@@ -306,10 +307,11 @@ fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
     band: Band,
+    tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
     let arm = alignment.lever_arm();
     let frame = |side: MateSide, f: &super::MateFrame| {
-        f.placement()
+        f.placement(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
     };
     let fa = frame(MateSide::A, &alignment.a)?;
@@ -439,6 +441,7 @@ pub fn fold_pair<P>(
     child: RecipeNodeId,
     mates: &[RecipeNodeId],
     band: Band,
+    tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
     let mut held = Coset::unconstrained();
     let mut held_mate = None;
@@ -464,7 +467,7 @@ pub fn fold_pair<P>(
             return Err(Box::new(MateFault::SelfMate { mate, instance: ha }));
         }
         arm = arm.max(alignment.lever_arm());
-        let mut coset = mate_coset(mate, alignment, band)?;
+        let mut coset = mate_coset(mate, alignment, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
         if (ha, hb) != (parent, child) {
@@ -504,9 +507,9 @@ pub fn fold_pair<P>(
 ///
 /// Total by construction — a refusing cluster records its fault against
 /// its own mates and instances and leaves every other cluster solved.
-pub fn solve_document<P>(doc: &Doc<P>) -> SolvedPoses {
+pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
     let mut out = SolvedPoses::default();
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => {
             // No band, no decisions: every mate and instance refuses
@@ -558,7 +561,7 @@ pub fn solve_document<P>(doc: &Doc<P>) -> SolvedPoses {
         let Some(&gauge) = cluster.first() else {
             continue;
         };
-        match solve_cluster(doc, &cluster, gauge, &by_pair, band) {
+        match solve_cluster(doc, &cluster, gauge, &by_pair, band, tol) {
             Ok(solved) => {
                 for (instance, frame) in solved.relative {
                     out.relative.insert(instance, frame);
@@ -611,6 +614,7 @@ fn solve_cluster<P>(
     gauge: RecipeNodeId,
     by_pair: &BTreeMap<(RecipeNodeId, RecipeNodeId), Vec<RecipeNodeId>>,
     band: Band,
+    tol: Tol,
 ) -> Result<ClusterSolve, Box<MateFault>> {
     let position: BTreeMap<RecipeNodeId, usize> =
         cluster.iter().enumerate().map(|(i, &id)| (id, i)).collect();
@@ -648,7 +652,7 @@ fn solve_cluster<P>(
                 continue;
             }
             let mates = &by_pair[&unordered(parent, child)];
-            let coset = fold_pair(doc, parent, child, mates, band)?;
+            let coset = fold_pair(doc, parent, child, mates, band, tol)?;
             if !coset.subgroup.is_determined() {
                 // A11 rule 4: a tree edge that does not determine
                 // refuses, naming the residual and its parameters.
@@ -743,7 +747,11 @@ pub enum ClusterMaintenance {
 /// prior document had it.* When the gauge did not change, that is the
 /// prior row VERBATIM — bit-identical, which is what makes a mate-less
 /// document's registry unchanged by this machinery existing.
-pub(crate) fn reconcile<P>(before: &Doc<P>, after: &mut Doc<P>) -> Vec<ClusterMaintenance> {
+pub(crate) fn reconcile<P>(
+    before: &Doc<P>,
+    after: &mut Doc<P>,
+    tol: Tol,
+) -> Vec<ClusterMaintenance> {
     // Neither side has a mate: every cluster is a singleton on both,
     // so the registry is already keyed by its own gauges and the
     // maintenance has nothing to do. The invariant below would compute
@@ -756,7 +764,7 @@ pub(crate) fn reconcile<P>(before: &Doc<P>, after: &mut Doc<P>) -> Vec<ClusterMa
         .iter()
         .flat_map(|c| c.iter().map(|&id| (id, c[0])))
         .collect();
-    let before_poses = solve_document(before);
+    let before_poses = solve_document(before, tol);
     let after_clusters = clusters(after);
 
     let mut rows: BTreeMap<RecipeNodeId, Frame> = BTreeMap::new();

@@ -1494,12 +1494,13 @@ fn unreachable_zero<T: Real>() -> (T, T, T, T) {
 #[allow(clippy::expect_used)]
 mod rim_level_review_probe {
     use super::*;
+    use geom_core::Tol;
 
     /// The structurally-impossible mixed-kind arm must escalate typed
     /// (poisoned classify), never panic and never answer false.
     #[test]
     fn mixed_kind_levels_escalate_typed() {
-        let band = Band::linear().expect("band");
+        let band = Band::linear(Tol::witness()).expect("band");
         let got = level_coincides(
             "props_rim_level_group",
             RimLevel::Length(1.0_f64),
@@ -1519,7 +1520,7 @@ mod rim_level_review_probe {
     /// never measures and never groups.
     #[test]
     fn mixed_representation_rim_and_ends_never_measure() {
-        let band = Band::linear().expect("band");
+        let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
             d_u: 1.0_f64,
             d_u_sign: Sign::Positive,
@@ -1570,7 +1571,7 @@ mod rim_level_review_probe {
     /// components were outside the band too) and failed at ε = 1e-6.
     #[test]
     fn a_pair_the_component_rule_calls_one_level_is_not_grouped() {
-        let band = Band::linear().expect("band");
+        let band = Band::linear(Tol::witness()).expect("band");
         let arms = RimArms::uniform(1.0_f64);
         // Each component 0.8·zero (inside), chord 1.13·zero (outside).
         let d = band.zero() * 0.8;
@@ -1612,7 +1613,7 @@ mod rim_level_review_probe {
     /// `0.14·zero`, inside at every ε and every K.
     #[test]
     fn a_pair_inside_the_band_by_its_chord_is_one_level() {
-        let band = Band::linear().expect("band");
+        let band = Band::linear(Tol::witness()).expect("band");
         let d = band.zero() * 0.1;
         assert!(
             level_coincides(

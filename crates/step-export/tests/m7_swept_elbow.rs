@@ -38,6 +38,7 @@ use step_export::{StepOptions, step_string};
 // live on the builders in `common`, and in
 // `sweep/tests/m7_skin_integral.rs` (the Pappus bracket).
 use common::{nonuniform_loft, swept_elbow};
+use geom_core::Tol;
 
 fn export(body: &topo::Body<f64>, name: &str) -> String {
     let options = StepOptions {
@@ -45,7 +46,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options).expect("the body exports")
+    step_string(body, &options, Tol::witness()).expect("the body exports")
 }
 
 #[test]

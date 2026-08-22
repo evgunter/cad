@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, RecipeNodeId, SlotId};
+use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
 #[derive(Debug, Clone, PartialEq)]
@@ -35,7 +36,7 @@ fn scl(v: f64) -> Expr {
 /// Applies an edit, records it in the replay log, returns the doc
 /// (and the minted id for inserts).
 fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNodeId>) {
-    let applied = doc.apply(&edit).unwrap();
+    let applied = doc.apply(&edit, Tol::witness()).unwrap();
     log.push(edit);
     (applied.doc, applied.record.minted)
 }
@@ -95,7 +96,7 @@ fn author_die() -> Die {
     const HALF: f64 = 0.010; // 20 mm cube
     const PITCH: f64 = 0.005; // pip grid pitch
     let mut log = Vec::new();
-    let doc = TDoc::empty_derived("m4_pr1_doc");
+    let doc = TDoc::empty_derived("m4_pr1_doc", Tol::witness());
     // Document parameter: pip depth (the variant knob).
     let (doc, _) = step(
         doc,
@@ -205,7 +206,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
 
     // Replay identity (spec D7): from empty, BIT-IDENTICAL.
-    let replayed = TDoc::replay(die.doc.id(), &die.log).unwrap();
+    let replayed = TDoc::replay(die.doc.id(), &die.log, Tol::witness()).unwrap();
     assert_eq!(replayed, die.doc);
     assert!(replayed.diff(&die.doc).is_empty());
     assert_eq!(replayed.epsilon().to_bits(), die.doc.epsilon().to_bits());
@@ -214,11 +215,14 @@ fn die_authors_replays_and_diffs() {
     // so the node-granular diff reports exactly that node.
     let variant = die
         .doc
-        .apply(&TEdit::SetParam {
-            node: die.pip_extrude,
-            slot: SlotId::Distance,
-            expr: len(0.003),
-        })
+        .apply(
+            &TEdit::SetParam {
+                node: die.pip_extrude,
+                slot: SlotId::Distance,
+                expr: len(0.003),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!variant.record.structural, "continuous edit");
     let d = die.doc.diff(&variant.doc);
@@ -232,13 +236,16 @@ fn die_authors_replays_and_diffs() {
     // extrude references — node payloads identical, param diff only.
     let variant2 = die
         .doc
-        .apply(&TEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.003,
+        .apply(
+            &TEdit::SetDocParam {
+                name: ParamName::new("pip_depth"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: 0.003,
+                },
             },
-        })
+            Tol::witness(),
+        )
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
@@ -249,7 +256,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
     assert!(
         die.doc
-            .diff(&TDoc::replay(die.doc.id(), &die.log).unwrap())
+            .diff(&TDoc::replay(die.doc.id(), &die.log, Tol::witness()).unwrap())
             .is_empty()
     );
 }

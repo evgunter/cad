@@ -47,17 +47,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
+use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
 use pncad::profile::SketchPlane;
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// A square-with-an-arc section, scaled by `s` (LIB-U3 profile
 /// vocabulary: one loop, the arc as vertex 1's bulge).
-fn chain(s: f64) -> Section {
+fn chain(s: f64, tol: Tol) -> Section {
     // Lattice-authored since LIB-RETTAIL (raw `ProfileLoop` construction
     // is no longer presented surface, Evan's ruling on #413). The one
     // curved leg was a bulge of 0.25 on the vertex at (2, 0); the same
@@ -70,27 +71,35 @@ fn chain(s: f64) -> Section {
     let p = |x: f64, y: f64| Point2::new(x * s, y * s);
     let loop_ = Open
         .at(p(0.0, 0.0))
-        .line_to(p(2.0, 0.0))
+        .line_to(p(2.0, 0.0), tol)
         .and_then(|t| {
-            t.arc_to(Via {
-                q: p(2.125, 0.5),
-                p: p(2.0, 1.0),
-            })
+            t.arc_to(
+                Via {
+                    q: p(2.125, 0.5),
+                    p: p(2.0, 1.0),
+                },
+                tol,
+            )
         })
-        .and_then(|t| t.line_to(p(0.0, 1.0)))
-        .and_then(|t| t.line_to(Start))
+        .and_then(|t| t.line_to(p(0.0, 1.0), tol))
+        .and_then(|t| t.line_to(Start, tol))
         .expect("the arc-and-lines section authors");
     vec![loop_.into()]
 }
 
 /// The tour's loft + sweep stop.
-pub fn narration() {
+pub fn narration(tol: Tol) {
     println!("\n-- the loft and the sweep (M5 PR 10: definitional NURBS walls) --");
 
     // ---- The loft: three sections, the middle one scaled. ----
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    let loft = loft_geometry(&[chain(1.0), chain(1.6), chain(1.0)], &places, 2)
-        .expect("the three-section loft skins");
+    let loft = loft_geometry(
+        &[chain(1.0, tol), chain(1.6, tol), chain(1.0, tol)],
+        &places,
+        2,
+        tol,
+    )
+    .expect("the three-section loft skins");
     println!(
         "== loft: 3 sections (1.0 / 1.6 / 1.0 scale) x 1 loop x {} segments ==",
         loft.walls[0].len()
@@ -126,7 +135,7 @@ pub fn narration() {
     println!(
         "   interpolation verified by EVALUATION at every section parameter: \
          worst deviation {worst:.3e} m (eps = {:.0e})",
-        Tolerance::get().eps
+        tol.eps()
     );
 
     // The middle is not the average of the ends: no wall is ruled.
@@ -168,7 +177,8 @@ pub fn narration() {
     let u = helper.cross(n);
     let u = u / u.norm();
     let place = SketchPlane::from_frame(path.eval(0.0), u, n.cross(u)).placement;
-    let swept = sweep_geometry(&chain(1.0), place, &path, 5, 3).expect("the arc sweep skins");
+    let swept =
+        sweep_geometry(&chain(1.0, tol), place, &path, 5, 3, tol).expect("the arc sweep skins");
     println!(
         "== sweep: 1 profile carried along an arc path at {} stations, v-degree 3 ==",
         swept.section_params.len()
@@ -212,8 +222,8 @@ pub fn narration() {
 /// code. The corpus builds it with `ProfileLoop::polygon`, this builds
 /// it through the PATHS lattice ([`crate::paths::path_polygon`]),
 /// which is the spelling this tour is here to show.
-fn quad(pts: [(f64, f64); 4]) -> Section {
-    vec![crate::paths::path_polygon(&pts)]
+fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
+    vec![crate::paths::path_polygon(&pts, tol)]
 }
 
 /// The prism's end sections (also `common/mod.rs::PRISM_SQUARE`).
@@ -248,11 +258,11 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 // is why the narration keeps it and the constant does not).
 const NONUNIFORM_T: f64 = 0.1762536890990181;
 
-fn prism_sections() -> Vec<Section> {
+fn prism_sections(tol: Tol) -> Vec<Section> {
     vec![
-        quad(PRISM_SQUARE),
-        quad(PRISM_TRAPEZOID),
-        quad(PRISM_SQUARE),
+        quad(PRISM_SQUARE, tol),
+        quad(PRISM_TRAPEZOID, tol),
+        quad(PRISM_SQUARE, tol),
     ]
 }
 
@@ -260,7 +270,7 @@ fn prism_sections() -> Vec<Section> {
 /// corpus's MINIMAL PAIR (same sections, same degree, same builder —
 /// only the section spacing differs, so they share a camera and read
 /// as a pair on the sheet), then the curved-path sweep.
-pub fn stops() -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<Stop> {
     // Both lofts are 2 m tall columns flaring in x at one height, so
     // the story-bearing silhouette is the xz PROFILE: a near-face-on
     // ±y camera puts the ±x walls edge-on and the flare becomes a
@@ -280,10 +290,14 @@ pub fn stops() -> Vec<Stop> {
         up: 'z',
     };
 
-    let prism =
-        pncad::sweep::loft_body::<f64>(&prism_sections(), &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
-            .expect("shape (iii) loft builds")
-            .body;
+    let prism = pncad::sweep::loft_body::<f64>(
+        &prism_sections(tol),
+        &lofted_at_z(&[0.0, 1.0, 2.0]),
+        2,
+        tol,
+    )
+    .expect("shape (iii) loft builds")
+    .body;
     // THE STOP'S OWN NARRATION, PINNED AGAINST THE KERNEL — the same
     // move `loft_parameters` gets twenty lines below, and the same
     // scope. **What this does NOT check, stated:** agreement with
@@ -308,7 +322,7 @@ pub fn stops() -> Vec<Stop> {
         "the stop's note narrates V = 9 m³ exactly; these sections (flare d = {flare}) \
          now give {narrated}, so the note is wrong before the kernel is asked"
     );
-    let prism_props = pncad::topo::mass_properties(&prism).expect("the prism has a volume");
+    let prism_props = pncad::topo::mass_properties(&prism, tol).expect("the prism has a volume");
     // The enclosure is asked to BRACKET the derivation — and is
     // bounded from above first, because `volume_pad` is the props
     // door's own certified half-width with nothing constraining it:
@@ -347,16 +361,17 @@ pub fn stops() -> Vec<Stop> {
     // rather than re-derived: the note below narrates
     // t = 3√29/(3√29 + √5701) and every number downstream of it, so
     // the derivation is pinned against the kernel's own answer here.
-    let params = pncad::sweep::loft_parameters(&prism_sections(), &nonuniform_places, 2)
+    let params = pncad::sweep::loft_parameters(&prism_sections(tol), &nonuniform_places, 2, tol)
         .expect("the non-uniform sections skin");
     assert_eq!(
         params,
         vec![0.0, NONUNIFORM_T, 1.0],
         "the narrated v-parameterization is no longer what the skin chose"
     );
-    let nonuniform = pncad::sweep::loft_body::<f64>(&prism_sections(), &nonuniform_places, 2)
-        .expect("the non-uniform loft builds")
-        .body;
+    let nonuniform =
+        pncad::sweep::loft_body::<f64>(&prism_sections(tol), &nonuniform_places, 2, tol)
+            .expect("the non-uniform loft builds")
+            .body;
 
     // The S path (#218 review; DEMOTED to standalone at montage-v2):
     // two opposed quarter arcs of radius R in the world x = 0 plane,
@@ -388,16 +403,20 @@ pub fn stops() -> Vec<Stop> {
     let path =
         pncad::geom::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
     let s_duct = pncad::sweep::sweep_body::<f64>(
-        &quad([
-            (-ELBOW_H, -ELBOW_H),
-            (ELBOW_H, -ELBOW_H),
-            (ELBOW_H, ELBOW_H),
-            (-ELBOW_H, ELBOW_H),
-        ]),
+        &quad(
+            [
+                (-ELBOW_H, -ELBOW_H),
+                (ELBOW_H, -ELBOW_H),
+                (ELBOW_H, ELBOW_H),
+                (-ELBOW_H, ELBOW_H),
+            ],
+            tol,
+        ),
         Affine3::identity(),
         &path,
         13,
         3,
+        tol,
     )
     .expect("the S-path sweep body builds")
     .body;
@@ -565,16 +584,20 @@ pub fn stops() -> Vec<Stop> {
         SketchPlane::from_frame(cubic_path.eval(lo), u, n.cross(u)).placement
     };
     let twisted = pncad::sweep::sweep_body::<f64>(
-        &quad([
-            (-ELBOW_H, -ELBOW_H),
-            (ELBOW_H, -ELBOW_H),
-            (ELBOW_H, ELBOW_H),
-            (-ELBOW_H, ELBOW_H),
-        ]),
+        &quad(
+            [
+                (-ELBOW_H, -ELBOW_H),
+                (ELBOW_H, -ELBOW_H),
+                (ELBOW_H, ELBOW_H),
+                (-ELBOW_H, ELBOW_H),
+            ],
+            tol,
+        ),
         place,
         &cubic_path,
         17,
         3,
+        tol,
     )
     .expect("the twisted-cubic sweep body builds")
     .body;

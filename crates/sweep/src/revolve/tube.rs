@@ -29,7 +29,7 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3,
 };
 
 use super::axis::AxisFrame;
@@ -136,8 +136,9 @@ pub fn tube_along_arc<T: Decide>(
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
+    tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    let band = Band::linear().map_err(TubeError::Band)?;
+    let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
     let esc = |source| TubeError::Escalated { source };
@@ -256,13 +257,14 @@ pub fn tube_along_arc<T: Decide>(
     let loops = [segs];
     let classes_arr = [classes];
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes_arr, theta, band)
+        full::build_full(&frame, &loops, &classes_arr, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes_arr, theta, true, band)
+        partial::build_partial(&frame, &loops, &classes_arr, theta, true, band, tol)
     }
     .map_err(TubeError::Revolve)?;
     // The same final pass as every constructor since M6-3: stored
     // certified pcurves at rest.
-    topo::mint_pcurves(&mut out.body).map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
+    topo::mint_pcurves(&mut out.body, tol)
+        .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
     Ok(out)
 }

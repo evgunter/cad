@@ -99,7 +99,7 @@
 //! everything, so poison refuses — it never certifies.
 
 use bvh::{Aabb, Bvh};
-use geom_core::{Affine3, Band, Bounds, Decide};
+use geom_core::{Affine3, Band, Bounds, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
@@ -145,8 +145,8 @@ impl Separation {
     /// [`BooleanError`] — the box builder's own corruption refusals (a
     /// face whose loop is unwalkable is not a body), and
     /// `ClassificationInvariant` when the ambient band is unusable.
-    pub fn of<T: Decide + Bounds>(proto: &Body<T>) -> Result<Self, BooleanError> {
-        let band = Band::linear().map_err(|_| BooleanError::ClassificationInvariant {
+    pub fn of<T: Decide + Bounds>(proto: &Body<T>, tol: Tol) -> Result<Self, BooleanError> {
+        let band = Band::linear(tol).map_err(|_| BooleanError::ClassificationInvariant {
             what: "placement separation: the ambient tolerance band is unusable",
         })?;
         let pad = sweep_pad(band);

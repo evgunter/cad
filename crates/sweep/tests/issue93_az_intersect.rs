@@ -28,7 +28,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Decide, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Decide, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
@@ -92,7 +93,7 @@ fn lp<T: Decide>(poly: &[(f64, f64)]) -> ProfileLoop<T> {
 
 fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> ValidatedProfile<T> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("profile validation")
 }
 
@@ -107,6 +108,7 @@ fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
     extrude(
         &validated(plane, loops),
         Extrusion::Distance(T::from_f64(2.125)),
+        Tol::witness(),
     )
     .expect("extrude A")
     .body
@@ -137,6 +139,7 @@ fn z_prism<T: Decide>() -> Body<T> {
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
         Extrusion::Distance(T::from_f64(2.125)),
+        Tol::witness(),
     )
     .expect("extrude Z")
     .body
@@ -148,11 +151,13 @@ fn check_success(bb: &BooleanBody<f64>, oracle: f64, label: &str) {
     assert_eq!(validate(&bb.body), Ok(()), "{label}: tier 1");
     assert_eq!(validate_closed(&bb.body), Ok(()), "{label}: tier 2");
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts),
+        validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
         Ok(()),
         "{label}: tier 3′"
     );
-    let v = mass_properties(&bb.body).expect("mass properties").volume;
+    let v = mass_properties(&bb.body, Tol::witness())
+        .expect("mass properties")
+        .volume;
     assert!(
         (v - oracle).abs() < 1e-12,
         "{label}: volume {v} vs exact oracle {oracle}"
@@ -160,7 +165,7 @@ fn check_success(bb: &BooleanBody<f64>, oracle: f64, label: &str) {
 }
 
 fn intersect_success(a: &Body<f64>, oracle: f64, label: &str) -> BooleanBody<f64> {
-    match topo::intersect(a, &z_prism()) {
+    match topo::intersect(a, &z_prism(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             check_success(&bb, oracle, label);
             bb
@@ -232,12 +237,13 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
     let z_flush = extrude(
         &validated(plane, vec![lp(&z_poly_flush)]),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .expect("extrude flush Z")
     .body;
     let a = a_prism(vec![lp(&A_OUTLINE)]);
     // Undeclared: the N6 coincidence door refuses typed.
-    match topo::intersect(&a, &z_flush) {
+    match topo::intersect(&a, &z_flush, Tol::witness()) {
         Err(topo::BooleanError::UndeclaredCoincidence { .. }) => {}
         Err(e) => panic!("undeclared coupled flush refused OFF the coincidence door: {e:?}"),
         Ok(_) => panic!(
@@ -276,7 +282,7 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
         6,
         "A's two feet × Z's two y=0 bar ends + A's apex × Z's two y=2.5 bar ends"
     );
-    match topo::intersect_with(&a, &z_flush, &decls) {
+    match topo::intersect_with(&a, &z_flush, &decls, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             check_success(&bb, 2_562_165.0 / 950_272.0, "declared coupled-flush A×Z");
         }
@@ -293,11 +299,11 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
 fn az_plain_interval_refuses_or_encloses() {
     use geom_core::{Bounds, Interval};
     let a = a_prism::<Interval>(vec![lp(&A_OUTLINE)]);
-    match topo::intersect(&a, &z_prism::<Interval>()) {
+    match topo::intersect(&a, &z_prism::<Interval>(), Tol::witness()) {
         Err(_) => {} // conservative refusal: acceptable
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()), "interval tier 2");
-            let v = mass_properties(&bb.body)
+            let v = mass_properties(&bb.body, Tol::witness())
                 .expect("interval mass properties")
                 .volume;
             assert!(

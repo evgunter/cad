@@ -17,6 +17,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real};
 use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
+use geom_core::Tol;
 
 /// An edge's stored certified carrier: `(carrier, t0, t1, witness,
 /// extent, chord endpoints)` — the mid-parameter witness computed with
@@ -92,6 +93,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
     s2: SurfaceKey,
     band: Band,
     sliver: impl FnOnce(geom_core::Indeterminate) -> RevolveError,
+    tol: Tol,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
     let surf1 = body
@@ -118,7 +120,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 param_start: data.t0,
                 param_end: data.t1,
             };
-            body.set_edge_curve(edge, spec)?;
+            body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
         // **The lane's next retirement, taken (M5 PR 12).** A revolve
@@ -143,7 +145,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                     param_start: data.t0,
                     param_end: data.t1,
                 };
-                body.set_edge_curve(edge, spec)?;
+                body.set_edge_curve(edge, spec, tol)?;
             }
             Ok(())
         }
@@ -201,6 +203,7 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
+    tol: Tol,
 ) -> Result<(), RevolveError> {
     let is_plane = matches!(
         body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
@@ -218,6 +221,6 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         param_start: data.t0,
         param_end: data.t1,
     };
-    body.set_edge_curve(edge, spec)?;
+    body.set_edge_curve(edge, spec, tol)?;
     Ok(())
 }

@@ -68,6 +68,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use editor_core::{CancelToken, EvalOptions, evaluate};
 
 use corpus::{cone, documents, eval, failures};
+use geom_core::Tol;
 
 /// The committed STRUCTURAL manifest, relative to the crate root.
 /// Machine-independent; carries no milliseconds.
@@ -169,6 +170,7 @@ fn measure() -> Vec<Row> {
                 Some(&prior),
                 &CancelToken::new(),
                 &EvalOptions::default(),
+                Tol::witness(),
             );
             incrs.push(t0.elapsed());
             // The COUNTED-REUSE assertion (not a timing gate).

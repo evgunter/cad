@@ -18,6 +18,7 @@
 mod common;
 
 use common::{census, freecad_fixture};
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The base fixture: BoxA (rep #36, MSB #37) and SphereB (rep #205,
@@ -34,7 +35,7 @@ fn solid_body(r: step_import::StepImport) -> topo::Body<f64> {
 }
 
 fn import(text: &str) -> topo::Body<f64> {
-    solid_body(import_step(text, &ImportOptions::default()).expect("import"))
+    solid_body(import_step(text, &ImportOptions::default(), Tol::witness()).expect("import"))
 }
 
 /// One extra placed instance of `rep`, appended with fresh entity ids
@@ -189,7 +190,7 @@ fn three_instances_of_one_component() {
     }
     let v_box = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]);
     let v_sphere = 4.0 / 3.0 * std::f64::consts::PI * 0.5f64.powi(3);
-    let got = topo::mass_properties(&body)
+    let got = topo::mass_properties(&body, Tol::witness())
         .expect("mass properties")
         .volume
         * 1e9;
@@ -300,7 +301,7 @@ fn per_solid_gate_names_the_inverted_instance() {
         "#208 = ADVANCED_FACE('',(#209),#213,.T.);",
         "#208 = ADVANCED_FACE('',(#209),#213,.F.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::TierInvalid { solid, .. }) => {
             assert_eq!(solid, Some(206), "the refusal names the inverted sphere");
         }
@@ -448,7 +449,9 @@ fn a_placement_no_chain_reaches_refuses_typed() {
         ),
         &extra_instance(9300, 4_000_000_000_001, 100.0, 0.0, 0.0, 0.0),
     );
-    match import_step(&text, &ImportOptions::default()).expect_err("an unreachable placement") {
+    match import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect_err("an unreachable placement")
+    {
         StepImportError::Structure { id, what } => {
             assert_eq!(id, 4_000_000_000_001, "the refusal names the relationship");
             assert!(what.contains("no component's placement chain"), "{what}");
@@ -478,7 +481,8 @@ fn a_cyclic_placement_chain_refuses_typed() {
         ),
         &extra_instance_into(9400, 9300, 4_000_000_000_011, 2.0, 0.0, 0.0, 0.0),
     );
-    match import_step(&text, &ImportOptions::default()).expect_err("a cyclic chain") {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()).expect_err("a cyclic chain")
+    {
         StepImportError::Structure { what, .. } => {
             assert!(what.contains("returns to a representation"), "{what}");
         }

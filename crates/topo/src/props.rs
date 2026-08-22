@@ -27,7 +27,7 @@ use core::fmt;
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
-use geom_core::{Band, BandError, Decide, Real};
+use geom_core::{Band, BandError, Decide, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -151,9 +151,10 @@ impl std::error::Error for MassPropsError {}
 /// per-source breakdown.
 pub fn mass_properties<T: PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let band = Band::linear().map_err(|error| MassPropsError::Band { error })?;
-    mass_properties_with(body, band)
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    mass_properties_with(body, band, tol)
 }
 
 /// [`mass_properties`] against a caller-built band (the tier-3
@@ -161,8 +162,9 @@ pub fn mass_properties<T: PropsQuadLane>(
 pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, T::quad_cut_face)
+    mass_properties_impl(body, band, T::quad_cut_face, tol)
 }
 
 /// The closed-form-only variant for the boolean engine's INTERNAL
@@ -175,8 +177,9 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
 pub(crate) fn mass_properties_closed_form<T: Decide>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, |_, _, _, _, _| Ok(None))
+    mass_properties_impl(body, band, |_, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The shared face walk; `quad` is the per-scalar certified-quadrature
@@ -192,7 +195,9 @@ fn mass_properties_impl<T: Decide>(
         &[LoopEdge<T>],
         &[HalfEdgeKey],
         Band,
+        Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError>,
+    tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
     let mut flux = T::zero();
     let mut area = T::zero();
@@ -240,7 +245,7 @@ fn mass_properties_impl<T: Decide>(
                 // of what bounds it, and the patch engine reads the
                 // stored iso pcurves rather than the carriers.
                 let quad_out = if is_trimmed || matches!(surface, Surface::Nurbs(_)) {
-                    quad(body, surface, &outer, &hes, band).map_err(wrap)?
+                    quad(body, surface, &outer, &hes, band, tol).map_err(wrap)?
                 } else {
                     None
                 };
@@ -392,6 +397,7 @@ pub trait PropsQuadLane:
         outer: &[LoopEdge<Self>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError>;
 }
 
@@ -402,8 +408,9 @@ impl PropsQuadLane for f64 {
         outer: &[LoopEdge<Self>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
-        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
     }
 }
 
@@ -415,8 +422,9 @@ impl PropsQuadLane for geom_core::Probe {
         outer: &[LoopEdge<Self>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
-        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
     }
 }
 
@@ -428,8 +436,9 @@ impl PropsQuadLane for geom_core::interval::Interval {
         outer: &[LoopEdge<Self>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
-        quad_lane::cut_face(body, surface, outer, hes, band).map(Some)
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
     }
 }
 
@@ -445,6 +454,7 @@ where
         _outer: &[LoopEdge<Self>],
         _hes: &[HalfEdgeKey],
         _band: Band,
+        _tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
         Ok(None)
     }
@@ -458,6 +468,7 @@ mod quad_lane {
     use geom_brep::Pcurve;
     use geom_brep::props::quad::{self, FaceCutBounds, HarmChan, TrimEdgeQ};
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
+    use geom_core::Tol;
     use geom_core::ring_interval::RingInterval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
     // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
@@ -471,7 +482,7 @@ mod quad_lane {
     // (2026-08-19) and still may not certify.
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3, Tolerance};
+    use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3};
 
     use crate::body::Body;
     use crate::entity::HalfEdgeKey;
@@ -576,11 +587,12 @@ mod quad_lane {
         outer: &[LoopEdge<T>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<FaceCutBounds, PropsError> {
         // The NURBS-patch lane (M6-3): a described NURBS face routes
         // to the patch engine over its stored iso-line pcurves.
         if let Surface::Nurbs(payload) = surface {
-            return nurbs_face(body, payload, outer, hes, band);
+            return nurbs_face(body, payload, outer, hes, band, tol);
         }
         let Surface::Cylinder { origin, radius, .. } = surface else {
             return Err(PropsError::QuadratureUnsupported {
@@ -590,7 +602,7 @@ mod quad_lane {
                        has no lane",
             });
         };
-        let eps = Tolerance::get().eps;
+        let eps = tol.eps();
         let va = loop_vector_area(outer, *origin)?;
         let o_dot_va = br((*origin - Point3::origin()).dot(va));
         let mut edges = Vec::with_capacity(outer.len());
@@ -656,6 +668,7 @@ mod quad_lane {
         outer: &[LoopEdge<T>],
         hes: &[HalfEdgeKey],
         band: Band,
+        tol: Tol,
     ) -> Result<FaceCutBounds, PropsError> {
         if payload.is_placeholder() {
             return Err(PropsError::QuadratureUnsupported {
@@ -663,7 +676,7 @@ mod quad_lane {
                        mid-surgery body has no mass properties (tier 2 refuses it at rest)",
             });
         }
-        let eps = Tolerance::get().eps;
+        let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
         let exact = |x: RingInterval| -> Result<f64, PropsError> {
             if x.lo() == x.hi() && x.lo().is_finite() {

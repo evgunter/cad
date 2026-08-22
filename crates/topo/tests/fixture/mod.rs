@@ -38,7 +38,8 @@
 //! `EdgeCurve::certify`'s rung-3 gate and the cache through
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
-#![allow(dead_code)]
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;
 
@@ -46,6 +47,7 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache};
+use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
 
@@ -138,7 +140,7 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
         &cylinder::<f64>(),
         &sphere::<f64>(),
         slab,
-        Band::linear().unwrap(),
+        Band::linear(Tol::witness()).unwrap(),
     ) {
         Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
         Err(SsiError::FitSampleBudget { .. }) => None,
@@ -308,7 +310,7 @@ pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
         &cylinder::<D>(),
         Some(&sphere::<D>()),
         window,
-        Band::linear().unwrap(),
+        Band::linear(Tol::witness()).unwrap(),
     )
     .expect_err("a dual scalar has no fitted lane")
 }
@@ -320,7 +322,7 @@ fn assemble<T>(s: &Structure) -> Built<T>
 where
     T: geom_brep::PcurveFittedLane + geom_core::Bounds,
 {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let carrier = Arc::new(lift3::<T>(&s.carrier));
     let image = Arc::new(lift2::<T>(&s.image));
     let (f0, f1) = s.carrier.domain();
@@ -353,6 +355,7 @@ where
                 param_start: t0,
                 param_end: t1,
             },
+            Tol::witness(),
         )
         .expect("the rung-3 edge certifies at rest");
 

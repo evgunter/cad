@@ -559,7 +559,7 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// which `f64` the entries of a side carry. A reader taking the four
 /// consumers above for the crate's ε ledger would be short by three:
 /// this list is `gap_is_noise`'s callers and nothing wider.
-/// [`crate::sizing::Tol`] says what an ε read may DO; the inventory of
+/// [`crate::sizing::SizingTols`] says what an ε read may DO; the inventory of
 /// where they are is computed by `mesh/tests/all.rs`'s
 /// `the_eps_inventory_is_pinned`.
 ///
@@ -991,6 +991,54 @@ pub(crate) fn loop_polygon(
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?
         .sense_sign();
+    // JUNCTIONS ONLY: `t.ids[0]` is a topology vertex's mesh id
+    // (`chords::compute_chords` takes it from `vids`), so it is a
+    // DECLARED vertex; `ids[1..len - 1]` are chord subdivision points,
+    // whose spacing is delta-driven by design and drops under any eps
+    // at a fine enough delta. Comparing the whole id set would fire on
+    // correct input.
+    //
+    // D2 addendum row 5. Two vertices declared separately and placed
+    // within eps of each other can only be read as one by assuming
+    // intent from a numerical coincidence, which this project never
+    // does; so reaching this state is very likely a kernel bug (Evan's
+    // conjecture, #884). It is not observable in a branch — seeing it
+    // takes a re-derivation over every junction PAIR — which is what
+    // makes it a `debug_assert` and not an `unreachable!`.
+    //
+    // SCOPE, because a near neighbour is easy to mistake for this one:
+    // this compares DECLARED vertex against DECLARED vertex. The pole
+    // classification below compares a junction against an UNDECLARED
+    // analytic chart point (`Chart::poles()` computes it from the
+    // surface), and where the pole carries no vertex of its own this
+    // guard cannot see it. That case is **#896** and is NOT discharged
+    // here.
+    //
+    // Equal ids are skipped rather than compared: one declared vertex
+    // visited twice by one loop (a seam walked both ways) is that
+    // vertex at distance 0, and is legal.
+    let coincident_declared = || -> Option<(u32, u32, f64)> {
+        for (i, a) in travs.iter().enumerate() {
+            for b in &travs[i + 1..] {
+                let (ja, jb) = (a.ids[0], b.ids[0]);
+                if ja == jb {
+                    continue;
+                }
+                let d = (positions[ja as usize] - positions[jb as usize]).norm();
+                if d <= eps {
+                    return Some((ja, jb, d));
+                }
+            }
+        }
+        None
+    };
+    debug_assert!(
+        coincident_declared().is_none(),
+        "face {face:?} loop {lk:?}: two DECLARED vertices lie within eps {eps} of each \
+         other (id, id, separation in metres) {:?}. Intent is never read from a \
+         numerical coincidence, so this is a kernel bug and not a re-declaration.",
+        coincident_declared()
+    );
     let poles = chart.poles();
     let pole_v = |id: u32| -> Option<f64> {
         let p = positions[id as usize];

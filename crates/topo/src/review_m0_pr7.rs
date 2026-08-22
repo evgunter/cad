@@ -70,6 +70,7 @@ use crate::{
     Body, EdgeKey, EntityId, Face, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     PointKey, Provenance, Shell, ShellKey, Solid, ValidationError, Vertex, validate,
 };
+use geom_core::Tol;
 use geom_core::{Point3, Real};
 
 fn prov() -> Provenance {
@@ -98,12 +99,12 @@ struct LoneEdge {
 /// the single face's outer loop (the state `mvfs; mev` reaches, derived
 /// by hand here, not through the Euler ops). Geometry: v0 at the origin,
 /// v1 at (1,0,0).
-fn build_lone_edge() -> LoneEdge {
+fn build_lone_edge(tol: Tol) -> LoneEdge {
     let mut body = Body::<f64>::new();
 
     let p0 = body.add_point(Point3::new(0.0, 0.0, 0.0));
     let p1 = body.add_point(Point3::new(1.0, 0.0, 0.0));
-    let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin()));
+    let curve = body.add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
     let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
 
     let v0 = body.add_vertex(
@@ -220,7 +221,8 @@ fn build_lone_edge() -> LoneEdge {
 
 #[test]
 fn lone_edge_body_validates_with_expected_counts() {
-    let c = build_lone_edge();
+    let tol = Tol::witness();
+    let c = build_lone_edge(tol);
     assert_eq!(c.body.solids().count(), 1);
     assert_eq!(c.body.shells().count(), 1);
     assert_eq!(c.body.faces().count(), 1);
@@ -333,7 +335,8 @@ struct SpineCensus {
 
 #[test]
 fn generic_bbox_and_scalar_free_spine_census() {
-    let c = build_lone_edge();
+    let tol = Tol::witness();
+    let c = build_lone_edge(tol);
     let bb = bbox(&c.body).expect("lone edge has vertices");
     assert_eq!((bb.0.x, bb.0.y, bb.0.z), (0.0, 0.0, 0.0));
     assert_eq!((bb.1.x, bb.1.y, bb.1.z), (1.0, 0.0, 0.0));
@@ -368,7 +371,8 @@ fn expect_errors(label: &str, body: &Body<f64>, expected: &[ValidationError]) {
 /// the crate without a second body.
 #[test]
 fn dangling_shell_key_is_caught() {
-    let mut c = build_lone_edge();
+    let tol = Tol::witness();
+    let mut c = build_lone_edge(tol);
     let s2 = c.body.add_solid(
         Solid {
             shells: vec![ShellKey::default()],
@@ -392,7 +396,8 @@ fn dangling_shell_key_is_caught() {
 /// same one-pass/two-errors invariant on a vertex with a dangling point.)
 #[test]
 fn dangling_point_key_and_orphan_vertex_in_one_pass() {
-    let mut c = build_lone_edge();
+    let tol = Tol::witness();
+    let mut c = build_lone_edge(tol);
     let v = c.body.add_vertex(
         Vertex {
             point: PointKey::default(),
@@ -418,7 +423,8 @@ fn dangling_point_key_and_orphan_vertex_in_one_pass() {
 /// An orphan vertex (its point is referenced, hence NOT orphan geometry).
 #[test]
 fn orphan_vertex_is_caught() {
-    let mut c = build_lone_edge();
+    let tol = Tol::witness();
+    let mut c = build_lone_edge(tol);
     let p = c.body.add_point(Point3::new(9.0, 9.0, 9.0));
     let v = c.body.add_vertex(
         Vertex {
@@ -439,7 +445,8 @@ fn orphan_vertex_is_caught() {
 /// A face listed by two shells (each shell itself coherently owned).
 #[test]
 fn doubly_owned_face_is_caught() {
-    let mut c = build_lone_edge();
+    let tol = Tol::witness();
+    let mut c = build_lone_edge(tol);
     let solid2 = c.body.add_solid(Solid { shells: vec![] }, prov());
     let shell2 = c.body.add_shell(
         Shell {
@@ -463,11 +470,12 @@ fn doubly_owned_face_is_caught() {
 /// order points → curves → surfaces.
 #[test]
 fn orphan_geometry_reported_in_sweep_order() {
-    let mut c = build_lone_edge();
+    let tol = Tol::witness();
+    let mut c = build_lone_edge(tol);
     let p = c.body.add_point(Point3::origin());
     let cv = c
         .body
-        .add_curve(crate::fixtures::test_curve(Point3::origin()));
+        .add_curve(crate::fixtures::test_curve(Point3::origin(), tol));
     let s = c
         .body
         .add_surface(crate::fixtures::test_surface(Point3::origin()));
@@ -497,8 +505,9 @@ fn orphan_geometry_reported_in_sweep_order() {
 /// yield identical error lists — order included.
 #[test]
 fn identical_histories_are_bit_for_bit_deterministic() {
-    let a = build_lone_edge();
-    let b = build_lone_edge();
+    let tol = Tol::witness();
+    let a = build_lone_edge(tol);
+    let b = build_lone_edge(tol);
     let a_vkeys: Vec<_> = a.body.vertices().map(|(k, _)| k).collect();
     let b_vkeys: Vec<_> = b.body.vertices().map(|(k, _)| k).collect();
     assert_eq!(a_vkeys, b_vkeys);
@@ -527,15 +536,16 @@ fn identical_histories_are_bit_for_bit_deterministic() {
         );
         c.body
     };
-    let e1 = validate(&broken(build_lone_edge())).unwrap_err();
-    let e2 = validate(&broken(build_lone_edge())).unwrap_err();
+    let e1 = validate(&broken(build_lone_edge(tol))).unwrap_err();
+    let e2 = validate(&broken(build_lone_edge(tol))).unwrap_err();
     assert_eq!(e1, e2);
     assert_eq!(e1.len(), 3);
 }
 
 #[test]
 fn clone_diverges_independently() {
-    let original = build_lone_edge();
+    let tol = Tol::witness();
+    let original = build_lone_edge(tol);
     let mut clone = original.body.clone();
     let extra_p = clone.add_point(Point3::new(5.0, 5.0, 5.0));
     let extra_v = clone.add_vertex(

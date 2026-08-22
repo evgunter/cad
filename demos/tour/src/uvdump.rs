@@ -20,7 +20,7 @@
 //!   a whole `u`-line in the chart while being perfectly shut in space);
 //! - a loop wound the wrong way, so the even-odd interior would be the
 //!   complement of the intended one — checked against the face's own
-//!   [`topo::Face::sense`] bit rather than against CCW, because a bore
+//!   [`pncad::topo::Face::sense`] bit rather than against CCW, because a bore
 //!   or a concave groove carries `sense = false` and its outer loop is
 //!   then legitimately CW. Not every face is checkable this way — a
 //!   chart with a branch jump has no meaningful shoelace, and a face
@@ -79,7 +79,7 @@ use std::fmt::Write as _;
 use pncad::geom::Curve3;
 use pncad::geom::Surface;
 use pncad::geom_brep::Pcurve;
-use pncad::geom_core::{Band, Point2, Point3};
+use pncad::geom_core::{Band, Point2, Point3, Tol};
 use pncad::topo::{Body, HalfEdgeKey, LoopBoundary, LoopKey};
 
 /// Samples per curved half-edge image (a straight carrier draws with 2).
@@ -275,7 +275,7 @@ pub struct FaceStats {
     /// nonzero: a shoelace over a ring that contains a branch jump
     /// integrates across a discontinuity that is not boundary.
     pub area: f64,
-    /// [`topo::Face::sense`]: `true` iff the material side agrees with
+    /// [`pncad::topo::Face::sense`]: `true` iff the material side agrees with
     /// the chart normal. A bore, a concave groove or an inward cone
     /// wall carries `false`, and its outer loop is then legitimately
     /// **CW** in the chart — which is why the winding is checked
@@ -357,10 +357,10 @@ fn measure(loops: &[Vec<Traversal>], sense: bool) -> (Vec<Vec<(f64, f64)>>, Face
 
 /// Emits one SVG per face of `body` under `<outdir>/uv/`, returning the
 /// manifest entries.
-pub fn emit(label: &str, body: &Body<f64>, outdir: &str) -> Vec<FaceDump> {
+pub fn emit(label: &str, body: &Body<f64>, outdir: &str, tol: Tol) -> Vec<FaceDump> {
     let dir = format!("{outdir}/uv");
     std::fs::create_dir_all(&dir).expect("create uv dir");
-    let band = Band::linear().expect("the run tolerance yields a valid linear band");
+    let band = Band::linear(tol).expect("the run tolerance yields a valid linear band");
 
     let mut dumps = Vec::new();
     for (ord, (fk, face)) in body.faces().enumerate() {

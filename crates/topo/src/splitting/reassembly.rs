@@ -26,7 +26,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::SplitPlane;
 use super::split_scratch;
@@ -41,14 +41,14 @@ use geom_brep::EdgeCurveSpec;
 /// A geometric quad prism (profile in x–y, extruded +z; the
 /// tests/common builder's minimal in-crate copy): planar Newell
 /// surfaces, certified chord-line carriers.
-pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
+pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Body<f64> {
     let c = |&(x, y): &(f64, f64), z: f64| Point3::new(x, y, z);
     let bot: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 0.0)).collect();
     let top: Vec<Point3<f64>> = profile.iter().map(|p| c(p, height)).collect();
     let n = 4;
     let line = EdgeCurveSpec::line_between;
     let plane = |corners: &[Point3<f64>]| {
-        geom_brep::newell_plane(corners, Band::linear().unwrap()).unwrap()
+        geom_brep::newell_plane(corners, Band::linear(tol).unwrap()).unwrap()
     };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(bot[0]).unwrap();
@@ -60,6 +60,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
             },
             bot[1],
             line(bot[0], bot[1]),
+            tol,
         )
         .unwrap(),
     );
@@ -70,6 +71,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
                 MevSite::Fan { he1: at, he2: at },
                 bot[i],
                 line(bot[i - 1], bot[i]),
+                tol,
             )
             .unwrap(),
         );
@@ -91,6 +93,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
             },
             line(bot[n - 1], bot[0]),
             FaceSurface::New(plane(&rev)),
+            tol,
         )
         .unwrap();
     let mut struts = Vec::new();
@@ -107,6 +110,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
                 MevSite::Fan { he1: at, he2: at },
                 top[i],
                 line(bot[i], top[i]),
+                tol,
             )
             .unwrap(),
         );
@@ -127,6 +131,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
                 },
                 line(top[i], top[j]),
                 FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
+                tol,
             )
             .unwrap();
         if i == 0 {
@@ -142,7 +147,12 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64) -> Body<f64> {
 /// solid, cross-shell fusion), then the loopglue zip — per coincident
 /// vertex pair a scaffolding `mekr`/`mef` + `kev`, per doubled edge a
 /// `kef` — the ch. 12 machinery's ch. 14 call site.
-fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, above_face: FaceKey) {
+fn reglue_pair<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    below_face: FaceKey,
+    above_face: FaceKey,
+    tol: Tol,
+) {
     let fused = body.kfmrh(below_face, above_face).unwrap();
     let ring = fused.ring; // the above loop, now a ring of below_face
     let outer = body.get_face(below_face).unwrap().outer;
@@ -193,6 +203,7 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
                 ring: rs[0],
             },
             self_loop(body, ob[0]),
+            tol,
         )
         .unwrap();
     body.kev(n0.he_plus).unwrap();
@@ -205,6 +216,7 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
                 },
                 self_loop(body, ob[j]),
                 FaceSurface::Inherit,
+                tol,
             )
             .unwrap();
         body.kev(nj.he_plus).unwrap();
@@ -218,12 +230,13 @@ fn reglue_pair<T: geom_core::Decide>(body: &mut Body<T>, below_face: FaceKey, ab
 /// against the operand-with-crossings reference.
 #[test]
 fn reassembly_oracle_generic_cube() {
-    let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
+    let tol = Tol::witness();
+    let operand = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::new(0.0, 1.0, 0.0),
     };
-    let (red, completed, _fragments) = split_scratch(&operand, &plane).unwrap();
+    let (red, completed, _fragments) = split_scratch(&operand, &plane, tol).unwrap();
     assert_eq!(completed.len(), 1);
     let mut body = red.body;
 
@@ -251,17 +264,17 @@ fn reassembly_oracle_generic_cube() {
     assert_eq!(validate(&body), Ok(()));
 
     // Re-glue and compare.
-    reglue_pair(&mut body, below_face, above_face);
+    reglue_pair(&mut body, below_face, above_face, tol);
     assert_eq!(validate(&body), Ok(()));
-    body.merge_coplanar_faces().unwrap();
+    body.merge_coplanar_faces(tol).unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
 
     // Reference: operand + the same crossing insertions only.
     let reference = {
-        let band = geom_core::Band::linear().unwrap();
+        let band = geom_core::Band::linear(tol).unwrap();
         let mut b = operand.clone();
         let (mut sides, mut on) = super::classify::classify_vertices(&b, &plane, band).unwrap();
-        super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on).unwrap();
+        super::classify::insert_crossings(&mut b, &plane, &mut sides, &mut on, tol).unwrap();
         b
     };
     assert_eq!(
@@ -269,8 +282,8 @@ fn reassembly_oracle_generic_cube() {
         reference.arena_counts(),
         "census equality"
     );
-    let m1 = mass_properties(&body).unwrap();
-    let m0 = mass_properties(&operand).unwrap();
+    let m1 = mass_properties(&body, tol).unwrap();
+    let m0 = mass_properties(&operand, tol).unwrap();
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);
     assert!(
         close(m1.volume, m0.volume),

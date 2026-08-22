@@ -252,7 +252,7 @@ mod tests {
         // And each row is a genuine code read that must SURVIVE.
         for row in [
             "gap * lever < eps",
-            "let eps = Tolerance::get().eps;",
+            "let eps = tol.eps();",
             "f(a, b, eps)",
             "struct T<'a> { eps: &'a f64 }",
             "let c = 'e'; let d = eps;",

@@ -39,6 +39,7 @@ publish = false
 # mirrored here, on the default (no-Python) path that hosted CI takes.
 [lints.rust]
 missing_docs = "warn"
+unreachable_pub = "warn"
 
 [lints.clippy]
 panic = "warn"

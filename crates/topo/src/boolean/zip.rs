@@ -31,6 +31,7 @@ use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use geom_brep::EdgeCurveSpec;
+use geom_core::Tol;
 
 /// What one seam zip did to the arena — the F9-style record the op
 /// stage consumes (M3 PR 6a): every vertex fusion (dead key → kept
@@ -52,6 +53,7 @@ pub(super) fn zip_seam<T: Decide>(
     a_face: FaceKey,
     b_face: FaceKey,
     vmap: &SecondaryMap<VertexKey, VertexKey>,
+    tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     let mut report = ZipReport::default();
@@ -155,6 +157,7 @@ pub(super) fn zip_seam<T: Decide>(
             ring: rs[0],
         },
         EdgeCurveSpec::self_loop_circle_at(p0),
+        tol,
     )?;
     record_kev(body, n0.he_plus, &mut report)?;
     for j in (1..n).rev() {
@@ -166,6 +169,7 @@ pub(super) fn zip_seam<T: Decide>(
             },
             EdgeCurveSpec::self_loop_circle_at(pj),
             FaceSurface::Inherit,
+            tol,
         )?;
         record_kev(body, nj.he_plus, &mut report)?;
         body.kef(rs[(j + 1) % n])?;

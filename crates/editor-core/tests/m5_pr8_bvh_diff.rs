@@ -31,6 +31,7 @@ use std::collections::BTreeSet;
 
 use corpus::{body_of, documents};
 use editor_core::{CancelToken, EvalOptions, Evaluation, Node, evaluate};
+use geom_core::Tol;
 use topo::{SweepStrategy, SweepTrace, sweep_traces};
 
 fn eval_with<T>(doc: &editor_core::ProfileDoc, strategy: SweepStrategy) -> Evaluation<T>
@@ -46,7 +47,7 @@ where
         boolean_sweep: strategy,
         ..EvalOptions::default()
     };
-    evaluate::<T>(doc, None, &CancelToken::new(), &opts)
+    evaluate::<T>(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
 type Pair = (topo::EdgeKey, topo::FaceKey);
@@ -139,10 +140,22 @@ fn corpus_boolean_operands_superset_pin() {
                 continue;
             };
             let (body_a, body_b) = (body_of(&ev, *a), body_of(&ev, *b));
-            let (r_ab, r_ba) = sweep_traces(body_a, body_b, SweepStrategy::Realized, None)
-                .expect("realized sweep runs on green corpus operands");
-            let (i_ab, i_ba) = sweep_traces(body_a, body_b, SweepStrategy::Idealized, None)
-                .expect("idealized sweep runs on green corpus operands");
+            let (r_ab, r_ba) = sweep_traces(
+                body_a,
+                body_b,
+                SweepStrategy::Realized,
+                None,
+                Tol::witness(),
+            )
+            .expect("realized sweep runs on green corpus operands");
+            let (i_ab, i_ba) = sweep_traces(
+                body_a,
+                body_b,
+                SweepStrategy::Idealized,
+                None,
+                Tol::witness(),
+            )
+            .expect("idealized sweep runs on green corpus operands");
             assert_eq!(
                 missing_pairs(&r_ab, &i_ab),
                 vec![],

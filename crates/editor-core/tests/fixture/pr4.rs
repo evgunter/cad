@@ -16,6 +16,7 @@ use editor_core::{
 use geom_core::Decide;
 
 use super::{ang, desc, insert, len, scl, step};
+use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
 /// per Evan's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
@@ -33,7 +34,13 @@ fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
 {
-    evaluate::<T>(doc, prior, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<T>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn block(
@@ -81,7 +88,7 @@ where
     let mut out = Vec::new();
 
     // ---- Scenario A: sliding union (flip-vanish + cascade). ----
-    let doc = ProfileDoc::empty_derived("pr4");
+    let doc = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tr) = insert(
@@ -185,7 +192,7 @@ where
     ));
 
     // ---- Scenario C: Declare stranded by DeleteNode (NodeGone). ----
-    let docd = ProfileDoc::empty_derived("pr4");
+    let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::Top));
@@ -210,7 +217,7 @@ where
     ));
 
     // ---- Scenario D: the symmetric U tie (Ambiguous). ----
-    let docu = ProfileDoc::empty_derived("pr4");
+    let docu = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (docu, up) = insert(
         docu,

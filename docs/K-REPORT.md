@@ -337,7 +337,7 @@ candidate in {3, 10, 30, 100} behaves identically on this corpus — so
 the value is currently free, and a free parameter should keep its
 ratified, documented default rather than churn. (Per Evan's #41
 direction, K is now ε-style per-run configuration —
-`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10 — so future
+`Tol::k`, env `CAD_AMBIGUITY_K`, default 10 — so future
 corpora can probe alternatives without code changes.)
 Retaining a full decade of escalation headroom above ε remains the
 right *a-priori* posture for M3, where boolean/SSI margins will be
@@ -988,7 +988,7 @@ hosted run without anyone re-reading this report.
 
 Note that the machinery for a future change is already in place and
 costs nothing to leave there: K is per-run configuration
-(`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10), so a
+(`Tol::k`, env `CAD_AMBIGUITY_K`, default 10), so a
 future corpus can probe alternatives without code changes. Closing
 #89 ratifies the default; it does not weld the dial.
 
