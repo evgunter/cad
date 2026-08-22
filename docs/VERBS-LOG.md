@@ -194,3 +194,28 @@ lane verbs-chamfer-r1, frozen head 86a8e49b, probe branch
 verbs/chamfer-r1-probes requested. Review charter includes the
 mid-flight CI red's fix commits (C7: cause vs symptom, render
 re-baseline honesty).
+
+## CHAMFER fix pass done; #920 HOLDS on #921 (2026-08-22)
+
+Ordinal-61 review (single, per protocol): APPROVE-WITH-FIXES,
+0 MAJOR / 4 MINOR / 5 NOTE + 6 style. Fix pass complete at
+f47012a2, every disposition landed (NonpositiveSize door as plain
+typed refusal — input validity is not metered; both runtime
+fillet-worded strings fixed; #917 widened to the reviewer's full
+class enumeration; probe suite adopted fast-forward with one row
+moved WITH its finding; one public path per verb). The unit also
+exercised the new configuration-sampling CI for the first time in
+VERBS: three runs drew three different points, the census gate
+tripped and was resolved by ROSTERING the adopted probe suite
+(its set-equality roster row is the C4 claim), and the final draw
+(interval, 1e-12) exposed **#921** — two `carrier_matches_mapped_source`
+rows red ON MAIN at that point, bit-identical margins at f059298c,
+proven not the branch's. The lane refused to re-roll the draw.
+
+**#920 holds unmerged until #921 is decided** — merging on a red
+check with a "it's main's fault" argument is the habit the
+sampling design warns against; the honest path is: resolve #921,
+merge main into the branch (a real re-draw), green, merge. An
+investigation lane (i921) is tracing the enclosure's width on
+main; its report decides band-vs-enclosure-vs-row-contract, with
+Evan looped in if it is a genuine tolerance-design fork.
