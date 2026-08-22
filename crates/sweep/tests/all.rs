@@ -129,6 +129,8 @@ mod mass_props;
 mod mass_props_interval;
 #[path = "readback_doors.rs"]
 mod readback_doors;
+#[path = "review_chamfer_r1_probes.rs"]
+mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -173,8 +175,6 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
-#[path = "review_chamfer_r1_probes.rs"]
-mod review_chamfer_r1_probes;
 #[path = "review_verbs_rim_lever_probes.rs"]
 mod review_verbs_rim_lever_probes;
 #[path = "revolve_ball.rs"]
