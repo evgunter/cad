@@ -144,6 +144,7 @@ RUN_FLOOR=(
   plain:editor-core:m5_pr5_corpus_probe:1
   plain:geom-core:certified_door:6
   plain:sweep:k_report:0
+  plain:sweep:review_chamfer_r1_probes:7
 )
 
 # EVERY CENSUSED SUITE DECLARES WHICH SIDE IT IS ON. What the executed

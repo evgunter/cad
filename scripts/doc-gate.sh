@@ -173,6 +173,31 @@
 #     one arrives silently — nothing here will say so — which is the
 #     price of the exception paragraph above and is named as such.
 #
+# THE OUTSIDE ROOTS ARE ALSO THE CACHE'S SCOPE, WHICH IS WHY
+# `--print-roots` EXISTS. Hosted CI's `fmt` job restores one
+# `Swatinem/rust-cache` entry, and until #921 that entry covered `./target`
+# and nothing else — so the workspace pass ran against a warm dependency
+# graph while the six roots above compiled from nothing on EVERY run,
+# each into its own target directory that no cache carried. Measured on
+# the runner (2 vCPU, run 32583370980, warm cache with one kernel doc
+# comment changed — the case a real PR is): this script's real pass went
+# from 67 s to 33 s once the cache was told about all seven roots, and
+# the whole job from 136 s to 99 s, which is 3 billed minutes to 2. The
+# cache entry grows 155 MB to 245 MB compressed, paid only when the key
+# rotates. Written up as F6 in docs/CI-MINUTES-2026-08.md.
+#
+# THE LIST IS PRINTED, NOT COPIED. A `workspaces:` roster hand-written
+# into ci.yml would be the second hand-kept root list in this repo, and
+# the paragraph above is about why the first one must not exist: a root
+# added to `workspace.exclude` and forgotten there would silently fall
+# out of the cache, and nothing would say so — the same shape as a root
+# falling out of COVERAGE, one currency down. So the workflow asks THIS
+# script, which already derives the set, and gets `.` plus one directory
+# per root. `cargo metadata --no-deps` needs no registry index (checked:
+# it answers under an empty CARGO_HOME), so the step can run BEFORE
+# rust-cache restores `~/.cargo` — which it must, since its output is
+# that action's input.
+#
 # THE SELF-TEST, AND THE ONE THING NOT WATCHING IT. Every gate in
 # scripts/gates/ runs `--selftest` first, on the standing rule that a
 # guard never shown to fire is not a guard; this one had none, so
@@ -279,37 +304,38 @@ doc_pass() {
 # silent. See the FEATURES paragraph in the header.
 DEFAULT_FEATURES_ROOT=interval-transcendentals/Cargo.toml
 
-gate() {
-  local rc=0 m members manifests n=0
-  local -a roots=()
-  if [ ! -f Cargo.toml ]; then
-    gate_error "$(gate_name): no Cargo.toml under $PWD — the gate documented nothing, which is not a pass"
-    exit 1
-  fi
-
-  # PASS 1 — the workspace.
-  doc_pass "the workspace pass — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
-    --workspace --all-features || rc=1
-  n=1
-
-  # PASS 2 — every manifest the workspace pass did not cover, one
-  # `--no-deps` pass each, so a package in a nested workspace is
-  # documented exactly once however those workspaces are arranged.
-  members=$(workspace_manifests)
+# THE ROOTS OUTSIDE THE WORKSPACE, one repo-relative manifest path per
+# line — the derivation the header argues for, in ONE place because it
+# now has TWO readers. `gate` documents these; `--print-roots` hands the
+# same set to the hosted job's cache (see the OUTSIDE ROOTS ARE THE
+# CACHE'S SCOPE paragraph in the header).
+outside_roots() {
+  local m members manifests
+  # `|| return 1` ON BOTH READERS, EXPLICITLY, AND NOT LEFT TO `set -e`.
+  # Errexit does NOT survive this nesting: a function running inside a
+  # command substitution whose value is assigned goes on past a failed
+  # assignment of its own, so `members=$(workspace_manifests)` alone
+  # would print the reader's diagnosis, carry on to the loop, and hand
+  # the caller an EMPTY list — pass 2 running zero times and the gate
+  # reporting green over a tree it never read, which is the exact shape
+  # the two readers were written to prevent. The self-test below caught
+  # it (`gate_selftest_without_tool git`) the first time this derivation
+  # moved into a function; the fix is to say so rather than to depend on
+  # a shell option that holds only at one nesting depth.
+  members=$(workspace_manifests) || return 1
   # BOTH LISTS CAPTURED, NOT PIPED OR PROCESS-SUBSTITUTED. Each reader
-  # can fail, and a failed reader must kill the gate rather than hand
-  # back an empty list: inside `< <(…)` a non-zero return is invisible,
-  # so the loop would run zero times and the gate would report green
-  # over a tree it never read. Under `set -e` a failed command
-  # substitution dies AT THE ASSIGNMENT — after the reader has written
-  # its own `gate_error` to STDERR, which is why lib.sh puts diagnoses
-  # there and not on stdout.
-  manifests=$(tree_manifests)
+  # can fail, and a failed reader must kill this derivation rather than
+  # hand back an empty list: inside `< <(…)` a non-zero return is
+  # invisible, so the loop would run zero times and the gate would report
+  # green over a tree it never read. The reader writes its own
+  # `gate_error` to STDERR before returning, which is why lib.sh puts
+  # diagnoses there and not on stdout — this list IS stdout.
+  manifests=$(tree_manifests) || return 1
   while IFS= read -r m; do
     # THE WORKSPACE'S OWN MANIFEST IS NOT A MEMBER OF IT. This one is
     # virtual (no root package), so `cargo metadata`'s package list
     # cannot contain it and the membership test below reads it as an
-    # uncovered root — whereupon this loop documents every member a
+    # uncovered root — whereupon the caller documents every member a
     # SECOND time, one package at a time, for no coverage at all. It is
     # the manifest pass 1 was invoked on; it is covered.
     [ "$m" = Cargo.toml ] && continue
@@ -327,8 +353,60 @@ $members
 $(abs_path "$m")
 "*) continue ;;
     esac
-    roots+=("$m")
+    printf '%s\n' "$m"
   done <<<"$manifests"
+}
+
+# --print-roots. The DIRECTORY of every cargo root this gate documents:
+# `.` for the workspace pass, then one line per root outside it. It is
+# the same derivation `gate` runs, deliberately — see the header.
+print_roots() {
+  local m outside
+  # CAPTURED INTO A VARIABLE, AND THE FAILURE CHECKED HERE TOO. Written
+  # as `done <<<"$(outside_roots)"` a reader that could not answer would
+  # print its diagnosis, hand back nothing, and this would print a bare
+  # `.` — which the hosted job reads as "one cargo root", caches one, and
+  # is quietly back to where it started with every gate green.
+  outside=$(outside_roots) || exit 1
+  printf '.\n'
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    printf '%s\n' "$(dirname "$m")"
+  done <<<"$outside"
+}
+
+gate() {
+  local rc=0 m outside n=0
+  local -a roots=()
+  if [ ! -f Cargo.toml ]; then
+    gate_error "$(gate_name): no Cargo.toml under $PWD — the gate documented nothing, which is not a pass"
+    exit 1
+  fi
+
+  if [ "$PRINT_ROOTS" = true ]; then
+    print_roots
+    return 0
+  fi
+
+  # PASS 1 — the workspace.
+  doc_pass "the workspace pass — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
+    --workspace --all-features || rc=1
+  n=1
+
+  # PASS 2 — every manifest the workspace pass did not cover, one
+  # `--no-deps` pass each, so a package in a nested workspace is
+  # documented exactly once however those workspaces are arranged.
+  #
+  # CAPTURED INTO A VARIABLE AND CHECKED, NOT SUBSTITUTED INTO THE
+  # REDIRECTION. `outside_roots` reads two tools that can fail, each of
+  # which diagnoses and returns non-zero; inside `<<<"$(…)"` that status
+  # is invisible, so pass 2 would run zero times over a tree nothing read
+  # and the gate would report green for the wrong reason.
+  outside=$(outside_roots) || exit 1
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    roots+=("$m")
+  done <<<"$outside"
 
   local -a feat
   local defaulted=0
@@ -527,6 +605,33 @@ plant_public_link_to_private_item() {
   } >> "$1/crates/clean/src/lib.rs"
 }
 
+# THE PRINTER, against the fixture's three roots. `.` for the workspace
+# pass, then the two roots outside it in manifest order — and the
+# workspace MEMBER must NOT appear: it is covered by pass 1, and
+# `crates/clean/target` is a directory cargo never writes, so caching it
+# would be caching nothing while reading as a covered root.
+gate_selftest_prints_roots() {
+  local tmp out want
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if ! out=$("$0" --root "$tmp" --print-roots 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: --print-roots exited non-zero on a clean fixture\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  # SORTED, because `tree_manifests` sorts: the printed order is the
+  # manifest order, not the order this fixture plants them in.
+  want='.
+interval-transcendentals
+outside'
+  if [ "$out" != "$want" ]; then
+    printf 'SELFTEST FAILED: --print-roots did not print the derived root set — the hosted cache scopes itself to this list, so a short one is six cargo roots compiling from nothing with every gate green.\nwanted:\n%s\ngot:\n%s\n' \
+      "$want" "$out" >&2
+    exit 1
+  fi
+}
+
 gate_selftest() {
   local want="rustdoc rejected"
   gate_selftest_clean
@@ -551,9 +656,32 @@ gate_selftest() {
   # is the reader's own diagnosis and not merely a non-zero exit.
   gate_selftest_without_tool cargo "cargo metadata failed"
   gate_selftest_without_tool git "git ls-files failed"
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, prose behind the excepted root'"'"'s feature, and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, and when either cargo or git cannot answer\n' \
+  # --print-roots, ON THE SAME DERIVATION. The hosted cache's scope is
+  # whatever this prints, so a mode that printed a bare `.` — a reader
+  # that failed quietly, a `dirname` that lost the outside roots — would
+  # put the `fmt` job back to compiling six cargo roots from nothing on
+  # every run, with every gate still green. Both directions are checked:
+  # the exact set on a clean fixture, and a diagnosis rather than a short
+  # list when a reader cannot answer.
+  gate_selftest_prints_roots
+  GATE_SELFTEST_ARGS=(--print-roots)
+  gate_selftest_without_tool cargo "cargo metadata failed"
+  gate_selftest_without_tool git "git ls-files failed"
+  GATE_SELFTEST_ARGS=()
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, prose behind the excepted root'"'"'s feature, and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails\n' \
     "$(gate_name)"
 }
 
-gate_parse_args "$@"
+# --print-roots pulled out of argv before lib.sh's parser sees it, the
+# way scripts/gates/probe-suite-census.sh adds its modes: `gate_parse_args`
+# knows `--selftest` and `--root` and rejects anything else.
+PRINT_ROOTS=false
+gate_args=()
+for a in "$@"; do
+  case "$a" in
+    --print-roots) PRINT_ROOTS=true ;;
+    *) gate_args+=("$a") ;;
+  esac
+done
+gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
 gate_main

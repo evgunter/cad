@@ -400,8 +400,10 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
         FilletError::FilletCornerUnsupported { .. } => "FilletCornerUnsupported",
         FilletError::SpineUnsupported { .. } => "SpineUnsupported",
+        FilletError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
         FilletError::Escalated { .. } => "Escalated",
         FilletError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
+        FilletError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
         FilletError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
         FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
@@ -548,7 +550,7 @@ fn d2_reached_variants() {
 /// resumable*, so a caller who discards the `Err` hands `fillet_edges`
 /// a tier-1-invalid body with no kernel bug in the trace.
 ///
-/// All 46 sites sit BELOW `fillet_surgery`'s entry gate
+/// All 46 sites sit BELOW `blend_surgery`'s entry gate
 /// (`solids != 1 || shells != 1` — `surgery.rs:212`). This row pins
 /// the arithmetic that decides whether the witness can get there in
 /// the scenario the refutation describes — *a caller keeps the body it

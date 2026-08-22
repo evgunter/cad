@@ -48,12 +48,14 @@ fn l_profile() -> ValidatedProfile<f64> {
 }
 
 /// TARGET 3 (the bulge' formula, checked against the repo's own
-/// convention). SCOPE FINDING pinned here: extruded bodies at rest
-/// carry NO PlacedSegment descriptions (the prefer-intrinsic pass has
-/// already re-described every edge as Intersection), so split_edge's
-/// SketchSegment::restrict lane is unreachable from any current public
-/// at-rest body - this test exercises it at the geom-brep consumer
-/// level instead. With bulge = tan(theta/4), the sub-arc over param
+/// convention). Scope: extruded bodies at rest carry NO PlacedSegment
+/// descriptions (the prefer-intrinsic pass has already re-described
+/// every edge as Intersection), so a public split_edge on an at-rest
+/// extrusion does not reach SketchSegment::restrict; this test
+/// exercises the formula at the geom-brep consumer level. The lane
+/// itself IS reached end-to-end elsewhere - curved booleans and the
+/// fillet verbs split mapped arcs mid-operation, before the
+/// prefer-intrinsic pass runs. With bulge = tan(theta/4), the sub-arc over param
 /// fractions [s0, s1] has theta' = theta * (s1 - s0), so bulge' must
 /// be EXACTLY tan(atan(b) * (s1 - s0)); endpoints are eval(s0)/
 /// eval(s1) bitwise; and the reparameterization law

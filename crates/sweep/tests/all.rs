@@ -129,6 +129,10 @@ mod mass_props;
 mod mass_props_interval;
 #[path = "readback_doors.rs"]
 mod readback_doors;
+#[path = "review_arceval_r1_probes.rs"]
+mod review_arceval_r1_probes;
+#[path = "review_chamfer_r1_probes.rs"]
+mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -193,6 +197,8 @@ mod revolve_washer;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_chamfer.rs"]
+mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
