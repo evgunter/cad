@@ -193,6 +193,8 @@ mod s16_box_soundness;
 mod s49_census_jurisdiction;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
+#[path = "verbs_rim_r1_probes.rs"]
+mod verbs_rim_r1_probes;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
