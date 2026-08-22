@@ -2492,8 +2492,9 @@ jobs:
   # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
-  # workflow's ~460 s critical path (the test shards), so they cost
-  # runner minutes and nothing else, and only on the same condition
+  # workflow's ~460 s critical path (the test shards) — and since the
+  # 2026-08-22 lane merges they do it in two jobs rather than five, so they
+  # cost fewer runner minutes and nothing else, and only on the same condition
   # `k-lint` uses — a render depends on the whole kernel, so "whenever
   # anything builds at all" is the right trigger for it too.
   #
@@ -2516,11 +2517,11 @@ jobs:
   # canonical frames, so it must not be the place a second opinion about
   # how they are produced can creep in.
   # NO LOCAL MIRROR: a caller with no steps of its own. It hands render.yml
-  # four lanes, and each of those says at its own key whether it has a local
-  # half — `tour` and `uv` do and are cited, `montage` and `wild` say why they
-  # cannot. One reason written here would have to be true of all four, and the
+  # its lanes, and each of THAT file's jobs says at its own key whether it has
+  # a local half — `scene-inputs` does and is cited, `montage` says why it
+  # cannot. One reason written here would have to be true of both, and the
   # FreeCAD one is true of `montage` alone: the local half already runs the
-  # other two lanes' work through `uv sheet drift (demos)`.
+  # renderer-free lanes' work through `uv sheet drift (demos)`.
   renders:
     name: render lanes
     needs: filter
