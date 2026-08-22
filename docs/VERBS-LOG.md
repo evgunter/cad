@@ -398,3 +398,23 @@ claimed → a third → DUAL, CROSS-MODEL** (R1 fable + R2 opus,
 frozen 2041b083, lanes verbs-ssiflat-r1/-r2); the 1e-12
 unique-signal run is in both charters. Six agents live (4 impl/
 review + RING + DEMO + ARMS-1 pending reports).
+
+## Ordinal-63 dual returned; SSIFLAT fix pass out (2026-08-22)
+
+R1 fable APPROVE 0/2/1; R2 opus AWF 3/4/3 — the pair's label
+divergence comes with a direct judgment contradiction worth the
+variance record: R1 rated idiom 5/5 for "reusing the classifier's
+vocabulary" while R2 proved the enum already held a LOSSLESS
+sibling variant (Escalated{cause: Indeterminate}) and a
+zero-consumer purpose-built renderer (IndeterminatePayload) that
+the PR bypassed for a third hand-rolled form dropping the band.
+Both converged on the definite-refusal arms' Value-projection
+dishonesty; R2's probe reached a surviving manufactured-NaN
+instance (the empty tube ladder's structural CertificateLimb) from
+a public door; both found the row's ε-regime fragility by
+different mechanisms (1e-13 red via MapResidual; ≤1.8e-13 definite
+via CertificateLimb). R1's full-suite 1e-12 runs established
+(interval, 1e-12) CLEAN pending this unit's merge. Fix pass
+dispatched with the 8-item union incl. one class issue for the
+bare-f64 margin-field family both reviewers enumerated. ARMS-1
+landed as PR #932 meanwhile (CI running, report pending).
