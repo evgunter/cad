@@ -68,3 +68,28 @@ at this seam.
   orientation-sensitive site classes, G8 multi-operand gap) and
   DRAFT (surgery-pattern generalization, face replacement,
   re-intersection reach). Conversations open when they return.
+
+## Three conversations open (2026-08-21)
+
+Draft + patterns/mirror surveys returned; conversations opened the
+same day (Evan's open-as-info-firms ruling):
+
+- **#908 DRAFT-DESIGN** (branch verbs/draft-design): plane-wall v1
+  (the cylinder arm re-opens R1's conic inventory and is deferred to
+  its own ruling); mechanism is a certified re-geom pass, NOT the
+  M6-1 graft shape (topology survives; the missing primitive is a
+  pass-owned vertex step); the pull-direction predicate is a
+  SELECT-DESIGN amendment; the moldability checker rides along.
+- **#909 MIRROR-DESIGN** (branch verbs/mirror-design): the patterns
+  half already SHIPPED (Node::Pattern + PlacedUnion, part-level) —
+  the register rows are corrected in the PR; the open half is
+  mirror: P1 chart-handedness ruling (u ↦ −u recommended), P2 own
+  door beside transform_rigid, P3 audit boundary (~15 site classes).
+  Hole features are no longer "blocked mainly on patterns".
+
+Both PRs edit KERNEL-VERBS.md rows — the second to merge may need a
+trivial conflict resolution. **Sheet bodies (the D1 conversation) is
+deliberately HELD** until the open three get responses — it is the
+heaviest conversation and Evan's review bandwidth is the scarce
+resource. In flight: VERBS-RIM implementer (no report yet); #907
+(Q8) awaiting Evan.
