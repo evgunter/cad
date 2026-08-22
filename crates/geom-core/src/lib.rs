@@ -1,4 +1,5 @@
 //! The scalar / tolerance / predicate substrate of the CAD kernel.
+//! MEASUREMENT TOUCH — reverted before this branch merges.
 //!
 //! `geom-core` is the bottom layer everything else stands on: the [`Real`]
 //! scalar trait (instantiated at `f64` here, at forward-mode [`dual`]
