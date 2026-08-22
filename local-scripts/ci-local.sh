@@ -111,11 +111,25 @@ ORIG_ARGS=("$@")
 # --- change filter: one shared implementation with .github/workflows/ci.yml
 FULL=0
 BASE=""
+# THE NIGHTLY (DEMOTED) ROW IS OPT-IN, and that is the one place this script
+# is NOT a superset of a hosted run. The superset claim it makes elsewhere is
+# about the sampled MATRIX — both lanes, all three eps, all five k-lint
+# unifications — and a demoted test is not a matrix point: it is a test Evan
+# ruled need not run per-PR at all, and this script is the per-PR gate of
+# record when hosted Actions is unavailable. Running it by default would put
+# back, in the half a developer waits on, exactly the cost the demotion
+# removed — and it costs more here than hosted, because `--cfg nightly_suite`
+# is a different fingerprint for every crate and so a second full compile of
+# the workspace's test binaries. The row exists, is cited, and is one flag
+# away; see `nightly_demoted` below, which also keeps that compile in a
+# target directory of its own so it cannot invalidate this tree's.
+RUN_NIGHTLY=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --full) FULL=1; shift ;;
+    --nightly) RUN_NIGHTLY=true; shift ;;
     --base) BASE="${2:?--base needs a ref}"; shift 2 ;;
-    *) echo "usage: ci-local.sh [--full] [--base <ref>]" >&2; exit 2 ;;
+    *) echo "usage: ci-local.sh [--full] [--nightly] [--base <ref>]" >&2; exit 2 ;;
   esac
 done
 
@@ -238,6 +252,21 @@ run_row_if() {
   fi
 }
 
+# Same bookkeeping, different SKIP reason, and the difference is worth a
+# function: a row skipped by the change filter is one the filter proved this
+# change cannot have moved, while a row skipped here is one nobody asked for.
+# Printing the first sentence over the second would be a small lie in the one
+# artefact a reader consults about what ran.
+run_row_opt_in() {
+  local cond="$1" name="$2" why="$3"; shift 3
+  if [ "$cond" = true ]; then
+    run_row "$name" "$@"
+  else
+    echo; echo "=== [$name] SKIPPED ($why)"
+    NAMES+=("$name"); RESULTS+=("SKIP  0s")
+  fi
+}
+
 # --- discipline (evaluation-code): the mirrored tripwire gates ---
 # EVERY gate has exactly ONE home, under scripts/gates/, and this
 # function runs the WHOLE DIRECTORY — so there is no local roster to
@@ -342,11 +371,14 @@ manifest_selftest() {
 # `git diff --exit-code` un-does the question of drift by failing on it.
 #
 # The two markers below are the LANES this row reproduces, in render.yml
-# rather than in ci.yml: the same `cargo run --release -- ../out` the `tour`
-# lane runs, and the same `demos/render-uv.sh` the `uv` lane runs. What it
-# does not reproduce is their re-baseline, which is the sentence above.
-# HOSTED MIRROR: tour / demo tour (STL + STEP + UV SVGs + scenes.json)
-# HOSTED MIRROR: uv / compose (demos/render-uv.sh)
+# rather than in ci.yml: the same `cargo run --release -- ../out` and the same
+# `demos/render-uv.sh`. Both now live in render.yml's `scene-inputs` job — the
+# separate `tour` and `uv` jobs were merged 2026-08-22, and the uv sheet is
+# composed from the tour output already on that runner's disk rather than from
+# an artifact round trip. What this row does not reproduce is their
+# re-baseline, which is the sentence above.
+# HOSTED MIRROR: scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)
+# HOSTED MIRROR: scene-inputs / compose (demos/render-uv.sh)
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
@@ -498,6 +530,68 @@ interval_tests() {
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
   cargo nextest run $SCOPE --features interval -E "$sel" $extra
 }
+# THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
+#
+#     #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
+#
+# is `#[ignore]`d in every ordinary build — including every row above — and an
+# ordinary test under `RUSTFLAGS="--cfg nightly_suite"`. Without this row those
+# tests run in NEITHER half: hosted skips them at the gate by design, and this
+# script would skip them too. That is the hole this row closes locally; the
+# hosted half of it is nightly.yml's `demoted` job.
+#
+# THE SET IS DERIVED, NOT DECLARED — `scripts/nightly-only-selection.py`, the
+# difference between two `cargo nextest list` outputs, exactly as
+# `interval_selection` above derives the interval feature's own tests. Its
+# header carries the details; the two that matter at this call site are that
+# the difference is over the `ignored` FLAG (nextest lists ignored tests, so a
+# name-set difference is empty for every tree) and that a pre-existing plain
+# `#[ignore]` is ignored in both listings and so can never be selected.
+#
+# `--workspace`, NOT `$SCOPE`, in both listings. The nightly is unscoped, and
+# a scoped listing here would be worse than merely different: the selection
+# script proves a legitimate empty set by scanning the WHOLE tree for markers,
+# so a scope with no demoted tests while markers exist elsewhere would take
+# its broken-rig arm and fail this row for the wrong reason.
+NIGHTLY_SEL="target/ci-local/nightly-selection.txt"
+# A TARGET DIRECTORY OF ITS OWN. `--cfg nightly_suite` rides RUSTFLAGS, which
+# is part of every crate's fingerprint, so building it into `target/` would
+# invalidate this tree's artifacts — and then invalidate them back on the next
+# ordinary cargo command, for as long as anyone alternates. Hosted does not
+# care (a fresh runner, one build) and a developer's box does.
+NIGHTLY_TARGET="target/ci-local/nightly-suite"
+nightly_selection() {
+  mkdir -p target/ci-local \
+    && CARGO_TARGET_DIR="$NIGHTLY_TARGET" \
+         cargo nextest list --workspace --message-format json \
+         > target/ci-local/nextest-list-gate.json \
+    && CARGO_TARGET_DIR="$NIGHTLY_TARGET" RUSTFLAGS="--cfg nightly_suite" \
+         cargo nextest list --workspace --message-format json \
+         > target/ci-local/nextest-list-nightly.json \
+    && scripts/nightly-only-selection.py \
+         target/ci-local/nextest-list-gate.json \
+         target/ci-local/nextest-list-nightly.json > "$NIGHTLY_SEL"
+}
+# `--no-tests` is decided by the SELECTION, the same conditional the interval
+# rows above carry and hosted's `demoted` job repeats: nextest exits 4 on a
+# zero-test run, which is the alarm we want when a real filter matches
+# nothing, and exactly wrong for the `none()` the selection script emits for a
+# tree that carries no markers at all.
+#
+# NO `--run-ignored`, IN ANY SPELLING. Under the cfg these are ordinary tests
+# and a plain filtered run executes them; the flag would sweep in the whole
+# pre-existing `#[ignore]`d population, which is what Evan ruled out.
+# HOSTED MIRROR: demoted / run the demoted tests (and nothing else)
+# shellcheck disable=SC2086
+nightly_demoted() {
+  nextest_check && nightly_selection || return 1
+  local sel extra=""
+  sel=$(cat "$NIGHTLY_SEL")
+  [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  CARGO_TARGET_DIR="$NIGHTLY_TARGET" RUSTFLAGS="--cfg nightly_suite" \
+    cargo nextest run --workspace -E "$sel" $extra
+}
+
 # shellcheck disable=SC2086
 interval_eps() {
   nextest_check && interval_selection || return 1
@@ -511,31 +605,21 @@ interval_eps() {
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 
-# M4 PR 6 spec D6: the three persistence obligations as NAMED rows
-# (also covered by the workspace rows; named = attributable).
-# ε battery {1e-6, 1e-12} — see the run_row block below.
-# HOSTED MIRROR: persistence / save/load/replay-identity (D6.1) + float bits (D2) + golden v1
-persist_roundtrip() {
-  local e
-  for e in 1e-6 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden:: || return 1
-  done
-}
-persist_eps_diff() { cargo test -p editor-core --test all -- m4_pr6_eps_diff::; }
-persist_refusal() { cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key::; }
-# Mirrors the named step in hosted's test-interval job (which runs it
-# out of the interval archive by binary_id).
+# THE `persist_roundtrip` / `persist_eps_diff` / `persist_refusal` /
+# `corpus_eps` ROWS STOOD HERE, AND ARE DELETED (2026-08-22) along with
+# the hosted `persistence` and `band 4 corpus` jobs they mirrored —
+# ci.yml carries the argument at the tombstone where those jobs were.
+# The short form: every module they named is an ordinary `#[test]` that
+# the `test (eps = ...)` rows above already run, at all three ε here and
+# at the drawn ε hosted, so the rows re-bought coverage they already had
+# and (hosted) pinned two ε bands the sampling exists to spread out.
+#
+# The two `(interval)` rows below are NOT part of that and stay: they
+# mirror named steps of the hosted `test-interval` job, which the
+# interval rows above do not cover — `interval_tests` runs the
+# interval-only selection, and these two are in its subtracted half.
 persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'; }
 
-# M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
-# the workspace rows; named = attributable).
-# HOSTED MIRROR: corpus / evaluation, exact mass pins, counted reuse, vocabulary totality
-corpus_eps() {
-  local e
-  for e in 1e-6 1e-12; do
-    CAD_TOLERANCE_EPS="$e" cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus:: || return 1
-  done
-}
 corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
@@ -811,12 +895,17 @@ run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --featu
 run_row "test (interval)"              interval_tests
 run_row "test (interval, eps = 1e-6)"  interval_eps
 run_row "doc-tests (interval)"         interval_doc_tests
-# Root package editor-core (persistence D6.*, band 4 corpus D1, latency D2).
-run_row_if "$RUN_EDITOR_CORE" "persist save/load/replay (D6.1)" persist_roundtrip
-run_row_if "$RUN_EDITOR_CORE" "persist eps-diff golden (D6.2)"  persist_eps_diff
-run_row_if "$RUN_EDITOR_CORE" "persist refusal (D6.3)"          persist_refusal
+# Opt-in; the reasoning is at RUN_NIGHTLY near the top of this file, and the
+# derivation is at `nightly_demoted` above.
+run_row_opt_in "$RUN_NIGHTLY" "nightly-only tests (demoted)" \
+  "cadence lane — pass --nightly to run it" nightly_demoted
+# Root package editor-core. Three rows, not the six there were: the two
+# named eps batteries (persistence D6.*, band 4 corpus D1) went with the
+# hosted jobs that mirrored them on 2026-08-22 — the `test (eps = ...)`
+# rows above already run every one of those modules, at all three eps. What
+# is left is the two INTERVAL members, which those rows do not cover, and
+# the latency table (D2).
 run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
-run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (2 eps rows)"      corpus_eps
 run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
 run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can
@@ -831,6 +920,15 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # that path-depend on nine members between them, and the probe sweep
 # records margins from every kernel crate — no minimal root set, so
 # these run whenever anything builds.
+#
+# ALL FIVE FEATURE UNIFICATIONS, EVERY TIME (2026-08-22). The hosted
+# `k-lint (gate)` job now draws ONE of {dev-default, release-default,
+# release-budget, dev-budget, dev-probe} per run — it bills 8-10 minutes
+# precisely because those five compile the tour and the kernel five times
+# over. Nothing bills this script by the minute, so it keeps running the
+# whole product, exactly as it keeps running every lane and every ε: local
+# is a strict superset of any hosted run, and that is now true of three
+# sampled dimensions rather than two.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour eps pin (#99)"        demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift

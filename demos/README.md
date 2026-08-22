@@ -129,19 +129,23 @@ and — only when the kernel lane falls back to matplotlib —
 `demos/renders-preview/renders/*.png` (gitignored; see below).
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
-published to the lane directory only once it is complete. FreeCAD
-stamps each PNG with the path it was written to, so the staging tree
-mirrors the lane directory's *name* and each scene process runs with
-the staging root as its working directory — a staged frame is
-byte-identical to the published one.
+published to the lane directory only once it is complete. The staging
+tree mirrors the lane directory's *name* and each scene process runs
+with the staging root as its working directory, so a staged frame's
+path reads the same as its published one — which used to be a
+byte-identity requirement (FreeCAD stamps the output path into the PNG)
+and is now only tidiness, since the stamp is stripped.
 
 Both `render.sh` lanes run `strip_png_stamps.py` over the per-scene
 PNGs before composing the montage: FreeCAD's `saveImage` stamps the
 wall clock into every file it writes (a `tEXt` "Creation Time" chunk
 and a `zTXt` "Description" chunk carrying its MIBA XML), which would
-make an unchanged re-render show up dirty in `git status`. Both are
-ancillary chunks — dropping them is lossless, and it makes a dirty
-`git status` after a re-render mean the *pixels* changed.
+make an unchanged re-render show up dirty in `git status`, and the
+OUTPUT PATH (a `tEXt` "Title" chunk), which made the same pixels
+written to two paths two different files. All three are ancillary
+chunks — dropping them is lossless, it makes a dirty `git status` after
+a re-render mean the *pixels* changed, and it makes two frames of the
+same pixels comparable however they were routed.
 
 ## The UV trim-loop lane (`render-uv.sh`)
 
@@ -299,8 +303,9 @@ the filesystem level, and one silently reached a committed montage cell
 * **Guard.** `check_render_provenance.py` asserts that every committed
   per-scene PNG under `renders/` and `renders-freecad/` carries
   FreeCAD's signature `tEXt` chunks (`Author: FreeCAD (…)`, `Software:
-  FreeCAD` — deterministic, so `strip_png_stamps.py` keeps them, unlike
-  the two wall-clock chunks it drops). A matplotlib-authored frame
+  FreeCAD` — deterministic and provenance, so `strip_png_stamps.py`
+  keeps them, unlike the two wall-clock chunks and the output-path
+  chunk it drops). A matplotlib-authored frame
   (`Software: Matplotlib …`) in a committed path fails loud, naming the
   file. Both `render.sh` lanes run it after the stamp strip and
   **before** composing the montage, so a sheet is never composed from an
@@ -739,13 +744,32 @@ byte-identical path it always did.
 
 ### One process per scene, on a budget
 
-**Both** lanes run one `freecadcmd` process per scene, each under a
-per-scene wall-clock budget (`FREECAD_SCENE_TIMEOUT`, default 300 s;
-`render.sh` documents how that number was measured). A warm session
-that renders many scenes deadlocks partway through on some hosts — at a
+**Both** lanes run one `freecadcmd` process per scene by default, each
+under a per-scene wall-clock budget (`FREECAD_SCENE_TIMEOUT`, default
+300 s; `render.sh` documents how that number was measured). A warm
+session that rendered many scenes deadlocked partway through — at a
 different scene each time, on an idle box as well as a loaded one — so
-it is the session that wedges, not any one scene, and no session is
-reused across scenes.
+it was the session that wedged, not any one scene. That deadlock was
+root-caused in 2026-08 (FreeCAD's notification area re-entering its own
+mutex under the offscreen QPA plugin) and `render_freecad.py` disables
+it, so the process boundary is no longer a workaround for a live bug;
+it is kept because it is what BOUNDS a future hang.
+
+`CAD_RENDER_BATCH=B` renders B consecutive scenes (scenes.json order) in
+ONE process, which pays FreeCAD's startup once per B scenes instead of
+once per scene — and startup is most of a typical scene, which is why
+scenes of wildly different geometric complexity all cost about the same.
+**Default 1: exactly the behaviour above, down to the log filenames.**
+The trade it makes is blast radius, and it is linear: a wedge costs its
+whole batch, and the pass takes up to `2 x B x FREECAD_SCENE_TIMEOUT` to
+give up on it rather than `2 x FREECAD_SCENE_TIMEOUT`. A failure that is
+NOT a wedge is split — each frameless scene of the batch is re-run
+alone, one process each — so one scene FreeCAD cannot draw still costs
+one cell and not its whole batch, exactly as at B=1.
+
+Scenes sharing a process share a FreeCAD document and view, so the knob
+is only admissible if it does not change the pixels; see
+"[Batching is byte-checked](#batching-is-byte-checked)".
 
 By default the scenes go one at a time. `CAD_RENDER_JOBS=K` renders K
 of them concurrently — still one fresh session per scene, so it does
@@ -770,6 +794,28 @@ never mistaken for a good pass.
 
 Because frames are staged and published only on a complete pass (see
 above), a wedge leaves the committed lane directory exactly as it was.
+
+<a id="batching-is-byte-checked"></a>
+#### Batching is byte-checked
+
+`CAD_RENDER_BATCH` is admissible only because a batched frame is
+BYTE-IDENTICAL to an unbatched one — the same bar `CAD_RENDER_JOBS` had
+to clear. Verified on one box, one GL stack, `CAD_RENDER_JOBS=1`, all 55
+committed cells of both lanes plus both montage sheets, at B=1 (twice,
+as the control), B=5 and B=35 (the whole kernel lane in ONE process):
+every cell and both sheets identical across all of them. PNG bytes are
+not comparable ACROSS GL stacks, so that is a statement about a repeat
+render on one box; the canonical hosted producer has to make it again
+for itself before the default moves off 1.
+
+What makes it safe is that `render_freecad.py` keeps ONE warm document
+and toggles per-scene visibility rather than cycling documents — the
+document accumulates the batch's bodies, but a hidden body contributes
+nothing to a render or to `fitAll`, and the camera is set outright from
+the scene's own spec before every frame. (Per-scene
+`newDocument`/`closeDocument` was tried and is worse: it races the
+event-loop-deferred view-provider setup offscreen, which shows up as
+blank frames and hangs.)
 
 ### Off-box: the hosted lanes
 

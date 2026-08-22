@@ -16,16 +16,40 @@
 //! selected by module prefix. `--features probe` is what compiles this
 //! file — it is `#![cfg(feature = "probe")]`.
 //!
-//! **CI both type-checks and runs this harness**, on every building
-//! merge. It is compiled by the `k-lint` job's step named
-//! *"compile and list every probe-gated test target"* — a name the census gate
-//! greps for, so this sentence cannot go quietly false — and
-//! `scripts/k_probe_sweep.sh` executes exactly the invocation above
-//! at all three ε, dumping to `<outdir>/m2/`. That dump rides BESIDE the
-//! CSV k-lint gates, not inside it — the M2 shapes are not part of the
-//! distribution those thresholds were argued over. The command block
-//! above is therefore the same command CI runs, and it must stay that
-//! way: a runbook nothing executes cannot tell you it has gone stale.
+//! **CI both type-checks and runs this harness, on 1 building merge
+//! in 5.** It rides the `k-lint` job's `dev-probe` feature row, and
+//! since 2026-08-22 that job SAMPLES one of its five feature
+//! unifications per run. The draw is seeded from the head SHA under
+//! its own salt, so a re-run of the same commit draws the same row and
+//! "which unification gated this commit" is recoverable from the SHA
+//! alone, without the run's logs. Repetition covers the matrix: at this
+//! repository's measured run rate (~60 runs/hour during active work)
+//! every row comes up within minutes.
+//!
+//! Sampling is sound HERE for one reason, and it is worth stating
+//! because it does not generalise: this row is a PERSISTENCE detector.
+//! A probe harness that stopped compiling, or stopped executing, stays
+//! broken in the tree, so a later draw still finds it — a red is
+//! deferred, never lost.
+//!
+//! **The ABSENCE half is not sampled and must not be confused with
+//! this.** A suite that DISAPPEARS leaves no future red for a later
+//! draw to catch; it merges silently, once. That is caught instead by
+//! `probe-suite-census.sh`'s default mode against `CENSUS_FLOOR`,
+//! sited in the `discipline` job — unconditional, on every run,
+//! structurally ineligible for sampling. The census greps for the
+//! `k-lint` step named
+//! *"compile and list every probe-gated test target"* — a FIXED-STRING
+//! per-line grep, so that quotation must not be re-wrapped — and the
+//! step therefore cannot be deleted quietly either.
+//!
+//! When the row IS drawn, `scripts/k_probe_sweep.sh` executes exactly
+//! the invocation above at all three ε, dumping to `<outdir>/m2/`. That
+//! dump rides BESIDE the CSV k-lint gates, not inside it — the M2
+//! shapes are not part of the distribution those thresholds were argued
+//! over. The command block above is therefore the same command CI runs,
+//! and it must stay that way: a runbook nothing executes cannot tell
+//! you it has gone stale.
 //!
 //! Without `CAD_K_REPORT_OUT` the CSV goes to stdout (lines prefixed
 //! by nothing — pipe as needed). Columns:
