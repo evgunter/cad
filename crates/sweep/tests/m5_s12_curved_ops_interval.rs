@@ -245,6 +245,19 @@ mod certified {
         );
     }
 
+    /// The widest `carrier_matches_mapped_source` enclosure this row's
+    /// chain produces (metres), measured at sample 6 of the crossing
+    /// insertion's second child. It is ε-INDEPENDENT — the same bits at
+    /// every ε — because it is the interval lane's enclosure width, a
+    /// property of the arithmetic that built the two points, not of the
+    /// tolerance they are judged against. The row therefore certifies
+    /// exactly when ε is at or above it.
+    ///
+    /// A change that tightens the arc chain further will make this
+    /// number stale and the escalation arm below will fail loudly,
+    /// which is the intent: re-measure and re-state, never widen.
+    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.1414768974413613e-12;
+
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified
     /// scalar. The half-buried ball is the finding's own
@@ -253,6 +266,23 @@ mod certified {
     /// definitely from honest enclosures, the re-cut's rigid rotation
     /// re-certifies, and the re-entered pipeline's plane×sphere germs
     /// mint arcs whose volume enclosure contains the closed form.
+    ///
+    /// **Scoped to ε ≥ [`RECUT_MAPPED_ENCLOSURE_HI`]** (#921). Below it
+    /// the chain escalates on `carrier_matches_mapped_source`, and that
+    /// escalation is honest rather than a defect, so the row asserts it
+    /// instead of asserting a decision the scalar cannot make. The
+    /// enclosure it escalates on is `[0, hi]`: its low end is exactly
+    /// zero, so nothing about the locus is being denied — the carrier
+    /// and its mapped source may coincide exactly, and the interval
+    /// lane simply cannot see that they do. What `hi ≤ ε` asks at
+    /// `T = Interval` is whether the CONSTRUCTION's accumulated
+    /// enclosure width fits inside the tolerance, which is a question
+    /// about conditioning, not about geometry; the geometry claim is
+    /// the f64 lane's, and it holds three decades clear (K-REPORT's
+    /// largest `zero`-classified margin for this predicate). D4 ¶2's
+    /// certification and D2's prefer-intrinsic exemptions both already
+    /// ratify that ε-tightening may escalate; an Interval indeterminate
+    /// is a designed outcome, not a red.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
         // The half-disc lamina: a semicircle out of (0, -1) and the
@@ -275,8 +305,47 @@ mod certified {
         )
         .unwrap();
 
-        let cut =
-            topo::subtract(&plate(), &ball, Tol::witness()).expect("S13: the sphere class decides");
+        let cut = topo::subtract(&plate(), &ball, Tol::witness());
+        if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {
+            let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
+                panic!(
+                    "below the enclosure width the chain must escalate on the mapped-source \
+                     check, got {cut:?}"
+                );
+            };
+            let topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::Escalated { check, cause, .. },
+            } = source
+            else {
+                panic!("the refusal must be a certification escalation, got {source:?}");
+            };
+            assert_eq!(check, geom_brep::CertCheck::MappedSource);
+            assert_eq!(cause.predicate, Some("carrier_matches_mapped_source"));
+            let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+                panic!(
+                    "the escalation must carry an enclosure, got {:?}",
+                    cause.margin
+                );
+            };
+            // The honest content of the refusal: the enclosure does not
+            // exclude exact coincidence (lo = 0), and it escaped the
+            // band only by being WIDE — construction conditioning, not a
+            // residual saying the carrier left its source.
+            assert_eq!(lo, 0.0, "the enclosure must not exclude coincidence");
+            assert!(
+                hi > cause.band.zero(),
+                "the enclosure must exceed the coincidence threshold, else it would classify"
+            );
+            assert!(
+                hi <= 2.0 * RECUT_MAPPED_ENCLOSURE_HI,
+                "the mapped-source enclosure widened past its measured value: {hi:e}"
+            );
+            // The cylinder class is unaffected by the arc-chain width
+            // and still decides at this scalar.
+            assert!(topo::subtract(&plate(), &boss(0.3, 1.0), Tol::witness()).is_ok());
+            return;
+        }
+        let cut = cut.expect("S13: the sphere class decides");
         let cut = &cut.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         // plate − (ball zone between z = 0 and z = 0.8):
