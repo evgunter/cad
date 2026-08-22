@@ -352,7 +352,7 @@ jobs:
       # as docs and skips the job that would have caught it. Sited here, in
       # the job that carries no `if:`, the self-test runs on that PR anyway.
       # No toolchain: the fixture ships a stub `cargo`, so this row is
-      # ~1.5 s of stdlib python and git.
+      # stdlib python and git — measured 2.9 s locally.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
       # The claims in the tree about what CI does to probe-gated suites.

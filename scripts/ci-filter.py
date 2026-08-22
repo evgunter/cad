@@ -165,7 +165,8 @@ def _compiled_markdown(root: str) -> frozenset[str]:
     string literal could name a `.md` and cannot be resolved by reading, so it
     raises `Bail` — TIER=all — rather than being skipped; and an unreadable
     source does the same. The scan is a regex over every `.rs` file outside
-    `target/`, ~0.1 s on this tree, run before the docs branch is taken.
+    `target/` — measured 0.43 s on this tree, against a whole classification
+    of 0.65 s — and it runs before the docs branch is taken.
     """
     out: set[str] = set()
     for tree in _RUST_TREES:
