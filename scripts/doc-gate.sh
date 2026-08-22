@@ -211,8 +211,19 @@ gate() {
     # correct links into `#[cfg(feature = ...)]` code report as broken.
     # It is the manifest pass 1 was invoked on; it is covered.
     [ "$m" = ./Cargo.toml ] && continue
-    case "$members" in
-      *"$(abs_path "$m")"*) continue ;;
+    # NEWLINE-DELIMITED ON BOTH SIDES, and the delimiters are added HERE
+    # rather than stored on `$members`: a command substitution strips
+    # trailing newlines, so a list built with one would leave its LAST
+    # entry unterminated and that member alone would be documented a
+    # second time. A bare substring match is the other wrong answer — it
+    # reads one manifest path as present because it is a tail of
+    # another's.
+    case "
+$members
+" in
+      *"
+$(abs_path "$m")
+"*) continue ;;
     esac
     roots+=("$m")
   done < <(tree_manifests)
