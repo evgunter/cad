@@ -343,18 +343,22 @@ component-aware E–P form found and corrected in M1 PR 4).**
 
 **M2 structural conventions (ratified at the M2 exit sweep, 2026-07-20/21):**
 
-- **Sweeps emit single-shell bodies; voids are born only from booleans
-  (Evan, 2026-07-20).** `FullRevolveHoles` (revolve's typed refusal of
-  full-revolving holed profiles) is a standing rule, not a scope
-  deferral: a full-revolved hole's swept walls touch nothing — the
-  cavity boundary would be a disconnected interior shell, i.e. revolve
-  emitting multi-shell bodies with internal voids, silently breaking
-  machinery documented against the no-voids assumption a milestone
-  before M3's boolean/void support exists. The front door is
-  `revolve(outer) − revolve(hole-as-outer)` once M3 lands (the error
-  text should point there); an M4 recipe-layer sugar node may wrap
-  that composition — sugar above the kernel, never a new kernel
-  emission mode. (`UnsupportedToroid` is likewise permanent: a D3
+- **Sweeps emit single-shell primary boundaries; every CAVITY is born
+  through the shared void-insertion door (Evan, 2026-07-20; refined
+  2026-08-22, #907).** A cavity's boundary is a disconnected interior
+  shell, and its bookkeeping — orientation, census participation,
+  containment evidence — has exactly one home: the void-insertion
+  door the boolean owns, factored callable without the SSI pipeline
+  for provably-no-crossing cases. Three producers satisfy it: boolean
+  subtraction; `shell`'s sealed hollow (`docs/OFFSET-DESIGN.md` O4 —
+  the degenerate no-crossing arm); and the full revolve of a holed
+  profile, DEFINED as `revolve(outer) − revolve(hole-as-outer)` and
+  executed through the same degenerate arm — the hole's swept
+  boundary provably touches nothing. `FullRevolveHoles` retires when
+  that unit lands (VERBS-PLAN's RING row); until then its error text
+  points at the explicit composition. Recipe-layer sugar may wrap any
+  of these — sugar above the kernel; the door stays the one
+  birthplace. (`UnsupportedToroid` is likewise permanent: a D3
   ring-torus boundary — spindle tori have no representation — not a
   scope cut.)
 - **The minimal sphere at rest is V2/E2/F2** (M2 PR 5): tier 2's

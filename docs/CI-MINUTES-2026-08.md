@@ -200,6 +200,93 @@ would let agents push intermediate commits freely and is the largest
 single lever available. It is a workflow-policy decision, not a tuning
 one, and is recorded here without a recommendation.
 
+### F6 — the rustdoc gate's cache: the six excluded roots — LANDED
+
+The lever named three times above ("still unmeasured") and ranked next
+at #2. It is measured now, and it pays.
+
+**The mechanism.** `Swatinem/rust-cache` caches the target directories
+it is *told* about, and its default is one: `./target`. Since D40/D41
+the rustdoc gate documents SEVEN cargo roots, and the six the workspace
+excludes each build into a target directory of their own — `demos/tour/
+target`, `demos/wild/target`, three under `tools/`, and
+`interval-transcendentals/target`. No cache carried any of them, so the
+`fmt` job rebuilt all six from nothing on every run, `demos/tour` and
+`demos/wild` compiling the whole kernel each time, while the workspace
+pass ran against a warm dependency graph.
+
+**Measured on the runner** (ubuntu-latest, 2 vCPU; two jobs one input
+apart, seeded on run `32575515632` and read warm on run `32583370980`
+with one kernel doc comment changed — the case a real PR is):
+
+| | today | told about all seven |
+|---|---|---|
+| cache restore | 14 s | 18 s |
+| `doc-gate.sh --selftest` | 32 s | 28 s |
+| `doc-gate.sh` | **67 s** | **33 s** |
+| whole job | **136 s** | **99 s** |
+| billed | 3 | **2** |
+| cache entry, compressed | 155 MB | 245 MB |
+
+**−1 billed minute per code-tier PR run**, which gives back one of the
+two that D40/D41's widening cost. The +90 MB is paid only when the key
+rotates — a warm run logs `Cache up-to-date` and re-saves nothing — and
+the restore costs ~4 s more. On a COLD run the candidate is slightly
+*slower* (gate 105 s against 91 s, job 172 s against 152 s): it has six
+more target directories to compress and upload. That is the one-cold-run
+tax every cache key rotation here pays, not a standing cost.
+
+**Where the time is, locally** (4 vCPU, `./target` holding dependency
+artifacts only and the six roots absent, i.e. the hosted starting state):
+
+| pass | today | all seven cached |
+|---|---|---|
+| workspace, `--all-features` | 16.8 s | 16.7 s |
+| `demos/tour` | 12.2 s | 3.5 s |
+| `demos/wild` | 11.9 s | 3.4 s |
+| `tools/tess-meter` | 6.5 s | 1.9 s |
+| `tools/k-lint`, `tools/tess-lint` | 2.5 s | 2.3 s |
+| `interval-transcendentals` | 1.4 s | 0.5 s |
+| **total** | **51.3 s** | **28.4 s** |
+
+The workspace pass does not move, and that is expected rather than a
+disappointment: rust-cache evicts workspace-member artifacts before
+saving (it keeps packages whose manifest lies *outside* the workspace
+root), so the kernel crates rebuild either way. **The whole win is the
+six roots**, and the two demo roots are two thirds of it.
+
+**Two variants measured and rejected.**
+
+* **`CARGO_TARGET_DIR` pointing every root at `./target`** — the other
+  lever named above, and it is a dud: 51.3 s → 46.7 s locally, because
+  `demos/tour`'s kernel units are built under its OWN feature selection
+  and so carry different fingerprints from the workspace pass's. It
+  rebuilds them anyway, in a shared directory instead of its own.
+* **Also caching `target/doc`** — 29.1 s against 28.4 s, i.e. nothing.
+  A crate whose fingerprint changed has its docs regenerated regardless,
+  and rust-cache deletes the doc tree's contents before saving anyway
+  (its cleanup recurses into `target/doc` and removes every file).
+
+**What this does NOT touch, and it is now the larger half.** The
+`--selftest` is ~30 s hosted and no cache reaches it: every case plants
+a fresh fixture under `mktemp -d` and cargo keys its fingerprints on the
+package's path, so each of the ~15 cases pays ~3 cold `cargo doc` runs
+on dependency-free crates (measured: 0.5 s each cold, 0.02 s warm). A
+shared target directory across cases would need a stable fixture path,
+which would trade the harness's per-case isolation for seconds — the
+wrong trade in the one gate whose subject is not being silently green.
+If that 30 s is ever worth collecting, the lever is running the cases in
+parallel, not caching them.
+
+**The same hole is open in `k-lint (gate)`, and is worth more.** That
+job (10 billed minutes, the third-largest line item) builds `demos/tour`,
+`demos/wild` and all three `tools/` crates too — `cargo fmt`, `cargo
+clippy --all-targets`, `cargo test`, and a `--release` eps pin — each in
+the same uncached target directory, behind a plain
+`Swatinem/rust-cache@v2`. It is the identical one-input fix. It is NOT
+landed here: this finding measured the `fmt` job, and a claim about a
+10-minute job wants its own reading rather than this one's, extrapolated.
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
@@ -222,6 +309,12 @@ one, and is recorded here without a recommendation.
   rows against the same binary. These drive `cargo test`, so the
   matrix was paying for the same compile twice. **−4 billed min.**
 * sccache rig, inert behind `vars.SCCACHE` (F4). **0 min until run.**
+* `#921` — the `fmt` job's `Swatinem/rust-cache` told about all seven of
+  the cargo roots the rustdoc gate documents, instead of the one it
+  defaults to (F6). The list is not written into `ci.yml`: a step asks
+  `scripts/doc-gate.sh --print-roots`, which runs the gate's own
+  derivation, so the cache's scope cannot drift from the gate's coverage.
+  **−1 billed min.**
 
 ## The wall-clock cost of the four job merges: zero
 
@@ -278,7 +371,8 @@ costs is that the `fmt` job builds all six of those roots from cold —
 `target/` and not the excluded roots'. Declaring those roots to that
 action (its `workspaces:` input), or pointing the whole gate at one
 `CARGO_TARGET_DIR`, is the lever if this minute is ever worth
-collecting; neither was measured here. Still off the critical path:
+collecting; neither was measured here — **F6 measures both**, and
+collects the minute. Still off the critical path:
 2.3 min against a 12 min `build + archive (interval)`.
 
 **These two figures are re-taken by nothing, and that is a decision.**
@@ -316,7 +410,8 @@ read, and another in `demos/tour/src/tessbudget.rs`, which exists only under
 the `budget` feature the old default-features pass never turned on. Still off
 the critical path: 3.2 min against a 12 min `build + archive (interval)`. The
 `workspaces:`/`CARGO_TARGET_DIR` lever named above is now worth proportionally
-more, and is still unmeasured.
+more. **Both halves of it are measured in F6**, which lands the `workspaces:`
+one (`fmt` back to 2 billed minutes) and rejects the `CARGO_TARGET_DIR` one.
 
 ## Where that leaves a code-tier PR
 
@@ -346,3 +441,158 @@ F4 measures.
   owed. The next PR's merge-ref is main plus that branch and tests the
   landed tree anyway. See F3 for the residue that is accepted with it.
 * **draft-PR skip** — F5. Policy decision.
+
+## 2026-08-22 — configuration sampling, and the draft skip (F5)
+
+Evan's proposal, and the reason it is a separate section rather than a
+finding: the audit above tuned what each job costs, and this changes
+**what a run gates**. A code-tier run used to execute every point of
+{default features, `interval`} x {default eps, 1e-6, 1e-12}. It now
+gates ONE, drawn from the head SHA. The premise is that those six points
+almost always agree — which the `interval` additivity gate
+(`check-interval-cfg-additive.py`) and the runtime-eps contract already
+assert — so repetition covers the matrix: at the ~60 runs/hour measured
+under **Volume**, a break confined to one point surfaces within minutes.
+Nothing is shipped, so a briefly red main is affordable.
+
+### Why the draw is seeded, not random
+
+`scripts/ci-filter.py --seed <head sha>`, choice = `sha256(salt || seed)
+% n`, salted per dimension so lane and eps draw independently (an
+unsalted second draw ties eps to lane and leaves 2 of the 6 points
+unreachable). Two properties, both load-bearing:
+
+* **A re-run of the same commit draws the same point.** Under true
+  randomness a re-run of a red gate can come back green on a different
+  point. That reads as a flake and teaches a re-run habit that launders
+  real failures — the one failure mode that would make this change cost
+  more than it saves.
+* **The point is recoverable from the SHA alone**, so "which
+  configuration gated this commit" is answerable during a bisect without
+  the run's logs.
+
+### How often the points actually disagree — one verified instance
+
+The premise above says the six points "almost always" agree. That is not
+the same as "always", and the counterexample is same-day: **run
+`32556372010`** (PR #910's fix pass). Of its 32 jobs exactly one failed —
+`test (eps = 1e-6, 2/2)` — while `default` and `1e-12` both decided the
+same fixture cleanly. The cause was an adopted test's fixture margin
+(`chord_side`, 1.0000000000282557e-6) sitting inside 1e-6's zero band,
+and diagnosis found the fixture could not clear the whole matrix at any
+parameter value.
+
+**Read the premise as: disagreements are ε-band fixtures, they exist in
+practice, and this codebase produces them** — its tests deliberately probe
+bands, so a margin engineered near one ε's band is a recurring class
+rather than a freak.
+
+What sampling costs on that class is bounded and already priced in. Such a
+break is caught pre-merge on the draws that hit the offending ε — **1 in 3
+for this instance, not 1 in 6**, because the interval lane now runs the
+whole suite, so an ungated test like this one runs on either lane and only
+the ε draw matters. The other two draws merge it and it surfaces on main,
+which is exactly what "nothing is shipped, so a briefly red main is
+affordable" buys. The persistence argument applies unchanged: the fixture
+stays broken, so a later draw finds it.
+
+**Two consequences for anything that reads a green check.** "PR checks
+green" now attests one point. A review verdict issued "conditional on
+green", or a merge-row battery cell, should say WHICH point gated — the
+job names carry it (`test (eps = 1e-6, 1/2)`) and the SHA-recoverable draw
+makes it derivable after the fact.
+
+### What is NOT sampled, and the rule
+
+Sampling is sound for a detector whose subject **persists in the tree**:
+a test red at 1e-12 stays red, so a later draw still finds it. It is
+unsound for a detector of **absence** — a check dropped from one half of
+CI, a gate sited where it cannot fire — because an absence leaves no
+future red for a later draw to catch, and the thing it detects merges
+silently, once.
+
+So `mirror` is not sampled (and structurally cannot be:
+`check-ci-mirror-parity.py` requires it to run on every tier, since its
+own inputs are the docs-tier paths on which every `if: run_build` job
+skips). Neither are `discipline`, `fmt`, `k-lint`, the python suite or
+the render lanes.
+
+### The interval lane runs the whole suite again
+
+This reverses the 2026-08-13 interval-only selection **on the hosted
+half only**. That selection subtracted the tests the default legs had
+already run in the same run; a sampled run draws one lane, so on an
+interval draw those legs do not exist and their ~93% of the suite would
+be gated by nothing. `scripts/interval-only-selection.py` keeps exactly
+one caller — `local-scripts/ci-local.sh`, which still runs both lanes on
+one tree — and is declared in that script's `MIRROR_EXEMPT` with the
+reason.
+
+**`local-scripts/ci-local.sh` is now the only lane that runs every point
+on one tree**, and is deliberately not sampled: nothing bills it by the
+minute. Local is a strict superset of any hosted run.
+
+### Expected cost, derived not measured
+
+Per code-tier PR run, against the ~79 the audit above leaves:
+
+| | today | default draw | interval draw |
+|---|---|---|---|
+| build / build-interval | 24 | 12 | 12 |
+| test legs | 8 + 1 | 4 | 6 |
+| clippy / lint-interval | 5 | 2 | 3 |
+| **compile-mode subtotal** | **38** | **18** | **21** |
+
+So **~79 -> ~60 billed minutes**, about -23%, and the draw that skips the
+interval build also shortens the critical path. The draft skip (F5, now
+landed) then cuts the *count* of full runs, which multiplies against
+everything above and is the larger lever of the two.
+
+### Two things that were re-asked and did NOT change
+
+* **Sharding stays**, in both lanes. F2's arithmetic is unchanged by the
+  eps cut: merging the two shards saves 1 billed minute and costs ~66 s
+  of latency on the default lane, ~117 s on the interval lane — and the
+  run leg now sits directly behind the only build job on the critical
+  path, with nothing to hide behind. One minute of ~60 against ~9-14% of
+  wall clock is the wrong side of the trade.
+* **opt-level 2 stays.** Re-asked because the verdict rested on
+  amortising one compile over ten run legs and a sampled run has one.
+  Writing E for the row's opt-2 execution and r for the opt-0/opt-2
+  ratio, opt-2 wins while `E > (archive_2 - archive_0) / (r - 1)`:
+  break-even is 56 s against a ~119 s row on the default lane (r =
+  6.46), and 78 s against a ~234 s row on the interval lane (r = 7.08).
+  Margins of ~2x and ~3x. The interval lane is why it is not close, and
+  it got *more* expensive to execute under sampling, not less.
+
+### `ready_for_review` is load-bearing
+
+The default `pull_request` type set is `[opened, synchronize,
+reopened]`. Undrafting a PR pushes no commit, so a draft skip without
+this type would leave the skipped run as the PR's only run and every
+gate reporting green having executed nothing. A draft skip without it is
+not a saving, it is a hole.
+
+### Ranked next, unchanged by this
+
+1. **F1's paired change** — render lanes off PR runs *and*
+   `render-hosted.sh` defaulting to dispatch. 12 billed minutes, and the
+   largest single item left on the PR side.
+2. **`k-lint (gate)`'s cache** — F6's hole, in the job where it is worth
+   more. The rustdoc gate's half is measured and landed (F6: `fmt` back
+   to 2 billed minutes, no coverage given up); `k-lint` builds the same
+   five excluded roots behind the same unconfigured `rust-cache`, for
+   clippy, tests and a release build rather than a doc pass, and bills
+   10. Same one-input fix, unmeasured there.
+
+   Sampling the rustdoc gate — the entry this replaces — is off the
+   table for now, and F6 is why: the gate is back inside 2 billed
+   minutes without giving up a root. Sampling it *would* be sound (a
+   broken intra-doc link persists in the tree, so a later draw finds it)
+   but it is the wrong tool — the six roots are independent, so sampling
+   them buys latency proportionally rather than exploiting near-certain
+   agreement the way eps does.
+3. **A scheduled full run on main** — still owed from F3, and now owed
+   more: with the push run trimmed and the PR run sampled, no single
+   tree is gated at every point by hosted CI. Deliberately not bundled
+   here (Evan: "the PRs will get it").

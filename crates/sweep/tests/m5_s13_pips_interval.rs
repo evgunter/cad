@@ -103,14 +103,99 @@ mod certified {
         PI * h * h * (3.0 * r - h) / 3.0
     }
 
+    /// The `carrier_matches_mapped_source` enclosure this row's chain
+    /// escalates on (metres), measured at the FIRST escalating sample
+    /// of the crossing insertion's child — certification aborts there,
+    /// so later samples of that edge never run and this is not a claim
+    /// about them. It is ε-INDEPENDENT (bit-identical at 1e-6 and
+    /// 1e-12): it is the interval lane's enclosure width, a property of
+    /// the arithmetic that built the two points, not of the tolerance
+    /// they are judged against. The row therefore certifies exactly
+    /// when ε is at or above it.
+    ///
+    /// The escalation arm pins `hi` to this value BIT-EXACTLY, in both
+    /// directions. A regression that widens the arc chain is loud, and
+    /// so is a tightening that narrows it — including a partial one
+    /// landing between the band and this constant, which an
+    /// upper-bound-only guard would admit in silence. Either way the
+    /// answer is the same: re-measure and re-state the constant, never
+    /// loosen the guard around it.
+    const UNION_MAPPED_ENCLOSURE_HI: f64 = 1.127306994088959e-12;
+
     /// **The finding row's flip, BRACKETED**: ∪ of the slab and the
     /// half-buried ball encloses 16 + 2·cap(1, 0.5) = 17.30899693899575
     /// at the certified scalar, one shell.
+    ///
+    /// **Scoped to ε ≥ [`UNION_MAPPED_ENCLOSURE_HI`]** (#921). This is
+    /// the third enumerated member of that issue's class, and it takes
+    /// the treatment its siblings took. Below the constant the chain
+    /// escalates on `carrier_matches_mapped_source` while splitting the
+    /// ball's meridian — a `MappedCurve` over an `Arc` whose restricted
+    /// endpoints already arrive ~1.2e-13 m wide, because the
+    /// chord+bulge representation derives an arc's centre by
+    /// differencing a short chord, so every restriction stores a
+    /// centre-amplified endpoint and the next one inherits it.
+    ///
+    /// That escalation is honest rather than a defect, so the row
+    /// asserts it instead of asserting a decision the scalar cannot
+    /// make. The enclosure is `[0, hi]`: its low end is exactly zero,
+    /// so nothing about the locus is being denied — the carrier and its
+    /// mapped source may coincide exactly, and the interval lane simply
+    /// cannot see that they do. What `hi ≤ ε` asks at `T = Interval` is
+    /// whether the CONSTRUCTION's accumulated enclosure width fits
+    /// inside the tolerance: a question about conditioning, not about
+    /// geometry. D4 ¶2's certification and D2's prefer-intrinsic
+    /// exemptions both already ratify that ε-tightening may escalate;
+    /// an Interval indeterminate is a designed outcome, not a red.
+    ///
+    /// The structural fix is the banked center/radius/angle triple
+    /// restrict (#921), which retires the class rather than re-scoping
+    /// its members one at a time.
     #[test]
     fn interval_finding_union_is_bracketed() {
         let a = slab();
         let b = ball_at(1.0, Vec3::new(iv(2.0), iv(2.0), iv(0.5)));
-        let joined = topo::union(&a, &b, Tol::witness()).expect("S13: the poking union decides");
+        let joined = topo::union(&a, &b, Tol::witness());
+        if Tol::witness().eps() < UNION_MAPPED_ENCLOSURE_HI {
+            let Err(topo::BooleanError::CrossingInsertion { source, .. }) = joined else {
+                panic!(
+                    "below the enclosure width the chain must escalate on the mapped-source \
+                     check, got {joined:?}"
+                );
+            };
+            let topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::Escalated { check, cause, .. },
+            } = source
+            else {
+                panic!("the refusal must be a certification escalation, got {source:?}");
+            };
+            assert_eq!(check, geom_brep::CertCheck::MappedSource);
+            assert_eq!(cause.predicate, Some("carrier_matches_mapped_source"));
+            let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+                panic!(
+                    "the escalation must carry an enclosure, got {:?}",
+                    cause.margin
+                );
+            };
+            // The honest content of the refusal: the enclosure does not
+            // exclude exact coincidence (lo = 0), and it escaped the
+            // band only by being WIDE — construction conditioning, not a
+            // residual saying the carrier left its source.
+            assert_eq!(lo, 0.0, "the enclosure must not exclude coincidence");
+            assert!(
+                hi > cause.band.zero(),
+                "the enclosure must exceed the coincidence threshold, else it would classify"
+            );
+            // Pinned bit-exactly, both directions (D9: same build, same
+            // inputs, same bits).
+            assert!(
+                hi == UNION_MAPPED_ENCLOSURE_HI,
+                "the mapped-source enclosure is {hi:e}, not its measured value \
+                 {UNION_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
+            );
+            return;
+        }
+        let joined = joined.expect("S13: the poking union decides");
         let joined = &joined.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(joined, Tol::witness()), Ok(()));
         assert_eq!(joined.shells().count(), 1);

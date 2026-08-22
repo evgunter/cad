@@ -35,6 +35,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "arc_eval_anchor.rs"]
+mod arc_eval_anchor;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
@@ -61,6 +63,8 @@ mod pcurve_conic;
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
+#[path = "review_arceval_r1_probes.rs"]
+mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]

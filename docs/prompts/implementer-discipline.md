@@ -12,10 +12,35 @@ Final report ≤150 lines.
 
 ## 2. Verification
 
-**Hosted CI is the verification of record.** Push and let it run. It covers the
-full matrix — every eps and feature combination, the python suite, the gates,
-the render lanes — on hardware not shared with any other lane, and its result is
-a durable artifact.
+**Hosted CI is the verification of record.** Push and let it run. It runs on
+hardware not shared with any other lane and its result is a durable artifact.
+
+**It no longer covers the full matrix, and you are expected to know that**
+(2026-08-22). A run gates ONE point of {default features, `interval`} x
+{default eps, 1e-6, 1e-12}, drawn deterministically from your head SHA. The
+python suite, the gates, the discipline and parity rows and the render lanes
+are unchanged — every one of them still runs on every code-tier run. What is
+sampled is the compile mode and the tolerance row, and three things follow for
+you:
+
+- **A green run means green at the point it drew**, which the job names carry
+  (`test (eps = 1e-6, 1/2)`). It is not a claim about the other five.
+- **A re-run of the same commit draws the same point.** Re-running a red leg
+  will not turn it green, and if you find yourself hoping it might, that is the
+  bug talking. Push a fix.
+- **A change to interval code always draws the interval lane** — the rule is
+  path-shaped (`interval` in the basename, or anything under
+  `interval-transcendentals/`) and lives in `scripts/ci-filter.py`. A change to
+  interval-gated code inside an ordinarily-named file is NOT matched and falls
+  back to the draw, so if your unit is one of those and the lane matters to it,
+  say so in the PR rather than assuming the gate saw it.
+
+**When one point of six is not enough**, run `local-scripts/ci-local.sh`: it is
+now the only lane that runs every point on one tree. Reach for it before a
+merge that would be expensive to get wrong, not routinely.
+
+**Draft PRs do not run the gate at all.** Mark the PR ready for review when you
+want it gated; undrafting triggers a full run on the same head.
 
 **Run builds or tests locally only when it is genuinely faster for
 development**: a tight edit-compile loop on one failing test, reproducing a

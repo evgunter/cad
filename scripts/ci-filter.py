@@ -49,6 +49,7 @@ Usage:
   ci-filter.py --base <ref>        classify `git diff --name-only <ref>...HEAD`
   ci-filter.py --files <path|->    classify an explicit newline-separated list
   ci-filter.py --selftest          run the fixture battery below and exit
+  ci-filter.py ... --seed <sha>    also SAMPLE the configuration matrix (below)
 
 Output: KEY=value lines on stdout, one per line, safe to append to
 $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
@@ -65,11 +66,45 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
   RUN_K_LINT=true|false         k-lint (gate) row
+  LANE=default|interval|both    which COMPILE MODE this run gates (see below)
+  EPS=default|<value>|all       which tolerance row this run gates
+
+CONFIGURATION SAMPLING (2026-08-22, Evan's ask after the minutes audit).
+The hosted gate used to run every point of {default, interval} x {default,
+1e-6, 1e-12}. Those points almost always agree — that is the premise the
+`interval` feature's additivity gate and the runtime-eps contract both
+already assert — so the hosted gate now runs ONE point per run and lets
+repetition cover the matrix: with 60 runs/hour during active work, a
+break confined to one of the six points surfaces in minutes, and nothing
+is shipped, so a briefly red main is affordable.
+
+SEEDED FROM THE COMMIT, NOT FROM RANDOMNESS. `--seed` takes the head SHA
+and the choice is `sha256(salt + seed) % len(choices)`. Two properties
+follow, and both are the point rather than side effects:
+
+  * A RE-RUN OF THE SAME COMMIT PICKS THE SAME POINT. True randomness
+    would let a re-run of a red gate come back green on a different
+    point, which reads as a flake and teaches a re-run habit that
+    launders real failures. Here a red commit stays red until someone
+    changes the tree.
+  * THE POINT IS RECOVERABLE FROM THE SHA ALONE, so "which configuration
+    gated this commit" is answerable after the fact, during a bisect,
+    without the run's logs.
+
+`hashlib`, not `hash()`: the builtin is salted per process (PYTHONHASHSEED)
+and would break both properties on the first re-run.
+
+NO SEED MEANS NO SAMPLING — LANE=both, EPS=all. Fails OPEN into MORE work,
+matching every other signal here. local-scripts/ci-local.sh passes no seed
+and therefore still runs the whole matrix: it is not billed by the minute,
+and with the hosted gate sampling, the local gate is now the only lane that
+runs every point of the matrix on one tree.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -511,7 +546,64 @@ def _touches_oracle(files: list[str] | None) -> bool:
     return any(f.startswith(ORACLE_PATHS) for f in files)
 
 
-def decorate(res: dict[str, str], files: list[str] | None = None) -> dict[str, str]:
+# THE SAMPLED MATRIX. Both lists are the full set the hosted gate used to
+# run on every push; sampling picks one member of each per run.
+#
+# LANES are the two COMPILE MODES. `interval` is not a subset lane: when it
+# is drawn it runs the WHOLE suite, not the interval-gated difference, because
+# the default lane is not running that round and ~95% of the tests are shared.
+# (That is the opposite of what the pre-sampling gate wanted, where both lanes
+# ran and the overlap was pure re-execution.)
+LANES: tuple[str, ...] = ("default", "interval")
+
+# EPS rows straddle the compiled default (DEFAULT_EPS = 1e-9) three orders
+# either side, and `default` means the variable genuinely UNSET — an empty
+# CAD_TOLERANCE_EPS is a parse error by design (geom-core/src/tolerance.rs).
+EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
+
+# WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE. A change to interval code is
+# exactly the change whose interval lane a sampled run must not skip, and
+# waiting an expected two runs to find that out is the one case where the
+# sampling's latency lands on the author who could have been told immediately.
+#
+# The rule is PATH-SHAPED and rests on a naming convention this repo already
+# keeps: every interval-specific test file in crates/*/tests carries
+# `interval` in its basename (28 files at the time of writing), the two
+# interval sources in geom-core are `interval.rs` and `ring_interval.rs`, and
+# the backend is its own workspace root. It is a HEURISTIC over names, not a
+# proof over the feature graph: a change to an interval-gated block inside a
+# file with an ordinary name is not matched, and falls back to the sampling
+# like anything else. That residue is acceptable precisely because the
+# sampling is the floor — the rule only ever ADDS certainty, never removes it.
+def _forces_interval(files: list[str] | None) -> bool:
+    # Fail CLOSED like every other signal here: an unresolved file list cannot
+    # prove interval code held still, so pin the lane rather than sample it.
+    if not files:
+        return True
+    for f in files:
+        if f.startswith("interval-transcendentals/"):
+            return True
+        if "interval" in f.rsplit("/", 1)[-1]:
+            return True
+    return False
+
+
+def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
+    """Deterministic choice from `choices`, keyed on (salt, seed).
+
+    Salted per dimension so lane and eps are drawn independently — an
+    unsalted second draw off the same seed would tie eps to lane and leave
+    2 of the 6 matrix points unreachable forever.
+    """
+    digest = hashlib.sha256(f"{salt}\x00{seed}".encode()).digest()
+    return choices[int.from_bytes(digest, "big") % len(choices)]
+
+
+def decorate(
+    res: dict[str, str],
+    files: list[str] | None = None,
+    seed: str | None = None,
+) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
     res["RUN_BUILD"] = "false" if tier == "docs" else "true"
@@ -532,6 +624,17 @@ def decorate(res: dict[str, str], files: list[str] | None = None) -> dict[str, s
     # probe sweep records predicate margins from every kernel crate. Any
     # member change can break it, so it runs whenever anything builds.
     res["RUN_K_LINT"] = "false" if tier == "docs" else "true"
+    # Sampling is the LAST word and reads nothing above it: which point of
+    # the matrix a run gates is independent of which rows the change filter
+    # selected, and keeping the two apart is what lets the local gate consume
+    # the same output while ignoring these two keys entirely.
+    if seed is None:
+        res["LANE"], res["EPS"] = "both", "all"
+    else:
+        res["LANE"] = (
+            "interval" if _forces_interval(files) else _sample(seed, "lane", LANES)
+        )
+        res["EPS"] = _sample(seed, "eps", EPS_ROWS)
     return res
 
 
@@ -905,6 +1008,14 @@ def main() -> int:
     src.add_argument("--base", help="git ref/sha to diff HEAD against")
     src.add_argument("--files", help="file with a newline-separated list, or -")
     src.add_argument("--selftest", action="store_true", help="run the fixture battery")
+    # NOT in the mutually-exclusive `src` group: the seed selects a matrix
+    # point and is orthogonal to how the file list was obtained, so it rides
+    # alongside --base or --files rather than instead of them.
+    ap.add_argument(
+        "--seed",
+        help="head SHA to key the configuration sample on; omit to run the "
+        "whole matrix (LANE=both, EPS=all)",
+    )
     args = ap.parse_args()
     if args.selftest:
         selftest()
@@ -937,7 +1048,7 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    for key, val in decorate(res, files).items():
+    for key, val in decorate(res, files, args.seed).items():
         print(f"{key}={val}")
     return 0
 
