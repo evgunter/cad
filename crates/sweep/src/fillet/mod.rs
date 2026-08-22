@@ -192,10 +192,10 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
 /// cannot certify.
 pub const FILLET3_CLEARANCE_RECOURSE: &str =
     "reduce the fillet radius, or enlarge the support face whose clearance is uncertified";
-/// The recourse for an edge whose supports are tangent — there is no
-/// wedge to blend, at any radius.
-pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a tangential join has no wedge \
-     for a rolling ball at any radius";
+/// The recourse for an edge whose dihedral sign decided Zero — no
+/// definite wedge side at the metered lever, at any radius.
+pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a dihedral with no definite \
+     wedge side gives a rolling ball no side to sit in, at any radius";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
@@ -307,13 +307,16 @@ pub enum FilletError {
         /// meters.
         gap: f64,
     },
-    /// **Predicate 5, the zero arm**: the two supports share a tangent
-    /// plane along the edge, so the dihedral has no wedge and there is
-    /// no side for a rolling ball to sit in. Distinct from
-    /// [`FilletError::ConvexitySignFlip`] (fix pass F6): a tangential
-    /// edge does not disagree with the chain's convexity, it HAS none.
+    /// **Predicate 5, the undecided wedge**: the dihedral's signed
+    /// margin decided Zero, so there is no definite wedge side for a
+    /// rolling ball at the metered lever. Genuine tangency — the two
+    /// supports sharing a tangent plane along the edge — is one cause
+    /// (a co-surface seam produces it at a margin of exactly zero),
+    /// not a fact this refusal establishes. Distinct from
+    /// [`FilletError::ConvexitySignFlip`]: a `Zero` edge does not
+    /// disagree with the chain's convexity — none was decided.
     TangentialEdge {
-        /// The edge with no wedge.
+        /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
         /// `((n_a × n_b)·τ̂)·arm`, meters — definitely zero here.
         margin: f64,
@@ -337,8 +340,8 @@ pub enum FilletError {
         arm: f64,
     },
     /// **Predicate 5**: the dihedral's convexity sign is not constant
-    /// along the chain (or an edge is tangential, with no side to
-    /// roll on).
+    /// along the chain. (An edge whose sign decided Zero is not a
+    /// flip — it refuses as [`FilletError::TangentialEdge`].)
     ConvexitySignFlip {
         /// The edge whose sign disagrees with the chain's.
         edge: EdgeKey,
@@ -528,8 +531,9 @@ impl fmt::Display for FilletError {
             ),
             Self::TangentialEdge { edge, margin } => write!(
                 f,
-                "fillet: edge {edge:?} joins its supports tangentially — the dihedral has \
-                 no wedge (margin {margin} m); {FILLET3_TANGENTIAL_RECOURSE}"
+                "fillet: edge {edge:?}'s dihedral has no definite wedge side — its sign \
+                 decided Zero at the metered lever (margin {margin} m), as a tangential \
+                 join does; {FILLET3_TANGENTIAL_RECOURSE}"
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,

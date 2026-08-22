@@ -198,8 +198,10 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
 
 /// A **same-surface smooth split** (the cylinder's two wall faces meet
 /// on one cylinder) is refused by predicate 5 with a margin of
-/// EXACTLY zero: the supports share a tangent plane, so there is no
-/// wedge for a ball to roll into. Pinned because it is the honest
+/// EXACTLY zero. Here the supports really do share a tangent plane —
+/// both sides are the same surface by construction, so the dihedral
+/// sine is structurally zero and there is no wedge for a ball to
+/// roll into. Pinned because it is the honest
 /// pre-construction answer for a whole class of requests a user will
 /// make by accident (selecting every edge of a curved body).
 #[test]
@@ -438,7 +440,7 @@ fn trio_convexity_sign() {
     // Fix pass F6: a tangential edge gets its OWN situation, not a
     // convexity DISAGREEMENT with a chain verdict that was never taken.
     assert!(matches!(flat, FilletError::TangentialEdge { .. }));
-    assert!(format!("{flat}").contains("no wedge"));
+    assert!(format!("{flat}").contains("no definite wedge side"));
     // In band.
     let escalated = convexity_at(
         Vec3::new(1.0, 0.0, 0.0),

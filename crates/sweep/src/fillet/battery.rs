@@ -246,11 +246,25 @@ fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T,
     Some((c.carrier().clone(), t0, t1))
 }
 
-/// The straight-line extent of a link's edge — the curvature-free
-/// lever arm every angular predicate folds against, exactly as the
-/// dihedral classifier does.
+/// The lever arm of a link's edge — the curvature-free straight
+/// extent every angular predicate folds against: the **maximum
+/// pairwise chord** over the edge's deterministic parameter samples
+/// `{t0, (t0+t1)/2, t1}` (the midpoint is the same sample the
+/// dihedral classifier evaluates at).
+///
+/// Every chord lower-bounds arc length, so the lever never
+/// over-reports the edge's extent — a margin in meters folded
+/// against it stays conservative. On a collinear carrier the
+/// endpoint chord dominates both half-chords, so a straight edge
+/// meters exactly its length. On a CLOSED edge, where start and end
+/// coincide and the endpoint chord is structurally zero, the
+/// half-chords meter the rim instead — a full circular rim meters
+/// its diameter — so the dihedral is judged at an honest lever
+/// rather than a collapsed one.
 fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    (carrier.eval(t1) - carrier.eval(t0)).norm()
+    let mid = (t0 + t1) / T::from_f64(2.0);
+    let (p0, pm, p1) = (carrier.eval(t0), carrier.eval(mid), carrier.eval(t1));
+    (p1 - p0).norm().max((pm - p0).norm()).max((p1 - pm).norm())
 }
 
 // ---------------------------------------------------------------
@@ -369,8 +383,10 @@ pub fn spine_regularity<T: Decide + Bounds>(
 /// reverses the traversal, and the triple product is invariant under
 /// doing both.
 ///
-/// `Positive` is convex, `Negative` concave, `Zero` is a tangential
-/// edge with no side for the ball to roll on. C8 requires the sign to
+/// `Positive` is convex, `Negative` concave, `Zero` is a dihedral
+/// with no definite wedge side at this lever — refused as
+/// [`FilletError::TangentialEdge`], of which genuine tangency is one
+/// cause. C8 requires the sign to
 /// be CONSTANT along the chain — a dihedral flipping mid-chain has no
 /// constant-radius rolling-ball blend at all — so the caller escalates
 /// on a flip rather than blending each run silently.
@@ -393,11 +409,14 @@ pub fn convexity_at<T: Decide + Bounds>(
     match sign {
         Sign::Positive => Ok((Convexity::Convex, margin.value())),
         Sign::Negative => Ok((Convexity::Concave, margin.value())),
-        // A tangential edge: the supports share a tangent plane, so
-        // there is no wedge to roll a ball into. Its own situation and
-        // its own error (fix pass F6) — it does not DISAGREE with the
-        // chain's convexity, it has none, and reporting it as a "flip"
-        // handed the reader a chain verdict that was never taken.
+        // A decided Zero establishes that the dihedral has no
+        // definite wedge side at this lever — `(n_a × n_b)·τ̂` folded
+        // against the arm is coincident with zero. Genuine tangency
+        // (the supports sharing a tangent plane) is one cause, not
+        // the established fact. Its own situation and its own error —
+        // it does not DISAGREE with the chain's convexity, none was
+        // decided, and reporting it as a "flip" would hand the reader
+        // a chain verdict that was never taken.
         Sign::Zero => Err(FilletError::TangentialEdge {
             edge,
             margin: margin.value().lo(),
