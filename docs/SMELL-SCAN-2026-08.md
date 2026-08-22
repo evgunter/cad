@@ -30,6 +30,18 @@ own opening instead, e.g. `-G'^- \(a\) \*\*FIXED by #787'`.) The surviving
 sentence is written to stand without the lookup; the lookup is for the reader
 who wants the evidence behind it.
 
+**Source comments cite these IDs too, and they are deliberately not chased.**
+`crates/` carries comments naming a finding or a decision of this file by
+number: `topo/src/face_normal.rs:186` and `topo/src/boolean/reduce.rs:254` cite
+`S67`, and five sites across four `geom-core` and `editor-core` files cite
+*"Wave 0 decision **D1** of `docs/SMELL-SCAN-2026-08.md`"*. A citation with no
+heading here resolves by the recipe above, exactly as one from inside this file
+does. **Deleting a record does not license editing the comments that name it**
+— that is `memories/docs-ledger.md`'s rule for deleted documents applied one
+level down, and rewriting six source files to chase a prune would put the
+archaeology in the code, which `docs/prompts/implementer-discipline.md` §4
+forbids.
+
 **And the same rule binds this document's own ledger obligation.** `docs/` is
 pruned rather than archived and a deleted *document* is recorded in
 `docs/DOC-LEDGER.md` — but that ledger indexes filenames, and nothing here has
@@ -3397,6 +3409,7 @@ be trimmed down to what's actually necessary."*
 
 - **Where**: `docs/predicate-dimension-audit.md`, 75 anchored rows
 - **Confidence**: sure
+- **Row:** Track Q's **`D281`**
 
 **A stale claim is two-valued evidence** (Evan, 2026-08-18: *"the stale claims
 should also be fixed carefully rather than just removed since they may flag
@@ -6335,13 +6348,12 @@ finding exists to reject. All of them were re-executed by the review.
 
 ## S112. Prose that describes a world the code has left (roll-up)
 
-**Two members left, and only one of them is rowed.** Both `file:line`
-citations below were re-derived from the tree; where a line had drifted the
-site is cited by target name or by expression instead, which is `S176(a)`'s
-discipline applied to the entry that records it. **(a) is re-homed as Track
-T's `D124`** (routed to Track E's `E-g`, which landed without it and whose row
-is struck — see `S177`). **(e) is named by no live row at all**: its territory
-is Track Q's `geom-brep/src/ssi*`, and Q has no row for it.
+**Two members left, and both are rowed.** Both `file:line` citations below
+were re-derived from the tree; where a line had drifted the site is cited by
+target name or by expression instead, which is `S176(a)`'s discipline applied
+to the entry that records it. **(a) is Track T's `D124`** (routed to Track E's
+`E-g`, which landed without it and whose row is struck — see `S177`).
+**(e) is Track Q's `D282`**.
 
 - (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
   rows"* — *"`editor-core`'s
@@ -6356,8 +6368,9 @@ is Track Q's `geom-brep/src/ssi*`, and Q has no row for it.
   units (`domain.floor(band) / speed`). The sibling field on
   `ExhaustivenessInconclusive` gets it right (*"in meters (or chart
   units)"*), and so does `SweepCell::width`. The one place a caller
-  reads the number back out is the one place the unit is wrong. S23's
-  refactor made it visible by collapsing two lanes onto one parameter.
+  reads the number back out is the one place the unit is wrong. It became
+  visible when the two sweep lanes were collapsed onto one duty parameter,
+  which put both floors through the same field.
 
 ## S113. Counts and enumerations stated in prose, already drifted (roll-up)
 
@@ -9172,7 +9185,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **121 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **124 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -9262,7 +9275,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**121 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**124 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -9340,12 +9353,12 @@ re-scoped or re-argued by being moved.
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 10 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs}` | `D260`–`D279` / `S330`–`S349` | 10 |
-| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 12 |
+| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 14 |
 | **R** | `crates/geom-brep/src/props/`, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 11 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 10 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 13 |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 15 |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 16 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 4 |
 
 **Two seams are stated rather than left to be discovered**, because both are
@@ -9485,6 +9498,8 @@ expected to split into two or three sub-lanes inside the track.
 | **D36** | `PcurveCertifyError::UnsupportedCarrier` is payload-free and means three different things across 22 construction sites, beside a sibling that names its class at every site | Track E |
 | **D280** | `census.rs`'s `reach_box` re-derives the ARITHMETIC of `boolean::boxes::FaceBoxRule` rather than reading it, because the `Bounds` allowlist is closed to a lane that validates `Dual` bodies (`S16`). One statement of which surface kinds have a cheap sound box exists; this is the arm that still answers it twice | unrowed |
 | **D66** | **`topo`'s NURBS re-gate cites a sibling suite as pinning two blockers; it pins one** (`S122`). `topo/src/boolean/ops.rs`'s door-2 comment says *"`sweep`'s `s16_box_soundness` pins both blockers"*. That file pins one; the placeholder blocker is pinned in `ops.rs` itself at `:2126-2132`, thirteen lines above the comment, as a `let … else { panic! }`. C-R11's class: a cross-reference is a claim site, and this one sends a reader to the wrong crate for half of it. **The fix is either the sentence or the missing row, and whoever takes it decides which** — `sweep` can build the placeholder operand, so the second row is writable. If the answer is the row, `sweep/tests/s16_box_soundness.rs` is Track T's to file | Track F, unplaced |
+| **D281** | `docs/predicate-dimension-audit.md`'s per-row LINE ANCHORS are stale, in a document whose own header says *"a row and its disposition entry must never disagree"* (`S39`). Two verified wrong (`validate.rs:1795` vs `tangent_second_order` at `:2005`; `pcurve_cache.rs:1664` vs `pcurve_chart_radial_moving` at `:3219`), three more off by >200 lines and unverified, over 75 anchored rows. **A per-row read, not a script**: the convention is that an anchor names the comparand construction a few lines above its `decide`, so a small offset is correct and only a large one is rot | unrowed |
+| **D282** | `Exhaustiveness::floor`'s public doc says *"The floor used, in meters"* and the chart lane stores chart units (`S112(e)`) — `geom-brep/src/ssi/exhaust.rs:92`, against `ssi.rs`'s `account_chart_plane` call. The sibling field on `ExhaustivenessInconclusive` and `SweepCell::width` both get it right; **the one place a caller reads the number back out is the one place the unit is wrong** | unrowed |
 
 ## Track R — the measuring consumers: `props/` and `mesh/`
 
@@ -9598,6 +9613,7 @@ its own tests in its own PR, as always.
 | **D65** | **Bound-domination rows with no ceiling and no floor** (`S121`) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`; and `mesh/src/nurbs_cert.rs:1538`, **which is Track R's `D300` and not this row**. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against **#734** before opening | Track F, unplaced |
 | **D67** | **Assertions whose condition is the value's own codomain** (`S123`) — `geom-core/tests/review_m5_pr7b_tensor.rs:520`, and `geom-core/src/real.rs:1393`, **which is Track M's `D220` and not this row**. Both are `S110(h)`'s shape standing beside a real assertion rather than alone, so both are deletions rather than repairs; the surviving message is then unambiguous, which is what `memories/test-suite-cost.md` asks of a merged row. Cheap and edge-free. Recorded apart from `D65` because the detector shape differs: an *"every assertion is weak"* rule cannot see either of them, and that blind spot is what made the first pass under-report the class | Track F, unplaced |
 | **D380** | A band-keyed row's NAME asserts an arm the shipped default does not take (`S136`) — `profile/tests/review_s2.rs`, plus two more members in `step-import/tests/recognize_pins.rs`. **Not takeable as a rename alone**: `profile/src/sugar.rs`'s `LEVER_ULPS` doc cites the row by name, so closing it reaches one file on Track V, which is that track's row to file | unrowed |
+| **D381** | **`RecipeEditRef::ForeignNode` is unpinned at both mid-evaluation doors.** `editor-core`'s selection and declare doors resolve authored names through one shared ladder (`eval/wire.rs`'s `mod ladder`), whose rung 1 splits a missing minting node into `NodeDeleted` (id below the mint counter) and `ForeignNode` (id at or above it). `m6_5_selection_refusals.rs` and `m4_pr5_declare.rs` pin every other arm of that ladder and **neither pins `ForeignNode`**; the crate's only pin of it, `m4_pr4_resolve.rs:423`, is the *whole-evaluation* resolve door, which is a different ladder. The arm is reachable only across documents — the edit door refuses never-existed ids before evaluation — which is why it was left unpinned, not why it should stay so: #670 collapsed the two doors onto one implementation, so one fixture now covers both. Disclosed by that PR and never rowed | unrowed |
 
 ## Track X — `demos/`, and the design doc's companion table
 
