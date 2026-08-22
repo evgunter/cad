@@ -20,7 +20,13 @@
 //!   `crates/sweep/tests/verbs_chamfer.rs` pins the fillet's half of
 //!   that bit-exactly and the chamfer's to within an ulp, since a
 //!   line-crossing solve and a projection are two exact forms of one
-//!   point and neither promises the same `f64`).
+//!   point and neither promises the same `f64`). **What it measures on
+//!   this cube is stronger than what either verb promises**: the gap
+//!   is `0` and all 24 feet land on the same `f64` in all three
+//!   coordinates. That is an OBSERVATION at `L = 1`, `r = d = 0.12`,
+//!   not a contract — the scene asserts the ulp-level claim the verbs
+//!   do promise and prints what it actually found, so a future run
+//!   that comes back at one ulp is news rather than a failure.
 //! - **the chamfered die** — the pipped cube's twelve box edges
 //!   chamfered IN PLACE, the 21 pip cavities carried through as
 //!   rings. The montage panel beside `diecomposed`.
