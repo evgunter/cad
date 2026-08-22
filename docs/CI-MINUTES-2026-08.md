@@ -337,3 +337,125 @@ change to `render-hosted.sh`, and whatever F4 measures.
 * **a scheduled full run on main** — the mitigation F3's trim pairs
   with; the next PR adds it.
 * **draft-PR skip** — F5. Policy decision.
+
+## 2026-08-22 — configuration sampling, and the draft skip (F5)
+
+Evan's proposal, and the reason it is a separate section rather than a
+finding: the audit above tuned what each job costs, and this changes
+**what a run gates**. A code-tier run used to execute every point of
+{default features, `interval`} x {default eps, 1e-6, 1e-12}. It now
+gates ONE, drawn from the head SHA. The premise is that those six points
+almost always agree — which the `interval` additivity gate
+(`check-interval-cfg-additive.py`) and the runtime-eps contract already
+assert — so repetition covers the matrix: at the ~60 runs/hour measured
+under **Volume**, a break confined to one point surfaces within minutes.
+Nothing is shipped, so a briefly red main is affordable.
+
+### Why the draw is seeded, not random
+
+`scripts/ci-filter.py --seed <head sha>`, choice = `sha256(salt || seed)
+% n`, salted per dimension so lane and eps draw independently (an
+unsalted second draw ties eps to lane and leaves 2 of the 6 points
+unreachable). Two properties, both load-bearing:
+
+* **A re-run of the same commit draws the same point.** Under true
+  randomness a re-run of a red gate can come back green on a different
+  point. That reads as a flake and teaches a re-run habit that launders
+  real failures — the one failure mode that would make this change cost
+  more than it saves.
+* **The point is recoverable from the SHA alone**, so "which
+  configuration gated this commit" is answerable during a bisect without
+  the run's logs.
+
+### What is NOT sampled, and the rule
+
+Sampling is sound for a detector whose subject **persists in the tree**:
+a test red at 1e-12 stays red, so a later draw still finds it. It is
+unsound for a detector of **absence** — a check dropped from one half of
+CI, a gate sited where it cannot fire — because an absence leaves no
+future red for a later draw to catch, and the thing it detects merges
+silently, once.
+
+So `mirror` is not sampled (and structurally cannot be:
+`check-ci-mirror-parity.py` requires it to run on every tier, since its
+own inputs are the docs-tier paths on which every `if: run_build` job
+skips). Neither are `discipline`, `fmt`, `k-lint`, the python suite or
+the render lanes.
+
+### The interval lane runs the whole suite again
+
+This reverses the 2026-08-13 interval-only selection **on the hosted
+half only**. That selection subtracted the tests the default legs had
+already run in the same run; a sampled run draws one lane, so on an
+interval draw those legs do not exist and their ~93% of the suite would
+be gated by nothing. `scripts/interval-only-selection.py` keeps exactly
+one caller — `local-scripts/ci-local.sh`, which still runs both lanes on
+one tree — and is declared in that script's `MIRROR_EXEMPT` with the
+reason.
+
+**`local-scripts/ci-local.sh` is now the only lane that runs every point
+on one tree**, and is deliberately not sampled: nothing bills it by the
+minute. Local is a strict superset of any hosted run.
+
+### Expected cost, derived not measured
+
+Per code-tier PR run, against the ~79 the audit above leaves:
+
+| | today | default draw | interval draw |
+|---|---|---|---|
+| build / build-interval | 24 | 12 | 12 |
+| test legs | 8 + 1 | 4 | 6 |
+| clippy / lint-interval | 5 | 2 | 3 |
+| **compile-mode subtotal** | **38** | **18** | **21** |
+
+So **~79 -> ~60 billed minutes**, about -23%, and the draw that skips the
+interval build also shortens the critical path. The draft skip (F5, now
+landed) then cuts the *count* of full runs, which multiplies against
+everything above and is the larger lever of the two.
+
+### Two things that were re-asked and did NOT change
+
+* **Sharding stays**, in both lanes. F2's arithmetic is unchanged by the
+  eps cut: merging the two shards saves 1 billed minute and costs ~66 s
+  of latency on the default lane, ~117 s on the interval lane — and the
+  run leg now sits directly behind the only build job on the critical
+  path, with nothing to hide behind. One minute of ~60 against ~9-14% of
+  wall clock is the wrong side of the trade.
+* **opt-level 2 stays.** Re-asked because the verdict rested on
+  amortising one compile over ten run legs and a sampled run has one.
+  Writing E for the row's opt-2 execution and r for the opt-0/opt-2
+  ratio, opt-2 wins while `E > (archive_2 - archive_0) / (r - 1)`:
+  break-even is 56 s against a ~119 s row on the default lane (r =
+  6.46), and 78 s against a ~234 s row on the interval lane (r = 7.08).
+  Margins of ~2x and ~3x. The interval lane is why it is not close, and
+  it got *more* expensive to execute under sampling, not less.
+
+### `ready_for_review` is load-bearing
+
+The default `pull_request` type set is `[opened, synchronize,
+reopened]`. Undrafting a PR pushes no commit, so a draft skip without
+this type would leave the skipped run as the PR's only run and every
+gate reporting green having executed nothing. A draft skip without it is
+not a saving, it is a hole.
+
+### Ranked next, unchanged by this
+
+1. **F1's paired change** — render lanes off PR runs *and*
+   `render-hosted.sh` defaulting to dispatch. 12 billed minutes, and the
+   largest single item left on the PR side.
+2. **The rustdoc gate's cache**, not its coverage. At 4 billed minutes
+   (the `fmt` job's re-measurement above) it is the obvious next
+   sampling candidate, and sampling it would be *sound* — a broken
+   intra-doc link persists in the tree, so a later draw finds it. It is
+   the wrong tool anyway: the gate's six roots are independent, so
+   sampling them buys latency proportionally rather than exploiting
+   near-certain agreement the way eps does, and the cost is not really
+   the roots — it is that `Swatinem/rust-cache` in that job caches the
+   kernel workspace's `target/` and not the excluded roots', so all six
+   build from cold every run. The `workspaces:` input, or one
+   `CARGO_TARGET_DIR`, is the lever named above and still unmeasured. It
+   costs no coverage at all. Measure that before sampling the gate.
+3. **A scheduled full run on main** — still owed from F3, and now owed
+   more: with the push run trimmed and the PR run sampled, no single
+   tree is gated at every point by hosted CI. Deliberately not bundled
+   here (Evan: "the PRs will get it").

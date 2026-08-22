@@ -50,6 +50,25 @@
 # shards for wall-clock fan-out; the shards' union is exactly the row,
 # so the unsharded rows here gate the same test set.
 #
+# THIS HALF RUNS THE WHOLE MATRIX; HOSTED SAMPLES IT (2026-08-22). Hosted
+# CI now gates ONE point of {default, interval} x {default, 1e-6, 1e-12}
+# per run, drawn deterministically from the head SHA — the argument is in
+# scripts/ci-filter.py's CONFIGURATION SAMPLING note, and the currency it
+# buys is billed runner minutes. Nothing bills this half by the minute, so
+# nothing here is sampled: every lane and every eps row still runs on one
+# tree.
+#
+# THAT MAKES THIS THE ONLY LANE THAT RUNS EVERY POINT ON ONE TREE, which
+# is a heavier claim than this file used to carry and is worth stating in
+# both directions. It is NOT drift: local is a strict SUPERSET of any
+# hosted run, so a tree this half calls green was gated at every point
+# hosted could have drawn. And it is the reason to reach for this half
+# deliberately — before a merge that would be expensive to get wrong,
+# hosted's verdict covers one point of six and this one covers all of
+# them. The row SEMANTICS are still identical, which is what the mirror
+# convention is about; what differs is how many of them a given run
+# executes.
+#
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
 # line-tables-only. Those are hosted-runner throughput knobs — they cut
@@ -404,14 +423,22 @@ test_default() { nextest_check && cargo nextest run $SCOPE; }
 test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
 doc_tests() { cargo test --doc $SCOPE; }
-# The interval rows run ONLY the tests the feature adds, exactly as
-# hosted's `test-interval` legs do — same script, same set difference, so
-# the two gates cannot drift. See that job's header in .github/workflows/
-# ci.yml for the measurement (42% of hosted test time was re-execution)
-# and for why it is sound (the feature is additive, and
-# check-interval-cfg-additive.py above gates that it stays so).
+# The interval rows run ONLY the tests the feature adds. NO HOSTED MIRROR
+# ANY MORE (2026-08-22): hosted's `test-interval` now runs the WHOLE suite,
+# because configuration sampling draws ONE lane per run and the default legs
+# this selection subtracts are not running on an interval draw. See that
+# job's header in .github/workflows/ci.yml.
+#
+# THE SELECTION IS STILL RIGHT HERE, and the asymmetry is the point rather
+# than drift: this half runs BOTH lanes over one tree, so the 42% of test
+# time that is re-execution of already-executed code is the pure waste it
+# always was. The soundness premise is the one hosted still relies on — the
+# feature is additive, and check-interval-cfg-additive.py above gates that
+# it stays so.
+#
+# This is the script's only caller now, declared in
+# scripts/check-ci-mirror-parity.py's MIRROR_EXEMPT with that reason.
 INTERVAL_SEL="target/ci-local/interval-selection.txt"
-# HOSTED MIRROR: test-interval / derive the interval-only test selection
 # shellcheck disable=SC2086
 interval_selection() {
   mkdir -p target/ci-local \
