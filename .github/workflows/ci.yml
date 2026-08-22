@@ -36,15 +36,26 @@ concurrency:
 # test-interval) skip on a push, which skips it too — one mechanism
 # rather than two saying the same thing.
 #
-# WHAT THIS GIVES UP, AND THE MITIGATION IT WANTS. The commit that
+# WHAT THIS GIVES UP, AND WHY NOTHING PAIRS WITH IT. The commit that
 # actually lands on main is now never itself built or tested. When main
 # moves between a PR's last run and its merge — frequent here — that
 # exact combination went untested, and a semantic conflict between two
-# independently-green PRs would now surface at the NEXT PR's merge-ref
-# rather than at the merge that caused it. The intended pairing is a
-# SCHEDULED full run on main (one cheap run, not one per merge), which
-# the NEXT PR adds. Anything that must fail-fast on the landed tree
-# belongs on the PR side of this line, not restored to the push side.
+# independently-green PRs surfaces at the NEXT PR's merge-ref rather
+# than at the merge that caused it.
+#
+# A scheduled full run on main was the obvious pairing and Evan DECLINED
+# it (2026-08-22): the next PR's merge-ref is main plus that branch, so
+# it tests the landed tree anyway — a scheduled run buys a second
+# discovery of the same fact, at the price of a full gate per period
+# whether or not anything landed.
+#
+# THE COST THAT REMAINS, stated rather than mitigated: the conflict
+# surfaces on an INNOCENT PR. Whoever opens the next PR gets the red,
+# and the tree they broke is not the tree they wrote — so read a
+# failure that has nothing to do with your diff as a landed conflict,
+# and look at what merged since your branch point. Anything that must
+# fail-fast on the landed tree belongs on the PR side of this line, not
+# restored to the push side.
 
 # BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
@@ -257,7 +268,8 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      - id: classify
+      - name: classify the change set
+        id: classify
         # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
         # download: the script only runs `cargo metadata --no-deps`, which
         # parses the workspace manifests and neither builds nor resolves the
@@ -281,6 +293,9 @@ jobs:
           echo "classification:"
           scripts/ci-filter.py --base "$BASE" | tee -a "$GITHUB_OUTPUT"
 
+  # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
+  # a docs-only PR has a green required status. ci-local.sh prints the same two
+  # lines at its docs-tier exit and returns 0; there is nothing here to run.
   docs-only:
     name: docs-only ok
     runs-on: ubuntu-latest
@@ -313,7 +328,7 @@ jobs:
   # between the hosted half and local-scripts/ci-local.sh, so it has to
   # see both. Nothing here can be moved by a developer's machine — the
   # tree is read, never sourced or executed.
-  # `ci-mirror-parity.sh` checks that this stays exactly one job.
+  # `scripts/check-ci-mirror-parity.py` checks that this stays exactly one job.
   mirror:
     name: CI half parity + gate wiring (every tier)
     runs-on: ubuntu-latest
@@ -338,6 +353,20 @@ jobs:
         run: |
           python3 scripts/check-ci-mirror-parity.py --selftest
           python3 scripts/check-ci-mirror-parity.py
+      # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
+      # its own rather than by association. `scripts/ci-filter.py` decides
+      # whether every `if: run_build` job below runs at all, and its `docs`
+      # branch is the one path in it that fails OPEN — a change set wrongly
+      # read as documentation skips the entire gate and reports green. A PR
+      # that widens that branch is a change to `scripts/ci-filter.py`, and
+      # the filter that classifies that PR is the WIDENED one out of the
+      # merge ref: a diff adding `scripts/` to `_is_docs` classifies itself
+      # as docs and skips the job that would have caught it. Sited here, in
+      # the job that carries no `if:`, the self-test runs on that PR anyway.
+      # No toolchain: the fixture ships a stub `cargo`, so this row is
+      # stdlib python and git — measured 2.9 s locally.
+      - name: change filter selftest (the docs tier fails open)
+        run: python3 scripts/ci-filter.py --selftest
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
       - name: probe type-check loop citations
@@ -862,11 +891,18 @@ jobs:
       # cache entry.
       # Scoped by the filter: `--workspace` in tier `all`, an explicit
       # `-p <closure>` list in tier `closure`.
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
+      - name: clippy (default features)
+        run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
+  #
+  # Only its doc-test step has a local mirror, and that is the whole of what
+  # this job checks beyond compiling: the archive is the hosted split itself —
+  # compiling once and shipping binaries to thin RUN jobs is what makes a
+  # matrix of runners cheap, while a local run has one machine and compiles
+  # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
     # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
@@ -1242,6 +1278,18 @@ jobs:
   # graph in the matrix. Owns the interval clippy pass and the interval
   # doc-tests (both need this graph compiled anyway), then archives the
   # test binaries for the `test-interval` matrix below.
+  #
+  # NO LOCAL MIRROR: the archive split, the same as `build` above and for the
+  # same reason — one machine locally, so nothing is archived and nothing is
+  # shipped. That is the part with no local half, and it is not the whole job:
+  # `list archived tests (interval)` IS reproduced locally, inside
+  # ci-local.sh's `interval_selection`, which computes both operands of the set
+  # difference in one function. Its marker cites `test-interval`, the job whose
+  # legs consume the selection, rather than this one, so the citation names
+  # where the listing is USED — which is why this job still reads as
+  # unmirrored and needs this line.
+  # The interval clippy and doc-test passes are not in this job; they are
+  # `lint-interval`, which the local half mirrors and cites.
   build-interval:
     name: build + archive (interval)
     # Same BUILD_RUNNER variable as the default build job; unset today.
@@ -1380,7 +1428,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval-lint
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
+      - name: clippy (interval)
+        run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
 
@@ -1558,6 +1607,10 @@ jobs:
   # stragglers; this deletes the happy-path bulk immediately. On a FAILED
   # run the artifacts are deliberately kept (retention window) so failed
   # legs can be re-run without rebuilding.
+  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
+  # uploaded, which exist only because the hosted halves of build and test are
+  # different jobs on different machines. A local run compiles and executes in
+  # one process and produces no artifact to clean up.
   cleanup-archives:
     name: delete nextest archives (green run)
     runs-on: ubuntu-latest
@@ -2586,6 +2639,12 @@ jobs:
   # runner's core count) rather than restated here: this job renders the
   # canonical frames, so it must not be the place a second opinion about
   # how they are produced can creep in.
+  # NO LOCAL MIRROR: a caller with no steps of its own. It hands render.yml
+  # four lanes, and each of those says at its own key whether it has a local
+  # half — `tour` and `uv` do and are cited, `montage` and `wild` say why they
+  # cannot. One reason written here would have to be true of all four, and the
+  # FreeCAD one is true of `montage` alone: the local half already runs the
+  # other two lanes' work through `uv sheet drift (demos)`.
   renders:
     name: render lanes
     needs: filter
