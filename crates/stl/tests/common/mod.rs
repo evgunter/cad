@@ -1,7 +1,8 @@
 //! Shared acceptance-body builders for the STL export suites (via the
 //! public profile/sweep APIs only — the same shapes as the mesh
 //! acceptance suites and the CI export example).
-#![allow(dead_code)] // each consumer uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};

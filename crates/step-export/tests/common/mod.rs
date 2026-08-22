@@ -2,7 +2,8 @@
 //! public profile/sweep/boolean APIs only (the same shapes as the M3
 //! STL review suites: bricks, the pocketed die, the corner-kiss
 //! assembly, the voided subtract).
-#![allow(dead_code)] // each consumer uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

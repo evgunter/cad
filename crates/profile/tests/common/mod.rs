@@ -4,9 +4,11 @@
 //! [`lift`]; geometry that must sit at an ε-relative margin takes the
 //! run's ε explicitly so the multi-ε CI rows genuinely re-exercise the
 //! bands. The run tolerance comes from `Tol::witness().get()` — one read
-//! per test process (each integration binary is its own process, so the
-//! geom-core global-state discipline is satisfied).
-#![allow(dead_code)]
+//! per test process, and the crate's suites all run inside the one
+//! aggregated `all` binary, so the geom-core global-state discipline is
+//! satisfied by a single process-wide read.
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
