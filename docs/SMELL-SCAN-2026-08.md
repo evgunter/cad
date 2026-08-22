@@ -8,32 +8,45 @@ more indirect than the job needs, and things that simply do not look like the
 way you would do it. What remains here is **only what is still open**, plus
 the register that says who may take it.
 
-**Closed findings are deleted, not struck.** A finding whose record read
-`FIXED by #NNN` (or `CLOSED`, or `VERIFIED by`) has been removed from this
-file: the merged PR is its documentation, per `CLAUDE.md`, and the repo is
-merge-only so every deleted record is still reachable in git. A finding that
-is only *partly* closed stays here in full, with its closed part marked in its
-own lead — `S18`, `S19`, `S29`, `S32`, `S58`, `S66`, `S73`, `S88`, `S110`,
-`S112`, `S163`, `S168` and `S211` are the shape. (`S14` is not one of them: it
-is an unruled decision for Evan, open in full.)
+**Closed work is deleted, not annotated.** A finding whose record reads
+`FIXED by #NNN` (or `CLOSED`, or `VERIFIED by`) is removed: the merged PR is
+its documentation, per `CLAUDE.md`, and the repo is merge-only so every deleted
+record is still reachable in git. **A finding only PARTLY closed stays, and its
+closed MEMBERS are deleted the same way** — the bullet, the table row, the
+paragraph — leaving the open half and whatever framing it needs to stand alone.
+So a lettered member cited from elsewhere may have no bullet here either; read
+that the same way as a missing finding. **A `FIXED by` lead is therefore a
+thing to remove, never a thing to write** — including in a heading.
 
-**So a finding ID cited below that has no heading here is a closed one, and
-that is not a broken pointer** (the same rule `memories/docs-ledger.md` states
-for deleted documents). Read the PR named beside the citation; where none is
-named, `git log -G'^## S61\.' -- docs/SMELL-SCAN-2026-08.md` finds the commit
-that removed the record and `git show <sha>^:docs/SMELL-SCAN-2026-08.md` prints
-it. (`-G` matches added/removed lines; `-S` counts occurrences and would miss
-the deleting commit whenever the ID is still named somewhere in the file — as
-`S61` is, one line above.) The surviving sentence is written to stand without the lookup; the lookup
-is for the reader who wants the evidence behind it.
+**A finding ID cited below that has no heading here is a closed one, and that
+is not a broken pointer** (the same rule `memories/docs-ledger.md` states for
+deleted documents). Read the PR named beside the citation; where none is named,
+`git log -G'^## S61\.' -- docs/SMELL-SCAN-2026-08.md` finds the commit that
+removed the record and `git show <sha>^:docs/SMELL-SCAN-2026-08.md` prints it.
+(`-G` matches added/removed lines; `-S` counts occurrences and would miss the
+deleting commit whenever the ID is still named somewhere in the file — as `S61`
+is, one line above. For a member rather than a whole finding, `-G` the member's
+own opening instead, e.g. `-G'^- \(a\) \*\*FIXED by #787'`.) The surviving
+sentence is written to stand without the lookup; the lookup is for the reader
+who wants the evidence behind it.
+
+**And the same rule binds this document's own ledger obligation.** `docs/` is
+pruned rather than archived and a deleted *document* is recorded in
+`docs/DOC-LEDGER.md` — but that ledger indexes filenames, and nothing here has
+been deleted as a file. What `memories/docs-ledger.md` asks of a prune is that
+the record survive somewhere git cannot be expected to supply: for a finding
+that is the merged PR named in its own lead, and for a **standing rule** a
+closed record carried, it is §D's rule 3 — relocate the sentence into text that
+survives, in full, before deleting what carries it.
 
 **Tracks A–I are closed and their sections are gone the same way.** A, B, D
 and I completed; C, E, F, G and H stopped with rows outstanding. Everything
 they left is repartitioned into **Tracks J–X** below, which is the live
-schedule. Their execution record is `docs/SMELL-C-LOG.md`,
+schedule. Six of the nine left an execution record — `docs/SMELL-C-LOG.md`,
 `docs/SMELL-E-LOG.md`, `docs/SMELL-F-LOG.md`, `docs/SMELL-G-LOG.md`,
-`docs/SMELL-H-LOG.md` and `docs/SMELL-I-LOG.md` — the rulings those tracks
-made (`F-R1`…, `H-R1`…) live in those logs and are cited from here by number.
+`docs/SMELL-H-LOG.md` and `docs/SMELL-I-LOG.md`; **A, B and D left no log and
+none is owed.** The rulings the logged tracks made (`F-R1`…, `H-R1`…) live in
+those logs and are cited from here by number.
 
 **Nothing here is ratified and nothing here is a commitment.** A finding is a
 *question worth answering*, not a defect. Several findings describe deliberate,
@@ -53,39 +66,65 @@ ratified design contract is `docs/DESIGN.md`.
   finding), but they are **not disjoint**: 22 of the live rows are themselves
   numbered `S<N>`, colliding with a surviving finding of that number, and 17
   are numbered `C<N>`. Read a citation by where it points, not by its letter.
-  A `D<N>` cited in prose with no row in Tracks J–X is **usually** a landed or
-  retired row from a closed track, resolving the same way a closed finding
-  does — but **not always, and the exceptions are open work**: `D65`, `D66`
-  and `D67` (cited by `S121`, `S122`, `S123`) were placed by Track F and never
-  carried into this partition, so they are open and unscheduled. Do not read a
-  missing row as a finished one without checking. Beware one
+  A `D<N>` cited in prose with no row in Tracks J–X is a landed or retired row
+  from a closed track, resolving the same way a closed finding does. Beware one
   further collision the tree cannot spell away: `docs/DESIGN.md`'s ratified
   decisions are also `D1`–`D9`, and most prose citations in that range mean
   *those* — `D9` is determinism, not a schedule row.
-- **`§C<N>` is a process observation** in §C below. **`C<N>` without the `§` is
-  a Track C schedule row**, which is a different thing entirely; the collision
-  is a known defect and is listed as a decision for Evan.
+- **`C<N>` is two things and the `§` does not separate them.** §C's own
+  headings are spelled `## C1.` … `## C25.`, and 17 of the live schedule rows
+  are also numbered `C<N>` — `C3` is simultaneously a process observation and a
+  Track R row about `props/quad.rs`. **Resolve it by where the citation points,
+  never by the sigil**: a `C<N>` inside a Track table is a row, a `C<N>` in
+  prose is an observation unless it names a track. The collision is a known
+  defect and is a decision for Evan.
 - **`#NNN` is a GitHub PR or issue.**
 
-## How to read a row
+## How to read a finding
 
 Each finding carries its evidence at `file:line` or, where a fix pass has
 already moved the line, at a **target name** that a reader can grep for. Line
 numbers were true when written; **claims, not line numbers, are the content.**
-Findings carry the scanning agent's own confidence label (`sure` / `likely` /
-`unsure`) where one was recorded, a `**Verdict:**` line where Evan has ruled,
-and a `**Steelman:**` line where the original justification was hunted down.
-A blank `**Verdict:**` means unruled, not disputed.
+
+**The fielded form is a minority and always was.** Of the 118 findings, 24
+carry a `**Where**` line, 29 a `**Confidence**` (`sure` / `likely` / `unsure`),
+6 an `**Importance**` and 8 a `**Raised by**`; the rest state the same things in
+prose or leave them out. Read the absence of a field as an absence of that
+field, never as a claim.
+
+**`**Verdict:**` is Evan's line**, present on 69 findings and **blank on 43 of
+them**. A blank verdict means unruled, not disputed. The vocabulary was never
+fixed: eleven spellings are in use beside the blank — `ACCEPTED`, `ACCEPTED IN
+PART`, `ACCEPTED, SORT REQUIRED`, `ACCEPTED WITH QUALIFICATIONS, row by row`,
+`ACCEPTED, BUT SEQUENCED`, `ACCEPTED, AND SEPARABLE`, `ACCEPTED AND SETTLED`,
+`ACCEPTED, unstaffed`, `DISPUTED`, `OPEN for the part that matters`, `RULED` —
+plus one `_(unreviewed)_`, which means blank. **They are not a taxonomy**: each
+one means what its own sentence says, and none of them is a placement — §D's
+rule 4 is what decides whether a row is owed.
+
+**No scan executed the code.** Every *"unreachable"* and *"no producer"* claim
+in this document is from reading plus `rg`, and could be wrong about a path
+reached through a macro, a trait object, or a feature combination nobody
+considered. That qualifies every finding here, and most sharply the ones
+labelled `unsure`. §C15 asks the same disclosure of every sweep a fix lane
+runs; it applies first to the scans that produced this list.
+
+## How to read a row
 
 A row in a Track J–X table is `| # | What | Was |`: its number, the work, and
-the closed track it came from. **A row leaves that table when it lands, and its
-finding leaves this document with it** — the merged PR is the record, and a
-note here saying the work completed is itself a thing to delete.
+**where the row came from** — the closed track that placed it, or `unrowed` for
+an open finding that never had a row anywhere, `neither` where two records
+disagreed about which track held it, or `<Track> unplaced`/`filed` where a
+track placed it and never carried it into this partition. **A row leaves that
+table when it lands, and its finding leaves this document with it** — the merged
+PR is the record, and a note here saying the work completed is itself a thing to
+delete.
 
 ## Contents
 
 **The findings**, grouped by the scan or wave that raised them — the grouping
-is provenance, not priority. Priority is Tracks J–X.
+is provenance, not priority, and **the tier headings are the first scan's own
+sort, not a live ranking.** Priority is Tracks J–X.
 
 - [Tier 1 — architectural, load-bearing](#tier-1--architectural-load-bearing)
 - [Tier 2 — significant](#tier-2--significant)
@@ -489,429 +528,81 @@ the table.
 
 - **Confidence**: sure
 - **Found independently by six scans.**
-
-**The `units` row is FIXED by #646** (that row only — every other row of
-this finding stands). There is no second spelling of the six units left in
-any crate's `src`: the display-unit code stored in `Lit` is now the row's
-POSITION in `quantity::UNITS`, so both directions go through the table.
-**Not** "written once in the workspace" — two proptest generators still
-enumerate the symbols by hand (`quantity/src/tests.rs:16` writes all six
-in order, deliberately, as the vocabulary pin;
-`editor-core/tests/u8a_parse.rs:366-369` writes the four length symbols
-and both angle symbols). What is true is narrower and is the part that matters: no `src`
-in the workspace holds a second opinion about the vocabulary, so a
-**reorder** of `quantity::UNITS` reaches `editor-core` with no edit
-anywhere, and an addition or rename needs a test edit but no `src` edit.
-The remaining `src` copies are `pncad-py`'s six module bindings plus its
-stub declarations, which are forced (PyO3 must name a module attribute at
-its registration site; `IN` → `inch` is a documented fork) and generatable
-at best, not collapsible — **and unpinned**:
-`pncad-py/tests/test_stubs.py:95` checks only that `"mm"`, one of the
-six, is among the top-level names, so the stub could lose five of them
-silently.
-`step-import`'s `UnitKind` is a different vocabulary, as the steelman
-ruled. #291's MAJOR-2 measurement — the reason a CODE is stored rather
-than the row — now has a mechanical guard of its own: `size_of::<Lit>()
-== 16` is a compile-time assertion, and re-inlining the 32-byte row
-(which takes the literal payload to 40) fails the build. (It was never
-*entirely* unguarded — `large_enum_variant` is default-on in clippy's
-`perf` group and CI runs `-D warnings`, the same detector that fired in
-#291. What was unguarded is the **margin**: whether a regrowth
-re-crosses that lint's 200-byte threshold depends on `DocEdit`'s size,
-which nothing tracks, and `Lit` is a struct, so it trips no enum lint
-alone.)
-
-**`units` follow-up — #650 CLOSED by sealing, not by a check (this PR).**
-#646 left one residue on the same row: `Expr::literal_with_unit`
-validated the CALLER's `UnitDef.quantity` and then stored the table row
-found by symbol, never re-checking, so a caller-built `UnitDef { symbol:
-"mm", quantity: Angle, .. }` built an `Expr` that serialized into a
-document editor-core's own load door refused — a round-trip break, not a
-bad call. #650 offered a two-line whole-row check; the fix taken instead
-is D2-addendum-shaped: **make the row unrepresentable**, so there is no
-state for a check to catch. `quantity::UnitDef`'s three fields are
-private with `symbol()`/`quantity()`/`factor()` accessors, there is no
-constructor at all, and the only sources of a row are `UNITS`,
-`unit_by_symbol`, and whatever hands one back.
-
-Five things are worth recording — two because each was a way the seal
-could have been cosmetic, one because the seal's own cleanup was nearly
-missed, one because the residual was measured wrong before the work
-started, and one because sealing MOVED where the coverage gap lives:
-
-- **The second mint — now CLOSED by #686, see the `#669` note below.**
-  `LengthUnit`/`AngleUnit` kept PUBLIC fields, and
-  their `def()` was a public `const fn` — so `AngleUnit { symbol: "mm",
-  factor: 1.0 }.def()` rebuilt #650's exact counterexample with `UnitDef`
-  sealed. Sealing `UnitDef` alone would have renamed the hole. `def()` is
-  now `pub(crate)`; the public route to a row is `unit_by_symbol`. This
-  is the S4 lesson applied to a CONSTRUCTOR rather than a vocabulary:
-  counting the copies of a spelling is not the same as counting the doors
-  that can mint one.
-- **The refusal the seal killed, and the apparatus that nearly outlived
-  it.** `UnitSym::from_def`'s `None` arm — #646's newly-covered branch —
-  is unreachable once no caller can build an off-table row. The first
-  pass kept it and built the scaffolding to reach it: a `units-testing`
-  cargo feature, a `#[doc(hidden)]` mint, a self-dev-dependency, an
-  explicit dev-dependency in `editor-core`, and two tests. Review
-  observed that **the same `impl` block was answering one question two
-  ways** — `UnitSym::def`'s unconstructable index takes D2 addendum row
-  4 (`unreachable!`) with the argument stated out loud, while
-  `from_def`'s equally unconstructable row kept a typed refusal. Evan
-  ruled it (2026-08-19): *"we definitely should not have any checks for
-  states the type system excludes."* `from_def` is now total, the whole
-  apparatus is deleted, and `DimensionError::UnknownDisplayUnit` keeps
-  its ONE reachable raiser: `persist::wire`, where the symbol arrives as
-  a string out of a file. **The general lesson for a sealing diff:
-  sealing a type makes some downstream refusals unreachable, and the
-  cost of keeping one testable is a cargo feature plus two dependency
-  edges — price that before paying it, and check whether a neighbouring
-  function in the same block already answered the question.**
-- **The view of a sealed row — #669, FIXED by #686.** Sealing `UnitDef`
-  moved the hole rather than closing it: the dimension stayed typed while
-  the symbol and factor went free one level out, and that asymmetry was
-  invisible until the residual was *executed* rather than reasoned about.
-  It was neither formatter-only nor a display string, as #662's note had
-  scoped it: `fmt.rs`'s own pin is `parse(fmt(x, unit))`, so a mislabelled
-  view reached an `Expr` and a document along the route the module
-  guarantees, and `25.0 * LengthUnit { symbol: "mm", factor: 1.0 }` was a
-  25-METRE `Length` labelled `mm` — a wrong VALUE at the D6 boundary,
-  across five public entry points (eight functions).
-
-  **#686 made it unrepresentable, and the first attempt was not enough.**
-  The views became newtypes wrapping the sealed row; review then
-  demonstrated by mutation that the `compile_fail` guard was **already
-  dead** — every view row failed `E0560` (*no field named `symbol`*), a
-  SHAPE mismatch that stays true however open the seal becomes, so
-  reopening the field left all seven rows green. It also planted
-  `pub const MM_BAD: LengthUnit = length("mm", 1.0)` INSIDE `units.rs`,
-  using the private helper the docs called the only place a row is
-  written down, and reproduced #669's headline defect with every guard
-  green: the real guarantee was *"constructed inside `units.rs`"*, not
-  *"is a row of `UNITS`"*, which the rustdoc claimed in four places.
-
-  What landed instead is what `editor-core` had already invented for this
-  same table in `UnitSym(u8)`: **the view is a private INDEX into
-  `UNITS`**, behind a private module, so `of_row` and `UnitDef::as_*` are
-  the only mints *anywhere* — `units.rs` included. *"Is a row of
-  `UNITS`"* is now true by construction rather than by a convention
-  confined to one file, the duplicated `quantity` field is gone, and a
-  seventh constant or a mislabelled one is a **const-eval** error rather
-  than a lint. The guard rows are now refused on **privacy** (`E0423` /
-  `E0616`), verified by mutation off-branch: opening the field reddens
-  six view rows and correctly leaves the two `UnitDef` rows green.
-
-  Two things the fix found that #669 did not name: a **sixth,
-  non-public trust point** — `def()` built `UNITS` *from* the views, so
-  the table's own rows were minted through the unsealed surface, which is
-  why #662 had to demote it — and that the **Python mirror was never
-  open**: `pncad.LengthUnit`/`AngleUnit` are `#[pyclass(frozen)]` with no
-  `#[new]`, so the anticipated `pncad-py` work was six `.symbol` →
-  `.symbol()` reads and no `.pyi` change. The lesson stands generalised:
-  seal the ROW and the residue moves to the VIEW of the row — and a
-  guard that pins the seal by quoting the PRE-SEAL spelling tests the
-  shape, not the seal.
-- **Sealing moves the coverage gap to the load door.** With construction
-  closed by the type, the only production-realistic route to a corrupt
-  document is a `.cad` file carrying a TABLED symbol on the wrong
-  dimension — `{"dim":"Angle","unit":"mm"}`. Nothing tested that:
-  editor-core's suite covered the unknown-SYMBOL arm and the CONSTRUCTOR
-  arm, which is precisely the shape #646 and #650 both recorded as the
-  reason the original defect hid ("the refusal reads as covered because
-  a different construction site is covered"). A row was added. Generalise:
-  after a seal, re-ask the coverage question at every door the sealed
-  value can still ARRIVE at from outside the process — deserialization
-  first.
-- **In-crate code is not exempt.** `quantity/src/tests.rs` is a SIBLING
-  module of `units`, not an inner one, so the private fields are private
-  to it too; the first push was red on `clippy` for exactly that. Worth
-  remembering when estimating a sealing diff: "same crate" is not the
-  visibility boundary, "same module or below" is.
+- **Row:** Track V's **`C6`**, which carries the three members that are
+  genuinely blocked; the rest of the table below is unrowed.
 
 | Concept | Copies | Anchor |
 |---|---|---|
 | profile `Step` verbs | `profile::Step` / `ProgramStep` / `WireStep` / `StepArg` / content-key tag table / `pncad-py`'s PATHS lattice + its `.pyi` — **6**. **Was 5 across 3 crates; the five named span TWO crates** (`profile` and `editor-core`), so the three-crate count was only ever true of a copy the row did not name. Corrected by **S170**; the `editor-core` half is closed by **S106** | `profile/src/path/program.rs` — the `transition_table!` invocation (`Step`, `Verb`); `editor-core/src/program.rs` — `pub enum ProgramStep`; `editor-core/src/persist/wire.rs` — `enum WireStep`; `editor-core/src/node.rs` — `pub enum StepArg` (**not** `program.rs`, as this row said until #836); `editor-core/src/eval/mod.rs` — `fn verb_tag`; `pncad-py/src/py/path.rs` + `pncad-py/pncad.pyi`. **Cited by name, not line** — the three numbers this row carried all pointed into text #836 rewrote |
 | `RoleSeg` → `SegTag` | kernel enum → editor-core fieldless mirror → `pncad` re-export → a **second** 40-variant py mirror → 40-arm `to_kernel` → 40-arm inverse tripwire → 1316-line `.pyi` | `pncad-py/src/py/select.rs:82` |
 | node kinds | ~10 parallel match tables; `rg Node::Fillet` → 24 non-test hits in 10 files | `node.rs:423`, `eval/mod.rs:1325` |
-| "which `RoleSeg` args are sub-names" | 4 sites | `resolve/mod.rs:969`, `refactor.rs:540`, `names/select.rs:296`, `eval/mod.rs:2040` |
 | "which payloads carry a `StableName`" | 4 lists | `edit.rs:1096`, `node.rs:949`, `refactor.rs:801`, `resolve/mod.rs:911` |
 | "node has no usable value" | 5 typed + 1 stringly | `resolve/mod.rs:266`, `resolve/hit.rs:23`, `resolve/vdiff.rs:69`, `appearance.rs:172`, `names/geompred.rs:488` |
-| units | 7 spellings for 6 units | `quantity/src/units.rs:47`, `expr.rs:181`, `step-import/src/units.rs:76` |
-| Euler vector per op | 3 (prose, arena delta, `ep_vector`) + a 4th divergent `Ledger`; the arena delta was an unnamed positional 7-tuple until **#625** made it `ArenaDelta` | `euler.rs:891`, `euler.rs:838`, `seqgen.rs:105` |
 
-Two of these have **already drifted, observably**:
-
-- **CLOSED by #618, and this bullet outlived it — corrected by #731.** As
-  written it says `Rebind`'s rewrite loop in `apply` matches only
-  `Declare` and `Fillet` (`_ => {}`), that `refactor::payload_names`
-  returns names only for those two, and that a mate head is therefore
-  silently not rewritten. **All three clauses are false today**:
-  `edit.rs`'s loop routes through `Node::rebind_payload_names`, and that
-  function and `Node::payload_names` both carry an explicit
-  `Node::Mate { a, b, .. }` arm with no wildcard, as does
-  `refactor::payload_names`. The drift was real when reported; the
-  record of it was left standing as live for two weeks after the fix,
-  which is Q4's sub-case rather than a second drift.
-- **FIXED by #632; the population was wrong and is corrected by #731.**
-  Three of the sites #632 counted carried comments insisting the match is
-  exhaustive "so a future variant must be classified here or the compile
-  breaks"; `select::name_args` was the fourth and wildcarded, and #632
-  closed it. **There were five**: `eval::anchor::remap_seg` classifies
-  `RoleSeg` too and ended in a BINDING catch-all (`other => other`) that
-  #632's scan could not express, so it was neither counted nor fixed. All
-  five are now exhaustive on the `RoleSeg` axis, and the four that see a
-  `Qualifier` are exhaustive on that axis too. **Five is #632's population
-  plus that one, not the tree's**: a probe `RoleSeg` variant demands a
-  decision at **seven** matches on today's head — those five, plus
-  `eval::feed_role_seg` and `resolve`'s `visit`, which were already
-  exhaustive and so were never anyone's residue. The distinction is the
-  one this row is about, so it is spelled rather than left to the count.
-
-**The `BooleanOp` mirror is FIXED by #642.** It was the tell that these
-copies are accretion rather than principle — one vocabulary **mirrored**
-from the kernel while its neighbour `ContactClass` was **imported**, both
-documented at length as correct under the identical constraint. There is
-now one `BooleanOp`: `editor-core` re-exports `topo`'s and describes only
-its BYTES, and the identity `From` match in `eval/wire.rs` is gone.
-`topo` gained no serde dependency — the layering the mirror was minted to
-respect is intact, and is now the thing a gate checks.
-
-Byte-preservation was **proved, not asserted**: the whole model corpus
-was `save()`d before and after and compared with `cmp` (389 741 B, 48
-boolean operations — identical), and the three wire pins were written and
-run green against unmodified `main` **first**, so they pin today's format
-rather than describe the new one. The move of the modules under
-`persist/` was re-proved the same way.
-
-Two things a future reader will want, neither of which this finding
-predicted:
-
-- **The read direction could not be made compiler-exhaustive.** Safe Rust
-  cannot tie an array literal to a variant list without a proc macro, and
-  the workspace has none — so an operation added to the write table but
-  missed in the read table would serialize fine and refuse on READ: a
-  document this build wrote and could not load. The gap is closed **at
-  the write door** instead. `serialize` round-trips the spelling through
-  `untag` before writing and refuses typed if it does not come back, so
-  the unloadable document is never created. Where a mirror's cost was
-  paid in hand-syncing, an import's residual cost is paid here, and it
-  is smaller and it is loud.
-- **The technique now has a home.** `#[serde(with)]` modules for kernel
-  types live under `editor-core/src/persist/kernel_wire/` — one doc for
-  the technique, including the rule that a module's CASING is not a style
-  choice but whatever its type's bytes already are (`BooleanOp` is
-  capitalised *because* it replaced a derive; `ContactClass` is lowercase
-  because it never had one). Previously the two copies sat at the bottom
-  of a 1,320-line `node.rs` with a near-word-for-word duplicated doc, and
-  the queued rows below would have made copies three and four.
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). "Oh boy, good findings — these
-look like they'll be a lot of work to fix but definitely worth it."
-Steelman pass commissioned for the constraint map: how much of the
-duplication the G1 no-serde-in-kernel rule actually forces, given that
-the `ContactClass` `#[serde(with)]` remote derive shows the mirror was
-avoidable at least once. Includes verifying the two observed drifts.
-**Steelman (2026-08-18): SURVIVES IN PART — row by row, and the diagnosis of
-the `BooleanOp`/`ContactClass` tell was wrong in a way that makes the finding
-*stronger*.**
-
-*The corrected tell — acted on, FIXED by #642.* The steelman's finding was
-that `BooleanOp` was **never a serde decision**: PR #81 (M4 PR 1) forbade
-`editor-core` from depending on `topo` **at all**, which is why the enum was
-minted locally, and `git log -S` showed the dependency arriving the **same
-day** (`baec1fd9`, M4 PR 2). The mirror had outlived its reason by four weeks
-and its rustdoc defended nothing; the only text calling it a deliberate
-pattern sat inside `ContactClass`'s doc, written by a different author three
-weeks later. `ContactClass` meanwhile **was** ruled — `M9-1-SPEC.md:22`,
-*"never a parallel enum… One enum, defined lowest, re-exported upward"* — and
-#552 resolved the same collision with `#[serde(with)]`, a technique that did
-not exist as a repo idiom when `BooleanOp` (2026-07-23) or `WireStep`
-(2026-08-09) were written.
-
-#642 collapsed it, and the collapse cost less than the row implied: the
-`From` pair it removed had already become the identity, so **no conversion
-had to be preserved anywhere** — the recipe node's operation now IS the
-kernel operation the evaluator runs. Two things the row did not anticipate
-turned up in the vocabulary sweep and are worth carrying to the remaining
-mirrors: the split had also cost a **hole in the public prelude** (a curated
-paragraph explaining why `pncad::prelude` could not carry `BooleanOp`, since
-two types cannot share one name) and a **defensive alias at a call site**
-(`demos/tour`'s `BooleanOp as NodeBooleanOp`). A mirror's price is not only
-the hand-syncing; check `WireStep` and `SegTag` for the same downstream
-surface tax before pricing them.
-
-*Also corrected:* `RoleSeg` is **not** a kernel enum — it lives at
-`editor-core/src/names/role.rs:226`. Both ends of that chain are editor-core.
-And `DESIGN.md:1914`'s *"(layering enforced by CI grep)"* was **stale** — no
-serde grep existed in `ci.yml` or `ci-local.sh`, the only mechanical check
-being `profile/tests/seal.rs:87`, covering `profile` only. **FIXED by #642**,
-which put a real gate behind the claim (`scripts/gates/kernel-serde-free.sh`)
-and rewrote the DESIGN.md row to say what that gate proves and what it does
-not. The gate's own history is the lesson: its first version WAS a grep, and
-the reviewer falsified it twice — `serde.workspace = true` (the dotted form
-already used for `edition`/`license`/`rust-version` in `topo`'s own manifest)
-and `ser = { package = "serde" }` both walked past it and it reported OK.
-Worse, its self-test planted only the one spelling its regex was written for,
-so it could never have found its own hole. It is now a TOML parse over the
-resolved package name of every dependency entry, self-testing five spellings
-plus a negative control. A gate that scans a hand-shaped surface with a
-hand-shaped matcher is S4's failure mode wearing an enforcement badge.
+**Steelman (2026-08-18), row by row.**
 
 | Row | Verdict |
 |---|---|
 | profile `Step` verbs | **SURVIVES** — `WireStep`/`WireTarget`/`WireArcData` are field-for-field mirrors differing in **nothing**. Only `WireSide`/`WireWinding` wrap kernel-foreign types (two two-variant tags), plus `SketchPlane<f64>` needing `WirePlacement`. The scheduled RESPELL-TABLE unit does **not** reach these. |
 | `RoleSeg` → `SegTag` | **SURVIVES IN PART** — three of four links are compile-enforced and the python lane runs in CI. Genuine gaps: the `.pyi`'s 40 members are **unpinned** (`test_stubs.py` parses only top-level names, never class bodies), and the py mirror is **forced by the orphan rule** — not collapsible, only generatable. |
-| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survived, and was measured (2026-08-18) as `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2 — **a count whose counting rule was never stated, so it cannot be re-derived**. #731 closed seven of the arms it covers (`persist/check.rs` both, `resolve/mod.rs` one, `node.rs` three, `eval/mod.rs` one) and did not re-cut the measurement, because there is no instrument to re-run. Whoever takes this row states the rule first. The live instrument for the class is `--force-warn clippy::wildcard_enum_match_arm`, whose blind spot is recorded at **§C15**. **The count above is stale and is left as a dated record, not as a claim about today's tree.** |
-| `RoleSeg` arg sites | **SURVIVED IN PART; FIXED by #632, population corrected by #731.** The sites answer genuinely different questions and *should* differ — what survived was the fourth site's wildcard, closed by #632. The count was wrong: a **fifth** classifier, `eval::anchor::remap_seg`, partitions `RoleSeg` by profile-locator carriage and was fail-quiet until #731. #731 also gave the one partition three of them share — the name-free variants — a single home (`names::role::name_free_seg!`), so it is one decision rather than three that can diverge. |
-| `StableName` payload lists | **SURVIVES** — see the confirmed drift below. |
+| node kinds (~10 tables) | **DOES NOT SURVIVE as stated** — 10 operations over a 12-variant sum type is the design working. Re-scoped to *wildcard* arms it survived, and was measured (2026-08-18) as `node.rs` 9, `eval/mod.rs` 5, `resolve/mod.rs` 4, `edit.rs` 3, `refactor.rs` 3, `persist/check.rs` 2 — **a count whose counting rule was never stated, so it cannot be re-derived**. Seven of the arms it covers have since closed and nobody re-cut the measurement, because there is no instrument to re-run. **Whoever takes this row states the rule first.** |
+| `StableName` payload lists | **SURVIVES.** |
 | "no usable value" | **SURVIVES IN PART** — the four enums have genuinely different membership and closure (`RunStatus` is serde-persisted), but all four embed the identical triple, and the stringly fifth is a real fail-quiet. |
-| units | **DOES NOT SURVIVE as counted; the residue FIXED by #646.** `parse.rs` uses the shared table; `step-import`'s `UnitKind` is a *different vocabulary* (STEP `SI_UNIT` names). Real duplicates: two-and-a-half, one of them **measured and justified** (PR #291 MAJOR-2: inlining the 32-byte row grew every `Expr` by ~40 bytes). #646 enumerated the two-and-a-half the steelman never named — (1) `expr.rs`'s `UnitSym` enum + its `def()` map, the measured one; (½) that file's *second* table, `from_def`'s six string literals, which the measurement never covered; (2) `pncad-py`'s six module bindings + stub lines, forced by PyO3 — and dissolved (1) and (½) together by making the code an INDEX into `quantity::UNITS`. The code is still one byte, so the measurement stands, and it now has a mechanical guard (a `size_of::<Lit>()` assertion) rather than only clippy's threshold-dependent `large_enum_variant`. (2) is untouched: forced — **and unpinned**, its stub pinned only at one of six names. A residue in `expr.rs` was filed rather than fixed: #650, `literal_with_unit` checks the caller's `UnitDef.quantity` and then stores the table's, so a mismatched pair builds an `Expr` the load door refuses. **#650 is now CLOSED STRUCTURALLY, not by a check** (see the `units`/#650 note below): `quantity::UnitDef` is sealed — private fields, no constructor at all, and `LengthUnit::def`/`AngleUnit::def` demoted to `pub(crate)` because a public `def()` on a still-public-fielded typed view was a *second* mint for the same illegal row. The vocabulary count is unchanged by that; what changed is that the shared table is now the ONLY source of a row, which is the property S4 was arguing for all along. |
-| Euler vector | **SURVIVES IN PART; FIXED by #625 and #641.** The 6-vector and the 7 arena deltas are **different quantities** — Δh is not an arena count and cannot be derived from them — so they stay separate **by design**. What survived the steelman was the spelling, and it is now closed on both halves: #625 made the delta `ArenaDelta`, and #641 named every remaining positional carrier in the crate, collapsed `reassembly.rs`'s duplicate into `ArenaCounts` outright, and gave the parent-sense rule one home. The class was **four positional orders for one vocabulary inside a single crate** — S4's drift shape reachable without crossing a crate boundary at all — of which three were byte-identical to `ArenaCounts` and differed only in being separately declared. Residue: one copy is blocked purely by the `tests/`-is-another-crate boundary (**S52**), and the two drifted `Ledger`s are **S53**. Neither mechanism catches a transposition across correct names, which is why both conversions were checked component-by-component. |
 
-*Drift (a) CONFIRMED, and it contradicts ratified design text.* Note the
-contrast in the same file: `refactor::remap_node` **is** wildcard-free and
-**does** handle `Mate` — the exhaustive sites stayed in sync; the wildcard sites
-did not. **FIXED by #618**, which took that lesson as its shape:
-`Node::payload_names` and its rewriting twin are the one answer to which
-payloads carry a `StableName`, both list the nameless variants rather than
-wildcarding them (a future name-carrying variant breaks the compile — verified
-by a reviewer's probe variant, `E0004`), and the `Rebind` loop, the insert door,
-the split's and inline's re-anchoring, edit-time name resolution and the load
-check all read them. The sweep found two further mate-blind sites of the same
-shape: the insert door silently ADMITTED a mate head naming no node, and
-`persist/check.rs` never id-checked mate heads against the mint counter — a
-file that got one in could previously be opened and salvaged by deleting the
-mate, and now refuses to load at all.
+**The two instruments a taker of the wildcard half needs, and what each cannot
+see.** The type-aware one is `--force-warn clippy::wildcard_enum_match_arm`,
+read off each diagnostic's missing-variant list, which no alias, wrapper or
+indentation can fool; its blind spot — recorded at **§C15** — is that an enum
+nested inside `Option`/`Result`/a tuple is attributed to the outer type, and it
+says nothing about `if let` / `matches!`. The compensating one is
+**arm-content-directed**: find every `match` whose ARMS mention a target
+vocabulary's variants and which has a catch-all, `_` or a bare binding, never
+consulting the scrutinee's type. **No sweep script for either ships in the
+tree**, so a lane rebuilds them; the arm-content family's own blind spot is
+that a brace-balance window false-positives across a long `impl`, and it cannot
+see a classification written as `if let` / `matches!` chains rather than a
+`match`.
 
-*Drift (b) CONFIRMED, **FIXED by #632**, and its residues **FIXED by #731**
-(H11).* The `Fragment(SideOf)` disagreement is **documented and intentional**
-and was preserved. #632 disclosed two residues; #731 closed them, and closed
-**eight further fail-quiet classifications of the same shape in the same
-crate** — two that #632's own body had ruled out in writing, five that
-neither #632 nor #731's first pass found, and one that **neither of #731's
-own instruments could express**, found by its verification pass. The class as
-reported was *"#632's two residues"*; the class as it existed was **ten**.
-That gap, not either fix, is the finding — and the count moved three times
-(two, four, nine, ten), each time because a differently shaped instrument
-was run, which is §C15's clause arriving as a measurement rather than as a
-warning.
+**`evaluate`'s bound, restated in five places, three of them uncounted.**
+Raised by **H-g** (2026-08-21) while measuring #883's `CertifiedBounds`
+cascade. `editor_core::eval::evaluate`'s where-clause and the named
+`EvalScalar` alias restate the same term list ten lines apart in
+`eval/mod.rs` — and that pair is **already known and already pinned**, in
+both directions, by `editor-core/tests/e4_dual_door.rs`. What nothing
+watches is the other three: **`editor-core/tests/corpus/mod.rs:196`,
+`topo/tests/fixture/pr4.rs:36`, `editor-core/tests/m5_pr8_bvh_diff.rs:49`**,
+each a hand-copy of the same list in test support. They surfaced only
+because a bound change stopped them compiling — S4's usual tell, arriving
+as a build break rather than as a drift report. **The asymmetry is the
+row**: the file that exists to detect exactly this drift covers two of the
+five sites, so its own coverage claim is a member of the finding it
+detects. `corpus/mod.rs` is `mod`-included by **22** test files, so the
+single cheapest copy to miss carries the widest blast radius — 78
+diagnostics from 5 sites, when the cascade was measured.
 
-- `resolve::apply_with_names`' `DocEdit` wildcard is now three named groups —
-  checked, name-carrying-and-deliberately-unchecked, name-free — which encodes
-  a policy the docs at both ends had already ratified in prose. **The same
-  wildcard, on the same enum, was live a second time** at `persist/check.rs`'s
-  `edit_non_finite`, the load door, which #632 set aside as *"different enum"*
-  and is not; a future float-carrying `DocEdit` variant would have been
-  classified "no floats". Both are closed, with `param_site`'s `DocParam`
-  wildcard beside them. A probe variant carrying a name and an `f64` broke one
-  site before and three after.
-- The triplicated 17-variant name-free list is one `name_free_seg!()`
-  or-pattern macro in `names/role.rs`. A pattern rather than a predicate,
-  because a predicate is a thing a caller may forget to call (**C-R5**); every
-  match stays exhaustive, and the delta is that "name-free" is one decision at
-  one site instead of three that can diverge. #632's stated obstacle — that
-  `role.rs` has no `impl RoleSeg` block to hang a classifier on — is not paid,
-  because a macro is the list rather than a classifier.
-- **`eval/anchor.rs`'s `remap_seg` was a live fail-quiet #632's scan could not
-  see**, contradicting its *"no fail-quiet wildcard in any `RoleSeg` or
-  `Qualifier` match in the workspace"*. Its catch-all was `other => other` — a
-  BINDING wildcard, not `_` — in a match written entirely through
-  `use RoleSeg as R`, so the literal `RoleSeg::` never appeared in the window
-  the scan required. Its twelve explicit arms are exactly the twelve variants
-  embedding a profile locator, so behaviour was right; a thirteenth carrier
-  would have crossed a profile re-anchor with a **stale locator**, silently.
-  See **§C15**, which this corrects.
-- **The five #731's own first pass missed, found by its style review**, all
-  in `editor-core` and all closed under **C-R17** (orchestrator, 2026-08-20: fix in-crate residues rather than reporting them). The one that carries the
-  argument is `eval::content_key`'s structural-payload match: its **tag**
-  half was exhaustive and its **payload** half wildcarded, so the compiler
-  forced a decision at one half of one key and silently defaulted at the
-  other. A `Node` variant whose recipe payload lives outside its slots would
-  hash identically to one that differs in it, and the memo would serve
-  another node's geometry — which is not hypothetical, and is recorded two
-  paragraphs below as `Step::AtToward`'s tag-28 collision, *caught by a
-  reviewer, not by a type*. The others: `Node::expr`/`expr_mut` and
-  `placement_rule_fault` on the `Node` axis, and `Expr::child` and
-  `with_replaced` on the `ExprKind` axis. `node.rs`'s two nameless-payload
-  lists — #618's own growth of the same duplication — and `expr.rs`'s four
-  arity lists took the same treatment as the triplication above
-  (`name_free_node!`, `binary_kind!`/`unary_kind!`/`leaf_kind!`).
-- **The tenth, found by this PR's verification pass, and it is the one
-  neither instrument could see.** `doc.rs`'s `DocParam::bit_eq` matched
-  `(self, other)` and closed with `_ => false`. Invisible to the type-aware
-  instrument because the scrutinee is a **tuple** — its declared blind spot,
-  exactly — and invisible to the arm-content instrument because the arms are
-  spelled `Self::Continuous` / `Self::Count` and name no enum, which is the
-  **same alias tell** as the `use RoleSeg as R` miss that started this. Its
-  consequence is a wrong value, not a missed check: a future `DocParam`
-  variant would have compared unequal to ITSELF, and `Doc::bit_eq` and
-  `diff.rs` would have read that answer — D7's replay identity and the
-  document diff both reporting a change that is not there. Closed
-  exhaustively on both sides of the pair; a probe `DocParam` variant carrying
-  an `f64` breaks **4** sites on the head against **2** on `origin/main`.
-- **What the second sweep changed about the method.** #731's first
-  instrument was type-aware (`--force-warn
-  clippy::wildcard_enum_match_arm`) and it *declared* a blind spot — an
-  enum nested in `Option`/`Result`/a tuple is attributed to the outer type —
-  and then did not compensate for it, which is the exact failure **§C15**
-  names and which #731 was simultaneously correcting C15 about. The
-  compensating instrument is **arm-content-directed**: find every `match`
-  whose ARMS mention a target vocabulary's variants and which has a
-  catch-all, `_` or a bare binding, never consulting the scrutinee's type.
-  It is self-tested — run against `origin/main` it re-derives
-  `eval::anchor::remap_seg` unaided, through both the alias and the binding
-  catch-all. **That property was re-verified, but not that script**: no
-  sweep script ships with the fix, so the verification pass wrote its own
-  instrument of the same family (whole-file brace tracking rather than a
-  window, `if let`/`while let`/`matches!` as well as `match`, keyed on every
-  enum-variant name in `crates/` rather than a target list) and it re-derives
-  `remap_seg` on `origin/main` too. A claim that cannot be re-executed is
-  weaker than one that can, and this one is the weaker kind: what stands is
-  the property, held by a second instrument, not the run. **Its own blind spot**: a brace-balance window, so it
-  false-positives across a long `impl` (it flagged `pncad-py`'s
-  `select_refusal_tag`, whose wildcard is forced by `#[non_exhaustive]` and
-  compensated by a pin test), and it cannot see a classification written as
-  `if let` / `matches!` chains rather than a `match`.
-
-- **`evaluate`'s bound, restated in five places, three of them uncounted.**
-  Raised by **H-g** (2026-08-21) while measuring #883's `CertifiedBounds`
-  cascade. `editor_core::eval::evaluate`'s where-clause and the named
-  `EvalScalar` alias restate the same term list ten lines apart in
-  `eval/mod.rs` — and that pair is **already known and already pinned**, in
-  both directions, by `editor-core/tests/e4_dual_door.rs`. What nothing
-  watches is the other three: **`editor-core/tests/corpus/mod.rs:196`,
-  `topo/tests/fixture/pr4.rs:36`, `editor-core/tests/m5_pr8_bvh_diff.rs:49`**,
-  each a hand-copy of the same list in test support. They surfaced only
-  because a bound change stopped them compiling — S4's usual tell, arriving
-  as a build break rather than as a drift report. **The asymmetry is the
-  row**: the file that exists to detect exactly this drift covers two of the
-  five sites, so its own coverage claim is a member of the finding it
-  detects. `corpus/mod.rs` is `mod`-included by **22** test files, so the
-  single cheapest copy to miss carries the widest blast radius — 78
-  diagnostics from 5 sites, when the cascade was measured.
+**Two mirrors are forced and therefore unfixable, and both are also
+UNPINNED**, which is the part that is not forced: `pncad-py`'s 40-member
+`.pyi` (`test_stubs.py` parses only top-level names, never class bodies) and
+its six unit-module bindings (`pncad-py/tests/test_stubs.py:95` checks that
+`"mm"` is among the top-level names, so the stub could lose the other five
+silently). A duplication made incapable of drifting is an acceptable outcome;
+one that is merely undetectable is not.
 
 *One confirmation this report did not cite: the hand-synced tag table has
 already produced a live measured bug.* `MODEL-AB-LOG.md:782` — *"**MAJOR-1 =
 `Step::AtToward`'s memo content-key tag 28 COLLIDED with `ArcContinue`'s
 existing 28 — latent memo collision, a hit would serve wrong geometry**"*.
-Caught by a reviewer, not a type. S4's failure mode, realised.
+Caught by a reviewer, not by a type. S4's failure mode, realised.
 
-*Ranked cheapest-to-hardest to act on:* (1) `BooleanOp` → import +
-`serde(with)` — **DONE, #642** (cheaper than listed: the `From` pair was
-already the identity, so nothing had to be preserved; dearer in one place
-the ranking could not see — the read direction needs a run-time write-door
-check, because safe Rust cannot make it exhaustive); (2) `name_args`' wildcard → exhaustive — **DONE, #632**, with the fifth
-site it could not see **DONE, #731**; (3) the `Mate` arms —
-small but a **behaviour** fix — **DONE, #618**, and the drift bullet above
-went on describing it as live until #731; (4) the Euler 7-tuple → named struct
-(debug-only) — **DONE, #625**; (5) units — **DONE, #646** (and smaller than
-listed: the only unforced `src` copy was inside one file; the residue it
-found and filed rather than fixed, #650, is now **DONE** too — sealed
-rather than checked); (6) `ProgramStep`/`WireStep` — cheap in isolation,
-**expensive in sequence** (blocked behind OnArc + RESPELL-TABLE, and it
-crosses the same files); (7) the "no usable value" core (blocked by a
-persisted format); (8) `SegTag` (needs the workspace's first proc-macro
-crate); (9) `profile::Step` re-parameterised — *"I would not do it."*
+**Verdict:** ACCEPTED (Evan, 2026-08-18). *"Oh boy, good findings — these
+look like they'll be a lot of work to fix but definitely worth it."*
+
+*Ranked cheapest-to-hardest, over what is left:* (1) `ProgramStep`/`WireStep`
+— cheap in isolation, **expensive in sequence** (blocked behind OnArc +
+RESPELL-TABLE, and it crosses the same files); (2) the "no usable value" core
+(blocked by a persisted format); (3) `SegTag` (needs the workspace's first
+proc-macro crate); (4) `profile::Step` re-parameterised — *"I would not do
+it."*
 
 ## S5. `splitting/` and `boolean/` are one pipeline built twice, with the shared core hosted inside one half
 
@@ -1611,43 +1302,23 @@ is a **CSV gate** over probe sweeps, not a source lint; it does not parse Rust.
 *What does not survive.* (1) **A lint/tool alternative was never evaluated** —
 the only mention is a one-line "optional escalation" in `M0-LOG.md:74`, dropped
 silently; no `dylint`, `clippy::disallowed*`, `clippy.toml` or proc-macro
-appears anywhere in the history. The record is silence, not rejection. (2)
-**FIXED by #626** — the dual-maintained allowlist was a **proven drift class**
-(a `separation.rs` entry hosted-only, a `test_support.rs` entry stale locally,
-a `chart_region.rs` entry before that, and two gates with no local mirror at
-all). Nothing about these gates is maintained twice any more, at either level.
-The bodies: every mirrored gate lives once under `scripts/gates/`, ci.yml's
-`discipline` job and `local-scripts/ci-local.sh` both call the same script, and
-the ratified justifications have one home. The rosters: sharing the bodies
-would have left each half still naming its own gate list — the same defect one
-level up, and the one that let `EvalScalar` and the interval-square gate run
-hosted-only — so the local half now runs the gate DIRECTORY in a loop, leaving
-it no roster to drift, and `gate-roster.sh` checks the one hand-written roster
-that has to exist (ci.yml's named steps, since the Actions UI reads failures by
-step name) against that same directory, in both directions. What that roster
-gate proves is **wiring, not execution**: it is a grep, so it cannot read YAML
-semantics, and a step disabled by an `if:` condition — or a false job-level
-`if:` on `discipline` itself — keeps its `run:` line and satisfies the check
-while Actions skips it. Closing that would need a workflow evaluator, which was
-judged not worth building; the hole is named in the script header instead, and
-a silenced step is at least visible as skipped in the Actions UI. Each gate
-also carries a `--selftest` (clean fixture must pass, planted violation must
-fire) which **both halves invoke before the real pass**, as the sibling python
-gate does; that settles the "only one of six has a self-test" residue, which a
-self-test nobody ran would not have. A gate that scans an empty or wrong tree
-now fails instead of reporting green.
-(3) The greps' own remaining defects go unfixed, and #626 left every one of
-them alone — it moved the gates without changing a regex, a message's meaning,
-or an allowlist's membership. Its one behaviour change is disclosed:
-`bit-identity-debug-only` used to exit **0** when `crates/topo/src/source.rs`
-was absent (both `grep -c` calls exit 2, the counts are empty, `[ "" -gt 0 ]`
-errors and reads as false), i.e. it reported green precisely when its subject
-had been renamed out from under it; it now fails loudly. Still standing: the
-lint/`dylint`/proc-macro alternative in (1) is unevaluated; the `x*x` lookahead
-fix has sat in a log since 2026-08-04; `Real +` strips no comments while its
-siblings do; and the regex is leaky both ways — it **cannot see**
-`self.x * self.x`, and `linalg/vec.rs:311` contains exactly that shape in
-production generic-over-`Real` code.
+appears anywhere in the history. The record is silence, not rejection.
+(2) The greps' own remaining defects go unfixed, and #626 — which moved every
+gate into `scripts/gates/` and gave each a `--selftest` both CI halves invoke
+— left every one of them alone: it changed no regex, no message's meaning and
+no allowlist's membership. Still standing: the lint/`dylint`/proc-macro
+alternative in (1) is unevaluated; the `x*x` lookahead fix has sat in a log
+since 2026-08-04; `Real +` strips no comments while its siblings do; and the
+regex is leaky both ways — it **cannot see** `self.x * self.x`, and
+`linalg/vec.rs:311` contains exactly that shape in production
+generic-over-`Real` code.
+
+**What the roster gate proves is wiring, not execution.** `gate-roster.sh` is
+a grep, so it cannot read YAML semantics: a step disabled by an `if:`
+condition — or a false job-level `if:` on `discipline` itself — keeps its
+`run:` line and satisfies the check while Actions skips it. Closing that needs
+a workflow evaluator, judged not worth building; the hole is named in the
+script header instead.
 
 *On the `decide_flagged` count of 8 — it is a real census, not a tripwire.* It
 is tracked as **issue #214** with a per-family retirement plan; `ledger_row` is
@@ -1884,112 +1555,36 @@ held open by a stale 2026-07 deferral.
 
 # Tier 2 — significant
 
-**Steelman (2026-08-18): the three bug-shaped claims verified; sorted row by
-row; and one *fourth* false claim this report missed.**
 
-**(a) The `emit_fillet` `Retired` face hole — CONFIRMED, and the repo's own
-tests state both halves of the contradiction.** `build.rs:701` fills `Retired`
-under the comment *"every source entity is retired by construction"*;
-`emit_fillet.rs:239` excuses faces with *"Faces are never retired by either
-door"*. The acceptance suite asserts the surgery-door claim at
-`m6_5_fillet_naming.rs:275` and the whole-body claim at `:382` **for edges and
-vertices only** — the face claim is absent because it would fail. Honest
-severity: defence-in-depth, not a live bug (the guard is documented as
-unreachable in production) — but the hole is in the **majority** of the guard's
-surface, since faces are the bulk of what the whole-body door mints.
+## S16. The one face-box rule is read by two arms and re-derived by a third
 
-**(b) `split_edge` shares `mev`'s Euler vector and is absent from the fuzz
-lane — CONFIRMED**, with a mitigation this report omitted: `split_edge` and
-`movefac` each carry the **same tier-1 debug postcondition** as the eleven, so
-D9's *conclusion* holds; what is stale is the *enumeration* it rests on. The
-count is stale in **four** places, one of them ratified (`DESIGN.md:1103`);
-the real public `&mut self` surface is **≥ sixteen**. The genuine loss is
-randomised site coverage over exactly the cases `split.rs:94` calls delicate.
+- **Where**: `crates/topo/src/census.rs` (`reach_box`),
+  `crates/topo/src/boolean/boxes.rs` (`FaceBoxRule`)
+- **Confidence**: sure
+- **Row:** Track Q's **`D280`**
 
-**(c) `topo::iso` — CONFIRMED stale, OVERSTATED as to consequence.** Vertex
-points **are** compared bitwise, so "entirely different geometry" is too
-strong. And the same bullet gives a **second, non-stale reason**: surface
-anchors are construction-history artifacts, so including them would make
-legitimate `kfmrh ∘ mfkrh` roundtrips compare unequal. A stale sentence in
-front of a still-correct decision; the fix is the sentence.
+`FaceBoxRule` is the one statement of which surface kinds have a cheap sound
+box and by what construction — planar faces hull their boundary EDGE boxes,
+NURBS take the control-net hull, cone/torus/no-surface poison. `face_box` is
+its `f64`-bracket instantiation and `separation` calls that. **`census::reach_box`
+reads its ARM from the rule and re-derives the ARITHMETIC**, because the
+`Bounds` allowlist is closed to a lane that validates `Dual` bodies. So the
+question *"is this box sound"* still has two implementations, and the
+soundness argument for the second lives only in the comment that says why it
+exists.
 
-**A fourth false claim, not in this report:** `pcurves.rs:91` lists
-`merge_coplanar_faces` among the ops that *"neither clear nor re-mint"*. That
-list was written 2026-07-30; on 2026-08-05 `merge_coplanar_faces` **started
-re-minting** (`merge_faces.rs:193`, typed `MergeCoplanarError::Pcurve`). The
-convention worked and the index rotted.
+**Why the third arm is the one that drifts.** The rule was sound when written:
+at M5 PR 8 the boolean operand gate was planar-only, so a planar face's edges
+really were all lines and the vertex hull really was a superset. M5 PR 9
+retired that gate and, **in the same diff**, added the cylinder arm and the
+conic `edge_box` — applying the bulge argument twice in one sitting while
+leaving the planar sentence, whose premise that same diff had just invalidated,
+untouched. A second implementation is a second place for that to happen.
 
-*Row sort:* **three deliberate-and-argued** (fillet provenance —
-`build.rs:41` is an unusually honest written self-assessment;
-`flipped_face_sense_for_tests`, which confers no capability `set_face_sense`
-lacks; the ray schedule, byte-identical today, verified); **two
-deliberate-with-stale-prose** (`iso`, pcurve staleness); **three accretion
-with no tracking** (the `Retired` face hole, the eleven, tie propagation).
+**Verdict:** ACCEPTED (Evan, 2026-08-18) — *"huh, i wonder how these even
+happened. they should certainly be unified."*
 
-**Zero rows have a tracked issue** — the sharpest structural fact here, since
-the repo demonstrably knows how to do all three alternatives: issue #214 for a
-census, `attach.rs:119`'s **KNOWN HAZARD** block for a named-and-pinned gap,
-and `review_s11_adv` for a reachability pin.
-
-## S16. Three face bounding-box constructions with three different soundness rules
-
-- **Where**: `crates/topo/src/boolean/boxes.rs:179`,
-  `crates/topo/src/census.rs:1127`, `crates/topo/src/separation.rs:181`
-- **Confidence**: likely
-- **Found independently by two scans.**
-
-**FIXED by #620.** `FaceBoxRule` in `boolean/boxes.rs` is now the one
-statement of which surface kinds have a cheap sound box and by what
-construction — planar faces hull their boundary EDGE boxes, NURBS take the
-control-net hull, cone/torus/no-surface poison — and `face_box` is its
-`f64`-bracket instantiation. `separation::certified_face_box` is deleted and
-calls `face_box`; `census::reach_box` reads its arm from the same rule and
-only re-derives the ARITHMETIC, because the `Bounds` allowlist is closed to a
-lane that validates `Dual` bodies. The sweep found a fourth instance —
-census's instance-containment arm compared two vertex hulls, so a body nested
-inside a cylinder cleared silently — fixed in the same PR.
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this cluster: "huh, i wonder
-how these even happened. they should certainly be unified." Postmortem pass
-commissioned — the sharpest question is who wrote `boolean/boxes.rs`'s KNOWN
-GAP note about the NURBS half and whether the planar-with-conic-rim half was
-considered at the same time.
-**Postmortem (2026-08-18). The rule was sound when written; the PR that
-invalidated its premise applied the correction to two of three arms — in the
-same diff.**
-
-At M5 PR 8 (#135) the boolean operand gate was **planar-only**, so a planar
-face's edges really were all lines and the vertex hull really was a superset.
-M5 PR 9 (#152, commit `514bab9`) **retired that gate** — *"the F5 planar-only
-refusal retired PER C5 TABLE ARM"* — and in the **same diff** added the
-cylinder arm (*"the vertex hull is NOT a superset — the wall's belly bulges
-past its chords"*) and the conic `edge_box` (*"an arc's belly bulges past its
-chord"*), while leaving the planar sentence untouched. The author applied the
-bulge argument twice in one sitting; the third arm's premise had just been
-invalidated by their own gate change.
-
-**FLAGGED AND PARTLY FIXED — but only the NURBS half was ever named.** The
-KNOWN GAP note was written by the perf-scan agent (PR #573, a *doc-correction*
-pass, not a fix). That agent read `separation.rs`'s doc and quoted it in the PR
-body — but that same doc comment's **Plane bullet, fifteen lines above the text
-they quoted**, already stated the planar answer: *"the vertex hull alone would
-not, for a circular rim."* They generalised the stale-premise argument to NURBS
-and stopped. The planar-with-conic-rim defect in `boolean/boxes.rs` itself:
-**NEVER FLAGGED** (checked #135/#152/#564/#571/#573 bodies, the A/B rows,
-`M9-LOG.md`, PERF-SCAN finding 1, and every "circular rim" occurrence in
-`crates/`).
-
-Sharpest supporting detail: `census.rs`'s `max(r, sagitta)` planar pad exists
-because the naive filter *"falsely refused the corpus's cube-beside-cylinder
-file"* — **a live wrong answer in a sibling lane, fixed locally, never
-propagated.**
-
-*Lesson:* when a PR removes a gate, review must re-check every comment that
-cites that gate as its justification — and when a scan finds a stale premise,
-the fix is to re-derive **all** arms resting on it, not the one that matched
-the search term.
-
-## S18. Certified numeric derivations duplicated across crates (roll-up) — the knot-vector rows PARTLY CLOSED by #744; four rows live, plus two the closing spawned
+## S18. Certified numeric derivations duplicated across crates (roll-up)
 
 - **Confidence**: sure for each row
 - **Partly closed, and precisely how.** #744 gave *"Distinct interior knots"* one home and closed *"Knot insertion"*'s **span** half. It did **not** close the coefficient fork (deliberate, permanent, now documented at both sites), the second span search for non-representable derived vectors (**D30**), or the consumer routine duplicated on top of the query (**D31**). The two quotient-rule rows, the bulge-arc row, the prefer-intrinsic row and `step-export/volume.rs` are untouched and **live** — the last of those is Track C's **C3**, not this row's to close.
@@ -2129,7 +1724,7 @@ be unified."
   *Lesson: a deliberate independence exemption needs an expiry — the suites
   were never combed back, so a temporary licence became four permanent copies.*
 
-## S19. PARTLY FIXED by #740 — the fillet catch-all was three state classes wearing one name, and only 18 of its 103 sites can be proved to be the assertions the finding read them as
+## S19. The fillet catch-all is three state classes wearing one name, and only 18 of its 103 sites can be proved to be one
 
 **The `AssemblyUnsupported` row is closed (D2, #740). Every other row of this
 finding is LIVE.** Row by row: `MissingEntity` has a Track A placement;
@@ -2811,114 +2406,6 @@ not in a signature stops compiling; and `profile`'s double mechanism, the
 open question this row explicitly left behind, collapses into one.
 
 
-## S23. The exhaustiveness sweep degrades silently to seed-generation
-
-- **Where**: `crates/geom-brep/src/ssi/exhaust.rs:140`, `:267`,
-  `crates/geom-brep/src/ssi.rs:711`
-- **Confidence**: likely
-
-**FIXED by #617.** The subdivision's duty is now a parameter the caller
-states rather than a condition read off `tubes.is_empty()`: seeding
-(`seed_r3` / `seed_chart_plane`) takes no tube set and returns no
-receipt, accounting (`account_r3` / `account_chart_plane`) returns only
-the receipt and refuses `ExhaustivenessInconclusive` at the floor
-whatever its tube set holds, empty included. Since only the accounting
-duty can produce a receipt, the identity `examined == excluded +
-accounted + refined` now holds by construction for every receipt that
-escapes the module. The floor row the Postmortem below names by its old
-premise-carrying name is now
-`the_floor_clamped_planted_fixture_refuses_typed`: the body is kept (it
-is the only row exercising the floor with a NON-empty tube set) and the
-premise it never checked is gone from the name. The chart lane's own
-empty-tube row landed as **H7** (#633), tests only: it needed a fixture
-neither existing wall could supply — `hull_slack_wall`, a cubic × linear
-patch whose control net reaches 0.05 m past the cutting plane while the true
-surface comes no closer than 0.002 m. That 25:1 hull-vs-truth gap is what
-drives the sweep into the all-seeds-fail mode, and the floor ordering that
-makes the row work is a fact about lengths rather than about ε.
-
-**H12 — the rest of the doors — landed as #734**, tests only. The
-never-silence claims in this area were enumerated from the refusal sites
-in `exhaust.rs` and the one guard in `ssi.rs` that makes the sweep's
-floor meaningful. **Sites are not the grid**: the budget check and both
-poison arms sit in the ONE shared recursion, which runs under both
-values of `SweepDuty` on separate calls with separate floors, so duty is
-an axis — and it is the axis this finding's bug lived on. Crossed with
-the lane, with duty where duty applies, and with the tube set for the
-floor refusal (the one site that exists under the accounting duty only),
-the grid is **thirteen cells, of which three had rows. Five more do**:
-the floor refusal's fourth {lane}×{tube set} cell, and the cell budget
-and the poison arm in each lane under the **seeding** duty — verified by
-instrumenting both `exhaust` entry points on each new row. The eight
-cells that had a row and the five that still do not are enumerated at
-the block itself in `geom-brep/tests/m5_pr7_ssi.rs`. **The four
-Account-duty cells are §D row C18**, together with the two other
-residues of this enumeration — the macro blind spot on the containment
-measurement below, and the file header's claim that the battery runs it
-at the interval scalar when the interval leg runs only the set
-difference of the two test lists. A sixth row landed that covers no
-cell: it is the executable record of a live defect, below.
-
-The one that matters beyond the count is the **chart lane's containment
-test**. Each lane's accounting predicate reaches the sweep through one
-`SweepCell::contained_in` forwarder, and those two are the like-for-like
-pair: making the chart one return `true` for every cell — the accounting
-pass claiming to have proved cells it never touched — reddened **one** of
-`geom-brep`'s 260 rows, and making the ℝ³ one return `true` reddened
-**three** (measured on the merged head, 92 lib + 168 integration). One
-against three is the asymmetry. Mutating the ℝ³ predicate at its
-*definition* reddens six, but three of those are not accounting coverage:
-one is the predicate's own unit test in `enclose.rs`, and two are
-adversarial loop rows that go red only when the ℝ³ **seed dedup** at
-`ssi.rs:781` — a second, unrelated consumer — breaks at the same time.
-#633 had examined the chart cell and argued it should stay unwritten; the
-argument priced the shared floor arm and not the containment test
-underneath it.
-
-**One door is recorded rather than closed, and one is LIVE.** The
-chart-speed guard's own two arms are unreachable from the public doors as
-they stand. The hole *beside* them is not: `plane_nurbs_ssi` guards on
-`speed.is_nan() || speed <= 0.0`, so a certified chart speed of `+∞`
-passes, both floors translate to exactly `0`, the certified tube padding
-would be zero-width, and the **cell budget answers with the wrong
-diagnosis** — the caller is told its search was too big when the wall has
-no usable chart speed. Reachable from the public door on a NURBS surface
-any caller can build, and measured. That is a source-side logic fix
-inside a certifying door, so under C-R19 it is **issue #762** and no §D
-row; the same issue carries the latent `f64::max`-drops-a-lone-`NaN` in
-the same expression, and the ℝ³ poison arm's message naming surface kinds
-its own door excludes.
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
-**Postmortem (2026-08-18). Ratified before it was written — and the acceptance
-row's premise excluded the failing mode.**
-
-The dual role was **design, not drift**: `CURVED-DESIGN.md:796` argues the cost
-of in-op exhaustiveness away with *"the exclusion subdivision doubles as the
-marcher's seed generator (C3) … one structure, two duties"*, and PR #146 sells
-it as a feature. The implementation expressed "two duties" as one function
-branching on `tubes.is_empty()`, and both call-site pairs pass `&[]` vs
-`&tubes` **positionally** — nothing in the type or signature records which duty
-is being asked for.
-
-*Was the acceptance row written so it could not fail?* Effectively yes, and the
-name says it: `the_floor_clamped_variant_refuses_typed_even_though_branches_were_found`
-— its **premise is that branches were found**, i.e. `tubes` is non-empty, which
-is exactly the mode that cannot exhibit the bug. A later ε-honesty fix then
-*widened* that row to accept a second error variant too.
-
-**NEVER FLAGGED.** Checked PR #146's body (2 MAJOR / 6 MINOR, all named),
-`M5-LOG.md:1359` (the full review return), `MODEL-AB-LOG.md:249`, and the
-GitHub reviews. The closest anyone came is the reviewer's **own adopted probe**
-`the_tiny_pair_floor_variant_refuses_typed`, which panics on *any* `Ok` — the
-one row in the repo that would catch this mode. Its fixture just never enters
-it.
-
-*Lesson:* when a design doc argues a cost away by giving one structure two
-duties, the duty must become a parameter the caller states — otherwise duty B's
-acceptance row gets written on a fixture that guarantees duty B.
-
 ## S26. The certified area enclosure is never metered against anything
 
 - **Where**: `crates/geom-brep/src/props/quad.rs:469`, `:803`, `:1800`
@@ -2969,7 +2456,7 @@ metering rule to state — and both it and the loft site carry outer ceilings;
 #873's PR body carries the derivation and the numbers. **The metering half is
 still open, as issue #870** — this finding's first paragraph remains an
 accurate description of the kernel, and #870 measures what it costs. Three
-further unmetered certified widths, in crates no live track owns, are **S230**.
+further unmetered certified widths are **S230**, now Track W's row.
 
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
@@ -3372,7 +2859,7 @@ ordering was never re-examined against either.
 existing implementation of the same pipeline **in that same PR**, or it
 protects only the code that already knew.
 
-## S29. Mechanical half FIXED by #803 — the sizing vocabulary has one home and one word per quantity; the sizing POLICY is still unstated and is a separate design PR
+## S29. The sizing POLICY is unstated, and is a separate design PR
 
 - **Where**: `crates/mesh/src/sizing.rs` (new), and
   `crates/mesh/src/{chords,curved,nurbs_cert,trimmed,tessellate}.rs`,
@@ -3514,7 +3001,7 @@ policy, not a step toward it. Unifying the vocabulary does not change
 that; it only makes the six locally-argued rules legible as six.
 
 
-## S32. FIXED IN PART by #804 — the API half; the "second surface enum" half was FALSE
+## S32. The curve-side member of the discarded-jet class, which S32 did not name
 
 - **Where**: `crates/geom/src/surfaces.rs` (`Surface::jet`, and the five
   partial accessors plus `normal` as its projections), `crates/step-import/src/chart.rs` (`metric_floor`),
@@ -3672,6 +3159,7 @@ frame.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+
 ## S33. Neither geometry enum can lift itself to another scalar
 
 - **Where**: `crates/geom/src/curves.rs:818`, `:908`,
@@ -3693,6 +3181,7 @@ be kept exhaustive by hand as variants are added, and each silently maps
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+
 ## S35. Remaining Tier-2 items (roll-up)
 
 - **Confidence**: as noted
@@ -3711,7 +3200,6 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | Multiplicity of same-named siblings is resolved three unrelated ways (rank fragment / N2 tie / positional counter minted into the name), chosen per-site with no stated rule; two put integers in names that shift when a sibling appears | `names/role.rs:198`, `emit_topo.rs:390` | likely |
 | A geometric reference that lands in a stable name is picked by arena-walk order via `.or_insert`; the comment defending it describes BTreeMap iteration order, which is not what `or_insert` keys on | `emit_topo.rs:798` | likely |
 | `derive_naming` brute-force-searches for a permutation `validate` already computed and discarded, and writes the recovered index algebra twice (search closures vs `LoopAnchor` methods) without the search calling the methods | `eval/anchor.rs:147` | likely |
-| `resolve_selection` / `resolve_declarations` are a documented hand-synced duplicate — "**If you change either ladder, change both**" — where the justification is longer than the shared code it declines to factor | `eval/wire.rs:707`, `:1029` | sure |
 | The profile resolve→replay→validate ladder exists three times with two error vocabularies, so the same broken profile reports differently at the edit door and at evaluation | `eval/wire.rs:407`, `:1419`, `program.rs:846` | sure |
 | `eval`'s finiteness door computes `value * T::zero()` and asks a tolerance band whether the product is `Sign::Zero`, with two magic constants and an `else` the comment calls unreachable — standing in for an `is_finite`/poison predicate `Real` does not expose, and the sole reason `eval` demands `Decide` over `Real` | `expr.rs:854` | likely |
 | `Real::is_poison` exists to support a NaN sentinel: "no description yet" is a bilinear patch whose control points are all NaN, recognised by testing `p.x.is_poison()` — in a crate that elsewhere works hard to make illegal states unrepresentable | `real.rs:143`, `geom/net.rs:137` | likely |
@@ -3759,7 +3247,6 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | `ch_scale_left`/`ch_scale_right` are the same function kept apart "to preserve the rehearsal's association" — but `RingInterval::mul` is bit-for-bit commutative, so production shape is anchored to a test file for nothing | `spline/compose.rs:519` | likely |
 | `CurvePlan::apply_points` defends against malformed plans its own three private constructors rule out, and pushes the cost onto callers as an invented poison value plus four near-identical lerp closures | `spline/algebra.rs:161` | likely |
 | `lsq::solve_normal` forms `AᵀA` (squaring the condition number) on the fitting path while the sibling `svd.rs` already contains Householder QR; the adversarial review test validates it by implementing QR a *third* time | `linalg/lsq.rs:158`, `svd.rs:183` | unsure |
-| ~~`certify_rung3`'s `arm` and `extent` are the same value at three of four call sites, so the `#[allow(too_many_arguments)] // one parameter per named quantity` covers a parameter varied once~~ **FIXED by #692** — `TubeScale<T>` names the two cases (`uniform(arm)` at the three sites where they are one quantity, `split(arm, extent)` at `finish_r3`); `certify_rung3` goes 8 args to 6 and the `allow` is deleted **on merit**. Found by review as a residue of #692's own diff: the PR removed one redundant parameter and left its twin in the same argument list — the exact class it existed to close, one line below the one it closed | ~~`ssi.rs:925`, `:729`~~ | sure |
 | Two unrelated `compose` modules with two unrelated `ComposeError`s; defended on the grounds that "the two never meet in one scope", which is a claim about today's imports | `geom/curves/compose.rs:106`, `geom-core/spline/compose.rs:57` | sure |
 | `names/flush.rs` puts document-editing sugar and seven kernel contact-type re-exports inside the naming subsystem; `declare` → `declare_all` → `declare_node` is three public doors over one operation, each with a doc block longer than its body | `names/flush.rs:440`, `:113` | sure |
 | `mesh`'s `trimmed` retry loop serves two opposite failure modes (one shrinks the candidate set, one grows it) under one budget with two exit conditions, index-coupled mutable state, and an unreachable trailing `Err` — so the stated termination argument no longer covers the loop | `trimmed.rs:264`, `:349` | likely |
@@ -3768,6 +3255,7 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
+
 ---
 
 # Tier 3 — real but lower stakes
@@ -3834,94 +3322,46 @@ one. Renaming ahead of that review would destroy the only marker of which
 suites still need the work, and would convert a visible backlog into an
 invisible one. The unit of work is **review-and-fixup, then rename** — per
 suite, not a repo-wide rename pass.
-## S37. Milestone naming leaks into shipped artifacts and the public API
 
-- **Where**: `crates/mesh/src/types.rs:164`, `crates/stl/src/ascii.rs:8`,
-  `crates/pncad/src/prelude.rs:56`
+## S37. Milestone naming inside the tree — the rustdoc remainder and the internal-comment residue
+
+- **Where**: `crates/topo/`, `crates/editor-core/`, `crates/geom-brep/`,
+  `crates/geom-core/` — the `publish = false` crates
 - **Confidence**: sure
 
-**FIXED by #639 (H4).** The scope held was *everything that leaves this
-repository*: bytes written into export files, strings that reach a caller at
-runtime, the Python package, and the rustdoc of the façade crate that is the
-library.
+**Everything that leaves this repository is clean**: the bytes written into
+export files, the strings that reach a caller at runtime, the Python package,
+and the rustdoc of the façade crate. `pncad`, `pncad-py` and `stl` are at zero.
+What is left is inside the workspace, in two populations, and neither is in any
+track:
 
-**The shipped bytes as #639 left them.** The ASCII solid name was
-`cad-kernel` and the binary header `binary STL; CAD kernel tessellation
-export` — the milestone token only. **Q9 was untouched**; the placeholder
-was not a name proposal. The
-finding's other half — that the STL header is not caller-settable while the
-STEP writer takes `product_name`, `author`, `organization` and
-`originating_system` as options — was scheduled as **H16** and left as a
-residue for Evan, because closing it is an API design call.
+- **~1115 lines of public rustdoc carrying spec codes, in `publish = false`
+  kernel crates** — `topo` 300, `editor-core` 267, `geom-brep` 192,
+  `geom-core` 107, the rest below 70. Measured by walking each crate's
+  `pub mod` tree from `lib.rs` and counting doc lines on publicly reachable
+  items; ~1189 total, with an independent parse agreeing at 1188 (the estimate
+  that preceded it, ~124, was an order of magnitude low). **It is not a leak in
+  S37's sense while nothing in the workspace publishes; it becomes one the day
+  anything does.** Scheduled as `C2`/`H17`, in the *Last, deliberately* group
+  because it collides with every track.
+- **473 plain-`//` internal comments**, workspace-wide. Non-public and
+  therefore a different question; it is `S38`'s pass (`L2`).
 
-**H16 is FIXED by #732** (rulings C-R1, C-R13–C-R15, C-R19). Both writers now
-take options where `step_string` takes `&StepOptions` — **one options type per
-writer**: `stl::AsciiOptions` carries the `solid <name>` name,
-`stl::BinaryOptions` carries the 80-byte header, and neither can be handed a
-field its format does not read, so the inert-field class the one-struct draft
-had does not exist. Each field is a **validated newtype** — `SolidName` and
-`BinaryHeader`, each refusing at construction with its own error type — so the
-three refusals (a solid name outside the single-line grammar's printable
-ASCII, a header over 80 bytes, and a header that would read as the ASCII-STL
-`solid` keyword, whitespace-skipping and case-folding because sniffers do
-both) are properties of the values rather than of the write, and `StlError` is
-about the mesh and the sink only. **The ASCII default moved**, by ruling:
-`solid <name>` names the solid the file describes, so a producer identity was
-the wrong kind of thing in it — the default is now `part`, and the producer
-stays in the binary header, which is the field the format leaves free. That
-also takes the exported bytes off Q9, which the old default rode on.
+**The S36 boundary holds**: milestone naming **inside test files** is a backlog
+marker kept until the suite is combed, and is `L1`'s, not this finding's —
+including `topo/src/contact.rs`'s *"the #256 ruling"* and
+`topo/src/review_m0_pr7.rs`.
 
-*What was measured, and what nothing re-runs.* A cross-tree probe exported
-thirteen fixtures in both formats from `origin/main`'s writer and from the
-PR's: **all thirteen binary files byte-identical**, and **all thirteen ASCII
-files differing in exactly the two lines that carry the name** — the `solid`
-opener and the `endsolid` closer — and nowhere else. That was a one-off local
-run and **no committed byte-golden of an STL exists to reproduce it**, so
-nothing in the hosted matrix re-derives it; what does have a standing guard is
-the option path, via literal pins in `export.rs` and `review_m2_pr7.rs`. It was
-re-run on the shipped shape rather than carried forward from the first draft —
-a measurement is a measurement of a tree, and this one had two of them.
-No byte-comparison golden moved,
-because there are none: the STL oracles compare exports to each other across
-ε rows and repeat runs, so they are header-blind. That blindness was itself
-the finding — the ASCII `solid` name had **zero test coverage anywhere**
-(`review_m2_pr7.rs:62` only checks `starts_with("solid ")`), so the PR adds
-a row pinning the exact opener and its matching `endsolid`.
-
-**The estimate was an order of magnitude low.** ~124 public-rustdoc spec
-codes were predicted; **~1189** is the measured count, obtained by walking
-each crate's `pub mod` tree from `lib.rs` and counting doc lines on publicly
-reachable items, with the reviewer's independent parse agreeing at 1188. The
-**~1115-line remainder sits entirely in `publish = false` kernel crates**
-— `topo` 300, `editor-core` 267, `geom-brep` 192, `geom-core` 107, the rest
-below 70 — and is **scheduled as §D H17**. The
-caller-settable-header residue it was scheduled beside, H16, is FIXED by
-#732 (above). It is not a leak in S37's sense while nothing
-in the workspace publishes; it becomes one the day anything does. `pncad`,
-`pncad-py` and `stl` are at zero.
-
-**The class was wider than rustdoc.** The sweep ran over every string literal
-outside comments in every crate's `src`, through a tokenizer that follows
-`\`-continued multi-line literals: **63 runtime-visible hits across seven
-crates**, all `Display`/`Debug` text a library user reads. `UnsupportedCurve`'s
-own doc and the value in `trimmed.rs` that carried `M6-3`/`M5 PR 11`/`M7`
-into the runtime string are among them.
-
-**Two process facts this fix established**, both recorded in full in §C and
-not restated here: the sweep's pattern was blind in exactly the shape it was
-hunting, which left S37's own named example `LIB-DOORS F5` shipping in a live
-Python `__doc__` (**§C15**, third instance); and ten broken string assertions
-shipped under a green `cargo test` claim in the first version of the PR body
-(**§C17**).
+**The class was wider than rustdoc, and that half is closed**: a sweep over
+every string literal outside comments in every crate's `src`, through a
+tokenizer following `\`-continued multi-line literals, found **63
+runtime-visible hits across seven crates**, all `Display`/`Debug` text a
+library user reads. The sweep's own pattern was blind in exactly the shape it
+was hunting — it scanned *prefixed* codes and could not see bare clause letters
+— which is **§C15**'s third instance and is recorded there.
 
 **Verdict:** ACCEPTED, AND SEPARABLE — CAN BE FIXED EARLIER (Evan,
 2026-08-18). *"The shipped artifact comments can be fixed earlier."*
-
-The S36 boundary held: milestone naming **inside** test files is a backlog
-marker kept until the suite is combed, and this lane left it alone —
-including `topo/src/contact.rs`'s `"the #256 ruling"` and
-`topo/src/review_m0_pr7.rs`. Non-public internal comments stay **W3b**; the
-plain-`//` residue there measures **473** workspace-wide.
 
 ## S38. Comments that argue rather than describe
 
@@ -3952,254 +3392,63 @@ that door; the disposition is recorded at S15).
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). *"The comments should definitely
 be trimmed down to what's actually necessary."*
-## S39. Stale claims that other code is instructed to rely on
 
+## S39. Stale claims that other code is instructed to rely on — the row that needs a per-row read
+
+- **Where**: `docs/predicate-dimension-audit.md`, 75 anchored rows
 - **Confidence**: sure
 
-**FIXED by #635** (eleven rows: the ten tabulated here plus `pcurves.rs:91`,
-added by the S15 steelman). All eleven were still live — none had been closed
-incidentally by #617–#627 — and each was **classified before its sentence was
-touched**, which is what Evan's verdict below asks for. Ten were benign rot: in
-nearly every case the *authoritative* statement (the variant doc, the method
-rustdoc, `DESIGN.md`) was already correct and current, and only a summary or
-module-level restatement had rotted, so nothing was erased by correcting it.
+**A stale claim is two-valued evidence** (Evan, 2026-08-18: *"the stale claims
+should also be fixed carefully rather than just removed since they may flag
+cases where the code deviated from something that should've been projected as
+invariant"*): either the doc rotted while the code was right, or **the code
+drifted away from something that was meant to hold**. The second case is a
+latent defect wearing a documentation costume, and deleting the sentence erases
+the only surviving record of the intended invariant. **Every row of this class
+is asked which of the two happened before its sentence is touched.**
 
-**One was a lost invariant, and it indicts the instrument.** `props/quad.rs:42`'s
-*"the patch flux engine consumes this machinery at rest"* was written on
-2026-08-05 **by a previous stale-claims sweep** — `git log -S` puts it in
-`e2222617`, whose message names its own "§7 stale-claims sweep tranche" — and it
-**replaced two honest sentences** (the parent said "no at-rest construction mints
-a stored B-spline pcurve yet … its consumers today are tests") with a false one
-naming the wrong engine. It also missed a third: the `weights != 1` refusal
-*inside the same function* still contradicted it, ten lines away, for two weeks.
-Repointed at the real blocker rather than deleted. Method note for the next
-sweep: this checkout is shallow, so `git blame` misattributes by ten days —
-`git log -S` is the instrument.
+**The one row still open.** `docs/predicate-dimension-audit.md`'s per-row LINE
+ANCHORS, in a document whose own header says *"a row and its disposition entry
+must never disagree"*. Verified stale: `validate.rs:1795` points at
+iso-adjacency prose while `tangent_second_order` is decided at `:2005`;
+`pcurve_cache.rs:1664` points at an arc construction while
+`pcurve_chart_radial_moving` is decided at `:3219`. Three more anchors are off
+by >200 lines and unverified. The audit's convention is that a single-line
+anchor names the *comparand construction*, a few lines above its `decide`, so a
+small offset is correct and only a large one is rot — **which is why this needs
+a per-row read, not a script**. #647 fixed the three defects it introduced in
+its own retarget (a dropped `bool_sector_within`, a one-line-short range, a
+range-less new row) and declined the sweep; the scan script it used is in its
+PR body.
 
-Three process facts worth carrying, all from this lane:
+**Three method facts this class turns on**, all earned by lanes that reported
+the class closed and were wrong:
 
-- A line-scoped `rg` cannot see a claim that **wraps across a line break**, which
-  is how two survivors escaped the first pass; #635's sweep now joins consecutive
-  comment lines into one logical string before matching. #632 failed the same way
-  on the same day (its pattern could not see match arms wrapped in
-  `Some(…)`/`Ok(…)`), and #639's could not see **bare** clause letters because it
-  scanned for prefixed codes.
-- Where the truth is "promised and never delivered", a flat present-tense sentence
-  is **worse than the stale claim**: it erases the only marker that something was
-  owed. #635's first pass did that to three schedules; **#638** now carries
-  curved-face containment and is cited from all four sites.
-- The `revolve` `MultipleAxisRuns` row nearly became a design escalation before the
-  ratified answer was found 150 lines below it in the same file
-  (`FullRevolveHoles`' Display: *"sweeps produce genus, never voids; voids are born
-  only from booleans"*). Q1 — grep the file you are in.
+- A line-scoped `rg` cannot see a claim that **wraps across a line break**;
+  join consecutive comment lines into one logical string before matching.
+- Where the truth is *"promised and never delivered"*, a flat present-tense
+  sentence is **worse than the stale claim**: it erases the only marker that
+  something was owed.
+- **A fixed-string grep cannot close a class; it can only prove one phrasing is
+  gone.** Four instruments over one class left three survivors, each excluded
+  by an instrument's *selection rule* rather than by its regex — one required
+  the live-scope marker *before* the milestone token (*"SSI arrives (M3+)"*
+  puts it after), one *discarded* every clause carrying a milestone token. The
+  mechanical guard that can close a class is
+  `geom-brep/tests/intersect_table.rs`'s: every route-table note is asserted
+  not to carry the retired vocabulary, on every row.
 
-Unclassified siblings went to **H15**, **FIXED by #775**; the `enters.rs`
-question was **D5**, answered by #665 (the newtype).
+**Method note for the next sweep:** this checkout is shallow, so `git blame`
+misattributes by ten days — `git log -S` is the instrument.
 
-**What H15 found, because it corrects this entry's own arithmetic.** H15 named
-three sites. #775's disposition table has **twenty-three rows**, four of which
-cover more than one site each — a row count, not a site count, and the
-distinction is stated because the first version of this sentence lost it. Two
-of the rows falsify records written here. (i) *"Unclassified siblings"* omitted the
-**"Still not swept, and why"** list above — three further residues once its
-overlap with H15's own third site is removed, two of them still live. (ii) The
-sibling table's `topo/src/entity.rs` row is marked **Swept**, and the identical
-sentence (*"multi-shell solids arrive at M3"*, false since M3) was live in two
-other files of the same crate. (iii) `splitting/mod.rs`'s *"unimplemented until
-SSI"* was not one site: the literal phrase stood at **eight** places in `src/`
-across `topo` and `geom-brep`, plus two test pins, and **three further members
-of the class used none of those words** — `edge_geometry.rs`'s public variant
-doc, a test header's future tense about a shipped variant, and `bvh`'s
-seam — while the corrected form was already in the file the phrase most often
-appeared in. (iv) The not-yet-checked list's *"M6 interval clearance"*
-contradicted `DESIGN.md`, which schedules it at **M10** in two places. None of
-the three named sites was a lost invariant: `planar.rs`'s outward-normal claim
-is TRUE and survives S10 because it reads the walk and never a chart; the other
-two were benign rot whose substance is now stated against a name
-(`ContactMark::Unmarked`) or against the per-arm retirement rule, rather than
-against a date.
-
-**And the method fact this leaves for the next sweep, which is the entry's own
-subject.** #775 ran four instruments and the class still had three survivors,
-because each instrument's **selection rule** — not its regex — excluded them:
-one required the live-scope marker *before* the milestone token (*"SSI arrives
-(M3+)"* puts it after), and one *discarded* every clause carrying a milestone
-token. A fixed-string re-grep for the retired wording then returned zero and was
-read as the class being closed. **A fixed-string grep cannot close a class; it
-can only prove one phrasing is gone.** The mechanical guard that can is now in
-`geom-brep/tests/intersect_table.rs`: every route-table note is asserted not to
-carry the retired vocabulary, on every row rather than only the rung-3 ones.
-
-**Two rows were added after #635's fix**, both from #647's style review. The first
-needed Evan, because `DESIGN.md` is the ratified contract — he authorised the edit
-and it is closed. **The second is still open**: it needs a per-row read rather than
-a script, for the reason its own entry gives.
-
-| Claim | Reality | Anchor |
-|---|---|---|
-| `DESIGN.md`'s crate table, `topo` row: "the boolean engine and its splitting/census machinery (`topo::boolean`)" | **FIXED — see the PR that closed this row.** Evan authorised the `DESIGN.md` edit (the doc is the ratified contract, which is why #647 recorded rather than edited it). The parenthetical was false and getting falser — `splitting` and `boolean` are both `pub mod` at the crate root, `census` and `sector_shape` are `pub(crate) mod` siblings, so none is a member of `boolean`. The prose was a defensible reading of the ratified architecture and is kept; the path is **replaced by the structural claim** ("sibling modules at the crate root rather than underneath `boolean`") rather than by a corrected path list, because a pinned path is the rot mechanism this row is an instance of. | `DESIGN.md:1362` |
-| `docs/predicate-dimension-audit.md`'s per-row LINE ANCHORS, in a doc whose own header says "a row and its disposition entry must never disagree" | Verified stale: `validate.rs:1795` points at iso-adjacency prose while `tangent_second_order` is decided at `:2005`; `pcurve_cache.rs:1664` points at an arc construction while `pcurve_chart_radial_moving` is decided at `:3219`. Three more anchors are off by >200 lines and unverified. The audit's convention is that a single-line anchor names the *comparand construction*, a few lines above its `decide`, so a small offset is correct and only a large one is rot — which is why this needs a per-row read, not a script rewrite. #647 fixed the three defects it introduced in its own retarget (a dropped `bool_sector_within`, a one-line-short range, a range-less new row) and declined the sweep; the scan script it used is in its PR body | `predicate-dimension-audit.md` (75 anchored rows) |
-
-**Verdict:** ACCEPTED, WITH A SHARPENED READING (Evan, 2026-08-18). *"The
-stale claims should also be fixed carefully rather than just removed since they
-may flag cases where the code deviated from something that should've been
-projected as invariant."*
-
-This reframes the finding. A stale claim is **two-valued evidence**: either the
-doc rotted while the code was right, or **the code drifted away from something
-that was meant to hold**. The second case is a latent defect wearing a
-documentation costume, and deleting the sentence would erase the only surviving
-record of the intended invariant.
-
-Two rows in this finding look like candidates for the second reading rather
-than the first:
-
-- **`enters.rs:14`** ✅ **ANSWERED by #665 (D5, Evan's call).** It derived M3's
-  entire sign chain from *"every face's stored normal is the outward normal"*,
-  a claim `step-export/src/volume.rs:36` says has been false since M5 S10; the
-  code worked only because every caller remembered the `sense_sign` multiply.
-  The reading was **the second one** — an invariant that was meant to hold, not
-  a rotted sentence — and it is now held by `geom_brep::OutwardNormal<T>`,
-  whose only constructor takes the sense sign. The derivation opening states
-  that; the sentence *"the sense correction is the caller's, and no type
-  enforces it"* is gone, being false as of that PR. What #665 could NOT type
-  is recorded in its description; the same contract still lives untyped at two
-  further doors, scheduled as **D6**.
-- **`pcurves.rs:91`** (found by the S15 steelman, not the original scan) listed
-  `merge_coplanar_faces` among ops that neither clear nor re-mint the pcurve
-  cache. It **started re-minting on 2026-08-05**. Here the code moved in the
-  *safe* direction and the index rotted behind it — the benign reading. **This
-  PR's own sibling sweep had already corrected it**: `merge_coplanar_faces`
-  sits under "Maintains the map" on today's main, which D5 verified rather
-  than assumed before deciding it owed no hand-off.
-
-Each row needs the same question asked before its sentence is touched: **which
-of the two happened?**
 ## S40. Residue and editing artifacts
 
 - **Confidence**: sure
 
-- **FIXED by #627.** `run_properties` returns a tally — selections,
-  executions, skips, and the selections that could legally skip — and the
-  check that carries the weight is PER STEP, not a total: both documented
-  irreversible-by-one-op subcases live in `roundtrip`'s `Kev`/`Kef` arms,
-  so a selection on any other choice must execute, and that is asserted
-  as each step happens. The run-level lines are labelled for what each
-  one is — `executed > 0` is the only one that can fail on its own, and
-  it is a collapse floor the design does not imply; the other two are
-  bookkeeping identities, one from how the tally accumulates and one
-  already guaranteed by the per-step assertion. No threshold is asserted
-  because there is no number to assert: proptest seeds from entropy, and
-  four consecutive runs gave 339/335/4/47, 331/325/6/43, 333/328/5/51 and
-  351/345/6/47 for selected/executed/skipped/skippable. The proptest test
-  became a plain `#[test]` around `proptest!`'s closure form so the
-  totals have somewhere to be recorded; the deterministic issue-#60 case
-  asserts its own execution. RED evidence: forcing `roundtrip` to skip
-  everything, and separately forcing it to skip one non-`Kev`/`Kef`
-  choice (`MevLone`) — the second is the degradation a bare `> 0` floor
-  would have passed.
-- **FIXED by #627.** `powi_edges`' `|| true` row now asserts what the
-  case is for: `x.powi(i32::MIN)` is not poison and is a finite
-  underflowed bracket of zero. The overflowed positive power is the
-  honest `[MAX, +inf]` (not poison), so its reciprocal has a positive
-  subnormal upper bound rather than collapsing — which the old row could
-  not have told apart from poison.
-- **FIXED by #627.** `every_error_displays` gets a local `variant_index`
-  that matches `EulerOpError` with no wildcard, so a new variant fails to
-  compile until an arm exists, and a coverage array then names the
-  variant whose Display sample is missing. All 27 variants are sampled.
-  One residual is stated in the test rather than papered over: the
-  variant COUNT is still hand-written, so a new variant given an arm but
-  no sample passes — closing that needs the count from the compiler
-  (`strum`'s `EnumCount` or the workspace's first proc-macro crate), and
-  neither is bought by a hygiene lane.
-- **FIXED by #627** (swept in the fix pass, same defect one file away):
-  `validate.rs`'s `errors_display_without_panicking` carried the same
-  claim — a hand-written `vec![…]` under a comment saying the exhaustive
-  Display match "already forces" the list — over 31 of `ValidationError`'s
-  59 variants. Same treatment, same stated residual; all 59 are sampled.
-- **FIXED by #627.** The seam-vertex parentage match now scrutinises
-  the contact-record partners alongside the edge slices
-  (`(a_edges, b_edges, partner_a_inner.as_ref(), partner_b_inner.as_ref())`),
-  so the two arms that were `is_some()`-guarded and then
-  `unwrap_or_else`-defaulted bind their partner by pattern instead. The
-  fallbacks are gone with the guards, and every arm draws its A side
-  from an A-descended name and its B side from a B-descended one — so
-  `Seam{x, x}` has no arm left to come from. `_seam_set` is off the
-  signature and the call (the caller still builds `seam_set` for the
-  edge and fragment passes, which use it); the second `a_faces`/`b_faces`
-  sort+dedup is deleted, the first one already covered them.
-- **FIXED by #627.** Confirmed and removed. `select.rs`'s live
-  crossings go Python → kernel (`to_kernel`), so its tripwire's
-  kernel → Python match is the only exhaustiveness check over the kernel
-  enums there; `flush.rs`'s live `plane_relation`/`flush_rung` already
-  cross kernel → Python with no wildcard, so the copy checked nothing the
-  callable helpers did not. The helpers' own doc lines now state that
-  invariant.
-- **FIXED by #801.** `profile::k_stats` is deleted. Its seven in-crate
-  users (`seg`, `path`, `sugar`, `validate`, `path/verbs`,
-  `path/arc_fillet`, `path/family`) and its four `probe` test consumers
-  now name `geom_core::k_stats` directly, which is what the shim's own
-  docs told them to do. **The population was seven, not "all eight of
-  the crate's own decision-making modules"** — the eighth mention,
-  `profile/src/lift.rs:636`, is a doc line saying there is *no* funnel
-  call site there, so the count was raised by a sentence stating its own
-  negation. **Everything the workspace EXCLUDES was swept and then
-  BUILT.** `demos/`, `tools/` and `interval-transcendentals/` are
-  `exclude`d, so a green root `cargo check` is no evidence about them —
-  and *three excluded directories* hold **six crates**, which is not the
-  same number: `demos/tour` (with `--features probe`), `demos/wild`,
-  `tools/k-lint`, `tools/tess-lint`, `tools/tess-meter` (which does
-  depend on `profile`) and `interval-transcendentals`. All six build.
-  (#801's first record named three of the six — the stated population
-  smaller than the real one, which is the defect this whole unit is
-  about, committed inside its own evidence.) **Which of them reached
-  what, exactly**: `tools/k-lint` names `geom_core::k_stats` directly
-  (`tests/litmus.rs:33`); `demos/tour` reaches it as
-  `pncad::geom_core::k_stats` (`src/probe.rs:29`, `src/booleans.rs:68`)
-  — **through a re-export**, the same shape as the consumer this PR's
-  sweep missed; the other four contain no `k_stats` token at all. None
-  named the retired shim, which is what mattered. **The sweep pattern
-  still missed one consumer, and that is the transferable part**:
-  `profile::k_stats` matched nothing outside `crates/profile`, but
-  `crates/pncad/src/profile.rs:53` re-exported the module as `pub use
-  ::profile::{k_stats, lift, path};` — a **brace-list re-export names a
-  symbol without ever writing its path**, so no path-shaped pattern can
-  see it. `cargo check --workspace` caught it (E0432), the sweep did
-  not. The re-export is removed and `pncad::profile::k_stats` had no
-  consumers, verified afterwards by scanning every `k_stats` token in
-  the tree rather than a path. This section's **four** other STILL-OPEN
-  bullets are untouched, which is why the heading does not become FIXED:
-  `WitnessSlot`, `same_level`/`unreachable_zero`, `Rim`'s twice-stored
-  traversal direction, and the D9 `HashSet` determinism paragraph.
-  (**Counted as two in the first draft of this record** — the same
-  defect this bullet corrects three paragraphs above, committed one
-  bullet away from the correction. Conclusion survives, population did
-  not.)
-- **FIXED by #627.** The refusal message's line continuations are
-  restored; the runtime text is one clean sentence again (the acceptance
-  probe matches on `NON-PARALLEL`, which is unchanged).
-- **FIXED by #627.** All three stranded doc comments are reattached to
-  the item they describe: `loose_partners`' doc (head and orphaned tail
-  rejoined) off `germ_section_frame` and `type LooseMap`,
-  `feed_stable_name`'s off `naming_key`, and `run_iso_checks`' off
-  `run_iso_arc_checks`.
-- **FIXED by #627.** `KeyView` — a one-word enum whose by-value use is
-  exactly what forced the recompute — derives `Copy`, so `finish_fallback`
-  binds the pair once and no call site changes. The same shadow-and-
-  recompute shape was swept out of `pcurve_cache.rs`'s
-  `run_harmonic_checks`, which computed `let reach = t0.abs().max(t1.abs())`
-  twice in one body.
 - `WitnessSlot {}` is an empty struct occupying a field on every
   `NodeValue`, paired with a `NodeErrorKind::WitnessBifurcation`
   documented as never constructed (`eval/mod.rs:230`). **STILL OPEN** —
   deleting either changes the eval value type.
-- **FIXED by #627.** `save`'s `drop(replay)` is gone. In `member_of`
-  the early `matches!(g, Subgroup::Empty)` return is folded INTO the
-  match as its own arm — the arm cannot simply be dropped from
-  `Subgroup::Se3 | Subgroup::Empty` without making the match
-  non-exhaustive, and moving the structural answer into it keeps one
-  place per variant.
 - The rim-level rule's structurally-impossible arm manufactures its
   error by feeding `f64::NAN` into `classify` and letting the funnel
   escalate — a decision predicate used as a `throw`; `unreachable_zero`
@@ -4221,10 +3470,6 @@ of the two happened?**
   a design call. #877 did not touch it: the margin is now levered at
   `RimArms::azimuth` rather than a bare `arm`, which is the same
   comparison at a named lever.
-- **FIXED by #627.** Removed, with its `eprintln!` block. Nothing in
-  CI, `scripts/`, `local-scripts/` or any manifest enabled it; the only
-  other mention was a history note in `review_s1_probes.rs`, reworded so
-  it no longer names a feature that is gone.
 - `crate docs` devote a paragraph to defending the single `HashSet` that
   violates D9's determinism rule, concluding "a `SecondaryMap` would be
   both cheaper and consistent with the rule" — for a set used at three
@@ -4235,125 +3480,23 @@ of the two happened?**
 fixed."* Scoped by Evan on 2026-08-19 to the two behavioural rows plus the
 unambiguously mechanical residue; the rows marked STILL OPEN above are design
 calls or belong to later waves and were deliberately left.
-## S41. The `Enclosure` seam launders `Interval` decorations
 
-- **Where**: `crates/geom-core/src/real.rs` (`CertifiedEnclosure`),
-  `crates/geom-core/src/spline/hull.rs:98`,
-  `crates/geom-brep/src/ssi/enclose.rs` (`ring`, `pad_interval`)
+## S41. The clamping idiom that turns a poisoned enclosure into its own clamping window
+
+- **Where**: `crates/geom-core/src/ring_interval.rs` (`clamped_to`),
+  `crates/geom-brep/src/props/quad.rs` (`sqrt_enclosure`),
+  `crates/bvh/src/tree.rs:209-210`
 - **Importance**: high
 - **Raised by**: the S1 steelman pass, 2026-08-18. Not part of the
   original scan.
 
-**FIXED by #643 and #671.** The lead was filed *unsure*; it is confirmed by
-execution. `sqrt([−1, 4])` clamps to `[0, 2]` with decoration `Trv` —
-nonempty, finite, tight — and before the fix it crossed into the C9 ring
-as a healthy, certifiable bound at **three** entry points, not the two
-the finding named: `hull::domain_hull` returned `[0, 2]`,
-`implicit_enclosure` returned `[−0.21, 3.005]`, and **`Box3::around`**,
-which the finding did not list, returned `[−1, 3]`. All three reach
-`RingInterval::from_bounds` through a `T: Bounds` bracket read.
+**What it raised, and is still open.** The certified-door half of the
+laundering shape now has exactly one body (`RingInterval::from_certified`); the
+CLAMPING half below does not, and nothing mechanical would notice a fourth
+spelling of either — the gate that might, `scripts/gates/bounds-allowlist.sh`,
+does not reach a certified door at all.
 
-**What the finding could not have anticipated is that whether this is a
-defect at all depends on D1.** The first attempt made `impl Bounds for
-Interval` refuse below `Decoration::Def`. That is sound only under the
-"may enter certified code" reading, and the repo already encodes the
-other one: `geom/tests/curves/review_m5_pr3_attack_interval.rs` and
-`nurbs_interval.rs` carry three containment rows that assert a component
-enclosure contains the pointwise `f64` value, and one of those enclosures
-is `DInterval { lo: -inf, hi: inf, dec: Trv }`. It *does* contain it —
-interval arithmetic brackets the values the expression was defined on
-even when the decoration is `Trv`. Making `Bounds` refuse turned
-`cargo test -p geom-curves --features interval` (the crate is `geom`
-since #705; the command is left as it was RUN) from `116 passed` into
-`113 passed, 3 failed`. A `Trv` bracket is simultaneously **a sound
-bracket** and **inadmissible in certified code**; those are two
-questions, and one accessor cannot answer both.
-
-So the repair is the split, not a refusal bolted onto `Bounds`:
-
-- `Bounds`/`Enclosure` keep meaning *"carries a bracket"* — endpoints as
-  stored, decoration never consulted. Unchanged from before the PR.
-- `CertifiedEnclosure` means *"may enter certified code"*, one method,
-  `certified_bracket(self) -> Option<(f64, f64)>`, refusing below
-  `Decoration::Def` — the same threshold `sign_within` uses, now spelled
-  once as `Interval::is_certified` and called by both doors. `f64` and
-  `RingInterval` always certify (neither has a domain-violation channel).
-  `k_stats::Probe` certifies too, for the `f64` reason — it is an `f64`
-  with a recorder, and refusing there would make a `--features probe`
-  build diverge from the `f64` build. **That last claim is superseded by
-  S86**: all three of them do have a poison state readable off the value,
-  and all three now refuse on it. It carries **no supertrait**: a body
-  needing both doors writes `T: Bounds + CertifiedEnclosure`, which is an
-  honest inventory, and a subtrait would put a third `lo`/`hi` in scope
-  wherever a compound bound is written.
-- The three crossings require `CertifiedEnclosure`, so a `Trv` enclosure
-  cannot reach `RingInterval::from_bounds` through them at all.
-
-The three `geom` containment rows pass **untouched** — that was the
-success criterion, and it is what distinguishes the split from the
-refusal.
-
-**`Dual` is deliberately not implemented** in the certified lane, as it is
-not in `Bounds`. The whole workspace compiles under `--all-targets
---features interval` without it, which re-confirms S44's pricing finding
-from the other direction: nothing in `src` puts a dual through certified
-code. That keeps D1's `Dual` half open and separable rather than answered
-in passing by a Wave-1 lane.
-
-**What it raised.**
-
-1. **The class was wider than three. All eight crossings are now
-   converted, and this raised item is CLOSED** (items 2 and 3 below stand
-   on their own). #643 fixed three crossings and deferred five
-   as *unknown, not benign* — found by grep, with no `Trv` pushed through
-   any. **#671 pushed one through all five.** Every one of them
-   laundered, measured at the crossing itself:
-
-   | site | what crosses | `Trv` fixture in → out |
-   |---|---|---|
-   | `geom-brep/src/ssi/certify.rs:648-650` | the plane normal's three components | `[1, 3]`ᵀʳᵛ → transversality margin **0.999999999999997** |
-   | `geom-curves/src/nurbs.rs:1169` | `NurbsCurve3` control-hull coefficients | `[0, 2]`ᵀʳᵛ → `RingInterval { lo: 0.0, hi: 2.0 }` |
-   | `geom-curves/src/nurbs.rs:1186` | `NurbsCurve2` control-hull coefficients | `[0, 2]`ᵀʳᵛ → `RingInterval { lo: 0.0, hi: 2.0 }` |
-   | `geom-surfaces/src/nurbs.rs:912` | `NurbsSurface` control-net coefficients | `[0, 2]`ᵀʳᵛ → `RingInterval { lo: 0.0, hi: 2.0 }` |
-   | `topo/src/props.rs:468` (`br`) | the harmonic channels' scalars | `[1, 3]`ᵀʳᵛ → `RingInterval { lo: 1.0, hi: 3.0 }` |
-
-   The `certify.rs` row is the one worth reading twice: the fixture is
-   `sqrt([−1, 4]) + 1 = [1, 3]` at `Trv` — finite AND zero-free — so the
-   laundered answer is not a suspicious number but a **positive margin**,
-   i.e. a uniqueness certificate for a plane equation that was clamped
-   out of its own domain. Each row was written red against the shipped
-   code before the repair.
-
-   **The deferral's stated reason was wrong.** They were sized as needing
-   "each caller's `T` widened, rippling through three more crates". The
-   ripple is **zero**: `cargo build --workspace --all-targets --features
-   interval` compiles unchanged after all five take
-   `RingInterval::from_certified` (new in `geom-core`, the shared
-   spelling of the four-line helper #643 wrote three times). Nothing
-   outside the five files needed a bound. The reason is that each
-   crossing's lane is already statically split at a concrete scalar —
-   `PropsQuadLane`'s explicit impls in `topo`, and `CertifiedEnclosure`
-   already on `probe_tube_chart`'s own bound in `certify.rs`.
-
-   **Reachability from `src` today: no exercised path delivers one.**
-   Measured, not read: all five crossings were temporarily instrumented
-   to panic on a non-certifying operand and the whole interval battery
-   run (10 crates, ~2,900 rows). Nothing fired. Two guards are pinned as
-   rows rather than left as readings — `newell_plane`, the kernel's one
-   derived-plane mint at a generic scalar, refuses a `Trv` vertex with
-   `Escalated` because the decoration poisons its residual decision
-   (`geom-brep/tests/decoration_plane_mint.rs`); and the quadrature
-   lane's own arithmetic cannot manufacture a violation, since a norm is
-   the square root of a sum of squares and certifies even where it is
-   zero, so a `Trv` at `br` must have been *stored* in the body
-   (`topo/src/props.rs`, `bracket_seam_tests`).
-
-   That is a guard, not a type, and it does not extend to the public
-   API: `NurbsCurve3::<Interval>::new` admits a domain-violated control
-   coordinate without complaint — pinned — so `ring_coords` was reachable
-   with a `Trv` by any caller of a `pub` method on a `pub` type. The
-   crossings now refuse instead.
-2. **A pre-existing hazard, independent of this fix**: `f64::max` and
+1. **A pre-existing hazard, independent of this fix**: `f64::max` and
    `f64::min` return the **non**-NaN operand, so the idiom
    `from_bounds(x.lo().max(-1.0), x.hi().min(1.0))` turns a poisoned
    enclosure into the clamping window — a sound-looking `[−1, 1]` with no
@@ -4363,7 +3506,7 @@ in passing by a Wave-1 lane.
    `RingInterval::clamped_to` (poison-first) and moved five sites onto it;
    four more in `props/quad.rs` are provably poison-free and now say so
    per site.
-3. **Three disciplines for that one hazard, none of them linted**:
+2. **Three disciplines for that one hazard, none of them linted**:
    `clamped_to`, a hand-rolled `if x.is_poison() { return x }`
    (`props/quad.rs`'s `sqrt_enclosure`), and audited raw `max` with a
    comment (`bvh/tree.rs:209-210`). Nothing prevents a fourth. Still
@@ -4379,43 +3522,6 @@ in passing by a Wave-1 lane.
    mechanical would notice a fourth certified door either: the gate that
    might have is `scripts/gates/bounds-allowlist.sh`, whose matcher does not
    reach a certified door at all.
-
-## S42. Loft's `sense = true` derivation is untested against the shape that broke extrude
-
-- **Where**: `crates/sweep/src/loft.rs:30`,
-  `docs/archive/M5-LOG.md:1975`, `docs/archive/M5-S11-SPEC.md:23`
-- **Importance**: medium
-- **Confidence**: unsure — a lead, not a defect
-- **Raised by**: the S6 steelman pass, 2026-08-18.
-
-**VERIFIED by #619 — no defect found.** Loft's derivation holds on both
-shapes. A concave-arc section pair and a holed one now form the third
-verb's chapter of the S11 constructor audit
-(`crates/sweep/tests/m5_s11_concave_sense.rs`), reusing that file's own
-fixtures: each row evaluates the shipped wall's `S_u × S_v`, folds in
-the stored `sense`, and requires the *same solid built by extrude* to
-read material on the inward side and void on the outward one — a probe
-a flipped bit inverts, executed as its own row. The prescribed union
-check could not be run and was substituted for a direct test of the
-property it is a symptom of: a lofted operand is refused typed at
-boolean admission, so the swallow is closed **by refusal, not by the
-bit**. The rows also pin the residual that makes them load-bearing:
-**no tier, prop or boolean in the kernel reads a lofted wall's sense**
-— check 6's curved arm skips `Surface::Nurbs` — so an inside-out lofted
-wall is tier-3 green. The class sweep turned up no second orientation
-instance; fillet's bare `sense: true` on corner patches is guarded by
-three typed concave-chain refusals, i.e. an unstated precondition
-rather than an S11 defect.
-
-**Verdict:** CLOSED — NO DEFECT (2026-08-19). Verified by #619 on the two
-shapes S42 named, and the coverage residual its own reviewer raised (**S51**:
-every #619 row lofts two sections at `v_degree = 1`, so no chart can twist) is
-itself closed by #636. What this finding leaves behind is not a defect but a
-residual worth outliving it: **no tier, prop or boolean in the kernel reads a
-lofted wall's sense** — check 6's curved arm skips `Surface::Nurbs` — so an
-inside-out lofted wall is tier-3 green, and the rows in
-`m5_s11_concave_sense.rs` are what stands between that and a silent wrong
-answer.
 
 ## S43. The kernel has five different answers to "this state can only be a bug"
 
@@ -4964,217 +4070,60 @@ without renumbering anything above.
 
 # Findings raised by the Wave-1 fix lanes (2026-08-18)
 
-Seven findings that the Wave-1 fix work turned up and that are **not**
-restatements of anything above. They are recorded here rather than in the
-tiers because their provenance matters: each was found by an implementer or
-reviewer working inside a specific fix, which is a different evidence base
-from the twenty structural scans.
+What the Wave-1 fix work turned up that is **not** a restatement of anything
+above — five of the seven raised are still open. They are recorded here rather
+than in the tiers because their provenance matters: each was found by an
+implementer or reviewer working inside a specific fix, which is a different
+evidence base from the twenty structural scans.
 
 `S45`–`S48` stay reserved for their stated purpose (promotions out of the
 S35/S40 roll-ups), so these take fresh IDs.
 
-**All carry blank verdicts. Per this document's own rule, none should
-be acted on until it has one.** (S49–S51 were raised 2026-08-18; **S55** was
-raised 2026-08-19 by the W1c lane, about that lane's own consequence, and
-**S56** the same day by the S41 crossing lane, about the gate that could
-not see its own diff.)
+**They were raised with blank verdicts and most now carry one** — `S49`, `S52`,
+`S55` and `S58` were ruled; `S57` is still blank, and under this document's own
+rule it should not be acted on until it has one. (S49–S51 were raised
+2026-08-18; **S55** was raised 2026-08-19 by the W1c lane, about that lane's own
+consequence, and **S56** the same day by the S41 crossing lane, about the gate
+that could not see its own diff.)
 
-## S49. The census's planar × planar skip is justified by a claim about solids
+## S49. A `continue` with a prose justification is indistinguishable, to grep and to CI, from one without
 
-- **Where**: `crates/topo/src/census.rs` (arm 1's skip and the justification it rests on)
-- **Raised by**: the W1a fix lane (#620) and its reviewer, 2026-08-18
-- **Scheduled as §D W2g.**
+- **Where**: `crates/topo/src/census.rs`, `crates/topo/src/splitting/rules.rs`,
+  and the 26 sites the pattern below returns
+- **Raised by**: the W1a fix lane (#620) and its reviewer, 2026-08-18. **No
+  §D row** — the wave ID this was scheduled under is retired and nothing
+  replaced it.
 
-**FIXED by #637.** Arm 1 skipped a pair when `a.planar && b.planar` — a predicate
-on the two **faces** — while the reasoning it cited was about planar-only
-**solids**; a cylinder's caps are planar faces on a non-planar solid, so the skip
-fired on pairs the justification did not cover.
+**The defect has now been found four times, each time by someone reading the
+code**: the census's arm-1 planar × planar skip, the two residues #637
+recorded, and #737's third instance in arm 1. The bar those closures set is a
+paragraph — *a deferral names an arm that asks the SAME question about the
+SAME pair* — and a paragraph is not an instrument. Nothing in `scripts/` or in
+CI can tell a justified `continue` from an unjustified one.
 
-**The jurisdiction call — arm 1 owns it**, and the other two lanes cannot take it
-structurally rather than by preference: `sweep_conformal_patches` iterates
-`curved_faces` only, and `snapshot` puts a face there iff its surface is not
-`Plane`, so a planar face is *absent from the collection*; the confirm pass is
-driven off declared records, and this class is the undeclared one.
+**The class is measurably larger than its instances.** A sweep for
+`LoopBoundary::Cycle { first } = … else { continue }` returned **29 sites in
+18 files** when the style lane ran it; re-run at `eef045ac` with
+`LoopBoundary::(Cycle|Empty).*else \{ … continue \}` over `crates/` it
+returns **26 sites in 17 files**, of which three inside
+`census.rs`/`rules.rs` have been audited and **none of the rest has**.
 
-**The real premise was about neither solids nor planarity.** `snapshot` keeps line
-edges and drops curved ones, so only a **wholly line-bounded** planar face has its
-whole boundary in front of the exact sweeps. The skip now tests that, a shared
-`edge_is_line` binds it to `snapshot` with the unsound drift direction stated (a
-widened `snapshot` alone would leave the skip firing on faces no longer covered),
-and the settlement row asserts the planar pair **by key** in the contact plane.
-Narrowing it exposed a second instance one line down: the same-`SurfaceKey`
-deferral named "the conformal arm's pair" while that arm walks curved faces only —
-now guarded, and provably behaviour-neutral because `same_key ⇒ a.planar ==
-b.planar`.
+**What that pattern cannot match**, and what is therefore in neither number:
+the same handling written as a `match` arm rather than a let-else — **15
+further sites**, two of them (`topo/src/seqgen.rs:1080`,
+`editor-core/src/names/emit.rs:422`) `LoopBoundary::Empty { .. } => {}`, which
+is the residue's exact reading in match form, uninspected; `continue`s that
+drop a loop for a different reason (an arena miss); and the same class over any
+other enum.
 
-**Not a live wrong answer — of the skip S49 itself names.** (One of its residues
-was, and the two verdicts are about different skips: see the H14 subsection
-below, which is the arm-2 `bridged` skip, not this arm-1 one.) The
-*pair* was genuinely unowned; the *body* refused anyway via a neighbouring pair,
-because contact at a planar face is contact in its plane and every adjacent curved
-face reaches that plane by construction — an arc lies in two distinct planes only
-if it is a line, so a non-line-bounded planar face always has a curved neighbour
-whose sound box covers both the rim and the plan extent. Measured cap-to-cap: 15
-`CensusUndecidable` on wall pairs, **0** naming the cap pair. So A5's letter had a
-pair-granular hole whose loudness was supplied by another arm's box fatness —
-which is precisely why it was worth closing before #620's contemplated tightening
-removes that accident.
-
-The `gate_planar` → `gate_operand_kinds` rename went with it. Its first pass
-missed four sites **outside the workspace** — `demos/` is `exclude`d, so
-`cargo check` never compiled the files, one of which printed *"gate_planar refuses
-curved operands"* **to the user**. Lesson recorded: a rename spanning excluded
-members wants its own PR and its own `--manifest-path` check.
-
-### H14 — FIXED by #737. The two residues, and the one that was a live wrong answer
-
-**This verdict does not contradict the *"Not a live wrong answer"* paragraph
-above.** That one is about the arm-1 planar × planar skip S49 was raised on;
-this one is about arm 2's `bridged` skip, a residue #637 recorded and did not
-fix. S49's escape — the *pair* was unowned but the *body* refused anyway via a
-neighbouring pair — does not transfer, because arm 2 reports at solid
-granularity and no other arm reports on a solid pair at all.
-
-#637 left two residues, both recorded in its own body under *"Found, NOT fixed"*.
-Its scope cell in the Track C roster cited `splitting/rules.rs:268` for both,
-which is **C-R11**'s worked example: on the merge base that line is
-`let face_data = body.get_face(face)…` inside `face_extent`, six lines above the
-`continue; // an empty loop contributes no extent` that IS residue 2 — so the
-citation resolved to the right function for one residue and to nothing for the
-other. Checked rather than complied with, per C-R11.
-
-**Residue 1 — arm 2's `bridged` skip — was S49's defect with a live wrong answer
-attached.** The skip suppressed the containment test for any solid pair linked
-by a contact record, on the ground that such a pair is *"under the confirm
-pass's examination"*. The confirm pass asks of each record whether that record's
-own coincidence is real; no variant of `ContactRecords` states a placement
-relation, so it never asks where one instance sits relative to another.
-Measured on a 1 m cube sitting wholly inside a 4 m cube, flush at `z = 0`, with
-its four bottom corners declared v-on-f and every record confirming:
-`validate_pseudomanifold` answered **`Ok(())` declared** and
-**`CensusUndecidable` on the solid pair undeclared**. Declaring a true contact
-was what switched the examination off. The skip is deleted — a solid pair
-carrying records is examined exactly like one carrying none — and the arm's
-docs state the vocabulary that *would* license a deferral (C6's recorded
-gate-skips, a statement about placement) and that keying one on contact again is
-the unsound direction. The only row the skip ever had bridged its nested pair
-with a **bogus** record and measured the confirm pass's staleness refusal, so it
-stays green under the reverted fix; the new row forbids `StaleContactDeclaration`
-and `ContactContradicted` outright.
-
-**Residue 2 — `splitting/rules.rs`'s `face_extent`** walked past a
-`LoopBoundary::Empty` loop with *"an empty loop contributes no extent"*. The arm
-must OVER-estimate the displacement it divides out of, so an isolated **ring**
-vertex now contributes its distance and an empty **outer** loop — an unbounded
-face, which has no finite arm — refuses. The zero answer was loud at one caller
-by accident (`apply_rule_a` gates on the extent being definitely positive) and
-silent at `chord_join`'s two.
-
-**The sweep found a third instance of residue 1's shape in the arm above it**,
-and this one was S49's own sentence with the sides swapped: arm 1's v-on-f
-deferral tested `planar_face_bridged(a.face, b.solid)` — a record naming the
-planar face and any vertex of the other **solid** — while the finding it
-suppresses is about the **face pair**. One declared interface silenced that
-planar face against every other face of the same solid. It now requires the
-record's vertex to be a boundary vertex of the other face of the pair.
-
-The reviewer's third bullet — arm 1's placeholder-NURBS exclusion — is **not**
-protection by accident, and it is stronger than "only caller": `census_and_certify`
-is `pub(crate)` in a `pub(crate)` module, so nothing outside `topo` can reach it
-by any re-export or alias, and its one production caller
-`validate_pseudomanifold` runs it solely when `tier3_local_checks` came back
-empty, whose check 1 refuses every placeholder face. So a placeholder there is
-**a state no production path can mint** — which is not "an unreachable state":
-the in-src scaffold rows are in it, deliberately, by calling the census directly.
-Both facts are now at the skip, with the drift direction named.
-
-**Both reviews then found that the arm 2 half of that had been left undone, and
-it mattered.** `boxes::face_box_rule` routes a NURBS placeholder to
-`ControlNet`, whose net is poison points; census's fold is `min`/`max`, which
-propagate NaN, so `reach_box` answered `Some((NaN, NaN))` — a value that is
-neither a claim nor a refusal. Every containment margin taken against it decides
-neither sign, so arm 2 fell out at its **in-band** refusal having compared no
-geometry at all, and the typed *"unclaimable extent"* refusal was dead code for
-the case it was written for. Measured: moving one scaffold sheet a kilometre away
-produced the byte-identical refusal. The PR had reported those refusals as the
-arm measuring two overlapping sheets, which was false as to mechanism.
-
-`reach_box` now answers `None` for a placeholder net, which is what its own
-contract says an unboxable kind answers; the whole solid becomes unclaimable and
-the typed refusal fires. **It is `None`, not an exclusion**: dropping the face
-from a solid's reach would shrink a box required to be a superset and could clear
-a body nested inside it — the unsound direction. That asymmetry between the two
-arms (arm 1 excludes the FACE, arm 2 refuses the SOLID) is written at both sites,
-and `a_placeholder_seed_leaves_the_containing_extent_unclaimable` pins the typed
-verdict and the position-independence together.
-
-**Two more skips in the same function were brought to the bar this record
-sets.** Arm 1 dropped a face with no boundary vertices — an unbounded face — out
-of the sweep with a bare `continue`, in the function whose header forbids exactly
-that; it now refuses `CensusUnsupported`. And the same-`SurfaceKey` deferral
-tested only that the conformal arm *walks* the pair: that arm `continue`s on a
-same-sense pair without deciding it, so a cross-solid same-key **same-sense**
-pair was deferred by one arm and dropped by the other. The deferral now requires
-opposed senses, which is the configuration the conformal arm returns a verdict
-on; the rest fall through to the box test.
-
-**The capability cost is real, and it is kernel work rather than style: it is
-filed as issue #750**, *"Containment examination is extent-box coarse: no
-non-convex-container assembly can certify after #737"*. Deleting the `bridged`
-skip means no assembly with a non-convex container — L-bracket, blind bore,
-pocket, cavity — can pass `validate_pseudomanifold` by any declaration, where
-before a declaration was the only route it had. Measured on an L-bracket with a
-part resting flat on its inner wall, four v-on-f records all confirming, plain
-`Plane` surfaces, no placeholder anywhere: `Ok(())` at base, one
-`CensusUndecidable` at head. That is not a false refusal — the arm genuinely
-cannot separate it from the embedded cube — but the cause is the coarseness of an
-axis-aligned extent-box test, not interference, so C6's recorded gate-skips
-(scoped by `ASSEMBLY-DESIGN.md:199` to deliberate interference fits — overlapping
-shells, which the L-bracket has none of) are **not** the remedy: a gate-skip would
-suppress the refusal rather than fix it, and suppressing it re-creates the class
-this unit removed. The pointer that named them is withdrawn from the code and
-from this record. **This gets no §D row** (Evan, 2026-08-20: *"the cost sounds
-like it's real kernel work and not style; if my read is accurate, file a github
-issue about it instead"*); #750 carries the reproduction, the base-vs-head table,
-the extent-box diagnosis, and the style lane's `declared.faces` same-solid
-residual. It also records the one **negative result** this unit produced, so it
-is not retried: the obvious record-free narrowing that reuses data already in
-`Geo` — deriving a separating plane from the container's own face planes — is
-unsound **exactly** on the class that needs it, since extending the L-bracket's
-inner wall `x = 1` puts points at `x > 1, y < 1` outward of that plane and inside
-the material. A separating face plane certifies "outside" only for a convex
-container. That converts this unit's *"minimality was never proved"* disclosure
-into a stated negative result about one named candidate — not a proof that the
-skip's deletion is minimal.
-
-**No instrument was added, and the recurrence is not addressed.** This defect has
-now been found four times — S49, #637's two residues, and this PR's third
-instance in arm 1 — each time by someone reading the code. What this PR leaves is
-a paragraph stating the bar (*a deferral names an arm that asks the SAME question
-about the SAME pair*), not a token, a convention, a test or a gate; a `continue`
-with a prose justification remains indistinguishable to grep and to CI from one
-without. Residue 2's class is measurably larger than its instance: a
-differently-shaped sweep for `LoopBoundary::Cycle { first } = … else { continue }`
-returned **29 sites in 18 files** when the style lane ran it; re-run at this
-unit's merge head (`eef045ac`) with the pattern
-`LoopBoundary::(Cycle|Empty).*else \{ … continue \}` over `crates/`, it returns
-**26 sites in 17 files**, of which this unit audits the three inside
-`census.rs`/`rules.rs` and none of the rest. **What that pattern cannot match**,
-and what therefore is not in either number: the same handling written as a `match`
-arm rather than a let-else — 15 further sites, two of which
-(`topo/src/seqgen.rs:1080`, `editor-core/src/names/emit.rs:422`) are
-`LoopBoundary::Empty { .. } => {}`, residue 2's exact reading in match form,
-uninspected here; `continue`s that drop a loop for a different reason (an arena
-miss); and the same class over any other enum. `scripts/gates/` holds three
-allowlist-shaped gates, and since this unit opened, one **derived-census** gate
-(`probe-suite-census.sh`, landed on main 2026-08-20) — a gate that derives its
-population rather than listing it, and refuses an empty answer or a drop below a
-floor. That is closer to the shape a deferral register would take than an
-allowlist is, and it is the nearest existing precedent for building one.
+**The nearest existing precedent for an instrument** is not an allowlist.
+`scripts/gates/` holds three allowlist-shaped gates and one **derived-census**
+gate (`probe-suite-census.sh`) — one that derives its population rather than
+listing it, and refuses an empty answer or a drop below a floor. A deferral
+register would take that shape.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18) — *"should be scheduled but i have no
-opinion on when"*. The jurisdiction call was part of the unit, not a prerequisite
-decision, and #637 made it and argued it in the code.
+opinion on when"*.
 
 ## S52. An in-crate test helper is invisible from `tests/`, so every integration suite mints its own
 
@@ -5383,168 +4332,6 @@ which needs `cube<T: Real>(l: T) -> Body<T>` — a generalization, not a
 deduplication — and the local body builders in `crates/mesh/tests/`,
 `crates/step-export/tests/` and `crates/editor-core/tests/`.
 
-## S53. Two `Ledger`s in one crate, with drifted field sets
-
-- **Where**: `crates/topo/src/seqgen.rs` (`Ledger { v, e, f, h, r, s }`),
-  `crates/topo/src/review_m1_pr3.rs` (now `GenusInputs { v, e, f, r, s }`)
-- **Importance**: low
-- **Confidence**: sure it exists; the missing `h` is deliberate, settled below
-- **Raised by**: the H8 reviewer (#641), 2026-08-19
-
-Same name, same crate, one component apart — and the two are not the same
-kind of thing. `seqgen`'s `Ledger` is the **running** Euler count the
-sequence generator carries forward and checks against independently counted
-arenas after every op, so `h` is one of the things it carries. The suite's
-five-field type is a **census genus is derived FROM**: `genus` solves
-`v − e + f − r = 2(s − h)` for `h`, and `check` asserts that derived value
-against the expected one.
-
-**The narrower field set is correct and deliberate** (checked 2026-08-19):
-`h` is the quantity under test, and tracking it as a field would make the
-assertion tautological. So the name was the entire finding, and the fix is a
-rename. The suite's type is now `GenusInputs`, whose doc states why genus is
-absent and points at `seqgen::Ledger` for the running six-component ledger.
-`seqgen`'s keeps the name `Ledger`: with one such type left in the crate it
-is unambiguous, and it is the crate's canonical Euler ledger, cited by that
-name from the `seqgen` module docs and from `review_m1_pr4.rs`.
-
-**Verdict:** EXECUTED by #673 (2026-08-19) — rename only, behaviour
-identical. Nothing further is owed here: adding `h` was considered and ruled
-out above, and renaming the `review_m1_pr3.rs` **file** is W3a's job, not a
-rename pass's.
-
-## S54. The "kept in step BY HAND" ladder, which the crate around it has twice repudiated by name
-
-- **Where**: `crates/editor-core/src/eval/wire.rs` (`resolve_selection`,
-  `resolve_declarations`); the two sites that cited it as the anti-pattern
-  they fixed, `crates/editor-core/src/names/flush.rs:37` and
-  `crates/editor-core/src/persist/check.rs:9`; same family at
-  `crates/profile/src/path/arc_fillet.rs:21` and
-  `crates/pncad-py/src/tests.rs:245`
-- **Importance**: medium
-- **Confidence**: sure on the structure
-- **Raised by**: the detector #641 suggested, run 2026-08-19
-
-**Verdict:** ACCEPTED (Evan, 2026-08-19) — "worth doing. Share it." Executed
-by **#670**, below.
-
-**FIXED by #670.** The two doors now walk ONE ladder, a private
-`mod ladder` sited between them in `wire.rs`, and the "if you change either
-ladder, change both" warning is deleted rather than reworded. The shape that
-beat the arity objection is the one the finding's own steelman preferred:
-share the RUNGS, not the lookup. `Landing` (`Unique(EntityRef)` / `Tied(u32)`
-/ `Absent`) is what a table read produces; `live()` is rung 1 (`NodeGone` with
-the deleted-vs-foreign split) and hands back a `Live<'_>` token, which BOTH
-`landing()` and `resolve()` require; `resolve()` is rungs 2 and 3 (`Ambiguous`
-with the tie witness, `Vanished` with the `NodeChanged` fallback and
-`last_good: None`).
-No closure, no generic over "how to look a name up", one hop from either door.
-
-Each door keeps exactly its own arity, which is what makes the shared version
-MORE legible than the duplication rather than less: the fillet door is now
-`live` → `landing(&live, target)` → `resolve` → the edge-kind refusal, six
-lines with
-every rung named against a 45-line inline ladder; the declare door reads its
-two tables into two landings, picks a side, and refuses `DeclareBothOperands`
-itself — the one refusal in that function that is not N5's, previously buried
-in a closure returning `Option<Result<…>>`. The declare door is a wash rather
-than an improvement on size, and its four-arm landing table is spelled out
-in full — the review caught the first version folding `(Absent, Absent)` into
-a fall-through plus a comment, which for a function whose whole job is which
-typed refusal comes out is the wrong direction.
-
-The rung ORDER, which was the residual hand-coupling a pieces-only extraction
-would have left, is enforced by the type system — and the review is why it
-actually is. The first version gated only `resolve()` on the `Live` token,
-which enforces rung 1 before rungs 2–3 but NOT before a door's own refusal,
-the case the finding used to motivate the order at all; the reviewer moved the
-declare door's side-picking ahead of rung 1 and it compiled clean with all 566
-tests green. Fixed by threading the token one step further: `landing()` takes
-`&Live` too, so no TABLE can be read before rung 1, and a refusal about what
-the tables say — `DeclareBothOperands` needs both landings — cannot be reached
-first. The same mutation is now a compile error. Threading the token also
-closes a second hand-coupling for free: `landing` and `resolve` can no longer
-be called for different names, so an `Ambiguous` payload's tie width is
-measured on the name the payload is built from, by construction.
-
-Worth recording for whoever revisits this: the inverted order was
-**unreachable through the document API**, which is why no pin could have
-caught it. A name present in an operand table was minted by an ancestor of
-that operand, so it cannot be stranded without the operand failing first —
-the reachable `NodeGone` case is a name minted by a node that is NOT an
-ancestor (the existing delete fixture). The type-level fix is therefore
-defensive, and correctly so: the claim in the module doc is now true rather
-than aspirational.
-
-Behaviour-identical, arm by arm, including payloads. The pins were checked for
-what they actually assert rather than assumed: `m6_5_selection_refusals.rs`
-pinned NodeGone/`NodeDeleted`, `Vanished`'s full payload, `Ambiguous` minus
-`tie.node`, plus the kind and empty refusals; `m4_pr5_declare.rs` pinned
-`Ambiguous`'s payload but `Vanished` by Debug SUBSTRING only, and neither door
-pinned the witness site. Both gaps are now closed (declare's `Vanished`
-asserts `last_good: None` and `RecipeEdit{NodeChanged}` typed; both doors
-assert `tie.node == name.node`). **`ForeignNode` stays an OPEN GAP**, unpinned at
-both doors and not closed here: the edit door refuses never-existed ids before
-evaluation, so the arm is reachable only across documents. Sharing the ladder
-does not narrow the gap — both doors still lack a pin — it only means the
-unpinned arm now has one implementation instead of two. Mutation-checked:
-flipping `tie.node` in the shared ladder fails a pin in BOTH suites, which is
-the property the duplication did not have.
-
-**RESIDUE, named and not folded: the crate's OTHER ladder.**
-`crates/editor-core/src/resolve/mod.rs`'s `resolve_impl` (rung 1 at :549–:560,
-the tie witness at :578–:587, the removal-edit helper at :535, the recipe-diff
-edit derivation at :1135) carries rung 1 as the SAME code —
-`doc.node(name.node).is_none()`, then `name.node.0 < doc.next_id` →
-`NodeDeleted` else `ForeignNode` — and builds the same `TieWitness`, with the
-"ids are never reused" sentence now appearing verbatim in three places. So the
-crate still has two ladders agreeing by hand, at coarser grain, and the
-unfolded one lives in the module whose whole job is resolution. They have
-already diverged in one respect worth naming, since it is exactly the drift
-this class predicts: `resolve_impl` sets `TieWitness.node` to the CARRYING
-node returned by its whole-evaluation lookup, while the mid-evaluation ladder
-sets it to the MINTING node (no carrying node exists for a single value's
-table) — origin/main's behaviour on both sides, preserved. Folding is
-cross-module and larger than one evaluation door; deliberately out of scope
-here, recorded in `wire.rs`'s `mod ladder` doc as well as here.
-
-**The two family members named above were deliberately NOT folded in**, and
-neither is this refactor. `arc_fillet.rs:21` restated the S8 justification and
-**miscited it** — it credited `sugar.rs`, which does not contain the paragraph
-and never did; `fillet_select.rs:16-18` does, and that module's header argues
-in as many words for the rule having one home ("the ladder is stated once …
-instead of the same paragraph twice"). The wrong pointer is the Q4 doc-rot
-case here, and it is fixed in this PR: the header now cites
-`crate::fillet_select` and says plainly that the restatement exists only
-because the CI-discipline allowlist line needs a purpose-matched sentence. The
-duplication itself is a paragraph, not code, and stays. `pncad-py/src/tests.rs:245` is
-the family's already-solved instance: the `[lints]` table CANNOT be shared
-(the crate cannot inherit `[workspace.lints]` — `unsafe_code = "forbid"`
-versus PyO3's generated `unsafe impl`), and the hand-restatement is already
-held by a test that breaks the build on drift. Duplication made incapable of
-drifting is the outcome, reached mechanically instead of structurally.
-
-**Method note — RATIFIED (Evan, 2026-08-19) and applied.** #641's parent-sense
-row found its fourth copy through a comment whose only job was to explain that
-two spellings were one rule, which suggested a detector: *a comment that exists
-to reconcile two spellings of one rule is evidence the rule needs one home, and
-it is usually the only evidence, because the code compiles either way.*
-
-It is now a bullet under **Q2** in `docs/prompts/reviewer-style-lane.md`. Two
-things were corrected before it landed. The first draft was a fixed phrase list,
-which is the checklist failure that document's own §1 warns against — so the
-**question** is the instrument and the pattern is demoted to a cheap first pass.
-And the pattern itself was too narrow (Evan): it is now case-insensitive and
-covers the hand-sync, `duplicated from`, `not shared with`, `restated` and
-`change both` phrasings, the last of which is the strongest signal in the
-`wire.rs` ladder and which the original would have missed.
-
-Its own limits are stated where it is used: it misses phrasings nobody has
-written yet, and it over-fires on prose about a *user* authoring something by
-hand. Run over `crates/*/src` at ratification it named `arc_fillet.rs` and
-`pncad-py/src/tests.rs` — the two family members S54 records — and no longer
-names `wire.rs`, because #670 removed the ladder that motivated it.
-
 ## S55. `Enclosure` is a live trait with no consumer left
 
 - **Where**: `crates/geom-core/src/real.rs` (the trait, and its blanket
@@ -5648,7 +4435,8 @@ hand-multiply class (`boolean::solid_contain::face_plane`,
 **Verdict:** _(unreviewed)_
 
 ---
-## S58. FIXED IN PART by #714 — "This face's domain is an iso-rectangle" was re-derived per consumer, in three representations, and no two agreed on what it meant
+
+## S58. "This face's domain is an iso-rectangle" — what the named predicate still does not cover
 
 - **Where**: `crates/geom-brep/src/props/curved.rs` (`du_of_rims` /
   `props_du_consistent` — by target name per **S176(a)**, the line
@@ -5830,6 +4618,7 @@ exactly 0: the domain genuinely IS an iso-rectangle. So:
 
 ---
 ---
+
 # The second scan (2026-08-20) — the fixes, and the ground the first scan never covered
 
 **Merged into this document on 2026-08-20**, from `docs/SMELL-SCAN-2-2026-08.md`,
@@ -5849,15 +4638,14 @@ here, and the renumbering is noted where they start. Two documents agreed on a
 number that was wrong in both — which is §C13's shape at the level of the
 register itself, and worth more than the two minutes it cost to fix.
 
-**Nothing here has a verdict yet.** The second scan shipped every
-`**Verdict:**` line blank, and verdicts are Evan's. Until they are ruled, a
-finding below is a *question worth answering* and no more — the same contract
-the first scan opened with.
+**The second scan shipped every `**Verdict:**` line blank**, and verdicts are
+Evan's. Nine of the 86 findings from here down have since been ruled — the
+rest have not, and until they are, a finding below is a *question worth
+answering* and no more, which is the same contract the first scan opened with.
 
 
-
-**Status: REPORT ONLY.** Same contract as
-`docs/SMELL-SCAN-2026-08.md`: nothing here is ratified, nothing is a
+**Status: REPORT ONLY.** The same contract as the first scan, whose
+findings sit above: nothing here is ratified, nothing is a
 commitment, no code was changed, and no finding proposes a specific fix.
 A finding is a *question worth answering*, not a defect.
 
@@ -6034,7 +4822,7 @@ cheaper, so the table is an **upper bound on B**, not its floor.
 
 **Verdict:**
 
-## S66. FIXED IN PART by #876 — the style halves close; the over-width itself remains as issue #862
+## S66. The over-width itself, carried as issue #862
 
 **Split, and the split is the point.** The **logic** half — the cylinder slab
 arm's over-width by a full radius along its OWN axis, and the slab's
@@ -6236,7 +5024,7 @@ and remaps as it goes, with no atomicity added anywhere in the diff.
 
 **Verdict:**
 
-## S73. FIXED IN PART by #783 — parts one and three; part two remains as Track C's C15 (issue #746)
+## S73. The tessellation budget gate joins on the face ORDINAL — Track C's `C15` (issue #746)
 
 Three findings on `tools/`, which is where the project's
 measure-don't-guess rule (`memories/tessellation-budget.md`) is
@@ -6399,7 +5187,14 @@ The four rows below were flagged **high** by their reporting agents and
 are placed here only because Tier 1 was already full at the point they
 landed; read them as the tail of Tier 1.
 
-## S79. The three demo-surfaced API gaps — FILED as #757, #758, #759
+## S79. The three demo-surfaced API gaps
+
+**These have a schedule, and it is not a §D row.** All three are GitHub
+issues — **#757**, **#758**, **#759** — filed because each is kernel API
+work rather than a structural cleanup, which is the disposition C-R19 asks
+for. **No track row is owed and none should be minted**; the finding stays
+here only because the issues are the schedule and this is where a reader
+looks for one.
 
 The `demos/` scan is the best available evidence of what the public API
 is like to use, per `memories/demo-purpose.md` (demos demonstrate real
@@ -6548,21 +5343,19 @@ enumerates "the four lane traits" will miss it.
 
 **Verdict:**
 
-## S88. FIXED IN PART by #875 — the `geom` half; the `profile` half is OPEN and UNSCHEDULED
+## S88. The sole-`T: Bounds` doors the D1 census enumerated and did not take
 
 **Scope, first, because the `FIXED` lead would otherwise read as the
-whole finding.** #875 closes the `geom` half only. The `profile` half —
-`crates/profile/src/fillet_select.rs` — was routed to **Track G's `G4`**,
-and that route no longer resolves: Track G is closed, and the `G4` this
-partition carries (Track V) is scoped to `ArcCarrierScalar` alone and does
-not cover this. **So the `profile` half has no row.** Its territory is
-Track V's; the receipt #875 hands it is in the handoff section.
-`crates/geom-brep/` is likewise enumerated and not taken. **The
-enumeration is keyed on symbols, not on line numbers**, in the census
-tables — this document's citations are the thing G-R13 keeps finding
-falsified by a merge that touched nothing the citation was about, and
-#875 moved every one of those lines itself. Line numbers survive only in
-the handoff section, where the files are untouched, as of #875's merge
+whole finding.** #875 closed the `geom` half only. The `profile` half —
+`fillet_select.rs::nearest_joint` and `path/arc_fillet.rs:361` — was routed to
+Track G's `G4`, and that route stopped resolving when Track G closed: the `G4`
+this partition carries is scoped to `ArcCarrierScalar` alone. **It is now
+Track V's `D361`.** `crates/geom-brep/` is likewise enumerated and not taken,
+and no row names it. **The enumeration is keyed on symbols, not on line
+numbers**, in the census tables — this document's citations are the thing
+G-R13 keeps finding falsified by a merge that touched nothing the citation was
+about, and #875 moved every one of those lines itself. Line numbers survive
+only in the handoff section, where the files are untouched, as of #875's merge
 base.
 
 **The row was not "fix a line".** The finding's point is that the
@@ -6796,7 +5589,7 @@ actually collected.
   not a door** — re-derive against the tree. `path/arc_fillet.rs:361`'s
   `map_refusal<T: Bounds>` is a second sole-bound door the finding does
   not name; the rest of that file is the ratified `Decide + Bounds` seam.
-- **`crates/geom-brep/`** (Track C's ground, no live orchestrator):
+- **`crates/geom-brep/`** (Track Q's `ssi*` ground; no row names these):
   `ssi.rs:218`'s `impl<T: Bounds> TubeScale<T>` — **the finding's `:1187`
   is `certify_rung3`'s doc, and `certify_rung3` is shut at a dual by its
   `CertifiedEnclosure` term**, not by being compound; compound bounds as
@@ -6809,7 +5602,8 @@ actually collected.
   `Decide + Bounds` with **no** `CertifiedEnclosure` — instantiable at a
   dual for want of that term, the same shape as `topo::separation` and
   `chart_region_overlap`. Not a sole-bound site, and not S210's subject.
-- **`crates/bvh/`** (no track): `aabb.rs:87`'s
+- **`crates/bvh/`** (Track M's ground since the repartition; `H10` carries
+  `S211`'s unowned `bvh` member and this is the same file): `aabb.rs:87`'s
   `Aabb::from_points<T: Bounds>` — a payload read, sound by delegation,
   and the one door every `geom` box constructor funnels into.
 
@@ -7357,7 +6151,7 @@ Tier 3 is grouped into class roll-ups rather than one ID per instance,
 the way the first scan handled S35 and S40. Each bullet is a distinct
 site; cite them as e.g. `S110(d)`.
 
-## S110. FIXED IN PART — the sort ran; #790 closed four members, #786 and #787 three more, #844 closed (a), two are routed
+## S110. The hand-run diff artefacts the sort could not place
 
 **The sort is the deliverable, and re-deriving it moved one member.** §D
 proposed three dispositions — *(a)* vacuous assertions in shipped test
@@ -7518,23 +6312,13 @@ finding exists to reject. All of them were re-executed by the review.
 
 ## S111. Frontier vocabulary and API surface with no reachable caller (roll-up)
 
-- (a) **PARTLY CLOSED by #768 (D27), which was aimed at D27's three sites
-  and reached four of this member's five.** S7's charge against the
-  retired door included *"eleven `unsupported(…)` refusal strings, all
-  provably unreachable"*, and the surviving door carried the same shape
-  while self-declaring it. Of the five self-declarations this member
-  listed: `build.rs`'s *"Neither refusal below is reachable through the
-  front door"* is **gone with the function that carried it**;
-  `links_here.is_empty()` is **gone** (a corner's incidence list is
-  non-empty by shape); `corner_plan`'s `faces.len() != 3` is **no longer
-  a self-declared-dead branch** — it is `CornerFaces::admit`, a door
-  whose whole job is to decide it, and the derivation downstream reads a
-  type instead of re-testing; `EmptyChain` is **gone**, variant and all.
-  **What survives is `resolve_rim`'s one-link guard** (*"Likely dead in
-  practice"*, `surgery.rs`), which stays typed for the reason written on
-  it: nothing in that call proves the battery's screen ran, and no token
-  in this unit attests it. **This member is not fully closed and has no
-  row** — the orchestrator owns whether the residue earns one.
+- (a) **What survives of S7's charge is `resolve_rim`'s one-link
+  guard** (*"Likely dead in practice"*, `sweep/src/fillet/surgery.rs`),
+  which stays typed for the reason written on it: nothing in that call
+  proves the battery's screen ran, and no token attests it. The other
+  four self-declarations this member listed went with #768 (D27) — the
+  branches themselves are gone, not just the sentences. **This member
+  has no row**; the orchestrator owns whether the residue earns one.
 - (b) `crates/sweep/src/fillet/surgery.rs:778` — `pub fn ring_clearance`
   is production API whose only caller outside the module is
   `crates/sweep/tests/m6_surgery.rs:434`, and whose doc says so. S52
@@ -7542,30 +6326,6 @@ finding exists to reject. All of them were re-executed by the review.
   class; #672 records the residue and does not name this. Also:
   `sweep::fillet::surgery` is `pub` while every other item in it is
   `pub(super)`.
-- (c) **FIXED by #786 — the diagnostic was right and the REMEDY was
-  wrong.** `git grep '\.intersection('` over the tree returns only
-  `src/ops.rs`'s own `#[cfg(test)]` unit test, so the charge stands
-  exactly as written: a `pub` function with **no production caller**.
-  (#786's first write-up said the charge "was wrong about the code",
-  counting one test function's five assertions as call sites. It was
-  not; that sentence is withdrawn, and ruling **G-R8** is amended to
-  match.) What the finding got wrong is *delete it*:
-  `docs/semantics-diffs.md` §D7 defines `hull`'s single deliberate 1788
-  divergence BY CONTRAST with `intersection`, so deleting it deletes
-  what a live argument points at — S74's mechanism, one document over.
-  It is kept, and the zero-caller fact is now recorded rather than
-  papered over: `docs/inventory.md`'s new set-operations table says
-  `none today` in the callers column, and `lib.rs`'s scope paragraph
-  says outright that *"everything here has a caller"* is false and why
-  this one is the exception. The same diagnostic also convicted
-  `docs/inventory.md`, which omitted `hull` by the identical test while
-  `hull` is unquestionably used; both set operations are inventoried
-  now. The mirror case, `consts.rs`'s `neg_frac_pi_2`, is `pub(crate)`
-  and IS `-frac_pi_2()` rather than a second hand-written endpoint pair
-  — which puts it under `certify_constants`' cross-check transitively,
-  the step between them being exact (verified bit-identical on both
-  endpoints by #786's adversarial review); two unit tests pin that and
-  the constants' one-ulp brackets.
 - (d) `crates/sweep/src/fillet/naming.rs:56` — `Retired` still has no
   face channel, so the one thing it exists to catch (a source entity
   destroyed without a record) is structurally uncatchable for faces. The
@@ -7573,54 +6333,15 @@ finding exists to reject. All of them were re-executed by the review.
   retired"* comment true of today's surgery; the hole S15 named is
   unchanged, asserted only over two fixtures.
 
-## S112. Prose that describes a world the code has left (roll-up) — **six of eight closed, and the ledger is the deliverable**
+## S112. Prose that describes a world the code has left (roll-up)
 
-**The class ledger, per G-R2**, which re-scoped **G10** to *"(g) plus the
-class ledger"* and made the row's retirement turn on the ledger rather than
-on the closing lane's own member. Every line below was **re-derived from the
-tree** at this branch's final merge of `origin/main` (`cfdc1c6f`) and from the
-merge commit named — not taken from a dispatch list; two of the eight came back
-different (below). **Every `file:line` in this whole section — the
-table AND the member bullets under it — was re-derived against the tree after
-this PR's final merge of `origin/main`**, which is S176(a)'s discipline applied
-to the entry that records it. Six had drifted and are cited by target name or
-by expression instead; what line numbers remain are the ones that re-derived
-at `cfdc1c6f`, and they are anchored to it rather than to a different commit
-from the one the census names.
-
-| member | site | closed by | how it was verified |
-|---|---|---|---|
-| **(a)** | `sweep/src/fillet/naming.rs`, the *"What consumes these rows"* header | **NOBODY — open, and its owner has retired** | the sentence stands; `editor-core/src/names/emit_fillet.rs:220-221` still builds `retired_e`/`retired_v` out of `rec.dead` and consults them at `:236-246`, so the defect is intact. Routed to Track E's **E-g** after that lane was dispatched; E-g landed as **#768** and its own §D row says S112(a) is **not in it**, and that row is now struck from §D. See **S177** |
-| **(b)** | `interval-transcendentals/tests/certify.rs` | **#786** (G-a / G1), commit `520f21f1` | the header names `ci.yml`'s `oracle-certify` job, its `ORACLE_PATHS` trigger and `CAD_FUZZ_EFFORT=8` (`:21-24`); `ci.yml` no longer contains *"stays a by-hand gate"* |
-| **(c)** | `interval-transcendentals/src/ops.rs`, `docs/inventory.md` | **#786** (G-a / G1), same commit | `ops.rs:4` now opens *"`copysign` is deliberately NOT here"*; `docs/inventory.md:40` says the same and points at the trait impl. The code did not move and S1 is untouched |
-| **(d)** | `geom-brep/src/props/curved.rs`, `cone_arm`'s doc | **#877** (I-a), and re-homed off C-m by ruling **I-R3** | the sentence named an ordering that is true at ONE of `cone_arm`'s two call sites and false at the other — `boundary_material_sign` never calls `du_of_rims` at all. Replaced by the invariant both routes establish; **N3 in `docs/predicate-dimension-audit.md` carried the same false claim and is corrected in the same PR**; `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the row |
-| **(e)** | `geom-brep/src/ssi/exhaust.rs:92` | **open — Track C by mechanism, but named in NO live §D row** | `exhaust.rs:92` still says *"The floor used, in meters"* while `ssi.rs`'s `account_chart_plane` call still passes `domain.floor(band) / speed` (cited by expression, per **S176(a)**). The frozen table's C-m/C3 entry lists **S112(d) only**; no row in §D names S112(e) or `geom-brep/src/ssi/`. Its only live mention is G10's own row |
-| **(f)** | `profile/src/sugar.rs` | **#831** (G-d / G10) | below |
-| **(g)** | `crates/pncad/src/lib.rs` | **#831** (G-d / G10) | below |
-| **(h)** | `demos/render.py` | **#787** (G-b / G2), commits `85510376` + fix pass `040fb699` | no `stl is None` branch, no *"#111 pin"*, no `drawn` counter and no boolean return in `render.py`; `render_freecad.py:164` reads `body["step"]` with the guard gone |
-
-**Two corrections the walk returned, both from the tree.**
-
-1. **G10's sentence mis-splits rather than over-counts.** It says *"three of
-   them (`geom-brep/props/curved.rs`, `geom-brep/src/ssi/`) are Track C's …
-   the rest are free"*. **The free five are exactly right** — (b), (c), (f),
-   (g), (h), every one of them Track G's. What is wrong is *"three"*: Track C
-   holds **two** members, (d) and (e); the third body in that parenthetical is
-   **(e)'s second file**, `ssi.rs`, counted as a member. The eighth is **(a)**,
-   which is Track E's and is not in the parenthetical at all, so the sentence
-   reaches the right total by two errors that cancel. **G-R2 located the
-   over-count in *"the rest are free"*; the tree puts it in *"three of them are
-   Track C's"*.** The ruling's conclusion — the sentence is wrong by one, the
-   rides-along paragraph is right, (a) is not this row's — is unaffected.
-2. **This row cannot retire on this ledger.** As the walk found it, three
-   members were open and only one of the three ((d)) was named by a live §D
-   row. **(d) closed at #877** (Track I, lane I-a), which leaves **(a) and (e)
-   open and NEITHER named by a live §D row** — the half-fix shape G-R2 invoked
-   to require the ledger in the first place, now with the one tracked member
-   gone. **G10 stays in §D**, re-scoped to the residue; the general form is
-   **S177**, and **D124** is the row that re-homes (a). (e) — `ssi/exhaust.rs`'s
-   *"The floor used, in meters"* against a chart-unit store — still has no row
-   anywhere, and Track I's scope does not reach `geom-brep/src/ssi/`.
+**Two members left, and only one of them is rowed.** Both `file:line`
+citations below were re-derived from the tree; where a line had drifted the
+site is cited by target name or by expression instead, which is `S176(a)`'s
+discipline applied to the entry that records it. **(a) is re-homed as Track
+T's `D124`** (routed to Track E's `E-g`, which landed without it and whose row
+is struck — see `S177`). **(e) is named by no live row at all**: its territory
+is Track Q's `geom-brep/src/ssi*`, and Q has no row for it.
 
 - (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
   rows"* — *"`editor-core`'s
@@ -7628,34 +6349,6 @@ from the one the census names.
   `emit_fillet.rs:220-221` builds `retired_e`/`retired_v` straight out
   of `rec.dead` and consults them. The diff rewrote the paragraphs
   immediately above and below and left this one.
-- (b) **FIXED by #786** — `certify.rs`'s header now names
-  `oracle-certify`, its `ORACLE_PATHS` trigger and its effort setting,
-  and gives the by-hand invocation as an addition rather than as the
-  gate; `ci.yml`'s *"stays a by-hand gate"* sentence is gone from the
-  `interval-backend` job's header.
-- (c) **FIXED by #786 — the promise, not the placement.** `ops.rs`'s
-  header and `docs/inventory.md` now say that `copysign` is on the
-  `Real` surface but NOT in `src/`, that it lives with the trait impl
-  at `crates/geom-core/src/interval.rs:356`, and why: a `sign` operand
-  containing zero has no sign to transfer, so the result is a hull of
-  `±|self|` with the decoration capped at `Def` — not endpoint
-  selection. **The code did not move, and S1 is untouched**: where it
-  should ultimately live is part of the `RingInterval`-vs-`Interval`
-  question, and this member's fix is only to stop two documents
-  promising code that was never there.
-- (d) **FIXED by #877 (I-a) — and the sentence was not fine.**
-  `cone_arm`'s doc said the `T::one()` fallback *"covers the no-rim
-  case, where `du_of_rims` refuses before any margin is metered"*.
-  Checked from the inside: `cone_arm` has **two** call sites, and
-  `boundary_material_sign`'s cone arm never calls `du_of_rims` — it
-  computes the arm, then refuses on `rims.first()`. So the sentence
-  named a route that exists at the flux lane and does not exist at the
-  gate. It is now the invariant both routes establish — the fallback IS
-  reached (both callers compute the arm before they know whether there
-  is a rim) and is **never metered against**, because every route from
-  it to a margin refuses on the empty rim list first. Audit note **N3**
-  carried the stronger and also-wrong form (*"the `T::one()` fallback is
-  unreachable"*) and is corrected with it.
 - (e) `crates/geom-brep/src/ssi/exhaust.rs:92` / `ssi.rs`'s
   `account_chart_plane` call (**cited by expression, per S176(a)** — the
   line moved by 13 under a merge) — `Exhaustiveness::floor`'s public
@@ -7665,86 +6358,11 @@ from the one the census names.
   units)"*), and so does `SweepCell::width`. The one place a caller
   reads the number back out is the one place the unit is wrong. S23's
   refactor made it visible by collapsing two lanes onto one parameter.
-- (f) **FIXED by #831 (G-d / G10).** `arc_fillet_trims`' header claimed a
-  *current* two-consumer property — *"extracted verbatim from the raw
-  builder's corner door so the twin and the PATHS algebra lowering share
-  one code path"* — with no twin and no raw builder in the tree. It now
-  states the one consumer it has (`path::arc_fillet`'s lowering, the only
-  call outside the module, checked workspace-wide) and puts the
-  extraction in the past tense, keeping what the extraction still buys:
-  the surviving lowering calls the ratified construction instead of
-  carrying a second copy. The three other *"raw builder"* sentences —
-  `sugar.rs`'s `arm`-mapper comment and its gated-methods comment, and
-  `path.rs`'s `set_leaving_bulge` note — are untouched: they read as
-  historical provenance and the finding said so. (**Cited by target, not by
-  line**, per **S176(a)**: this PR's own edit six lines above moved one of
-  them.) **This member is why G5's re-read
-  fence on `sugar.rs` was lifted for it, and only for it** (G-R2); the
-  enclosing-candidate machinery §D fences off is unread and unedited.
-- (g) **FIXED by #831 (G-d / G10).** *"What the façade itself contains"*
-  enumerated `authoring`/`validated` plus the `workspace` exception and
-  did not mention `tolerance`, added in the same wave as the S20 rewrite.
-  The section now names it as the third thing, and states the fact that
-  made the omission worth fixing rather than merely completing the list:
-  `tolerance::report` and `tolerance::eps_source` **commit the ambient ε
-  bootstrap as a side effect of being asked** (exactly `Tolerance::get`'s
-  behaviour), so a program that later loads a document turns that load
-  into a `ToleranceConflict` by having asked — the one place in the
-  façade where calling a wrapper changes the run, against a section whose
-  claim is *"no geometry and no numeric behavior"*.
-  `tolerance::committed_report` is the door that does not, and is named
-  as such. Verified by `scripts/doc-gate.sh` (exit 0) and `cargo test -p
-  pncad --doc` (34 passing).
-- (h) **FIXED by #787** — `demos/render.py`. The `stl is None` branch,
-  its `#111 pin` warning, the `drawn` counter, `draw()`'s boolean
-  return and `main`'s skip-the-scene arm are all gone: neither producer
-  can emit that state, and `run_stop` never emits a bodiless scene, so
-  the empty-scene path below it was unreachable for the same reason.
-  `render.py` and `render_freecad.py`'s `Mesh.insert` call now read
-  `body["stl"]` the same way. The docstring states what the two PRODUCERS do and defers
-  what the FORMAT promises to (c) — a guard against a state nothing
-  emits is wrong under every schema, so this half did not wait for it.
-  Verified by rendering all 35 tour scenes before and after: identical
-  PNGs, chunk for chunk.
-  **Both twins, after the fix pass.** The first pass closed the
-  `render.py` half and left two siblings standing, both found by
-  review: `render_freecad.py`'s `if not body.get("step")` guard (since
-  deleted, so there is no line to cite) guarded a
-  null `step` that this reader's producer (the tour) cannot emit — the
-  wild generator writes one for every cell but is rendered by
-  `render.py` and never reaches that file — and `render.py`'s own new
-  docstring claimed the two readers read "the same field the same way",
-  true of `stl` and false of `step`. Guard deleted with its producer
-  named at the site; docstring narrowed to the claim it can support.
 
 ## S113. Counts and enumerations stated in prose, already drifted (roll-up)
 
 Beyond S64, S67, S74 and S98:
 
-- (a) **FIXED by #787** — every count in this member is COMPUTED
-  rather than restated, because a fresh number would drift on the next
-  scene exactly as these did. The tour's closing lines now print
-  `35 scenes (20 montage cells, 15 standalone)`, `1049 face charts`,
-  `946 checkable / 103 branch-jumped / 0 disagree`, and the two worst
-  junction gaps; `uvdump.rs` and `compose_uv_montage.py` point at that
-  line and state no number. **Measured on `de103835`, and every prose
-  figure was wrong**: 982 → 1049 faces, 879 → 946 checkable, and
-  `9.4e-16` → `9.93e-16` for the worst 3-D loop gap (`uvdump.rs:294`,
-  which the finding did not name). `Cargo.toml`'s *"eighteen scenes"*
-  is deleted at both sites — it carried no load in either sentence and
-  a TOML comment cannot compute one. The sweep also reached
-  `demos/README.md:346` (*"the tour emits 34 scenes … 34 − 15 = 19"*,
-  drifted to 35/20; the paragraph now states the RULE for staying off
-  the sheet and leaves the arithmetic to the run) and
-  `demos/render-wild.sh:14` (*"8 cells"*, a second copy of the count
-  (b) had just moved into `WILD_CELLS`'s array length).
-- (b) **FIXED by #787** — `demos/wild/src/main.rs`. The heading's
-  *"6 cells"* is deleted rather than corrected to eight: the derivation
-  it headed already ends at 8, and `WILD_CELLS: [Cell; 8]` is the
-  enforcement — a cell added or dropped without re-deriving is a type
-  error. The doc now says so, and says why the count is not written in
-  prose a second time. `render-wild.sh`'s duplicate *"8 cells"* went
-  with it.
 - (c) `crates/geom-core/src/ring_interval.rs`'s `from_certified` doc
   carries a prose census of its own callers, already corrected once
   (`88616177`). See S89.
@@ -7758,143 +6376,10 @@ Beyond S64, S67, S74 and S98:
 
 ## S114. Duplications the fix passes did not reach (roll-up)
 
-- (a) **FIXED by #786** — one `TWO_PROD_VALID_MIN` and one
-  `two_prod_witness(x, y, z, mag)` in `round.rs`, called by `mul`, `div`
-  and `sqrt`. The FMA witness went from four spellings to one and
-  `SQRT_EXACT_WITNESS_MIN` is gone with its prose reconciliation;
-  `derivations.md` §3 already derived ONE floor for all three, so the
-  code now matches the derivation's shape. `round.rs`'s header no
-  longer claims the lemmas are restated at each helper — it says the
-  shared one has a single home.
-- (b) **FIXED by #787** — `demos/tour/src/skinned.rs`. The
-  *"VERBATIM"* claim was false twice over: nothing computed byte
-  equality, and `fn quad` is not even the same code — the corpus builds
-  the section with `ProfileLoop::polygon`, the demo through the PATHS
-  lattice (`paths::path_polygon`), which is the spelling the tour
-  exists to show. The duplication STAYS, stated as deliberate with its
-  reason at the copy site: the fixture's other home is another crate's
-  test-support module, unreachable from outside that crate's test build
-  and not something a user could import, so reaching into it would make
-  the demo worse evidence — and no public door hands out corpus
-  fixtures. What the claim was FOR is checked instead: `stops()` asks
-  `mass_properties` for the prism's volume and pins it inside its own
-  certified enclosure against the 9 m³ that
-  `sweep/tests/m6_loft_body.rs` DERIVES for the fixture. **Corrected in
-  the fix pass, on both halves review named.** The number is no longer
-  a `9.0` literal — it is computed from the sections themselves
-  (`V = 8 + 8d/3`, `d` read off `PRISM_TRAPEZOID`), so a section
-  drifting *here* makes the note wrong before the kernel is asked; and
-  `volume_pad` is now **bounded from above** before it is used as a
-  tolerance, because `|V − v| ≤ pad` alone gets easier as the enclosure
-  degrades (G-a's `assert_contains` shape, reproduced in `demos/` by a
-  fix pass for a different finding). What the pin does **not** check —
-  agreement with the corpus fixture, which this demo cannot read — is
-  stated at the site instead of asserted in the panic message. `ELBOW_H`'s
-  *"shared"* becomes *"the same value, copied; nothing links them"*.
-  **Not this unit**: the byte-identical three-way `fn quad` across
-  `sweep/`, `mesh/` and `step-export/` test-commons lives in three
-  crates' test trees, not in `demos/`.
-- (c) **FIXED by #837** (the design question was closed by Evan,
-  2026-08-20; the schema framing was refused and the emitter half
-  ruled *no shared type*). **The duplication was in the READERS**, and
-  the fix is one: `demos/manifest.py`, which owns the walk, the field
-  names and the `view.up` convention. `render.py`,
-  `render_freecad.py`, `compose_montage.py` and `render.sh`'s scene
-  lister all read through it. **No schema, no serde type, no
-  validation layer and no new crate edge.**
-
-  **The `view.up` convention is now written once, in the world →
-  display direction only**, as a signed permutation; the display →
-  world direction a camera needs is *derived* by inverting it. The two
-  hand-written maps that were exact inverses by coincidence
-  (`render.py:51-57`, `render_freecad.py:105-133`) cannot disagree
-  because there is no longer a second one to disagree with. Its
-  selftest pins the convention against both spellings it replaced and
-  pins that the derivation really is an inverse, in both compositions.
-
-  **Both defaults are gone, and gone by being unnecessary rather than
-  by being unified.** `transparency` and `montage` are now read, not
-  `.get`-defaulted, because both producers write both keys for every
-  body and every scene — so a producer that stopped would fail the
-  first render instead of rendering something plausible. `step` KEEPS
-  its defensive posture and says why: it is nullable in fact (the wild
-  generator writes `null` for every cell, because its STEP is an input
-  fixture rather than something the pipeline exported), and the one
-  reader that opens it names its own producer at the site.
-
-  **The eight `uv.json` fields nothing read are deleted** — `scene`,
-  `half_edges`, `cached`, `area`, `sense`, `winding_ok`, `gap`,
-  `chart_jump` — after re-deriving the claim rather than trusting it:
-  seven are consumed Rust-side by `draw_face` *before* serialisation
-  and stay in `FaceStats`, drawn into each cell's own SVG; only
-  `FaceDump::scene` was dead end to end and it is gone with its
-  plumbing. The corpus-wide aggregates of the same numbers are printed
-  by the run that measures them, from the in-memory dumps, so nothing
-  that was computed became uncomputable. Every field `uv.json` still
-  carries is read by `compose_uv_montage.py`.
-
-  **The wild emitter now writes the tour's field set** (`transparency`
-  added; `step` stays `null`, which is the fact and not a placeholder)
-  — **independently, and both sites say the agreement is deliberate
-  and unenforced**: no shared type, no dependency edge, nothing
-  comparing the two emitters. That is the ruling, verbatim: *"seems
-  fine to make the two renders line up 'coincidentally' on step and
-  transparency. sharing for just those two fields is overengineered
-  even ignoring the realism concern."*
-
-  **Measured, on this tree.** No committed artifact moved. All 35 tour
-  frames and all 8 wild cells render byte-identical old-vs-new
-  (including the four `up: "y"` scenes and the transparent `klein`),
-  the tour montage sheet is byte-identical, the scene lister returns
-  the same 35/20 names, and `renders-uv/montage-uv.svg` regenerates
-  clean. `freecadcmd` is not installed on the lane box, so
-  `camera_rotation` was checked locally by extracting both revisions
-  and comparing the camera basis under an `App.Vector` shim over 151
-  views — 43 from the two committed manifests, 108 synthetic, 50
-  through the straight-down fallback (2 of them committed scenes) —
-  bit-identical throughout. **Hosted CI is the verification of record
-  for that lane and does run it**: `ci.yml`'s `render lanes` job calls
-  `render.yml` through its `workflow_call` entry, all four lanes, on
-  every PR the change filter marks as building (`run_k_lint`) — so not
-  on a docs-only one — and reports render drift.
-
-  **What is not enforced, stated.** Nothing compares the two emitters'
-  field sets; that is the ruling's choice, not an oversight. What
-  exists instead is that the shared reader *reads* rather than
-  defaults, so a drift surfaces at the first render.
-- (d) **FIXED by #786** — `sin`/`cos` share one `sinusoid` body
-  parameterized by the libm entry point and the two extremum phase
-  offsets; `asin`/`acos` share `clamp_to_unit` (propagate, full-miss
-  Empty, partial-miss clamp-and-poison) and each keeps visible the half
-  that genuinely differs, which endpoint feeds which bound.
-  `Decoration::continuous_on` and `DInterval::is_bounded` replace the
-  hand-spelled idiom everywhere. **Count corrected:** the decoration
-  idiom was FIVE sites, not six — the sixth spelling of `bounded` is
-  `tan`'s, where it is a refusal condition rather than a decoration.
 - (e) `crates/geom/src/curves.rs:942` and
   `crates/geom/src/surfaces.rs:1118` — `fn contains` duplicated with two
   parameter names, in the same crate, beside the four converters the
   dedup did collapse.
-- (f) **FIXED by #887** — `crates/mesh/src/planar.rs` and
-  `crates/mesh/src/trimmed.rs`. Both #678-sibling arguments are now
-  **checks at the site whose fact they are**, and both shrank.
-  `trimmed`'s twenty-eight lines became nine plus two `debug_assert`s:
-  *no chart singularity reaches this lane* is asserted where the lane
-  is chosen (`Chart::of(surface).is_none_or(|c| c.poles().is_empty())`
-  — the `walk` fact the comment was quoting, now unable to move
-  silently), and *the seam double-traversal cannot meet a single
-  interior column* is asserted where the count is
-  (`nu != 2 || !id_repeats_apart(&polygon)`). `planar`'s nine became
-  seven plus `cdt.num_vertices() == meta.len()`, which is *"there is no
-  interior grid at all"* stated so that adding one fails the line
-  rather than leaving the comment false. The new helper carries its own
-  row (`a_repeat_at_one_uv_is_not_a_repeat_apart`), including the ulp
-  case that decides whether two seam copies are one CDT vertex or two.
-  Both asserts demonstrated red by hand. **Disclosed**: the mesh suite
-  runs the trimmed cylinder lane on 19 faces with `nu ∈ {5, 16, 50}`
-  and `id_repeats_apart` false on every one, so that assert is a guard
-  rather than a live check and both of its operands had to be forced to
-  see it fire.
 
 ## S115. Disclosed and unscheduled (roll-up)
 
@@ -7928,16 +6413,6 @@ see §C.
   unguardable — a re-run of the import census would guard it"*. By its
   own account a guard is available and not taken; no import-census row
   exists in `ci.yml`.
-- (d) **FIXED by #872** — `crates/mesh/src/walk.rs`'s D2-addendum
-  `debug_assert` deviation, disclosed with *"A typed warning channel
-  would dominate all three; there is none."* It has a schedule now:
-  **issue #868**, which names the four things a fix has to decide
-  (where the channel lives, what a warning carries, how a caller
-  receives it against D9 byte-identity, and whether the three
-  detectors then become D2 rows 1/3 proper). Both claim sites cite it
-  — the finding named one, and the lane's sweep found a **second copy
-  of the same disclosure** at `closing_column` (*"would dominate
-  both; there is none"*), which had never been recorded.
 - (e) `crates/editor-core/src/eval/wire.rs:717-723` — see S105.
 - (f) `crates/topo/src/euler.rs:3220-3251` — `strum::EnumCount` named as
   the way out and declined; see S94.
@@ -7970,24 +6445,6 @@ see §C.
   => {} }` is a no-op whose only purpose is to make a future variant a
   compile error — an invariant held by a statement where a type would
   hold it structurally.
-- (d) **FIXED by #787** — `demos/tour/src/main.rs`. Both forwarders
-  are deleted and their four call sites say `plain`/`seamed`; what
-  `seamed_curved`'s doc was actually for (a curved boolean result
-  validates the same way — the contacts decide, not the surface kind)
-  moved onto `seamed`, which had no doc at all. `step_expected` is gone
-  with both of its checks: the subset-frontier arm now panics outright
-  and says what reaching it would MEAN (a scene grew past the writer,
-  not a writer that broke), which is what the conditional was
-  pretending to decide. `ManifestBody.step` follows it from
-  `Option<String>` to `String`, since the arm that produced `None` no
-  longer exists. **And so does everything downstream, after the fix
-  pass**: with no `None` path left, `run_body`'s `Option` return,
-  `run_stop`'s `filter_map`, its `if bodies.is_empty()`, its `-> bool`
-  and `main`'s `if run_stop(…)` were dead, and `run_stop`'s doc
-  described a staged-stop world the code had left — **S112's own class,
-  created by the PR closing S112(h)**, and caught by review. Tour output
-  byte-identical before and after, verified against `origin/main`'s
-  `demos/` on the same kernel.
 - (e) `crates/topo/src/euler.rs:1-208` — the module header grew ~55
   lines in this diff, and the new material is a titled essay
   (*"**The exception, and it is a real one.**"*) about `crate::instance`'s
@@ -8001,35 +6458,6 @@ see §C.
   slower. The clause it defends (*"every traversal is bounded"*) was
   already detected by the previous `< 5 s`. No evidence it has flaked;
   the thoroughness of the defence is what draws attention.
-- (g) **FIXED by #887, closing the residue #872 narrowed** —
-  `crates/mesh/src/curved.rs`. S28's shared core still does not exist
-  and this lane's answer is still an argument; what changed is that the
-  argument no longer outweighs the code it defends.
-  `docs/prompts/implementer-discipline.md` §4 was the lever — *comments
-  state the invariant, not the history* — and the three guard docs were
-  roughly 60% history.
-
-  **Re-measured by script at both ends** (production half = everything
-  above `#[cfg(test)]`), merge base `ecc1d492` → #887: the file's
-  production half **681 lines / 404 comment (59%) / 259 code → 631 /
-  348 (55%) / 265**; `entries_off_bbox` **52/20 → 45/26**;
-  `require_swept_rectangle` **94/24 → 57/24**; `pole_columns`
-  **82/3 → 56/3**. The three guard functions together: **228 doc / 47
-  code → 158 / 53**. **Comment down 56 lines, code UP 6** — the ratio
-  moved because argument became check, not because prose was thinned.
-
-  **What went, and where each claim lives now**, is a per-deletion table
-  in #887's body. Three are worth naming here: the **six-site,
-  four-file sweep roster** is deleted rather than restated — its own
-  text called it *"an unguarded list of the kind S64 was about"* — the
-  `iso_side_starts` qualification is cut to its pointer because it
-  already said *"stated in full at `walk::iso_side_starts`"*, and the
-  A/B sweep behind `pole_columns` is kept but **labelled Historical**,
-  since nothing in the tree re-derives it. Every live invariant, every
-  reader warning and both of #678's answers survive at a named site.
-
-  **What this does NOT do** is build S28's shared core, which was
-  answered with a ruling and is not this row's.
 - (h) `crates/mesh/src/nurbs_cert.rs:374-419` — S29's constant count did
   not go down. `SAFE_ASPECT = 5.0` is unchanged and still sits above its
   own derived √15 ≈ 3.87; `MAX_GRID_RETRIES` is still a bare `6`; the
@@ -8104,17 +6532,6 @@ see §C.
   payloads are ignored. So the `set_edge_curve(e, spec)` that
   `split_site`'s doc justifies at length is not checked by the property
   it was written for; delete it and the roundtrip still passes.
-- (r) **FIXED by #786, narrowed to what it really was — a pointer
-  problem.** The analysis was never missing: `docs/semantics-diffs.md`
-  §D7 has it. What was missing is a pointer where the reader hits it, so
-  `lib.rs`'s decoration paragraph now enumerates the three things that
-  lower a decoration to `Trv` — a domain clamp, `atan2` at the origin,
-  and `intersection` on EVERY input — and says why the third is named
-  there rather than only in the divergences file. §D7's argument is not
-  restated; a second home for it would be S13's defect. The consumer-side
-  half (`crates/geom-core/src/interval.rs:135-143`) is outside this
-  lane's workspace and is **not closed** — scheduled as **S134** / §D row
-  **D78** rather than left as a sentence.
 - (s) `crates/geom/tests/surfaces/m5_pr7_surface_projection.rs:224-228`
   and `crates/geom/tests/curves/projection.rs:219` — both new overflow
   rows are built around *"Finite inputs throughout"*, which is the
@@ -8122,19 +6539,8 @@ see §C.
   `p.x.is_finite() && p.z.is_finite()` and skips `y`, the coordinate
   that actually varies across the fixture, and the curve row checks `x`
   alone.
-- (t) **FIXED by #786** — `bench.rs`'s header gives the invocation that
-  works (`--features oracle-inari` plus inari's AVX+FMA floor) and states
-  what cargo does otherwise, both verified: `cargo run --example bench`
-  refuses outright, `cargo build --examples` matches no target.
-  `cmp_f64_vs_rat`'s deviation is discharged by USE rather than by a
-  schedule — it is what the new `×` lanes of `review_fuzz_exact.rs`
-  (formerly `review_fuzz_div.rs`) compare against, and the
-  `#[allow(dead_code)]` is gone.
 - (u) Residue: `crates/sweep/tests/m5_pr12_refusals.rs:518` has a
   leftover `let p = Point3::new(0.0,0.0,0.0); let _ = p;`.
-  `crates/pncad-py/src/py/doc.rs`'s raise-site literal was S104's
-  sibling and is **FIXED with it** by #833 — the tag now comes from
-  `tags::workspace_error_tag`.
   `interval-transcendentals`' `2^-960` vs the literature's `~2^-969` is
   a nine-binade round-up justified as absorbing *"every boundary
   quibble"* — empirical rather than derived, harmless because
@@ -8326,6 +6732,7 @@ the twelve conversions, the raw-string port above, and the deletion of
 the private copies. A taker starts by moving, not by writing.
 
 **Verdict:**
+
 ## S126. The silent whole-row stand-down has a population, and it is 13 in three files
 
 Found by lane F-d while sweeping F4's class. The shape is
@@ -8614,6 +7021,9 @@ moment **#782** is decided; until then this row stays open.
 
 ## S130. `demos/tour/src/lily.rs` — the first end-to-end read (roll-up, raised by #787)
 
+**Row: Track X's `D79`**, which is this finding under a row number — same
+file, same six members, same description. Neither is a second finding.
+
 **Raised by #787's style review**, which took the file as free ground: the
 second scan's coverage record named `lily.rs` as its highest-yield uncovered
 file — sampled, never read end to end — and nothing had read it since. 2,446 lines, 975 comment / 1,393 code
@@ -8700,15 +7110,17 @@ four sentences in a PR body:
   degradation, pole and branch-cut refusals all make it fire on sound
   output — so what is owed is a bound that excludes those paths from the
   INPUT rather than from the output.
-- **S116(r)'s consumer-side half.** The caveat that `intersection`
-  returns `Trv` on every input is now at `lib.rs`, in the backend.
+- **The consumer-side half of the `Trv`-on-every-input caveat.**
+  The caveat that `intersection` returns `Trv` on every input is now at
+  `lib.rs`, in the backend.
   `crates/geom-core/src/interval.rs:135-143` is the other place a
   consumer meets it and does not carry it; that file is outside the
   backend's workspace and was outside #786's fence.
 
 Not on this list, deliberately: `copysign`'s placement inside a consumer
 (`crates/geom-core/src/interval.rs:356`). That is **S1**'s, it is Tier 1,
-and S112(c) exists to hand it the fact rather than to decide it.
+and the placement question was handed the fact — that `copysign` is on the
+`Real` surface but not in the backend `src` — rather than deciding it.
 
 **Verdict:** ACCEPTED, unstaffed. §D row **D78**.
 
@@ -9559,67 +7971,13 @@ accepting file granularity and saying so at each entry.
 
 **Verdict:**
 
-## S163. What the F3 sweep left open in `scripts/gates/` — the member that was live in production `Interval` code is FIXED by #885; four remain open
+## S163. What the F3 sweep left open in `scripts/gates/` — four members, one row
 
 Raised by lane **F-g** while closing S63 and S157, and **grown by that
-PR's style and adversarial reviews from three members to five** — the
-two added are the ones with numbers attached. One row (**D109**),
-because each is a disclosed blind spot of the same sweep and a reader
-who takes one should see the others.
-
-**(a) FIXED by #885 — both sites reassociated, then the matcher
-widened.** `orthonormal_basis`'s `b1` now writes `s * self.x.powi(2)`
-and `rotation_about`'s three diagonal entries write `t * nᵢ.powi(2)`;
-the off-diagonals are genuine mixed products and were left alone. The
-gate's matcher grew a second branch for the parenthesized scaled square
-**after** the conversion, so it landed on a tree it passes, and
-`linalg/mat.rs` came off the allowlist — its entry was a scheduled
-residue held open for exactly this conversion and nothing else in the
-file is a square. The record of what moved, what did not, and what the
-widened matcher still cannot see is #885's; the ruling that authorised
-it is kept below because it is Evan's and outlives the work.
-
-**RULED YES — Evan, 2026-08-21.** The question was *may a D9-fixed
-evaluation order be reassociated when the reassociation is strictly
-tighter?*, and the answer rests on two grounds, both of which are worth
-carrying because both were nearly got wrong in the asking:
-
-1. **Moving output is not on its own a reason not to act.**
-   `memories/output-stability-as-justification.md` names *arithmetic
-   association* as exactly the kind of decision output stability may
-   not settle, and says committed bytes are *"usually a golden, and
-   regenerating a golden is a chore, not a contract."* The document
-   that asked this question offered the `f64` byte-move at `mat.rs` as
-   a **downside**, two paragraphs after citing that memory — the error
-   the memory exists to prevent, committed in the act of consulting it.
-2. **The D9 carve-out does not reach this.** D9 is **determinism at one
-   kernel, not a pin on last year's output**: the same document
-   evaluated twice must agree, and it need not agree with a build from
-   a year ago. `u_ref` is stored as data under D2, so documents that
-   already exist keep the frames they were built with.
-
-**What the exact-`f64` argument predicted, and what happened.** It
-predicted **cost, not permission**: `b1`'s scale is `s = ±1`, so that
-reassociation is byte-free, and `mat.rs`'s is `t = 1 − cos θ`, so it
-moves `f64` bytes and re-cuts whatever goldens sit downstream. The
-first half held and #885 asserts it rather than assuming it. **The
-second half moved bytes and re-cut nothing**: the reassociation is
-*exactly* byte-free whenever every axis component is `0` or `±1`
-(`(t·0)·0 = t·(0²)` and `(t·1)·1 = t·(1²)`), which is what every
-rotation feeding a committed artifact in this tree turns out to be, so
-the full hosted matrix — three ε values, the interval feature, k-lint,
-all four render lanes, the byte-golden STEP corpus — came back green
-with no re-cut. The change is nonetheless real: 34.6% of random
-(θ, axis) pairs give a different diagonal entry. **At `Interval` both
-sites narrow, but conditionally, and #885 states the condition rather
-than the slogan**: the old order treats the two factors as independent,
-so an enclosure straddling zero acquires a spurious sign range that the
-scaled square does not — *provided the scale is sign-definite*. Where
-`n.z` straddles zero `s` is `[−1, 1]` and the two spellings are
-algebraically identical; and `powi(2)` is 1 ulp wider on each side
-below `|x| < 2^-480`, per the third rider on the ruling. `mat.rs`'s
-`t = 1 − cos θ` is nonneg by construction, so its narrowing is
-unconditional.
+PR's style and adversarial reviews** — the members with numbers attached
+are the ones those reviews added. One row (**D109**), because each is a
+disclosed blind spot of the same sweep and a reader who takes one should
+see the others.
 
 **(b) `bounds-allowlist.sh` is the one gate still on the leading-`//`
 comment filter, the one still keeping a self-test helper that runs
@@ -9723,7 +8081,7 @@ argument against the row.
 
 ---
 
-## S168. FIXED IN PART by #844 — three sites say the probe lane's decisions are bit-identical to f64's, and nothing anywhere checks it
+## S168. The recording scalar is asserted to be a wrapper by no test, and three sites say otherwise
 
 **Found while re-deciding where the probe preconditions should run, which is
 why it matters rather than being a wording quibble:** the placement argument
@@ -9886,12 +8244,12 @@ Track C's (`geom-brep/`), Track I's (`mesh/`) and `bvh/`, which no track
 owns — so a schedule row for it is an orchestrator's act, not a lane's,
 and one is deliberately not minted here.
 
-## S211. FIXED IN PART by #875 — the two `geom` modules; the `bvh` member is unowned and open
+## S211. The `bvh` member of the sole-`T: Bounds` census
 
-**Scope in the lead, per S88's own convention one finding above.** #875
-fixes the two `crates/geom/` members. **The third member, in `crates/bvh/`,
-is not fixed and has no owner** — `bvh` is outside Track H's scope
-(`geom-core/`, `geom/`) and outside every other track's.
+**Scope in the lead, per S88's own convention one finding above.** The two
+`crates/geom/` members are closed. **The third, in `crates/bvh/`, is open** —
+it was outside every track's scope when it was raised, and the repartition
+gave `crates/bvh/` to **Track M**, whose `H10` carries it.
 
 `geom/src/curves/boxes.rs` said *"certified-box driver code, an
 allowlisted [`Bounds`] seam (ratified 2026-07-29 …)"*, and
@@ -10555,7 +8913,7 @@ and the reasons they gesture at stay in the prose that already carries
 them. **Do not do half** — deleting some and keeping others is how
 this got here. **Row: D122.**
 
-## S230. Certified widths with no ceiling, in crates no live track owns
+## S230. Certified widths with no ceiling
 
 **Raised by lane I-b while closing S60 (#873).** The parent is **S26**, and
 the class is S26's own lesson stated as a rule: *every certified width needs a
@@ -10564,11 +8922,11 @@ vacuous assertions in shipped test files, and a containment row is not
 vacuous. It is a **live** assertion that happens to be monotone in the
 degrading direction, which is the sharper and narrower thing.
 
-**This row has no home, and that is part of the finding.**
-`crates/editor-core/` and `crates/pncad-py/` are outside Track I's scope
-(`props/`, `mesh/`, `census.rs`) and outside the scope of every other live
-track. **Nobody is scheduled to fix this.** Recorded unrouted rather than
-implied-owned; a reader should not infer a lane from its presence here.
+**It had no home when it was raised, and that was part of the finding.**
+`crates/editor-core/` and `crates/pncad-py/` were outside Track I's scope
+(`props/`, `mesh/`, `census.rs`) and outside every other live track's. **The
+repartition gave every one of its sites to Track W** — all four are test
+targets — and this is that track's `S230` row.
 
 **The class is five live members, and this row is the two that had no owner.**
 The other three were in `crates/sweep/tests/`, which no lane owns either but
@@ -10740,14 +9098,13 @@ needs a lane and does not have one.**
 
 **Raised by lane I-e while fixing S109 (#887); I-e is NOT fixing it — one of
 the three is outside the lane's file set and two are in a file it never
-opened.** The class is **four instances, one fixed**: I-e's own sweep saw two
-and #887's adversarial review found the other two, which its declared blind
-spot (*"a bound spelled another way"*) would not have caught **because they
-spell it the same way** — the sweep simply undercounted.
+opened.** I-e's own sweep saw one of the three and #887's adversarial review
+found the other two, which its declared blind spot (*"a bound spelled another
+way"*) would not have caught **because they spell it the same way** — the
+sweep simply undercounted.
 
 | site | state |
 |---|---|
-| `crates/mesh/tests/budget_meter.rs` | **FIXED by #887** — floor added, gated on `worst_cert > eps` |
 | `crates/mesh/tests/probe_review.rs::z1_per_triangle_certificate_falsification` | open — **the row hosted CI runs** |
 | `crates/mesh/src/nurbs_cert.rs:2167` | open — same `d/cert` accumulation, `assert!(worst_ratio <= 1.0, ...)`, inside `#[cfg(test)]` in `src` |
 | `crates/mesh/src/nurbs_cert.rs:2553` | open — the R1 extreme-weight row, and its assertion carries **no message at all** |
@@ -10806,30 +9163,33 @@ grows after dispatch. **This row needs a lane and does not have one.**
 
 ---
 
-
----
-
 # §D. The schedule
 
 > **READ THIS FIRST. Every track A–I is closed, and what they left is
 > repartitioned into [Tracks J–X](#tracks-jx--the-repartition-2026-08-21),
 > which is the only live schedule.** A, B, D and I completed; C, E, F, G and H
 > stopped with rows outstanding. Their tables and lane records are deleted —
-> `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record, and the rulings
-> those tracks made are cited from here by number (`F-R11`, `H-R2`, `I-R8`, …)
-> and are read there. **109 open items** are carried below, partitioned by file
-> territory so that no two tracks edit one file and no branch waits on, fences
-> against, or re-derives another's scope.
+> `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
+> nine. **A, B and D left no log and none is owed**; what they did is in their
+> merged PRs. The rulings the logged tracks made are cited from here by number
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **121 open items** are
+> carried below, partitioned by file territory so that no two tracks edit one
+> file and no branch waits on, fences against, or re-derives another's scope.
 
 **Live rows only.** Completed work is **not** listed here, and neither is a
 note saying it completed: a landed unit is documented by its merged PR, and its
 row and its finding both leave this file. What follows is therefore what is
 *left*, and its length is the honest measure of that.
 
-The wave numbering the schedule started with (Waves 0, 1, 1b) is retired: it
-encoded a dependency structure that has been discharged, and what remains is
-organised by **who can take it without colliding** rather than by how it was
-originally batched.
+The wave numbering the schedule started with (Waves 0, 1, 1b) is retired, and
+so are the lane IDs drawn from it — `W1a`, `W1c`, `W2a`, `W2c`, `W2g`, `W3a`,
+`W3b`. It encoded a dependency structure that has been discharged, and what
+remains is organised by **who can take it without colliding** rather than by
+how it was originally batched. **A surviving `W…` pointer names no live row**:
+it is provenance where it says *raised by*, and where it says *scheduled as* it
+means the work is in Tracks J–X or in *Last, deliberately* below — `W3b` is
+`L2`/`S38`'s population, `W2a` is Track M's `H5`, and `W2g`'s residue is stated
+at `S49` itself.
 
 Four ordering rules survive every reorganisation, because all four still bind:
 
@@ -10841,7 +9201,6 @@ Four ordering rules survive every reorganisation, because all four still bind:
 3. **A lane's own residues are rows, not footnotes.** Many rows below exist
    because a fix pass or a review found something its own PR could not carry.
    Recording them as prose inside a merged PR body is how they get lost.
-
 4. **A verdict is not a placement.** A finding may leave a review with
    ACCEPTED, DISPUTED or DECIDED and no row only if the verdict is *closed*.
    Everything else owes a track row, a decision row, or a `FIXED by`, written
@@ -10885,20 +9244,8 @@ to honour.
 | **S90** | **The largest D1 residue is the only one without a schedule.** It says a lane is owed *"on the **public** surface"*, and every smaller residue got a number. Is that lane owed now, is the written reason sufficient, or is the verdict closed — and if closed, does §D's *"a verdict and no row only if the verdict is closed"* rule apply to it? |
 | **S107** | **The `DimensionError` untangling renamed the Rust type and left the Python-visible confusion in place**, now defended in prose. Is that a defect or a deliberate compatibility choice — and if deliberate, may the tree stop re-documenting it? |
 | **S116(p)** | **`MultipleAxisRuns` changed what the kernel promises**, from *"deferred to M3"* to *"a **permanent** refusal under the ratified sweeps-vs-voids invariant"*. That rests on an unstated geometric claim — that every profile with ≥2 disjoint on-axis runs encloses a void when fully revolved — with no test, no proof, and the reporting agent's own confidence at `unsure`. It is a promise already shipped to callers. |
-| **D111 — RULED (Evan, 2026-08-21): run all fourteen; the two collection runs stay** | **Placed by Track F's F8 (#844), which found the premise of the ruling it was executing to be false.** Evan's F-R5 split *"thirteen `--ignored` dump harnesses (posture) versus one accidental plain test (run it)"*. Re-derived: of 17 censused probe-gated suites **exactly two carry any `#[ignore]`d test, and both are already executed**. The unexecuted **fourteen are plain `#[test]`s**, unrun because nothing runs `cargo test -p <crate> --features probe` at all — and several are not dump harnesses but the **Probe-lane halves of ordinary suites** (`profile/tests/validate_ok_probe.rs`, `geom-core/tests/k_stats_doors.rs`, `geom-brep/tests/span_meter_dim_twins.rs`), split out purely because `probe` monomorphizes every generic-over-`Real` body — **a compile-cost decision that silently became an execution decision.** The ruled disposition was applied where it fit (both accidental tests now run); **the population it was ruled over does not exist**, so the fourteen are undecided rather than decided-as-posture. **Cheap on one side:** CI's `compile and list every probe-gated test target` step already builds each crate `--features probe --all-targets --no-run`, so the marginal cost is execution only. **A decision anyway:** it is `k-lint`'s wall clock, and F-R5's ~2.1 min slack was one sample offered as an argument for placing *one* test, not a licence for fourteen. **And not free in the other direction:** none has ever executed, so a red is as likely to be a kernel finding as a harness one — so expect reds, and expect some to be kernel questions rather than harness ones. The live instance is **S110(a)**. **RULED: run all fourteen. The two `#[ignore]`d collection runs stay.** Evan, 2026-08-21.
-
-**And the term that produced the confusion is retired with it.** *"Dump harnesses"* came from the finding, was quoted into F-R5, and described a population that does not exist — then went on being used after F8 refuted it. There are exactly **two** collection runs, `editor-core::m4_pr8_k_probe::dump_corpus_k_samples` and `sweep::k_report`: they **produce data rather than assert anything**, are `#[ignore]`d because they run one process per ε, and **are already executing**. They are disjoint from the fourteen, so cutting them would not have touched D111's population.
-
-**They stay because they are `k-lint`'s only input.** `k-lint`'s CLI is `k-lint <k-probe-csv>…` and those CSVs come from `k_probe_sweep.sh`'s `run_dump`. Retiring them retires the K-telemetry gate — `K = 10` is the ratified default and `docs/k-report-data/`'s committed baseline is honest only while fresh rows are linted against it. That is a decision about the gate, not about test hygiene, and nothing in D111 argues for it.
-
-**The work, for a taker.** Compilation is already paid by the `compile and list every probe-gated test target` step, so the marginal cost is execution only. **Turn all fourteen on at once.** An earlier draft of this row advised landing them in batches *"so a failure is attributable"* — **that reason does not survive inspection and is retracted**: CI names the failing test, so attribution is free either way, and batching buys nothing while costing extra round trips. What is true and worth knowing is only that **none has ever executed, so expect reds, and a red is as likely to be a kernel finding as a harness one** — a kernel fix is a different lane from a harness fix, and one run over the whole set tells you which you have. F8's floor (`probe-suite-census.sh --check-executed`, keyed on tests that **ran** and on the `plain.ignored == ignored.passed` complement) is the mechanism to extend as each batch lands. |
-| **The scaled square — RULED YES (Evan, 2026-08-21)** | **Raised by Track F's F-g (#849), which stopped at the boundary rather than deciding it.** The interval-square gate forbids `x * x` because the general multiply must consider four endpoint products and cannot exploit `x·x ≥ 0`; the tight square is never wider and is **strictly tighter when the enclosure straddles zero**. F-g converted `linalg/vec.rs`'s `orthonormal_basis` `b2` (`self.y.powi(2)`) on exactly that ground — bit-identical at `f64`, tighter at `Interval`, still containing the truth. **One line above sits `b1`'s `((s * self.x) * self.x)` — a *scaled* square, invisible to any matcher of this shape, and deliberately left alone**, because tightening it means rewriting `(s·n.x)·n.x` as `s·(n.x²)` and the doc says *"each component exactly as parenthesized"*. **The question: may a D9-fixed evaluation order be reassociated when the reassociation is strictly tighter at `Interval` and bit-identical at `f64`?** It is not a matcher question and must not be answered by widening one — **it decides two ratified sites**: `orthonormal_basis`'s `b1`, and `linalg/mat.rs`, whose interval-square allowlist entry is justified by *"`rotation_about`'s evaluation order"*. A taker who treats it as a sweep will red both. Note `memories/output-stability-as-justification.md` does **not** settle it: it says byte-preservation may choose among equivalent implementations but never justify keeping code, and the live claim here is that the *order itself* is the ratified thing. **RULED: YES — reassociate.** Evan, 2026-08-21, on two grounds. **(1) Moving output is not on its own a reason not to act.** `memories/output-stability-as-justification.md` names *arithmetic association* as exactly the kind of thing output stability may decide, and is explicit that committed bytes are *"usually a golden, and regenerating a golden is a chore, not a contract"*. The orchestrator had offered the `f64` byte-move at `mat.rs` as a downside **while citing that same memory two paragraphs earlier**, which is the error the memory exists to prevent. **(2) The memory's carve-out does not reach this.** It preserves *"the D2/D9 determinism contract itself (bit-identical replay, byte-identical export)"* — and Evan: **D9 is determinism at one kernel, not pinning the same output forever.** So the same document evaluated twice must agree; it need not agree with last year. `u_ref` is stored as data per D2, so existing documents keep their frames.
-
-**D109(a) is CLOSED by #885** and what follows is the record of the prediction it tested. **The exact-scalar test predicted COST, not permission**: `orthonormal_basis`'s `b1` has `s = ±1`, so `(s·x)·x` and `s·(x²)` are bit-identical at `f64` (round-to-nearest-even is sign-symmetric) — free, and #885 pins that with a proptest. **The *"strictly tighter at `Interval`"* half of the original prediction is the one thing here that does not survive checking**: it narrows only where the scale is a definite `±1` and `n.x` straddles zero, it is exactly a wash where `n.z` straddles zero (`s = [−1, 1]`), and the ruling's own third rider already forbade stating the width absolutely. `mat.rs::rotation_about`'s `t * x * x` has `t = 1 − cos θ`, arbitrary, so it **moves `f64` bytes** — 34.6% of random θ/axis pairs — **and re-cut no golden at all**, because the reassociation is exact for axis components in `{0, ±1}` and that is every rotation on a committed artifact's path here. The prediction's first half held; its second half was right about the arithmetic and wrong about the chore.
-
-**Three conditions ride with it, none of them a reason to decline.** The **`Dual<f64>` tangent changes and nothing tests it** — `Dual::mul` is `x'·x + x·x'`, `Dual::powi` is `(2·x)·x'`; 6,388 of 3,000,000 inputs differ at the last ulp of a subnormal tangent and `x = (1e308, 1e-308)` gives old `1.9999999999999998`, new `inf`, while the in-tree guard asserts only the **value** channel. Extend the guard **with** the change, not after. *"Strictly tighter"* has an exception: `powi(2)` is **1 ulp wider** below `|x| < 2^-480` (the *"never wider"* claim cited inari, which has not been the backend since M5 PR 1) — unreachable in the live regime, 0 widenings in 3M samples over `|x| ∈ [1e-60, 1e60]`, but do not state it absolutely. And **the gate cannot see scaled squares at all**, so this authorises a manual sweep rather than producing one; a taker who reaches for a matcher widening will red two ratified sites.
-
-Full statement in §D row **D109**(a). |
+| **D111 — RULED (Evan, 2026-08-21): run all fourteen; the two collection runs stay** | **Placed by Track F's F8 (#844), which found the premise of the ruling it was executing to be false.** Evan's F-R5 split *"thirteen `--ignored` dump harnesses (posture) versus one accidental plain test (run it)"*. Re-derived: of 17 censused probe-gated suites **exactly two carry any `#[ignore]`d test, and both are already executed**. The unexecuted **fourteen are plain `#[test]`s**, unrun because nothing runs `cargo test -p <crate> --features probe` at all — and several are not dump harnesses but the **Probe-lane halves of ordinary suites** (`profile/tests/validate_ok_probe.rs`, `geom-core/tests/k_stats_doors.rs`, `geom-brep/tests/span_meter_dim_twins.rs`), split out purely because `probe` monomorphizes every generic-over-`Real` body — **a compile-cost decision that silently became an execution decision.** The ruled disposition was applied where it fit (both accidental tests now run); **the population it was ruled over does not exist**, so the fourteen are undecided rather than decided-as-posture. **Cheap on one side:** CI's `compile and list every probe-gated test target` step already builds each crate `--features probe --all-targets --no-run`, so the marginal cost is execution only. **A decision anyway:** it is `k-lint`'s wall clock, and F-R5's ~2.1 min slack was one sample offered as an argument for placing *one* test, not a licence for fourteen. **And not free in the other direction:** none has ever executed, so a red is as likely to be a kernel finding as a harness one — so expect reds, and expect some to be kernel questions rather than harness ones. The live instance is **S110(a)**. **RULED: run all fourteen. The two `#[ignore]`d collection runs stay.** Evan, 2026-08-21.<br><br>**And the term that produced the confusion is retired with it.** *"Dump harnesses"* came from the finding, was quoted into F-R5, and described a population that does not exist — then went on being used after F8 refuted it. There are exactly **two** collection runs, `editor-core::m4_pr8_k_probe::dump_corpus_k_samples` and `sweep::k_report`: they **produce data rather than assert anything**, are `#[ignore]`d because they run one process per ε, and **are already executing**. They are disjoint from the fourteen, so cutting them would not have touched D111's population.<br><br>**They stay because they are `k-lint`'s only input.** `k-lint`'s CLI is `k-lint <k-probe-csv>…` and those CSVs come from `k_probe_sweep.sh`'s `run_dump`. Retiring them retires the K-telemetry gate — `K = 10` is the ratified default and `docs/k-report-data/`'s committed baseline is honest only while fresh rows are linted against it. That is a decision about the gate, not about test hygiene, and nothing in D111 argues for it.<br><br>**The work, for a taker.** Compilation is already paid by the `compile and list every probe-gated test target` step, so the marginal cost is execution only. **Turn all fourteen on at once.** An earlier draft of this row advised landing them in batches *"so a failure is attributable"* — **that reason does not survive inspection and is retracted**: CI names the failing test, so attribution is free either way, and batching buys nothing while costing extra round trips. What is true and worth knowing is only that **none has ever executed, so expect reds, and a red is as likely to be a kernel finding as a harness one** — a kernel fix is a different lane from a harness fix, and one run over the whole set tells you which you have. F8's floor (`probe-suite-census.sh --check-executed`, keyed on tests that **ran** and on the `plain.ignored == ignored.passed` complement) is the mechanism to extend as each batch lands. |
+| **The scaled square — RULED YES (Evan, 2026-08-21)** | **Raised by Track F's F-g (#849), which stopped at the boundary rather than deciding it.** The interval-square gate forbids `x * x` because the general multiply must consider four endpoint products and cannot exploit `x·x ≥ 0`; the tight square is never wider and is **strictly tighter when the enclosure straddles zero**. F-g converted `linalg/vec.rs`'s `orthonormal_basis` `b2` (`self.y.powi(2)`) on exactly that ground — bit-identical at `f64`, tighter at `Interval`, still containing the truth. **One line above sits `b1`'s `((s * self.x) * self.x)` — a *scaled* square, invisible to any matcher of this shape, and deliberately left alone**, because tightening it means rewriting `(s·n.x)·n.x` as `s·(n.x²)` and the doc says *"each component exactly as parenthesized"*. **The question: may a D9-fixed evaluation order be reassociated when the reassociation is strictly tighter at `Interval` and bit-identical at `f64`?** It is not a matcher question and must not be answered by widening one — **it decides two ratified sites**: `orthonormal_basis`'s `b1`, and `linalg/mat.rs`, whose interval-square allowlist entry is justified by *"`rotation_about`'s evaluation order"*. A taker who treats it as a sweep will red both. Note `memories/output-stability-as-justification.md` does **not** settle it: it says byte-preservation may choose among equivalent implementations but never justify keeping code, and the live claim here is that the *order itself* is the ratified thing. **RULED: YES — reassociate.** Evan, 2026-08-21, on two grounds. **(1) Moving output is not on its own a reason not to act.** `memories/output-stability-as-justification.md` names *arithmetic association* as exactly the kind of thing output stability may decide, and is explicit that committed bytes are *"usually a golden, and regenerating a golden is a chore, not a contract"*. The orchestrator had offered the `f64` byte-move at `mat.rs` as a downside **while citing that same memory two paragraphs earlier**, which is the error the memory exists to prevent. **(2) The memory's carve-out does not reach this.** It preserves *"the D2/D9 determinism contract itself (bit-identical replay, byte-identical export)"* — and Evan: **D9 is determinism at one kernel, not pinning the same output forever.** So the same document evaluated twice must agree; it need not agree with last year. `u_ref` is stored as data per D2, so existing documents keep their frames.<br><br>**Three conditions ride with it, none of them a reason to decline.** The **`Dual<f64>` tangent changes and nothing tests it** — `Dual::mul` is `x'·x + x·x'`, `Dual::powi` is `(2·x)·x'`; 6,388 of 3,000,000 inputs differ at the last ulp of a subnormal tangent and `x = (1e308, 1e-308)` gives old `1.9999999999999998`, new `inf`, while the in-tree guard asserts only the **value** channel. Extend the guard **with** the change, not after. *"Strictly tighter"* has an exception: `powi(2)` is **1 ulp wider** below `|x| < 2^-480` (the *"never wider"* claim cited inari, which has not been the backend since M5 PR 1) — unreachable in the live regime, 0 widenings in 3M samples over `|x| ∈ [1e-60, 1e60]`, but do not state it absolutely. And **the gate cannot see scaled squares at all**, so this authorises a manual sweep rather than producing one; a taker who reaches for a matcher widening will red two ratified sites. **This cell is the full statement of the ruling; nothing else in this document carries it.** |
 | **The C-namespace** | After the merge renumbered the second scan's observations to **C18–C25**, §D's Track C rows still occupy **C15** and **C17** for different things. One sentence giving Track C's rows a distinct prefix closes it permanently. |
 
 
@@ -10915,12 +9262,17 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**109 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**121 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
 that is what an orchestrator is for — and there are no dependencies *between*
 tracks that any lane must honour. A track can be claimed the day it is read.
+
+**Twelve tracks, fifteen letters: `L`, `O` and `S` are not tracks and never
+were.** `L` is taken by the *Last, deliberately* rows (`L1`–`L3`), `S` is the
+finding namespace, and `O` reads as a zero. *"Tracks J–X"* names the range the
+letters were drawn from, not a count.
 
 **What this repartition is not.** It is not a re-verdict. Every item keeps the
 row number, finding number and disposition it already had; `D105`, announced in
@@ -10938,18 +9290,25 @@ re-scoped or re-argued by being moved.
    (Track G's rule, learned the expensive way). Blocks are clear of every
    existing reservation and of the tree's maxima (`D179`, `S249`).
    **Re-derive after every merge anyway**: a block cannot stop a number
-   arriving from another track, only re-checking can.
+   arriving from another track, only re-checking can. And **a track's own
+   table is the thing other tracks fence against**, so a scope line that lags
+   its lane's diff silently mis-fences someone else — the table is edited in
+   the same PR as the diff that moves it, never after.
 3. **A row leaves this section when it lands, and its finding leaves the
    document with it.** Both are *deleted*, not annotated: the merged PR is the
    record and git is the archive, so a `FIXED by #NNN` lead is a thing to
-   remove rather than a thing to write. Where the closing PR establishes a
-   standing rule or a correction later work depends on, **relocate that
-   sentence into text that survives** — a track log, `memories/`, the code
-   itself — before deleting the record that carries it. Every landing PR
-   therefore edits this file, and they conflict by construction — **merge one
-   at a time, within a track**. Across tracks the conflicts are this section's
-   tables only.
-4. **Review policy, inherited unchanged from Tracks F, H and I:** style review
+   remove rather than a thing to write. **A finding only PARTLY closed does
+   not leave**: its closed members are deleted member by member — the bullet,
+   the table row, the paragraph — and what stays is the open half plus
+   whatever framing it needs to stand alone, with no note saying the rest
+   completed. Where the closing PR establishes a standing rule or a correction
+   later work depends on, **relocate that sentence into text that survives** —
+   a track log, `memories/`, the code itself — before deleting the record that
+   carries it, and **relocate it in full**: a pointer left behind aimed at a
+   one-line restatement of what was deleted is the same loss with a longer
+   path to it. Every landing PR therefore edits this file, and they conflict by
+   construction — **merge one at a time, within a track**. Across tracks the
+   conflicts are this section's tables only.
    on every unit against `docs/prompts/reviewer-style-lane.md`, carrying the
    two questions the standing brief does not ask — *is the original problem
    completely gone*, and *was it closed in the best way available*.
@@ -10978,31 +9337,40 @@ re-scoped or re-argued by being moved.
 |---|---|---|---|
 | **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 7 |
 | **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 11 |
-| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 6 |
-| **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 8 |
-| **P** | `crates/topo/src/{euler*.rs,split,attach,movefac,revert,live,merge_faces,seqgen,validate}.rs` | `D260`–`D279` / `S330`–`S349` | 10 |
-| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 10 |
-| **R** | `crates/geom-brep/src/props/`, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 10 |
-| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
+| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
+| **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 10 |
+| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs}` | `D260`–`D279` / `S330`–`S349` | 10 |
+| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 12 |
+| **R** | `crates/geom-brep/src/props/`, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
+| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 11 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 10 |
-| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 11 |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 12 |
+| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 13 |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 15 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 4 |
 
 **Two seams are stated rather than left to be discovered**, because both are
 places where a reasonable reader would think the fence ambiguous:
 
-- **`crates/*/tests/` is W's, in every crate, without exception.** A track that
-  owns a crate's `src/` does **not** own its `tests/`. Where a src change needs
-  a test, W is not in the way: the test belongs to the PR that makes the change,
-  and W's rows are about the *test-side mechanisms* named in them — the guards,
-  the doctests, the stand-downs, the fixtures, the probe-gated suites. W files a
+- **`crates/*/tests/` is W's in every crate, and the two exceptions are
+  written here**: Track T's fence covers the four `sweep/tests/` files its own
+  rows name, and Track N's `S215` covers one rotation test file. A track that
+  owns a crate's `src/` does **not** otherwise own its `tests/`. **No lane
+  mints an exception** — an exception is a fence line or a row in this
+  partition, and nothing else is one. Where a src change needs a test, W is not
+  in the way: the test belongs to the PR that makes the change, and W's rows
+  are about the *test-side mechanisms* named in them — the guards, the
+  doctests, the stand-downs, the fixtures, the probe-gated suites. W files a
   row on the owning track when a mechanism reaches into `src/`, and vice versa.
+  (Two other fences carry a named exception the same way, in the other
+  direction: Track R's `C23` reaches one line of `geom/src`, which is N's, and
+  Track V's `D75` reaches the `pncad-py` stub, which is U's.)
 - **Every `*.py` in the repo is J's**, including the fixtures under
-  `crates/*/tests/` and the renderer under `demos/`. There are 12 Python files
-  in the tree outside `.venv`, one class of question is open across them
-  (`D122`), and splitting them four ways to match the Rust fences would put four
-  tracks in one 12-file population.
+  `crates/*/tests/` and the renderer under `demos/`. There are **38 Python
+  files** in the tree outside `.venv` (re-counted 2026-08-22; the figure this
+  paragraph carried, 12, was `D122`'s marker count read as a file count).
+  One class of question is open across them (`D122` — twelve `# noqa` markers
+  in six of the files), and splitting the population to match the Rust fences
+  would put four tracks in it.
 
 ## Track J — what CI actually runs
 
@@ -11018,7 +9386,7 @@ places where a reasonable reader would think the fence ambiguous:
 | **D71** | The local gate has no `oracle-certify` mirror and nothing enforces `ci.yml` ↔ `ci-local.sh` job parity (S127). Two decisions inside it, both this track's | Track G |
 | **D110** | `scripts/ci-filter.py` decides whether any gate runs at all and is the one script here with no test (S164) | Track F |
 | **D24** | A `pub` item dead workspace-wide is invisible to every mechanical check the repo runs; `[workspace.lints]` has no `unreachable_pub`. **Closes on a chosen mechanism that runs in CI** | Track E |
-| **D122** | Twelve `# noqa` markers for three linters the repo does not run (S196). A cost decision — run one Python linter over all 12 files, or delete the markers. **Not half.** If the answer is "run one", the CI wiring is this track's too | Track G |
+| **D122** | Twelve `# noqa` markers, in six files, for three linters the repo does not run (S196). A cost decision — run one Python linter over the whole 38-file Python population, or delete the markers. **Not half.** If the answer is "run one", the CI wiring is this track's too | Track G |
 
 ## Track K — the instruments, and what they cannot see
 
@@ -11031,7 +9399,7 @@ places where a reasonable reader would think the fence ambiguous:
 | **D103** | The allowlist is file-granular while its justifications are per-seam, so a second unrelated bound in an allowlisted file inherits the first's ratification silently (S159) | Track F |
 | **D106** | `bounds-allowlist.sh` is a 204-line header in front of a 20-line function, grown three times for three honest reasons — split the ratification ledger out of the script | Track F |
 | **D68** | `ArcCarrierScalar`'s 49 use sites are a compound bound no grep gate can see (S124). **A VISIBILITY row: Track V's `G4` changes what the alias is bound to and leaves the 49 sites exactly as invisible** | Track F |
-| **D109** | What the F3 sweep left open in `scripts/gates/` (S163) — four live members; (a) is CLOSED by #885 | Track F |
+| **D109** | What the F3 sweep left open in `scripts/gates/` (S163) — four members, one row, because each is a disclosed blind spot of the same sweep | Track F |
 | **D63** | `k-lint` admits `NaN`, `inf` and negative floats and scores the row clean (S119) | Track F |
 | **D64** | What the tessellation and K instruments still cannot see after F6 (S120, four members) — including a fallback inside a comparison having two sides | Track F |
 | **D105** | The split scan's constants can be guarded, on the continuous objective, which the cell count is not (S160) — `tools/tess-meter`. **Row announced in prose and never tabled; tabled here** | Track F |
@@ -11055,6 +9423,7 @@ expected to split into two or three sub-lanes inside the track.
 | **S213** | `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one | unrowed |
 | **D78** | What is still one-directional in the interval backend after G1 — `powi`'s tightness ceiling, the oracle tier's scale-free ratio, and `interval.rs:135-143`'s consumer-side caveat (S134) | Track G |
 | **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** | Track H |
+| **D220** | `geom-core/src/real.rs:1393` — the `D67` codomain-condition assertion inside this track's fence. A deletion, not a repair: it stands beside a real assertion, and removing it makes the surviving message unambiguous. **Filed here because the fence is the file** | Track F, unplaced |
 
 ## Track N — `geom`, and the spline and linalg substrate
 
@@ -11071,6 +9440,8 @@ expected to split into two or three sub-lanes inside the track.
 | **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
 | **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
 | **S215** | The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation. **The named test file is this row's, by exception to W's fence** | Track H |
+| **D240** | Neither geometry enum can lift itself to another scalar (`S33`) — `Curve3<T>` and `Surface<T>` have no `map_scalar`/`lift`, so every caller writes its own per-variant ladder: four in `geom/src/{curves,surfaces}.rs` and roughly ten more across `topo`, `mesh` and test modules. Each is kept exhaustive by hand and each silently maps `Nurbs(_)` to the placeholder rather than lifting the payload. **The one production copy outside this fence, `sweep/src/skin.rs:774`, is Track T's `D320`** | unrowed |
+| **D241** | `geom/src/scalar_lift.rs` is named for the job it declines to do (`S100`) — it deduplicates the four leaf point/vec converters and says in its own header that the per-variant ladders stay where they are, in the same crate as four surviving ladders. `lift_to_dual` (curves) and `lift_dual` (surfaces) sit beside two unrelated `lift` functions. **`D240` is the work; this row is the name, and they want one lane** | unrowed |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -11112,6 +9483,8 @@ expected to split into two or three sub-lanes inside the track.
 | **D46** | Twenty-three funnel-reaching predicate names in `geom-brep` and `topo` have no dimensional verdict anywhere, and three of their eight homes are files the audit has never named | Track E |
 | **S83** | `seam_tol` / `MarchTolMismatch` cannot be reached and has no row; `MarchTol` is public with no possible caller | unrowed |
 | **D36** | `PcurveCertifyError::UnsupportedCarrier` is payload-free and means three different things across 22 construction sites, beside a sibling that names its class at every site | Track E |
+| **D280** | `census.rs`'s `reach_box` re-derives the ARITHMETIC of `boolean::boxes::FaceBoxRule` rather than reading it, because the `Bounds` allowlist is closed to a lane that validates `Dual` bodies (`S16`). One statement of which surface kinds have a cheap sound box exists; this is the arm that still answers it twice | unrowed |
+| **D66** | **`topo`'s NURBS re-gate cites a sibling suite as pinning two blockers; it pins one** (`S122`). `topo/src/boolean/ops.rs`'s door-2 comment says *"`sweep`'s `s16_box_soundness` pins both blockers"*. That file pins one; the placeholder blocker is pinned in `ops.rs` itself at `:2126-2132`, thirteen lines above the comment, as a `let … else { panic! }`. C-R11's class: a cross-reference is a claim site, and this one sends a reader to the wrong crate for half of it. **The fix is either the sentence or the missing row, and whoever takes it decides which** — `sweep` can build the placeholder operand, so the second row is writable. If the answer is the row, `sweep/tests/s16_box_soundness.rs` is Track T's to file | Track F, unplaced |
 
 ## Track R — the measuring consumers: `props/` and `mesh/`
 
@@ -11131,6 +9504,7 @@ is here is what it left plus what Track C never started.
 | **S237** | The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one | Track I |
 | **C22** | A crate's sizing vocabulary is `pub` in three places and `pub(crate)` in seven, and nothing consumed the public three when #803 wrote them | Track C |
 | **C23** | One rational refinement schedule hand-synced across a crate boundary — `mesh`'s `RATIONAL_CERT_SPLITS` and `geom`'s `RATIONAL_METER_SPLITS`. **The `geom` constant is one line and is this row's, by exception to N's fence** | Track C |
+| **D300** | `mesh/src/nurbs_cert.rs:1538` — the `D65` bound-domination site inside this track's fence. Same deliverable as `D65`: a measured ratio at more than one ε, or a written verdict that the site admits no honest ceiling. **Filed here rather than taken by `D65` because the fence is the file** | Track F, unplaced |
 
 *(`S65` — the watertightness backstop absent from every shipping build — is
 **Evan's decision**, not this track's row. Its equipped statement, the three
@@ -11155,6 +9529,7 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | **C25** | One swept body built from scratch six times across three crates, enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is | Track C |
 | **D104** | The two hand-run diff artefacts `S110` could not place — a printed `Debug` hash with no assertion, and pinned seeds licensed for a digest half that is printed and never asserted | Track F |
 | **C-e/H13** | `sweep/tests/`'s helix orientation coverage — the row §D twice records as having no home. **Verify against #779 before staffing**: Track C recorded H13 FIXED by that PR and the H/I handover recorded it open, and both statements are in this document | neither |
+| **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
 
 ## Track U — the exchange surface and the bindings
 
@@ -11196,6 +9571,8 @@ them alone.)*
 | **S105** | The shared refusal ladder retired one duplication and minted a documented hand-synced one | unrowed |
 | **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which | unrowed |
 | **C6** | W2f remainder / S4 — `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core. **Genuinely blocked**, each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format); kept as a row so the block is visible rather than forgotten | Track C |
+| **D360** | A classification spelled as a let-else, which #833's type-keyed sweep could not have found (`S193`) — `editor-core/src/eval/wire.rs`'s `refusal_menu`. The site itself is benign; **the row is the sweep rule** — a lane sweeping `topo::BooleanError`, or any `topo` refusal enum, sweeps by VARIANT NAME and expects let-else and `matches!` shapes | unrowed |
+| **D361** | **`S88`'s `profile` half** — the sole-`T: Bounds` doors the D1 census enumerated in this track's crates and did not take: `fillet_select.rs::nearest_joint` (`:169`; the finding's `:98` is a doc line, not a door) and `path/arc_fillet.rs:361`'s `map_refusal<T: Bounds>`, which the finding does not name. The rest of `arc_fillet.rs` is the ratified `Decide + Bounds` seam. Routed to Track G's `G4` before that track closed; the `G4` this partition carries is `ArcCarrierScalar` alone and does not cover it | Track G, unplaced |
 
 ## Track W — the test targets: guards, doctests, fixtures and stand-downs
 
@@ -11218,6 +9595,9 @@ its own tests in its own PR, as always.
 | **D72** | Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse (S128) — #831 turned the defect into an assertion, which is a tripwire and not a fix | Track G |
 | **C18** | Three residues of H12's own enumeration, left open by #734 — a tests-only unit, so all three are coverage or prose | Track C |
 | **S230** | Certified widths with no ceiling, in crates no live track owned — `editor-core/tests/`, `pncad-py`'s and three in `sweep/tests/`. **All four sites are test targets and therefore this track's** | Track I |
+| **D65** | **Bound-domination rows with no ceiling and no floor** (`S121`) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`; and `mesh/src/nurbs_cert.rs:1538`, **which is Track R's `D300` and not this row**. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against **#734** before opening | Track F, unplaced |
+| **D67** | **Assertions whose condition is the value's own codomain** (`S123`) — `geom-core/tests/review_m5_pr7b_tensor.rs:520`, and `geom-core/src/real.rs:1393`, **which is Track M's `D220` and not this row**. Both are `S110(h)`'s shape standing beside a real assertion rather than alone, so both are deletions rather than repairs; the surviving message is then unambiguous, which is what `memories/test-suite-cost.md` asks of a merged row. Cheap and edge-free. Recorded apart from `D65` because the detector shape differs: an *"every assertion is weak"* rule cannot see either of them, and that blind spot is what made the first pass under-report the class | Track F, unplaced |
+| **D380** | A band-keyed row's NAME asserts an arm the shipped default does not take (`S136`) — `profile/tests/review_s2.rs`, plus two more members in `step-import/tests/recognize_pins.rs`. **Not takeable as a rename alone**: `profile/src/sugar.rs`'s `LEVER_ULPS` doc cites the row by name, so closing it reaches one file on Track V, which is that track's row to file | unrowed |
 
 ## Track X — `demos/`, and the design doc's companion table
 
@@ -11229,7 +9609,7 @@ another track by one orchestrator without breaking the partition.
 
 | # | What | Was |
 |---|---|---|
-| **D79** | `lily.rs`, read end to end for the first time — six members, no owner: an orphaned comment block whose live number is wrong, a shadow tuple vector algebra beside `Vec3` (whose *reason* is #796), two carrier extractors with different rigor, and a partly-vacuous agreement check | Track G |
+| **D79** | `lily.rs`, read end to end for the first time (**`S130`**, whose six members are this row's members) — an orphaned comment block whose live number is wrong, a shadow tuple vector algebra beside `Vec3` (whose *reason* is #796), two carrier extractors with different rigor, and a partly-vacuous agreement check | Track G |
 | **S129** | `demos/` has assertions and no runner — nothing runs `cargo test` under `demos/`, and **two rows of the tessellation pin are red on `main`** (#782) | Track G |
 | **D123** | `demos/README.md`'s uv-lane numbers, which `S113(a)` is recorded as having swept: five figures the FIXED record itself names are still standing in the file that fix pass edited, plus two no run prints. **#787's own rule applied to the prose — compute or delete, never restate** | Track G |
 | **D51** | `DESIGN.md`'s companion table describes the dimensional audit's open findings as they stood two retirements ago, naming as open a residue the audit's own disposition list records as closed | Track E |
@@ -11258,9 +9638,6 @@ another track by one orchestrator without breaking the partition.
 | **L1** | **S36** — comb-and-rename, **per suite**, never a rename pass. | A PR-numbered name currently *carries signal*: it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Needs an owner and a slot, not just permission — the 2026-08-13 retirement licence has produced zero deletions. |
 | **L2** | **S38** — comment trimming. | Must follow every deletion above; trimming comments on code about to be deleted is pure waste. Note the pressure runs the other way too: three fix passes this week added prose because a finding demanded a claim-site reason that did not exist. |
 | **L3** | Remaining **S35** roll-up rows. | Lowest value density; several will be resolved incidentally. |
-
----
-
 
 ---
 
@@ -11500,6 +9877,13 @@ them and **nothing in CI, review, or the log ever reads that prose**.
 A grep for `verbatim|re-derived|ported from|mirror of` across `crates/*/src`
 would surface most of S18 in seconds. This is the cheapest concrete mechanism
 any postmortem in this document produced.
+
+**And it is a floor, not a census.** The standing prose sweep finds only
+**disclosed** copies; undisclosed copies are the majority, and only their
+*data* can find them — the same constant, the same magic number, the same
+literal ladder, written twice with no sentence admitting it. Run the constants
+grep beside the prose sweep, and read a clean prose sweep as evidence about
+the prose.
 
 ## C12. Specs name the *method* to copy but never the *home* to reuse
 
