@@ -345,9 +345,10 @@ watertight() {
 # External STEP import acceptance (M4 PR 7): FreeCAD/OCC imports the
 # committed fixtures (kept byte-golden against the writer by the cargo
 # test suite), asserting validity + exact counts + volume. The script
-# SKIPS LOUDLY (exit 0) when freecadcmd is absent so this row stays
-# hermetic on machines without FreeCAD — see its header for FREECADCMD
-# discovery and REQUIRE_FREECAD.
+# SKIPS LOUDLY (exit 0) HERE when freecadcmd is absent, so this row stays
+# hermetic on machines without FreeCAD; REQUIRE_FREECAD=1 promotes that skip
+# to a failure on a box known to have it. On the gate of record the same
+# absence is fatal and no flag can say otherwise — see the script's header.
 # HOSTED MIRROR: step-import / freecad import check (validity, counts, volume)
 step_import() {
   scripts/check_step.sh

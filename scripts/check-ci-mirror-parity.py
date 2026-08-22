@@ -1058,9 +1058,22 @@ def plant_clean(t: str) -> None:
     open(os.path.join(t, "demos/render-uv.sh"), "w").close()
 
 
-def _run(root: str) -> tuple[int, str]:
+def _run(root: str, hosted: bool = False) -> tuple[int, str]:
+    """One case's subprocess invocation, against the fixture.
+
+    `GITHUB_ACTIONS` IS CLEARED unless a case asks for it. The children are
+    being asked what they say about a miniature repo, not whether they are the
+    gate of record — and `--root` is refused on the gate of record, so leaving
+    an ambient `GITHUB_ACTIONS` in place would make every case below fail with
+    that refusal whenever the self-test itself runs on hosted CI. Which is
+    where it runs: the `mirror` job invokes `--selftest` before the real pass.
+    """
+    env = dict(os.environ)
+    env.pop("GITHUB_ACTIONS", None)
+    if hosted:
+        env["GITHUB_ACTIONS"] = "true"
     r = subprocess.run([sys.executable, os.path.abspath(__file__), "--root", root],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, env=env)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -1111,6 +1124,14 @@ def selftest() -> None:
         rc, out = _run(t)
         if rc != 0:
             raise SystemExit(f"SELFTEST FAILED: the checker FAILED on a clean fixture\n{out}")
+        # `--root` carries the FIXTURE's marker floor, so on the gate of record
+        # it is a way to run the real repo against a floor of three. The same
+        # clean fixture, the same arguments, one environment variable the
+        # runner sets and no repo edit can unset.
+        rc, out = _run(t, hosted=True)
+        if rc == 0 or "refused on the gate of record" not in out:
+            raise SystemExit("SELFTEST FAILED: `--root` was accepted under GITHUB_ACTIONS, where it "
+                             f"would lower this gate's own floor\n{out}")
 
     def hosted_only(t):
         _append(HOSTED_HALF, "      - name: new\n        run: scripts/check-new.sh\n")(t)
@@ -1227,7 +1248,8 @@ def selftest() -> None:
     _case("a definition above the exit is not a run", _local_row_below_exit)
     _case("never runs", _local_row_deleted)
     print("check-ci-mirror-parity selftest OK: every Bail names the symbol to extend or says there is "
-          "none; passes a clean fixture; fires on a one-sided row, a "
+          "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
+          "record; fires on a one-sided row, a "
           "one-sided gate MODE, a path both halves name that does not exist, an orphan script, a "
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
@@ -1288,8 +1310,24 @@ def main() -> int:
     # is why the fixture's floor rides on it rather than on a flag of its own:
     # a `--marker-floor` a real invocation could reach for would be a way to
     # lower a merge gate that reads as a flag rather than as a decision.
+    #
+    # AND IT IS REFUSED ON THE GATE OF RECORD, because giving `--root` the
+    # power to lower the floor is precisely what makes it worth reaching for:
+    # `--root .` would run every claim against this repo with a floor of three,
+    # so thirty-five markers could go missing and the row would still pass. The
+    # condition is `GITHUB_ACTIONS`, which the runner sets and no edit to this
+    # repo can unset — the same reason `check-python-lint.py` reads it rather
+    # than a flag of its own. Off the gate of record the self-test uses it
+    # freely; that is what it is for.
     floor = MIRROR_MARKER_FLOOR
     if "--root" in args:
+        if os.environ.get("GITHUB_ACTIONS"):
+            print("ERROR: check-ci-mirror-parity: `--root` is the self-test's fixture affordance and "
+                  "carries the fixture's marker floor with it, so it is refused on the gate of record: "
+                  "it would run the real repo against a floor of "
+                  f"{FIXTURE_MIRRORED_ROWS} instead of {MIRROR_MARKER_FLOOR}. Invoke the checker with "
+                  "no arguments, or `--selftest`.", file=sys.stderr)
+            return 1
         root = os.path.abspath(args[args.index("--root") + 1])
         floor = FIXTURE_MIRRORED_ROWS
     try:

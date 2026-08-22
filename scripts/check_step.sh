@@ -13,18 +13,49 @@
 #   (default: crates/step-export/tests/fixtures)
 #
 # FreeCAD discovery: $FREECADCMD if set, else the documented local
-# install. When absent the check SKIPS LOUDLY with exit 0 so the test
-# suite and gate stay hermetic — set REQUIRE_FREECAD=1 to make absence
-# a failure (e.g. on machines known to have it).
+# install. Off the gate of record — a developer's box — an absent binary
+# SKIPS LOUDLY with exit 0 so the test suite and gate stay hermetic, and
+# REQUIRE_FREECAD=1 promotes that skip to a failure on a machine known to
+# have it.
+#
+# ON THE GATE OF RECORD A MISSING FreeCAD IS FATAL, AND THAT DOES NOT REST ON
+# A FLAG. `GITHUB_ACTIONS` is set by the runner itself: no edit to this repo
+# can unset it, which is exactly what an edit to `REQUIRE_FREECAD=1` in ci.yml
+# could do. Deleting that assignment used to turn this row into "SKIP, exit 0,
+# no STEP fixture verified" on every PR thereafter, with nothing reading the
+# flag to notice — a check that does not run LESS often but stops running at
+# all. The declaration is kept anyway and is CHECKED below, for the reason it
+# was written: it is the workflow saying out loud, where a reader of the job
+# meets it, that this row is not allowed to skip.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 dir="${1:-$repo_root/crates/step-export/tests/fixtures}"
 freecadcmd="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd}"
 
+# The declaration is a marker, so it is checked. Unchecked it is a claim that
+# a checker is mandatory with nothing enforcing it — this row's own defect,
+# re-minted inside the fix for it. Runs BEFORE the discovery below, so it fires
+# on a runner that does have FreeCAD too.
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ "${REQUIRE_FREECAD:-}" != "1" ]; then
+    echo "check_step: running under GITHUB_ACTIONS with REQUIRE_FREECAD='${REQUIRE_FREECAD:-}';" >&2
+    echo "check_step: on the gate of record it must be \"1\". That line in .github/workflows/ci.yml's" >&2
+    echo "check_step: step-import step is the workflow saying out loud that a missing FreeCAD fails" >&2
+    echo "check_step: this job, and this check is what keeps it from becoming a sentence nothing" >&2
+    echo "check_step: enforces. FreeCAD is required here either way — the requirement is read from" >&2
+    echo "check_step: GITHUB_ACTIONS, not from this variable — so restore the declaration rather" >&2
+    echo "check_step: than working around it." >&2
+    exit 1
+fi
+
 if ! [ -x "$freecadcmd" ]; then
     echo "check_step: SKIP — freecadcmd not found at '$freecadcmd'" >&2
     echo "check_step: set FREECADCMD to a FreeCAD headless binary to run this check" >&2
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then
+        echo "check_step: this is hosted CI, the gate of record — a missing FreeCAD is a failure" >&2
+        echo "check_step: here, and no repo edit can make it a skip." >&2
+        exit 1
+    fi
     if [ "${REQUIRE_FREECAD:-0}" = "1" ]; then
         echo "check_step: REQUIRE_FREECAD=1, treating absence as failure" >&2
         exit 1
