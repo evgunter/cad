@@ -1071,7 +1071,7 @@ def _selftest_sampling() -> None:
     for i in range(4000):
         d = decorate(dict(base), files, f"{i:040x}")
         seen.add((d["LANE"], d["EPS"], d["KLINT_ROW"]))
-    want_points = {(l, e, k) for l in LANES for e in EPS_ROWS for k in KLINT_ROWS}
+    want_points = {(ln, e, k) for ln in LANES for e in EPS_ROWS for k in KLINT_ROWS}
     missing = want_points - seen
     if missing:
         raise SystemExit(
