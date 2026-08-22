@@ -1881,40 +1881,12 @@ jobs:
           cargo test --release --features oracle-inari -- --nocapture
           echo "CASES_SECONDS=$((SECONDS - t0))"
 
-  watertight:
-    name: watertight (admesh)
-    runs-on: ubuntu-latest
-    needs: filter
-    # Root package `stl`: the acceptance example lives there and its
-    # (dev-)dependency graph is the whole profile -> sweep -> topo -> mesh
-    # chain this job exercises, so `stl in closure` is exactly the
-    # condition under which any of it can have moved.
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_stl == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      # External STL verification (M2 PR 7): admesh 0.98.4 is
-      # apt-packaged; the check script accepts NO repair as success.
-      - name: install admesh
-        run: sudo apt-get update && sudo apt-get install -y admesh
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # The example pre-flights our own validators (tier 1–3 incl. the
-      # +V invariant, check_mesh, signed_volume > 0) before writing.
-      - name: export acceptance STLs
-        run: cargo run -p stl --example export_acceptance -- target/stl-acceptance
-      - name: admesh check (watertight/manifold, no repair accepted)
-        run: scripts/check_admesh.sh target/stl-acceptance
+  # THE `watertight (admesh)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (Evan, 2026-08-22). Its evidence is its own
+  # history: one solo red in 37 days of gate runs, and that one was a rustup
+  # outage rather than a mesh. It is a PERSISTENCE-detector — a non-manifold
+  # body stays non-manifold — so a nightly finds what this row would have
+  # found, a few hours later, at 1-2 billed minutes a day instead of per PR.
 
   step-import:
     name: step import (freecad)
@@ -2102,155 +2074,24 @@ jobs:
   # either. The `(interval)` members of both families are NOT affected:
   # they are named steps of the `test-interval` job and stay.
 
-  # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
-  # prints a per-document table (full rebuild + incremental recompute,
-  # median of 5) and diffs it against the newest entry in the timing
-  # history, docs/perf-data/rebuild-latency/. It is DELIBERATELY NOT A
-  # GATE on any timing number — instrumentation, not a contract;
-  # PERF-PLAN stays advisory. The assertions inside are the
-  # ε-independent structural ones (counted reuse, and the corpus
-  # manifest's nodes/cone pins), which are arithmetic, not wall clock.
+  # THE `rebuild latency (reporting)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (2026-08-22). SPLIT, not cut:
   #
-  # THIS JOB IS THE CANONICAL PRODUCER of those numbers (2026-08-17).
-  # It used to be a developer workstation, via a CAD_LATENCY_BASELINE_
-  # REFRESH env var and a hand-committed baseline, and that arrangement
-  # disqualified itself: three refreshes disagreed by 90-98% on every
-  # row with contention ruled out, so docs/PERF-SCAN-2026-08.md §0 had
-  # to label every absolute-millisecond claim in the repo provisional.
-  # A runner is not a quiet box, but it is a REPRODUCIBLE box class,
-  # which is the property the workstation numbers lacked — and every
-  # entry now records its own environment block, so two entries that
-  # disagree can be compared rather than argued about. Same ruling
-  # render.yml carries for renders (#338: hosted is canonical).
+  #   * THE WALL-CLOCK TABLE went to the nightly, where a measurement lane
+  #     belongs. It was billing two minutes on every code-tier PR to print a
+  #     number no PR acts on — it is reporting, never a gate, and PERF-PLAN
+  #     stays advisory. That job keeps the append-only history commit and its
+  #     main-only guard, and gains a `workflow_dispatch` ref input so a
+  #     regression can be bisected on demand rather than only forward.
+  #   * THE STRUCTURAL PINS stayed on the PR side and got CHEAPER: counted
+  #     reuse and the corpus manifest's nodes/cone are exact, machine-
+  #     independent and ε-independent, so they are an ordinary non-`#[ignore]`d
+  #     `#[test]` in editor-core now, inside the nextest archive, gating every
+  #     PR at about zero marginal cost. That is MORE coverage than this job
+  #     gave them: it ran on `run_editor_core` only.
   #
-  # TWO OUTPUTS, DIFFERENT AUDIENCES:
-  #   * an ARTIFACT on every run (including PRs) — the numbers for the
-  #     change in front of you, downloadable without waiting for a
-  #     merge;
-  #   * a COMMITTED history entry on pushes to main ONLY — the durable
-  #     trend. Artifacts expire at 90 days; a question like "when did
-  #     die_composed get slower" outlives that, and the git history is
-  #     the only place in this repo that answers it.
-  #
-  # WHY MAIN ONLY. On a PR branch the entry would be that PR's own
-  # measurement, so the PR's `vs base` column would diff against
-  # itself and report nothing — the reporting row would structurally
-  # stop reporting. Writing only on main keeps every PR's diff honest
-  # (vs main's last hosted measurement) at the cost of nothing.
-  rebuild-latency:
-    name: rebuild latency (reporting)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
-    permissions:
-      # Only for the history commit below, and only on main. Every
-      # other job in this workflow runs on the default read-only token;
-      # this is the one that writes, so it says so here rather than
-      # widening the whole workflow.
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
-      # paying for it 5× (it is reporting, and its green-document and
-      # counted-reuse assertions are a strict subset of the corpus
-      # row's — see the rustdoc on `rebuild_latency_table`). THIS job is
-      # the one that runs it, so the flag is what keeps the table alive.
-      # Same idiom as scripts/k_probe_sweep.sh.
-      #
-      # CAD_LATENCY_EMIT writes the measurement OUTSIDE the working
-      # tree, into RUNNER_TEMP. The test only ever writes the file it
-      # is told to; naming it and deciding whether it joins the history
-      # is this workflow's call, never the test's — so a local run with
-      # the var set cannot touch a committed path.
-      - name: per-document full-rebuild + incremental-recompute table
-        run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
-        env:
-          CAD_LATENCY_EMIT: ${{ runner.temp }}/rebuild-latency.json
-          CAD_LATENCY_COMMIT: ${{ github.sha }}
-          CAD_LATENCY_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
-      # Every run, PRs included. `if: always()` because the measurement
-      # is emitted BEFORE the structural assertions run: when a pin
-      # fails, this artifact is exactly what the next reader wants.
-      - name: upload measurement (artifact)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rebuild-latency-${{ github.sha }}
-          path: ${{ runner.temp }}/rebuild-latency.json
-          if-no-files-found: warn
-      # THE AUTO-COMMIT. Main pushes only; see the header.
-      #
-      # NO RECURSION, TWO WAYS. Pushes made with the default
-      # GITHUB_TOKEN do not trigger workflow runs — that is GitHub's
-      # built-in guard and is what actually stops the loop here — and
-      # the commit subject carries [skip ci] as belt-and-braces in case
-      # this ever moves to a different token.
-      #
-      # DELIBERATELY NOT ADDED TO ci-filter.py's `_is_docs`. That
-      # allowlist is for paths hosted CI CANNOT read — the claim is
-      # proven by the prune step that deletes them — and CI does read
-      # this one (m4_pr8_latency.rs takes its `vs base` from the newest
-      # entry). So a hand-committed history file classifies TIER=all,
-      # which is the allowlist failing closed exactly as designed. The
-      # auto-commit below never reaches the filter at all, per the
-      # recursion note above.
-      #
-      # APPEND-ONLY, SO THE RACE IS NOT A CONFLICT. The filename
-      # carries this run's commit sha, so no two runs write the same
-      # path and no merge is ever needed. If main moved while we were
-      # measuring, the push is rejected; the retry re-syncs to the new
-      # main and re-lands the SAME new file on top. That re-commits an
-      # unpushed local commit — it never rewrites published history,
-      # which is what the repo's merge-only rule is about.
-      - name: commit measurement to the timing history (main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          MEASUREMENT: ${{ runner.temp }}/rebuild-latency.json
-          SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
-          # <epoch>-<short-sha>.json — lexicographic sort == chronological.
-          stamp="$(date -u +%s)"
-          name="${stamp}-${SHA:0:7}.json"
-          dest="docs/perf-data/rebuild-latency/${name}"
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3 4; do
-            # Re-sync to main. This also restores the local-only trees
-            # the prune step deleted, so the commit below can only ever
-            # contain the one new file.
-            # --depth=1: the checkout is shallow and this only needs
-            # main's TIP to commit onto; the server holds the ancestry,
-            # so the push is an ordinary fast-forward.
-            git fetch --depth=1 origin main
-            git reset --hard origin/main
-            mkdir -p docs/perf-data/rebuild-latency
-            cp "$MEASUREMENT" "$dest"
-            git add "$dest"
-            git commit -m "perf(ci): rebuild-latency measurement for ${SHA:0:7} [skip ci]"
-            if git push origin HEAD:main; then
-              echo "committed ${dest}"
-              exit 0
-            fi
-            echo "push rejected (main moved); retry ${attempt}"
-            sleep $((attempt * 4))
-          done
-          echo "could not land the measurement after 4 attempts" >&2
-          exit 1
+  # `run_editor_core` still has consumers (the two named `test-interval`
+  # steps), so the filter's plumbing for it stays.
 
   # Spec D3: the large-K fragility lint. A GATE — a flagged margin
   # fails this row (the tool exits 2 and prints the interpretation

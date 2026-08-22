@@ -1,0 +1,652 @@
+# THE NIGHTLY LANE.
+#
+# WHAT LIVES HERE AND WHY IT IS NOT IN ci.yml. Three kinds of row:
+#
+#   * PERSISTENCE-DETECTORS THAT DO NOT NEED EVERY RUN. `watertight` is the
+#     first (Evan, 2026-08-22): one solo red in 37 days and it was a rustup
+#     outage. A broken mesh stays broken, so a nightly finds it — the same
+#     argument the ε and lane sampling in ci.yml rest on, taken to a longer
+#     period.
+#   * MEASUREMENT LANES. `rebuild latency (reporting)` was never a gate;
+#     its wall-clock table belongs on a cadence rather than on every PR.
+#     `opt-level calibration` is new and is the reason this file was
+#     written at all.
+#   * (LATER) THE DEMOTED TESTS. See the note at the foot of this file: the
+#     mechanism is decided, the marker lives at each test, and the job that
+#     runs them lands with the first demotion.
+#
+# THIS IS NOT "a scheduled full run on main". That was DECLINED (Evan,
+# 2026-08-22; ci.yml's header carries the reasoning) and nothing here
+# re-opens it: no build of the gate's archive, no clippy, no k-lint, and no
+# test row except the calibration lane's own arm, which is a MEASUREMENT of
+# the suite rather than a gate over it. A red row here reports; it blocks
+# nothing, because nothing merges through this workflow.
+#
+# IT MUST NOT RUN WHEN MAIN HAS NOT MOVED (Evan, 2026-08-22). That is the
+# `gate` job below, and the state it reads is an APPEND-ONLY GIT TAG,
+# `nightly/<epoch>-<sha>`, pushed by `record` after a run that actually
+# executed. Three alternatives were weighed and rejected:
+#
+#   * A COMMITTED STATE FILE is self-triggering — writing it moves main, so
+#     the next night sees a change and runs, forever.
+#   * `actions/cache` evicts after 7 days with no hits, so a quiet fortnight
+#     silently becomes "main has changed" and the gate stops meaning
+#     anything at the exact moment it would start saving something.
+#   * THE RUN API's last successful run cannot distinguish a run that
+#     executed the suite from one that skipped it, so a no-change day
+#     poisons the reference for every day after it.
+#
+# A tag pushes to no branch, rewrites no history, sorts chronologically by
+# name (the same idiom docs/perf-data/rebuild-latency/ uses), and is written
+# exactly when a run happened.
+#
+# THE ONE SUBTLETY IN THAT GATE, and it is this workflow's own doing: two
+# jobs below COMMIT to main (the rebuild-latency history entry and the
+# opt-level sample). Those commits are real movements of main, and
+# `scripts/ci-filter.py` classifies `docs/perf-data/**.json` as TIER=all
+# quite deliberately (ci.yml's rebuild-latency job says why it is NOT in the
+# filter's docs allowlist). Left alone, this workflow would therefore
+# re-trigger itself every night off nothing but its own writes. The gate
+# excludes THIS WORKFLOW'S OWN OUTPUT PATHS from the diff it hands the
+# filter — not by classifying anything, which `scripts/ci-filter.py`'s
+# header reserves to itself, but by choosing the input: a git pathspec, in
+# the same file that writes those paths.
+#
+# EVERY DIFFED PATH IS STILL CLASSIFIED BY THE ONE CLASSIFIER. There is no
+# second copy of the docs/all/closure rules here, and there must not be.
+
+name: nightly
+
+on:
+  schedule:
+    # 05:19 UTC. Off the hour deliberately — the hosted scheduler queues
+    # every `0 * * * *` job in the world at once and a nightly that starts
+    # twenty minutes late for that reason is a nightly nobody trusts.
+    - cron: '19 5 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          SHA (or ref) to run at. THE BISECTION HANDLE: a regression in the
+          rebuild-latency table or in the opt-level verdict is a question
+          about a commit, and without this the only way to ask it is to wait
+          for that commit to be main's tip again, which never happens. A
+          dispatch with a ref RUNS THE ROWS AND WRITES NOTHING — no history
+          commit, no tag — so a bisection cannot corrupt either record with
+          measurements of an old tree.
+        required: false
+        default: ''
+      force:
+        description: >-
+          Run even if main has not moved since the last nightly. For
+          re-taking a measurement after changing how it is taken.
+        required: false
+        default: 'false'
+
+concurrency:
+  group: nightly
+  # NOT cancel-in-progress, unlike ci.yml: two nightlies never race (the
+  # schedule is daily and a manual dispatch is deliberate), and a cancelled
+  # run here would drop a measurement rather than a superseded gate result.
+  cancel-in-progress: false
+
+jobs:
+  # NO LOCAL MIRROR: it asks the hosted scheduler's own question — has main
+  # moved since the last time THIS WORKFLOW ran — off a git tag that only a
+  # hosted run pushes. A developer box has no such tag, runs nothing on a
+  # schedule, and answers the question by choosing to run the local gate.
+  gate:
+    name: has main moved
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      base: ${{ steps.decide.outputs.base }}
+      why: ${{ steps.decide.outputs.why }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history AND the tags: the reference this reads is a
+          # tag, and the diff is against a commit that may be weeks back.
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: has main moved since the last nightly
+        id: decide
+        env:
+          # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned toolchain
+          # download — the same trick, for the same reason, as ci.yml's
+          # `filter` job: the script only runs `cargo metadata --no-deps`.
+          RUSTUP_TOOLCHAIN: stable
+          DISPATCH_REF: ${{ inputs.ref }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          say() { echo "run=$1" >> "$GITHUB_OUTPUT"; echo "why=$2" >> "$GITHUB_OUTPUT"; echo "$2"; }
+          echo "base=" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$DISPATCH_REF" ]; then
+            say true "dispatched at an explicit ref ($DISPATCH_REF): the rows run and NOTHING is written"
+            exit 0
+          fi
+          if [ "$FORCE" = "true" ]; then
+            say true "dispatched with force: running without asking whether main moved"
+            exit 0
+          fi
+
+          # THE STATE. Tag names sort chronologically because the epoch is
+          # fixed-width; `sort` on the whole name is therefore `sort` on the
+          # timestamp, and `tail -1` is the newest.
+          prev="$(git tag --list 'nightly/*' | sort | tail -1)"
+          if [ -z "$prev" ]; then
+            say true "no nightly/* tag: this workflow has never recorded a run"
+            exit 0
+          fi
+          base="${prev#nightly/}"
+          base="${base#*-}"
+          echo "last nightly: $prev (sha $base)"
+          if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+            say true "the last nightly's sha ($base) is not in this checkout: cannot prove main held still"
+            exit 0
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+          # THIS WORKFLOW'S OWN OUTPUT PATHS ARE EXCLUDED FROM THE DIFF, and
+          # the header says why at length: both are append-only measurement
+          # histories written BY the jobs below, and both classify TIER=all
+          # (deliberately — ci.yml's rebuild-latency job argues that), so a
+          # night whose only change was last night's own commit would look
+          # exactly like a night's work. Choosing the input is not
+          # classifying it: every path that survives this pathspec is handed
+          # to scripts/ci-filter.py and judged by the one implementation of
+          # those rules.
+          changed="$(git diff --name-only "${base}...HEAD" -- \
+            ':(exclude)docs/perf-data/rebuild-latency/**' \
+            ':(exclude)docs/perf-data/opt-level/**')"
+          if [ -z "$changed" ]; then
+            say false "main has not moved since $base except by this workflow's own measurement commits"
+            exit 0
+          fi
+          echo "changed files:"; echo "$changed"
+          tier="$(printf '%s\n' "$changed" | scripts/ci-filter.py --files - | sed -n 's/^TIER=//p')"
+          echo "tier: $tier"
+          if [ "$tier" = "docs" ]; then
+            say false "everything that changed since $base is TIER=docs — nothing here can have moved"
+          else
+            say true "main moved since $base (TIER=$tier)"
+          fi
+
+  watertight:
+    name: watertight (admesh)
+    runs-on: ubuntu-latest
+    needs: gate
+    # MOVED HERE FROM ci.yml (Evan, 2026-08-22), and the evidence is its own
+    # history: one solo red in 37 days of gate runs, and that one was a
+    # rustup outage rather than a mesh. It is a PERSISTENCE-detector — a
+    # non-manifold body stays non-manifold until someone fixes it — so a
+    # nightly finds what a per-PR row would have found, later. It runs
+    # UNGATED by the change filter here: `run_stl` is what stopped it
+    # billing on unrelated PRs, and once a day is not a bill worth
+    # filtering.
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      # External STL verification (M2 PR 7): admesh 0.98.4 is
+      # apt-packaged; the check script accepts NO repair as success.
+      - name: install admesh
+        run: sudo apt-get update && sudo apt-get install -y admesh
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The example pre-flights our own validators (tier 1–3 incl. the
+      # +V invariant, check_mesh, signed_volume > 0) before writing.
+      - name: export acceptance STLs
+        run: cargo run -p stl --example export_acceptance -- target/stl-acceptance
+      - name: admesh check (watertight/manifold, no repair accepted)
+        run: scripts/check_admesh.sh target/stl-acceptance
+
+  # THE WALL-CLOCK HALF OF THE OLD ci.yml JOB (M4 PR 8a spec D2, M4-PLAN F8).
+  # It prints a per-document table (full rebuild + incremental recompute,
+  # median of 5) and diffs it against the newest entry in the timing history,
+  # docs/perf-data/rebuild-latency/. DELIBERATELY NOT A GATE on any timing
+  # number — instrumentation, not a contract; PERF-PLAN stays advisory.
+  #
+  # WHY IT MOVED, and what stayed behind. This job was billing two minutes on
+  # every code-tier PR to produce a number no PR acts on, and its ONE
+  # per-PR-worthy assertion — the ε-independent structural pins (counted
+  # reuse, and the corpus manifest's nodes/cone) — is arithmetic, not wall
+  # clock. Those pins are an ordinary non-`#[ignore]`d `#[test]` in
+  # editor-core now, inside the nextest archive, so they gate EVERY PR at
+  # about zero marginal cost. That is more coverage than before, not less:
+  # they used to be checked only where this job ran.
+  #
+  # THIS JOB IS STILL THE CANONICAL PRODUCER of the numbers (2026-08-17). It
+  # used to be a developer workstation, and that arrangement disqualified
+  # itself: three refreshes disagreed by 90-98% on every row with contention
+  # ruled out, so docs/PERF-SCAN-2026-08.md §0 had to label every
+  # absolute-millisecond claim in the repo provisional. A runner is not a
+  # quiet box, but it is a REPRODUCIBLE box class, which is the property the
+  # workstation numbers lacked.
+  #
+  # IT KEEPS ITS OWN COMPILE, deliberately, rather than riding the nextest
+  # archive: routing a measurement lane through the gate's archive couples it
+  # to a CI tuning knob that is actively being changed (see `opt-level`
+  # below), so every future opt-level change would break this history rather
+  # than just this once.
+  #
+  # WHAT THE CADENCE COSTS: the history goes from one entry per merge to one
+  # per nightly, so `vs base` is now "since the last night that ran" rather
+  # than "since the last merge". For a trend line read over weeks that is the
+  # same line with fewer points; for attributing a jump to one merge it is
+  # worse, and the answer to that is the `ref` dispatch input at the top of
+  # this file, which re-measures any commit on demand.
+  rebuild-latency:
+    name: rebuild latency (reporting)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    permissions:
+      # Only for the history commit below, and only on a scheduled run of
+      # main. Every other job here runs on the default read-only token.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # `--ignored`: the table is `#[ignore]`d so the gate's test rows stop
+      # paying for it (it is reporting, and its green-document and
+      # counted-reuse assertions are a strict subset of the corpus row's —
+      # see the rustdoc on `rebuild_latency_table`). THIS job is the one that
+      # runs it, so the flag is what keeps the table alive.
+      #
+      # NOTE THE FLAG IS `--ignored` AND NOT `--run-ignored=all`, and that
+      # distinction is now load-bearing for the whole file: the demoted-test
+      # mechanism at the foot of this workflow rests on nextest never being
+      # told to run pre-existing `#[ignore]`d tests. This is a `cargo test`
+      # invocation naming ONE module, not a suite-wide sweep, so it selects
+      # this table and nothing else.
+      #
+      # CAD_LATENCY_EMIT writes the measurement OUTSIDE the working tree,
+      # into RUNNER_TEMP. The test only ever writes the file it is told to;
+      # naming it and deciding whether it joins the history is this
+      # workflow's call, never the test's.
+      - name: per-document full-rebuild + incremental-recompute table
+        run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
+        env:
+          CAD_LATENCY_EMIT: ${{ runner.temp }}/rebuild-latency.json
+          CAD_LATENCY_COMMIT: ${{ github.sha }}
+          CAD_LATENCY_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
+      # `if: always()` because the measurement is emitted BEFORE the
+      # structural assertions run: when a pin fails, this artifact is exactly
+      # what the next reader wants.
+      - name: upload measurement (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild-latency-${{ github.sha }}
+          path: ${{ runner.temp }}/rebuild-latency.json
+          if-no-files-found: warn
+      # THE AUTO-COMMIT. Main only, and never on a dispatched ref.
+      #
+      # A DISPATCHED REF WRITES NOTHING, and that is the bisection input's
+      # whole safety property: a measurement of an old tree committed into an
+      # append-only history sorted by wall-clock time would read as a
+      # regression that never happened.
+      #
+      # NO RECURSION, TWO WAYS. Pushes made with the default GITHUB_TOKEN do
+      # not trigger workflow runs — GitHub's built-in guard, and what
+      # actually stops the loop — and the commit subject carries [skip ci] as
+      # belt-and-braces in case this ever moves to a different token. The
+      # `gate` job above additionally excludes this path from the diff it
+      # reads, so this commit cannot make tomorrow's nightly think main moved.
+      #
+      # APPEND-ONLY, SO THE RACE IS NOT A CONFLICT. The filename carries this
+      # run's commit sha, so no two runs write the same path and no merge is
+      # ever needed. If main moved while we were measuring, the push is
+      # rejected; the retry re-syncs to the new main and re-lands the SAME new
+      # file on top. That re-commits an unpushed local commit — it never
+      # rewrites published history, which is what the repo's merge-only rule
+      # is about.
+      - name: commit measurement to the timing history (main only)
+        if: github.ref == 'refs/heads/main' && inputs.ref == ''
+        env:
+          MEASUREMENT: ${{ runner.temp }}/rebuild-latency.json
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
+          # <epoch>-<short-sha>.json — lexicographic sort == chronological.
+          stamp="$(date -u +%s)"
+          name="${stamp}-${SHA:0:7}.json"
+          dest="docs/perf-data/rebuild-latency/${name}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            # Re-sync to main. This also restores the local-only trees the
+            # prune step deleted, so the commit below can only ever contain
+            # the one new file.
+            git fetch --depth=1 origin main
+            git reset --hard origin/main
+            mkdir -p docs/perf-data/rebuild-latency
+            cp "$MEASUREMENT" "$dest"
+            git add "$dest"
+            git commit -m "perf(ci): rebuild-latency measurement for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed ${dest}"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the measurement after 4 attempts" >&2
+          exit 1
+
+  # THE OPT-LEVEL CALIBRATION LANE. `scripts/opt-level-calibrate.py`'s header
+  # is the argument; this is the wiring, and the two things the wiring has to
+  # get right are stated here because getting either wrong produces a
+  # confident wrong answer rather than a failure.
+  #
+  # ONE: ARM B RUNS THE GATE'S TEST POPULATION. No `--cfg nightly_suite`
+  # anywhere in this job. With it, `E0` would be computed over the suite
+  # PLUS the demoted tests while `E2` — read from real gate runs — is
+  # computed over the suite alone, and the comparison would silently be
+  # between two different questions. The recorded sample carries each arm's
+  # test count so a reader can check the two match.
+  #
+  # TWO: THE ARMS SHARE A CACHE POSTURE, NOT A CACHE.
+  # docs/GENERICS-BUILD-COST.md records a cache trap that "nearly produced a
+  # wrong conclusion", and a rust-cache hit serving one arm and not the other
+  # would invert this verdict outright. Arm A is read from gate runs, which
+  # run with a warm dependency cache and cold WORKSPACE crates (rust-cache
+  # evicts workspace members before saving — ci.yml's cache header says so).
+  # Arm B is given the same posture and a key of its OWN: opt-0 fingerprints
+  # differ from opt-2's, so no artifact can cross between the arms, and the
+  # target directory this job builds into holds nothing from any other lane.
+  #
+  # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
+  # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's
+  # `CARGO_PROFILE_*_OPT_LEVEL` — is printed loudly in the job summary and is
+  # the rare actionable event; it changes nothing by itself. It has flipped
+  # once already: opt-2 (#449) reversed an earlier opt-0 verdict (#52/#53)
+  # whose premises expired, which is exactly why the sample records its
+  # INPUTS (`r`, `E2`, `a2 - a0`, the build/total split) beside the verdict.
+  #
+  # NO LOCAL MIRROR: it reads this repository's own hosted run history through
+  # the Actions jobs API to get its free arm, and measures the other arm on the
+  # 2-vCPU runner class whose numbers are the entire question. A developer box
+  # can run neither half meaningfully — its own ratio is the measurement this
+  # lane exists to distrust.
+  opt-level:
+    name: opt-level calibration
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 90
+    permissions:
+      # `actions: read` for the jobs API (arm A); `contents: write` for the
+      # append-only sample, on main only.
+      actions: read
+      contents: write
+    env:
+      # THE GATE'S OWN BUILD ENVIRONMENT, minus the two opt-level knobs. Every
+      # other variable here is copied from ci.yml's `build` job on purpose: a
+      # difference in any of them is a difference between the arms, and the
+      # sample's `environment` block records all of them so a reader can see
+      # it. Keep this block in step with that one.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "0"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "0"
+      # The opt-level the TREE is set to, for the summary's flip check. Read
+      # by scripts/opt-level-calibrate.py; it is the number arm A embodies.
+      CI_TREE_OPT_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      # ARM A, AND IT IS FREE. Real gate runs, real step durations, always
+      # current. Nothing is re-run to produce it.
+      - name: arm A (opt-2), read from recent gate runs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/opt-level-calibrate.py read-arm-a --out "$RUNNER_TEMP/arm-a.json"
+      # THE CADENCE: weekly, plus recalibrate when the free half has moved
+      # more than ~20% since the last sample (Evan's ask). Asking costs
+      # nothing, which is the point — a quiet week does not let the verdict
+      # go stale between calendar dates.
+      - name: does arm B have to run tonight
+        id: cadence
+        run: |
+          scripts/opt-level-calibrate.py decide \
+            --arm-a "$RUNNER_TEMP/arm-a.json" \
+            --history docs/perf-data/opt-level
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.cadence.outputs.run_arm_b == 'true'
+      # A KEY OF ITS OWN — see the header. opt-0 artifacts share no
+      # fingerprint with the gate's opt-2 ones, so this never restores or
+      # pollutes another lane's entry.
+      - uses: Swatinem/rust-cache@v2
+        if: steps.cadence.outputs.run_arm_b == 'true'
+        with:
+          key: opt-level-calibration-opt0
+      # The pinned nextest version is NOT restated here. ci.yml declares
+      # itself the single source of truth for it, so this reads it from
+      # there: two pins would be two versions the day someone bumps one.
+      - name: read the nextest pin from ci.yml
+        if: steps.cadence.outputs.run_arm_b == 'true'
+        id: nextest
+        run: |
+          set -euo pipefail
+          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
+          test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "nextest pin read from ci.yml: $v"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        if: steps.cadence.outputs.run_arm_b == 'true'
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      # ARM B. The gate's own two commands, in the gate's own order, with the
+      # opt-level pair set to 0 and nothing else changed. `--workspace`
+      # rather than the filter's scope: arm A's runs were scoped by the
+      # filter, but the archive step there builds whatever that run's scope
+      # was and the median is over five such runs — the honest comparison is
+      # the whole workspace, which is also what a TIER=all run (the majority
+      # verdict across merges) builds.
+      - name: arm B (opt-0), one clean build and one full-suite run
+        if: steps.cadence.outputs.run_arm_b == 'true'
+        run: |
+          set -euo pipefail
+          a0_start=$SECONDS
+          cargo nextest archive --workspace --archive-file "$RUNNER_TEMP/opt0.tar.zst"
+          a0=$((SECONDS - a0_start))
+          e0_start=$SECONDS
+          # NO --run-ignored, NO --cfg nightly_suite: this is the GATE's test
+          # population, which is the only population E2 can be compared with.
+          cargo nextest run --archive-file "$RUNNER_TEMP/opt0.tar.zst" --workspace-remap . \
+            | tee "$RUNNER_TEMP/opt0-run.log"
+          e0=$((SECONDS - e0_start))
+          tests="$(sed -n 's/.*Summary.*\[[^]]*\] *\([0-9]*\) tests run.*/\1/p' "$RUNNER_TEMP/opt0-run.log" | tail -1)"
+          printf '{"a0": %s, "E0": %s, "tests": "%s"}\n' "$a0" "$e0" "${tests:-unknown}" \
+            > "$RUNNER_TEMP/arm-b.json"
+          cat "$RUNNER_TEMP/arm-b.json"
+      - name: the verdict, and the inputs it rests on
+        if: steps.cadence.outputs.run_arm_b == 'true'
+        run: |
+          scripts/opt-level-calibrate.py record \
+            --arm-a "$RUNNER_TEMP/arm-a.json" \
+            --arm-b "$RUNNER_TEMP/arm-b.json" \
+            --history docs/perf-data/opt-level \
+            --sha "${{ github.sha }}" \
+            --summary "$GITHUB_STEP_SUMMARY"
+      # Same shape, same reasoning, same retry loop as the rebuild-latency
+      # history above — including writing nothing on a dispatched ref.
+      - name: commit the calibration sample (main only)
+        if: steps.cadence.outputs.run_arm_b == 'true' && github.ref == 'refs/heads/main' && inputs.ref == ''
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          new="$(git status --porcelain -- docs/perf-data/opt-level | awk '{print $2}' | head -1)"
+          test -n "$new" || { echo "no sample written"; exit 1; }
+          cp "$new" "$RUNNER_TEMP/sample.json"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch --depth=1 origin main
+            git reset --hard origin/main
+            mkdir -p docs/perf-data/opt-level
+            cp "$RUNNER_TEMP/sample.json" "$new"
+            git add "$new"
+            git commit -m "perf(ci): opt-level calibration sample for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed ${new}"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the sample after 4 attempts" >&2
+          exit 1
+      - name: why arm B did not run
+        if: steps.cadence.outputs.run_arm_b != 'true'
+        run: |
+          {
+            echo "### opt-level calibration — arm B skipped"
+            echo
+            echo "${{ steps.cadence.outputs.reason }}"
+            echo
+            echo "Arm A is read free on every nightly, so the drift trigger is asked"
+            echo "even on the nights the expensive arm does not run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # NO LOCAL MIRROR: it pushes the append-only `nightly/<epoch>-<sha>` tag that
+  # is this workflow's entire memory of when it last ran. Nothing local reads
+  # that tag, nothing local pushes one, and a developer running the local gate
+  # answers the question this tag exists to answer by choosing to run it.
+  record:
+    name: record that the nightly ran
+    runs-on: ubuntu-latest
+    needs: [gate, watertight, rebuild-latency, opt-level]
+    # `!cancelled()` rather than `success()`, DELIBERATELY. The tag records
+    # that this tree WAS EXAMINED, not that it passed: a red row here is
+    # visible in the run list and in the summary, and re-examining the same
+    # unchanged tree every night until someone fixes it would spend a full
+    # nightly a day to re-discover a fact already on the screen. A CANCELLED
+    # run is different — it may have examined nothing — so it does not tag.
+    if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      # THE TAG NAMES THE SHA THIS RUN EXAMINED, not main's tip at the end of
+      # it. If a PR merged while the nightly was running, that merge is NOT
+      # covered by this tag and tomorrow's gate sees it — which is the
+      # conservative direction and the reason the tag is written from
+      # `github.sha` rather than from a fresh `origin/main`.
+      - name: push the nightly/<epoch>-<sha> tag
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="nightly/$(date -u +%s)-${SHA:0:7}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$tag" "$SHA"
+          git push origin "refs/tags/$tag"
+          echo "recorded $tag" >> "$GITHUB_STEP_SUMMARY"
+
+# THE DEMOTED TESTS — the mechanism, and where the job goes.
+#
+# NOT WIRED YET, because nothing is demoted yet: the marker is a per-test
+# attribute and the first one lands with the crate change that demotes it.
+# This note is here so that job is a small diff rather than a decision.
+#
+# THE MARKER, at the test:
+#
+#     #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
+#
+# and this workflow builds with `RUSTFLAGS="--cfg nightly_suite"`, which makes
+# the attribute vanish from demoted tests only.
+#
+# THE CONSTRAINT IT SATISFIES BY CONSTRUCTION (Evan, 2026-08-22): tests that
+# are ALREADY plain `#[ignore]` — reporting rows, instruments, tests only
+# valid as the sole test in a process — must stay UNEXECUTED here too. So
+# this workflow must NEVER pass `--run-ignored` (in any spelling) to nextest.
+# It is not a list anyone has to maintain: a plain `#[ignore]` still carries
+# its attribute under the cfg, and an un-run selection cannot reach it.
+# Verified end-to-end on rustc 1.97.0 / cargo-nextest 0.9.140, under both
+# `cargo test` and `cargo nextest run`, with `-D warnings`.
+#
+# THE ONE PIECE OF PLUMBING THAT IS NOT OPTIONAL: `cfg(nightly_suite)` must be
+# declared in `[workspace.lints.rust]`'s `unexpected_cfgs` check-cfg list (and
+# hand-mirrored into crates/pncad-py/Cargo.toml, whose
+# `crate_lints_match_the_workspace_minus_unsafe_code` test pins the
+# agreement). Without it the marker is `error: unexpected 'cfg' condition
+# name` under `-D warnings` and the whole workspace goes red — loud rather
+# than silent, but red.
+#
+# NOTE THE `opt-level` JOB ABOVE MUST NOT GAIN THAT FLAG. Its arm B measures
+# the GATE's test population; adding the demoted tests to it would compute E0
+# over a different suite than the E2 it is compared against.
