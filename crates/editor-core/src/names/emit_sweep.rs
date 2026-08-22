@@ -261,9 +261,11 @@ pub(crate) fn name_revolve<T: Decide>(
             pi_rims,
         } => {
             let wire = pi_walls.iter().any(Option::is_some);
-            for (s, m) in meridians.iter().enumerate() {
-                if let Some(e) = m {
-                    insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, pe(0, s)), *e)?;
+            for (l, ms) in meridians.iter().enumerate() {
+                for (s, m) in ms.iter().enumerate() {
+                    if let Some(e) = m {
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, pe(l, s)), *e)?;
+                    }
                 }
             }
             for (s, w) in pi_walls.iter().enumerate() {
@@ -283,7 +285,7 @@ pub(crate) fn name_revolve<T: Decide>(
             }
             let rims = &built.rims[0];
             if wire {
-                let seam_chain: Vec<_> = meridians.clone();
+                let seam_chain: Vec<_> = meridians[0].clone();
                 let pi_chain: Vec<_> = pi_meridians.clone();
                 let seam = resolve_chain_opt(body, &seam_chain, rims)?;
                 let pi = resolve_chain_opt(body, &pi_chain, rims)?;
@@ -319,6 +321,28 @@ pub(crate) fn name_revolve<T: Decide>(
                     insert_vertex(
                         &mut t,
                         RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)),
+                        a,
+                    )?;
+                }
+            }
+            // Hole loops (a holed full revolve's cavity shells) are
+            // always lamina-shaped, off-axis by validated containment:
+            // every rim is a full-period self-loop whose (doubled)
+            // endpoint is the meridian vertex.
+            for l in 1..built.rims.len() {
+                for (v, r) in built.rims[l].iter().enumerate() {
+                    let e = r.ok_or(NamingError::Emission {
+                        what: "full-revolve hole with an on-axis vertex",
+                    })?;
+                    let (a, b) = edge_ends(body, e)?;
+                    if a != b {
+                        return Err(NamingError::Emission {
+                            what: "hole cavity rim is not a self-loop",
+                        });
+                    }
+                    insert_vertex(
+                        &mut t,
+                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(l, v)),
                         a,
                     )?;
                 }

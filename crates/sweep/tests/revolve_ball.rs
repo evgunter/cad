@@ -68,6 +68,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     assert_eq!(meridians.len(), 2);
     let arc_edge = meridians[0].expect("canonical segment 0 is the arc");
     assert!(meridians[1].is_none(), "axis segment omitted");

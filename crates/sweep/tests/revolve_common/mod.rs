@@ -243,6 +243,7 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
     let sweep::RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve expected")
     };
+    let meridians = &meridians[0];
     let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
     meridian_pappus_volume(
         &t.body,

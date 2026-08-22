@@ -22,11 +22,13 @@
 //!   touching-at-declared-contacts assemblies (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator).
-//! - [`Voided`](BooleanResultKind::Voided): **the first legitimate
-//!   voids** — A∖B with B strictly inside A yields the outer shell
-//!   plus the reverted inner shell, a tier-2-legal multi-shell body
-//!   (exactly the voids-born-only-from-booleans ratification; sweeps
-//!   never produce these — `FullRevolveHoles` points here).
+//! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
+//!   A∖B with B strictly inside A yields the outer shell plus the
+//!   reverted inner shell, a tier-2-legal multi-shell body. The
+//!   insertion itself is [`super::voids::insert_void`] — the shared
+//!   void-insertion door every cavity is born through (this fallback,
+//!   the holed full revolve, and `shell`'s sealed hollow), with this
+//!   fallback's probe verdicts as the door's containment evidence.
 //!
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell vertex-in-solid containment
@@ -104,6 +106,7 @@ use super::join::bool_connect;
 use super::solid_contain::{
     PointInSolidError, SolidContainment, closed_sphere_group, point_in_solid,
 };
+use super::voids;
 use super::zip::zip_seam;
 use super::{
     BooleanDeclarations, BooleanError, BooleanOp, BooleanReduction, CarriedContacts,
@@ -1893,13 +1896,42 @@ fn fallback<T: Decide>(
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
-            let mut b_body = carve_kept(&red.b, &b_keep)?;
-            if op == BooleanOp::Subtract {
-                b_body = b_body.revert().map_err(BooleanError::Revert)?;
-            }
+            let b_body = carve_kept(&red.b, &b_keep)?;
             let solid =
                 single_solid(&body).map_err(|_| desync("fallback A carve not one solid"))?;
-            let graft = graft_solid(&mut body, solid, &b_body, tol)?;
+            let graft = if op == BooleanOp::Subtract {
+                // ∖ with disjoint boundaries and kept B shells: every
+                // kept shell classified strictly `In` A, so this is
+                // the cavity case, routed through THE void-insertion
+                // door (`voids` module — the one birthplace of
+                // cavities), with this fallback's own probe verdicts
+                // supplied as the door's containment evidence. The
+                // evidence-shape refusals are unreachable from here
+                // (the kept set IS the evidence set), mapped to the
+                // desync they would represent.
+                let evidence = voids::VoidEvidence {
+                    shells: b_keep
+                        .iter()
+                        .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
+                        .collect(),
+                };
+                voids::insert_void(&mut body, solid, b_body, &evidence, tol)
+                    .map_err(|e| match e {
+                        voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
+                        voids::VoidInsertError::Corrupt { what } => {
+                            BooleanError::JoinDesync { what }
+                        }
+                        voids::VoidInsertError::Recertify(c) => BooleanError::GraftRecertify(c),
+                        voids::VoidInsertError::MissingEvidence { .. }
+                        | voids::VoidInsertError::NotStrictlyContained { .. }
+                        | voids::VoidInsertError::ForeignShell { .. } => {
+                            desync("void evidence desynced from the kept B shells")
+                        }
+                    })?
+                    .graft
+            } else {
+                graft_solid(&mut body, solid, &b_body, tol)?
+            };
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
                 _ => BooleanResultKind::Assembly,

@@ -143,8 +143,8 @@ pub enum FilletSite {
 /// The **run-out policy vocabulary** (OQ6, decided by Evan at #85) —
 /// refusal-payload names ONLY. Neither variant has a constructor
 /// surface anywhere in the kernel: they exist so a refusal can name
-/// the front door that does not exist yet (the `FullRevolveHoles`
-/// precedent), and so the post-M5 unit that implements run-outs
+/// the front door that does not exist yet (the standing frontier
+/// error-text pattern), and so the post-M5 unit that implements run-outs
 /// inherits a vocabulary Evan already owns rather than inventing one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {

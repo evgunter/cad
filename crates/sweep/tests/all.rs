@@ -191,6 +191,8 @@ mod revolve_errors;
 mod revolve_interval;
 #[path = "revolve_partial.rs"]
 mod revolve_partial;
+#[path = "revolve_ring.rs"]
+mod revolve_ring;
 #[path = "revolve_washer.rs"]
 mod revolve_washer;
 #[path = "s16_box_soundness.rs"]
