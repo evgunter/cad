@@ -13,7 +13,7 @@
 use pncad::geom_core::Vec2;
 use pncad::prelude::{Open, Start, Via};
 use pncad::profile::{ProfileLoop, SketchPlane};
-use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::sweep::{Extrusion, Revolution, RevolveAxis, chamfer_edges, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -328,6 +328,64 @@ fn stop(
     }
 }
 
+/// **A machined spacer with every edge broken** — the chamfer verb
+/// from an outside consumer's seat: extrude the pad, hand
+/// [`chamfer_edges`] the body's twelve edges at one setback, render
+/// what comes back.
+///
+/// The part is the reason chamfers exist in a shop: a rectangular
+/// spacer whose edges are all "broken" so nothing on it can cut a
+/// hand or a gasket. Twelve flat strips and eight flat corner
+/// triangles, every face a plane — the exact analytic case, no fitted
+/// band anywhere on the part.
+///
+/// **The friction this scene records** (demo-purpose rule): there is
+/// no whole-body edge selector on the PLAIN body API, so "break every
+/// edge" is spelled by enumerating the arena's own edge keys. The
+/// document layer has the door (`Node::fillet`'s `all_edges`
+/// materializer, which `diefillet` uses); the kernel-level verb does
+/// not, because there is no `Node::chamfer` yet to reach it through.
+/// A consumer wanting a chamfer in a RECIPE — with names, with a
+/// rebuild — cannot have one today.
+fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
+    let (x, y, z) = (4.0, 2.4, 1.0);
+    let setback = 0.15;
+    let lp: ProfileLoop<S> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(x, 0.0), tol)
+        .expect("spacer south")
+        .line_to(p2(x, y), tol)
+        .expect("spacer east")
+        .line_to(p2(0.0, y), tol)
+        .expect("spacer north")
+        .line_to(Start, tol)
+        .expect("spacer seam")
+        .into();
+    let pad = extrude(
+        &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
+        Extrusion::Distance(S::from_f64(z)),
+        tol,
+    )
+    .expect("extrude spacer")
+    .body;
+    // "Every edge of it" — spelled the only way the plain-body door
+    // allows (see the note above).
+    let edges: Vec<pncad::topo::EdgeKey> = pad.edges().map(|(k, _)| k).collect();
+    let t = tol.get();
+    let band = pncad::geom_core::Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance");
+    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), band, tol)
+        .expect("every edge of a rectangular pad breaks at 0.15");
+    let note = format!(
+        "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
+         plane. Friction recorded: the plain-body door has no whole-body edge selector, so \
+         `all twelve` is spelled by enumerating arena keys; and there is no `Node::chamfer`, \
+         so the verb is unreachable from a recipe.",
+        broken.blend_faces.len(),
+        broken.corner_faces.len()
+    );
+    (broken.body, note)
+}
+
 /// A stop kept OUT of the montage sheet (standalone render, full
 /// narration, corpus/latency roles untouched) — the curation lever, so
 /// a retirement is one wrapped call site and not a reshaped `stop`
@@ -341,6 +399,7 @@ fn off_sheet(mut s: Stop) -> Stop {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let (sheave_body, sheave_note) = sheave::<f64>(tol);
     let (chute_body, chute_note) = chute::<f64>(tol);
+    let (spacer_body, spacer_note) = spacer::<f64>(tol);
     vec![
         // Montage cell RETIRED by the M6 curation unit: `rocker` now
         // covers PROFILE fillets on the sheet, and far more
@@ -362,6 +421,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket(tol),
             None,
         )),
+        stop(
+            "spacer",
+            "machined spacer with every edge broken (12 flat strips + 8 flat corner patches)",
+            "extrude(Distance) -> chamfer_edges(all twelve edges, equal setback)",
+            1e-2,
+            View {
+                elev: 30.0,
+                azim: -50.0,
+                up: 'z',
+            },
+            [0.62, 0.66, 0.72],
+            spacer_body,
+            Some(spacer_note),
+        ),
         stop(
             "plate",
             "plate with two circular holes — genus 2 (each hole: 2 rings, wall band)",
