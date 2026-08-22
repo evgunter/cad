@@ -22,6 +22,8 @@
 //!   and the annulus ring's torus walls cannot even pass the boolean
 //!   operand gate.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 mod revolve_common;
 
 use geom_core::Tol;
