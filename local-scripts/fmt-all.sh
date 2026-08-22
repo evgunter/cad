@@ -24,7 +24,15 @@ while IFS= read -r lock; do
     echo "fmt-all: UNFORMATTED (or fmt error) in workspace: $ws" >&2
     fail=1
   fi
-done < <(find . -name Cargo.lock -not -path '*/target/*' -not -path '*/.git/*' | sort)
+# THE WORKSPACE LIST COMES FROM THE REPOSITORY, NOT THE FILESYSTEM.
+# `find` answers "what is on disk", which in a working checkout is not
+# the same question: this repo is worked on through agent worktrees
+# under `.claude/worktrees/`, each a full checkout with its own
+# Cargo.lock, and `find` handed every one of them to `cargo fmt --all`
+# — reformatting four other lanes' trees in place, from a script whose
+# subject is this one. `git ls-files` cannot pick up an untracked tree,
+# and it stays derived, which is the property the header claims.
+done < <(git ls-files -- '*Cargo.lock' | sort)
 
 if [ "$fail" -ne 0 ]; then
   echo "fmt-all: run local-scripts/fmt-all.sh (no --check) to fix, then re-push" >&2

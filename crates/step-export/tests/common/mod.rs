@@ -217,7 +217,7 @@ pub fn lily_lantern() -> Body<f64> {
         .body
 }
 
-/// A revolved washer: the rectangle [1,2]×[0,1] swept fully — genus 1,
+/// A revolved washer: the rectangle `[1,2]×[0,1]` swept fully — genus 1,
 /// two annuli and two full-2π cylinder walls. Its BORE wall and its
 /// under-side annulus both carry `sense: false` (S11), so this is the
 /// corpus's two-`.F.` body. Exact volume 3π.

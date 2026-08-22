@@ -59,7 +59,7 @@
 //!   degrees, eased hard toward the tip, which is what a real
 //!   *Calochortus* leaf lying along the ground does. Both are pinned
 //!   by measurement, not assertion: see
-//!   [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`].
+//!   `review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
 //!
 //!   What the loft still cannot do is close the tip to a POINT (a
 //!   zero-width section refuses, though as a NON-SIMPLE profile
@@ -99,7 +99,7 @@
 //! SEPALS' tangency to the globe is not fitted, though: the stand-off
 //! is the section's own keel and the non-entry is a two-line argument
 //! on [`sepals`], checked on the built solids by
-//! [`review_probes::the_sepals_stand_outside_the_globe_they_are_tangent_to`].
+//! `review_probes::the_sepals_stand_outside_the_globe_they_are_tangent_to`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -479,7 +479,7 @@ struct Kite {
 
 /// The long basal leaf's placement and spine, named rather than
 /// inlined because
-/// [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`]
+/// `review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`
 /// builds a SECOND blade from the very same numbers with the twist set
 /// to zero, and measures the roll as the angle between the two. A
 /// re-typed copy of these numbers would let the two drift and the

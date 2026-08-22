@@ -20,7 +20,7 @@
 //!   a whole `u`-line in the chart while being perfectly shut in space);
 //! - a loop wound the wrong way, so the even-odd interior would be the
 //!   complement of the intended one — checked against the face's own
-//!   [`topo::Face::sense`] bit rather than against CCW, because a bore
+//!   [`pncad::topo::Face::sense`] bit rather than against CCW, because a bore
 //!   or a concave groove carries `sense = false` and its outer loop is
 //!   then legitimately CW. Not every face is checkable this way — a
 //!   chart with a branch jump has no meaningful shoelace, and a face
@@ -275,7 +275,7 @@ pub struct FaceStats {
     /// nonzero: a shoelace over a ring that contains a branch jump
     /// integrates across a discontinuity that is not boundary.
     pub area: f64,
-    /// [`topo::Face::sense`]: `true` iff the material side agrees with
+    /// [`pncad::topo::Face::sense`]: `true` iff the material side agrees with
     /// the chart normal. A bore, a concave groove or an inward cone
     /// wall carries `false`, and its outer loop is then legitimately
     /// **CW** in the chart — which is why the winding is checked
