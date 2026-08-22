@@ -1782,9 +1782,8 @@ jobs:
       # the .pyi lattice's SIGNATURES, which the name-for-name stub
       # check deliberately does not look at. Pinned like maturin; this
       # step is where the row is MEASURED, so a fetch failure reds the
-      # job rather than passing quietly. `tests/test_ty.py` skips —
-      # loudly, naming the missing binary — only where no checker
-      # exists at all (the degraded local box U9S recorded).
+      # job rather than passing quietly, and `tests/test_ty.py` fails
+      # outright wherever no checker is present.
       - name: install ty (pinned, the static stub checker)
         run: |
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install "ty==$TY_VERSION"
