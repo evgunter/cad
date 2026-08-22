@@ -2065,111 +2065,39 @@ jobs:
   # three run-only legs over one archive. D4 ¶1's multi-ε obligation is
   # unchanged — same three eps bands, same scoped test set.)
 
-  # M4 PR 6 spec D6: the three persistence obligations as NAMED gates
-  # (they also run inside the workspace rows; naming them keeps the
-  # contract visible and their failures attributable at a glance).
-  # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
-  # (1e-9) pass of these same test targets is inside the `test` job's
-  # workspace run, so no band is lost.
-  persistence:
-    name: persistence
-    runs-on: ubuntu-latest
-    needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_editor_core == 'true'
-    # ONE JOB, BOTH ε ROWS (2026-08-20, minutes audit). The matrix
-    # billed two minutes per ε row to do ~1.2 min of work each, and
-    # nearly all of that work was the SAME work: these rows drive
-    # `cargo test`, so each leg compiled editor-core's test binary
-    # independently and then ran it for seconds under its own ε.
-    # Merged, the compile happens once and both ε rows run against it.
-    #
-    # ε IS RUNTIME, WHICH IS WHY THIS IS SOUND — CAD_TOLERANCE_EPS is
-    # read at run time (geom-core/src/tolerance.rs), never at compile
-    # time, so one binary serves both rows. Same reasoning the
-    # build-once/shard-the-tests header gives for the archive jobs.
-    #
-    # `fail-fast: false` IS PRESERVED, per step: the matrix gave each ε
-    # row an independent verdict, and for a tolerance-parameterised
-    # suite "did it break at BOTH ε or only one" is the whole signal.
-    # Each step below runs both ε rows to completion and fails at the
-    # end naming the ones that failed; the later steps carry
-    # `!cancelled()` so an early row's failure cannot hide a later
-    # row's.
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # D6.1 save/load/replay-identity + the D2 float property row +
-      # the committed golden v1 fixture (byte-exact freeze tripwire).
-      - name: save/load/replay-identity (D6.1) + float bits (D2) + golden v1
-        run: |
-          failed=""
-          for eps in 1e-6 1e-12; do
-            echo "::group::eps = ${eps}"
-            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden:: \
-              && status=0 || status=$?
-            echo "::endgroup::"
-            if [ "$status" -ne 0 ]; then
-              echo "::error::FAILED at eps = ${eps} (exit ${status})"
-              failed="${failed} ${eps}"
-            fi
-          done
-          if [ -n "$failed" ]; then
-            echo "failed at these ε rows:${failed}" >&2
-            exit 1
-          fi
-      # D6.2 ε-change diff (cross-process, goldened): the two probe
-      # children pin their OWN ε values — the matrix ε only hosts the
-      # orchestrating parent.
-      - name: eps-change diff goldened (D6.2)
-        if: '!cancelled()'
-        run: |
-          failed=""
-          for eps in 1e-6 1e-12; do
-            echo "::group::eps = ${eps}"
-            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- m4_pr6_eps_diff:: \
-              && status=0 || status=$?
-            echo "::endgroup::"
-            if [ "$status" -ne 0 ]; then
-              echo "::error::FAILED at eps = ${eps} (exit ${status})"
-              failed="${failed} ${eps}"
-            fi
-          done
-          if [ -n "$failed" ]; then
-            echo "failed at these ε rows:${failed}" >&2
-            exit 1
-          fi
-      # D6.3 schema-version / corrupt-file refusal + the adopted
-      # adversarial probe suite (review pins) + token key-space pins.
-      - name: schema + corruption refusal (D6.3) + review probes
-        if: '!cancelled()'
-        run: |
-          failed=""
-          for eps in 1e-6 1e-12; do
-            echo "::group::eps = ${eps}"
-            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key:: \
-              && status=0 || status=$?
-            echo "::endgroup::"
-            if [ "$status" -ne 0 ]; then
-              echo "::error::FAILED at eps = ${eps} (exit ${status})"
-              failed="${failed} ${eps}"
-            fi
-          done
-          if [ -n "$failed" ]; then
-            echo "failed at these ε rows:${failed}" >&2
-            exit 1
-          fi
+  # THE `persistence` AND `band 4 corpus` JOBS STOOD HERE, AND ARE
+  # DELETED (2026-08-22, Evan: "no need to make any special attempt to
+  # keep m4_pr8_corpus visible. just make it a normal test").
+  #
+  # WHAT THEY WERE. Two jobs that re-ran `m4_pr6_roundtrip::`,
+  # `m4_pr6_floats::`, `m4_pr6_golden::`, `m4_pr6_eps_diff::`, the D6.3
+  # schema/corruption rows and `m4_pr8_corpus::` at ε = 1e-6 AND 1e-12,
+  # under `cargo test -p editor-core`, so that those obligations were
+  # ATTRIBUTABLE at a glance from the checks list.
+  #
+  # WHY THEY WENT. Every one of those modules is an ordinary `#[test]`
+  # in the nextest archive and already runs in the `test` job — at the
+  # ε THIS RUN DREW. These jobs ran them at two fixed ε unconditionally,
+  # which is not extra coverage, it is the ε sampling defeated for those
+  # modules: the whole premise of the 2026-08-22 draw is that repetition
+  # covers the matrix, and a job pinning two of the three bands re-buys
+  # on every run what the draw was there to spread out. The ordering is
+  # the whole story — the ε-collapse landed 2026-08-20 and the sampling
+  # 2026-08-22, so this was a leftover rather than a decision.
+  #
+  # NO REPLACEMENT MECHANISM, deliberately: no filter expression, no
+  # named row, no doc pointer. "Attributability" was the only thing
+  # these jobs bought, and a test that fails names itself in nextest's
+  # output. `m4_pr6_eps_diff::` never needed the loop at all — it
+  # re-execs itself per ε (the only way two ε values can exist in one
+  # audit), so the outer 1e-6/1e-12 loop was redundant for it under any
+  # sampling regime.
+  #
+  # −4 billed minutes per code-tier PR run. The local half's
+  # `persist_*` / `corpus_eps` rows went with them; ci-local.sh runs
+  # every ε of the whole suite on one tree, so nothing is lost there
+  # either. The `(interval)` members of both families are NOT affected:
+  # they are named steps of the `test-interval` job and stay.
 
   # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
   # prints a per-document table (full rebuild + incremental recompute,
@@ -2320,68 +2248,6 @@ jobs:
           done
           echo "could not land the measurement after 4 attempts" >&2
           exit 1
-
-  # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
-  # inside the workspace rows; naming it keeps the milestone's
-  # proof-of-vocabulary attributable at a glance).
-  # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
-  # (1e-9) pass of this corpus is inside the `test` job's workspace run.
-  corpus:
-    name: band 4 corpus
-    runs-on: ubuntu-latest
-    needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_editor_core == 'true'
-    # ONE JOB, BOTH ε ROWS (2026-08-20, minutes audit). The matrix
-    # billed two minutes per ε row to do ~1.2 min of work each, and
-    # nearly all of that work was the SAME work: these rows drive
-    # `cargo test`, so each leg compiled editor-core's test binary
-    # independently and then ran it for seconds under its own ε.
-    # Merged, the compile happens once and both ε rows run against it.
-    #
-    # ε IS RUNTIME, WHICH IS WHY THIS IS SOUND — CAD_TOLERANCE_EPS is
-    # read at run time (geom-core/src/tolerance.rs), never at compile
-    # time, so one binary serves both rows. Same reasoning the
-    # build-once/shard-the-tests header gives for the archive jobs.
-    #
-    # `fail-fast: false` IS PRESERVED, per step: the matrix gave each ε
-    # row an independent verdict, and for a tolerance-parameterised
-    # suite "did it break at BOTH ε or only one" is the whole signal.
-    # Each step below runs both ε rows to completion and fails at the
-    # end naming the ones that failed; the later steps carry
-    # `!cancelled()` so an early row's failure cannot hide a later
-    # row's.
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: evaluation, exact mass pins, counted reuse, vocabulary totality
-        run: |
-          failed=""
-          for eps in 1e-6 1e-12; do
-            echo "::group::eps = ${eps}"
-            CAD_TOLERANCE_EPS="$eps" cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus:: \
-              && status=0 || status=$?
-            echo "::endgroup::"
-            if [ "$status" -ne 0 ]; then
-              echo "::error::FAILED at eps = ${eps} (exit ${status})"
-              failed="${failed} ${eps}"
-            fi
-          done
-          if [ -n "$failed" ]; then
-            echo "failed at these ε rows:${failed}" >&2
-            exit 1
-          fi
 
   # Spec D3: the large-K fragility lint. A GATE — a flagged margin
   # fails this row (the tool exits 2 and prints the interpretation
