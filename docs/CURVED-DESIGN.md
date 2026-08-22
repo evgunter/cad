@@ -639,9 +639,10 @@ PR-plan line item, none re-ratifying anything):
 3. **`split_edge`/`EdgeCurveSpec::split_specs`**: NURBS carrier
    splitting = knot insertion (C11); conic splitting = parameter
    interval split (bounded like circles). The M3 restrict-a-bulge
-   machinery generalizes; the `MappedCurve` arc lane's coverage note
-   (unreachable-at-rest) gets revisited once curved booleans mint
-   split curved edges at rest.
+   machinery generalizes; the `MappedCurve` arc lane's old coverage
+   note (unreachable-at-rest) is retired — curved booleans and the
+   fillet verbs split mapped arcs mid-operation, so the lane is
+   exercised end-to-end by whole-body rows.
 4. **Census** (`topo::census`): stays planar-exact; the
    `CensusUnsupported` boundary text names the frontier explicitly.
    *(OQ5 has since CLOSED — the boundary text's target is now
