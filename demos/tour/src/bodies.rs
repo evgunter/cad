@@ -13,7 +13,8 @@
 use pncad::geom_core::Vec2;
 use pncad::prelude::{Open, Start, Via};
 use pncad::profile::{ProfileLoop, SketchPlane};
-use pncad::sweep::{Extrusion, Revolution, RevolveAxis, chamfer_edges, extrude, revolve};
+use pncad::sweep::chamfer::chamfer_edges;
+use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -377,9 +378,12 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
         .expect("every edge of a rectangular pad breaks at 0.15");
     let note = format!(
         "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
-         plane. Friction recorded: the plain-body door has no whole-body edge selector, so \
-         `all twelve` is spelled by enumerating arena keys; and there is no `Node::chamfer`, \
-         so the verb is unreachable from a recipe.",
+         plane. Friction recorded: (1) the plain-body door has no whole-body edge selector, \
+         so `all twelve` is spelled by enumerating arena keys; (2) there is no \
+         `Node::chamfer`, so the verb is unreachable from a recipe; (3) the call wants BOTH \
+         a `Tol` and a `Band`, and the `Band` this scene passes is derived from that same \
+         `Tol` — every caller in the tour writes the same three-line derivation, so the \
+         second argument carries no information the first did not.",
         broken.blend_faces.len(),
         broken.corner_faces.len()
     );

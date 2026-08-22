@@ -264,8 +264,9 @@ pub type Chamfered<T> = Filleted<T>;
 ///
 /// # Errors
 ///
-/// [`FilletError::RepeatedEdge`] when the request names one edge
-/// twice; [`FilletError::ChamferArmUnsupported`] when a requested
+/// [`FilletError::NonpositiveSize`] when `distance` is not definitely
+/// positive; [`FilletError::RepeatedEdge`] when the request names one
+/// edge twice; [`FilletError::ChamferArmUnsupported`] when a requested
 /// edge's supports are not both planes; any predicate refusal the
 /// battery raises, or [`FilletError::Escalated`] carrying the margin;
 /// [`FilletError::UnsupportedBody`], [`FilletError::UnsupportedChain`],
@@ -284,6 +285,23 @@ pub fn chamfer_edges<T: Decide + Bounds>(
     band: Band,
     tol: Tol,
 ) -> Result<Chamfered<T>, FilletError> {
+    // The setback must be definitely positive, and that is a fact
+    // about the REQUEST, so it is read off the bracket's low end
+    // rather than metered: a `Zero`/`Negative` here is not a geometric
+    // verdict about the body, and quoting one downstream would lever
+    // the corner and clearance margins by the very number that is
+    // wrong. Written through `partial_cmp` rather than `<= 0` so the
+    // INCOMPARABLE case is an arm and not an accident: a poisoned size
+    // is not definitely positive either, and it refuses here with the
+    // other two.
+    if !matches!(
+        distance.lo().partial_cmp(&0.0),
+        Some(core::cmp::Ordering::Greater)
+    ) {
+        return Err(FilletError::NonpositiveSize {
+            size: distance.lo(),
+        });
+    }
     // A repeated edge is malformed for the chain walk (it would double
     // a link), so it refuses before the battery samples anything.
     let mut requested = edges.to_vec();

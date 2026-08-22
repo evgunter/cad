@@ -156,7 +156,7 @@ pub(super) fn unbuilt_run_out(at: EntityId, detail: &'static str) -> FilletError
 /// branches in two modules observe exactly this fact; sharing the
 /// string is what stops them wording it four ways.
 pub(super) const CORNER_SUPPORT_NOT_PLANAR: &str =
-    "a corner support face is not a plane; the octant corner is built over three planes only";
+    "a corner support face is not a plane; the corner patch is built over three planes only";
 
 /// **Row 2** — a stored carrier, trimline or surface is not a shape
 /// the surgery's closed forms cover.
@@ -251,7 +251,7 @@ struct RimCarrier<T: Real> {
 /// [`super::build::fillet_edges`] AFTER the battery, for every
 /// request. The verdict's chains are the input; nothing re-derives
 /// what the battery already resolved.
-pub(crate) fn blend_surgery<T: Decide + Bounds>(
+pub(super) fn blend_surgery<T: Decide + Bounds>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
     band: Band,

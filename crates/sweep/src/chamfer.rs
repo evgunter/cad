@@ -61,4 +61,6 @@
 //! concave widening moves those doors and leaves this geometry alone,
 //! rather than finding three convex-only constants to derive one of.
 
+// The verb's one public path, mirroring `sweep::fillet`'s: the door is
+// named by its module, not re-exported at the crate root as well.
 pub use crate::fillet::build::{Chamfered, chamfer_edges};

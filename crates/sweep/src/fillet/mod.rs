@@ -235,8 +235,10 @@ pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
 /// (open).
-pub const FILLET3_CHAIN_RECOURSE: &str =
-    "supply a tangent-continuous chain, or split the request at the tangent break";
+pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
+     helps only where the break is a genuine tangent break between two blendable runs; \
+     where it is a CORNER, splitting leaves that corner partly requested and refuses \
+     again as a run-out — request every edge of the corner instead";
 /// The recourse for a convexity sign flip along a chain.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and fillet each run separately";
@@ -447,6 +449,28 @@ pub enum FilletError {
     RepeatedEdge {
         /// The edge the request repeats.
         edge: EdgeKey,
+    },
+    /// **The band's size is not definitely positive** (D2 addendum row
+    /// 1: invalid input, checked at the door before anything resolves).
+    ///
+    /// A zero or negative setback is not a small chamfer, and neither
+    /// is one whose bracket straddles zero: there is no band to build
+    /// and no margin to meter. It is refused at the door because a
+    /// nonpositive size silently LEVERS the margins that quote it —
+    /// `fillet3_corner_independence`'s `|det(n₁,n₂,n₃)|·d` collapses
+    /// to zero at `d = 0`, so the consumer would read "a trihedron
+    /// with dependent support normals" about a cube corner whose
+    /// normals are exactly orthonormal. A false fact about the BODY is
+    /// worse than no diagnosis.
+    ///
+    /// **Not a metered predicate, deliberately.** Whether the caller
+    /// handed in a positive number is a fact about the REQUEST, not a
+    /// geometric quantity of the body, so it takes no `k_stats` name
+    /// and no band — a K-corpus row here would meter the caller.
+    NonpositiveSize {
+        /// The size as handed in, meters: its bracket's low end, so a
+        /// straddling or poisoned enclosure reports the end that fails.
+        size: f64,
     },
     /// **Frontier** (D2 addendum row 2): the body is a shape the
     /// in-place surgery has not been built for. Valid input, unbuilt
@@ -669,6 +693,14 @@ impl fmt::Display for FilletError {
                 "fillet: the request repeats edge {edge:?} — request each edge once; a \
                  repeated edge would double a link in the chain walk"
             ),
+            Self::NonpositiveSize { size } => write!(
+                f,
+                "edge blend: the band size {size} m is not definitely positive — supply a \
+                 positive radius or setback. A nonpositive size has no band to build, and \
+                 it also levers the corner and clearance margins that quote it, so it is \
+                 refused as the invalid input it is rather than reported as a fact about \
+                 the body"
+            ),
             Self::UnsupportedBody { solids, shells } => write!(
                 f,
                 "fillet assembly: the body is {solids} solid(s) and {shells} shell(s), not a \
@@ -827,6 +859,7 @@ mod recourse_tests {
             }
             // Invalid input (row 1), and the two forwarding variants.
             FilletError::RepeatedEdge { .. } => (err.clone(), Recourse::None),
+            FilletError::NonpositiveSize { .. } => (err.clone(), Recourse::None),
             FilletError::BodyNotIntact { .. } => (err.clone(), Recourse::None),
             FilletError::Certify { .. } => (err.clone(), Recourse::None),
             FilletError::Op { .. } => (err.clone(), Recourse::None),
@@ -858,6 +891,7 @@ mod recourse_tests {
             FilletError::RepeatedEdge {
                 edge: EdgeKey::default(),
             },
+            FilletError::NonpositiveSize { size: 0.0 },
             FilletError::ChamferArmUnsupported {
                 edge: EdgeKey::default(),
                 supports: "non-(plane–plane)",

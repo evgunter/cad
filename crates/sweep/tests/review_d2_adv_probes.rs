@@ -403,6 +403,7 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
         FilletError::Escalated { .. } => "Escalated",
         FilletError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
+        FilletError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
         FilletError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
         FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",

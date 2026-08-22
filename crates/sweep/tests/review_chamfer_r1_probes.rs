@@ -401,32 +401,41 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
     }
 }
 
-/// **A nonpositive setback refuses — but by asserting a false fact.**
-/// There is no positivity door on `distance`, and the predicate that
-/// used to catch a nonpositive size for the FILLET (radius headroom)
-/// is correctly not metered for a chamfer — so `d = 0` and `d < 0`
-/// fall through to corner-independence, whose margin is levered by
-/// the setback itself, and the consumer reads "VertexKey(..) is a
-/// trihedron with DEPENDENT support normals" about a cube corner
-/// whose normals are exactly orthonormal. Fail-loud holds (no body is
-/// returned); the diagnosis and its recourse are wrong. Pinned so the
-/// current verdict is visible; recorded as a review finding.
+/// **A nonpositive setback refuses as the invalid INPUT it is.**
+///
+/// There is no rolling ball, so the predicate that caught a
+/// nonpositive size for the FILLET (radius headroom) is correctly not
+/// metered here — which is what left `d = 0` and `d < 0` falling
+/// through to corner-independence, whose margin is levered by the
+/// setback itself. The consumer then read "VertexKey(..) is a
+/// trihedron with DEPENDENT support normals" about a cube corner whose
+/// normals are exactly orthonormal: fail-loud held, but the kernel
+/// asserted a false fact about the BODY.
+///
+/// **This row's expectation was amended when the finding was adopted**
+/// (review r1, MINOR-1): the door now refuses `FilletError::
+/// NonpositiveSize` before anything resolves. What the row pins is
+/// unchanged in substance — a nonpositive setback must refuse, and
+/// must refuse by naming the request rather than the geometry — so the
+/// assertion moved to the honest verdict rather than the row being
+/// retired. The refusal is deliberately NOT a metered predicate:
+/// whether the caller handed in a positive number is not a geometric
+/// quantity of the body and takes no K-corpus row.
 #[test]
-fn a_nonpositive_setback_refuses_but_misnames_the_corner() {
+fn a_nonpositive_setback_refuses_as_invalid_input() {
     let pad = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
     let edges = all_edges(&pad);
     for d in [0.0, -0.1] {
         let err = chamfer_edges(&pad, &edges, d, band(), Tol::witness())
             .expect_err("a nonpositive setback must not mint a body");
         assert!(
-            matches!(
-                err,
-                FilletError::FilletCornerUnsupported {
-                    corner: sweep::fillet::CornerConfig::DependentNormals,
-                    ..
-                }
-            ),
-            "today's decided (mislabeled) verdict at d = {d}: {err:?}"
+            matches!(err, FilletError::NonpositiveSize { .. }),
+            "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"
+        );
+        let text = format!("{err}");
+        assert!(
+            !text.contains("dependent support normals"),
+            "the refusal must not assert a false fact about the body: {text}"
         );
     }
 }

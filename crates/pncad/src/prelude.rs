@@ -97,7 +97,7 @@ pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
 // The fillet's ruled sibling shares its refusal vocabulary
 // (`FilletError`, above): one verb, one edge-blend front door, the
 // band the only difference.
-pub use sweep::{Chamfered, chamfer_edges};
+pub use sweep::chamfer::{Chamfered, chamfer_edges};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,

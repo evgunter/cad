@@ -123,10 +123,14 @@ pub fn run(out: Option<String>, tol: Tol) {
         || vec![plain("bracket", bodies::bracket(tol))],
         tol,
     );
-    // The chamfer verb's own K row: its four transferred `fillet3_*`
-    // predicates (clearance, chain G1, convexity sign, corner
-    // independence) reach the funnel only through a scene that runs
-    // them, and this is the scene that does.
+    // The chamfer verb's own K row. What this scene actually meters is
+    // `fillet3_{chain_arm, convexity_sign, face_clearance,
+    // corner_independence}` — NOT `fillet3_chain_g1`, which fires only
+    // at a vertex where exactly two requested links meet, and a v1
+    // chamfer request that can be granted has none (every corner is
+    // trivalent and fully requested, so every chain is one link and
+    // has no junctions). `chain_arm` is the lever gate inside the
+    // dihedral fold and reaches the funnel on every link.
     sweep(
         s,
         t,
