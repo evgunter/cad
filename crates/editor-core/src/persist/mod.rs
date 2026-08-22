@@ -114,6 +114,7 @@ use geom_core::tolerance::{Tolerance, ToleranceError};
 use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
 use crate::ident::DocumentId;
 use crate::program::{ProfileDoc, ProfileProgram};
+use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
 pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
@@ -662,15 +663,16 @@ fn migration_step(from_version: u32) -> Option<MigrationStep> {
 pub fn save(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
+    tol: Tol,
 ) -> Result<String, PersistError> {
-    check::validate_document(snapshot, edits)?;
+    check::validate_document(snapshot, edits, tol)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —
     // never a file that saves clean and cannot load. (Pure and
     // document-scale cheap; the replayed value is discarded.)
     let mut replay = snapshot.clone();
     for (index, edit) in edits.iter().enumerate() {
-        replay = apply(&replay, edit)
+        replay = apply(&replay, edit, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
@@ -703,7 +705,7 @@ struct SerBody<'a> {
 /// Every arm of [`PersistError`] except `Serialize` (`NonFinite` is
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
-pub fn load(text: &str) -> Result<Loaded, PersistError> {
+pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     let (version, rest) = parse_header(text)?;
     // Migration chain (D1): walk explicit steps up to the current
     // version, then deserialize typed.
@@ -747,7 +749,7 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
-    check::validate_document(&body.snapshot, &body.edits)?;
+    check::validate_document(&body.snapshot, &body.edits, tol)?;
     // Replay through apply's doors: the loaded current state is the
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
@@ -755,7 +757,7 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     for (index, edit) in body.edits.iter().enumerate() {
         let Applied {
             doc: next, record, ..
-        } = apply(&doc, edit).map_err(|error| PersistError::EditReplay { index, error })?;
+        } = apply(&doc, edit, tol).map_err(|error| PersistError::EditReplay { index, error })?;
         doc = next;
         records.push(record);
     }

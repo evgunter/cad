@@ -12,6 +12,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, desc, insert, len, scl};
+use geom_core::Tol;
 use geom_core::{Bounds, Interval};
 use topo::{mass_properties, validate, validate_closed};
 
@@ -19,7 +20,7 @@ use topo::{mass_properties, validate, validate_closed};
 fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     // Cube [0,2]³ minus one pip 0.25×0.25×0.125 embedded in the top
     // face (the die's +z pip, alone): volume exactly 8 − 1/128.
-    let doc = ProfileDoc::empty_derived("m4_pr2_eval_interval");
+    let doc = ProfileDoc::empty_derived("m4_pr2_eval_interval", Tol::witness());
     let (doc, cube_p) = insert(
         doc,
         Node::Profile(desc(
@@ -79,7 +80,13 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         },
     );
 
-    let ev = evaluate::<Interval>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &ev
         .value(sub)
         .expect("subtract evaluated at Interval")
@@ -89,7 +96,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body).unwrap().volume;
+    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
     let oracle = 8.0 - 0.25 * 0.25 * 0.125;
     assert!(
         vol.lo() <= oracle && oracle <= vol.hi(),
@@ -104,7 +111,13 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
 #[test]
 fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
     let d = fixture::die();
-    let ev = evaluate::<Interval>(&d.doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<Interval>(
+        &d.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &ev
         .value(d.final_node)
         .expect("die evaluated at Interval")
@@ -114,7 +127,7 @@ fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body).unwrap().volume;
+    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
     assert!(
         vol.lo() <= fixture::DIE_VOLUME && fixture::DIE_VOLUME <= vol.hi(),
         "enclosure [{}, {}] must bracket the oracle",

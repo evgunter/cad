@@ -115,6 +115,7 @@ use super::blend::{BlendArm, EdgeBlend, corner_ball};
 use super::build::{Filleted, face_cycle, outward_of};
 use super::naming::{FilletNaming, RimSide};
 use super::{CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+use geom_core::Tol;
 
 // ------------------------------------------------------------------
 // The three refusal classes this module can produce (D2 addendum).
@@ -244,6 +245,7 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Filleted<T>, FilletError> {
     let (solids, shells) = (source.solids().count(), source.shells().count());
     if solids != 1 || shells != 1 {
@@ -356,12 +358,13 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     };
 
     let mut rec = FilletNaming::default();
-    let (blend_faces, corner_faces, mut described) =
-        blank_phase(&mut body, &opens, &corners, &supports, radius, &mut rec)?;
+    let (blend_faces, corner_faces, mut described) = blank_phase(
+        &mut body, &opens, &corners, &supports, radius, &mut rec, tol,
+    )?;
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for rim in &rims {
-        let (band_face, band_surface, mut arcs) = rim_phase(&mut body, rim, &mut rec)?;
+        let (band_face, band_surface, mut arcs) = rim_phase(&mut body, rim, &mut rec, tol)?;
         band_faces.push(band_face);
         band_surfaces.push(band_surface);
         described.append(&mut arcs);
@@ -393,9 +396,9 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
             .map_err(|e| op("band face sense", e))?;
     }
     for (edge, carrier) in described {
-        attach_contact(&mut body, edge, carrier)?;
+        attach_contact(&mut body, edge, carrier, tol)?;
     }
-    topo::mint_pcurves(&mut body).map_err(|source| FilletError::Certify {
+    topo::mint_pcurves(&mut body, tol).map_err(|source| FilletError::Certify {
         site: "pcurve re-mint after surgery",
         source,
     })?;
@@ -960,6 +963,7 @@ fn blank_phase<T: Decide + Bounds>(
     supports: &[RequestedBoundary<T>],
     radius: T,
     rec: &mut FilletNaming,
+    tol: Tol,
 ) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), FilletError> {
     let mut described: Described<T> = Vec::new();
     if opens.is_empty() {
@@ -996,6 +1000,7 @@ fn blank_phase<T: Decide + Bounds>(
                     },
                     fp,
                     EdgeCurveSpec::line_between(p, fp),
+                    tol,
                 )
                 .map_err(|e| op("strut mev", e))?;
             strut_of.push((v, f, created.edge));
@@ -1021,6 +1026,7 @@ fn blank_phase<T: Decide + Bounds>(
                     MefSite::Chords { he1, he2 },
                     EdgeCurveSpec::line_between(fp_i, fp_j),
                     FaceSurface::Inherit,
+                    tol,
                 )
                 .map_err(|e| op("trimline mef", e))?;
             first_trim.get_or_insert(created.he_plus);
@@ -1105,6 +1111,7 @@ fn blank_phase<T: Decide + Bounds>(
                     MefSite::Chords { he1, he2 },
                     EdgeCurveSpec::line_between(p1, p2),
                     FaceSurface::Inherit,
+                    tol,
                 )
                 .map_err(|e| op("corner-arc mef", e))?;
             described.push((
@@ -1234,6 +1241,7 @@ fn rim_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     rec: &mut FilletNaming,
+    tol: Tol,
 ) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
     let mut described: Described<T> = Vec::new();
     let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links().find(|l| l.edge == e) };
@@ -1388,7 +1396,7 @@ fn rim_phase<T: Decide + Bounds>(
             ));
         };
         let created = body
-            .split_edge(m, t_split)
+            .split_edge(m, t_split, tol)
             .map_err(|e| op("meridian split", e))?;
         // The upper remnant is whichever piece still ends at the rim
         // vertex.
@@ -1428,6 +1436,7 @@ fn rim_phase<T: Decide + Bounds>(
                 MevSite::Fan { he1: he, he2: he },
                 fp,
                 EdgeCurveSpec::line_between(p, fp),
+                tol,
             )
             .map_err(|e| op("rim strut mev", e))?;
         struts_p.push((v, created.edge));
@@ -1455,6 +1464,7 @@ fn rim_phase<T: Decide + Bounds>(
                 MefSite::Chords { he1, he2 },
                 EdgeCurveSpec::line_between(fp_i, fp_j),
                 FaceSurface::Inherit,
+                tol,
             )
             .map_err(|e| op("rim trim mef", e))?;
         first_trim.get_or_insert(created.he_plus);
@@ -1519,6 +1529,7 @@ fn rim_phase<T: Decide + Bounds>(
                 MefSite::Chords { he1, he2 },
                 EdgeCurveSpec::line_between(p1, p2),
                 FaceSurface::Inherit,
+                tol,
             )
             .map_err(|e| op("rim sphere trim mef", e))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_plane);
@@ -1735,6 +1746,7 @@ fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,
+    tol: Tol,
 ) -> Result<(), FilletError> {
     let ed = body
         .get_edge(edge)
@@ -1831,6 +1843,7 @@ fn attach_contact<T: Decide + Bounds>(
             param_start: t0,
             param_end: t1,
         },
+        tol,
     )
     // No split by refusal kind here any more: `EulerOpError` carries
     // its own `Certification` arm, so the attachment gate's
@@ -1843,6 +1856,7 @@ fn attach_contact<T: Decide + Bounds>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
     use topo::EdgeKey;
@@ -1868,15 +1882,19 @@ mod tests {
     /// nothing in the tree builds one today.
     #[test]
     fn the_entry_gate_is_what_makes_the_solid_and_shell_reads_provable() {
-        let mut dst = cube(L);
-        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5))
-            .expect("the public transplant door accepts a disjoint cube");
+        let mut dst = cube(L, Tol::witness());
+        topo::instance::graft_disjoint_all(
+            &mut dst,
+            &cube(L * 0.5, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("the public transplant door accepts a disjoint cube");
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
-        let tol = geom_core::Tolerance::get();
+        let tol = geom_core::Tol::witness().get();
         let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("a band");
-        let err = fillet_edges(&dst, &edges, R, band)
+        let err = fillet_edges(&dst, &edges, R, band, Tol::witness())
             .expect_err("a two-solid body is outside the in-place surgery's door");
         assert!(
             matches!(
@@ -1959,8 +1977,8 @@ mod tests {
     /// one and has no convexity refusal left to make.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
-        let body = cube(L);
-        let links = all_links(&body);
+        let body = cube(L, Tol::witness());
+        let links = all_links(&body, Tol::witness());
         let v = links[0].start;
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
         let admitted: Vec<ConvexOpen<'_, f64>> = chains

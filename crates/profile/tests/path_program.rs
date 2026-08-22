@@ -26,7 +26,8 @@
 mod common;
 
 use common::pinned;
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::{
     ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
     Target, TipState, Verb, replay,
@@ -54,7 +55,7 @@ fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
 fn validate_ok(lp: &ProfileLoop<f64>) {
     use profile::{Profile, SketchPlane};
     Profile::new(SketchPlane::xy(), vec![lp.clone()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the replayed loop validates");
 }
 
@@ -79,15 +80,16 @@ fn the_fused_family_records_and_replays_bit_identically() {
                 p: p2(5.0, 0.0),
             },
             0.5,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0))
+        .at(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
@@ -121,19 +123,22 @@ fn the_fused_family_records_and_replays_bit_identically() {
     // the assertion).
     let walk = Open
         .at(p2(0.0, 0.0))
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.6,
-        })
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .fillet(0.2)
+        .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0))
+        .at(p2(4.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
@@ -142,6 +147,7 @@ fn the_fused_family_records_and_replays_bit_identically() {
                 winding: ArcSweep::Ccw,
                 p: p2(2.0, 9.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         .arc_fillet(
@@ -150,15 +156,16 @@ fn the_fused_family_records_and_replays_bit_identically() {
                 side: ArcSide::Left,
             },
             0.25,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0))
+        .at(p2(1.0, 4.0), Tol::witness())
         .unwrap()
-        .toward(0.0, -1.0)
+        .toward(0.0, -1.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&walk)),
@@ -205,6 +212,7 @@ fn the_mid_chain_radius_row_records_and_replays() {
                 winding: ArcSweep::Cw,
                 p: p2(0.0, 4.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         .arc_fillet(
@@ -213,15 +221,16 @@ fn the_mid_chain_radius_row_records_and_replays() {
                 side: ArcSide::Right,
             },
             0.3,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(-2.0, 2.0))
+        .at(p2(-2.0, 2.0), Tol::witness())
         .unwrap()
-        .toward(0.0, -1.0)
+        .toward(0.0, -1.0, Tol::witness())
         .unwrap()
-        .line(1.0)
+        .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
@@ -271,6 +280,7 @@ fn the_eye_is_one_fused_step() {
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
+            Tol::witness(),
         )
         .unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::ArcFilletArc]);
@@ -305,7 +315,7 @@ fn the_eye_is_one_fused_step() {
 /// alone.
 #[test]
 fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
-    let closed = profile::circle(p2(1.5, -2.25), 0.75).unwrap();
+    let closed = profile::circle(p2(1.5, -2.25), 0.75, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::Circle]);
     assert_eq!(
         closed.program.len(),
@@ -331,7 +341,7 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 /// (same-carrier identities, exactly `circle`'s posture).
 #[test]
 fn circle_split_is_a_one_step_program_with_structural_seams() {
-    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25).unwrap();
+    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
@@ -360,17 +370,17 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
 /// [`PathError::CircleSplitCount`] class.
 #[test]
 fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
-    let _tol = Tolerance::get();
-    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0) {
+    let _tol = Tol::witness().get();
+    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0, Tol::witness()) {
         Err(PathError::NonpositiveCircleRadius { .. }) => {}
         other => panic!("r = 0 must refuse as NonpositiveCircleRadius, got {other:?}"),
     }
-    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0) {
+    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
         Err(PathError::CircleSplitCount { n: 1 }) => {}
         other => panic!("n = 1 must refuse as CircleSplitCount, got {other:?}"),
     }
     // n = 2 is legal — the smallest subdivision, circle's own count.
-    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0).unwrap();
+    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
     assert_eq!(pinned(two).vertices().len(), 2);
 }
 
@@ -385,14 +395,17 @@ fn arc_continue_subdivides_the_carrier_structurally() {
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: q,
-        })
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: q,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5))
+        .arc_continue(p2(0.0, 0.5), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
@@ -421,20 +434,26 @@ fn arc_continue_subdivides_the_carrier_structurally() {
 #[test]
 fn arc_continue_refuses_lines_and_off_carrier_targets() {
     use profile::Bulge;
-    let after_line = Open.at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0)).unwrap();
-    match after_line.arc_continue(p2(2.0, 0.0)) {
+    let after_line = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
+        .unwrap();
+    match after_line.arc_continue(p2(2.0, 0.0), Tol::witness()) {
         Err(PathError::ArcContinueNeedsArcCarrier) => {}
         other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
     }
     let q = std::f64::consts::FRAC_PI_8.tan();
     let after_arc = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: q,
-        })
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: q,
+            },
+            Tol::witness(),
+        )
         .unwrap();
-    match after_arc.arc_continue(p2(0.3, 0.5)) {
+    match after_arc.arc_continue(p2(0.3, 0.5), Tol::witness()) {
         Err(PathError::ArcContinueOffCarrier { .. }) => {}
         other => panic!("an off-carrier target must refuse, got {other:?}"),
     }
@@ -497,34 +516,38 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
                 p: p2(5.0, 0.0),
             },
             0.5,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0))
+        .at(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
 
     // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
     //    the mid-chain Radius arc extension.
     let walk = Open
         .at(p2(0.0, 0.0))
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.6,
-        })
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .fillet(0.2)
+        .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0))
+        .at(p2(4.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
@@ -533,6 +556,7 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
                 winding: ArcSweep::Ccw,
                 p: p2(2.0, 9.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         .arc_fillet(
@@ -541,15 +565,16 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
                 side: ArcSide::Left,
             },
             0.25,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0))
+        .at(p2(1.0, 4.0), Tol::witness())
         .unwrap()
-        .toward(0.0, -1.0)
+        .toward(0.0, -1.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
 
     // 3. `.turn(δ)` at the corners. Each δ is far from both 0 (which
@@ -558,19 +583,19 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //    and the round-trip reddens on the first vertex it reaches.
     let turned = Open
         .at(p2(0.0, 0.0))
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .turn(FRAC_PI_2)
+        .turn(FRAC_PI_2, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .turn(FRAC_PI_2)
+        .turn(FRAC_PI_2, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
 
     // 4. The seam-fillet close: mid-side anchors, every corner filleted
@@ -578,73 +603,76 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     //    retrims.
     let seam = Open
         .at(p2(1.5, 0.0))
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .unwrap()
-        .at(p2(3.0, 1.5))
+        .at(p2(3.0, 1.5), Tol::witness())
         .unwrap()
-        .angle(FRAC_PI_2)
+        .angle(FRAC_PI_2, Tol::witness())
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .unwrap()
-        .at(p2(1.5, 3.0))
+        .at(p2(1.5, 3.0), Tol::witness())
         .unwrap()
-        .angle(PI)
+        .angle(PI, Tol::witness())
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .unwrap()
-        .at(p2(0.0, 1.5))
+        .at(p2(0.0, 1.5), Tol::witness())
         .unwrap()
-        .angle(-FRAC_PI_2)
+        .angle(-FRAC_PI_2, Tol::witness())
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .unwrap()
-        .to(Start)
+        .to(Start, Tol::witness())
         .unwrap();
 
     // 5. The declared tangent joint and the unique tangent arc.
     let tangent_arc = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(2.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(3.0, 1.0))
+        .tangent_arc_to(p2(3.0, 1.0), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
 
     // 6. The declared-subdivision step on an arc carrier.
     let subdivided = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: FRAC_PI_8.tan(),
-        })
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: FRAC_PI_8.tan(),
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5))
+        .arc_continue(p2(0.0, 0.5), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
 
     // 7. The far-end anchor: the arrival side ENDS at its authored point.
     let far_end = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 0.0), Tol::witness())
         .unwrap()
-        .line_to(p2(3.0, 1.0))
+        .line_to(p2(3.0, 1.0), Tol::witness())
         .unwrap()
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .unwrap()
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(1.0, 3.0))
+        .to(p2(1.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0))
+        .line_to(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
 
     // 8. The fused verb with an ARC arrival, closing on the far lobe.
@@ -662,12 +690,13 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
+            Tol::witness(),
         )
         .unwrap();
 
     // 9/10. The complete-loop program forms.
-    let circle = profile::circle(p2(1.0, 2.0), 0.75).unwrap();
-    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3).unwrap();
+    let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
+    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
 
     vec![
         fused,
@@ -684,7 +713,7 @@ fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
 }
 
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
-    match replay(program) {
+    match replay(program, Tol::witness()) {
         Err(ReplayError {
             step: s,
             kind:
@@ -862,8 +891,8 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
             Step::CloseTo,
         ]
     };
-    replay(&square(0.25)).expect("r = 0.25 elaborates");
-    let refused = replay(&square(5.0));
+    replay(&square(0.25), Tol::witness()).expect("r = 0.25 elaborates");
+    let refused = replay(&square(5.0), Tol::witness());
     match refused {
         Err(ReplayError {
             kind: ReplayErrorKind::Path(_),
@@ -873,21 +902,27 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     }
 
     // The sign gates are the same class, carried straight through.
-    match replay(&[Step::Circle {
-        centre: p2(0.0, 0.0),
-        radius: 0.0,
-    }]) {
+    match replay(
+        &[Step::Circle {
+            centre: p2(0.0, 0.0),
+            radius: 0.0,
+        }],
+        Tol::witness(),
+    ) {
         Err(ReplayError {
             step: 0,
             kind: ReplayErrorKind::Path(PathError::NonpositiveCircleRadius { .. }),
         }) => {}
         other => panic!("a zero radius must refuse NonpositiveCircleRadius, got {other:?}"),
     }
-    match replay(&[
-        Step::At(p2(0.0, 0.0)),
-        Step::Angle(0.0),
-        Step::Fillet { radius: -1.0 },
-    ]) {
+    match replay(
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::Angle(0.0),
+            Step::Fillet { radius: -1.0 },
+        ],
+        Tol::witness(),
+    ) {
         Err(ReplayError {
             step: 2,
             kind: ReplayErrorKind::Path(PathError::NonpositiveFilletRadius { .. }),

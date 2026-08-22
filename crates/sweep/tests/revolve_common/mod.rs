@@ -4,13 +4,14 @@
 #![allow(dead_code)] // each test binary uses a subset
 
 use geom_brep::EdgeGeometry;
-use geom_core::{Point2, Point3, Tolerance, Vec2};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::RevolveAxis;
 use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
 
 pub fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 pub fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -19,7 +20,7 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -35,7 +36,7 @@ pub fn axis_y() -> RevolveAxis<f64> {
 pub fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 /// (v, e, f, r) of a body.

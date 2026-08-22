@@ -9,11 +9,12 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane, implicit_residual};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn cyl() -> Surface<f64> {

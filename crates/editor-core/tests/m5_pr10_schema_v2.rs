@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 /// The pre-break bytes, kept verbatim as the refusal fixture.
 const V1: &str = include_str!("golden/v1_golden.cad");
@@ -36,7 +37,7 @@ fn the_checked_in_v1_file_is_really_v1() {
 /// the user's file actually hit). Nothing is best-effort loaded.
 #[test]
 fn v1_refuses_too_old() {
-    match load(V1) {
+    match load(V1, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -73,7 +74,10 @@ fn the_too_old_message_names_the_recourse_exactly_once() {
 fn too_old_beats_a_broken_body() {
     let text = "schema: 1\nnot json at all\n";
     assert!(
-        matches!(load(text), Err(PersistError::SchemaTooOld { found: 1, .. })),
+        matches!(
+            load(text, Tol::witness()),
+            Err(PersistError::SchemaTooOld { found: 1, .. })
+        ),
         "version door must precede the body parse"
     );
 }
@@ -83,7 +87,7 @@ fn too_old_beats_a_broken_body() {
 #[test]
 fn newer_schema_is_still_unknown_not_too_old() {
     let text = format!("schema: {}\n{{}}\n", SCHEMA_VERSION + 1);
-    match load(&text) {
+    match load(&text, Tol::witness()) {
         Err(PersistError::UnknownSchema { found, newest }) => {
             assert_eq!(found, u64::from(SCHEMA_VERSION) + 1);
             assert_eq!(newest, SCHEMA_VERSION);

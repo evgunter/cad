@@ -26,6 +26,7 @@ use editor_core::{
 use fixture::{ang, desc, len, scl};
 
 use corpus::{body_of, documents, eval, failures};
+use geom_core::Tol;
 
 /// The fin prototype the heat-sink documents share, in a fresh
 /// document: the extrude alone, no base, no group.
@@ -93,7 +94,7 @@ fn the_fin_group_is_one_node_and_one_body() {
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 5, "five shells, one per placement");
     assert!(
-        topo::validate_geometric(body).is_ok(),
+        topo::validate_geometric(body, Tol::witness()).is_ok(),
         "the group validates"
     );
 }
@@ -122,6 +123,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                     rotation_angle: ang(0.0),
                 },
             },
+            Tol::witness(),
         )
         .expect("insert transform");
         let placed = tr.record.minted.expect("minted");
@@ -139,6 +141,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                             declare: None,
                         },
                     },
+                    Tol::witness(),
                 )
                 .expect("insert union");
                 let id = u.record.minted.expect("minted");
@@ -162,6 +165,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
             )
             .expect("a stepped rule takes a count"),
         },
+        Tol::witness(),
     )
     .expect("insert group");
     let group = grouped.record.minted.expect("minted");
@@ -173,8 +177,8 @@ fn the_fin_group_equals_the_transform_union_chain() {
     let a = body_of(&ev_chain, acc.expect("the chain's root"));
     let b = body_of(&ev_group, group);
     let (ma, mb) = (
-        topo::mass_properties(a).expect("chain mass"),
-        topo::mass_properties(b).expect("group mass"),
+        topo::mass_properties(a, Tol::witness()).expect("chain mass"),
+        topo::mass_properties(b, Tol::witness()).expect("group mass"),
     );
     assert_eq!(ma.volume, mb.volume, "same volume, bit for bit");
     assert_eq!(ma.surface_area, mb.surface_area, "same area, bit for bit");
@@ -200,6 +204,7 @@ fn the_group_recomputes_exactly_when_its_inputs_move() {
         Some(&first),
         &editor_core::CancelToken::new(),
         &editor_core::EvalOptions::default(),
+        Tol::witness(),
     );
     assert_eq!(
         again.recomputed, 0,
@@ -213,6 +218,7 @@ fn the_group_recomputes_exactly_when_its_inputs_move() {
         Some(&first),
         &editor_core::CancelToken::new(),
         &editor_core::EvalOptions::default(),
+        Tol::witness(),
     );
     assert!(failures(&after).is_empty(), "{:?}", failures(&after));
     assert!(after.reused > 0, "the profile is reused across the bump");
@@ -251,7 +257,7 @@ fn the_die_tool_is_one_node_and_still_cuts() {
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let pipped = body_of(&ev, d.result.expect("the pipped die"));
-    assert!(topo::validate_geometric(pipped).is_ok());
+    assert!(topo::validate_geometric(pipped, Tol::witness()).is_ok());
     // Six cavities: each contributes its own faces to the one solid.
     assert_eq!(pipped.solids().count(), 1);
 }
@@ -408,7 +414,7 @@ fn a_circular_group_places_around_a_datum_axis() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, group);
     assert_eq!(body.shells().count(), 4);
-    assert!(topo::validate_geometric(body).is_ok());
+    assert!(topo::validate_geometric(body, Tol::witness()).is_ok());
 }
 
 /// **"How many placements" has exactly one spelling.** The edit door
@@ -424,7 +430,11 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
     };
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with_count }),
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: with_count },
+            Tol::witness()
+        ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
     let pattern_explicit = Node::Pattern {
@@ -437,7 +447,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
             &doc,
             &DocEdit::InsertNode {
                 node: pattern_explicit
-            }
+            },
+            Tol::witness(),
         ),
         Err(EditError::PlacementRuleMismatch { .. })
     ));
@@ -501,7 +512,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
         "the shared door names it — this is what eval backstops on"
     );
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: empty }),
+        apply(&doc, &DocEdit::InsertNode { node: empty }, Tol::witness()),
         Err(EditError::EmptyPlacementList { .. })
     ));
     // The stepped rule it mirrors refuses at eval the same way: an
@@ -519,6 +530,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
             )
             .expect("a stepped rule takes a count"),
         },
+        Tol::witness(),
     )
     .expect("a zero count is legal to WRITE; it refuses at evaluation");
     let id = zero.record.minted.expect("minted");
@@ -542,9 +554,10 @@ fn the_wire_refuses_an_emptied_placement_list() {
         &DocEdit::InsertNode {
             node: Node::placed_union_at(fin, vec![Frame::IDENTITY]),
         },
+        Tol::witness(),
     )
     .expect("one placement is legal");
-    let text = editor_core::save(&one.doc, &[]).expect("saves");
+    let text = editor_core::save(&one.doc, &[], Tol::witness()).expect("saves");
     // Empty the frame list on the wire, exactly as a hand edit would.
     // Bracket-matched rather than "next `]`": a frame's own `columns`
     // nest, so the naive scan would cut inside one and produce a parse
@@ -570,7 +583,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
     }
     assert!(close > open, "the frame list's brackets must match");
     let tampered = format!("{}[]{}", &text[..open], &text[close + 1..]);
-    match editor_core::load(&tampered) {
+    match editor_core::load(&tampered, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(_)) => {}
         other => panic!("an emptied placement list must refuse at load, got {other:?}"),
     }
@@ -592,7 +605,11 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         "named for what it is, not as an uncertified separation"
     );
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with(nan) }),
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: with(nan) },
+            Tol::witness()
+        ),
         Err(EditError::NonFinitePlacement { .. })
     ));
 
@@ -604,7 +621,7 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }),
+        apply(&doc, &DocEdit::InsertNode { node: with(mirror) }, Tol::witness()),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -613,7 +630,14 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
     let turned =
         Frame::rotate_then_translate([0.0, 0.0, 1.0], std::f64::consts::FRAC_PI_2, [0.0; 3]);
     assert_eq!(with(turned).placement_rule_fault(), None);
-    assert!(apply(&doc, &DocEdit::InsertNode { node: with(turned) }).is_ok());
+    assert!(
+        apply(
+            &doc,
+            &DocEdit::InsertNode { node: with(turned) },
+            Tol::witness()
+        )
+        .is_ok()
+    );
 }
 
 /// **The Explicit path is bit-compatible with the chain too** — three
@@ -664,6 +688,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                     .collect(),
             ),
         },
+        Tol::witness(),
     )
     .expect("insert the group");
     let group = grouped.record.minted.expect("minted");
@@ -681,6 +706,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                     rotation_angle: ang(an),
                 },
             },
+            Tol::witness(),
         )
         .expect("insert transform");
         let placed = tr.record.minted.expect("minted");
@@ -698,6 +724,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                             declare: None,
                         },
                     },
+                    Tol::witness(),
                 )
                 .expect("insert union");
                 let id = u.record.minted.expect("minted");
@@ -714,8 +741,8 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     let g = body_of(&ev_g, group);
     let c = body_of(&ev_c, acc.expect("the chain's root"));
     let (mg, mc) = (
-        topo::mass_properties(g).expect("group mass"),
-        topo::mass_properties(c).expect("chain mass"),
+        topo::mass_properties(g, Tol::witness()).expect("group mass"),
+        topo::mass_properties(c, Tol::witness()).expect("chain mass"),
     );
     assert_eq!(mg.volume, mc.volume, "volume, bit for bit");
     assert_eq!(mg.surface_area, mc.surface_area, "area, bit for bit");

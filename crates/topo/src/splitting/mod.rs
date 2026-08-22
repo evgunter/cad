@@ -77,6 +77,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
+use geom_core::Tol;
 use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
@@ -388,8 +389,9 @@ impl std::error::Error for SplitReduceError {}
 pub fn vertex_sides<T: geom_core::Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(tol)?;
     classify::gate_operand(body)?;
     classify::classify_vertices(body, plane, band)
 }
@@ -410,13 +412,14 @@ pub fn vertex_sides<T: geom_core::Decide>(
 pub fn split_reduce<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitReduction<T>, SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(tol)?;
     let mut body = operand.clone();
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices)?;
+    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
     for &v in &on_vertices {
@@ -503,6 +506,7 @@ impl std::error::Error for SplitError {}
 pub(crate) fn split_scratch<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<
     (
         SplitReduction<T>,
@@ -511,9 +515,9 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     ),
     SplitError,
 > {
-    let band = geom_core::Band::linear().map_err(SplitReduceError::from)?;
-    let mut red = split_reduce(operand, plane)?;
-    let (completed, fragments) = join::split_connect(&mut red, band)?;
+    let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
+    let mut red = split_reduce(operand, plane, tol)?;
+    let (completed, fragments) = join::split_connect(&mut red, band, tol)?;
     Ok((red, completed, fragments))
 }
 
@@ -545,7 +549,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// below-copy minting through the **mirror identity**
 /// `split(S, n) ≡ swap(split(S, −n))` (exact: piece assignment is
 /// plane-orientation-equivariant — PR 2's principle, executed by the
-/// PR 3 review's orientation table): on a `DegenerateSection` refusal
+/// PR 3 review's orientation table, tol): on a `DegenerateSection` refusal
 /// the pipeline reruns under the flipped plane — where the pinched
 /// fans ARE the above runs and receive their distinct copies — and
 /// swaps the sides back. Success is therefore
@@ -577,8 +581,9 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 pub fn split<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
-    match split_direct(operand, plane) {
+    match split_direct(operand, plane, tol) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {}
         other => return other,
     }
@@ -589,7 +594,7 @@ pub fn split<T: geom_core::Decide>(
         origin: plane.origin,
         normal: -plane.normal,
     };
-    match split_direct(operand, &mirrored) {
+    match split_direct(operand, &mirrored, tol) {
         Ok(SplitResult {
             above,
             below,
@@ -621,7 +626,7 @@ pub fn split<T: geom_core::Decide>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
-        Err(_) => split_direct(operand, plane),
+        Err(_) => split_direct(operand, plane, tol),
     }
 }
 
@@ -636,12 +641,13 @@ pub fn split<T: geom_core::Decide>(
 fn split_direct<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
-    let (red, completed, fragments) = split_scratch(operand, plane)?;
-    let mut result = finish::split_finish(red, &completed, fragments)?;
+    let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
+    let mut result = finish::split_finish(red, &completed, fragments, tol)?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
-            crate::pcurves::mint_pcurves(body)?;
+            crate::pcurves::mint_pcurves(body, tol)?;
         }
     }
     Ok(result)

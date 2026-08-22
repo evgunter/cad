@@ -21,6 +21,7 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
 
@@ -53,8 +54,14 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         param_start: 0.0,
         param_end: 1.0,
     };
-    let err = EdgeCurve::certify(spec, p0, p1, |_| None, Band::linear().unwrap())
-        .expect_err("conventional-description Nurbs carriers do not certify");
+    let err = EdgeCurve::certify(
+        spec,
+        p0,
+        p1,
+        |_| None,
+        Band::linear(Tol::witness()).unwrap(),
+    )
+    .expect_err("conventional-description Nurbs carriers do not certify");
     let msg = format!("{err}");
     assert!(
         msg.contains("Nurbs") && msg.contains("Intersection"),
@@ -85,7 +92,7 @@ fn ssi_branch_or_budget() -> Option<ssi::SsiBranch> {
         extent: 2.0,
         floor_scale: 1.0,
     };
-    match ssi::cylinder_sphere_ssi(&cyl, &sph, slab, Band::linear().unwrap()) {
+    match ssi::cylinder_sphere_ssi(&cyl, &sph, slab, Band::linear(Tol::witness()).unwrap()) {
         Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
         Err(SsiError::FitSampleBudget { .. }) => None,
         Err(e) => panic!("the planted fixture: {e}"),
@@ -173,6 +180,7 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
                 param_start: h0,
                 param_end: h1,
             },
+            Tol::witness(),
         )
         .expect("the kernel's first rung-3 edge at rest certifies");
     Some((body, made.edge, carrier, (h0, h1)))
@@ -192,7 +200,9 @@ fn the_end_to_end_nurbs_split_row() {
     // (their witnesses re-minted at their own mid-parameters), the
     // meter having stated the interiority margin in metres.
     let t_split = h0 + (h1 - h0) * 0.375;
-    let created = body.split_edge(edge, t_split).expect("the split row");
+    let created = body
+        .split_edge(edge, t_split, Tol::witness())
+        .expect("the split row");
     let c1 = body
         .get_curve_geom(created.first_curve)
         .and_then(|g| g.certified())
@@ -226,10 +236,10 @@ fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
     // the band the run resolved, through the carrier's own meter.
     let meter = carrier.speed_lower_bound();
     assert!(meter > 0.0);
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / meter;
     assert!(
-        body.split_edge(edge, t_bad).is_err(),
+        body.split_edge(edge, t_bad, Tol::witness()).is_err(),
         "an in-band interiority margin must never split"
     );
 }
@@ -349,6 +359,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
                 param_start: h0,
                 param_end: h1,
             },
+            Tol::witness(),
         )
         .expect("a rational rung-3 edge certifies — the span meter is real now");
 
@@ -382,7 +393,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     // the ordinary gate.
     let t_split = h0 + (h1 - h0) * 0.375;
     let created = body
-        .split_edge(made.edge, t_split)
+        .split_edge(made.edge, t_split, Tol::witness())
         .expect("the rational split row");
     let c1 = body
         .get_curve_geom(created.first_curve)
@@ -445,12 +456,13 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
                 param_start: h0,
                 param_end: h1,
             },
+            Tol::witness(),
         )
         .unwrap();
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / m;
     assert!(
-        body2.split_edge(made2.edge, t_bad).is_err(),
+        body2.split_edge(made2.edge, t_bad, Tol::witness()).is_err(),
         "an in-band interiority margin must never split, rational or not"
     );
 }

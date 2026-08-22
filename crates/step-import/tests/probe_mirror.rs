@@ -4,6 +4,7 @@
 
 mod common;
 use common::census;
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 fn twobody() -> String {
@@ -15,14 +16,14 @@ fn twobody() -> String {
 }
 
 fn solid(text: &str) -> topo::Body<f64> {
-    match import_step(text, &ImportOptions::default()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => body,
         other => panic!("expected a solid, got {other:?}"),
     }
 }
 
 fn vol(b: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(b).unwrap().volume
+    topo::mass_properties(b, Tol::witness()).unwrap().volume
 }
 
 fn bbox(b: &topo::Body<f64>) -> [f64; 6] {
@@ -122,7 +123,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
 
     // (4) Dependent-axis trick: ref parallel to axis states no frame.
     let par = place_both("0.,0.,1.", "0.,0.,1.", "5.,0.,0.");
-    match import_step(&par, &ImportOptions::default()) {
+    match import_step(&par, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::Structure { what, .. })
         | Err(StepImportError::MalformedRecord { expected: what, .. }) => {
             println!("parallel pair refuses: {what}");
@@ -135,7 +136,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
     // det check (or the direction window) must keep this typed, never
     // a silently skewed body. twobody's eps_in is 1e-7 mm -> tiny.
     let sloppy = place_both("0.577,0.577,0.577", "0.707,-0.707,0.", "1.,0.,0.");
-    match import_step(&sloppy, &ImportOptions::default()) {
+    match import_step(&sloppy, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             // If it imports, the composed map must have been rigid:
             // volume is the witness.

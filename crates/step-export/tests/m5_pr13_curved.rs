@@ -4,7 +4,7 @@
 //! native AP214 entities — so most rows here are ε-INDEPENDENT by
 //! construction and say so where it matters. The one place the ambient
 //! tolerance reaches the file is the `UNCERTAINTY_MEASURE_WITH_UNIT`
-//! value, which the writer copies from `Tolerance::get()` (or the
+//! value, which the writer copies from `Tol::witness().get()` (or the
 //! explicit override the fixtures use); that single dependence is
 //! pinned by [`epsilon_reaches_only_the_uncertainty_record`], and the
 //! one new refusal arm is run at two tolerances by
@@ -64,7 +64,7 @@ use std::collections::HashMap;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::Tolerance;
+use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
 
 /// The fixture options (matching `tests/export.rs` and the fixture
@@ -76,7 +76,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options).unwrap()
+    step_string(body, &options, Tol::witness()).unwrap()
 }
 
 /// The curved half of the committed corpus.
@@ -665,7 +665,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             "SINGLE-SHELL: {name} is single-shell"
         );
         assert!(
-            step_string(body, &StepOptions::default()).is_ok(),
+            step_string(body, &StepOptions::default(), Tol::witness()).is_ok(),
             "SINGLE-SHELL: {name}"
         );
     }
@@ -717,7 +717,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     skeleton
         .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
         .unwrap();
-    match step_string(&skeleton, &StepOptions::default()) {
+    match step_string(&skeleton, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::UnsupportedSurface { kind, .. }) => {
             assert_eq!(kind, "nurbs placeholder", "CENSUS");
         }
@@ -931,7 +931,7 @@ fn epsilon_reaches_only_the_uncertainty_record() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        step_string(&body, &options).unwrap()
+        step_string(&body, &options, Tol::witness()).unwrap()
     };
     let tight = at(1e-9);
     let loose = at(1e-6);
@@ -972,7 +972,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
     let stubs = common::two_stub_complement();
     assert_eq!(stubs.shells().count(), 2, "two disjoint stubs");
     assert!(
-        Tolerance::get().eps > 0.0,
+        Tol::witness().get().eps > 0.0,
         "the body above was built at the run's ambient tolerance"
     );
     for eps in [1e-9, 1e-6] {
@@ -980,7 +980,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        match step_string(&stubs, &options) {
+        match step_string(&stubs, &options, Tol::witness()) {
             Err(StepExportError::CurvedShellClassification { kind, .. }) => {
                 // The classifier walks a shell face-first and each
                 // face surface-then-carriers, so the entity it meets

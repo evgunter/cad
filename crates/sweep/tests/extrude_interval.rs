@@ -8,7 +8,8 @@
 
 use geom::Surface;
 use geom_brep::EdgeGeometry;
-use geom_core::{Bounds, Interval, Point2, Real, Tolerance};
+use geom_core::Tol;
+use geom_core::{Bounds, Interval, Point2, Real};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -29,12 +30,17 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
         p2(0.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.5))).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance(Interval::from_f64(1.5)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     assert_eq!(t.body.vertices().count(), 12);
     assert_eq!(t.body.edges().count(), 18);
     assert_eq!(t.body.faces().count(), 8);
@@ -77,12 +83,17 @@ fn interval_disc_extrudes_a_shared_cylinder() {
         ProfileVertex::new(p2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(Interval::from_f64(1.0))).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
-    assert_eq!(validate_geometric(&t.body), Ok(()));
+    assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     // One shared cylinder + two cap planes.
     assert_eq!(t.body.surfaces().count(), 3);
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;

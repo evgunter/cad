@@ -266,7 +266,7 @@ impl std::error::Error for ComposeError {}
 ///
 /// `band` is the classify band the seam predicates decide against,
 /// constructed once at operation entry per the [`geom_core::predicate`]
-/// calling convention (`Band::linear()` in production).
+/// calling convention (`Band::linear(tol)` in production).
 ///
 /// The result is delivered on `[0, 1]` with degree `max_i deg(leg_i)`.
 ///

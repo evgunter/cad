@@ -13,7 +13,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
 
 /// A pure band, per the geom-core test discipline (never
-/// `Band::linear()` in a test: it forces the global `Tolerance`).
+/// `Band::linear(Tol::witness())` in a test: it forces the global `Tolerance`).
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
 }

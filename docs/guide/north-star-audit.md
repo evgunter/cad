@@ -301,6 +301,7 @@ body.validate()
 assert abs(body.mass_properties().volume - 8.505859375) < 1e-12
 ```
 
+let tol = Tol::witness();
 Rows 24–26 are the same body as row 23 seen down a different axis, so
 they flip together and the Python rows read one node three times
 rather than rebuilding three solids — exactly what the Rust scene does

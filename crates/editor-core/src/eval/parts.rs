@@ -41,6 +41,7 @@ use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
+use geom_core::Tol;
 
 /// Pure runaway insurance: the depth at which instantiation gives up,
 /// having ruled out the reason it would ordinarily run away.
@@ -229,11 +230,12 @@ impl<'a, T: Decide> PartCache<'a, T> {
         resolver: Option<&'a Arc<dyn PartResolver>>,
         chain: &'a [DocRef],
         boolean_sweep: topo::SweepStrategy,
+        tol: Tol,
     ) -> Self {
         Self {
             resolver,
             chain,
-            eps_bits: geom_core::Tolerance::get().eps.to_bits(),
+            eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             entries: Mutex::new(BTreeMap::new()),
             evaluations: AtomicUsize::new(0),
@@ -254,7 +256,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     /// makes "evaluated ONCE" true when two instances of one part race,
     /// and a nested evaluation builds its own cache, so the lock is
     /// never re-entered.
-    pub(crate) fn get(&self, doc_ref: &DocRef) -> Result<PartValue<T>, PartFault> {
+    pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let key = (*doc_ref, self.eps_bits);
         let mut entries = match self.entries.lock() {
             Ok(g) => g,
@@ -266,12 +268,12 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         if let Some(hit) = entries.get(&key) {
             return hit.clone();
         }
-        let value = self.resolve_and_evaluate(doc_ref);
+        let value = self.resolve_and_evaluate(doc_ref, tol);
         entries.insert(key, value.clone());
         value
     }
 
-    fn resolve_and_evaluate(&self, doc_ref: &DocRef) -> Result<PartValue<T>, PartFault> {
+    fn resolve_and_evaluate(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
         // The cycle, decided structurally and named: the loop runs from
         // the reference's earlier appearance to this repeat of it.
@@ -284,7 +286,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             return Err(PartFault::DepthExceeded);
         }
         let doc = resolver
-            .resolve(doc_ref)
+            .resolve(doc_ref, tol)
             .map_err(|e| PartFault::Unresolved {
                 fault: e.fault,
                 message: e.message,
@@ -303,7 +305,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         let mut chain = self.chain.to_vec();
         chain.push(*doc_ref);
         let evaluation =
-            super::evaluate_nested::<T>(&doc, &super::CancelToken::new(), &opts, &chain);
+            super::evaluate_nested::<T>(&doc, &super::CancelToken::new(), &opts, &chain, tol);
         // The nested run's own crossings are crossings of THIS run:
         // fold them in, so the outermost counter is the whole run's
         // evidence rather than one level's.
@@ -319,7 +321,7 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         // placing path maps all N as one body and the gather grafts
         // them as N, so a narrower rule at this door would be a second
         // truth about what instantiating a document means.
-        let product = crate::product::product_recorded(&doc, &evaluation)
+        let product = crate::product::product_recorded(&doc, &evaluation, tol)
             .map_err(|e| product_fault(&e, &evaluation))?;
         Ok(PartValue {
             body: Arc::new(product.body),

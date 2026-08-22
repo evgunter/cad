@@ -22,6 +22,7 @@ use super::surfaces::{strut_spec, wall_surface};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
 /// sign class of θ (`true` ⇔ θ definitely positive — module docs'
@@ -34,6 +35,7 @@ pub(super) fn build_partial<T: Decide>(
     theta: T,
     reverse: bool,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
     let rot = Affine3::rotation_about_axis(frame.o3, frame.a3, theta);
@@ -100,6 +102,7 @@ pub(super) fn build_partial<T: Decide>(
         outer,
         qs,
         FaceSurface::New(start_plane),
+        tol,
     )?;
     let end_face = seed.face;
     let start_face = start.face;
@@ -121,6 +124,7 @@ pub(super) fn build_partial<T: Decide>(
                 he2: anchor,
             },
             hq[0],
+            tol,
         )?;
         let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
         let hole = build_chain(
@@ -131,6 +135,7 @@ pub(super) fn build_partial<T: Decide>(
             segs,
             hq,
             FaceSurface::Shared(start_surface),
+            tol,
         )?;
         body.kfmrh(start_face, hole.face)?;
         bases.push(hole.hes);
@@ -164,6 +169,7 @@ pub(super) fn build_partial<T: Decide>(
             place_end,
             n_end,
             band,
+            tol,
         )?;
         walls_all.push(swept.faces);
         rims_all.push(swept.rims);
@@ -190,6 +196,7 @@ pub(super) fn build_partial<T: Decide>(
         start_surface,
         end_surface,
         band,
+        tol,
     )?;
 
     #[cfg(debug_assertions)]
@@ -278,6 +285,7 @@ fn finish_partial<T: Decide>(
     start_surface: topo::SurfaceKey,
     end_surface: topo::SurfaceKey,
     band: Band,
+    tol: Tol,
 ) -> Result<(), RevolveError> {
     for (li, segs) in loops.iter().enumerate() {
         let n = segs.len();
@@ -292,14 +300,22 @@ fn finish_partial<T: Decide>(
             match walls_all[li][j] {
                 Some(wall_face) => {
                     let wall = face_surface_key(body, wall_face)?;
-                    upgrade_intersection(body, bottom, start_surface, wall, band, sliver)?;
+                    upgrade_intersection(body, bottom, start_surface, wall, band, sliver, tol)?;
                     if let Some(top) = tops_all[li][j] {
-                        upgrade_intersection(body, top, end_surface, wall, band, sliver)?;
+                        upgrade_intersection(body, top, end_surface, wall, band, sliver, tol)?;
                     }
                 }
                 None => {
                     debug_assert!(matches!(classes[li].walls[j], WallClass::OnAxis));
-                    upgrade_intersection(body, bottom, start_surface, end_surface, band, sliver)?;
+                    upgrade_intersection(
+                        body,
+                        bottom,
+                        start_surface,
+                        end_surface,
+                        band,
+                        sliver,
+                        tol,
+                    )?;
                 }
             }
         }
@@ -333,6 +349,7 @@ pub(super) fn sweep_loop<T: Decide>(
     place_end: Affine3<T>,
     n_end: geom_core::Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<LoopSwept, RevolveError> {
     let n = segs.len();
     let walled: Vec<bool> = cls.walls.iter().map(|w| w.kind().is_some()).collect();
@@ -370,6 +387,7 @@ pub(super) fn sweep_loop<T: Decide>(
             },
             rq[j],
             strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c),
+            tol,
         )?;
         struts.push(Some(m));
     }
@@ -429,6 +447,7 @@ pub(super) fn sweep_loop<T: Decide>(
             MefSite::Chords { he1, he2 },
             placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next]),
             surface,
+            tol,
         )?;
         if j == 0 {
             first_top = Some(mef.he_plus);
@@ -469,13 +488,19 @@ pub(super) fn sweep_loop<T: Decide>(
             continue;
         }
         let vertex_index = segs[j].canonical_vertex;
-        upgrade_intersection(body, strut.edge, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            body,
+            strut.edge,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index,
                 vertex_index,
                 source,
-            }
-        })?;
+            },
+            tol,
+        )?;
     }
 
     Ok(LoopSwept { faces, rims, tops })

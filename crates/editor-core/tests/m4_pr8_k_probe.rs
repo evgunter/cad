@@ -36,11 +36,12 @@ mod fixture;
 
 use std::io::Write as _;
 
+use geom_core::Sign;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
-use geom_core::{Sign, Tolerance};
 use topo::{mass_properties, validate, validate_closed};
 
 use corpus::{body_of, documents, eval, failures};
+use geom_core::Tol;
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
     match o {
@@ -71,7 +72,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         let body = body_of(&ev, result);
         validate(body).expect("tier 1");
         validate_closed(body).expect("closed");
-        mass_properties(body).expect("mass properties");
+        mass_properties(body, Tol::witness()).expect("mass properties");
     }
     k_stats::take_samples()
 }
@@ -80,7 +81,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
 #[test]
 #[ignore = "K-telemetry collection run; one process per eps (see module docs)"]
 fn dump_corpus_k_samples() {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let mut csv = String::from("shape,predicate,margin,band_zero,band_escalate,outcome\n");
     let mut total = 0usize;
     let mut unnamed = 0usize;

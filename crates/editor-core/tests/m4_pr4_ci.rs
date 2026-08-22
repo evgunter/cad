@@ -4,7 +4,7 @@
 //! The pinned digest must hold at every CI ε row (the corpus is
 //! margin-fat by construction; nothing in it is band-edge at 1e-6 …
 //! 1e-12), and the corpus derives every probe from evaluation output
-//! and ambient `Tolerance::get()` only — no hard-coded ε anywhere.
+//! and ambient `Tol::witness().get()` only — no hard-coded ε anywhere.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fixture;

@@ -60,6 +60,7 @@ use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
+use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
 /// the roots or none of them — there are no partial products.
@@ -256,8 +257,9 @@ fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
 pub fn product<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Body<T>, ProductError> {
-    product_recorded(doc, evaluation).map(|p| p.body)
+    product_recorded(doc, evaluation, tol).map(|p| p.body)
 }
 
 /// The whole-document product, with everything the gather knows about
@@ -300,8 +302,9 @@ pub struct Product<T: Decide> {
 pub fn product_named<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<(Body<T>, NameTable), ProductError> {
-    product_recorded(doc, evaluation).map(|p| (p.body, p.names))
+    product_recorded(doc, evaluation, tol).map(|p| (p.body, p.names))
 }
 
 /// The document's product with its name table AND its declared contact
@@ -326,6 +329,7 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
 pub fn product_recorded<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Product<T>, ProductError> {
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
@@ -372,7 +376,7 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         .sum();
     if total_solids > 1 {
         for (node, _, body, _, _) in &sources {
-            topo::validate_geometric(body.as_ref()).map_err(|errors| {
+            topo::validate_geometric(body.as_ref(), tol).map_err(|errors| {
                 ProductError::SolidInvalid {
                     node: *node,
                     errors,
@@ -396,19 +400,18 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         if body.solids().next().is_none() {
             continue;
         }
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref()).map_err(|source| {
-                ProductError::Graft {
-                    node: *node,
-                    source: Box::new(source),
-                }
-            })?;
+        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(
+            |source| ProductError::Graft {
+                node: *node,
+                source: Box::new(source),
+            },
+        )?;
         carry_names(&mut names, table, *ix, &keys)
             .map_err(|name| ProductError::Naming { node: *node, name })?;
         carry_contacts(&mut contacts, records, &keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
     }
-    topo::validate_geometric(&aggregate)
+    topo::validate_geometric(&aggregate, tol)
         .map_err(|errors| ProductError::ProductInvalid { errors })?;
     Ok(Product {
         body: aggregate,

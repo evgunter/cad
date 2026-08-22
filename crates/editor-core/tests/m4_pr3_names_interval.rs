@@ -14,6 +14,7 @@ use editor_core::{
 };
 use fixture::{declare_x_offset_flush, desc, insert, len, scl, wall};
 use geom_core::Interval;
+use geom_core::Tol;
 
 fn block(
     doc: ProfileDoc,
@@ -43,7 +44,7 @@ fn block(
 /// The corpus: an overlapping union, a through-slot subtract, and a
 /// plane split — all dyadic.
 fn corpus() -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names_interval");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl_u) = declare_x_offset_flush(doc, a, b);
@@ -101,7 +102,13 @@ fn corpus() -> ProfileDoc {
 }
 
 fn run<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
-    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 #[test]

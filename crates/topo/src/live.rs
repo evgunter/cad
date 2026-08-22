@@ -117,6 +117,7 @@ mod tests {
     use crate::body::Body;
     use crate::entity::{EdgeKey, HalfEdge, HalfEdgeKey, LoopKey, VertexKey};
     use crate::fixtures::pillow;
+    use geom_core::Tol;
 
     fn scaffold() -> HalfEdge {
         HalfEdge {
@@ -137,7 +138,7 @@ mod tests {
         let empty = Body::<f64>::new();
         assert!(Live::of(&empty, HalfEdgeKey::default()).is_none());
         assert!(empty.require_live(HalfEdgeKey::default()).is_err());
-        let body = pillow().body;
+        let body = pillow(Tol::witness()).body;
         assert!(!body.half_edges.is_empty(), "the arena must be populated");
         assert!(Live::of(&body, HalfEdgeKey::default()).is_none());
         assert!(body.require_live(HalfEdgeKey::default()).is_err());

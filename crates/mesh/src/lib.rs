@@ -52,7 +52,7 @@
 //! of (body, δ)"* holds **for every body in the tree** — a statement
 //! about the tree, not a theorem, and weaker than *"ε cannot move an
 //! emitted coordinate"*, which is false. ε arrives once, in
-//! [`fn@tessellate`]; `sizing::Tol`'s doc states what its reads may do
+//! [`fn@tessellate`]; `sizing::SizingTols`'s doc states what its reads may do
 //! and where that claim stops, and `tests/all.rs`'s
 //! `the_eps_inventory_is_pinned` computes where they are (D9).
 //!
@@ -146,9 +146,14 @@
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
 //! The `debug_assert` that re-derives the conclusion over each pole
-//! patch is **debug-only**, so a release build carries the floor and
-//! nothing else; `curved`'s module header states that asymmetry and
-//! points at the open decision (`SMELL-SCAN-2026-08.md` S65).
+//! patch is `#[cfg(debug_assertions)]`, which cargo's release default
+//! compiles out — so whether a release build carries more than the
+//! floor is a manifest setting, and the root `Cargo.toml` currently
+//! sets `debug-assertions = true` for `[profile.release]` (a
+//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
+//! `curved`'s module header states what runs where, and why the
+//! `debug_assert` — not a typed refusal — is the settled mechanism for
+//! that state (`SMELL-SCAN-2026-08.md` S65, ruled row 5 in #884).
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole

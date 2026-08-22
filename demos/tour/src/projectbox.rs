@@ -26,17 +26,18 @@ use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// Builds the 15-op enclosure chain, generic (the Probe sweep runs the
 /// same ops); returns the final body and its exact volume.
-pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
+pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
     // Outer shell 3 x 2 x 1.5, walls/floor 0.25.
-    let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
-    let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0));
+    let outer: pncad::topo::Body<S> = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5), tol);
+    let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0), tol);
     let mut vol = 9.0 - 2.5 * 1.5 * 1.25;
     let mut acc: BooleanBody<S> = expect_seamed(
         "cavity subtract",
-        check(try_subtract(&outer, &cavity), vol),
+        check(try_subtract(&outer, &cavity, tol), vol, tol),
         vol,
     );
     let mut ops = 1;
@@ -46,11 +47,11 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
     let xs = [(0.5, 0.875), (1.3125, 1.6875), (2.125, 2.5)];
     for &x in &xs {
         for y in [(-0.25, 0.5), (1.5, 2.25)] {
-            let cutter = slab(x, y, (0.5, 1.25));
+            let cutter = slab(x, y, (0.5, 1.25), tol);
             vol -= 0.375 * 0.25 * 0.75;
             acc = expect_seamed(
                 "vent slot",
-                check(try_subtract(&acc.body, &cutter), vol),
+                check(try_subtract(&acc.body, &cutter, tol), vol, tol),
                 vol,
             );
             ops += 1;
@@ -63,9 +64,13 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
     let by = [(0.4375, 0.8125), (1.1875, 1.5625)];
     for &x in &bx {
         for &y in &by {
-            let boss = slab(x, y, (0.1875, 0.875));
+            let boss = slab(x, y, (0.1875, 0.875), tol);
             vol += 0.375 * 0.375 * 0.625;
-            acc = expect_seamed("boss union", check(try_union(&acc.body, &boss), vol), vol);
+            acc = expect_seamed(
+                "boss union",
+                check(try_union(&acc.body, &boss, tol), vol, tol),
+                vol,
+            );
             ops += 1;
         }
     }
@@ -76,11 +81,11 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
         for &y in &by {
             let px = (x.0 + 0.09375, x.1 - 0.09375);
             let py = (y.0 + 0.09375, y.1 - 0.09375);
-            let pocket = slab(px, py, (0.5625, 1.0625));
+            let pocket = slab(px, py, (0.5625, 1.0625), tol);
             vol -= 0.1875 * 0.1875 * 0.3125;
             acc = expect_seamed(
                 "pilot pocket",
-                check(try_subtract(&acc.body, &pocket), vol),
+                check(try_subtract(&acc.body, &pocket, tol), vol, tol),
                 vol,
             );
             ops += 1;
@@ -92,8 +97,8 @@ pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, f64) {
 
 /// The tour stop; returns it with a clone of the final body (the
 /// cutaway stop splits it).
-pub fn stop() -> (Stop, pncad::topo::Body<f64>) {
-    let (acc, vol) = build::<f64>();
+pub fn stop(tol: Tol) -> (Stop, pncad::topo::Body<f64>) {
+    let (acc, vol) = build::<f64>(tol);
     let body_for_cutaway = acc.body.clone();
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \

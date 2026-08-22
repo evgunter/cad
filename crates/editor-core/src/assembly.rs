@@ -56,6 +56,7 @@ use crate::mate::{ClassAdmission, ContactClass, MateSide, class_admission};
 use crate::names::{EntityKey, EntityKind, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId};
 use crate::product::{Product, ProductError, product_recorded};
+use geom_core::Tol;
 
 /// One mate's minted declaration: the mate that authored it, both of
 /// its references, the class it asserts, and the PRODUCT faces the
@@ -341,16 +342,17 @@ impl core::error::Error for AssemblyError {}
 pub fn assemble<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
     let product =
-        product_recorded(doc, evaluation).map_err(|e| AssemblyError::Product(Box::new(e)))?;
+        product_recorded(doc, evaluation, tol).map_err(|e| AssemblyError::Product(Box::new(e)))?;
     let Product {
         body,
         names,
         mut contacts,
     } = product;
     let minted = mint(doc, evaluation, &names, &mut contacts)?;
-    match topo::validate_pseudomanifold(&body, &contacts) {
+    match topo::validate_pseudomanifold(&body, &contacts, tol) {
         Ok(()) => Ok(Assembly {
             body,
             names,
@@ -733,6 +735,7 @@ mod attribution {
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
+    use geom_core::Tol;
 
     /// A body with three unrelated faces, and one declaration over the
     /// first two — the shape every row below asks a question against:
@@ -776,7 +779,7 @@ mod attribution {
     fn escalation() -> geom_core::Indeterminate {
         geom_core::Indeterminate {
             margin: MarginDiag::Value(0.0),
-            band: Band::linear().expect("the ambient tolerance builds a band"),
+            band: Band::linear(Tol::witness()).expect("the ambient tolerance builds a band"),
             predicate: None,
         }
     }

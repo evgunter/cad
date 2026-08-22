@@ -52,6 +52,7 @@ use crate::node::SlotId;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
+use geom_core::Tol;
 
 /// Where a non-finite float sits (the D2 refusal's typed site).
 #[derive(Debug, Clone, PartialEq)]
@@ -106,11 +107,12 @@ pub enum NonFiniteSite {
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
+    tol: Tol,
 ) -> Result<(), super::PersistError> {
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
     }
-    if let Some((node, fault)) = first_program_fault(snapshot) {
+    if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
     }
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
@@ -542,7 +544,7 @@ pub enum ProgramFault {
 /// binding-dependent class as geometry refusals (V1 class 2) and
 /// surface as the node's typed evaluation error; no silent acceptance
 /// exists (review NOTE-1).
-fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFault)> {
+fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId, ProgramFault)> {
     use crate::program::ProfilePayload as _;
     let env = snapshot.param_env::<f64>();
     for (&id, node) in &snapshot.nodes {
@@ -569,7 +571,7 @@ fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFa
             step,
             state,
             verb,
-        }) = program.check(&env)
+        }) = program.check(&env, tol)
         {
             return Some((
                 id,
@@ -592,6 +594,7 @@ mod tests {
     use crate::node::RecipeNodeId;
     use crate::persist::{PersistError, SnapshotError, save};
     use crate::program::ProfileDoc;
+    use geom_core::Tol;
 
     /// Convention 2's point, pinned at the unit level: a document
     /// that would refuse to load cannot be saved. Both corruptions
@@ -602,18 +605,18 @@ mod tests {
     fn structurally_invalid_documents_refuse_at_save() {
         // ε = 0.0 is finite (past the float walk) but invalid — the
         // load door's EpsilonInvalid, now at save too.
-        let mut doc = ProfileDoc::empty_derived("check");
+        let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.epsilon = 0.0;
-        match save(&doc, &[]) {
+        match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
                 assert_eq!(value, 0.0);
             }
             other => panic!("non-positive ε must refuse at save, got {other:?}"),
         }
         // order naming a node the map does not hold.
-        let mut doc = ProfileDoc::empty_derived("check");
+        let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.order.push(RecipeNodeId(7));
-        match save(&doc, &[]) {
+        match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
             other => panic!("order mismatch must refuse at save, got {other:?}"),
         }

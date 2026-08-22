@@ -108,7 +108,7 @@ fn dual_rejects_with_the_identical_typed_error() {
     for fixture in [
         profile(vec![bowtie()]),
         tangent_hole(),
-        near_tangent_hole(tol().eps),
+        near_tangent_hole(tol().eps()),
         arc_kisses_line(),
     ] {
         let f_err = fixture.validate(tol()).expect_err("fixture rejects at f64");

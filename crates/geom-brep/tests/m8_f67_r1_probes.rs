@@ -30,13 +30,14 @@ use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point2, Point3, Vec2, Vec3};
 use slotmap::SlotMap;
 
 fn band() -> Band {
-    Band::linear().expect("the run's linear band")
+    Band::linear(Tol::witness()).expect("the run's linear band")
 }
 
 /// Chord-sum arc length of a `Curve3<f64>` over `[d0, d1]` — a LOWER

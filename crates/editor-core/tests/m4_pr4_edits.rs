@@ -14,9 +14,16 @@ use editor_core::{
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
 use fixture::{desc, insert, len, step};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn block(
@@ -61,7 +68,7 @@ struct Three {
 }
 
 fn three() -> Three {
-    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits", Tol::witness());
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
@@ -76,10 +83,13 @@ fn rebind_rewrites_declare_sites_one_shot() {
     let t = three();
     let applied = t
         .doc
-        .apply(&DocEdit::Rebind {
-            from: cap(t.b),
-            to: cap(t.c),
-        })
+        .apply(
+            &DocEdit::Rebind {
+                from: cap(t.b),
+                to: cap(t.c),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(applied.record.structural, "Declare payloads changed");
     let Some(Node::Declare { pairs }) = applied.doc.node(t.decl) else {
@@ -91,10 +101,13 @@ fn rebind_rewrites_declare_sites_one_shot() {
     assert_eq!(
         applied
             .doc
-            .apply(&DocEdit::Rebind {
-                from: cap(t.b),
-                to: cap(t.a),
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: cap(t.b),
+                    to: cap(t.a),
+                },
+                Tol::witness()
+            )
             .unwrap_err(),
         EditError::RebindNoReferences { name: cap(t.b) }
     );
@@ -149,10 +162,13 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     // Identity.
     assert_eq!(
         t.doc
-            .apply(&DocEdit::Rebind {
-                from: cap(t.b),
-                to: cap(t.b),
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: cap(t.b),
+                    to: cap(t.b),
+                },
+                Tol::witness()
+            )
             .unwrap_err(),
         EditError::RebindIdentity { name: cap(t.b) }
     );
@@ -164,10 +180,13 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     };
     assert_eq!(
         t.doc
-            .apply(&DocEdit::Rebind {
-                from: cap(t.b),
-                to: body_c,
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: cap(t.b),
+                    to: body_c,
+                },
+                Tol::witness()
+            )
             .unwrap_err(),
         EditError::RebindKindMismatch {
             from: EntityKind::Face,
@@ -178,10 +197,13 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     let (doc_del, _) = step(t.doc.clone(), DocEdit::DeleteNode { id: t.c });
     assert_eq!(
         doc_del
-            .apply(&DocEdit::Rebind {
-                from: cap(t.b),
-                to: cap(t.c),
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: cap(t.b),
+                    to: cap(t.c),
+                },
+                Tol::witness()
+            )
             .unwrap_err(),
         EditError::RebindTargetMissingNode { name: cap(t.c) }
     );
@@ -189,20 +211,26 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     let foreign = cap(RecipeNodeId(9999));
     assert_eq!(
         t.doc
-            .apply(&DocEdit::Rebind {
-                from: foreign.clone(),
-                to: cap(t.c),
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: foreign.clone(),
+                    to: cap(t.c),
+                },
+                Tol::witness()
+            )
             .unwrap_err(),
         EditError::RebindUnknownName { name: foreign }
     );
     // Zero document sites.
     assert_eq!(
         t.doc
-            .apply(&DocEdit::Rebind {
-                from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
-                to: cap(t.c),
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
+                    to: cap(t.c),
+                },
+                Tol::witness()
+            )
             .map(|_| ())
             .err(),
         None,
@@ -210,10 +238,13 @@ fn rebind_refusal_doors_are_typed_and_specific() {
     );
     assert_eq!(
         t.doc
-            .apply(&DocEdit::Rebind {
-                from: cap(t.c), // referenced nowhere
-                to: cap(t.a),
-            })
+            .apply(
+                &DocEdit::Rebind {
+                    from: cap(t.c), // referenced nowhere
+                    to: cap(t.a),
+                },
+                Tol::witness()
+            )
             .unwrap_err(),
         EditError::RebindNoReferences { name: cap(t.c) }
     );
@@ -230,32 +261,41 @@ fn datum(schema: u32, bytes: &[u8]) -> WitnessDatum {
 
 #[test]
 fn rewitness_stores_on_sketch_nodes_only_and_replays() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits", Tol::witness());
     let (doc, profile, extrude) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let w = datum(1, b"assignment-v1");
     let applied = doc
-        .apply(&DocEdit::ReWitness {
-            node: profile,
-            witness: w.clone(),
-        })
+        .apply(
+            &DocEdit::ReWitness {
+                node: profile,
+                witness: w.clone(),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!applied.record.structural);
     assert_eq!(applied.doc.witness(profile), Some(&w));
     assert_eq!(doc.witness(profile), None, "purity: input untouched");
     // Non-sketch and unknown nodes refuse typed.
     assert_eq!(
-        doc.apply(&DocEdit::ReWitness {
-            node: extrude,
-            witness: w.clone(),
-        })
+        doc.apply(
+            &DocEdit::ReWitness {
+                node: extrude,
+                witness: w.clone(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::WitnessOnNonSketch { node: extrude }
     );
     assert_eq!(
-        doc.apply(&DocEdit::ReWitness {
-            node: RecipeNodeId(9999),
-            witness: w.clone(),
-        })
+        doc.apply(
+            &DocEdit::ReWitness {
+                node: RecipeNodeId(9999),
+                witness: w.clone(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::UnknownNode {
             id: RecipeNodeId(9999)
@@ -264,18 +304,24 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
     // Replay determinism: same edits, bit-identical document
     // (witness bytes are exact data; bit_eq covers them).
     let redo = doc
-        .apply(&DocEdit::ReWitness {
-            node: profile,
-            witness: w.clone(),
-        })
+        .apply(
+            &DocEdit::ReWitness {
+                node: profile,
+                witness: w.clone(),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(applied.doc.bit_eq(&redo.doc));
     // A different witness is a DIFFERENT document.
     let other = doc
-        .apply(&DocEdit::ReWitness {
-            node: profile,
-            witness: datum(1, b"assignment-v2"),
-        })
+        .apply(
+            &DocEdit::ReWitness {
+                node: profile,
+                witness: datum(1, b"assignment-v2"),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!applied.doc.bit_eq(&other.doc));
     // The doc diff reports the witness delta.
@@ -292,7 +338,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
 
 #[test]
 fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits", Tol::witness());
     let (doc, p1, e1) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, p2, _e2) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let cert = BranchCertification {
@@ -300,36 +346,48 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
         bytes: b"krawczyk-boxes".to_vec(),
     };
     let applied = doc
-        .apply(&DocEdit::ReWitnessBulk {
-            entries: vec![(p1, datum(1, b"w1")), (p2, datum(1, b"w2"))],
-            certification: cert.clone(),
-        })
+        .apply(
+            &DocEdit::ReWitnessBulk {
+                entries: vec![(p1, datum(1, b"w1")), (p2, datum(1, b"w2"))],
+                certification: cert.clone(),
+            },
+            Tol::witness(),
+        )
         .unwrap();
     assert!(!applied.record.structural);
     assert_eq!(applied.doc.witness(p1), Some(&datum(1, b"w1")));
     assert_eq!(applied.doc.witness(p2), Some(&datum(1, b"w2")));
     // Shape doors.
     assert_eq!(
-        doc.apply(&DocEdit::ReWitnessBulk {
-            entries: vec![],
-            certification: cert.clone(),
-        })
+        doc.apply(
+            &DocEdit::ReWitnessBulk {
+                entries: vec![],
+                certification: cert.clone(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::EmptyWitnessBulk
     );
     assert_eq!(
-        doc.apply(&DocEdit::ReWitnessBulk {
-            entries: vec![(p1, datum(1, b"w1")), (p1, datum(1, b"w1b"))],
-            certification: cert.clone(),
-        })
+        doc.apply(
+            &DocEdit::ReWitnessBulk {
+                entries: vec![(p1, datum(1, b"w1")), (p1, datum(1, b"w1b"))],
+                certification: cert.clone(),
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::DuplicateWitnessEntry { node: p1 }
     );
     assert_eq!(
-        doc.apply(&DocEdit::ReWitnessBulk {
-            entries: vec![(e1, datum(1, b"w"))],
-            certification: cert,
-        })
+        doc.apply(
+            &DocEdit::ReWitnessBulk {
+                entries: vec![(e1, datum(1, b"w"))],
+                certification: cert,
+            },
+            Tol::witness()
+        )
         .unwrap_err(),
         EditError::WitnessOnNonSketch { node: e1 }
     );
@@ -337,7 +395,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
 
 #[test]
 fn witness_change_moves_the_content_key_and_reproduces_bits() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_edits");
+    let doc = ProfileDoc::empty_derived("m4_pr4_edits", Tol::witness());
     let (doc, profile, extrude) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let ev1 = run(&doc, None);
     let (doc2, _) = step(
@@ -377,7 +435,7 @@ fn witness_change_moves_the_content_key_and_reproduces_bits() {
 fn witness_bifurcation_payload_and_diagnosis_arm_compose() {
     // Payload values derived from the ambient tolerance (discipline:
     // no hard-coded ε anywhere, even in constructed evidence).
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let bif = WitnessBifurcation {
         kind: BifurcationKind::FoldProximity,
         margin: BranchMarginEvidence {

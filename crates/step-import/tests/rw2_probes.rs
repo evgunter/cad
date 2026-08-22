@@ -36,6 +36,7 @@
 //! onto its own f64-rounding allowance. The lock is the REFUSAL side.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
@@ -61,6 +62,7 @@ fn native_arc_loft() -> topo::Body<f64> {
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc loft builds")
     .body
@@ -80,6 +82,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
                 &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
                 &stack([0.0, 1.0, 2.0]),
                 2,
+                Tol::witness(),
             )
             .expect("lofts")
             .body,
@@ -250,7 +253,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         v_min: 0.0,
         v_max: 1.0,
     };
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, window, band)
         .expect("a FOREIGN 4-sub-arc chart certifies through the same door (carrier-keyed)");
     println!(

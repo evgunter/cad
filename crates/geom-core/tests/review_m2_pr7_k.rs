@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Band, Decide, Sign, Tolerance};
 
 /// Probe (ignored in normal runs): classify a margin of 17ε and print
@@ -15,9 +16,9 @@ use geom_core::{Band, Decide, Sign, Tolerance};
 #[test]
 #[ignore]
 fn print_k_flip_probe() {
-    let t = Tolerance::get();
+    let t = Tol::witness().get();
     let margin = 17.0 * t.eps;
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let out = match margin.sign_within(band) {
         Ok(Sign::Positive) => "positive".to_string(),
         Ok(Sign::Zero) => "zero".to_string(),

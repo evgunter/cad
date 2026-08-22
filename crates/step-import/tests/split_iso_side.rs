@@ -33,6 +33,7 @@
 
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
+use geom_core::Tol;
 use mesh::tessellate;
 use mesh::validate::check_mesh;
 use step_import::{ImportOptions, StepImport, import_step};
@@ -51,7 +52,7 @@ type Rows = Vec<(usize, Result<(), String>)>;
 /// Imports one fixture and tessellates it at two δ, returning the
 /// triangle count and the validator's verdict for each.
 fn meshed(name: &str) -> Rows {
-    let imported = import_step(&fixture(name), &ImportOptions::default())
+    let imported = import_step(&fixture(name), &ImportOptions::default(), Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must import: {e:?}"));
     let StepImport::Solid { body, .. } = imported else {
         panic!("{name} must import as a solid");
@@ -59,7 +60,8 @@ fn meshed(name: &str) -> Rows {
     [2.0e-3, 5.0e-4]
         .into_iter()
         .map(|d| {
-            let m = tessellate(&body, d).unwrap_or_else(|e| panic!("{name} at δ={d}: {e:?}"));
+            let m = tessellate(&body, d, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name} at δ={d}: {e:?}"));
             let n: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
             (n, check_mesh(&m).map_err(|e| format!("{e:?}")))
         })

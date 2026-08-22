@@ -77,6 +77,7 @@ use crate::entity::{FaceKey, LoopBoundary};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
 use geom::Surface;
+use geom_core::Tol;
 
 /// The trilean answer: is `q` in the solid's **material**?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -517,6 +518,7 @@ pub fn point_in_solid<T: Decide>(
     body: &Body<T>,
     q: Point3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Deterministic face sweep order (arena order).
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
@@ -593,7 +595,7 @@ pub fn point_in_solid<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
-        if let Some(verdict) = cast_ray(body, &faces, q, d, band)? {
+        if let Some(verdict) = cast_ray(body, &faces, q, d, band, tol)? {
             return Ok(verdict);
         }
         // graze: next schedule member
@@ -631,6 +633,7 @@ fn cast_ray<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
     // A candidate crossing (advance, outward sign), or a graze.
@@ -866,7 +869,7 @@ fn cast_ray<T: Decide>(
         Some((_, Sign::Positive)) => Ok(Some(SolidContainment::In)),
         Some((_, _)) => Ok(Some(SolidContainment::Out)),
         // No crossing: q is on the at-infinity side (module docs).
-        None => Ok(Some(at_infinity_side(body, faces, band)?)),
+        None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
     }
 }
 
@@ -881,9 +884,10 @@ fn at_infinity_side<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
+    tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
-    let props = crate::props::mass_properties_closed_form(body, band).map_err(|_| {
+    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| {
         PointInSolidError::CorruptFace {
             face: faces.first().copied().unwrap_or_default(),
         }

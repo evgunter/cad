@@ -75,6 +75,7 @@
 use std::path::{Path, PathBuf};
 
 use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// What a corpus file does at import, at every tolerance in the sweep.
@@ -616,7 +617,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(&body),
+            topo::validate_geometric(&body, Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -681,7 +682,7 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
     if row != EpsSensitive {
         return Some(row);
     }
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     EPS_ROWS
         .iter()
         .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)
@@ -708,13 +709,13 @@ fn every_corpus_import_passes_the_shared_gate() {
                 // Off the pinned ambient matrix. The disposition of an
                 // ε-sensitive file is not knowable here, but the gate's
                 // claim still is, and asserting it is not nothing.
-                assert_typed_outcome(&who, import_step(&text, &options));
+                assert_typed_outcome(&who, import_step(&text, &options, Tol::witness()));
                 continue;
             };
-            match (import_step(&text, &options), want) {
+            match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(&body),
+                        topo::validate_geometric(&body, Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \
@@ -812,7 +813,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/band/band_c180.stp"),
     )
     .unwrap();
-    let e = import_step(&text, &ImportOptions::default()).unwrap_err();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
     let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };

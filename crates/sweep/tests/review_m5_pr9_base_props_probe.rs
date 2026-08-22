@@ -4,7 +4,8 @@
 //! four equal-span rim arcs on one face — the first-arc rule sees
 //! consistent dts and returns HALF the true du.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -16,11 +17,13 @@ fn symmetric_double_rim_split_volume_at_base() {
         ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let mut body = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
+    let mut body = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;
-    let v0 = topo::mass_properties(&body).unwrap().volume;
+    let v0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!((v0 - true_vol).abs() < 1e-9, "pre-split volume sane");
     // Find one cylinder wall face and its two circle-carrier edges.
     let wall = body
@@ -53,10 +56,11 @@ fn symmetric_double_rim_split_volume_at_base() {
     }
     assert_eq!(rim_edges.len(), 2, "one wall has two rim arcs");
     for (ek, tmid) in rim_edges {
-        body.split_edge(ek, tmid).expect("rim split at rest");
+        body.split_edge(ek, tmid, Tol::witness())
+            .expect("rim split at rest");
     }
-    let tier3 = topo::validate_geometric(&body);
-    match topo::mass_properties(&body) {
+    let tier3 = topo::validate_geometric(&body, Tol::witness());
+    match topo::mass_properties(&body, Tol::witness()) {
         Err(e) => eprintln!("BASE: props refused typed ({e:?}) — main honest"),
         Ok(p) => {
             eprintln!(

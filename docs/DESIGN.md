@@ -45,16 +45,14 @@ self-intersection and to compute tolerance stackups.
 
 ## The central commitment
 
-> **A model is a pure, replayable function from a parameter vector to a
-> solid.** `fn build(params: &Params) -> Result<Solid, ModelError>` —
-> deterministic, no hidden state. The B-rep is a derived value, never a
-> mutated-in-place object.
+> **A model is a pure, replayable function from a parameter vector and a
+> tolerance to a solid.** `fn build(params: &Params, tol: Tol) ->
+> Result<Solid, ModelError>` — deterministic, no hidden state. The B-rep is
+> a derived value, never a mutated-in-place object.
 
-**Not quite: there is one exception, and only one — ε.** No signature
-carries it and every predicate reads it, so a model is a pure function of
-its parameters *and* of ε, which is committed once per process before the
-first predicate and cannot be changed after (D4). Determinism is over the
-pair: the same parameters at the same ε give the same solid.
+Determinism is over the pair: the same parameters at the same ε give the
+same solid. ε is one value per run, committed once and never changed after
+— see D4 ¶1.
 
 Everything else follows from holding this invariant from day one:
 
@@ -857,9 +855,40 @@ applied to error handling. Five commitments:
    carriers only up to the certified residual; STL's f32 narrowing adds
    ≤1 ulp per coordinate on top, documented in the writer) — but this
    is an *export promise*, explicitly not a kernel invariant. The mesh
-   layer reads ε exactly once (pole vertex identification) and never
-   for sizing; display-layer comparisons are deliberately not Q1
-   predicates (none decide kernel topology).
+   layer never reads ε for sizing; display-layer comparisons are
+   deliberately not Q1 predicates (none decide kernel topology).
+
+   > **RULED 2026-08-21 — the stronger reading, and the pole
+   > classification owes a GUARD rather than a qualifier here.**
+   >
+   > **The deleted clause** said the mesh layer *"reads ε exactly once
+   > (pole vertex identification)"*. **That count was false** — four
+   > terminal ε reads across seven consumer sites. #872 replaced it with a
+   > computed pin (`mesh/tests/all.rs::the_eps_inventory_is_pinned`) so it
+   > cannot drift again. Only the count is deleted; *"never for sizing"* is
+   > true and checkable from `sizing`'s signatures.
+   >
+   > **The question underneath was the real one.** One of those reads is a
+   > **classification**, not a bar: pole identification substitutes the
+   > chart's exact `v` and emits two polygon entries instead of one, so an ε
+   > that flipped it would **move emitted coordinates with δ held fixed**.
+   > That makes the sentence above true of every body this build can mint
+   > and **not a theorem** — nothing in the tree flips it, but no argument
+   > establishes that nothing can, and a STEP import is the plausible route
+   > in.
+   >
+   > **The ruling: this paragraph keeps its promise unqualified, and the
+   > classification is guarded so the promise stays true** — filed as
+   > **#896**. Weakening a ratified promise to accommodate a state that
+   > could only arise from **value coincidence** would make this document
+   > quieter about exactly the case worth hearing about, and this project
+   > does not read intent into numerical coincidence. The guard says the
+   > same thing honestly and fails loudly if the belief is wrong.
+   >
+   > **#895's junction guard does not discharge #896**: it compares
+   > declared vertex against declared vertex, and this case is a junction
+   > against an **undeclared** analytic chart pole. Where the pole is itself
+   > declared the two overlap; where it is not, nothing looks.
 
    **The margin dimensional convention (RATIFIED 2026-08-05, Evan 👍 on PR #205 comment 5195787412; shaped
    in-chat with Evan — non-generic erased annotations, his call —
@@ -1108,8 +1137,22 @@ topology change is stated, not emergent.
 - Transcendentals via the pure-Rust `libm` crate: system libm sin/cos
   differ across platforms in the last ulp — enough to flip a marginal
   predicate.
-- The kernel never panics on any input: panics are bugs; every failure is
-  a typed error. *(Honest M1 footnote: operator debug postconditions
+- **The kernel never panics on any INPUT** — every failure that an input
+  can reach is a typed error. **A panic is therefore never a refusal: it
+  reports that a bug has already happened.** *Restated 2026-08-21 because
+  the original wording — "panics are bugs" — inverts on a careless read.*
+  It meant **a firing panic is evidence of a bug**; it reads just as
+  naturally as *"a panic in the source is a defect to remove"*, which is
+  the opposite of this rule, and it has been misread that way.
+  **The converse is a positive obligation, not a tolerance: a state that
+  can only be a kernel bug MUST panic** — as loudly and as early as it is
+  detectable (`unreachable!` or `debug_assert`, the D2 addendum's rows 4
+  and 5 below). The whole value of such a check is catching the defect at
+  the first moment it is observable, so downgrading one to silence, or to
+  a typed error, launders a bug into a supported outcome. The two halves
+  are **separate rules over disjoint state classes** — inputs never
+  panic; bug states always do — and neither licenses the other's
+  territory. *(Honest M1 footnote: operator debug postconditions
   are `debug_assert`s, and they are unreachable by input through the
   public API at every door but one — raw insertion is crate-internal,
   and the public mutation paths preserve tier 1: the Euler operators by
@@ -2203,7 +2246,39 @@ before shelling/offset work (M5+), stated now.
 ### Q9: Project license and name
 
 License **resolved**: dual MIT OR Apache-2.0. Name: still pending —
-placeholder workspace acceptable; pre-publish renames are cheap.
+placeholder workspace acceptable; pre-publish renames are cheap. The
+rename is one entry on the **Before publishing** list below; the others
+are not name questions and are not filed here.
+
+### Before publishing (listed so they don't get lost)
+
+Not a design question — the set of things that are deliberately in a
+pre-publication state and have to be put back before the project ships.
+The list exists because each entry is individually invisible: nothing
+goes red when the project publishes with one of them still in the
+shipped state.
+
+- **Roll the version numbers.** No member manifest carries a `version`
+  field today, so every crate is cargo's default `0.0.0`, and
+  `[workspace.package]` says `publish = false` — *"nothing is
+  publishable until the project has its name (Q9)"*. Publishing means
+  setting real versions and dropping that line; **rolling them back is
+  what un-does a premature publish**, and the next entry rides along
+  with it.
+- **Turn release debug-assertions back off.** The root `Cargo.toml`'s
+  `[profile.release]` sets `debug-assertions = true`, so a release build
+  runs every `debug_assert` in the workspace — the D2-addendum row-5
+  postconditions, which cargo's release default would compile out. That
+  is the right posture for a kernel nobody depends on yet: D9's converse
+  half says a bug state must panic *as early as it is detectable*, and a
+  row-5 assert meeting a real part is information nothing else produces.
+  **Deleting the stanza is a real reduction in what a release build
+  checks, so it is a decision to take at publish rather than a chore to
+  tick off** — `SMELL-SCAN-2026-08.md`'s **S65** is the worked example
+  (the #678 watertightness backstop, ruled row 5 in **#884**: the
+  `debug_assert` is the settled mechanism, and only its release REACH
+  was ever in question — which is exactly what this stanza sets).
+- **The name (Q9).** Above.
 
 ### Deferred to their milestones (listed so they don't get lost)
 

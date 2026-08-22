@@ -21,13 +21,20 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::prism_edges;
+use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
 }
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table_of(
@@ -45,7 +52,7 @@ fn table_of(
 /// {Cap(Bottom), Cap(Top), Wall(0..3)}, all kind Face.
 #[test]
 fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
-    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes");
+    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -147,7 +154,7 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
 #[test]
 fn p3_totality_holds_for_a_triangular_prism() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
-    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes");
+    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(

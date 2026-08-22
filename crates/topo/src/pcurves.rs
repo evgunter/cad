@@ -154,6 +154,7 @@ use geom::Surface;
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
 };
+use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
@@ -970,8 +971,8 @@ struct Walked<T: Real> {
 /// [`PcurveMintError`] — a certification refusal, a discontinuous or
 /// unclosed loop walk, or an escalated classification. Never a silent
 /// skip of a face the lane covers.
-pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError> {
-    let band = Band::linear().map_err(PcurveMintError::Band)?;
+pub fn mint_pcurves<T: Decide>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
+    let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the
     // surgery killed (a `SecondaryMap` row outlives its key until the

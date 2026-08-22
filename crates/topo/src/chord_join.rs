@@ -15,7 +15,7 @@
 //! - same loop ⇒ `mef(Chords { he1: h1, he2: next(h2) })` (the book's
 //!   `lmef(h1, h2->nxt)`; our [`MefSite::Chords`] documents the same
 //!   run association, so the argument pair ports literally — and the
-//!   mirror test pins the outcome, not the citation), guarded by
+//!   mirror test pins the outcome, not the citation, tol), guarded by
 //!   `prev(prev(h1)) != h2` (adjacent ⇒ the chord already exists);
 //! - different loops ⇒ `mekr` with the **ring chosen structurally**
 //!   (the loop that is not the face's outer; the book's fixed
@@ -91,6 +91,7 @@ use crate::splitting::SplitPlane;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Which sub-case of the arc-side **azimuth-window containment** rule
 /// refused (M5 S9). The rule selects the section arc whose azimuth
@@ -1714,6 +1715,7 @@ impl ChordJoiner {
         h1: HalfEdgeKey,
         h2: HalfEdgeKey,
         mut lane: JoinLane<'_, T>,
+        tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let l1 = body
             .get_half_edge(h1)
@@ -1797,8 +1799,8 @@ impl ChordJoiner {
                 // `m5_s12_curved_ops.rs`, the row named
                 // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                 let created = match spec {
-                    None => body.mef_chord(site)?,
-                    Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
+                    None => body.mef_chord(site, tol)?,
+                    Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
                 };
                 self.slivers.insert(created.face, ());
                 self.fragments.push((created.face, oldf));
@@ -1832,8 +1834,8 @@ impl ChordJoiner {
                 start_of(body, ring)?,
             )?;
             let made = match spec {
-                None => body.mekr_chord(site)?,
-                Some(spec) => body.mekr(site, spec)?,
+                None => body.mekr_chord(site, tol)?,
+                Some(spec) => body.mekr(site, spec, tol)?,
             };
             chords.push(made.edge);
         }
@@ -1887,8 +1889,8 @@ impl ChordJoiner {
                 start_of(body, next(body, h1)?)?,
             )?;
             let created = match spec {
-                None => body.mef_chord(site)?,
-                Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
+                None => body.mef_chord(site, tol)?,
+                Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
             };
             self.slivers.insert(created.face, ());
             self.fragments.push((created.face, owner));
@@ -2078,6 +2080,7 @@ fn ring_representative<T: Decide>(
 mod tests {
     use super::*;
     use crate::entity::FaceKey;
+    use geom_core::Tol;
 
     // -----------------------------------------------------------------
     // DIRECT rows for the arc-side selector. Since M5 S9 the selector is
@@ -2140,6 +2143,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p2,
+                Tol::witness(),
             )
             .unwrap();
         let ctx = SectionCtx {
@@ -2192,6 +2196,7 @@ mod tests {
                     param_start: t0,
                     param_end: t1,
                 },
+                Tol::witness(),
             )
             .unwrap();
         body.get_edge(made.edge).unwrap().he_plus
