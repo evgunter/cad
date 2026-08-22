@@ -277,8 +277,10 @@ render_batch() {
     shift 3
     local stage="$STAGE_ROOT/$lane"
     local log="$LOGDIR/$bid.log" attempt start rc stalled name missing
-    local n=$# budget=$(( SCENE_TIMEOUT * $# )) what
-    [ "$n" -eq 1 ] && what="scene '$1'" || what="$n scenes"
+    # `what` is a SUFFIX, empty for a batch of one, so a single-scene
+    # process reports "rendered in 5s" exactly as it always has.
+    local n=$# budget=$(( SCENE_TIMEOUT * $# )) what="" frames="the frame was"
+    [ "$n" -eq 1 ] || { what=" $n scenes"; frames="the frames were"; }
     BATCH_REASON=""; BATCH_TIMED_OUT=0; BATCH_SECS=0
     for attempt in 1 2; do
         start=$(date +%s)
@@ -290,13 +292,13 @@ render_batch() {
             [ -f "$stage/$name.png" ] || missing="$missing $name"
         done
         if [ -z "$missing" ]; then
-            echo "  [$bid] rendered $what in ${BATCH_SECS}s (attempt $attempt)"
+            echo "  [$bid] rendered${what} in ${BATCH_SECS}s (attempt $attempt)"
             # The frames are good (chunk framing and CRCs are checked
             # downstream), but the process still had to be killed:
             # FreeCAD stalled AFTER the last render. Never silent — this
             # is the wedge showing itself where it costs nothing.
             if [ "$rc" -eq 124 ]; then
-                echo "  [$bid] NOTE — the frames were written, then the process stalled past the ${budget}s budget and was killed (log: $LOGDIR/$bid.log)" >&2
+                echo "  [$bid] NOTE — ${frames} written, then the process stalled past the ${budget}s budget and was killed (log: $LOGDIR/$bid.log)" >&2
             fi
             return 0
         fi
@@ -432,6 +434,12 @@ render_all() {
     start=$(date +%s)
     BATCH_INDEX=0
     rm -f "$LOGDIR"/*.status
+    # Batch log names are POSITIONAL (batch01, batch02, ...), so unlike a
+    # scene log they name different scenes from one pass to the next — a
+    # leftover batch07.log from a pass at a different CAD_RENDER_BATCH
+    # would be read as this pass's. Scene logs are left alone: their
+    # names still mean exactly one thing.
+    rm -f "$LOGDIR"/batch*.log
     for name in "$@"; do
         batch+=("$name")
         if [ "${#batch[@]}" -ge "$RENDER_BATCH" ]; then
