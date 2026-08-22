@@ -188,12 +188,19 @@ the performance question:
   one structural insertion.
 - **The invariant, restated at its real value**: what the ratified
   sentence protects is that cavity bookkeeping has ONE home. The
-  proposal is the weaker, sharper form — **every cavity is born
-  through the shared void-insertion door** — which booleans and
-  shell both satisfy; whether DESIGN.md:348's sentence is then
-  revised to name shell or left as-is with shell defined as
-  boolean-family becomes wording, not architecture. The DESIGN.md
-  edit rides this doc's ratification.
+  ratified form (this round, with Evan's sweep note) — **every
+  cavity is born through the shared void-insertion door** — which
+  THREE producers satisfy: boolean subtraction, shell, and **the
+  full revolve of a holed profile** (Evan's #907 addition), defined
+  as the composition `revolve(outer) − revolve(hole-as-outer)` the
+  current `FullRevolveHoles` error text already points at, and
+  executed through the same degenerate no-crossing arm — the hole's
+  swept boundary provably touches nothing, which is the very fact
+  the old refusal cited. That unit is VERBS-PLAN's existing RING
+  row, now redefined: it FACTORS the void-insertion door
+  callable-without-SSI (becoming the door's first consumer, ahead
+  of shell) and retires `FullRevolveHoles`. The DESIGN.md:348
+  bullet is revised in this PR accordingly.
 - The open-faces variant runs the same offset construction and then
   rim surgery (a composed Euler sequence on a clone, decided-then-
   mutated per the M6-1 pattern, validated once) — no boolean
