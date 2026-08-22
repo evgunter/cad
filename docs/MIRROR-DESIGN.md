@@ -38,6 +38,30 @@ pcurves, chart regions — the payloads `transform_rigid` currently
 carries as map-invariant, an invariance that is a det = +1 theorem,
 not a general one.
 
+**The chart is user-invisible, so ONE convention suffices (Evan's
+#909 question, answered).** For a given mirror plane M — any
+orientation — both conventions represent the SAME point set M∘S
+exactly; they differ only in how the stored chart names its points.
+Nothing user-facing reads chart values: stable names are role-based
+birth records; selectors take kinds and datum distances, never
+parameters (SELECT-DESIGN); recipes store intent parameters; STEP
+exports frames + pcurves validly under either. The one chart-shaped
+entity a user can see — a periodic surface's SEAM edge — is carried
+topologically by the mirror (it is a real edge, mapped like every
+edge), and both conventions agree with the carried seam by
+construction. The "u↦−u is natural for a vertical mirror, v↦−v for
+upside-down" intuition lives in the MIRROR PLANE the user supplies —
+which is fully general — not in the bookkeeping: mirroring across a
+plane perpendicular to a cylinder's axis under u↦−u simply maps the
+axis to its negation, same point set. Supporting both would double
+the parameter-payload rewriting surface and the equivariance audit
+for zero user-visible difference. Both conventions are involutive
+(mirror∘mirror restores the original chart), so no round-trip
+argument separates them either. Caveat recorded: if a user-facing
+parameter door ever opens (evaluate-at-(u,v) through the API), the
+convention becomes documented behavior at that door — documented,
+not per-plane.
+
 **Recommendation: u ↦ −u** (map the frame forward). The v
 coordinate carries structural meaning consulted by invariants
 (nappe, hemisphere, height sign) and negating the axis would move
