@@ -107,6 +107,7 @@ RUN_STL=true
 RUN_STEP_EXPORT=true
 RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
+RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
 RUN_TOPO_RELEASE=true
 if [ "$FULL" -eq 1 ]; then
@@ -115,6 +116,7 @@ else
   if [ -z "$BASE" ]; then
     BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)
   fi
+  # HOSTED MIRROR: filter / classify the change set
   echo "=== change filter: classifying against $BASE"
   # No `local`/subshell tricks: read the KEY=value lines straight into the
   # variables above. If the script itself dies, the defaults stand and the
@@ -128,6 +130,7 @@ else
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
       RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
+      RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
       RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
     esac
@@ -313,6 +316,7 @@ uv_sheet_drift() {
     git diff --exit-code --stat HEAD -- demos/renders-uv/
 }
 
+# HOSTED MIRROR: watertight / admesh check (watertight/manifold, no repair accepted)
 watertight() {
   command -v admesh >/dev/null || { echo "ERROR: admesh not installed (apt admesh, or build 0.98.4+ from source)"; return 1; }
   cargo run -p stl --example export_acceptance -- target/stl-acceptance && \
@@ -325,6 +329,7 @@ watertight() {
 # SKIPS LOUDLY (exit 0) when freecadcmd is absent so this row stays
 # hermetic on machines without FreeCAD — see its header for FREECADCMD
 # discovery and REQUIRE_FREECAD.
+# HOSTED MIRROR: step-import / freecad import check (validity, counts, volume)
 step_import() {
   scripts/check_step.sh
 }
@@ -336,6 +341,7 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
+# HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
   log=$(mktemp) || return 1
@@ -373,6 +379,7 @@ topo_release() {
 # maturin). The script takes the build slot itself; nested under
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
+# HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -393,10 +400,12 @@ nextest_check() {
   return 1
 }
 # shellcheck disable=SC2086
+# HOSTED MIRROR: test / run archived tests
 test_default() { nextest_check && cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
 test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
 # shellcheck disable=SC2086
+# HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
 # The interval rows run ONLY the tests the feature adds, exactly as
 # hosted's `test-interval` legs do — same script, same set difference, so
@@ -441,11 +450,13 @@ interval_eps() {
     -E "$sel" $extra
 }
 # shellcheck disable=SC2086
+# HOSTED MIRROR: lint-interval / doc-tests (interval)
 interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 
 # M4 PR 6 spec D6: the three persistence obligations as NAMED rows
 # (also covered by the workspace rows; named = attributable).
 # ε battery {1e-6, 1e-12} — see the run_row block below.
+# HOSTED MIRROR: persistence / save/load/replay-identity (D6.1) + float bits (D2) + golden v1
 persist_roundtrip() {
   local e
   for e in 1e-6 1e-12; do
@@ -460,6 +471,7 @@ persist_interval() { nextest_check && cargo nextest run -p editor-core --feature
 
 # M4 PR 8a spec D1: the Band 4 corpus as NAMED rows (also covered by
 # the workspace rows; named = attributable).
+# HOSTED MIRROR: corpus / evaluation, exact mass pins, counted reuse, vocabulary totality
 corpus_eps() {
   local e
   for e in 1e-6 1e-12; do
@@ -487,6 +499,7 @@ corpus_interval() { nextest_check && cargo nextest run -p editor-core --features
 # it 5x (its two assertions are a strict subset of the corpus row's —
 # see the rustdoc on rebuild_latency_table). THIS row is the one that
 # runs it. Mirrors ci.yml's `rebuild latency (reporting)` job.
+# HOSTED MIRROR: rebuild-latency / per-document full-rebuild + incremental-recompute table
 rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::; }
 
 # M5 PR 1 (review NOTE-1): the interval backend crate's OWN tripwire, in
@@ -503,16 +516,10 @@ rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocaptur
 # the seven transcendentals (their truth needs a multi-precision
 # reference). Hosted mirror: ci.yml's `interval-backend` job.
 #
-# THIS SCRIPT HAS NO MIRROR OF ci.yml's `oracle-certify` JOB, which is
-# what covers the two directions above that this row cannot. So on the
-# hosted pipeline a dropped transcendental pad is caught; under
-# `gate.sh`, which documents itself as the merge gate when hosted Actions
-# is unavailable, it is not. Nothing enforces ci.yml <-> ci-local.sh JOB
-# parity (gate-roster.sh enforces gate-SCRIPT parity, which is a
-# different set), so this comment is the only thing recording the gap.
-# Filed as smell-scan S127 / §D row D71; adding the row here means a
-# ~250s GMP+MPFR build in the local gate, which is why it is a decision
-# rather than an oversight.
+# The two directions this row cannot cover — a dropped `+`/`-` pad, and a
+# dropped transcendental pad — belong to `oracle_certify` below, which is
+# this half's mirror of ci.yml's `oracle-certify` job.
+# HOSTED MIRROR: interval-backend / tests (default features — the oracle stack must stay out)
 interval_backend() {
   (cd interval-transcendentals \
     && cargo fmt --check \
@@ -522,6 +529,38 @@ interval_backend() {
     echo "ERROR: the interval backend's default feature set reaches the gmp stack"
     return 1
   fi
+}
+
+# The differential certification lane: `certify.rs` against inari+MPFR as
+# oracle. It covers what `interval_backend` above provably cannot — a
+# dropped `+`/`-` pad (whose truth is exactly computable but not with a
+# u128 comparator) and a dropped transcendental pad (whose truth needs a
+# multi-precision reference at all).
+#
+# WHAT IT COSTS, AND WHEN. The build is GMP and MPFR from C source: 234s
+# of a ~250s hosted job (#480). READ THE GATING CONDITION BEFORE READING
+# THAT AS A STANDING COST — `RUN_INTERVAL_ORACLE` is keyed on
+# ci-filter.py's ORACLE_PATHS, four paths under `interval-transcendentals/`
+# (src/, tests/, Cargo.toml, Cargo.lock), and that code is stable: 2 of the
+# last 400 first-parent merges touched it, both during the crate's
+# creation. On every other change set this row prints SKIPPED and costs
+# nothing. It is here because the alternative is a half of CI that misses
+# a class of defect the other half catches, and `--full` forces it like
+# every other row.
+#
+# `RUSTFLAGS` matches the hosted job: inari's rounding primitives sit
+# behind cfg(all(target_feature = "avx", target_feature = "fma")) and it
+# raises a compile_error! without them. Set on this row only, so the
+# kernel's codegen is untouched — the repo pins no target-cpu floor.
+# HOSTED MIRROR: oracle-certify / certify against the oracle
+oracle_certify() {
+  if ! grep -q avx2 /proc/cpuinfo || ! grep -q fma /proc/cpuinfo; then
+    echo "ERROR: this box does not meet the x86-64-v3 floor inari needs (avx2 + fma)"
+    return 1
+  fi
+  (cd interval-transcendentals \
+    && RUSTFLAGS="-C target-cpu=x86-64-v3" CAD_FUZZ_EFFORT="8" \
+       cargo test --release --features oracle-inari -- --nocapture)
 }
 
 # Demos hygiene (M4 PR 8b pickup): demos/tour is workspace-excluded, so
@@ -679,7 +718,9 @@ run_row "discipline (evaluation-code)" discipline
 run_row "render provenance (demos)"    render_provenance
 run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "scene manifest reader (demos)" manifest_selftest
+# HOSTED MIRROR: fmt / rustfmt
 run_row "rustfmt"                      cargo fmt --all --check
+# HOSTED MIRROR: clippy / clippy (default features)
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a workspace-wide ratchet over a fixed crate set, not a
@@ -698,6 +739,7 @@ run_row "test (eps = 1e-12)"           test_eps 1e-12
 # Doc-tests: nextest never runs them; hosted keeps them in the build
 # jobs, this script as their own rows.
 run_row "doc-tests"                    doc_tests
+# HOSTED MIRROR: lint-interval / clippy (interval)
 run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --features interval -- -D warnings
 run_row "test (interval)"              interval_tests
 run_row "test (interval, eps = 1e-6)"  interval_eps
@@ -713,6 +755,11 @@ run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency
 # interval-transcendentals/ is its own workspace, so tier `closure` can
 # never contain a change to it — this row belongs to tier `all` only.
 run_row_if "$RUN_INTERVAL_BACKEND" "interval backend crate" interval_backend
+# Keyed on PATHS, not on the tier: every change under that workspace is
+# tier `all`, and re-certifying on most merges is not what a 250s GMP
+# build is for. Fires on a change to the certified sources or their
+# pinning — 2 of the last 400 first-parent merges.
+run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" oracle_certify
 # demos/tour, tools/k-lint and tools/tess-lint are excluded workspaces
 # that path-depend on nine members between them, and the probe sweep
 # records margins from every kernel crate — no minimal root set, so

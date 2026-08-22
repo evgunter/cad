@@ -245,7 +245,8 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      - id: classify
+      - name: classify the change set
+        id: classify
         # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
         # download: the script only runs `cargo metadata --no-deps`, which
         # parses the workspace manifests and neither builds nor resolves the
@@ -269,6 +270,9 @@ jobs:
           echo "classification:"
           scripts/ci-filter.py --base "$BASE" | tee -a "$GITHUB_OUTPUT"
 
+  # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
+  # a docs-only PR has a green required status. ci-local.sh prints the same two
+  # lines at its docs-tier exit and returns 0; there is nothing here to run.
   docs-only:
     name: docs-only ok
     runs-on: ubuntu-latest
@@ -793,11 +797,18 @@ jobs:
       # cache entry.
       # Scoped by the filter: `--workspace` in tier `all`, an explicit
       # `-p <closure>` list in tier `closure`.
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
+      - name: clippy (default features)
+        run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
+  #
+  # Only its doc-test step has a local mirror, and that is the whole of what
+  # this job checks beyond compiling: the archive is the hosted split itself —
+  # compiling once and shipping binaries to thin RUN jobs is what makes a
+  # matrix of runners cheap, while a local run has one machine and compiles
+  # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
     # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
@@ -1173,6 +1184,11 @@ jobs:
   # graph in the matrix. Owns the interval clippy pass and the interval
   # doc-tests (both need this graph compiled anyway), then archives the
   # test binaries for the `test-interval` matrix below.
+  #
+  # NO LOCAL MIRROR: the same archive split as `build` above, for the interval
+  # graph — one machine locally, so nothing is archived and nothing is shipped.
+  # The interval clippy and doc-test passes are not in this job; they are
+  # `lint-interval`, which the local half mirrors and cites.
   build-interval:
     name: build + archive (interval)
     # Same BUILD_RUNNER variable as the default build job; unset today.
@@ -1311,7 +1327,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval-lint
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
+      - name: clippy (interval)
+        run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
 
@@ -1489,6 +1506,10 @@ jobs:
   # stragglers; this deletes the happy-path bulk immediately. On a FAILED
   # run the artifacts are deliberately kept (retention window) so failed
   # legs can be re-run without rebuilding.
+  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
+  # uploaded, which exist only because the hosted halves of build and test are
+  # different jobs on different machines. A local run compiles and executes in
+  # one process and produces no artifact to clean up.
   cleanup-archives:
     name: delete nextest archives (green run)
     runs-on: ubuntu-latest
@@ -2521,6 +2542,11 @@ jobs:
   # runner's core count) rather than restated here: this job renders the
   # canonical frames, so it must not be the place a second opinion about
   # how they are produced can creep in.
+  # NO LOCAL MIRROR: the FreeCAD render lanes, which re-baseline committed
+  # cells from a GITHUB_TOKEN bot commit on main. The local half's
+  # `render-hosted.sh` DISPATCHES this workflow rather than reproducing it —
+  # reproducing it would need the pinned FreeCAD AppImage and would write
+  # baselines from a developer's machine.
   renders:
     name: render lanes
     needs: filter
