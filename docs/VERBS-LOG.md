@@ -353,3 +353,28 @@ margins (no 3-D box tests — #750 stays out of the unit), klein
 wall 6 flips, the curved-two-shell STEP refusal recorded as the
 known standing gate. Difficulty M logged pre-draw; block VERBS-2
 drawn (mapping lane-private per blinding); lane verbs-ring next.
+
+## Parallelism widened to four lanes (2026-08-22, Evan's headroom note)
+
+Running concurrently: SSIFLAT (impl), RING (impl), **VERBS-DEMO**
+(impl — the chamfered-die montage pair now; the translucent hollow
+ring per the existing torus-opacity precedent, gated on RING's
+merge; difficulty S logged at dispatch, block VERBS-2 slot 2), and
+the **VERBS-ARMS substrate survey** (read-only, no slot). The
+build-slot mutex serializes heavy cargo across them by design.
+SSIFLAT posted the #925 routing correction on-thread (the "NaN" is
+manufactured at the flattening seam; #762 unrelated, stays open).
+
+## ARMS survey folded; ARMS-1 spec committed (2026-08-22)
+
+The survey's headlines: the coaxial arms are UNREACHABLE without
+the closed-rim surgery (their consumers are one-link closed rims —
+the dependency that orders the cut); six of eight pairs collapse
+into one coaxial-torus derivation mirroring plane_sphere_blend
+(copy its poison-flows-to-spine_curvature posture); **no
+constant-radius roll mints a cone** — C8's "cone cases" prose gets
+a scoped correction at ARMS-2 (called out to Evan in the spec);
+the valence-4 corner door is the only genuine design content and
+is isolated into ARMS-3 as a design conversation. ARMS-1
+difficulty L logged pre-draw; consumes block VERBS-2 slot 3; lane
+verbs-arms1 next.
