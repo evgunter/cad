@@ -17402,11 +17402,67 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ---
 
-## Track H — CLOSED, three of ten rows landed
+## Track H — REALLOCATED to Tracks M, N, Q and W; live to the last commit
 
 **Its open rows are now Tracks M, N, Q and W's** — see the repartition, and note
 that **#883 is parked** on Track M's ground. What follows is the record of what
 this track ran.
+
+> **Corrected 2026-08-21 by Track H's orchestrator, at Evan's request.** The
+> header read *"CLOSED, three of ten rows landed"*. **H was not closed — it was
+> running when the repartition was written**, and §H's own next paragraph still
+> says *"CLAIMED — one live orchestrator"*. The reallocation stands and is
+> Evan's call; what follows is the state it would otherwise have taken with it.
+>
+> **Landed on this track after the frozen-table count of three:** **#886**
+> (H-g PR 2 — the two doors that get a dual's answer wrong stop admitting one),
+> **#891** (M10 carries the `Dual` question; `S4` gains `evaluate`'s three
+> uncounted bound copies), **#892** (D9's headline bullet restated). **#883 is
+> parked deliberately**, not stalled — it is `H-f`'s prototype and its branch is
+> the measurement.
+>
+> **`H-R16` is the ruling `H5` opens on, and it is Evan's, not a lane's.**
+> Recorded in `docs/SMELL-H-LOG.md`, which survives this reallocation and is the
+> execution record. Its content, so the receiving track does not re-litigate it:
+> **delete the lane traits and leave nothing in their place — the guarantee is a
+> compile error, not a run-time arm.** `S3`'s steelman proposes a *collapse* (one
+> trait plus a rank-2 callback in `geom-core`); **one lane trait is still a lane
+> trait**, and the ruling points past it at zero. The mechanism is a
+> **three-function split** — an uncertified half at `T: Decide`, a certified half
+> at `T: Decide + Bounds + CertifiedEnclosure`, and a composed entry carrying the
+> union, which is therefore uncallable at a dual. **That is what clears `H-R3`**,
+> which forecloses *delete-with-nothing* (it removes `Body<Dual64>`'s capability)
+> but not *split-the-pass* (which preserves it without a trait).
+>
+> **Three things `H5`'s new owner should not rediscover.** (1) The precedent is
+> already in-tree: `props.rs:186`'s `mass_properties_impl` is bounded `T: Decide`
+> and takes the certified quadrature as a **closure argument**, and
+> `mass_properties_closed_form` already passes the same `Ok(None)` the dual impl
+> returns. (2) `validate.rs`'s `if errors.is_empty()` gate before check 7 is
+> **load-bearing and documented as a sequencing fact rather than an invariant** —
+> split naively and `VolumeUncomputable` starts firing on bodies previously
+> refused by the check naming their actual corruption. (3) The seams do **not**
+> cost the same: H-g opened all 14 bracket reads in `sweep/fillet/` and found 11
+> are typed-error payloads, 3 are selections needing only `Bounds`, and
+> `blend.rs` has **zero** — so the dual wants the fillet door's *product and none
+> of its verdicts*, while `validate_geometric`'s caller asserts the *verdict*.
+> One guard shape, opposite answers.
+>
+> **The fence note, offered because this row is the hardest case for it.** `H5`
+> spans **M** (`geom-core/src/{real,ring_interval}.rs`) and **N**
+> (`geom/src/{curves,surfaces}.rs`), and **the four lane traits it deletes live
+> in `topo` and `geom-brep` — neither M nor N.** `S3` established that this is
+> not incidental: *"no single crate can host all four methods without a
+> dependency cycle."* So the file-fence rule splits one argument across three or
+> four tracks. That may still be right; it should be a stated decision rather
+> than a discovered one.
+>
+> **One correction to this track's own record**, kept because it was load-bearing
+> and wrong. The orchestrator argued #883 was *"migration one"* over the
+> signatures `DESIGN.md:574`'s coming cascade names. **False**, falsified by H-g
+> with the receipt: that cascade is `PcurveFittedLane` on **constructors**, and
+> `grep -rn "PcurveFittedLane\|BracketLane" crates/sweep/` returns **zero**. The
+> fold of #883 into `H5` stands on the other two receipts, both in `S3`'s text.
 
 **Defined 2026-08-21 by Track F on closing. CLAIMED 2026-08-21 — one live
 orchestrator, `docs/SMELL-H-LOG.md`**, which holds lane state, rulings, review
@@ -17761,7 +17817,7 @@ expected to split into two or three sub-lanes inside the track.
 | **H10** | A rule with no instrument (S210): `real.rs`'s `Bounds` scope rule governs the sole-`T: Bounds` class and the allowlist gate cannot see it. **Carries `S211`'s unowned `bvh` member.** The gate-side half is Track K's `D68`/`D103` and is not this row | Track H |
 | **S213** | `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one | unrowed |
 | **D78** | What is still one-directional in the interval backend after G1 — `powi`'s tightness ceiling, the oracle tier's scale-free ratio, and `interval.rs:135-143`'s consumer-side caveat (S134) | Track G |
-| **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **NOT TAKEABLE until Evan rules `S90`** (#867) — the row exists so the work is visible, not so it is started | Track H |
+| **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** | Track H |
 
 ## Track N — `geom`, and the spline and linalg substrate
 
