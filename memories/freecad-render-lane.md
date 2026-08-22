@@ -1,6 +1,6 @@
 ---
 name: FreeCAD render lane
-description: How demos/render.sh survives this host's FreeCAD stalls — one process per scene, a measured per-scene budget with kill-and-retry, and staged publish; plus the two FreeCAD/coreutils behaviours any change here must respect.
+description: How demos/render.sh survives FreeCAD's TWO failure modes (a notification-area deadlock, root-caused; and an intermittent SIGSEGV in document teardown that swallows the real error) — CAD_RENDER_BATCH scenes per freecadcmd process, a per-PROCESS budget with kill-and-retry, and staged publish; plus the FreeCAD/coreutils behaviours any change here must respect.
 type: operational
 ---
 
@@ -54,7 +54,7 @@ on it. Reasoning in `.github/actions/rebaseline-lane`.
 Both are byte-reproducible: a re-render that changes nothing leaves
 `git status` clean. That is a standing rule, not a nicety.
 
-## The hazard, and what it actually is
+## The hang: a FreeCAD self-deadlock, and what it actually is
 
 **ROOT CAUSE FOUND (2026-08-10). It is a FreeCAD self-deadlock, not a
 host quirk, and `demos/render_freecad.py` now disables the thing that
@@ -94,28 +94,115 @@ The historical symptom, for recognising it if it ever returns: a stall
 a different scene every pass, on an idle box as well as a loaded one —
 the "warm-session deadlock" of #224 and #266.
 
-**Keep the per-scene isolation anyway.** It was built to survive this
+**Keep the process boundary anyway.** It was built to survive this
 bug, but it is also what bounds any future hang, and the staged publish
 is what keeps a half-finished pass out of the committed tree.
 
-So: **never render more than one scene per `freecadcmd` process.**
-Since #266 `render.sh` does this in both lanes, under a per-scene
-budget (`FREECAD_SCENE_TIMEOUT`, whose default `render.sh` owns) that
-kills the process *group* and retries once; a second expiry fails the
-pass loudly. A pass renders into `demos/out/stage/<lane>/` and is
-published only when complete, so nothing half-finished can reach the
+## Scenes per process is a DIAL, not a prohibition (2026-08-22)
+
+Until 2026-08-22 the rule here was "never render more than one scene per
+`freecadcmd` process". **Evan reopened and approved batching**, so the
+rule is now a knob: **`CAD_RENDER_BATCH` (owned by `render.sh`, default
+1) is how many scenes one `freecadcmd` process renders.** At the default
+the behaviour is exactly what it was since #266 — one process per scene,
+down to the log filenames.
+
+Why it was safe to move, since a standing rule does not move for free.
+Byte-identity was measured on a real FreeCAD 1.1.2 install, from the
+same AppImage CI uses: kernel lane B=1 vs B=1 (**the control arm**)
+36/36 frames identical, B=1 vs B=5 36/36, B=1 vs **B=35** — the whole
+lane in ONE process — 36/36, and STEP lane B=1 vs B=5 21/21. The control
+arm passing is what makes the other three mean anything: it separates
+"batching changes nothing" from "this comparison cannot detect change".
+A warm document leaks nothing into pixels.
+
+Of the rule's three original justifications, exactly ONE expired. It was
+built to survive the notification-area deadlock — root-caused and fixed
+(#331), so that reason is gone. "It bounds any future hang" still
+stands, and is now answered by the batch SIZE rather than by the
+prohibition. The staged publish was always independent of both.
+
+**The budget is per PROCESS, not per scene**: a batch of N gets one
+`FREECAD_SCENE_TIMEOUT` (whose default `render.sh` owns), not N x it, so
+a hang's worst case — two attempts — is INVARIANT under batch size.
+`render.sh` kills the process *group* and retries once; a second expiry
+fails the pass loudly. A pass renders into `demos/out/stage/<lane>/` and
+is published only when complete, so nothing half-finished can reach the
 committed tree.
 Expect the occasional post-render stall: it costs one budget and is
 reported, never silent.
 
+What actually bounds the batch now is **contention headroom** — not
+blast radius, and not hangs. Measured uncontended lane work is 81-101 s
+(freecad lane) and ~105 s (kernel lane), against a 300 s budget, and the
+note below records a single scene taking 106 s on a loaded host. So a
+large batch on a CONTENDED box can exhaust a budget that the same scenes
+would not exhaust one at a time. That headroom, not blast radius, is the
+number to think about before raising B.
+
+An in-process per-scene watchdog was **rejected on the root cause**, and
+should stay rejected — it is the obvious-looking redesign and it cannot
+work. The hang is a mutex re-entry on FreeCAD's own main thread, which
+never gets back to a bytecode boundary and never releases the GIL, so
+neither a Python signal handler nor a watchdog thread would ever run.
+Only a process outside can kill it, and `timeout` is that process.
+
+## The OTHER failure mode: a SIGSEGV in document teardown (2026-08-22)
+
+The deadlock above is not the only way this lane fails, and the two look
+NOTHING alike. A failure-history analysis found ten events of this second
+class, and a reader who knows only the hang will go hunting a stall at 0%
+CPU in `futex_do_wait` and find a process that has been dead for four
+seconds.
+
+The signature:
+
+* **`freecadcmd rc=1`, dead in 3-5 s** against the 300 s budget — 10/10
+  of them, 0/10 on any timeout path. These are CRASHES, not hangs.
+* the log's only report of the primary error is **"Unknown exception
+  while processing file"**, followed by `File format not supported: ..`
+  — that second line is `freecadcmd` treating leftover argv as documents
+  to open, a SYMPTOM of the swallow and not the cause.
+* at teardown, `closeAllDocuments()` -> `slotDeleteDocument` ->
+  `setActiveDocument` -> `runString` -> `PyException::PyException()` ->
+  **SIGSEGV**: it crashes while constructing the very object that would
+  have described the failure. Frames #3/#5/#6/#9/#10 are
+  character-identical across all ten events.
+
+Intermittent and **not scene-specific**: roughly **1 failure in 4,300
+scene renders**. Every scene that has failed (`chute`, `crosslap`,
+`crosslap_exploded`, `lily`, `silhouette3`, `tiltedcut`) also succeeded
+in other runs, exactly one scene fails per affected run, and never the
+same one twice running. It costs one cell and reports a failed pass —
+loud, not silent, but until now undiagnosable.
+
+**The primary error was SWALLOWED until 2026-08-22**, which is precisely
+why this class still has no root cause. `render_freecad.py` now wraps its
+top-level `main()` and prints `traceback.format_exc()` to stderr,
+explicitly flushed, BEFORE letting the exception continue outwards — the
+print has to happen there, because the SIGSEGV is at teardown and
+anything deferred until then may never run at all. The next occurrence
+should carry a real traceback in `demos/out/freecad-logs/<batch>.log`.
+Read it before theorising.
+
+One adjacency worth recording without overclaiming: this crash sits in
+`FreeCADGui`'s document-teardown path, and #331's deadlock fix was also
+`FreeCADGui`-adjacent. **That is an adjacency, not a link** — nothing
+has been shown to connect them, and either way the PRIMARY failure is
+upstream, in the Python script; the segfault only destroys the report of
+it.
+
 ## Two behaviours any change here must respect
 
 * **FreeCAD stamps the output PATH into every PNG** (a `tEXt` `Title`
-  chunk). Render a frame to a different path and its bytes differ even
-  when the pixels are identical — which is why the staging tree mirrors
-  the lane directory's *name* and the scene process runs with the
-  staging root as its cwd. `strip_png_stamps.py` drops the two
-  wall-clock chunks but keeps `Title`.
+  chunk), so a frame rendered to a different path differs in BYTES even
+  when the pixels are identical. Since 2026-08-22 `strip_png_stamps.py`
+  drops `Title` along with the two wall-clock chunks (Evan authorised
+  it), so committed frames no longer encode where they were written.
+  That **retires the old constraint** that the staging tree had to
+  mirror the lane directory's *name*: the scene process still runs with
+  the staging root as its cwd and the tree still mirrors the lane, but
+  that is now convenience, not a correctness requirement.
 * **`timeout`'s exit status is not a reliable timeout signal.** With a
   SIGTERM-ignoring child, `timeout -k` escalates to SIGKILL, which
   coreutils sends to its own process group — `timeout` dies too and
@@ -189,7 +276,7 @@ is `tour` + `kernel montage` and nothing else.
 * **`CAD_RENDER_JOBS`** (render.sh's concurrency knob) shortens both
   render loops. Contention then shows up exactly where the compile/
   render split predicts — a slower median scene — and still far under
-  the per-scene budget. **Verified byte-identical** across concurrency
+  the process budget. **Verified byte-identical** across concurrency
   settings, both lanes, and identical to the committed cells. Two
   hosted runs of one commit are byte-identical, so that comparison is
   real signal.
