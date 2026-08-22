@@ -86,7 +86,7 @@ cases. A finding is a *question worth answering*, not a defect.
   - [Tier 3 — real but lower stakes](#second-scan--tier-3--real-but-lower-stakes) (S110–S116), as class roll-ups
 - [Findings raised by the Track F lanes](#findings-raised-by-the-track-f-lanes-2026-08-20) (S117–S126, S157–S168) — each track's lanes append here as they land
 - [§A. Where I would start](#a-where-i-would-start)
-- [§D. The schedule](#d-the-schedule) — live rows only. **Tracks A–I are all closed** (A, B, D and I completed; C, E, F, G and H stopped with rows outstanding), and everything they left is repartitioned into **[Tracks J–X](#tracks-jx--the-repartition-2026-08-21)**, twelve tracks fenced by file territory so no branch waits on another. The tracks' own logs (`docs/SMELL-{C,E,F,G,H,I}-LOG.md`) are the historical execution record; the unscheduled table below them is the second scan's and is not maintained
+- [§D. The schedule](#d-the-schedule) — live rows only. **Tracks A–G and I are closed** (A, B, D and I completed; C, E, F and G stopped with rows outstanding); **H is LIVE and kept its ground**. Everything the closed tracks left is repartitioned into **[Tracks J–X](#tracks-jx--the-repartition-2026-08-21)**, ten tracks fenced by file territory so no branch waits on another. The tracks' own logs (`docs/SMELL-{C,E,F,G,H,I}-LOG.md`) are the historical execution record; the unscheduled table below them is the second scan's and is not maintained
 - [§C. Process observations](#c-process-observations) — C1–C17 from the first scan, C18–C25 from the second
 - [§B. Negative results and coverage](#b-negative-results-and-coverage)
 
@@ -14818,15 +14818,19 @@ but about which questions look most worth answering first.
 
 # §D. The schedule
 
-> **READ THIS FIRST — 2026-08-21. Every track A–I is closed, and what they
-> left is repartitioned into [Tracks J–X](#tracks-jx--the-repartition-2026-08-21).**
+> **READ THIS FIRST — 2026-08-21, corrected 2026-08-22. Tracks A–G and I are
+> closed, `H` is LIVE, and what the closed tracks left is repartitioned into
+> [Tracks J–X](#tracks-jx--the-repartition-2026-08-21).**
 > A, B, D and I completed. C closed its session with most of its table
-> unstarted; F closed on landing its eight rows; **E, G and H stopped with rows
-> outstanding**. The track sections below are kept as the record of what each
-> ran and what it left — **they are no longer the schedule, and a row in one of
-> them is live only if Tracks J–X carry it.** 114 open items are carried there,
-> partitioned by file territory so that no two tracks edit one file and no
-> branch waits on, fences against, or re-derives another's scope.
+> unstarted; F closed on landing its eight rows; **E and G stopped with rows
+> outstanding**. **Track H did not** — #898 recorded it closed, it had paused
+> only for a usage limit, and its section carries the correction. Those track
+> sections are otherwise the record of what each ran and what it left —
+> **they are no longer the schedule, and a row in a closed track's section is
+> live only if Tracks J–X carry it.** 98 open items are carried there and
+> **16 stayed with Track H**, partitioned by file territory so that no two
+> tracks edit one file and no branch waits on, fences against, or re-derives
+> another's scope.
 
 **Live rows only.** Completed work is **not** listed here — every finished
 unit is recorded at its own finding as a bolded `FIXED by #740` lead, which is
@@ -15977,7 +15981,7 @@ other `props/` work.
 
 ## Track E — CLOSED, four lanes unstarted and ~26 rows unstaffed
 
-**Its open rows are now Tracks J, K, M, N, P, Q, T, U, V, W and X's** — see the
+**Its open rows are now Tracks J, K, P, Q, T, U, V, W and X's, and four are Track H's** — see the
 repartition. What follows is the record of what this track ran.
 
 **Constituted 2026-08-20.** Track A, Track B and Track D are complete; **Track C
@@ -17402,11 +17406,27 @@ schedule row; S29's mechanical half is FIXED and has left **C3**.
 
 ---
 
-## Track H — CLOSED, three of ten rows landed
+## Track H — LIVE, and it kept its ground
 
-**Its open rows are now Tracks M, N, Q and W's** — see the repartition, and note
-that **#883 is parked** on Track M's ground. What follows is the record of what
-this track ran.
+> **CORRECTION, 2026-08-22 — #898 recorded this track as CLOSED and it was
+> not.** The repartition was built on the premise that Track H had stopped;
+> it had stopped only for as long as a usage limit held, and it has been
+> running throughout. **#886** (H-g PR 2), **#891** and **#892** landed on
+> `2026-08-21`, **#883 is parked deliberately** as `H-f`'s prototype, and the
+> ruling `H-f` opens on (`H-R16`, Evan's three-function split) is written on
+> the orchestrator's branch. Reported by the Track H orchestrator and verified
+> here against `main` before acting.
+>
+> **So Tracks `M` and `N` are WITHDRAWN.** They were carved out of
+> `crates/geom-core/` and `crates/geom/`, which is this track's scope and
+> nobody else's, and a repartition may not take a live track's ground. Their
+> eleven rows are below: this track's own eight return unchanged, and the five
+> that arrived from elsewhere (`D31`, `D78`, `D97`, `D98`, `C24`) arrive as
+> **inbound rows on this track's ground**, the same way `D30` and `D32` reached
+> Track C. **If Track H declines any of them they return to the repartition**,
+> not to nobody — §C3's rule, which is what minted them in the first place.
+> The `M`/`N` number blocks (`D220`–`D259` / `S290`–`S329`) are withdrawn with
+> them and are **not** reissued; this track keeps `D140`–`D159` / `S210`–`S229`.
 
 **Defined 2026-08-21 by Track F on closing. CLAIMED 2026-08-21 — one live
 orchestrator, `docs/SMELL-H-LOG.md`**, which holds lane state, rulings, review
@@ -17434,6 +17454,46 @@ Every row here is takeable today.
 | **H11** | **A postcondition stated in four voices, one normative** (**S212**, raised by H-a in #880). `CertifiedEnclosure`'s *"a `Some` never carries a NaN end"* now has a home; **at least three doors re-derive it without reference to it** — `topo/src/census.rs:1338` (`reach_box`), `geom/src/curves/boxes.rs:129` (`extremal_angle_interval`, over the private `Brk` carrier), `topo/src/chart_region.rs:839` (`exact`). **The sweep distinction that produced this row is worth keeping**: the sweep for the *defect* found **no** siblings — all three doors already answer correctly — while the sweep for the *invariant* found three restatements. It is not a bug with siblings; it is a rule with no single home. Also absorbs the hand-maintained implementor census at `real.rs:720-736` (nothing derives it) and the *implementor* half of S86's blind spot: a **fifth** implementor gets no corpus and no CI signal on a `pub`, re-exported trait. **One part is not a doc edit**: `Brk` is a bracket carrier with no certified door, and whether it should have one is a design question. **Dispositions**: `boxes.rs` is this track's; `chart_region.rs` is in no track's; and **`census.rs` became unowned when Track I closed (#890)** — it was Track I's ground when H-a wrote this row, and that sentence went stale the same day. So **two of the three sites have no owner**, which is the row's real cost and not a footnote to it. | **S212** |
 | **H9** | **`geom`'s box constructors claim a loose box *"never prunes"* — false for three of the four doors those boxes feed** (**S232**, raised by Track I's I-d in #876 and routed here; the claim appears **six times** across `curves/boxes.rs` and `surfaces/boxes.rs`). **Placed on claiming the route, wave 2.** It shares both files with `S211` (closed in #875, which corrected a *different* false sentence in each of them) — so the lane reads #875's record first and must not re-raise what it settled. **`S211`'s own residue is NOT this row's**: its third member, `bvh/src/lib.rs:56-61`, is in no track's ground and stays named rather than taken. | **S232** |
 | ~~**H8**~~ | ~~Roll-up members in these crates.~~ **DISSOLVED into H2 on claiming (H-R2).** **`S110(f)` was already CLOSED by #790** — the citation came from the frozen table, which predates #790, and was transcribed rather than re-derived when this track was constituted (**H-R1**; §H's own *re-derive after every merge* rule applies to a citation exactly as it does to a number). That leaves `S116(b)` as the row's whole content, and `S116(b)`'s `azimuth` half **is `S102`'s subject** — `surfaces.rs:26-30`'s *"The shared helper"* bullet, spelling the `radial`/`tangential` formula without naming `crate::azimuth`. Two lanes editing one merge's naming residue in one file is a conflict the schedule manufactured. | ~~S110(f)~~, **S116(b) → H2** |
+
+**Inbound on this track's ground, 2026-08-22 — five rows the repartition had
+placed on `M` and `N` before it knew this track was live.** Each is here
+because its files are here, which is the same reason `D30` and `D32` went to
+Track C. **None of them is re-scoped by arriving**, and **declining one returns
+it to the repartition** rather than to nobody.
+
+| # | Work | Was |
+|---|---|---|
+| **D97** | `KnotVector::from_algebra`'s debug arm carries row 5's classification and none of row 5's mechanism — documented *"Debug builds re-validate"* over an arm with no assert, no log and nothing observed, whose `Ok` value is bit-identical to the release arm's | Track E |
+| **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim. Its second half is why it is a row: it cites §S14's supporting claim, which is Evan's open decision | Track E |
+| **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site rides with this row**, by exception to Track T's fence | Track E |
+| **D78** | What is still one-directional in the interval backend after G1 (**S134**) — `powi`'s tightness ceiling, the oracle tier's scale-free ratio, and `interval.rs:135-143`'s consumer-side caveat. **`interval-transcendentals/` rides with it**; no track owns that root | Track G |
+| **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` are `ders_in_span(..).1`/`.2`, so each runs a full order-2 basis and discards most of it | Track C |
+
+**Four findings this track's own lanes minted and never tabled**, which the
+withdrawn `M`/`N` sections were carrying and which would otherwise have no
+placement anywhere. Tabled here rather than left in prose — that is the failure
+mode `D105`, `D108` and `S167` all just demonstrated.
+
+| # | Work | Raised by |
+|---|---|---|
+| **S90-impl** | The largest D1 residue's implementation, on the public surface. **NOT gated** — Evan ruled #867 on 2026-08-21 (`H-R3`) and **#886** implemented it at two of three sites. **#883 is parked as `H-f`'s prototype**, folded into `H5` | H-g |
+| **S213** | `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one | H-g |
+| **S215** | The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation | H-e (#885) |
+| **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site rides with this row**, by exception to Track Q's fence | H-g |
+
+*(`S211`'s `bvh` member — the sole-`T: Bounds` class outside `geom`, left
+unowned by #875 — rides with `H10`, whose rule is the one it violates.
+`crates/bvh/` is in no other track.)*
+
+**And one row of this track's own carried a stale gate in #898, corrected
+here.** The repartition wrote `S90`'s implementation as *"NOT TAKEABLE until
+Evan rules `S90` (#867)"*. **#867 merged on 2026-08-21 and Evan ruled it** —
+*"tightening to `CertifiedBounds` works at least for now"*, recorded as `H-R3`,
+implemented by **#886** at two of its three sites. The gate had been open for
+half a day when #898 wrote it shut. **#883 is parked on a ruling, not on
+`S90`**: it is folded into `H5` because the fillet seam is one of the two sites
+where the lane-trait pattern was *deliberately declined* (`S3`), which makes its
+typed-refusal work and `H5`'s collapse one piece of work rather than two.
 
 **Sequencing, set on claiming — three waves ordered by file collision, not by
 importance.** **Wave 1: `H1`, ~~`H6`~~ (**closed by #875**), ~~`H7`~~
@@ -17621,12 +17681,40 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**114 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**98 open items, repartitioned into ten tracks by FILE TERRITORY** (the other 16 of the 114 are on live Track H's ground and stayed there). The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
 that is what an orchestrator is for — and there are no dependencies *between*
 tracks that any lane must honour. A track can be claimed the day it is read.
+
+> **CORRECTED 2026-08-22 — Track H is LIVE and this section took its ground.**
+> #898 built the partition on the premise that H had stopped. It had paused for
+> a usage limit and came back. **Tracks `M` and `N` are withdrawn**, their
+> eleven rows are Track H's (its own eight, plus five inbound that live on its
+> files, less two it never lost), their number blocks are not reissued, and
+> `S90`'s implementation is **not** gated — Evan ruled #867 on 2026-08-21
+> (`H-R3`) and #886 implemented it. Full statement at Track H's section.
+>
+> **The transferable half, since it cost a merged PR:** *a track is closed when
+> its orchestrator says so, not when it has been quiet.* Every other track here
+> was read as closed from its log and its landings; H was read the same way, and
+> a pause looks exactly like an ending from the outside. This document already
+> has the rule for the other direction — *"a row placed on another track's table
+> is not a handoff unless that track's own log receives it"* — and this is that
+> rule pointed at status rather than at rows.
+>
+> **And one thing the correction does NOT dispose of, raised by the Track H
+> orchestrator and worth more than the numbers.** `H5` is the row the
+> file-fence rule is hardest on: the lane-trait collapse spans `geom-core`,
+> `geom`, and the traits it would delete live in `topo` and `geom-brep`.
+> `S3` found that this is not incidental — *"no single crate can host all four
+> methods without a dependency cycle"* — so *"file the reaching half as a row on
+> the owning track"* would split one argument across four tracks. **With H live
+> the question is deferred rather than answered**, since H holds two of the four
+> crates and the row is sequenced last inside it either way. If `H5` ever comes
+> back to this section, it comes back as a row that the fence cannot hold, and
+> the fence is what should bend.
 
 **What this repartition is not.** It is not a re-verdict. Every item keeps the
 row number, finding number and disposition it already had; three items that
@@ -17674,14 +17762,13 @@ one here. Nothing below is closed, re-scoped or re-argued by being moved.
    *follows* a decision, its row says so and the row is not takeable until the
    decision lands.
 
-## The twelve territories
+## The ten territories
 
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
+| **H** *(live, not part of this repartition)* | `crates/geom-core/`, `crates/geom/`, `crates/bvh/`, `interval-transcendentals/` — **its own `src/` AND `tests/`** | `D140`–`D159` / `S210`–`S229` | 16 |
 | **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 12 |
 | **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 11 |
-| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 6 |
-| **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 8 |
 | **P** | `crates/topo/src/{euler*.rs,split,attach,movefac,revert,live,merge_faces,seqgen,validate}.rs` | `D260`–`D279` / `S330`–`S349` | 10 |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 10 |
 | **R** | `crates/geom-brep/src/props/`, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 10 |
@@ -17694,8 +17781,11 @@ one here. Nothing below is closed, re-scoped or re-argued by being moved.
 **Two seams are stated rather than left to be discovered**, because both are
 places where a reasonable reader would think the fence ambiguous:
 
-- **`crates/*/tests/` is W's, in every crate, without exception.** A track that
-  owns a crate's `src/` does **not** own its `tests/`. Where a src change needs
+- **`crates/*/tests/` is W's, in every crate but two.** A track that
+  owns a crate's `src/` does **not** own its `tests/` — **except Track H**,
+  which owns `geom-core/tests/` and `geom/tests/` along with those crates'
+  `src/`, because it is live, `H12` is a `geom-core/tests/` row it already
+  holds, and a repartition does not take a running track's files. Where a src change needs
   a test, W is not in the way: the test belongs to the PR that makes the change,
   and W's rows are about the *test-side mechanisms* named in them — the guards,
   the doctests, the stand-downs, the fixtures, the probe-gated suites. W files a
@@ -17743,41 +17833,8 @@ places where a reasonable reader would think the fence ambiguous:
 | **D64** | What the tessellation and K instruments still cannot see after F6 (S120, four members) — including a fallback inside a comparison having two sides | Track F |
 | **D105** | The split scan's constants can be guarded, on the continuous objective, which the cell count is not (S160) — `tools/tess-meter`. **Row announced in prose and never tabled; tabled here** | Track F |
 | **C15** | `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL, so a reorder compares two unrelated faces or drops one with no finding (#746) | Track C |
-| **D114** | The recording scalar is asserted to be a wrapper by no test and three sites say otherwise (S168). **The differential test is this track's; a `geom-core/src` change it turns up is Track M's row** | Track F |
+| **D114** | The recording scalar is asserted to be a wrapper by no test and three sites say otherwise (S168). **The differential test is this track's; a `geom-core/src` change it turns up is Track H's row** | Track F |
 | **S98** | `K-REPORT.md`'s dated M3 crop was back-filled against its own twice-stated rule and its arithmetic no longer closes | unrowed |
-
-## Track M — the scalar and certification traits
-
-**Fence:** `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`,
-`interval-transcendentals/`, `crates/bvh/`. **Block:** `D220`–`D239` /
-`S290`–`S309`. **Six items, and it is the smallest track by count and the
-largest by blast radius** — `H5` alone is 535 refs across 15 files and is
-expected to split into two or three sub-lanes inside the track.
-
-| # | What | Was |
-|---|---|---|
-| **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12) | Track H |
-| **H3+H4** | The `Bounds` trait's headline still calls it the certification door and its ledger grew 50% under the fix meant to retarget it (S85); the one-home fix for the ring crossing minted three local aliases and a hand-counted tally (S89). **One lane — both sit on `real.rs` and `from_certified`** | Track H |
-| **H10** | A rule with no instrument (S210): `real.rs`'s `Bounds` scope rule governs the sole-`T: Bounds` class and the allowlist gate cannot see it. **Carries `S211`'s unowned `bvh` member.** The gate-side half is Track K's `D68`/`D103` and is not this row | Track H |
-| **S213** | `real.rs` credits the M7-8 lane with a technique it does not use, and the false half is the generalisable one | unrowed |
-| **D78** | What is still one-directional in the interval backend after G1 — `powi`'s tightness ceiling, the oracle tier's scale-free ratio, and `interval.rs:135-143`'s consumer-side caveat (S134) | Track G |
-| **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **NOT TAKEABLE until Evan rules `S90`** (#867) — the row exists so the work is visible, not so it is started | Track H |
-
-## Track N — `geom`, and the spline and linalg substrate
-
-**Fence:** `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}`.
-**Block:** `D240`–`D259` / `S310`–`S329`.
-
-| # | What | Was |
-|---|---|---|
-| **H2** | One merge's residue, six findings, and it wants ONE lane — `S99`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
-| **H9** | `geom`'s box constructors claim a loose box *"never prunes"* — false for three of the four doors those boxes feed, and the claim appears six times (S232) | Track H |
-| **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
-| **D97** | `KnotVector::from_algebra`'s debug arm carries row 5's classification and none of row 5's mechanism — no assert, no log, nothing observed | Track E |
-| **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
-| **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
-| **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
-| **S215** | The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation. **The named test file is this row's, by exception to W's fence** | Track H |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -17812,8 +17869,8 @@ expected to split into two or three sub-lanes inside the track.
 | **G9** | Two operand gates with different admitted kind sets and a doc that describes only one (S95), plus `chord_join`'s placement argument contradicted by its own imports from `splitting/` (S96). **Both sides of the old Track C fence are inside this track now** | Track G |
 | **S173** | The curved generalization of the one door lives inside `boolean/`, which is exactly what the door's own header argues against. The fix is a move, not a sentence | unrowed |
 | **D120** | S104's own defect one layer upstream: `census.rs` decides `CensusEscalated` against `CensusUnsupported` behind a wildcard over a CLOSED ten-variant enum, so an eleventh arm becomes an unrefuted frontier | Track G |
-| **H11** | A postcondition stated in four voices, one normative (S212) — `CertifiedEnclosure`'s *"a `Some` never carries a NaN end"* has a home and at least three doors re-derive it, two of them here | Track H |
 | **S234** | The door inventory computes the roster's KEYS and none of its content — the direction column, which is the whole argument the guarded header makes | unrowed |
+| **S212 (2 doors)** | `H11` is **Track H's row**, not this track's — but two of the three doors that re-derive `CertifiedEnclosure`'s *"a `Some` never carries a NaN end"* without reference to it are here (`census.rs:1338`, `chart_region.rs`). **They are Track H's for that row**; nothing else in this track's files is | Track H |
 | **D95** | `boolean/combine.rs` now answers one proof two ways: two sites converted to `unreachable!` and six structurally identical siblings in the same function left as they were | Track E |
 | **D57** | Nine names carry the K predicate vocabulary in refusal diagnostics while never reaching the funnel | Track E |
 | **D46** | Twenty-three funnel-reaching predicate names in `geom-brep` and `topo` have no dimensional verdict anywhere, and three of their eight homes are files the audit has never named | Track E |
@@ -17837,7 +17894,7 @@ is here is what it left plus what Track C never started.
 | **S236** | `cert_cylinder` is falsified by nothing, in any build — and closing it changes `budget::FaceMeasure`, whose consumers are in `tools/`. **The `tools/` half is Track K's row** | Track I |
 | **S237** | The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one | Track I |
 | **C22** | A crate's sizing vocabulary is `pub` in three places and `pub(crate)` in seven, and nothing consumed the public three when #803 wrote them | Track C |
-| **C23** | One rational refinement schedule hand-synced across a crate boundary — `mesh`'s `RATIONAL_CERT_SPLITS` and `geom`'s `RATIONAL_METER_SPLITS`. **The `geom` constant is one line and is this row's, by exception to N's fence** | Track C |
+| **C23** | One rational refinement schedule hand-synced across a crate boundary — `mesh`'s `RATIONAL_CERT_SPLITS` and `geom`'s `RATIONAL_METER_SPLITS`. **The `geom` constant is one line and is this row's, by exception to Track H's fence — confirm with Track H before touching it** | Track C |
 
 *(`S65` — the watertightness backstop absent from every shipping build — is
 **Evan's decision**, not this track's row. Its equipped statement, the three
@@ -17916,8 +17973,7 @@ its own tests in its own PR, as always.
 | **D61** | Twelve source-text guards, five hand-rolled Rust readers, and no two of them lex the same language (S117). The count went 7 → 9 → 11 → 12 in one session, each step a differently-*shaped* sweep. **Build the shared home here; a reader living in another track's `src/` is converted by that track, on a row this one files** | Track E |
 | **D80** | Five spellings of *"is this line code"*, beside seven guards that already share the walk (S172) — blind to block comments, to `#[doc = "…"]`, to a needle in a string literal. **Same class as `D61` and the same home; one lane** | Track G |
 | **D113** | Decide what an intra-doc link in a `tests/` file is (S135): `cargo doc` builds no test targets, so every one is inert on every tier and nine are already broken. **Closes on a decision plus its mechanism** | Track G |
-| **H12** | Eleven `compile_fail` doctests in `geom-core/tests/` have never been collected (S214) — each asserts the compiler rejects a specific program, so each is a negative proof no tier has ever run | Track H |
-| **S216** | The repo has ~39 `compile_fail` rows and not one verifies what it claims — 28 of the 36 collected ones carry an error code that is never compared to anything. **The generalisation of `H12`, and the two want one lane** | unrowed |
+| **S216** | The repo has ~39 `compile_fail` rows and not one verifies what it claims — 28 of the 36 collected ones carry an error code that is never compared to anything. **The generalisation of `H12`, which is Track H's row on Track H's files.** The eleven uncollected doctests are `geom-core/tests/`; the ~39 `compile_fail` rows are everywhere. **This track takes the class and leaves the eleven to Track H**, which is the split the fence forces and, per `H12`'s own text, the half that track already calls *its own ground* | unrowed |
 | **D111** | Fourteen probe-gated suites are compiled and never run. **RULED by Evan (2026-08-21): run all fourteen; the two collection runs stay.** Compilation is already paid, so the marginal cost is execution — turn them all on at once. Whatever reds is filed as a row on the track that owns the file | Track F |
 | **D70** | The silent whole-row stand-down: a population of 13 — a FLOOR, not an enumeration — in three files (S126) | Track F |
 | **D115** | The loud stand-down's ten hand-rolled spellings (S169), against a home that already exists in `test_utils::vacuity`. Three of the ten are the actual finding | Track F |
