@@ -502,24 +502,44 @@ jobs:
       # the whole workspace, which is also what a TIER=all run (the majority
       # verdict across merges) builds.
       - name: arm B (opt-0), one clean build and one full-suite run
+        id: armb
         if: steps.cadence.outputs.run_arm_b == 'true'
         run: |
-          set -euo pipefail
+          set -uo pipefail
           a0_start=$SECONDS
-          cargo nextest archive --workspace --archive-file "$RUNNER_TEMP/opt0.tar.zst"
+          cargo nextest archive --workspace --archive-file "$RUNNER_TEMP/opt0.tar.zst" || {
+            echo "::warning::arm B: the opt-0 archive did not build; no sample this run"
+            echo "measured=false" >> "$GITHUB_OUTPUT"; exit 0; }
           a0=$((SECONDS - a0_start))
           e0_start=$SECONDS
           # NO --run-ignored, NO --cfg nightly_suite: this is the GATE's test
           # population, which is the only population E2 can be compared with.
+          #
+          # `2>&1`, and it is not cosmetic: nextest writes its progress AND
+          # its `Summary [...] N tests run` line to STDERR, and that line is
+          # where the test COUNT recorded beside the sample comes from — the
+          # one figure a reader checks to see that the two arms measured the
+          # same suite.
           cargo nextest run --archive-file "$RUNNER_TEMP/opt0.tar.zst" --workspace-remap . \
-            | tee "$RUNNER_TEMP/opt0-run.log"
+            > "$RUNNER_TEMP/opt0-run.log" 2>&1 && run_rc=0 || run_rc=$?
           e0=$((SECONDS - e0_start))
+          tail -40 "$RUNNER_TEMP/opt0-run.log"
+          # A RED SUITE IS NOT A CALIBRATION. E0 over a run that stopped early
+          # is not comparable with an E2 read from green gate runs, so the
+          # sample is dropped rather than recorded wrong — and this lane
+          # REPORTS, so a broken suite is said out loud here and left to the
+          # gate that actually owns it.
+          if [ "$run_rc" -ne 0 ]; then
+            echo "::warning::arm B: the opt-0 suite exited ${run_rc}; E0 is not comparable with a green E2, so no sample this run"
+            echo "measured=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           tests="$(sed -n 's/.*Summary.*\[[^]]*\] *\([0-9]*\) tests run.*/\1/p' "$RUNNER_TEMP/opt0-run.log" | tail -1)"
           printf '{"a0": %s, "E0": %s, "tests": "%s"}\n' "$a0" "$e0" "${tests:-unknown}" \
             > "$RUNNER_TEMP/arm-b.json"
           cat "$RUNNER_TEMP/arm-b.json"
+          echo "measured=true" >> "$GITHUB_OUTPUT"
       - name: the verdict, and the inputs it rests on
-        if: steps.cadence.outputs.run_arm_b == 'true'
+        if: steps.armb.outputs.measured == 'true'
         run: |
           scripts/opt-level-calibrate.py record \
             --arm-a "$RUNNER_TEMP/arm-a.json" \
@@ -530,7 +550,7 @@ jobs:
       # Same shape, same reasoning, same retry loop as the rebuild-latency
       # history above — including writing nothing on a dispatched ref.
       - name: commit the calibration sample (main only)
-        if: steps.cadence.outputs.run_arm_b == 'true' && github.ref == 'refs/heads/main' && inputs.ref == ''
+        if: steps.armb.outputs.measured == 'true' && github.ref == 'refs/heads/main' && inputs.ref == ''
         env:
           SHA: ${{ github.sha }}
         run: |
