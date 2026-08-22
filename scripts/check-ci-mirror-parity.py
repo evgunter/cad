@@ -83,10 +83,11 @@ TIER_BLIND = (
     "scripts/gates/gate-roster.sh",
     "scripts/gates/probe-suite-census.sh --citations",
     "scripts/check-ci-mirror-parity.py",
-    # The python linter. Its inputs are every tracked .py and .pyi, and five of
-    # them are under `local-scripts/` — a tree whose changes classify TIER=docs
-    # and which every hosted job but `mirror` deletes at checkout. Sited
-    # anywhere else it would cover 33 of 38 files while claiming the repo.
+    # The python linter. Its inputs are every tracked .py and .pyi, some of
+    # them under `local-scripts/` — a tree whose changes classify TIER=docs and
+    # which every hosted job but `mirror` deletes at checkout. Sited anywhere
+    # else it would skip those while claiming the repo. No count is written
+    # here: the row derives and prints its own from `git ls-files`.
     "scripts/check-python-lint.py",
 )
 

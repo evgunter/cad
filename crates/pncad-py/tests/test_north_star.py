@@ -520,6 +520,10 @@ def prism_loft(doc, heights):
     each section rides its OWN profile's sketch plane, so the spacing
     IS the three elevations — which is exactly how the Rust scenes
     differ from one another (`lofted_at_z`)."""
+    # `strict=True`: a `heights` of the wrong length is a caller error, not a
+    # shorter loft. Without it this helper would silently skin fewer sections
+    # than the profile list names and every assertion below would still pass,
+    # on a solid nobody asked for.
     sections = [
         doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], elevation=z * m))
         for pts, z in zip([PRISM_SQUARE, PRISM_TRAPEZOID, PRISM_SQUARE], heights, strict=True)

@@ -266,6 +266,8 @@ def _selftest():
     # (measured: scaling one output component reds both up axes here).
     # Integer coordinates, so the three products sum exactly in any
     # order.
+    # `strict=True`: a dot product of mismatched vectors is a bug in the caller,
+    # and a truncating `zip` would answer it with a number instead of saying so.
     def dot(a, b):
         return sum(x * y for x, y in zip(a, b, strict=True))
 

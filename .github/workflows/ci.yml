@@ -347,11 +347,14 @@ jobs:
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #
-      #   1. NO PRUNE. `local-scripts/` holds five of the repo's Python
-      #      files (including review-lily/), and every other checked-out
+      #   1. NO PRUNE. `local-scripts/` holds Python files of its own
+      #      (including under review-lily/), and every other checked-out
       #      job deletes that tree before it does anything. A linter sited
-      #      anywhere else would silently cover 33 of 38 files while its
-      #      config claimed the repo — the same defect, in the fix.
+      #      anywhere else would silently skip every one of them while its
+      #      config claimed the repo — the same defect, in the fix. The
+      #      populations are NOT written down here: the row prints them
+      #      ("checked all N tracked Python files"), derived from
+      #      `git ls-files`, which is the point of the whole script.
       #   2. NO `if:`. A change to `local-scripts/*.py` or `review/*.py`
       #      classifies TIER=docs (scripts/ci-filter.py's `_is_docs`), on
       #      which every `if: run_build` job is skipped. Those files are
@@ -362,7 +365,7 @@ jobs:
       #
       # BILLING: this job measures 8-12 s wall and already bills a whole
       # minute (docs/CI-MINUTES-2026-08.md: per job, rounded UP). The
-      # install is a ~10 MB prebuilt and ruff over 38 files is
+      # install is a ~10 MB prebuilt and ruff over the tree is
       # milliseconds, so the row lands inside the minute this job already
       # costs. A standalone `python-lint` job would bill a second whole
       # minute to do four seconds of work, and would also have to
@@ -379,9 +382,20 @@ jobs:
           curl -LsSf "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
             | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
           echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
-      # REQUIRE_RUFF makes a missing or wrong-versioned binary a hard
-      # failure: the script's default is to skip loudly, which is right
-      # for a developer's box and wrong for the gate of record.
+      # REQUIRE_RUFF says out loud, where a reader of this workflow meets
+      # it, that a missing or wrong-versioned binary fails this job —
+      # the script's off-gate default is to skip loudly, which is right
+      # for a developer's box and wrong here.
+      #
+      # IT IS NOT WHAT MAKES THAT TRUE, and it is not left unchecked. A
+      # step-level `env:` line is four characters from gone, and a marker
+      # asserting a check nobody enforces is the exact defect this row
+      # closes; minting a fresh one inside the fix is not on. So: the
+      # script reads GITHUB_ACTIONS — set by the runner, not by us — to
+      # decide that a skip is forbidden, AND it fails if this declaration
+      # is missing or not "1". Delete the line and the job reds naming
+      # it; flip it to "0" and the job reds naming it; ruff runs required
+      # either way. `check-python-lint.py --selftest` plants both edits.
       - name: python lint (ruff, every tracked .py and .pyi)
         run: |
           python3 scripts/check-python-lint.py --selftest
