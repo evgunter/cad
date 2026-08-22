@@ -685,9 +685,23 @@ pub enum PcurveCertifyError {
         limb: Option<SsiLimb>,
         /// The refusal's own reason.
         what: &'static str,
-        /// The offending value in metres (NaN for a structural
-        /// refusal that has no margin).
-        value: f64,
+        /// The offending margin in metres, exactly as the classifier
+        /// held it — `None` for a structural refusal that has no margin
+        /// at all.
+        ///
+        /// This is [`geom_core::MarginDiag`] rather than a bare `f64`
+        /// because the two are not interchangeable at every scalar. An
+        /// interval classification's margin is an ENCLOSURE, never a
+        /// single value, and projecting it onto one `f64` cannot be
+        /// done honestly: the projection this field used to perform
+        /// reported `NaN`, which is also what a genuinely poisoned
+        /// margin reports, so an ordinary in-band escalation at
+        /// `T = Interval` was indistinguishable from an invalid one.
+        /// Carrying the classifier's own vocabulary keeps
+        /// [`geom_core::MarginDiag::Invalid`] — real poison — distinct
+        /// from [`geom_core::MarginDiag::Enclosure`], which carries two
+        /// real numbers and must surface them.
+        margin: Option<geom_core::MarginDiag>,
     },
     /// The stored carrier-parameter interval is not forward — the same
     /// `he_plus` contract [`crate::certify::CertifyError::IntervalNotForward`]
@@ -765,12 +779,24 @@ impl core::fmt::Display for PcurveCertifyError {
                 f,
                 "pcurve certification: the iso-line lane refuses this class — {what}"
             ),
-            Self::FittedCertificate { limb, what, value } => write!(
+            Self::FittedCertificate { limb, what, margin } => write!(
                 f,
-                "pcurve certification: the fitted lane's certificate refused{} — {what} \
-                 (offending value {value:e} m)",
+                "pcurve certification: the fitted lane's certificate refused{} — {what}{}",
                 match limb {
                     Some(l) => format!(" at {}", l.name()),
+                    None => String::new(),
+                },
+                match margin {
+                    Some(geom_core::MarginDiag::Value(v)) => format!(" (offending value {v:e} m)"),
+                    // Both endpoints, because at the interval scalar the
+                    // margin IS the pair — a reader needs the width to
+                    // tell an in-band point from a straddle.
+                    Some(geom_core::MarginDiag::Enclosure { lo, hi }) =>
+                        format!(" (offending enclosure [{lo:e}, {hi:e}] m)"),
+                    Some(geom_core::MarginDiag::Invalid) =>
+                        " (the margin was poisoned: NaN, or an enclosure with no certified \
+                         bounds)"
+                            .to_string(),
                     None => String::new(),
                 }
             ),
@@ -1004,7 +1030,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
                     what: "a Circle carrier's rational-chain certificate is written for \
                            analytic operand pairs only (the NURBS limbs are \
                            parameter-coupled to a traced pcurve)",
-                    value: f64::NAN,
+                    margin: None,
                 });
             }
             chain = rational_arc_chain(*center, *axis, *radius, *u_ref, t0, t1).ok_or(
@@ -1012,7 +1038,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
                     limb: None,
                     what: "the circle arc's rational-quadratic chain refused to build \
                            (degenerate span or malformed structure)",
-                    value: f64::NAN,
+                    margin: None,
                 },
             )?;
             &chain
@@ -1127,22 +1153,36 @@ fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
 /// actionable content; see the
 /// [`PcurveCertifyError::FittedCertificate`] docs for what the
 /// flattening buys and, honestly, what it does not.
+///
+/// The margin is carried in the classifier's own vocabulary, never
+/// projected onto a single `f64`. Reducing an escalation's margin to
+/// one number is lossless only at `T = f64`; at `T = Interval` the
+/// margin is an enclosure, and the projection reported `NaN` — the same
+/// thing a poisoned margin reports, so the two became
+/// indistinguishable at exactly the seam a reader consults to tell them
+/// apart. Structural refusals carry `None`, the honest statement that
+/// no margin was ever classified.
 fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     use crate::ssi::SsiError as E;
-    let (limb, what, value) = match e {
-        E::CertificateLimb { limb, value } => (Some(limb), "a certificate limb exceeded ε", value),
+    use geom_core::MarginDiag;
+    let (limb, what, margin) = match e {
+        E::CertificateLimb { limb, value } => (
+            Some(limb),
+            "a certificate limb exceeded ε",
+            Some(MarginDiag::Value(value)),
+        ),
         E::TubeStraddles { margin, .. } => (
             Some(SsiLimb::Tube),
             "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
              operand pair — escalate, never desingularize)",
-            margin,
+            Some(MarginDiag::Value(margin)),
         ),
         E::FootPointInconclusive { last_distance, .. } => (
             Some(SsiLimb::OnLocus),
             "a certified foot point would not converge",
-            last_distance,
+            Some(MarginDiag::Value(last_distance)),
         ),
-        E::UnsupportedCertificate { what } => (None, what, f64::NAN),
+        E::UnsupportedCertificate { what } => (None, what, None),
         E::Escalated(d) => (
             None,
             // The escalating predicate's own NAME is the actionable
@@ -1151,19 +1191,19 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
                 "a certificate trilean landed in the sliver band (escalate, never \
                             guess)",
             ),
-            match d.margin {
-                geom_core::predicate::MarginDiag::Value(v) => v,
-                _ => f64::NAN,
-            },
+            // The classifier's own margin, carried whole. An interval
+            // escalation's margin is an enclosure and is reported as
+            // one; only a genuinely invalid margin reports as invalid.
+            Some(d.margin),
         ),
         _ => (
             None,
             "the rung-3 certificate refused structurally (see geom_brep::SsiError for the \
              full text at the SSI door)",
-            f64::NAN,
+            None,
         ),
     };
-    PcurveCertifyError::FittedCertificate { limb, what, value }
+    PcurveCertifyError::FittedCertificate { limb, what, margin }
 }
 
 impl PcurveFittedLane for f64 {

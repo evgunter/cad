@@ -138,6 +138,18 @@ fn build<T>() -> (Body<T>, topo::HalfEdgeKey)
 where
     T: geom_brep::PcurveFittedLane,
 {
+    try_build::<T>().expect("the general circle certifies through the fitted door")
+}
+
+/// The same construction, with the fitted door's refusal RETURNED
+/// rather than panicked on. The certified hull bound this route
+/// produces is ε-independent, so at a tight enough ε it lands in the
+/// ambiguity band and the door escalates honestly — a caller that
+/// wants to assert that outcome needs the error, not a panic.
+fn try_build<T>() -> Result<(Body<T>, topo::HalfEdgeKey), geom_brep::PcurveCertifyError>
+where
+    T: geom_brep::PcurveFittedLane,
+{
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = general_circle::<T>();
     let (f0, f1) = ARC;
@@ -190,11 +202,10 @@ where
             Some(&tilted_plane::<T>()),
             window,
             band,
-        )
-        .expect("the general circle certifies through the fitted door");
+        )?;
         body.attach_pcurve(he, cache);
     }
-    (body, he_plus)
+    Ok((body, he_plus))
 }
 
 /// The closed-form door refuses the class typed — the fitted lane is
@@ -239,9 +250,80 @@ mod certified {
 
     use super::*;
 
+    /// The `ssi_hull_sup` bound this route certifies at the INTERVAL
+    /// scalar (metres). It is ε-INDEPENDENT — bit-identical at 1e-6 and
+    /// 1e-12 — because it is a ring-computed hull bound over the fitted
+    /// carrier's control data, not a tolerance-derived quantity: only
+    /// the band moves. The row therefore certifies exactly when ε is at
+    /// or above it.
+    ///
+    /// It is the interval lane's number specifically. The same route at
+    /// `f64` bounds the same limb well under 1e-12, which is why the
+    /// at-rest `f64` row is unaffected: the ring data widens with the
+    /// scalar the coefficients are held in.
+    ///
+    /// The escalation arm pins it BIT-EXACTLY, in both directions, so a
+    /// tightening of the fit or the ring bound is as loud as a
+    /// regression. Either way: re-measure and re-state.
+    const HULL_SUP_AT_INTERVAL: f64 = 1.7993939406448348e-12;
+
+    /// **Scoped to ε ≥ [`HULL_SUP_AT_INTERVAL`]** (#925). Below it the
+    /// fitted door escalates on `ssi_hull_sup`, and that escalation is
+    /// honest rather than a defect: the margin is a DEGENERATE
+    /// enclosure — `lo == hi`, an exact point, not a straddle — lying
+    /// wholly inside the open sliver band (1e-12, 1e-11).
+    /// `MarginDiag::Enclosure`'s own docs name this case: such an
+    /// enclosure "is not refinable by subdivision at all (the band is
+    /// semantically indeterminate at any width, even for a point) — the
+    /// driver escalates it as a genuine D4 ¶3 sliver, not a resolution
+    /// failure". There is nothing to tighten and nothing to subdivide;
+    /// asserting a decision here would assert something the ratified
+    /// boundary table says is not decidable.
+    ///
+    /// This row previously read as a POISONED enclosure, which is what
+    /// #925 was filed as. It never was: the NaN was manufactured by the
+    /// fitted lane's error flattening, which projected every margin
+    /// onto one `f64` and reported `NaN` for anything that was not a
+    /// bare value. That projection is gone — an escalation now reports
+    /// its real enclosure, and only true poison reports as invalid.
     #[test]
     fn the_general_circle_route_certifies_at_the_interval_scalar() {
-        let (body, he) = build::<Interval>();
+        let built = try_build::<Interval>();
+        if Tol::witness().eps() < HULL_SUP_AT_INTERVAL {
+            let Err(geom_brep::PcurveCertifyError::FittedCertificate { limb, what, margin }) =
+                built
+            else {
+                panic!("below the hull bound the fitted door must escalate on ssi_hull_sup");
+            };
+            assert_eq!(
+                limb, None,
+                "an escalation names no limb, only its predicate"
+            );
+            assert_eq!(what, "ssi_hull_sup");
+            // The refusal must carry the REAL margin. Before #925's fix
+            // this arm reported `NaN`, indistinguishable from a poisoned
+            // enclosure; that indistinguishability is what the row now
+            // exists to prevent.
+            let Some(geom_core::MarginDiag::Enclosure { lo, hi }) = margin else {
+                panic!(
+                    "the escalation must carry its enclosure, not a poison or a hole: {margin:?}"
+                )
+            };
+            assert!(
+                lo == HULL_SUP_AT_INTERVAL && hi == HULL_SUP_AT_INTERVAL,
+                "the hull bound is [{lo:e}, {hi:e}], not the measured degenerate enclosure at \
+                 {HULL_SUP_AT_INTERVAL:e} — the fit or the ring bound moved; re-measure and \
+                 re-state"
+            );
+            let band = Band::linear(Tol::witness()).unwrap();
+            assert!(
+                hi > band.zero() && hi < band.escalate(),
+                "the bound must lie inside the OPEN sliver band, which is what makes this \
+                 escalation terminal rather than refinable"
+            );
+            return;
+        }
+        let (body, he) = built.expect("the general circle certifies through the fitted door");
         let cache = body.pcurve(he).expect("the cache is stored");
         let cert = cache.certificate();
         assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
