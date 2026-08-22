@@ -378,3 +378,23 @@ the valence-4 corner door is the only genuine design content and
 is isolated into ARMS-3 as a design conversation. ARMS-1
 difficulty L logged pre-draw; consumes block VERBS-2 slot 3; lane
 verbs-arms1 next.
+
+## SSIFLAT up (#931); ordinal-63 cross-model dual out (2026-08-22)
+
+SSIFLAT complete at 2041b083: the diagnostic payload reuses
+MarginDiag itself (None / Some(Enclosure{lo,hi}) / Some(Invalid) —
+poison finally distinguishable from width), pcurve_cache.rs proven
+the only lossy projection (blind spot honestly stated), the #925
+row re-scoped as a TERMINAL sliver (degenerate enclosure wholly
+inside the open band — not refinable, D4 ¶3), try_build split
+keeps f64 rows untouched, plant-verified. The lane self-reported a
+process error (checkout -- destroyed its own uncommitted fix
+mid-plant; caught via diff --stat, re-applied, and the later plant
+done commit-first) — the right order is now in its report for the
+record. Hosted draw missed 1e-12 for the third consecutive unit
+(interval lane pinned, ε drew default each time — an observation
+for the sampling regime's owner if it persists). **Ordinal 63
+claimed → a third → DUAL, CROSS-MODEL** (R1 fable + R2 opus,
+frozen 2041b083, lanes verbs-ssiflat-r1/-r2); the 1e-12
+unique-signal run is in both charters. Six agents live (4 impl/
+review + RING + DEMO + ARMS-1 pending reports).
