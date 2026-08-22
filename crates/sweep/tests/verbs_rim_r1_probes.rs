@@ -418,51 +418,42 @@ fn a_passing_closed_rim_reaches_the_surgery_and_refuses_unsupported_chain() {
 }
 
 /// **An open arc just under a full period decides at an honest
-/// lever.** A sweep of 2π − 0.0032 rad leaves an endpoint chord of
-/// ~0.0032·a (the OLD lever) while the max pairwise chord meters ~2a. A corner whose
-/// profile kink is ~1e-6 rad has dihedral margin ~1e-6·arm: IN the
-/// ambiguity band (ε = 1e-9, K = 10) at the collapsed old lever,
-/// definitely decided at the honest one — so this refuses the
-/// decided `SpineUnsupported`, not an `Escalated`. This is the one
-/// open-arc pin the lever change admits, and the row that goes red
-/// (Escalated) if the functional regresses to the endpoint chord.
+/// lever.** The 30° neck-and-flare corner revolved 2π − 0.0032 rad
+/// leaves the corner rim an OPEN arc whose endpoint chord is
+/// ~0.0032·a — the collapsed old lever — while the honest lever
+/// meters ~the rim's diameter; the dihedral decides and the refusal
+/// is the decided `SpineUnsupported`, exactly the full-revolve
+/// answer, on an arc the endpoint chord would have starved.
+///
+/// The fixture's kink is the same healthy 30° as the #554 pair, ON
+/// PURPOSE: this row first tried a ~1e-6..1e-4 rad kink so the
+/// dihedral itself would sit in-band at the collapsed lever, and
+/// that fixture cannot exist across the ε matrix — small kinks land
+/// the profile validator's `chord_side` margin (~kink·a) in the
+/// ε = 1e-6 band, while every kink small enough for that
+/// counterfactual makes the wall a near-degenerate cone (apex
+/// ~a/kink away) whose revolve chart residuals
+/// (`pcurve_map_residual`, `pcurve_loop_continuity`) land in the
+/// ε = 1e-12 band. The endpoint-chord regression tripwire this row
+/// carried lives instead in the R2 suite's
+/// `open_arcs_approaching_a_full_turn_do_not_collapse`, which pins
+/// `Link::arm_len` floors on this same class directly and goes red
+/// under a collapsed lever at every ε row.
 #[test]
 fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
     let a = 1.0;
-    let kink = 1.0e-6;
-    let body = revolved(
-        vec![
-            ProfileVertex::new(p2(0.2 * a, 0.0), 0.0),
-            ProfileVertex::new(p2(a, 0.0), 0.0),
-            ProfileVertex::new(p2(a, 1.0), 0.0),
-            ProfileVertex::new(p2(a - kink, 2.0), 0.0),
-            ProfileVertex::new(p2(0.2 * a, 2.0), 0.0),
-        ],
-        Revolution::Partial(core::f64::consts::TAU - 3.2e-3),
+    let body = neck_flare(a, Revolution::Partial(core::f64::consts::TAU - 3.2e-3));
+    let corner = find_edges(&body, false, is_cone_cylinder);
+    assert!(!corner.is_empty(), "the near-full-period corner rim exists");
+    // The collapsing-regime witness: the requested rim really is the
+    // arc whose endpoint chord has collapsed.
+    let chord = endpoint_chord(&body, corner[0]);
+    assert!(
+        chord < 0.01 * a,
+        "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
-    // The near-tangent wall may certify as a cone or (at a smaller
-    // kink) a cylinder; either pairing is outside the analytic arms,
-    // so a DECIDED sign lands on SpineUnsupported. What the row pins
-    // is decided-versus-escalated, which is exactly the lever.
-    let rims = find_edges(&body, false, |x, y| {
-        !matches!(x, Surface::Plane { .. }) && !matches!(y, Surface::Plane { .. })
-    });
-    let corner: Vec<EdgeKey> = rims
-        .into_iter()
-        .filter(|k| {
-            let (s0, s1, _) = edge_sides(&body, *k);
-            !same_surface(&s0, &s1)
-        })
-        .collect();
-    assert!(!corner.is_empty(), "the kinked corner rim exists");
     match fillet_edges(&body, &corner[..1], 0.05, band(), tol()) {
         Err(FilletError::SpineUnsupported { .. }) => {}
         other => panic!("expected the decided SpineUnsupported at the honest lever, got {other:?}"),
     }
-}
-
-/// Same enum variant with the same parameters — a crude co-surface
-/// screen for the kinked-corner row's edge filter.
-fn same_surface(a: &Surface<f64>, b: &Surface<f64>) -> bool {
-    format!("{a:?}") == format!("{b:?}")
 }
