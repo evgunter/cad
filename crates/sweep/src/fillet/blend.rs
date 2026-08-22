@@ -9,6 +9,13 @@
 //! | plane–sphere (a circular rim) | circle | torus | two circles |
 //! | trihedral vertex (3 planes) | point | sphere | three circles |
 //!
+//! The **chamfer** ([`chamfer_strip`], [`chamfer_corner_patch`]) is
+//! the ruled sibling of the first and third rows: the same trimline
+//! structure over the same supports, with the rolling ball's tube
+//! replaced by the flat strip at equal setback and its octant by the
+//! plane through the three feet. It is exact for the same reason — a
+//! straight edge over planes puts both trimlines on lines.
+//!
 //! Every arm returns its blend surface, its spine, and the EXACT
 //! setback on each support — and the battery consumes the setback
 //! from HERE, not from a parallel first-order estimate. That is what
@@ -41,6 +48,10 @@ pub struct EdgeBlend<T: Real> {
     pub surface: Surface<T>,
     /// The spine's curvature, 1/meters: `0` for a straight spine,
     /// `1/s` for a circular one. Predicate 3 reads this.
+    ///
+    /// A rolling-ball fact, so a ruled band has none: the chamfer
+    /// strip stores `0` and predicate 3 does not run over it (a
+    /// chamfer has no rolling ball whose centre locus could fold).
     pub spine_curvature: T,
     /// The trimline on the FIRST support, and the setback (meters)
     /// from the original edge to it, measured in that support.
@@ -79,6 +90,19 @@ pub enum BlendArm {
     PlanePlaneCylinder,
     /// Plane–sphere circular rim → torus patch, circular spine.
     PlaneSphereTorus,
+    /// Plane–plane edge → flat strip at equal setback, no spine. The
+    /// chamfer's one arm ([`chamfer_strip`]).
+    PlanePlaneStrip,
+}
+
+impl BlendArm {
+    /// Whether this arm blends a plane–plane support pair — the one
+    /// pair the in-place open-chain surgery carves, whichever band
+    /// the request grafts onto it.
+    #[must_use]
+    pub fn is_plane_plane(self) -> bool {
+        matches!(self, Self::PlanePlaneCylinder | Self::PlanePlaneStrip)
+    }
 }
 
 /// The unit component of `x` orthogonal to the unit direction `a` —
@@ -279,5 +303,137 @@ pub fn corner_ball<T: Real>(
         },
         center: c,
         independence: det.abs(),
+    }
+}
+
+// ------------------------------------------------------------------
+// The chamfer's arm: the flat strip, and the flat corner patch.
+// ------------------------------------------------------------------
+
+/// A support's **inward in-plane unit** at one of its boundary edges:
+/// the unit ⊥ the edge, in the support plane, pointing into the face.
+///
+/// It is read off the TRAVERSAL, never off a convexity verdict. Under
+/// the kernel's counterclockwise-outer-loop convention
+/// (`topo::entity`) a face's interior lies to the LEFT of each of its
+/// half-edges seen from outside the shell, and "left of `τ̂` seen from
+/// outside" is the rotation of `τ̂` by a quarter turn about the
+/// OUTWARD normal — `n × τ̂`. `τ̂` is the half-edge's own direction, so
+/// the second support of an edge (which carries `he_minus`, running
+/// against the stored carrier) takes `−τ̂`.
+///
+/// This is what makes the chamfer's geometry convexity-free: on a
+/// concave edge the two supports lie on the other sides of the edge
+/// and their half-edges run the other way round, so the same
+/// expression still points into the face. Convexity enters the
+/// chamfer at its ADMISSION doors and nowhere in this file.
+#[must_use]
+pub fn inward_unit<T: Real>(n: Vec3<T>, tau: Vec3<T>) -> Vec3<T> {
+    n.cross(tau).normalize()
+}
+
+/// **The plane–plane chamfer strip**: the flat band that replaces a
+/// straight edge at equal setback `distance` along both supports.
+///
+/// With `p` a point of the edge, `tau` the `he_plus` traversal
+/// direction and `n_a`/`n_b` the two supports' OUTWARD normals, the
+/// two trimlines are `p + m·distance + τ̂ s` for the supports' own
+/// inward units `m_a = n_a × τ̂` and `m_b = −(n_b × τ̂)`
+/// ([`inward_unit`]) — lines parallel to the edge, so the strip is an
+/// exact [`Surface::Plane`] and nothing is fitted.
+///
+/// **Its chart normal is `n_a + n_b`, and that is a derivation, not a
+/// convention.** The strip's normal is
+/// `(foot_b − foot_a) × τ̂ = −[(n_a + n_b) × τ̂] × τ̂ = n_a + n_b`
+/// (both normals are ⊥ `τ̂`). A positive combination of two OUTWARD
+/// normals is outward, so the strip face mints with sense `true` — on
+/// a concave edge as much as on a convex one, which is why the
+/// chamfer never reads [`super::Convexity::blend_sense`]. For a
+/// symmetric setback the strip plane is the supports' bisector plane,
+/// which is the same statement.
+#[must_use]
+pub fn chamfer_strip<T: Real>(
+    p: Point3<T>,
+    tau: Vec3<T>,
+    n_a: Vec3<T>,
+    n_b: Vec3<T>,
+    distance: T,
+) -> EdgeBlend<T> {
+    let m_a = inward_unit(n_a, tau);
+    let m_b = -inward_unit(n_b, tau);
+    let foot_a = p + m_a * distance;
+    let foot_b = p + m_b * distance;
+    EdgeBlend {
+        surface: Surface::Plane {
+            origin: foot_a,
+            normal: (n_a + n_b).normalize(),
+            u_ref: tau,
+        },
+        spine_curvature: T::zero(),
+        trim_a: (
+            Curve3::Line {
+                origin: foot_a,
+                dir: tau,
+            },
+            distance,
+        ),
+        trim_b: (
+            Curve3::Line {
+                origin: foot_b,
+                dir: tau,
+            },
+            distance,
+        ),
+    }
+}
+
+/// Where two coplanar lines of one support face meet, in that face's
+/// plane of normal `n` — the chamfer's FOOT at a corner, which is the
+/// point where the two incident strips' trimlines on this support
+/// cross.
+///
+/// Closed form: `s = ((o₂ − o₁) × d₂)·n / ((d₁ × d₂)·n)`, exact and
+/// total. Two parallel trimlines (a "corner" whose two edges are
+/// collinear) drive the denominator to zero and poison the foot, which
+/// is the honest answer — there is no crossing there.
+#[must_use]
+pub fn line_meet<T: Real>(
+    o1: Point3<T>,
+    d1: Vec3<T>,
+    o2: Point3<T>,
+    d2: Vec3<T>,
+    n: Vec3<T>,
+) -> Point3<T> {
+    let s = (o2 - o1).cross(d2).dot(n) / d1.cross(d2).dot(n);
+    o1 + d1 * s
+}
+
+/// **The chamfer's corner patch**: the plane through the three feet at
+/// a trivalent corner — the sphere octant's flat analog.
+///
+/// Each strip meets the patch along the segment between the two feet
+/// on that strip's own supports, and both of those feet lie on that
+/// strip's trimlines, which the strip plane contains — so the patch
+/// closes the corner exactly, with no fitting and no tolerance.
+///
+/// **The chart normal is outward, derived.** The patch plane's normal
+/// is `g = (f₁ − f₀) × (f₂ − f₀)` up to sign, and the sign is fixed by
+/// folding `g` against the supports' outward normal SUM: the patch is
+/// the face that truncates (convex) or fills (concave) the corner, and
+/// in both cases its outward normal lies on the positive side of
+/// `n₀ + n₁ + n₂`. Folding it in as a positive multiple —
+/// `normalize(g·(g·Σn))` — keeps the derivation branch-free and total;
+/// a patch plane orthogonal to `Σn` poisons rather than picking a
+/// side. The face therefore mints with sense `true`, like the strips,
+/// and this module has no convexity parameter to leave half-derived.
+#[must_use]
+pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], normals: [Vec3<T>; 3]) -> Surface<T> {
+    let g = (feet[1] - feet[0]).cross(feet[2] - feet[0]);
+    let outward = normals[0] + normals[1] + normals[2];
+    let normal = (g * g.dot(outward)).normalize();
+    Surface::Plane {
+        origin: feet[0],
+        normal,
+        u_ref: perp_unit(feet[1] - feet[0], normal),
     }
 }

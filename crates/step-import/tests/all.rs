@@ -94,6 +94,8 @@ mod s58_iso_rectangle;
 mod split_iso_side;
 #[path = "tier_gate.rs"]
 mod tier_gate;
+#[path = "verbs_chamfer_roundtrip.rs"]
+mod verbs_chamfer_roundtrip;
 #[path = "wild.rs"]
 mod wild;
 
