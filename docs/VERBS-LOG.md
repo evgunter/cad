@@ -145,3 +145,22 @@ vocabulary, tighter lever, C7 residue dissolved. Both probe
 branches adopt authorship-preserving. VERBS-ARMS' scope now owns
 the one-edge closed-chain shape (plan row amended) — the
 verb-level full-revolve unlock is ARMS' acceptance, not RIM's.
+
+## VERBS-RIM MERGED (#910, 2026-08-22, merge at 06:50Z) — #554 CLOSED
+
+Row RIM (ordinal 60, sample #19, the SEVENTH cross-model pair) is in
+MODEL-AB-LOG — arm now on record there. Fix pass took the
+predicate-REUSE branch for the dihedral arm gate (no new metered
+name); the lever lives on the CHAIN_SAMPLES schedule; both reviewer
+suites are promoted (two disclosed amendments, both argued in the PR
+body); the second CI round's red was an adopted row's fixture
+failing PROFILE validation in-band at eps=1e-6 — an empirically
+proven fixture impossibility, not a fillet defect. The register's
+#554 entry now states the present: metering fixed, the verb-level
+remainder (one-edge closed chains) owned by VERBS-ARMS.
+
+Seam actions: this state-sync PR; sweep lanes verbs-rim,
+verbs-rim-r1, verbs-rim-r2 (probe branches adopted; clones
+merged/pushed-clean). NEXT UNIT: VERBS-CHAMFER (block VERBS-1 slot
+2) — spec next; it rides the same fillet files, so it dispatches
+onto post-#910 main with #644's constraint live.
