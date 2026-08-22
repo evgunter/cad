@@ -13,14 +13,18 @@ the register that says who may take it.
 file: the merged PR is its documentation, per `CLAUDE.md`, and the repo is
 merge-only so every deleted record is still reachable in git. A finding that
 is only *partly* closed stays here in full, with its closed part marked in its
-own lead — `S14`, `S18`, `S19`, `S110` and `S112` are the shape.
+own lead — `S18`, `S19`, `S29`, `S32`, `S58`, `S66`, `S73`, `S88`, `S110`,
+`S112`, `S163`, `S168` and `S211` are the shape. (`S14` is not one of them: it
+is an unruled decision for Evan, open in full.)
 
 **So a finding ID cited below that has no heading here is a closed one, and
 that is not a broken pointer** (the same rule `memories/docs-ledger.md` states
 for deleted documents). Read the PR named beside the citation; where none is
-named, `git log -S'## S61.' -- docs/SMELL-SCAN-2026-08.md` finds the commit
+named, `git log -G'^## S61\.' -- docs/SMELL-SCAN-2026-08.md` finds the commit
 that removed the record and `git show <sha>^:docs/SMELL-SCAN-2026-08.md` prints
-it. The surviving sentence is written to stand without the lookup; the lookup
+it. (`-G` matches added/removed lines; `-S` counts occurrences and would miss
+the deleting commit whenever the ID is still named somewhere in the file — as
+`S61` is, one line above.) The surviving sentence is written to stand without the lookup; the lookup
 is for the reader who wants the evidence behind it.
 
 **Tracks A–I are closed and their sections are gone the same way.** A, B, D
@@ -44,10 +48,17 @@ ratified design contract is `docs/DESIGN.md`.
   were reserved and never allocated, and later blocks were handed out per track
   rather than in order, so a finding's number says when it was *raised*, not
   where it sits.
-- **`D<N>` is a schedule row** — a unit of work in Tracks J–X. A row's number
-  is not a finding's number: `D40` is a row, `S61` was a finding. A `D<N>`
-  cited in prose with no row in Tracks J–X is a **landed or retired** row from
-  a closed track, and resolves the same way a closed finding does. Beware one
+- **`D<N>` is a schedule row** — a unit of work in Tracks J–X. A row number and
+  a finding number are different namespaces (`D40` is a row, `S61` was a
+  finding), but they are **not disjoint**: 22 of the live rows are themselves
+  numbered `S<N>`, colliding with a surviving finding of that number, and 17
+  are numbered `C<N>`. Read a citation by where it points, not by its letter.
+  A `D<N>` cited in prose with no row in Tracks J–X is **usually** a landed or
+  retired row from a closed track, resolving the same way a closed finding
+  does — but **not always, and the exceptions are open work**: `D65`, `D66`
+  and `D67` (cited by `S121`, `S122`, `S123`) were placed by Track F and never
+  carried into this partition, so they are open and unscheduled. Do not read a
+  missing row as a finished one without checking. Beware one
   further collision the tree cannot spell away: `docs/DESIGN.md`'s ratified
   decisions are also `D1`–`D9`, and most prose citations in that range mean
   *those* — `D9` is determinism, not a schedule row.
@@ -6537,12 +6548,15 @@ enumerates "the four lane traits" will miss it.
 
 **Verdict:**
 
-## S88. FIXED IN PART by #875 — the `geom` half; the `profile` half is Track G's **G4**
+## S88. FIXED IN PART by #875 — the `geom` half; the `profile` half is OPEN and UNSCHEDULED
 
 **Scope, first, because the `FIXED` lead would otherwise read as the
 whole finding.** #875 closes the `geom` half only. The `profile` half —
-`crates/profile/src/fillet_select.rs` — belongs to **Track G's G4** and
-is untouched here; the receipt #875 hands it is in the handoff section.
+`crates/profile/src/fillet_select.rs` — was routed to **Track G's `G4`**,
+and that route no longer resolves: Track G is closed, and the `G4` this
+partition carries (Track V) is scoped to `ArcCarrierScalar` alone and does
+not cover this. **So the `profile` half has no row.** Its territory is
+Track V's; the receipt #875 hands it is in the handoff section.
 `crates/geom-brep/` is likewise enumerated and not taken. **The
 enumeration is keyed on symbols, not on line numbers**, in the census
 tables — this document's citations are the thing G-R13 keeps finding
@@ -6776,7 +6790,8 @@ actually collected.
 
 ### Handed off, not taken
 
-- **Track G's G4** (`crates/profile/`): `fillet_select.rs::nearest_joint`
+- **Open, no row** (`crates/profile/`, Track V's territory):
+  `fillet_select.rs::nearest_joint`
   (`:169`) is the sole-bound door. **The finding's `:98` is a doc line,
   not a door** — re-derive against the tree. `path/arc_fillet.rs:361`'s
   `map_refusal<T: Bounds>` is a second sole-bound door the finding does
@@ -9359,7 +9374,7 @@ the row above, or a threshold that re-pins today's output, is
 `memories/output-stability-as-justification.md`'s shape rather than a
 fix. Whoever takes this owes a ratio per site at more than one ε, and
 is entitled to conclude for some site that no honest ceiling exists —
-which is a written verdict, not a silent omission. Placed as **D65**.
+which is a written verdict, not a silent omission. Placed as **D65**. **That row was placed by Track F and never carried into Tracks J–X, so it is OPEN AND UNSCHEDULED — the missing row is not evidence it landed.**
 
 Found by lane F-c's sweep for S110's shapes: the second of the style
 brief's Q3 shapes, *an assertion monotone in the safe direction*. F-c's
@@ -9390,7 +9405,7 @@ see (C-R11's class, and S39's).
 Two answers, and the choice is the deliverable: correct the sentence, or
 write the missing row. The second is available — `sweep` can build the
 placeholder operand, and a row there would make both blockers loud in
-the file the sentence already points at. Placed as **D66**.
+the file the sentence already points at. Placed as **D66**. **That row was placed by Track F and never carried into Tracks J–X, so it is OPEN AND UNSCHEDULED — the missing row is not evidence it landed.**
 
 ## S123. Assertions whose condition is the value's own codomain
 
@@ -9415,7 +9430,7 @@ Both are cheap deletions rather than repairs: the real assertion is
 already adjacent in each case, and removing the redundant one makes the
 surviving message unambiguous, which is what
 `memories/test-suite-cost.md` asks of a merged row. Neither is a
-correctness risk. Placed as **D67**.
+correctness risk. Placed as **D67**. **That row was placed by Track F and never carried into Tracks J–X, so it is OPEN AND UNSCHEDULED — the missing row is not evidence it landed.**
 
 **This shape is invisible to the obvious detector**, which is why it is
 recorded separately from S121: a rule of the form *"a test whose EVERY
