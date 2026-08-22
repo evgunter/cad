@@ -85,13 +85,15 @@ import sys
 # listed. `crates/pncad/src/guide.rs` pulls `docs/GUIDE.md` and four pages
 # under `docs/guide/` into rustdoc with `#![doc = include_str!(...)]`, which
 # makes every Rust block in them a doctest, and `crates/pncad-py/tests/`
-# executes the python blocks out of the same two files. An edit to one of
-# those pages can therefore turn a build red — so it is not docs, and
-# `_compiled_markdown` below reads the sources on every run to say which pages
-# those are. The header of this file used to assert the opposite ("no crate
-# includes a .md file into its docs, `include_str!` is unused"); it was true
-# when written and had stopped being true, which is the whole argument for
-# deriving the set from the tree rather than restating it here.
+# executes the python blocks out of those same pages and out of that crate's
+# README. An edit to any of them can turn a build red — so they are not docs.
+#
+# THE SET IS READ OFF THE SOURCES ON EVERY RUN (`_compiled_markdown` and
+# `_markdown_read_by_python` below) and must stay that way. A sentence here
+# naming today's pages would be a second roster, and this one is the file that
+# decides whether anything runs: the last such sentence said `include_str!` was
+# unused, went on saying it after five pages started being compiled in, and
+# nothing could contradict it.
 #
 # local-scripts/: the LOCAL half of the tooling split (2026-08-11). No
 # hosted job whose result is a build, a lint or a test may depend on
@@ -197,7 +199,7 @@ def _compiled_markdown(root: str) -> frozenset[str]:
     return frozenset(out)
 
 
-# `--no-renames` IS LOad-BEARING, not a style flag. With rename detection on
+# `--no-renames` IS LOAD-BEARING, not a style flag. With rename detection on
 # — git's default since 2.9 — `git diff --name-only` prints a rename as its
 # DESTINATION PATH ONLY. So a source file moved out of a crate and into a
 # `.md` arrives here as one path that `_is_docs` accepts, the whole change set
@@ -224,8 +226,10 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
     constants, joined. WHAT THIS DOES NOT SEE, said plainly because a
     disclosed blind spot is a work order: a page named any other way — an
     f-string, a glob, a name assembled at runtime, a path read from a fixture
-    file. Those stay in the docs tier and their suite stays skippable. The
-    shape in use is the shape checked.
+    file. Those stay in the docs tier and their suite stays skippable. Nor is
+    the leading `Name` checked to BE the repo root: a chain rooted at a test
+    directory resolves to a path that exists nowhere and simply matches no
+    diff. The shape in use is the shape checked.
     """
     import ast
 
