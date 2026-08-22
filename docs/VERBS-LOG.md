@@ -324,3 +324,21 @@ under the same ratified ruling. The structural class retirement
 will be scheduled as its own unit. After arceval2, (interval,
 1e-12) on main is red on exactly one enumerated row (#925), which
 is the state #920's re-draw compares against.
+
+## CHAMFER MERGED (#920) + ARCEVAL rows recorded (2026-08-22)
+
+The re-draw after the #921 chain came back green (32589961583,
+point (interval, default) — recorded per the sampling convention)
+and #920 merged; #554's sibling verb exists. Ledger rows CHAMFER
+(ordinal 61) and ARCEVAL (ordinal 62, the #922+#926 two-PR unit)
+are in MODEL-AB-LOG — block VERBS-1 is fully consumed
+(RIM fable / CHAMFER opus / ARCEVAL opus / SSIFLAT opus).
+In flight: VERBS-SSIFLAT (the SSIGUARD dispatch re-scoped after a
+model diagnosis — the #925 "NaN" is MANUFACTURED by ssi_refusal's
+error flattening (`MarginDiag::Enclosure → f64::NAN`), masking an
+honest ε-independent in-band escalation; the unit fixes the
+flattening seam + re-scopes the row per the ruling's fourth
+application; #762 confirmed UNRELATED on the call graph and stays
+open as a Wave-2 rider). NEXT after SSIFLAT: block VERBS-2 draw +
+VERBS-RING (ratified definition, the void-door factoring) and the
+VERBS-ARMS spec. Seam sweep: verbs-chamfer lane.
