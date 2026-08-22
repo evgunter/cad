@@ -57,8 +57,8 @@ use geom_core::{Decide, Sign, Tol};
 use super::BooleanError;
 use super::combine::{GraftMap, graft_solid};
 use crate::body::Body;
-use crate::entity::{ShellKey, SolidKey};
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{ShellKey, SolidKey};
 use crate::geometry::SurfaceKey;
 use crate::revert::RevertError;
 

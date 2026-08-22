@@ -74,7 +74,14 @@ fn door_accepts_carried_strict_evidence() {
     let evidence = VoidEvidence {
         shells: cavity
             .shells()
-            .map(|(s, _)| (s, VoidContainment::Carried { sign: Sign::Positive }))
+            .map(|(s, _)| {
+                (
+                    s,
+                    VoidContainment::Carried {
+                        sign: Sign::Positive,
+                    },
+                )
+            })
             .collect(),
     };
     insert_void(&mut dst, solid, cavity, &evidence, Tol::witness()).unwrap();
@@ -117,8 +124,15 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
     let (solid, _) = dst.solids().next().unwrap();
     let pristine = format!("{dst:?}");
     let e = insert_void(&mut dst, solid, cavity, &VoidEvidence::default(), tol).unwrap_err();
-    assert!(matches!(e, VoidInsertError::MissingEvidence { .. }), "{e:?}");
-    assert_eq!(format!("{dst:?}"), pristine, "refusal mutated the destination");
+    assert!(
+        matches!(e, VoidInsertError::MissingEvidence { .. }),
+        "{e:?}"
+    );
+    assert_eq!(
+        format!("{dst:?}"),
+        pristine,
+        "refusal mutated the destination"
+    );
 
     // Failed: probed verdicts that are not strict-inside.
     for verdict in [SolidContainment::Out, SolidContainment::OnBoundary] {

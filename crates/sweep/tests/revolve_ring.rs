@@ -121,7 +121,10 @@ fn hollow_torus_runs_no_crossing_machinery() {
     geom_core::k_stats::start_verdict_log();
     let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
     let verdicts = geom_core::k_stats::take_verdict_log();
-    assert!(!verdicts.is_empty(), "the construction decides through the funnel");
+    assert!(
+        !verdicts.is_empty(),
+        "the construction decides through the funnel"
+    );
     let crossing: Vec<_> = verdicts
         .iter()
         .filter(|v| v.predicate.starts_with("bool_"))
@@ -182,7 +185,9 @@ fn wire_outer_with_hole_cavity() {
     assert_eq!(t.body.shells().count(), 2);
     assert_eq!(t.cavities.len(), 1);
     let RevolvedKind::Full {
-        pi_walls, meridians, ..
+        pi_walls,
+        meridians,
+        ..
     } = &t.kind
     else {
         panic!("full revolve")
