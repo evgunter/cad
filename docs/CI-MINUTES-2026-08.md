@@ -367,6 +367,37 @@ unreachable). Two properties, both load-bearing:
   configuration gated this commit" is answerable during a bisect without
   the run's logs.
 
+### How often the points actually disagree — one verified instance
+
+The premise above says the six points "almost always" agree. That is not
+the same as "always", and the counterexample is same-day: **run
+`32556372010`** (PR #910's fix pass). Of its 32 jobs exactly one failed —
+`test (eps = 1e-6, 2/2)` — while `default` and `1e-12` both decided the
+same fixture cleanly. The cause was an adopted test's fixture margin
+(`chord_side`, 1.0000000000282557e-6) sitting inside 1e-6's zero band,
+and diagnosis found the fixture could not clear the whole matrix at any
+parameter value.
+
+**Read the premise as: disagreements are ε-band fixtures, they exist in
+practice, and this codebase produces them** — its tests deliberately probe
+bands, so a margin engineered near one ε's band is a recurring class
+rather than a freak.
+
+What sampling costs on that class is bounded and already priced in. Such a
+break is caught pre-merge on the draws that hit the offending ε — **1 in 3
+for this instance, not 1 in 6**, because the interval lane now runs the
+whole suite, so an ungated test like this one runs on either lane and only
+the ε draw matters. The other two draws merge it and it surfaces on main,
+which is exactly what "nothing is shipped, so a briefly red main is
+affordable" buys. The persistence argument applies unchanged: the fixture
+stays broken, so a later draw finds it.
+
+**Two consequences for anything that reads a green check.** "PR checks
+green" now attests one point. A review verdict issued "conditional on
+green", or a merge-row battery cell, should say WHICH point gated — the
+job names carry it (`test (eps = 1e-6, 1/2)`) and the SHA-recoverable draw
+makes it derivable after the fact.
+
 ### What is NOT sampled, and the rule
 
 Sampling is sound for a detector whose subject **persists in the tree**:
