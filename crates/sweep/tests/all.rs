@@ -191,6 +191,8 @@ mod revolve_washer;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_rim_closed_lever.rs"]
+mod verbs_rim_closed_lever;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
