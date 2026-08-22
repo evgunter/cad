@@ -568,15 +568,33 @@ are what settles them.
 The push-to-main run drops again with the rebuild-latency move, from
 ~16 to ~14, because that job was one of the three it still carried.
 
-**What this now costs elsewhere, and it is not free.** The nightly bills
-roughly **5 minutes on an ordinary night** (watertight ~2, the
-rebuild-latency table ~2, the gate/record/arm-A steps ~1), plus the
-demoted-test job and, one night a week, the opt-level calibration's arm
-B. It runs **only on days main actually moved**, and nothing on it gates
-a merge. Against a repo doing ~13 code-tier runs an hour during active
-work, a lane that bills a day's worth of one PR run is a rounding error —
-which is the trade the whole demotion argument rests on, stated with a
-number rather than assumed.
+**What this now costs elsewhere, and it is not free.** Derived, not
+measured, and the largest line is not the one you would guess:
+
+| nightly job | billed | note |
+|---|---|---|
+| `demoted` | ~11 | TWO workspace builds — the gate-side listing and the `--cfg nightly_suite` one — then ~64 s of tests |
+| `watertight` | ~2 | |
+| `rebuild latency` | ~2 | its own compile, deliberately not the archive |
+| `gate` + `record` | ~2 | |
+| `opt-level` | ~2 | arm A only; **+~10-15 one night a week** when arm B runs |
+| **an ordinary night** | **~19** | **~30 on a calibration night** |
+
+**`demoted` is over half of it, and the reason is structural rather than
+sloppy**: the selection is a difference between two listings, and a
+listing is a build. The gate-side one is therefore taken at **opt-0** —
+nothing is executed from it, and the selection reads test NAMES and
+`ignored` FLAGS, neither of which an optimisation level can move — which
+is ~130 s against the ~430 s the opt-2 build costs (this document's own
+F-numbers). The run itself keeps opt-2, because the demotion reasons
+written at each test quote their cost *at CI's opt-2 settings* and a
+nightly measuring a different profile would be answering a different
+question.
+
+It runs **only on days main actually moved**, and nothing on it gates a
+merge. Against a repo doing ~13 code-tier runs an hour during active
+work, a lane billing about a third of one PR run per day is the trade the
+demotion argument rests on — stated with a number rather than assumed.
 
 ## What did not land, and why
 
