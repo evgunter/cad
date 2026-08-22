@@ -93,3 +93,28 @@ deliberately HELD** until the open three get responses — it is the
 heaviest conversation and Evan's review bandwidth is the scarce
 resource. In flight: VERBS-RIM implementer (no report yet); #907
 (Q8) awaiting Evan.
+
+## VERBS-RIM review dispatched (2026-08-22)
+
+Implementation landed as **PR #910** (head cfe743cc frozen; CI run
+32551747885 green on the full matrix, 12m45s; k-lint quiet). The
+implementer's report: consumer enumeration complete (convexity_at,
+chain_g1, pub arm_len — no other readers; face_clearance and blend
+setbacks verified non-consumers), two disclosed deviations argued
+as improvements (concave fixture = spherical boss root ring, since
+a closed rim requires an annular profile; >240°-arc levers move
+without verdict changes), three banked findings (on-axis profiles
+mint open half-band rims; a closed single-link chain never gets a
+wrap-around G1 check — live once curved arms land; battery refusal
+order is request order). The lane also stalled once waiting on its
+own CI monitor — the lost-wake shape the discipline doc warns
+about; nudged, recovered.
+
+**Ordinal 60 claimed** (ledger on main through 59/PERR at dispatch)
+→ a third → **DUAL, CROSS-MODEL** (12-pair target not met): R1
+fable + R2 opus, concurrent on the frozen head, identical briefs,
+blinded to each other, v4 ladder, v5 style lane. Lanes
+verbs-rim-r1 / verbs-rim-r2; probe branches verbs/rim-r1-probes /
+-r2-probes requested for authorship-preserving adoption. Reviewer
+models are recorded per protocol (not a secret); the IMPLEMENTER
+arm stays off-record until the merge row.
