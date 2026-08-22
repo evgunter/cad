@@ -588,6 +588,153 @@ jobs:
             echo "even on the nights the expensive arm does not run."
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # THE DEMOTED TESTS. Evan, 2026-08-22: the scheduled job runs ONLY the
+  # demoted tests, not the whole suite — and this job runs exactly them,
+  # derived from the tree rather than from a roster.
+  #
+  # THE MARKER, at the test:
+  #
+  #     #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
+  #
+  # so the test is `#[ignore]`d in every ordinary build and an ordinary test
+  # under `RUSTFLAGS="--cfg nightly_suite"`. It lives AT the test, with its
+  # reason, rather than in a central list — the same argument
+  # check-ci-mirror-parity.py makes for siting `NO LOCAL MIRROR` reasons at
+  # the job: there, it is in the diff of anyone adding one and in front of
+  # anyone reading one.
+  #
+  # SO HOW IS THE SET SELECTED WITHOUT A LIST. `scripts/nightly-only-
+  # selection.py` derives it as the difference between two
+  # `cargo nextest list` outputs — the same trick, and the same shape,
+  # `scripts/interval-only-selection.py` uses for the `interval` feature. Its
+  # header carries the details, including the one that is easy to get wrong:
+  # the difference is over the `ignored` FLAG, because nextest lists ignored
+  # tests too, so subtracting one name set from the other is empty for every
+  # tree — a nightly reporting green having run nothing.
+  #
+  # NO `--run-ignored`, IN ANY SPELLING, AND THE DERIVATION IS WHY IT IS NOT
+  # NEEDED. Under the cfg the demoted tests are ordinary non-ignored tests, so
+  # a plain filtered run executes them. A pre-existing plain `#[ignore]` is
+  # ignored in BOTH listings, cancels out of the difference, and can never be
+  # selected — which is Evan's constraint (tests already `#[ignore]`d stay
+  # unexecuted here too) held by construction rather than by a list. Adding
+  # the flag would sweep in that whole population and break the ruling.
+  #
+  # AND THE `opt-level` JOB ABOVE STILL MUST NOT GAIN THIS FLAG. Its arm B
+  # measures the GATE's test population; with `--cfg nightly_suite` it would
+  # compute E0 over a bigger suite than the E2 it is compared against, which
+  # is the one mistake that produces a confident wrong answer rather than a
+  # failure. The flag is set HERE, on this job, and nowhere else in this file.
+  #
+  # NO LOCAL MIRROR is NOT claimed: `local-scripts/ci-local.sh` carries this
+  # row, behind its `--nightly` flag, and cites the run step below.
+  demoted:
+    name: nightly-only tests (demoted)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 90
+    env:
+      # THE GATE'S OWN BUILD ENVIRONMENT, copied from ci.yml's `build` job.
+      # The demotion reasons written at each test quote wall-clock costs "at
+      # CI's opt-2 settings", so a nightly that ran them under a different
+      # profile would be measuring a different thing from the one the
+      # demotion was argued on.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nightly-demoted
+      # The pinned nextest version is NOT restated here — ci.yml declares
+      # itself the single source of truth for it. Same step, same reason, as
+      # the `opt-level` job above.
+      - name: read the nextest pin from ci.yml
+        id: nextest
+        run: |
+          set -euo pipefail
+          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
+          test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "nextest pin read from ci.yml: $v"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      # THE GATE-SIDE LISTING, AT opt-0 ON PURPOSE. Nothing is executed from
+      # this build: the selection reads test NAMES and their `ignored` flags,
+      # and no optimisation level can move either. So this pays the cheap
+      # compile (~130 s hosted, against ~430 s at opt-2 — the figures in
+      # ci.yml's OPT LEVEL note) for a listing whose only job is to say which
+      # tests the gate skips. The build below, which actually RUNS things,
+      # keeps the job's opt-2 environment.
+      - name: list the suite as the GATE builds it (names and ignore flags)
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: "0"
+          CARGO_PROFILE_TEST_OPT_LEVEL: "0"
+        run: cargo nextest list --workspace --message-format json > "$RUNNER_TEMP/list-gate.json"
+      - name: list the suite with --cfg nightly_suite
+        env:
+          RUSTFLAGS: --cfg nightly_suite
+        run: cargo nextest list --workspace --message-format json > "$RUNNER_TEMP/list-nightly.json"
+      - name: derive the demoted set (the difference between the two listings)
+        run: |
+          set -euo pipefail
+          scripts/nightly-only-selection.py \
+            "$RUNNER_TEMP/list-gate.json" "$RUNNER_TEMP/list-nightly.json" \
+            > "$RUNNER_TEMP/nightly-selection.txt"
+      # `--no-tests` IS DECIDED BY THE SELECTION, mirroring ci-local.sh's
+      # identical conditional on the interval selection: nextest exits 4 on a
+      # zero-test run, which is the alarm we want when a real filter matches
+      # nothing, and exactly wrong for the `none()` the selection script emits
+      # for a tree carrying no markers at all. Any other filter that selects
+      # nothing still fails this row.
+      #
+      # AN EMPTY SET IS NOT A SILENT ZERO. The script only emits `none()`
+      # after PROVING from the source that no marker exists anywhere under
+      # crates/; markers present and an empty difference is a broken rig and
+      # exits 1 in the step above. And the count is echoed below, so "the
+      # nightly ran N demoted tests" is read off the run rather than assumed.
+      - name: run the demoted tests (and nothing else)
+        env:
+          RUSTFLAGS: --cfg nightly_suite
+        run: |
+          set -euo pipefail
+          sel="$(cat "$RUNNER_TEMP/nightly-selection.txt")"
+          extra=""
+          n=0
+          if [ "$sel" = "none()" ]; then
+            extra="--no-tests=pass"
+          else
+            # One `|`-joined term per selected test — the filter's own shape,
+            # counted rather than re-derived.
+            n="$(printf '%s' "$sel" | tr '|' '\n' | wc -l | tr -d ' ')"
+          fi
+          echo "demoted tests selected: $n"
+          echo "nightly-only (demoted) tests selected: **$n**" >> "$GITHUB_STEP_SUMMARY"
+          # NO --run-ignored: see this job's header. Under the cfg these are
+          # ordinary tests; the pre-existing #[ignore]d population is not in
+          # this selection and stays unexecuted.
+          cargo nextest run --workspace -E "$sel" $extra
+
   # NO LOCAL MIRROR: it pushes the append-only `nightly/<epoch>-<sha>` tag that
   # is this workflow's entire memory of when it last ran. Nothing local reads
   # that tag, nothing local pushes one, and a developer running the local gate
@@ -595,7 +742,7 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, opt-level]
+    needs: [gate, watertight, rebuild-latency, opt-level, demoted]
     # `!cancelled()` rather than `success()`, DELIBERATELY. The tag records
     # that this tree WAS EXAMINED, not that it passed: a red row here is
     # visible in the run list and in the summary, and re-examining the same
@@ -637,36 +784,17 @@ jobs:
           git push origin "refs/tags/$tag"
           echo "recorded $tag" >> "$GITHUB_STEP_SUMMARY"
 
-# THE DEMOTED TESTS — the mechanism, and where the job goes.
+# THE DEMOTED TESTS' PLUMBING, in one place because it is easy to tidy away.
 #
-# NOT WIRED YET, because nothing is demoted yet: the marker is a per-test
-# attribute and the first one lands with the crate change that demotes it.
-# This note is here so that job is a small diff rather than a decision.
-#
-# THE MARKER, at the test:
-#
-#     #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
-#
-# and this workflow builds with `RUSTFLAGS="--cfg nightly_suite"`, which makes
-# the attribute vanish from demoted tests only.
-#
-# THE CONSTRAINT IT SATISFIES BY CONSTRUCTION (Evan, 2026-08-22): tests that
-# are ALREADY plain `#[ignore]` — reporting rows, instruments, tests only
-# valid as the sole test in a process — must stay UNEXECUTED here too. So
-# this workflow must NEVER pass `--run-ignored` (in any spelling) to nextest.
-# It is not a list anyone has to maintain: a plain `#[ignore]` still carries
-# its attribute under the cfg, and an un-run selection cannot reach it.
-# Verified end-to-end on rustc 1.97.0 / cargo-nextest 0.9.140, under both
-# `cargo test` and `cargo nextest run`, with `-D warnings`.
-#
-# THE ONE PIECE OF PLUMBING THAT IS NOT OPTIONAL: `cfg(nightly_suite)` must be
-# declared in `[workspace.lints.rust]`'s `unexpected_cfgs` check-cfg list (and
-# hand-mirrored into crates/pncad-py/Cargo.toml, whose
+# `cfg(nightly_suite)` MUST stay declared in `[workspace.lints.rust]`'s
+# `unexpected_cfgs` check-cfg list (and hand-mirrored into
+# crates/pncad-py/Cargo.toml, whose
 # `crate_lints_match_the_workspace_minus_unsafe_code` test pins the
-# agreement). Without it the marker is `error: unexpected 'cfg' condition
+# agreement). Without it every marker is `error: unexpected 'cfg' condition
 # name` under `-D warnings` and the whole workspace goes red — loud rather
-# than silent, but red.
+# than silent, but red. Cargo.toml says so at the declaration.
 #
-# NOTE THE `opt-level` JOB ABOVE MUST NOT GAIN THAT FLAG. Its arm B measures
-# the GATE's test population; adding the demoted tests to it would compute E0
-# over a different suite than the E2 it is compared against.
+# Verified end-to-end on rustc 1.97.0 / cargo-nextest 0.9.140, under both
+# `cargo test` and `cargo nextest run`, with `-D warnings`: at the gate the
+# demoted test is skipped and so is a plain `#[ignore]`; under the cfg the
+# demoted test RUNS and the plain `#[ignore]` still does not.

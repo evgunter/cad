@@ -287,6 +287,57 @@ the same uncached target directory, behind a plain
 landed here: this finding measured the `fmt` job, and a claim about a
 10-minute job wants its own reading rather than this one's, extrapolated.
 
+> **SUPERSEDED for `k-lint`, 2026-08-22 — and the reasoning above is kept
+> because it is still true, just no longer the lever.** The paragraph
+> reads the 10 minutes as a CACHING problem. It is not one. Those rows
+> are FIVE FEATURE UNIFICATIONS — default-features dev, default-features
+> `--release`, `--release --features budget`, dev `--features budget`,
+> dev `--features probe` — and they share almost no artifacts by
+> construction: `--release` and dev are different profiles, and `budget`
+> and `probe` are opt-in features gated at a module boundary, so every
+> crate that sees one carries a different fingerprint under it. **No
+> cache configuration collapses five distinct compilations into one.**
+> What the `workspaces:` input would have bought here is the same thing
+> it bought the `fmt` job — the excluded roots' dependency artifacts
+> surviving between runs — against a job whose cost is five compiles of
+> the kernel, not one cold one.
+>
+> What collapsed it instead is **sampling**: the job now draws ONE of the
+> five per run, seeded independently of the lane and ε draws
+> (`scripts/ci-filter.py`'s `KLINT_ROWS`), which takes it from ~10 billed
+> minutes to ~2-3. The cache lever is not thereby wrong; it is
+> proportionally much smaller, because it now applies to whichever single
+> unification a run drew. The one piece of it that DID land is the cheap
+> half: the job's `rust-cache` key now carries the drawn row's PROFILE, so
+> the two dev draws and the two release draws each keep a cache lane
+> instead of one entry thrashing between profiles.
+>
+> **Why sampling is admissible here and was not proposed for the rustdoc
+> gate.** The rule is at *What is NOT sampled* below: sampling covers a
+> detector whose subject PERSISTS in the tree. All five rows were audited
+> one at a time against it before the wiring was written — a clippy
+> finding, a failed ε pin, a grown triangle budget, a probe suite that
+> stopped compiling all stay broken until someone fixes them, so a later
+> draw finds them; and the one row that looked like an absence-detector,
+> the probe census, is not one, because the half that would notice a probe
+> suite *disappearing* (`probe-suite-census.sh` in its default mode, with
+> its `CENSUS_FLOOR`) is sited in `discipline`, which is unconditional and
+> unsampled. The rustdoc gate's six roots are *independent*, which is the
+> different reason given below for not sampling that one: sampling buys
+> latency there proportionally rather than exploiting near-certain
+> agreement.
+>
+> **What it costs, recorded because it is a real cost and nothing else
+> records it.** Two ratified review outcomes read on those rows as
+> UNCONDITIONAL and are now 1-in-5: MIN-1's per-triangle certificate
+> falsifier (the `dev-budget` row), and `crates/sweep/tests/k_report.rs`
+> plus `docs/K-REPORT.md`, which both say the probe harness is
+> type-checked and run *"on every building merge"*. No gate reds on
+> either — the census gate greps for the step NAME, not for how often it
+> runs — so those two sentences are simply false in that one phrase and
+> are owed a correction. Said out loud here and at the job, which is what
+> ci.yml's own step comment asks for.
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
@@ -315,6 +366,68 @@ landed here: this finding measured the `fmt` job, and a claim about a
   `scripts/doc-gate.sh --print-roots`, which runs the gate's own
   derivation, so the cache's scope cannot drift from the gate's coverage.
   **−1 billed min.**
+
+### 2026-08-22, the second pass — and it is a different KIND of change
+
+The five items above tune what a job costs. The six below change **what
+runs at all**, or **when**, and each carries the argument for why that is
+sound rather than a cut. They land together on one branch.
+
+* **`persistence` and `band 4 corpus` DELETED** (not merged again —
+  deleted). `bb65cb9` above had just collapsed each one's ε matrix; the
+  ε *sampling* two days later made the jobs themselves redundant, and
+  the ordering is the whole story. Every module they named —
+  `m4_pr6_roundtrip::`, `m4_pr6_floats::`, `m4_pr6_golden::`,
+  `m4_pr6_eps_diff::`, the D6.3 schema/corruption rows, `m4_pr8_corpus::`
+  — is an ordinary `#[test]` in the nextest archive that the `test` job
+  already runs at the ε THIS RUN DREW. The two jobs re-ran them at 1e-6
+  AND 1e-12 unconditionally, which is not extra coverage: it is the ε
+  sampling defeated for exactly those modules. **No replacement
+  mechanism** (Evan: *"no need to make any special attempt to keep
+  m4_pr8_corpus visible. just make it a normal test"*) — no filter
+  expression, no named row, no doc pointer. `m4_pr6_eps_diff::` never
+  needed the loop at all: it re-execs itself per ε, which is the only way
+  two ε values can exist in one audit. **−4 billed min.**
+* **`k-lint (gate)` samples ONE of its five feature unifications per
+  run**, drawn under a salt of its own. See the superseded-cache block in
+  F6 above for why this and not a cache, and for the per-row
+  absence-detector audit that had to come first. **−7 to −8 billed min**,
+  the largest single item in this pass.
+* **`watertight` → the nightly** (Evan, explicit). A persistence-detector
+  with one solo red in 37 days, and that one was a rustup outage.
+  **−1 to −2 billed min.**
+* **`rebuild latency (reporting)` SPLIT.** The wall-clock table moved to
+  the nightly; its ε-independent structural pins (counted reuse, the
+  corpus manifest's nodes/cone) became an ordinary non-`#[ignore]`d
+  `#[test]` in `editor-core`, inside the archive. That half now gates
+  EVERY PR at about zero marginal cost, where the job ran only on
+  `run_editor_core` — so this ADDS coverage while removing the minutes.
+  **−2 billed min on the PR side, and −2 per merge**: the push-to-main
+  run is now `filter` + `renders`.
+* **`render lanes`: five jobs → two.** `uv` and `wild` fold into the tour
+  job under one `CARGO_TARGET_DIR` (measured first: the two roots build
+  58 and 57 packages, differing only in each root's own leaf crate, no
+  version mismatch anywhere — which is why this is NOT the
+  `CARGO_TARGET_DIR` variant F6 rejected, where the fingerprints
+  genuinely differed); the two montage legs merge behind one 821 MB
+  FreeCAD cache restore, one apt install and one setup, with a
+  failure-collecting loop preserving both verdicts. Every lane still
+  produces every artifact under the same name. **−2.8 to −4.2 billed
+  min.**
+* **A nightly lane exists** (`.github/workflows/nightly.yml`), holding
+  `watertight`, the rebuild-latency table, the demoted tests and the
+  opt-level calibration below. It does not run when main has not moved
+  since it last ran — an append-only `nightly/<epoch>-<sha>` tag, with
+  the tier question handed to `scripts/ci-filter.py` rather than to a
+  second classifier. **This is not the scheduled full run on main that
+  F3 left owed and Evan declined**; see *What did not land* below, where
+  that entry now says why the two are different questions.
+
+**Two things in that list are coverage ADDITIONS, and it is worth saying
+so in a document about spending less:** the rebuild-latency structural
+pins now gate every PR rather than only `run_editor_core` runs, and the
+seven newly demoted tests — which the gate skips by construction — run in
+the nightly, where before this branch they would have run nowhere at all.
 
 ## The wall-clock cost of the four job merges: zero
 
@@ -427,6 +540,41 @@ feature rather than waste. What remains, in rough order of size, is
 F5 (policy), F1's paired change to `render-hosted.sh`, and whatever
 F4 measures.
 
+**Then configuration sampling took it to ~62**, which is the current
+baseline: the derivation is in *Expected cost, derived not measured*
+below (~79 → ~60 on that section's arithmetic; ~62 is the same figure
+carrying the two later `fmt`-job widenings). The draft skip cuts the
+COUNT of full runs on top of that and multiplies against everything here.
+
+### And the 2026-08-22 second pass takes it to ~40
+
+Derived the same way — per code-tier PR run, against the ~62 above.
+Every line is the item from *What landed* directly above; none of these
+is measured on a runner yet, and the first few real runs of the branch
+are what settles them.
+
+| item | Δ billed |
+|---|---|
+| `persistence` + `band 4 corpus` deleted | −4 |
+| `k-lint` samples 1 of 5 unifications | −7 to −8 |
+| `watertight` → nightly | −1 to −2 |
+| `rebuild latency` split (table → nightly) | −2 |
+| render lanes: five jobs → two | −2.8 to −4.2 |
+| **total** | **−17 to −20**, i.e. **~62 → ~40** |
+
+The push-to-main run drops again with the rebuild-latency move, from
+~16 to ~14, because that job was one of the three it still carried.
+
+**What this now costs elsewhere, and it is not free.** The nightly bills
+roughly **5 minutes on an ordinary night** (watertight ~2, the
+rebuild-latency table ~2, the gate/record/arm-A steps ~1), plus the
+demoted-test job and, one night a week, the opt-level calibration's arm
+B. It runs **only on days main actually moved**, and nothing on it gates
+a merge. Against a repo doing ~13 code-tier runs an hour during active
+work, a lane that bills a day's worth of one PR run is a rounding error —
+which is the trade the whole demotion argument rests on, stated with a
+number rather than assumed.
+
 ## What did not land, and why
 
 * **render lanes off PR runs** — F1. Breaks `render-hosted.sh`'s
@@ -440,7 +588,28 @@ F4 measures.
 * **a scheduled full run on main** — DECLINED (Evan, 2026-08-22), not
   owed. The next PR's merge-ref is main plus that branch and tests the
   landed tree anyway. See F3 for the residue that is accepted with it.
+
+  *Still declined after the 2026-08-22 nightly lane landed, and the two
+  are not the same proposal.* A scheduled FULL run re-gates a tree the
+  next PR will gate anyway, at the price of a whole gate per period
+  whether or not anything landed. The nightly runs what NO PR run can:
+  rows deliberately taken off the per-PR gate (`watertight`, the demoted
+  tests), a measurement lane that wants a cadence rather than a merge
+  (rebuild latency), and a calibration whose subject is the runner itself.
+  It also does not fire on a period — it fires on main having moved, which
+  is the property the declined proposal lacked.
 * **draft-PR skip** — F5. Policy decision.
+* **`RUN_EDITOR_CORE` retired** — considered when `persistence`, `band 4
+  corpus` and `rebuild latency` all left ci.yml, and NOT done: the
+  `test-interval` job's two named interval rows still read it, as does
+  the local half. A signal with live consumers is not dead plumbing.
+* **running only the demoted tests via a central filterset** in
+  `.config/nextest.toml` — rejected on the same ground the marker is
+  sited at the test: a second list drifts out of sync with the tests it
+  names. The set is derived instead, as the difference between two
+  `cargo nextest list` outputs (`scripts/nightly-only-selection.py`,
+  modelled on `scripts/interval-only-selection.py`) — no list, and a test
+  whose marker is deleted leaves the set on the next run.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
@@ -514,8 +683,21 @@ silently, once.
 So `mirror` is not sampled (and structurally cannot be:
 `check-ci-mirror-parity.py` requires it to run on every tier, since its
 own inputs are the docs-tier paths on which every `if: run_build` job
-skips). Neither are `discipline`, `fmt`, `k-lint`, the python suite or
-the render lanes.
+skips). Neither are `discipline`, `fmt`, the python suite or the render
+lanes.
+
+**`k-lint` WAS in that list and no longer is, as of later the same day.**
+Its five feature unifications are sampled one per run, under a third
+salt. Nothing about the rule above changed — the rule is what licensed
+it, and each of the five was audited against it individually rather than
+as a group, because "this job is mostly persistence-detectors" is not an
+argument about the row that is not. The audit and its result are in the
+block quote inside F6; the short form is that the row which looked like
+an absence-detector (the probe census) is not one, because the half of
+that census which would notice a probe suite *disappearing* runs in
+`discipline`, which is unsampled. **A future entry to this list has to be
+argued the same way**: per row, against absence, with the answer written
+down — not by inheriting `k-lint`'s.
 
 ### The interval lane runs the whole suite again
 
@@ -565,6 +747,79 @@ everything above and is the larger lever of the two.
   Margins of ~2x and ~3x. The interval lane is why it is not close, and
   it got *more* expensive to execute under sampling, not less.
 
+  > **THE `r` IN THAT PARAGRAPH IS NOW IN DOUBT — 2026-08-22, later the
+  > same day.** A census re-measured the same ratio at **4.95 (default)
+  > and 4.99 (interval)** on a 4-core AVX-512 guest, against the 6.46 and
+  > 7.08 above. That removes about 30% of the quantity the verdict rests
+  > on and turns "margins of ~2x and ~3x" into **0.94x and 0.91x** — opt-0
+  > winning outright, with no cuts at all.
+  >
+  > **This does NOT flip anything, and the reason is the whole point.**
+  > The census box is not the box CI runs on: a 4-core AVX-512 guest
+  > against a 2-vCPU hosted runner, and `r` is exactly the kind of number
+  > that does not transfer between machines — the figures above already
+  > say so in the other direction (the compile penalty measured 4.58x
+  > hosted against 3.24x locally, and the execution win 7.1x hosted
+  > against 2.29x locally). Two boxes disagreeing about `r` is expected;
+  > what the census establishes is that **the number this verdict turns
+  > on has never been measured on the runner it is about.**
+  >
+  > So the reading of this bullet is: opt-level 2 stays, *and its
+  > justification is now known to be unverified rather than merely
+  > untested.* `nightly.yml`'s `opt-level calibration` job settles it on
+  > the real box, and records `r`, `E2`, `a2 − a0` and the build/total
+  > split beside each verdict so the next reader can tell when the
+  > conclusion expired rather than inheriting a bare `opt-level = 2`.
+  > **It has expired once already**: opt-2 (#449) was itself a reversal of
+  > an earlier opt-0 verdict (#52/#53) whose premises went stale, which is
+  > the strongest available argument for measuring it on a cadence instead
+  > of writing it down once.
+
+### Demoting a test to the nightly, and why it needed no roster
+
+The nightly lane exists (above); this is the mechanism that puts a test
+in it, recorded here because it is a decision about **what a PR run
+gates**, which is this section's subject rather than the audit's.
+
+At the test, with its reason:
+
+    #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
+
+and the nightly builds with `RUSTFLAGS="--cfg nightly_suite"`. At the
+gate the attribute is present and the test is skipped; in the nightly it
+vanishes and the test is ordinary.
+
+**Evan's constraint, and it holds by construction rather than by a
+list**: tests that are ALREADY plain `#[ignore]` — reporting rows,
+instruments, tests only valid as the sole test in a process — must stay
+unexecuted in the nightly too. So the nightly must never pass
+`--run-ignored` in any spelling, and it does not need to: under the cfg
+the demoted tests are ordinary tests that a plain filtered run executes,
+while a plain `#[ignore]` still carries its attribute and is not in the
+selection.
+
+**Which tests, without a roster.** The marker lives at the test — the
+same argument `check-ci-mirror-parity.py` makes for siting its
+`NO LOCAL MIRROR` reasons at the job — so there is nothing to read the
+set off, and a central filterset in `.config/nextest.toml` would be a
+second list that drifts. It is DERIVED instead, exactly as
+`scripts/interval-only-selection.py` derives the interval feature's own
+tests: list the suite twice, subtract. The one detail that is easy to get
+wrong, and that a name-set difference gets wrong silently, is that
+`cargo nextest list` reports ignored tests too — so the difference is
+over the `ignored` FLAG (`{t : ignored at the gate, not ignored under the
+cfg}`), and a name-set difference would be empty for every tree, every
+night, reporting green having run nothing. `scripts/nightly-only-
+selection.py`'s header carries the verified listing output.
+
+**An empty set is legitimate and is still not accepted blindly.** A tree
+with no markers has nothing to run; two listings built the same way — the
+flag not reaching the second build, a misspelt cfg — produce the same
+empty set and would zero the lane permanently. The script separates them
+from the SOURCE, the way the interval one does: no marker anywhere under
+`crates/` proves the empty case, markers present with an empty difference
+is a broken rig and fails.
+
 ### `ready_for_review` is load-bearing
 
 The default `pull_request` type set is `[opened, synchronize,
@@ -578,12 +833,20 @@ not a saving, it is a hole.
 1. **F1's paired change** — render lanes off PR runs *and*
    `render-hosted.sh` defaulting to dispatch. 12 billed minutes, and the
    largest single item left on the PR side.
-2. **`k-lint (gate)`'s cache** — F6's hole, in the job where it is worth
-   more. The rustdoc gate's half is measured and landed (F6: `fmt` back
-   to 2 billed minutes, no coverage given up); `k-lint` builds the same
-   five excluded roots behind the same unconfigured `rust-cache`, for
-   clippy, tests and a release build rather than a doc pass, and bills
-   10. Same one-input fix, unmeasured there.
+2. ~~**`k-lint (gate)`'s cache**~~ — **SUPERSEDED 2026-08-22**, and the
+   entry is kept rather than deleted because the reason it was wrong is
+   the useful part. It read a 10-minute job as a caching problem; the
+   job is five feature unifications that share almost no artifacts, and
+   no cache configuration collapses five compilations into one. Sampling
+   one of the five per run does, and did (~10 → ~2-3). The full argument,
+   the per-row soundness audit it required, and the piece of the cache
+   lever that DID land are in the block quote inside F6 above. The
+   original entry read:
+
+   > `k-lint` builds the same five excluded roots behind the same
+   > unconfigured `rust-cache`, for clippy, tests and a release build
+   > rather than a doc pass, and bills 10. Same one-input fix, unmeasured
+   > there.
 
    Sampling the rustdoc gate — the entry this replaces — is off the
    table for now, and F6 is why: the gate is back inside 2 billed
@@ -595,4 +858,31 @@ not a saving, it is a hole.
 3. **A scheduled full run on main** — still owed from F3, and now owed
    more: with the push run trimmed and the PR run sampled, no single
    tree is gated at every point by hosted CI. Deliberately not bundled
-   here (Evan: "the PRs will get it").
+   here (Evan: "the PRs will get it"). **Unchanged by the nightly lane**,
+   which is a different proposal — see *What did not land* above.
+
+**New, and ranked from here (2026-08-22).**
+
+4. **The opt-level verdict is unverified on the box it is about, and the
+   lane that settles it is now in the nightly.** ci.yml's OPT LEVEL note
+   turns on `r`, the opt-0/opt-2 execution ratio, quoted at 6.46 (default
+   lane) and 7.08 (interval) from a developer's box. A census measured the
+   same ratio at **4.95 / 4.99** on a 4-core AVX-512 guest — about 30%
+   lower, which would turn that note's "~2x and ~3x margins" into 0.94x
+   and 0.91x, i.e. opt-0 winning outright. **That is not actionable as a
+   flip**: a ratio does not transfer between machines and the census box
+   is not CI's 2-vCPU runner. It is actionable as *the number has never
+   been measured where CI runs*. `nightly.yml`'s `opt-level calibration`
+   job measures it: arm A (opt-2) read free from recent gate runs' step
+   durations, arm B (opt-0) measured deliberately, weekly plus a >20%
+   drift trigger, verdict by direct comparison (`a2 + E2 < a0 + E0`) with
+   no model. Reporting only. The history is
+   `docs/perf-data/opt-level/`. **Read the first few samples before
+   quoting either figure again** — including the ones in this document.
+5. **`k-lint`'s cache, at its new size.** The lever is not wrong, just
+   proportionally smaller: it now applies to whichever single unification
+   a run drew. Unmeasured, and worth less than it was.
+6. **F4's sccache reading**, still owed (#853), and now against a
+   different baseline: the two build jobs are one build job per run since
+   sampling, so a workspace-crate hit is worth half what the F4 note
+   priced it at.

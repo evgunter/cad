@@ -111,11 +111,25 @@ ORIG_ARGS=("$@")
 # --- change filter: one shared implementation with .github/workflows/ci.yml
 FULL=0
 BASE=""
+# THE NIGHTLY (DEMOTED) ROW IS OPT-IN, and that is the one place this script
+# is NOT a superset of a hosted run. The superset claim it makes elsewhere is
+# about the sampled MATRIX — both lanes, all three eps, all five k-lint
+# unifications — and a demoted test is not a matrix point: it is a test Evan
+# ruled need not run per-PR at all, and this script is the per-PR gate of
+# record when hosted Actions is unavailable. Running it by default would put
+# back, in the half a developer waits on, exactly the cost the demotion
+# removed — and it costs more here than hosted, because `--cfg nightly_suite`
+# is a different fingerprint for every crate and so a second full compile of
+# the workspace's test binaries. The row exists, is cited, and is one flag
+# away; see `nightly_demoted` below, which also keeps that compile in a
+# target directory of its own so it cannot invalidate this tree's.
+RUN_NIGHTLY=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --full) FULL=1; shift ;;
+    --nightly) RUN_NIGHTLY=true; shift ;;
     --base) BASE="${2:?--base needs a ref}"; shift 2 ;;
-    *) echo "usage: ci-local.sh [--full] [--base <ref>]" >&2; exit 2 ;;
+    *) echo "usage: ci-local.sh [--full] [--nightly] [--base <ref>]" >&2; exit 2 ;;
   esac
 done
 
@@ -234,6 +248,21 @@ run_row_if() {
     run_row "$name" "$@"
   else
     echo; echo "=== [$name] SKIPPED (not in the change closure)"
+    NAMES+=("$name"); RESULTS+=("SKIP  0s")
+  fi
+}
+
+# Same bookkeeping, different SKIP reason, and the difference is worth a
+# function: a row skipped by the change filter is one the filter proved this
+# change cannot have moved, while a row skipped here is one nobody asked for.
+# Printing the first sentence over the second would be a small lie in the one
+# artefact a reader consults about what ran.
+run_row_opt_in() {
+  local cond="$1" name="$2" why="$3"; shift 3
+  if [ "$cond" = true ]; then
+    run_row "$name" "$@"
+  else
+    echo; echo "=== [$name] SKIPPED ($why)"
     NAMES+=("$name"); RESULTS+=("SKIP  0s")
   fi
 }
@@ -501,6 +530,68 @@ interval_tests() {
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
   cargo nextest run $SCOPE --features interval -E "$sel" $extra
 }
+# THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
+#
+#     #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
+#
+# is `#[ignore]`d in every ordinary build — including every row above — and an
+# ordinary test under `RUSTFLAGS="--cfg nightly_suite"`. Without this row those
+# tests run in NEITHER half: hosted skips them at the gate by design, and this
+# script would skip them too. That is the hole this row closes locally; the
+# hosted half of it is nightly.yml's `demoted` job.
+#
+# THE SET IS DERIVED, NOT DECLARED — `scripts/nightly-only-selection.py`, the
+# difference between two `cargo nextest list` outputs, exactly as
+# `interval_selection` above derives the interval feature's own tests. Its
+# header carries the details; the two that matter at this call site are that
+# the difference is over the `ignored` FLAG (nextest lists ignored tests, so a
+# name-set difference is empty for every tree) and that a pre-existing plain
+# `#[ignore]` is ignored in both listings and so can never be selected.
+#
+# `--workspace`, NOT `$SCOPE`, in both listings. The nightly is unscoped, and
+# a scoped listing here would be worse than merely different: the selection
+# script proves a legitimate empty set by scanning the WHOLE tree for markers,
+# so a scope with no demoted tests while markers exist elsewhere would take
+# its broken-rig arm and fail this row for the wrong reason.
+NIGHTLY_SEL="target/ci-local/nightly-selection.txt"
+# A TARGET DIRECTORY OF ITS OWN. `--cfg nightly_suite` rides RUSTFLAGS, which
+# is part of every crate's fingerprint, so building it into `target/` would
+# invalidate this tree's artifacts — and then invalidate them back on the next
+# ordinary cargo command, for as long as anyone alternates. Hosted does not
+# care (a fresh runner, one build) and a developer's box does.
+NIGHTLY_TARGET="target/ci-local/nightly-suite"
+nightly_selection() {
+  mkdir -p target/ci-local \
+    && CARGO_TARGET_DIR="$NIGHTLY_TARGET" \
+         cargo nextest list --workspace --message-format json \
+         > target/ci-local/nextest-list-gate.json \
+    && CARGO_TARGET_DIR="$NIGHTLY_TARGET" RUSTFLAGS="--cfg nightly_suite" \
+         cargo nextest list --workspace --message-format json \
+         > target/ci-local/nextest-list-nightly.json \
+    && scripts/nightly-only-selection.py \
+         target/ci-local/nextest-list-gate.json \
+         target/ci-local/nextest-list-nightly.json > "$NIGHTLY_SEL"
+}
+# `--no-tests` is decided by the SELECTION, the same conditional the interval
+# rows above carry and hosted's `demoted` job repeats: nextest exits 4 on a
+# zero-test run, which is the alarm we want when a real filter matches
+# nothing, and exactly wrong for the `none()` the selection script emits for a
+# tree that carries no markers at all.
+#
+# NO `--run-ignored`, IN ANY SPELLING. Under the cfg these are ordinary tests
+# and a plain filtered run executes them; the flag would sweep in the whole
+# pre-existing `#[ignore]`d population, which is what Evan ruled out.
+# HOSTED MIRROR: demoted / run the demoted tests (and nothing else)
+# shellcheck disable=SC2086
+nightly_demoted() {
+  nextest_check && nightly_selection || return 1
+  local sel extra=""
+  sel=$(cat "$NIGHTLY_SEL")
+  [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  CARGO_TARGET_DIR="$NIGHTLY_TARGET" RUSTFLAGS="--cfg nightly_suite" \
+    cargo nextest run --workspace -E "$sel" $extra
+}
+
 # shellcheck disable=SC2086
 interval_eps() {
   nextest_check && interval_selection || return 1
@@ -804,6 +895,10 @@ run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --featu
 run_row "test (interval)"              interval_tests
 run_row "test (interval, eps = 1e-6)"  interval_eps
 run_row "doc-tests (interval)"         interval_doc_tests
+# Opt-in; the reasoning is at RUN_NIGHTLY near the top of this file, and the
+# derivation is at `nightly_demoted` above.
+run_row_opt_in "$RUN_NIGHTLY" "nightly-only tests (demoted)" \
+  "cadence lane — pass --nightly to run it" nightly_demoted
 # Root package editor-core (persistence D6.*, band 4 corpus D1, latency D2).
 run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
 run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
