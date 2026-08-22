@@ -18,11 +18,19 @@ one per montage lane (#159: "our tessellation vs FreeCAD"):
                  re-tessellate it: the FreeCAD/OCC reference lane
                  (export -> OCC import -> render, dogfooded end-to-end).
 
-`scene=NAME` renders exactly one scene, which is how render.sh drives
-BOTH lanes: one freecadcmd process per scene under a per-scene budget,
-because a warm session that renders many scenes deadlocks partway
-through (#224 follow-up). Rendering several scenes in one invocation
-still works, for hand runs.
+`scene=NAME` restricts the pass to that scene; REPEAT it to render a
+BATCH of scenes in one process (`scene=a scene=b scene=c`). Whatever
+order the keywords come in, the scenes are rendered in scenes.json
+order, so a batch's frames do not depend on how it was spelled.
+
+That is how render.sh drives BOTH lanes: `CAD_RENDER_BATCH` scenes per
+freecadcmd process (default 1 — one process per scene, as it has been
+since #224) under a budget of that many per-scene budgets. The warm
+session that deadlocked partway through in #224 was root-caused in
+2026-08 to FreeCAD's notification area re-entering its own mutex under
+the offscreen plugin, and is disabled below; the process boundary is
+kept as what BOUNDS a future hang, which is why the batch is a knob
+with a small default and not "render everything in one process".
 
 Both selectors are BARE keywords, not --flags: freecadcmd's own option
 parser rejects unknown dashed tokens and its --pass passthrough drops
@@ -32,12 +40,13 @@ untouched. Camera = the manifest's (elev, azim, up), in matplotlib
 scene from one definition of that spec (`manifest`), one of them using
 it forwards and this one using the inverse derived from it.
 
-Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene=NAME] <outdir> <renderdir>
+Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene=NAME]... <outdir> <renderdir>
 """
 
 import math
 import os
 import sys
+import traceback
 from pathlib import Path
 
 # freecadcmd runs this script with the render staging tree as its cwd,
@@ -231,17 +240,23 @@ def render_scene(scene, objs, view, renderdir):
 def main():
     args = sys.argv[1:]
     use_step = "step" in args
-    only = next((a.split("=", 1)[1] for a in args if a.startswith("scene=")), None)
+    # Every scene= keyword, not just the first: one of them is a scene,
+    # several are a BATCH. The selection filters the manifest's own
+    # list, so the render order is scenes.json order however the batch
+    # was spelled -- a batch's frames must not depend on argv order.
+    only = [a.split("=", 1)[1] for a in args if a.startswith("scene=")]
     pos = [
         a for a in args if a not in ("mesh", "step") and not a.startswith("scene=")
     ]
     outdir, renderdir = Path(pos[-2]), Path(pos[-1])
     renderdir.mkdir(parents=True, exist_ok=True)
     scenes = manifest.read_scenes(outdir)
-    if only is not None:
-        scenes = [s for s in scenes if s.name == only]
-        if not scenes:
-            raise SystemExit(f"unknown scene: {only}")
+    if only:
+        wanted = list(dict.fromkeys(only))
+        scenes = [s for s in scenes if s.name in set(wanted)]
+        unknown = [n for n in wanted if n not in {s.name for s in scenes}]
+        if unknown:
+            raise SystemExit(f"unknown scene(s): {', '.join(unknown)}")
     doc = App.newDocument("scenes")
     by_scene = import_bodies(doc, scenes, outdir, use_step)
     view = Gui.activeDocument().activeView()
@@ -261,4 +276,62 @@ def main():
     os._exit(0)
 
 
-main()
+# WHY main() IS NOT CALLED BARE, AND WHY THE PRINT IS HERE.
+#
+# freecadcmd SWALLOWS the traceback of anything this script raises: it
+# reports only "Unknown exception while processing file" and then treats
+# whatever argv is left as documents to open ("File format not supported:
+# .." — a symptom of the swallow, not the cause). Worse, the failure path
+# then runs FreeCAD's document teardown, which SIGSEGVs offscreen
+# (closeAllDocuments -> slotDeleteDocument -> setActiveDocument ->
+# runString -> PyException::PyException) — it crashes while building the
+# object that would have described the error. Ten render-lane failures
+# were undiagnosable for exactly this reason.
+#
+# So the traceback is printed HERE, at the innermost point that still has
+# it, and FLUSHED before the exception is allowed to continue outwards:
+# anything that defers output until interpreter shutdown or teardown may
+# never run at all. Then the exception is RE-RAISED unchanged — this
+# handler makes the failure visible, it does not change what failing
+# means, and it deliberately does not os._exit() over the teardown crash,
+# which would hide a second, real bug.
+#
+# BaseException, not Exception: the script's own errors are SystemExit,
+# and those are swallowed by freecadcmd just as thoroughly.
+#
+# The success path never reaches this: main() ends in os._exit(0).
+def _print_traceback():
+    """Put the current exception's traceback on stderr, NOW.
+
+    Every arm below is blind and silent on purpose — that is what the
+    noqa markers claim and this is the claim: it is the last thing that
+    will ever describe this failure, and a reporter that raises on its
+    way out reports nothing at all.
+    """
+    try:
+        text = traceback.format_exc()
+    except Exception:  # noqa: BLE001 — formatting failed; say SOMETHING anyway
+        text = "render_freecad: exception whose traceback could not be formatted\n"
+    try:
+        # stdout first, so the per-scene log keeps its ordering.
+        sys.stdout.flush()
+    except Exception:  # noqa: BLE001, S110 — ordering is a nicety, the text is not
+        pass
+    try:
+        sys.stderr.write(text)
+        sys.stderr.flush()
+        return
+    except Exception:  # noqa: BLE001, S110 — fall through to the raw fd
+        pass
+    # Last resort: the raw fd, which has no Python-level buffer to lose.
+    try:
+        os.write(2, text.encode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001, S110 — nothing left to try, and no way to say so
+        pass
+
+
+try:
+    main()
+except BaseException:
+    _print_traceback()
+    raise

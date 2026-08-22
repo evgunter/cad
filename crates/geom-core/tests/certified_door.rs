@@ -33,13 +33,29 @@
 //! guarantee degrades and a row that goes red only at the value someone
 //! thought of.
 //!
-//! **Every row here executes on CI, the `probe` one included.** The suite
-//! is rostered in `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`, so
-//! `scripts/k_probe_sweep.sh`'s roster-driven `run_plain` selects it under
-//! `--features probe` on every merge and the census's `--check-executed`
-//! complement fails if that invocation is ever dropped. A probe-gated body
-//! nobody runs is the state that roster exists to end, and this one had no
-//! reason to be in it.
+//! **Every row here executes on CI, the `probe` one included** — the
+//! non-probe rows on every run, the `probe` row on 1 run in 5. The
+//! suite is rostered in `scripts/gates/probe-suite-census.sh`'s
+//! `RUN_FLOOR`, so `scripts/k_probe_sweep.sh`'s roster-driven
+//! `run_plain` selects it under `--features probe`, and the census's
+//! `--check-executed` complement fails if that invocation is ever
+//! dropped. Since 2026-08-22 the `k-lint` job SAMPLES one of its five
+//! feature unifications per run, and `k_probe_sweep.sh` rides the
+//! `dev-probe` row — so the `probe` row's expected frequency is 1 in
+//! 5, seeded from the head SHA under its own salt (a re-run of one
+//! commit draws the same row, and the draw is recoverable from the SHA
+//! without the logs). Repetition covers the matrix at this
+//! repository's ~60 runs/hour of active work.
+//!
+//! That sampling is sound here and NOT in general: this row is a
+//! PERSISTENCE detector — a degraded certified door stays degraded in
+//! the tree, so a later draw still finds it, and the red is deferred
+//! rather than lost. The ABSENCE half is deliberately not sampled:
+//! `--check-executed` and the `RUN_FLOOR` it reads run unconditionally
+//! in the `discipline` job, because a suite that DISAPPEARS leaves no
+//! future red to catch and would merge silently, once. A probe-gated
+//! body nobody runs is the state that roster exists to end, and this
+//! one had no reason to be in it.
 //!
 //! Refusal is not free-standing: what a refusal *does* is cross into the
 //! ring as poison. The last rows pin that, per corpus member, at

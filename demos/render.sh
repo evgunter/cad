@@ -14,16 +14,28 @@
 #       montage can be compared against, cell for cell (same scenes.json
 #       cameras/captions/grid).
 #
-# ONE FREECADCMD PROCESS PER SCENE, IN BOTH LANES (#224 follow-up). A
-# warm FreeCAD session that renders many scenes deadlocks partway
-# through — reproducibly on this host, at a different scene each time,
-# on an idle box as well as a loaded one (freecadcmd at 0% CPU,
-# `wchan = futex_do_wait`): it is the session that wedges, not any one
-# scene. So no session is reused across scenes, and every scene runs
-# under a per-scene wall-clock budget (see SCENE_TIMEOUT) with the
-# process tree killed and ONE fresh retry when the budget is exhausted.
-# A budget exhausted TWICE fails the pass, loudly, naming the scene and
-# the budget — never a silent skip, never a degraded cell.
+# ONE FREECADCMD PROCESS PER SCENE, IN BOTH LANES (#224 follow-up) —
+# AND STILL EXACTLY THAT BY DEFAULT. A warm FreeCAD session that
+# rendered many scenes deadlocked partway through — reproducibly on
+# this host, at a different scene each time, on an idle box as well as a
+# loaded one (freecadcmd at 0% CPU, `wchan = futex_do_wait`): it was the
+# session that wedged, not any one scene. That deadlock was ROOT-CAUSED
+# in 2026-08 — FreeCAD's notification area re-entering its own
+# non-recursive mutex under the offscreen QPA plugin — and
+# render_freecad.py disables it before FreeCADGui loads, so the process
+# boundary is no longer a workaround for a live bug. It is kept because
+# it is what BOUNDS a future hang: CAD_RENDER_BATCH is exactly the dial
+# for how much of a pass one hang can cost. Every process runs under a
+# wall-clock budget (see SCENE_TIMEOUT) with the process tree killed and
+# ONE fresh retry when the budget is exhausted. A budget exhausted TWICE
+# fails the pass, loudly, naming the scene and the budget — never a
+# silent skip, never a degraded cell.
+#
+# ...AND, BY DEFAULT, ONE PER PROCESS. CAD_RENDER_BATCH renders that
+# many scenes in ONE freecadcmd process, trading FreeCAD's startup (a
+# near-constant few seconds, paid once per process) against blast radius
+# (a hang costs its whole batch). Default 1 — byte-for-byte today's
+# behaviour, down to the log filenames.
 #
 # ...AND, BY DEFAULT, ONE AT A TIME. CAD_RENDER_JOBS renders that many
 # scenes concurrently — still one fresh session per scene, so it does
@@ -77,8 +89,9 @@ fi
 
 FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/bin/freecadcmd}"
 
-# ---- per-scene budget ----------------------------------------------
-# Wall-clock budget for ONE scene in ONE fresh freecadcmd process,
+# ---- per-PROCESS budget --------------------------------------------
+# Wall-clock budget for ONE fresh freecadcmd process — at the default
+# B=1 that is one scene, which is what the name records.
 # FreeCAD's startup included. What it must clear is not the typical
 # scene but the worst LEGITIMATE one, and on this workload that is set
 # by machine contention, not by the scene: measured over full passes of
@@ -92,6 +105,34 @@ FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/
 # the whole night. Raise FREECAD_SCENE_TIMEOUT only for a scene that is
 # genuinely that slow — a wedge does not get faster with a bigger
 # budget.
+#
+# THIS BUDGET IS PER PROCESS, NOT PER SCENE (Evan, 2026-08-22). A batch
+# of N scenes gets THIS number, not N x it. The name predates batching
+# and is kept because at the default B=1 a process IS a scene, so it
+# still reads true where almost everyone meets it.
+#
+# Why not N x. The budget's job is to BOUND A HANG, and a bound that
+# scales with the batch is not a bound: at B=5 an N x budget lets a
+# wedge burn 2 x 5 x 300s = 50 minutes, five times today's worst case,
+# on a lane whose render step carries no outer `timeout-minutes` of its
+# own. A flat budget makes the worst case INVARIANT under the batch
+# size — 2 x this, at every B — so raising B trades no latency risk at
+# all. It is also still generous: a batch pays ONE startup, and startup
+# is most of a typical scene, so N scenes in one process take far less
+# than N x one scene.
+#
+# WHAT IT COSTS, stated because it is a real edge: on a CONTENDED box,
+# where a scene can take minutes, a large batch could exhaust a budget
+# that N separate scenes would not. That does not bite at the B=1
+# default this file ships, and anyone raising B on a loaded box should
+# raise this with it.
+#
+# The alternative, a per-scene watchdog INSIDE the process, was rejected
+# on the root cause: the hang it would have to interrupt is a mutex
+# re-entry on FreeCAD's own main thread, which never gets back to a
+# bytecode boundary and never releases the GIL, so neither a Python
+# signal handler nor a watchdog thread would ever run. Only a process
+# outside can kill it, and `timeout` is that process.
 SCENE_TIMEOUT="${FREECAD_SCENE_TIMEOUT:-300}"
 # Grace between the budget's SIGTERM and SIGKILL to the scene process.
 SCENE_KILL_GRACE=5
@@ -114,29 +155,71 @@ RENDER_JOBS="${CAD_RENDER_JOBS:-1}"
 case "$RENDER_JOBS" in
     ''|*[!0-9]*|0) echo "CAD_RENDER_JOBS must be a positive integer, got '$RENDER_JOBS'" >&2; exit 2 ;;
 esac
+
+# ---- how many scenes per freecadcmd process ------------------------
+# DEFAULT 1 — one fresh process per scene, which is what this lane has
+# done since #224 and what every measurement in the budget note above
+# was taken under. At 1 this knob changes NOTHING: the same processes in
+# the same order, the same per-scene budget, the same per-scene log
+# filenames, the same failure messages.
+#
+# Above 1, that many CONSECUTIVE scenes (scenes.json order) render in
+# ONE freecadcmd process, paying FreeCAD's startup once instead of once
+# per scene. Startup is worth paying less often: on the hosted runner a
+# scene costs 3-9 s with a MEDIAN of 5 s across scenes of wildly
+# different geometric complexity, and a near-constant floor under wildly
+# varying work is process + GUI startup, not drawing.
+#
+# WHAT IT COSTS, AND WHY THE DEFAULT IS NOT "ALL OF THEM". The process
+# boundary is what bounds a hang. At batch B a wedge costs B scenes'
+# work before the pass gives up. The WALL CLOCK it can burn doing so
+# is 2 x SCENE_TIMEOUT at every B — see the budget note — so the trade
+# and it is linear in B, so a SMALL batch takes most of the startup
+# saving while keeping a hang's blast radius to a fraction of a pass.
+#
+# WHAT IT MUST NOT COST IS THE PIXELS. Scenes in one process share a
+# document and a view (render_freecad.py: one warm document, per-scene
+# visibility toggling — per-scene document cycling races the offscreen
+# view-provider setup, which is a worse bug than the one being avoided),
+# so batching is admissible only if a batched frame is BYTE-IDENTICAL to
+# an unbatched one. That is this knob's acceptance test, the same one
+# CAD_RENDER_JOBS had to pass, and it is asked of a repeat render on ONE
+# box — PNG bytes are not comparable across GL stacks.
+RENDER_BATCH="${CAD_RENDER_BATCH:-1}"
+case "$RENDER_BATCH" in
+    ''|*[!0-9]*|0) echo "CAD_RENDER_BATCH must be a positive integer, got '$RENDER_BATCH'" >&2; exit 2 ;;
+esac
 LOGDIR=out/freecad-logs
 # Where an in-flight pass lives. Untracked (out/ is gitignored), and
 # holding a directory named after each lane, so a staged frame's path
 # — which FreeCAD stamps into it — matches its published one exactly.
 STAGE_ROOT=out/stage
 
-# Set by render_scene for its caller.
-SCENE_REASON=""     # why the scene failed
-SCENE_TIMED_OUT=0   # 1 iff the failure was the budget, twice
-SCENE_SECS=0        # wall seconds of the winning (or last) attempt
+# Set by render_batch for its caller. A "batch" is one freecadcmd
+# process and the scenes it renders; at CAD_RENDER_BATCH=1 that is one
+# scene, and every message below reads exactly as it did before.
+BATCH_REASON=""     # why the batch failed
+BATCH_TIMED_OUT=0   # 1 iff the failure was the budget, twice
+BATCH_SECS=0        # wall seconds of the winning (or last) attempt
 
-# One attempt at one scene, in a FRESH freecadcmd process under the
-# budget. The attempt runs in its OWN SESSION so the budget covers the
-# whole process TREE: `timeout` signals only its direct child, so
-# anything a wedged FreeCAD spawned would outlive it; the session's
-# process group is swept after a timeout. `setsid -w` is what makes
-# the exit status propagate (plain setsid may fork and return 0), and
-# the exec'd shell reports the session leader's pid — the pgid to kill.
+# One attempt at one BATCH of scenes, in a FRESH freecadcmd process
+# under the batch's budget. The attempt runs in its OWN SESSION so the
+# budget covers the whole process TREE: `timeout` signals only its
+# direct child, so anything a wedged FreeCAD spawned would outlive it;
+# the session's process group is swept after a timeout. `setsid -w` is
+# what makes the exit status propagate (plain setsid may fork and
+# return 0), and the exec'd shell reports the session leader's pid —
+# the pgid to kill.
 # Returns 124 iff the budget was exhausted, whatever ended the process.
-scene_attempt() {
-    local name=$1 lane=$2 mode=$3 log=$4
-    local pgidfile="$LOGDIR/$name.pgid" pgid rc=0
+batch_attempt() {
+    local bid=$1 lane=$2 mode=$3 log=$4 budget=$5 name
+    shift 5
+    local pgidfile="$LOGDIR/$bid.pgid" pgid rc=0 scenes=""
     local start=$(date +%s)
+    # One `scene=` keyword per scene. render_freecad.py renders them in
+    # scenes.json order whatever order they arrive in, so this string
+    # cannot become a second, disagreeing definition of scene order.
+    for name in "$@"; do scenes="$scenes scene=$name"; done
     rm -f "$pgidfile"
     set +e
     (
@@ -146,23 +229,31 @@ scene_attempt() {
         # scene's last sign of life, which is what tells a stalled
         # process from a slow one.
         exec 2>/dev/null
-        RT_GRACE="$SCENE_KILL_GRACE" RT_BUDGET="$SCENE_TIMEOUT" \
+        RT_GRACE="$SCENE_KILL_GRACE" RT_BUDGET="$budget" \
         RT_FC="$FREECADCMD" RT_RENDERER="$PWD/render_freecad.py" \
-        RT_MODE="$mode" RT_SCENE="$name" RT_LANE="$lane" \
+        RT_MODE="$mode" RT_SCENES="$scenes" RT_LANE="$lane" \
         RT_ROOT="$STAGE_ROOT" RT_PGID="$pgidfile" \
             setsid -w bash -c '
                 echo $$ >"$RT_PGID"
                 # The scene process runs with the STAGING ROOT as its
                 # cwd, so the render directory it is handed is the bare
-                # lane name — FreeCAD stamps the saveImage PATH into
-                # the PNG (a tEXt "Title" chunk), so a staged frame is
-                # byte-identical to a published one only if that path
-                # string is identical too. The staging root sits one
+                # lane name, matching the published one. That WAS a
+                # byte-identity requirement — FreeCAD stamps the
+                # saveImage path into the PNG as a tEXt "Title" chunk —
+                # and is now only tidiness: strip_png_stamps.py drops
+                # Title as of 2026-08-22, so the bytes of a frame no
+                # longer record where it was written. NOTE: this comment
+                # sits inside a single-quoted bash -c body, so it must
+                # not contain an apostrophe. The staging root sits one
                 # level under demos/out, so the tour output dir is "..".
                 cd "$RT_ROOT"
+                # RT_SCENES unquoted: it is one `scene=NAME` keyword
+                # per scene and scene names are identifiers by
+                # construction (see the SC2086 disables below).
+                # shellcheck disable=SC2086
                 exec timeout -k "$RT_GRACE" "$RT_BUDGET" \
                     env QT_QPA_PLATFORM=offscreen \
-                    "$RT_FC" "$RT_RENDERER" "$RT_MODE" "scene=$RT_SCENE" \
+                    "$RT_FC" "$RT_RENDERER" "$RT_MODE" $RT_SCENES \
                     .. "$RT_LANE"
             ' >"$log" 2>&1
     )
@@ -173,7 +264,7 @@ scene_attempt() {
     # SIGTERM it sends, but escalating to SIGKILL means signalling its
     # own process group — so `timeout` dies along with the scene and
     # reports 137 instead. Both are the budget running out.
-    if [ "$rc" -ne 0 ] && [ "$(( $(date +%s) - start ))" -ge "$SCENE_TIMEOUT" ]; then
+    if [ "$rc" -ne 0 ] && [ "$(( $(date +%s) - start ))" -ge "$budget" ]; then
         rc=124
     fi
     if [ "$rc" -eq 124 ]; then
@@ -187,29 +278,44 @@ scene_attempt() {
     return $rc
 }
 
-# Render ONE scene, isolated and budgeted, retried ONCE if the budget
-# was the thing that failed. A crash is NOT retried: it is deterministic
-# and the caller's business. Success is the PNG existing, not the exit
-# status — freecadcmd's Qt teardown can crash after a fully successful
-# render (offscreen destructor bug).
-render_scene() {
-    local name=$1 lane=$2 mode=$3
+# Render ONE BATCH of scenes, isolated and budgeted, retried ONCE if the
+# budget was the thing that failed. THE WHOLE BATCH IS RETRIED, frames
+# and all: every frame is rewritten from the same inputs to the same
+# path, so re-rendering a scene that already succeeded is idempotent and
+# costs only its own seconds — and it keeps the retry a plain "run that
+# process again" rather than a second, subtly different code path that
+# only ever executes after a wedge. A crash is NOT retried: it is
+# deterministic and the caller's business (batch_status splits it).
+# Success is every PNG existing, not the exit status — freecadcmd's Qt
+# teardown can crash after a fully successful render (offscreen
+# destructor bug).
+render_batch() {
+    local bid=$1 lane=$2 mode=$3
+    shift 3
     local stage="$STAGE_ROOT/$lane"
-    local log="$LOGDIR/$name.log" attempt start rc stalled
-    SCENE_REASON=""; SCENE_TIMED_OUT=0; SCENE_SECS=0
+    local log="$LOGDIR/$bid.log" attempt start rc stalled name missing
+    # `what` is a SUFFIX, empty for a batch of one, so a single-scene
+    # process reports "rendered in 5s" exactly as it always has.
+    local n=$# budget=$SCENE_TIMEOUT what="" frames="the frame was"
+    [ "$n" -eq 1 ] || { what=" $n scenes"; frames="the frames were"; }
+    BATCH_REASON=""; BATCH_TIMED_OUT=0; BATCH_SECS=0
     for attempt in 1 2; do
         start=$(date +%s)
         rc=0
-        scene_attempt "$name" "$lane" "$mode" "$log" || rc=$?
-        SCENE_SECS=$(( $(date +%s) - start ))
-        if [ -f "$stage/$name.png" ]; then
-            echo "  [$name] rendered in ${SCENE_SECS}s (attempt $attempt)"
-            # The frame is good (chunk framing and CRCs are checked
+        batch_attempt "$bid" "$lane" "$mode" "$log" "$budget" "$@" || rc=$?
+        BATCH_SECS=$(( $(date +%s) - start ))
+        missing=""
+        for name in "$@"; do
+            [ -f "$stage/$name.png" ] || missing="$missing $name"
+        done
+        if [ -z "$missing" ]; then
+            echo "  [$bid] rendered${what} in ${BATCH_SECS}s (attempt $attempt)"
+            # The frames are good (chunk framing and CRCs are checked
             # downstream), but the process still had to be killed:
-            # FreeCAD stalled AFTER the render. Never silent — this is
-            # the wedge showing itself where it costs nothing.
+            # FreeCAD stalled AFTER the last render. Never silent — this
+            # is the wedge showing itself where it costs nothing.
             if [ "$rc" -eq 124 ]; then
-                echo "  [$name] NOTE — the frame was written, then the process stalled past the ${SCENE_TIMEOUT}s budget and was killed (log: $LOGDIR/$name.log)" >&2
+                echo "  [$bid] NOTE — ${frames} written, then the process stalled past the ${budget}s budget and was killed (log: $LOGDIR/$bid.log)" >&2
             fi
             return 0
         fi
@@ -218,15 +324,15 @@ render_scene() {
             # that is merely slow keeps writing to its log, a wedged
             # session goes silent. Both outcomes are the same failure.
             stalled=$(( $(date +%s) - $(stat -c %Y "$log") ))
-            SCENE_REASON="freecadcmd exceeded the ${SCENE_TIMEOUT}s per-scene budget (silent for the last ${stalled}s)"
-            SCENE_TIMED_OUT=1
+            BATCH_REASON="freecadcmd exceeded the ${budget}s budget (one process, ${n} scene(s)), no frame for:${missing} (silent for the last ${stalled}s)"
+            BATCH_TIMED_OUT=1
             if [ "$attempt" -eq 1 ]; then
-                echo "  [$name] TIMED OUT after ${SCENE_TIMEOUT}s — process tree killed, retrying once in a fresh process (silent for the last ${stalled}s)" >&2
+                echo "  [$bid] TIMED OUT after ${budget}s — process tree killed, retrying the whole batch once in a fresh process (silent for the last ${stalled}s)" >&2
                 continue
             fi
         else
-            SCENE_TIMED_OUT=0
-            SCENE_REASON="freecadcmd rc=$rc: $(tail -n 2 "$log" | tr '\n' ' ' | cut -c1-160)"
+            BATCH_TIMED_OUT=0
+            BATCH_REASON="freecadcmd rc=$rc: $(tail -n 2 "$log" | tr '\n' ' ' | cut -c1-160)"
         fi
         return 1
     done
@@ -234,42 +340,84 @@ render_scene() {
 }
 
 # ---- running the scenes --------------------------------------------
-# render_scene reports through globals, which a background job cannot
-# hand back, so the concurrent path routes the same three facts through
-# a per-scene status file. Two lines, because the reason is free text:
+# render_batch reports through globals, which a background job cannot
+# hand back, so the concurrent path routes the same facts through a
+# PER-SCENE status file — per scene, not per batch, so everything
+# downstream still reasons about scenes. Two lines, because the reason
+# is free text:
 #
-#   line 1:  ok|fail|wedged <seconds>
+#   line 1:  ok|fail|wedged <seconds> <batch id>
 #   line 2:  the reason (empty on success)
 #
-# The parent then reads them in SCENES.JSON ORDER, so the pass's report,
-# its failure, and which scene ends it are all identical whatever order
-# the scenes actually finished in. Only the progress chatter interleaves.
-scene_status() {
-    local name=$1 lane=$2 mode=$3
-    local st="$LOGDIR/$name.status" kind=ok
-    if render_scene "$name" "$lane" "$mode"; then
-        printf 'ok %s\n\n' "$SCENE_SECS" >"$st"
-    else
-        [ "$SCENE_TIMED_OUT" -eq 1 ] && kind=wedged || kind=fail
-        printf '%s %s\n%s\n' "$kind" "$SCENE_SECS" "$SCENE_REASON" >"$st"
+# <seconds> is the whole batch's wall clock and <batch id> names the
+# process that produced it (and its log, $LOGDIR/<batch id>.log), so the
+# reader can attribute one process's time once rather than once per
+# scene. At CAD_RENDER_BATCH=1 the batch id IS the scene name and both
+# fields mean what they always meant.
+#
+# The parent reads them in SCENES.JSON ORDER, so the pass's report, its
+# failure, and which scene ends it are all identical whatever order the
+# scenes actually finished in. Only the progress chatter interleaves.
+#
+# A FAILED BATCH IS SPLIT, which is what keeps a batch from widening a
+# failure. One scene FreeCAD cannot draw kills the process it is in, so
+# in a batch of 5 it would take the four innocent scenes down with it —
+# four placeholder cells (STEP lane) or a whole-lane matplotlib fallback
+# (kernel lane) caused by a scene that renders perfectly well. So a
+# non-timeout failure re-runs each frameless scene of that batch ALONE,
+# one process each: the guilty scene fails exactly as it does today,
+# with its own log under its own name, and the innocent ones render.
+# The split costs one extra process per frameless scene and is only ever
+# reached on a failure. A WEDGE is NOT split: a budget exhausted twice
+# ends the pass regardless, so splitting would only spend another
+# 2 x budget per scene to reach the same exit.
+batch_status() {
+    local bid=$1 lane=$2 mode=$3
+    shift 3
+    local stage="$STAGE_ROOT/$lane" name kind=ok secs reason
+    if render_batch "$bid" "$lane" "$mode" "$@"; then
+        for name in "$@"; do
+            printf 'ok %s %s\n\n' "$BATCH_SECS" "$bid" >"$LOGDIR/$name.status"
+        done
+        return
     fi
+    [ "$BATCH_TIMED_OUT" -eq 1 ] && kind=wedged || kind=fail
+    # Snapshot: a split re-enters render_batch and overwrites these.
+    secs=$BATCH_SECS; reason=$BATCH_REASON
+    for name in "$@"; do
+        if [ -f "$stage/$name.png" ]; then
+            printf 'ok %s %s\n\n' "$secs" "$bid" >"$LOGDIR/$name.status"
+        elif [ "$kind" = wedged ] || [ "$#" -eq 1 ]; then
+            printf '%s %s %s\n%s\n' "$kind" "$secs" "$bid" "$reason" \
+                >"$LOGDIR/$name.status"
+        else
+            batch_status "$name" "$lane" "$mode" "$name"
+        fi
+    done
 }
 
-# Sets ST_KIND / ST_SECS / ST_REASON from a scene's status file. A
-# missing file is a bug in this script, not a scene outcome — say so
-# rather than silently treating it as either.
-ST_KIND=""; ST_SECS=0; ST_REASON=""
+# Sets ST_KIND / ST_SECS / ST_BID / ST_REASON from a scene's status
+# file. A missing file is a bug in this script, not a scene outcome —
+# say so rather than silently treating it as either.
+ST_KIND=""; ST_SECS=0; ST_BID=""; ST_REASON=""
 read_status() {
     local st="$LOGDIR/$1.status"
     [ -f "$st" ] || { echo "internal: no status file for scene '$1'" >&2; exit 3; }
-    { read -r ST_KIND ST_SECS; read -r ST_REASON; } <"$st"
+    { read -r ST_KIND ST_SECS ST_BID; read -r ST_REASON; } <"$st"
 }
 
-# Render every named scene, at most RENDER_JOBS in flight. `wait -n`
-# starts the next scene the moment ANY running one finishes rather than
-# draining the whole batch, so a single slow scene cannot idle the other
-# slots. At RENDER_JOBS=1 this is a plain sequential loop — the same
-# order, the same one-process-at-a-time, as before the knob existed.
+# Render every named scene, RENDER_BATCH scenes per process, at most
+# RENDER_JOBS processes in flight. `wait -n` starts the next process the
+# moment ANY running one finishes rather than draining the whole wave,
+# so a single slow process cannot idle the other slots. At
+# RENDER_JOBS=1, RENDER_BATCH=1 this is a plain sequential loop — the
+# same order, the same one-process-at-a-time, as before either knob
+# existed.
+#
+# Batches are CONSECUTIVE runs of the scene list, so a batch's scenes
+# are adjacent in scenes.json and in every report built from it; the
+# scene that ends a wedged pass is still the earliest failing one in
+# scenes.json order.
 #
 # ONE BEHAVIOUR DOES CHANGE ABOVE K=1: a wedge no longer ends the pass
 # where it happens. Sequentially the loop reaches the bad scene and
@@ -279,15 +427,44 @@ read_status() {
 # budget) and the OUTCOME is identical — same scene named, same exit,
 # committed tree equally untouched — so this is a cost, not a hole.
 PASS_SECS=0   # wall clock of the whole render loop, set by render_all
+BATCH_INDEX=0 # numbers the multi-scene batches, for their log names
+
+# Start one batch in the background, once a job slot is free. A batch of
+# ONE is identified by its scene's name — so at CAD_RENDER_BATCH=1 (and
+# for a split, and for a lane's odd last batch) the log is
+# $LOGDIR/<scene>.log exactly as it has always been; only a genuinely
+# multi-scene process gets a batchNN name, which is also the name every
+# message about it uses.
+launch_batch() {
+    local lane=$1 mode=$2 bid
+    shift 2
+    BATCH_INDEX=$(( BATCH_INDEX + 1 ))
+    if [ "$#" -eq 1 ]; then bid=$1; else bid=$(printf 'batch%02d' "$BATCH_INDEX"); fi
+    while [ "$(jobs -rp | wc -l)" -ge "$RENDER_JOBS" ]; do wait -n; done
+    batch_status "$bid" "$lane" "$mode" "$@" &
+}
+
 render_all() {
     local lane=$1 mode=$2 name start
+    local -a batch=()
     shift 2
     start=$(date +%s)
+    BATCH_INDEX=0
     rm -f "$LOGDIR"/*.status
+    # Batch log names are POSITIONAL (batch01, batch02, ...), so unlike a
+    # scene log they name different scenes from one pass to the next — a
+    # leftover batch07.log from a pass at a different CAD_RENDER_BATCH
+    # would be read as this pass's. Scene logs are left alone: their
+    # names still mean exactly one thing.
+    rm -f "$LOGDIR"/batch*.log
     for name in "$@"; do
-        while [ "$(jobs -rp | wc -l)" -ge "$RENDER_JOBS" ]; do wait -n; done
-        scene_status "$name" "$lane" "$mode" &
+        batch+=("$name")
+        if [ "${#batch[@]}" -ge "$RENDER_BATCH" ]; then
+            launch_batch "$lane" "$mode" "${batch[@]}"
+            batch=()
+        fi
     done
+    [ "${#batch[@]}" -gt 0 ] && launch_batch "$lane" "$mode" "${batch[@]}"
     wait
     PASS_SECS=$(( $(date +%s) - start ))
 }
@@ -296,16 +473,23 @@ render_all() {
 # and with the committed tree untouched — the same contract as the
 # absent-FreeCAD arm: a pass that did not finish publishes nothing.
 wedged() {
-    local name=$1 rd=$2
-    local stage="$STAGE_ROOT/$rd"
+    local name=$1 rd=$2 bid=${3:-$1}
+    local stage="$STAGE_ROOT/$rd" unit="scene '$name'" budget=$SCENE_TIMEOUT
+    if [ "$bid" != "$name" ]; then
+        # A batched process: the budget is the PROCESS's — one
+        # SCENE_TIMEOUT however many scenes it carried, so `budget` is
+        # already right — and the scene named is the earliest one in
+        # the batch that never got a frame.
+        unit="batch '$bid' (${RENDER_BATCH} scenes), no frame for scene '$name'"
+    fi
     cat >&2 <<EOF
 
 ================================================================
- RENDER WEDGED — scene '$name'
-   exhausted the ${SCENE_TIMEOUT}s per-scene budget TWICE, each time
+ RENDER WEDGED — $unit
+   exhausted the ${budget}s budget TWICE, each time
    in a fresh freecadcmd process whose tree was then killed. Two
-   fresh processes stalling on one scene is not a slow scene.
-   log: demos/$LOGDIR/$name.log
+   fresh processes stalling on the same work is not slow work.
+   log: demos/$LOGDIR/$bid.log
  THE PASS FAILS HERE. No montage is composed, and
    demos/$rd/
  is left exactly as committed: this pass rendered into
@@ -329,14 +513,42 @@ scene_names() {
     "$VENV/bin/python" manifest.py --scene-names out "$@"
 }
 
-# Wall-time summary of the pass — the per-scene distribution is the
-# evidence a budget is sized right (or has drifted).
+# Wall-time summary of the pass — the distribution is the evidence a
+# budget is sized right (or has drifted). $1 names what is being
+# counted: one PROCESS's wall clock is one datum, which is a scene at
+# CAD_RENDER_BATCH=1 and a batch above it. Counting it per scene would
+# quietly restate a batch's seconds as each of its scenes' — the same
+# number reported N times — and the budget is applied per process, so
+# the process is the honest unit.
 scene_stats() {
+    local unit=$1
+    shift
     printf '%s\n' "$@" | "$VENV/bin/python" -c 'import sys
+unit = sys.argv[1]
 t = sorted(int(x) for x in sys.stdin.read().split())
 n = len(t)
-print(f"{n} scene(s): median {t[n // 2]}s, max {t[-1]}s, total {sum(t)}s"
-      if n else "no scenes")'
+print(f"{n} {unit}(s): median {t[n // 2]}s, max {t[-1]}s, total {sum(t)}s"
+      if n else f"no {unit}s")' "$unit"
+}
+
+# What scene_stats is counting, and what the lane line calls it.
+STATS_UNIT=scene
+BATCH_NOTE=""
+if [ "$RENDER_BATCH" -gt 1 ]; then
+    STATS_UNIT=batch
+    BATCH_NOTE=" x ${RENDER_BATCH} scene(s)/process"
+fi
+
+# Collect one time per PROCESS. Scenes share a status line with the rest
+# of their batch, so the same seconds must not be counted once per
+# scene: SEEN_BIDS is the set of batches already counted.
+SEEN_BIDS=" "
+count_time() {
+    case "$SEEN_BIDS" in
+        *" $1 "*) return ;;
+    esac
+    SEEN_BIDS="$SEEN_BIDS$1 "
+    times+=("$2")
 }
 
 # Move a completed pass from staging into the committed lane directory.
@@ -380,10 +592,12 @@ if [ "${1:-}" = "--freecad" ]; then
     for name in $names; do
         read_status "$name"
         case "$ST_KIND" in
-            ok) times+=("$ST_SECS") ;;
+            ok) count_time "$ST_BID" "$ST_SECS" ;;
             # A wedge ends the pass; a scene that genuinely cannot be
-            # imported or rendered costs one labeled cell, as before.
-            wedged) wedged "$name" "$RD" ;;
+            # imported or rendered costs one labeled cell, as before —
+            # batch_status re-ran it alone to make sure the cost is one
+            # cell and not its whole batch.
+            wedged) wedged "$name" "$RD" "$ST_BID" ;;
             *)
                 printf '%s\n' "$ST_REASON" >"$STAGE/$name.fail.txt"
                 echo "  [$name] FAILED — $ST_REASON (placeholder cell; log: $LOGDIR/$name.log)" >&2
@@ -391,16 +605,17 @@ if [ "${1:-}" = "--freecad" ]; then
                 ;;
         esac
     done
-    # The per-scene "total" is summed wall clock, so above RENDER_JOBS=1
+    # The "total" is summed PROCESS wall clock, so above RENDER_JOBS=1
     # it exceeds the pass's own wall clock — both are printed rather
     # than one being quietly redefined.
-    echo "STEP lane: $(scene_stats "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s) [budget ${SCENE_TIMEOUT}s/scene]"
+    echo "STEP lane: $(scene_stats "$STATS_UNIT" "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s)${BATCH_NOTE} [budget ${SCENE_TIMEOUT}s/scene]"
     if [ "$fails" -gt 0 ]; then
         echo "$fails scene(s) fell back to placeholder cells" >&2
     fi
-    # FreeCAD stamps the wall clock into every PNG it writes, so an
-    # unchanged re-render still shows up dirty in `git status`. Drop
-    # those two ancillary chunks (see strip_png_stamps.py) BEFORE the
+    # FreeCAD stamps the wall clock and the output path into every PNG
+    # it writes, so an unchanged re-render still shows up dirty in
+    # `git status` and the same pixels at two paths are two files. Drop
+    # those three ancillary chunks (see strip_png_stamps.py) BEFORE the
     # frames are published, so the sheet is composed from — and the
     # lane directory holds — the same bytes that get committed.
     "$VENV/bin/python" strip_png_stamps.py "$STAGE"
@@ -461,15 +676,15 @@ render_all "$RD" mesh $names
 for name in $names; do
     read_status "$name"
     case "$ST_KIND" in
-        ok) times+=("$ST_SECS") ;;
+        ok) count_time "$ST_BID" "$ST_SECS" ;;
         # This lane has no placeholder cells: a scene it cannot render
         # is a lane it cannot certify, so it goes to the preview tree
         # whole rather than committing a hole. A wedge is louder still.
-        wedged) wedged "$name" "$RD" ;;
+        wedged) wedged "$name" "$RD" "$ST_BID" ;;
         *) fallback "scene '$name': $ST_REASON" ;;
     esac
 done
-echo "kernel lane: $(scene_stats "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s) [budget ${SCENE_TIMEOUT}s/scene]"
+echo "kernel lane: $(scene_stats "$STATS_UNIT" "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s)${BATCH_NOTE} [budget ${SCENE_TIMEOUT}s/scene]"
 
 # Same wall-clock strip as the STEP lane, before publishing.
 "$VENV/bin/python" strip_png_stamps.py "$STAGE"

@@ -258,17 +258,84 @@ concurrency:
   cancel-in-progress: ${{ inputs.gate == true }}
 
 jobs:
-  # Every lane reads demos/out (scenes.json + per-body STL/STEP + the UV
-  # SVGs), and building the tour is the slow half of a warm run — so it
-  # is built ONCE here and handed on as an artifact rather than compiled
-  # once per lane.
-  tour:
-    name: demo tour (scene inputs)
+  # THE THREE RENDERER-FREE LANES, IN ONE JOB (merged 2026-08-22).
+  #
+  # This was three jobs — `tour`, `uv`, `wild` — and the merge is worth two
+  # billed minutes with no artifact changed and no verdict merged. What each
+  # of the two folds actually collects:
+  #
+  #   * `uv` -> here. That job existed to tile the tour's own per-face SVGs
+  #     with Python's standard library: ~10 seconds of work behind a whole
+  #     job's setup, a checkout, and a `download-artifact` of the very tree
+  #     the tour had just written to this runner's disk. Folding it deletes
+  #     all three and the round trip through the artifact store with them.
+  #   * `wild` -> here. Not obvious, and MEASURED before it was done: the
+  #     two roots build IDENTICAL dependency graphs — 58 packages against 57,
+  #     differing only in each root's own leaf crate, no version mismatch
+  #     anywhere, both depending on `pncad` with no features selected. So
+  #     ONE `CARGO_TARGET_DIR` (below) makes the second build reuse the
+  #     first's dependency artifacts instead of compiling the whole kernel a
+  #     second time.
+  #
+  # WHY THAT IS NOT THE `CARGO_TARGET_DIR` LEVER docs/CI-MINUTES-2026-08.md's
+  # F6 REJECTED. That one pointed the rustdoc gate's seven roots at one
+  # directory and bought almost nothing, because `demos/tour`'s kernel units
+  # are built under its OWN feature selection there and carry different
+  # fingerprints from the workspace pass's. Here the two roots' feature
+  # selections are the same — that is the measurement above — so the
+  # artifacts genuinely are shared rather than merely co-located.
+  #
+  # WHAT IS *NOT* MERGED, and why the saving stops here: the two FreeCAD
+  # montage lanes below need an AppImage, a software GL stack and Xvfb that
+  # none of these three want, and they are the only lanes whose wall clock is
+  # measured in minutes rather than seconds.
+  #
+  # EVERY LANE STILL PRODUCES EVERY ARTIFACT IT PRODUCED, under the same
+  # name, and each still re-baselines its own committed cells through its own
+  # step. The lanes' verdicts stay independent in the way that matters here:
+  # these three cannot fail each other, because the uv sheet and the wild
+  # montage are produced by different programs from different inputs.
+  scene-inputs:
+    name: scene inputs + uv sheet + wild montage
     runs-on: ubuntu-latest
-    # The wild lane reads its own generator's output (demos/wild/out),
-    # not the tour's — asking for it alone should not build the tour.
-    if: ${{ inputs.lanes != 'wild' }}
-    timeout-minutes: 45
+    # THE MONTAGE LANES' REAL PRECONDITION, and the one thing the merge could
+    # have quietly cost. `montage` used to `needs: tour`, and a job that
+    # `needs` a FAILED job is skipped — so with the uv and wild lanes folded
+    # in here, a broken matplotlib venv would have silently taken the two
+    # FreeCAD lanes down with it, which is exactly the verdict independence
+    # this file's `fail-fast: false` existed to protect. What `montage`
+    # actually needs is the tour output, so that is what is published: this
+    # output is set the moment demos/out is on disk, BEFORE either of the two
+    # renderer-free halves runs, and `montage` reads it under `!cancelled()`.
+    outputs:
+      tour_ok: ${{ steps.tour-ok.outputs.ok }}
+    # The uv and wild re-baseline steps commit their lane and post the
+    # neutral check run. Nothing else in this job writes anything.
+    permissions:
+      contents: write
+      checks: write
+    # NO JOB-LEVEL `if:`, deliberately: every value of `lanes` needs at least
+    # one of the three halves — `kernel`/`freecad` need the tour built for
+    # the montage lanes to download, `uv` needs the tour and the sheet,
+    # `wild` needs only the wild generator. The three `*_WANTED` flags below
+    # are what actually select, per step.
+    timeout-minutes: 75
+    env:
+      # WHICH HALVES THIS RUN WANTS. Written once here rather than repeated
+      # in nine `if:` expressions — the previous arrangement had the same
+      # condition spelled two ways in two jobs.
+      TOUR_WANTED: ${{ inputs.lanes != 'wild' }}
+      UV_WANTED: ${{ contains(fromJSON('["all","uv"]'), inputs.lanes) }}
+      WILD_WANTED: ${{ contains(fromJSON('["all","wild"]'), inputs.lanes) }}
+      # ONE TARGET DIRECTORY FOR BOTH CARGO ROOTS — see the header. It is the
+      # workspace's own `./target`, which is also the one directory
+      # `Swatinem/rust-cache` caches for workspace `.`, so the sharing and
+      # the caching are the same directory rather than two arrangements.
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      # See the uv lane's note below: the render entry points refuse to run
+      # without this sentence and deliberately do NOT sniff for CI. THIS
+      # workflow is the sanctioned renderer, so it says so in the file.
+      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
     steps:
       - uses: actions/checkout@v4
         with:
@@ -297,7 +364,7 @@ jobs:
       # the tour reads is in the hash (the kernel crates, the tour
       # crate, the lockfiles, the pinned toolchain), so a hit means the
       # same bytes a rebuild would have produced — the tour is
-      # deterministic, which is what the `uv` lane's own re-baseline
+      # deterministic, which is what the `uv` sheet's own re-baseline
       # asserts on every run.
       #
       # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP. `hashFiles`
@@ -314,80 +381,100 @@ jobs:
       # want that assertion re-earned rather than assumed.
       - name: tour output cache
         id: tour-cache
-        if: ${{ inputs.tour_cache != 'refresh' }}
+        if: ${{ env.TOUR_WANTED == 'true' && inputs.tour_cache != 'refresh' }}
         uses: actions/cache@v4
         with:
           path: demos/out
           key: tour-out-v1-${{ hashFiles('crates/**', 'demos/tour/**', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
 
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.tour-cache.outputs.cache-hit != 'true'
-      - uses: Swatinem/rust-cache@v2
-        if: steps.tour-cache.outputs.cache-hit != 'true'
+      # THE GENERATOR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, exactly
+      # like the tour's above and for the same measured reason:
+      # Swatinem/rust-cache evicts LOCAL crates from what it restores,
+      # and every kernel crate is a path dependency of this detached
+      # workspace — so a "full match" hit still recompiles the whole
+      # kernel graph every run.
+      #
+      # EXPLICIT SOURCE GLOBS, not `demos/wild/**` (the shape the tour
+      # can afford). The tour's output lives at `demos/out`, OUTSIDE the
+      # `demos/tour/**` it hashes; this generator writes to
+      # `demos/wild/out` — INSIDE the directory — so a `**` key would
+      # hash the very tree the restore populates and fold `target/` in
+      # besides. Naming src + the manifests keeps the key a function of
+      # sources only. The fixtures need no entry of their own: they live
+      # under `crates/step-import/tests/fixtures/wild/`, already covered
+      # by `crates/**`.
+      #
+      # Exact key, no `restore-keys`: a near-miss must MISS. A hit means
+      # every byte the generator reads is unchanged — kernel included —
+      # so the postconditions this lane now runs armed (the release
+      # profile in demos/wild/Cargo.toml) would fire or stay silent
+      # identically. The assertion is assumed rather than re-earned only
+      # when nothing it could assert about has moved; `wild_cache:
+      # refresh` forces the rebuild when you want it re-earned anyway.
+      - name: wild generator output cache
+        id: wild-cache
+        if: ${{ env.WILD_WANTED == 'true' && inputs.wild_cache != 'refresh' }}
+        uses: actions/cache@v4
         with:
-          key: render-demos
-          workspaces: |
-            .
-            demos/tour
+          path: demos/wild/out
+          key: wild-out-v1-${{ hashFiles('crates/**', 'demos/wild/src/**', 'demos/wild/Cargo.toml', 'demos/wild/Cargo.lock', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
+
+      # THE TOOLCHAIN AND THE CARGO CACHE ARE PAID ONCE, for whichever
+      # halves actually have to build. Both output caches hitting means
+      # neither runs and this job never installs a compiler at all — which
+      # is the ordinary case on a re-run of an unchanged tree.
+      - uses: dtolnay/rust-toolchain@stable
+        if: ${{ (env.TOUR_WANTED == 'true' && steps.tour-cache.outputs.cache-hit != 'true') || (env.WILD_WANTED == 'true' && steps.wild-cache.outputs.cache-hit != 'true') }}
+      # ONE ENTRY, because there is now one target directory. The two demo
+      # roots' lockfiles ride the KEY rather than the `workspaces:` list:
+      # rust-cache derives a workspace's target directory from its root and
+      # would otherwise want to save the same `./target` three times over.
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ (env.TOUR_WANTED == 'true' && steps.tour-cache.outputs.cache-hit != 'true') || (env.WILD_WANTED == 'true' && steps.wild-cache.outputs.cache-hit != 'true') }}
+        with:
+          key: render-demos-${{ hashFiles('demos/tour/Cargo.lock', 'demos/wild/Cargo.lock') }}
+          workspaces: .
+
       - name: demo tour (STL + STEP + UV SVGs + scenes.json)
-        if: steps.tour-cache.outputs.cache-hit != 'true'
+        if: ${{ env.TOUR_WANTED == 'true' && steps.tour-cache.outputs.cache-hit != 'true' }}
         run: cd demos/tour && cargo run --release -- ../out
-      - name: where the tour came from
+      - name: wild generator (import + tessellate + STL + scenes.json)
+        if: ${{ env.WILD_WANTED == 'true' && steps.wild-cache.outputs.cache-hit != 'true' }}
+        run: cd demos/wild && cargo run --release -- out
+      - name: where the scene inputs came from
         run: |
-          echo "tour output: ${{ steps.tour-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built' }}" \
-            >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "tour output: ${{ env.TOUR_WANTED != 'true' && 'not wanted by this dispatch' || (steps.tour-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built') }}"
+            echo "wild generator output: ${{ env.WILD_WANTED != 'true' && 'not wanted by this dispatch' || (steps.wild-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built') }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      # The montage lanes below are separate jobs on separate runners and
+      # read the tour through this artifact. The uv sheet does not any more:
+      # it reads the directory this job just wrote.
       - uses: actions/upload-artifact@v4
+        if: ${{ env.TOUR_WANTED == 'true' }}
         with:
           name: tour-out
           path: demos/out
           retention-days: 1
+      # See the `outputs:` note at the top of this job. Sited HERE — after the
+      # tour is on disk and uploaded, before the uv and wild halves run — so
+      # that what it reports is the montage lanes' precondition and nothing
+      # else. `-s`, not `-e`: a zero-byte scenes.json is not a tour.
+      - name: the tour output is on disk
+        id: tour-ok
+        if: ${{ env.TOUR_WANTED == 'true' }}
+        run: |
+          set -euo pipefail
+          test -s demos/out/scenes.json
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
-  # Cheap and renderer-free: Python's standard library tiling the tour's
-  # own per-face SVGs. Its own job so it lands without waiting on a
-  # FreeCAD pass.
-  uv:
-    name: uv trim-loop sheet
-    runs-on: ubuntu-latest
-    # Same as the other lanes since 2026-08-17: this one re-baselines
-    # too, and ci.yml's duplicate `uv sheet drift` gate was retired
-    # when it did.
-    permissions:
-      contents: write
-      checks: write
-    needs: tour
-    if: ${{ contains(fromJSON('["all","uv"]'), inputs.lanes) }}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: actions/download-artifact@v4
-        with:
-          name: tour-out
-          path: demos/out
-      # The render entry points refuse to run without the explicit
-      # `CAD_RENDER_LOCAL_OVERRIDE` sentence (demos/hosted-render-guard.sh)
-      # and deliberately do NOT sniff for CI. THIS workflow is the
-      # sanctioned renderer, so it says so in the file, at the step that
-      # renders — and it is the most informed acceptor of what the
-      # sentence names, since the "drift vs the committed lane" steps are
-      # that drift, measured.
+      # ---- the uv sheet: Python's standard library, tiling the tour's own
+      # per-face SVGs. Renderer-free and byte-reproducible off-box.
       - name: compose (demos/render-uv.sh)
-        env:
-          CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+        if: ${{ env.UV_WANTED == 'true' }}
         run: demos/render-uv.sh
       - uses: actions/upload-artifact@v4
+        if: ${{ env.UV_WANTED == 'true' }}
         with:
           name: renders-uv
           path: demos/renders-uv/**
@@ -399,7 +486,7 @@ jobs:
       # step below, which owns the obligation outright since ci.yml's
       # duplicate `uv sheet drift` gate was retired (2026-08-17).
       - name: sheet drift vs the committed lane (informational)
-        if: always()
+        if: ${{ always() && env.UV_WANTED == 'true' }}
         run: |
           {
             echo "### UV lane — hosted vs committed"
@@ -412,12 +499,12 @@ jobs:
             git status --porcelain -- demos/renders-uv/ || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
       # Same treatment as the other three lanes. This one carries the
       # least ambiguity of any of them: renderer-free, text output,
       # byte-reproducible on any box — so a re-baseline here is an
       # intended sheet change or a determinism bug, never a mesa bump.
-      - name: re-baseline committed lane
+      - name: re-baseline committed lane (uv)
+        if: ${{ env.UV_WANTED == 'true' }}
         uses: ./.github/actions/rebaseline-lane
         with:
           lane: uv
@@ -429,49 +516,200 @@ jobs:
           report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
 
-  # The two FreeCAD-drawn montages. ONE definition, two legs: the lanes
-  # differ only in render.sh's flag and the directory it publishes to
-  # (#159 — same scenes.json cameras/captions/grid, same pipeline, one
-  # showing the kernel's own facets and one showing OCC's).
+      # ---- the wild-corpus montage. FreeCAD-free by ratified scope (its
+      # cells are third-party STEP imported by `step-import` and tessellated
+      # by the kernel, drawn by render.py — matplotlib is the PRIMARY
+      # renderer here, not a fallback), so it needs no AppImage, no GL, no
+      # Xvfb, and no tour: it runs its own generator over the committed
+      # fixtures under crates/step-import/tests/fixtures/wild/.
+      #
+      # It is therefore the second lane that is genuinely BYTE-reproducible
+      # off-box — Agg is a pure-CPU rasterizer with matplotlib's own bundled
+      # fonts, and the venv's numpy/matplotlib are pinned by render-wild.sh
+      # — which is what lets local-scripts/render-hosted.sh use it as the
+      # round-trip proof that the artifact path preserves the provenance
+      # stamp chunks byte for byte.
+      #
+      # Needed on BOTH paths: render-wild.sh builds the venv itself, so this
+      # is the renderer's dependency, not the generator's.
+      - name: venv deps
+        if: ${{ env.WILD_WANTED == 'true' }}
+        # Same guard as the montage lanes' bigger install below, for the
+        # same reason — a smaller package list is not a different
+        # failure mode, just a shorter one.
+        timeout-minutes: 6
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            if timeout -k 10 120 sudo apt-get update -qq \
+               && timeout -k 10 120 sudo apt-get install -y -qq python3-venv; then
+              exit 0
+            fi
+            echo "::warning::python3-venv: apt attempt ${attempt} failed or hung; retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error title=python3-venv unavailable::apt failed or hung on three attempts. Upstream/mirror problem — re-run the lane."
+          exit 1
+      - name: render (demos/render-wild.sh)
+        if: ${{ env.WILD_WANTED == 'true' }}
+        run: demos/render-wild.sh
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && env.WILD_WANTED == 'true' }}
+        with:
+          name: renders-wild
+          path: demos/renders-wild/**
+          retention-days: 14
+      # Unlike the two FreeCAD lanes this one has no GL-stack excuse: a
+      # diff here is a real pixel change (or a determinism finding),
+      # which is exactly why it is worth reporting. Still informational —
+      # this workflow gates nothing, by the header's rule.
+      - name: pixel drift vs the committed lane (wild, informational)
+        if: ${{ always() && env.WILD_WANTED == 'true' }}
+        run: |
+          {
+            echo "### wild lane — hosted vs committed"
+            echo
+            echo "Renderer-free of FreeCAD (matplotlib Agg, pinned): byte-identity"
+            echo "IS expected here, so a non-empty diff is a real finding."
+            echo
+            echo '```'
+            git status --porcelain -- demos/renders-wild/ || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Same treatment as the PNG lanes, minus their one excuse: no GL
+      # is involved anywhere in this lane, so a re-baseline here is
+      # never a mesa re-rasterisation — it is a real pixel change or a
+      # determinism finding. That makes the neutral check's "look at
+      # the images" more pointed here than anywhere else, which is
+      # exactly why it is still a check and not a log line.
+      - name: re-baseline committed lane (wild)
+        if: ${{ env.WILD_WANTED == 'true' }}
+        uses: ./.github/actions/rebaseline-lane
+        with:
+          lane: wild
+          dir: demos/renders-wild
+          push_to: ${{ env.PUSH_TARGET }}
+          # On a pull_request `github.sha` is the MERGE commit; a check
+          # posted there never shows on the PR. ci.yml passes the PR's
+          # head sha explicitly.
+          report_sha: ${{ inputs.report_sha }}
+          token: ${{ github.token }}
+
+  # THE TWO FreeCAD-DRAWN MONTAGES, IN ONE JOB (merged 2026-08-22). ONE
+  # definition, two legs, as before: the lanes differ only in render.sh's
+  # flag and the directory they publish to (#159 — same scenes.json
+  # cameras/captions/grid, same pipeline, one showing the kernel's own
+  # facets and one showing OCC's).
+  #
+  # WHAT THE MERGE COLLECTS, and it is the largest single item in this file:
+  # ONE FreeCAD AppImage cache restore (821 MB) instead of two, ONE apt
+  # install of the software GL stack and Xvfb instead of two, ONE runner
+  # setup and checkout instead of two.
+  #
+  # WHAT IT GIVES UP, AND WHAT REPLACES IT. The matrix carried
+  # `fail-fast: false`, and its reason was exactly right: "the whole point of
+  # the pair is comparing them, and a half-run tells you less than two
+  # independent results". One job cannot express that with a matrix, so the
+  # render step below is a FAILURE-COLLECTING LOOP — every lane runs to
+  # completion, its verdict is recorded, and the step fails at the end naming
+  # the lanes that failed. That is the same shape, and the same precedent, as
+  # commit `bb65cb9`, which did this when it merged the two ε rows of the
+  # `persistence` and `corpus` jobs.
+  #
+  # TWO RIDERS THE MERGE HAD TO CARRY, both of them per-lane:
+  #   * `assert no matplotlib fallback` runs AFTER EACH LANE, against that
+  #     lane's own preview directory (`renders-preview/<lane-dir>` —
+  #     render.sh's routing), never against the tree. Checking the tree would
+  #     attribute the kernel lane's fallback to the freecad lane as well.
+  #   * THE LOGS ARE MOVED ASIDE PER LANE. render.sh clears `*.status` and
+  #     `batch*.log` at the start of a pass and names per-scene logs after
+  #     the scene, so the second lane would overwrite the first's. Each
+  #     lane's log tree is renamed to `freecad-logs-<lane>` the moment it
+  #     finishes, which is also what the two log artifacts now upload.
+  #
+  # `timeout-minutes` COVERS TWO LANES NOW and is raised to match. It is the
+  # outer stop for a pathological run, not a budget: a wedged pass is bounded
+  # by render.sh's own per-PROCESS budget (two attempts x the budget, and
+  # that budget is FLAT in the batch size — see CAD_RENDER_BATCH below), so
+  # the real bound is unchanged per lane and this number simply stopped
+  # covering one lane and started covering two.
+  #
   # NO LOCAL MIRROR: the pinned FreeCAD AppImage, software GL and Xvfb, none of
   # which a developer box is asked to install, and a re-baseline that commits
   # the drawn cells from a bot token. local-scripts/render-hosted.sh DISPATCHES
   # this lane rather than reproducing it.
   montage:
-    name: ${{ matrix.lane }} montage
+    name: freecad montages (kernel + freecad)
     runs-on: ubuntu-latest
-    # The re-baseline step commits the lane and posts the neutral
-    # check run. Nothing else in this workflow writes anything, which
-    # is why these sit on the two lane jobs rather than at the top.
+    # The re-baseline steps commit each lane and post the neutral check
+    # run. Nothing else in this job writes anything, which is why these
+    # sit here rather than at the top of the file.
     permissions:
       contents: write
       checks: write
-    needs: tour
-    if: ${{ contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
-    # A wedged pass is bounded by render.sh's own per-scene budget (two
-    # attempts x the budget, per scene); this is the outer stop so a
-    # pathological run cannot bill an hour of nothing.
-    timeout-minutes: 90
-    strategy:
-      # One lane wedging must not cancel the other: the whole point of
-      # the pair is comparing them, and a half-run tells you less than
-      # two independent results.
-      fail-fast: false
-      matrix:
-        # `all` fans out to both; naming one lane runs only that one.
-        lane: ${{ fromJSON(inputs.lanes == 'kernel' && '["kernel"]' || inputs.lanes == 'freecad' && '["freecad"]' || '["kernel","freecad"]') }}
+    needs: scene-inputs
+    # `!cancelled()` plus the tour's OWN verdict, not the whole job's — see
+    # that job's `outputs:` note. A uv sheet or a wild montage that failed
+    # says nothing about whether these two lanes can draw.
+    if: ${{ !cancelled() && needs.scene-inputs.outputs.tour_ok == 'true' && contains(fromJSON('["all","kernel","freecad"]'), inputs.lanes) }}
+    # A wedged pass is bounded by render.sh's own per-process budget (two
+    # attempts x the budget, per batch); this is the outer stop so a
+    # pathological run cannot bill hours of nothing. Two lanes now, so twice
+    # the 90 minutes one leg carried, plus the setup the two now share.
+    timeout-minutes: 150
     env:
-      # The kernel lane is render.sh's default (no flag); `--freecad` is
-      # the OCC reference lane. Directory names are render.sh's own.
-      LANE_FLAG: ${{ matrix.lane == 'freecad' && '--freecad' || '' }}
-      LANE_DIR: ${{ matrix.lane == 'freecad' && 'renders-freecad' || 'renders' }}
+      KERNEL_WANTED: ${{ contains(fromJSON('["all","kernel"]'), inputs.lanes) }}
+      FREECAD_WANTED: ${{ contains(fromJSON('["all","freecad"]'), inputs.lanes) }}
       FREECAD_SCENE_TIMEOUT: ${{ inputs.scene_timeout || '300' }}
       # Scenes rendered at once. 1 (render.sh's default) is sequential
       # and is what the committed cells were produced under; above that,
       # every scene's wall clock rises with contention — which is what
-      # the per-scene budget above is spent on, so the two inputs are
+      # the per-process budget above is spent on, so the two inputs are
       # read together, not separately.
       CAD_RENDER_JOBS: ${{ inputs.render_jobs || '1' }}
+      # SCENES PER freecadcmd PROCESS. 1 is render.sh's default and is what
+      # a developer box runs; the hosted lanes run 5, and the number is a
+      # judgement against ONE unmeasured quantity, so here is the reasoning.
+      #
+      # WHAT IS MEASURED AND SETTLED:
+      #   * BYTE-IDENTICAL. Verified B=1 vs B=5 vs B=35, both lanes, with a
+      #     control arm passing. That is this knob's acceptance test
+      #     (render.sh states it) and it is the only property a render lane
+      #     may not trade.
+      #   * FAILURES ARE CRASHES, NOT HANGS. 10 of 10 observed failures were
+      #     `freecadcmd rc=1`, dead in 3-5 s against a 300 s budget; 0 of 10
+      #     took any timeout path. So the thing batching would amplify — a
+      #     wedge eating its whole batch — is not the failure mode this
+      #     workload actually has.
+      #   * THE RATE IS ~1 IN 4,300 scene renders, and the BUDGET IS FLAT in
+      #     B (render.sh, 2026-08-22), so a failure costs the same wall clock
+      #     at any B. Blast radius is therefore NOT the binding constraint:
+      #     the hazard is per-scene, so expected collateral is under 1% of a
+      #     lane-run's scene work at every B.
+      #
+      # WHAT IS NOT MEASURED, and what actually picks the number: CONTENTION
+      # HEADROOM. The budget is 300 s PER PROCESS however many scenes the
+      # process renders, so B scenes must clear 300 s together. Hosted, a
+      # lane's whole scene work is 81-101 s (freecad) and ~105 s (kernel) at
+      # CAD_RENDER_JOBS=2, i.e. ~5-6 s of effective wall clock per scene. At
+      # B=5 the batch has to clear 300 s on ~30 s of nominal work — a ~10x
+      # margin — and it pays FreeCAD's startup once instead of five times,
+      # which is most of what a short scene costs.
+      #
+      # WHY NOT B=10. It halves that margin (a ~5x cushion on the only
+      # quantity nobody has measured) to collect a tenth of a startup: B=5
+      # already removes 80% of the per-process startups and B=10 removes 90%.
+      # render.sh's own budget note is explicit that a contended box is where
+      # a large batch exhausts a budget that separate scenes would not, and
+      # it records the contended datum this margin is really against: 106 s
+      # for a SINGLE scene at load average 13, ~20x its idle time. Ten
+      # percentage points of startup is not worth halving the cushion against
+      # that.
+      #
+      # WHY NOT WHOLE-LANE. ~35 scenes in one process is one budget for the
+      # entire pass, i.e. no bound per unit of work at all, and it is the
+      # arrangement the contended datum above would break first.
+      CAD_RENDER_BATCH: "5"
       # See the uv lane's note: the entry points refuse without this
       # sentence and do not sniff for CI. This workflow IS the sanctioned
       # renderer, and its "pixel drift vs the committed lane" step is the
@@ -509,7 +747,7 @@ jobs:
       # (memories/freecad-render-lane.md). Bumping the version means
       # bumping it in three places (there, here, and the local install)
       # — the key encodes it, so a stale entry cannot be silently
-      # reused.
+      # reused. ONE restore for both lanes since the merge; it is 821 MB.
       - name: cache freecad
         id: cache-freecad
         uses: actions/cache@v4
@@ -538,8 +776,8 @@ jobs:
       # the kernel leg, while the freecad leg's identical step finished
       # on its own runner, so nothing in this repo distinguishes them
       # and the cause is upstream. With no timeout a wedge sits on the
-      # JOB's 90-minute budget reporting nothing, and a run nobody can
-      # cancel blocks the lane's own re-baseline for an hour and a half.
+      # JOB's budget reporting nothing, and a run nobody can cancel
+      # blocks the lane's own re-baseline for hours.
       #
       # THE TWO GUARDS DO DIFFERENT JOBS, and both are needed:
       #   * `timeout` around each apt call kills a HUNG attempt so the
@@ -550,6 +788,9 @@ jobs:
       # The retry itself is the same lever, for the same stated reason,
       # as .github/actions/install-nextest: one host's bad minute must
       # not be a whole-gate failure.
+      # ONE INSTALL FOR BOTH LANES since the merge — and note that the two
+      # wedges above happened on two separate runners, so a merged job has
+      # one exposure to this where the matrix had two.
       - name: renderer system deps (software GL + Xvfb + venv)
         timeout-minutes: 8
         run: |
@@ -575,55 +816,124 @@ jobs:
       # None of that is re-implemented here: this is the same command a
       # developer runs, which is the point — a hosted pass and a local
       # one differ in the box, not in the pipeline.
-      - name: render (demos/render.sh ${{ env.LANE_FLAG }})
+      #
+      # A TIMEOUT OF ITS OWN (2026-08-22), which this step had never had —
+      # it sat on the job's whole budget, which is the gap the apt step four
+      # comments up argues against in its own case. Sized with real headroom
+      # rather than tightly: the measured scene work is 81-101 s for the
+      # freecad lane and ~105 s for the kernel lane, and the legitimate worst
+      # case is set by machine contention rather than by any scene (render.sh
+      # records 106 s for a single scene at load average 13). Two lanes, each
+      # bounded by render.sh at two attempts x a flat 300 s budget per batch,
+      # with room for a contended box on top.
+      - name: render both lanes (demos/render.sh)
+        id: render
+        timeout-minutes: 100
         run: |
-          # The runner's width is the thing CAD_RENDER_JOBS has to be
-          # read against, and it is not in the job log otherwise.
-          echo "runner: $(nproc) cores, $(free -g | awk '/^Mem:/{print $2}') GB, CAD_RENDER_JOBS=$CAD_RENDER_JOBS"
-          FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" \
-            xvfb-run -a --server-args="-screen 0 1600x1200x24" \
-            demos/render.sh $LANE_FLAG
+          set -uo pipefail
+          # The runner's width is the thing CAD_RENDER_JOBS and
+          # CAD_RENDER_BATCH have to be read against, and it is not in the
+          # job log otherwise.
+          echo "runner: $(nproc) cores, $(free -g | awk '/^Mem:/{print $2}') GB, CAD_RENDER_JOBS=$CAD_RENDER_JOBS, CAD_RENDER_BATCH=$CAD_RENDER_BATCH"
+          failed=""
+          verdicts=""
+          for lane in kernel freecad; do
+            wanted="KERNEL_WANTED"; [ "$lane" = freecad ] && wanted="FREECAD_WANTED"
+            [ "${!wanted}" = "true" ] || { echo "::notice::$lane lane not requested by this dispatch"; continue; }
+            flag=""; dir="renders"
+            if [ "$lane" = freecad ]; then flag="--freecad"; dir="renders-freecad"; fi
+            echo "::group::$lane lane"
+            FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" \
+              xvfb-run -a --server-args="-screen 0 1600x1200x24" \
+              demos/render.sh $flag && status=0 || status=$?
+            echo "::endgroup::"
 
-      # THE ONE CHECK THIS WORKFLOW ADDS. The kernel lane's matplotlib
-      # fallback exits 0, so without this a hosted pass could be green
-      # having drawn nothing with FreeCAD; the frames would be sitting
-      # in the gitignored preview tree and the artifact would hold the
-      # committed cells unchanged. `always()` so a lane that also failed
-      # still says WHICH failure it was. (The `--freecad` lane has no
-      # fallback at all, so this is vacuous there — asserted anyway,
-      # because a vacuous check costs nothing and a missing one costs
-      # #221 again.)
-      - name: assert no matplotlib fallback
-        if: always()
-        run: |
-          if [ -e demos/renders-preview ]; then
-            find demos/renders-preview -type f | head -50
-            echo "::error::render.sh fell back to matplotlib — demos/renders-preview/ exists, \
-          so this pass drew NOTHING with FreeCAD and demos/$LANE_DIR/ is untouched. \
-          The artifact is the committed cells, not this run's. See the render step's \
-          stderr for the reason render.sh gave."
+            # THE ONE CHECK THIS WORKFLOW ADDS, PER LANE. The kernel lane's
+            # matplotlib fallback exits 0, so without this a hosted pass
+            # could be green having drawn nothing with FreeCAD; the frames
+            # would be sitting in the gitignored preview tree and the
+            # artifact would hold the committed cells unchanged. Asked of
+            # THIS lane's own preview directory (render.sh's routing:
+            # renders-preview/<lane-dir>), never of the tree — with both
+            # lanes on one runner, a tree-wide test would report the kernel
+            # lane's fallback against the freecad lane too. (The `--freecad`
+            # lane has no fallback at all, so this is vacuous there —
+            # asserted anyway, because a vacuous check costs nothing and a
+            # missing one costs #221 again.)
+            if [ -e "demos/renders-preview/$dir" ]; then
+              find "demos/renders-preview/$dir" -type f | head -50
+              echo "::error::[$lane] render.sh fell back to matplotlib — demos/renders-preview/$dir exists, so this pass drew NOTHING with FreeCAD and demos/$dir/ is untouched. The artifact is the committed cells, not this run's. See the render step's stderr for the reason render.sh gave."
+              status=1
+            fi
+
+            # render.sh clears *.status and batch*.log at the start of a
+            # pass and names per-scene logs after the scene, so the second
+            # lane would otherwise overwrite the first's evidence.
+            if [ -d demos/out/freecad-logs ]; then
+              rm -rf "demos/out/freecad-logs-$lane"
+              mv demos/out/freecad-logs "demos/out/freecad-logs-$lane"
+            fi
+
+            if [ "$status" -ne 0 ]; then
+              echo "::error::[$lane] lane FAILED (exit ${status})"
+              failed="${failed} ${lane}"
+              verdicts="${verdicts} ${lane}=FAILED"
+              echo "${lane}_ok=false" >> "$GITHUB_OUTPUT"
+            else
+              verdicts="${verdicts} ${lane}=ok"
+              echo "${lane}_ok=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          # BOTH VERDICTS, ALWAYS. The matrix this replaces carried
+          # `fail-fast: false` so that "did it break in BOTH lanes or only
+          # one" survived; the loop above ran every requested lane to
+          # completion and this line reports the pair, in one place, whether
+          # or not either failed.
+          echo "lane verdicts:${verdicts:- (no lane requested)}"
+          echo "lane verdicts:${verdicts:- (no lane requested)}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$failed" ]; then
+            echo "failed lanes:${failed}" >&2
             exit 1
           fi
 
-      - name: upload montage + cells
-        if: always()
+      - name: upload montage + cells (kernel)
+        if: ${{ always() && env.KERNEL_WANTED == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: renders-${{ matrix.lane }}
-          path: demos/${{ env.LANE_DIR }}/**
+          name: renders-kernel
+          path: demos/renders/**
+          retention-days: 14
+      - name: upload montage + cells (freecad)
+        if: ${{ always() && env.FREECAD_WANTED == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: renders-freecad
+          path: demos/renders-freecad/**
           retention-days: 14
       # Always: a wedged or failed pass leaves the committed tree
       # untouched (render.sh's staging contract), so the logs and the
       # untracked staging tree are the only evidence of what happened.
-      - name: upload logs + staging tree
-        if: always()
+      # The log trees are the per-lane ones the render step moved aside.
+      - name: upload logs + staging tree (kernel)
+        if: ${{ always() && env.KERNEL_WANTED == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: freecad-logs-${{ matrix.lane }}
+          name: freecad-logs-kernel
           path: |
-            demos/out/freecad-logs/**
-            demos/out/stage/**
-            demos/renders-preview/**
+            demos/out/freecad-logs-kernel/**
+            demos/out/stage/renders/**
+            demos/renders-preview/renders/**
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: upload logs + staging tree (freecad)
+        if: ${{ always() && env.FREECAD_WANTED == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: freecad-logs-freecad
+          path: |
+            demos/out/freecad-logs-freecad/**
+            demos/out/stage/renders-freecad/**
+            demos/renders-preview/renders-freecad/**
           retention-days: 14
           if-no-files-found: ignore
 
@@ -631,216 +941,61 @@ jobs:
       # measurement that says whether a hosted pass could ever BE the
       # committed lane, so it is recorded on every run rather than
       # guessed at.
-      - name: pixel drift vs the committed lane (informational)
+      - name: pixel drift vs the committed lanes (informational)
         if: always()
         run: |
-          {
-            echo "### ${{ matrix.lane }} lane — hosted vs committed"
-            echo
-            echo "FreeCAD 1.1.2 (AppImage), llvmpipe under Xvfb on \`${{ runner.os }}\`."
-            echo "Pixel differences against the locally-rendered committed cells are"
-            echo "EXPECTED (different GL stack); this is a measurement, not a gate."
-            echo
-            echo '```'
-            git diff --stat -- "demos/$LANE_DIR/" || true
-            echo '```'
-            echo
-            echo "Changed cells:"
-            echo '```'
-            git status --porcelain -- "demos/$LANE_DIR/" || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          for lane in kernel freecad; do
+            dir="renders"; [ "$lane" = freecad ] && dir="renders-freecad"
+            {
+              echo "### ${lane} lane — hosted vs committed"
+              echo
+              echo "FreeCAD 1.1.2 (AppImage), llvmpipe under Xvfb on \`${{ runner.os }}\`."
+              echo "Pixel differences against the locally-rendered committed cells are"
+              echo "EXPECTED (different GL stack); this is a measurement, not a gate."
+              echo
+              echo '```'
+              git diff --stat -- "demos/$dir/" || true
+              echo '```'
+              echo
+              echo "Changed cells:"
+              echo '```'
+              git status --porcelain -- "demos/$dir/" || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
 
       # RE-BASELINE, NOT A GATE (2026-08-17 — see the header). Drift
       # is committed back to the branch and marked NEUTRAL rather than
       # failing the run; the action's own header carries the reasoning.
       #
-      # Deliberately NOT `always()`, and that is inherited from the gate
-      # this replaces: it must only be reached when the pass itself
-      # succeeded, so a wedge fails as a wedge and is never re-reported
-      # as drift. (The lane directory a failed pass leaves behind is the
-      # COMMITTED one, untouched — it would read as "no drift" and
-      # quietly pass, and would now also quietly commit nothing.)
-      - name: re-baseline committed lane
+      # PER LANE, AND KEYED ON THAT LANE'S OWN VERDICT. Deliberately not
+      # `always()`, which is inherited from the gate this replaces: a
+      # re-baseline must only be reached when the pass itself succeeded, so a
+      # wedge fails as a wedge and is never re-reported as drift. (The lane
+      # directory a failed pass leaves behind is the COMMITTED one, untouched
+      # — it would read as "no drift" and quietly pass, and would now also
+      # quietly commit nothing.) Under the merge that condition is per lane
+      # rather than per job: the render step records each lane's verdict, so
+      # a failed kernel lane no longer suppresses a healthy freecad
+      # re-baseline the way a `fail-fast` matrix would have.
+      - name: re-baseline committed lane (kernel)
+        if: ${{ !cancelled() && steps.render.outputs.kernel_ok == 'true' }}
         uses: ./.github/actions/rebaseline-lane
         with:
-          lane: ${{ matrix.lane }}
-          dir: demos/${{ env.LANE_DIR }}
+          lane: kernel
+          dir: demos/renders
           push_to: ${{ env.PUSH_TARGET }}
           # On a pull_request `github.sha` is the MERGE commit; a check
           # posted there never shows on the PR. ci.yml passes the PR's
           # head sha explicitly.
           report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
-
-  # THE WILD-CORPUS LANE. FreeCAD-free by ratified scope (its cells are
-  # third-party STEP imported by `step-import` and tessellated by the
-  # kernel, drawn by render.py — matplotlib is the PRIMARY renderer
-  # here, not a fallback), so it needs no AppImage, no GL, no Xvfb, and
-  # no tour: it runs its own generator over the committed fixtures under
-  # crates/step-import/tests/fixtures/wild/.
-  #
-  # It is therefore the second lane that is genuinely BYTE-reproducible
-  # off-box — Agg is a pure-CPU rasterizer with matplotlib's own bundled
-  # fonts, and the venv's numpy/matplotlib are pinned by render-wild.sh
-  # — which is what lets local-scripts/render-hosted.sh use it as the
-  # round-trip proof that the artifact path preserves the provenance
-  # stamp chunks byte for byte.
-  # NO LOCAL MIRROR: a pinned numpy/matplotlib venv built at run time, and a
-  # re-baseline that commits the drawn cells from a bot token. That second half
-  # is the one no developer box performs: locally, being TOLD about drift is
-  # the whole point, and writing a new baseline would destroy the telling.
-  # What IS mirrored is the
-  # committed output of this lane, not the drawing of it: ci-local.sh's
-  # `render provenance (demos)` row reads demos/renders-wild/ and holds its
-  # stamps to this lane's declared author.
-  wild:
-    name: wild-corpus montage
-    runs-on: ubuntu-latest
-    # The re-baseline step commits the lane and posts the neutral
-    # check run. Nothing else in this workflow writes anything, which
-    # is why these sit on the two lane jobs rather than at the top.
-    permissions:
-      contents: write
-      checks: write
-    if: ${{ contains(fromJSON('["all","wild"]'), inputs.lanes) }}
-    timeout-minutes: 45
-    env:
-      # See the uv lane's note: the sanctioned renderer says so in the
-      # file, at the step that renders.
-      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-
-      # THE GENERATOR'S OUTPUT IS CACHED ON ITS SOURCES' HASH, exactly
-      # like the tour's above and for the same measured reason:
-      # Swatinem/rust-cache evicts LOCAL crates from what it restores,
-      # and every kernel crate is a path dependency of this detached
-      # workspace — so a "full match" hit still recompiles the whole
-      # kernel graph every run. This lane was the last one with no
-      # output cache at all, which made it the only lane paying that
-      # cost unconditionally. Caching what the generator PRODUCES skips
-      # the compile and the import+tessellate both.
-      #
-      # DIRECTLY UNDER THE CHECKOUT, BEFORE ANY CARGO STEP — `hashFiles`
-      # globs the working tree, so a cargo step running first would fold
-      # `demos/wild/target/` into the key. See the tour's note: ci.yml's
-      # copy of that step was misplaced once and computed a permanent
-      # miss that still looked like a working cache.
-      #
-      # EXPLICIT SOURCE GLOBS, not `demos/wild/**` (the shape the tour
-      # can afford). The tour's output lives at `demos/out`, OUTSIDE the
-      # `demos/tour/**` it hashes; this generator writes to
-      # `demos/wild/out` — INSIDE the directory — so a `**` key would
-      # hash the very tree the restore populates and fold `target/` in
-      # besides. Naming src + the manifests keeps the key a function of
-      # sources only. The fixtures need no entry of their own: they live
-      # under `crates/step-import/tests/fixtures/wild/`, already covered
-      # by `crates/**`.
-      #
-      # Exact key, no `restore-keys`: a near-miss must MISS. A hit means
-      # every byte the generator reads is unchanged — kernel included —
-      # so the postconditions this lane now runs armed (the release
-      # profile in demos/wild/Cargo.toml) would fire or stay silent
-      # identically. The assertion is assumed rather than re-earned only
-      # when nothing it could assert about has moved; `wild_cache:
-      # refresh` forces the rebuild when you want it re-earned anyway.
-      - name: wild generator output cache
-        id: wild-cache
-        if: ${{ inputs.wild_cache != 'refresh' }}
-        uses: actions/cache@v4
-        with:
-          path: demos/wild/out
-          key: wild-out-v1-${{ hashFiles('crates/**', 'demos/wild/src/**', 'demos/wild/Cargo.toml', 'demos/wild/Cargo.lock', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
-
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.wild-cache.outputs.cache-hit != 'true'
-      - uses: Swatinem/rust-cache@v2
-        if: steps.wild-cache.outputs.cache-hit != 'true'
-        with:
-          key: render-demos-wild
-          workspaces: |
-            .
-            demos/wild
-      # Needed on BOTH paths: render-wild.sh builds the venv itself, so
-      # this is the renderer's dependency, not the generator's.
-      - name: venv deps
-        # Same guard as the montage lanes' bigger install above, for the
-        # same reason — a smaller package list is not a different
-        # failure mode, just a shorter one.
-        timeout-minutes: 6
-        run: |
-          set -uo pipefail
-          for attempt in 1 2 3; do
-            if timeout -k 10 120 sudo apt-get update -qq \
-               && timeout -k 10 120 sudo apt-get install -y -qq python3-venv; then
-              exit 0
-            fi
-            echo "::warning::python3-venv: apt attempt ${attempt} failed or hung; retrying"
-            sleep $((attempt * 5))
-          done
-          echo "::error title=python3-venv unavailable::apt failed or hung on three attempts. Upstream/mirror problem — re-run the lane."
-          exit 1
-      - name: wild generator (import + tessellate + STL + scenes.json)
-        if: steps.wild-cache.outputs.cache-hit != 'true'
-        run: cd demos/wild && cargo run --release -- out
-      - name: where the wild output came from
-        run: |
-          echo "wild generator output: ${{ steps.wild-cache.outputs.cache-hit == 'true' && 'restored from cache' || 'built' }}" \
-            >> "$GITHUB_STEP_SUMMARY"
-      - name: render (demos/render-wild.sh)
-        run: demos/render-wild.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: renders-wild
-          path: demos/renders-wild/**
-          retention-days: 14
-      # Unlike the two FreeCAD lanes this one has no GL-stack excuse: a
-      # diff here is a real pixel change (or a determinism finding),
-      # which is exactly why it is worth reporting. Still informational —
-      # this workflow gates nothing, by the header's rule.
-      - name: pixel drift vs the committed lane (informational)
-        if: always()
-        run: |
-          {
-            echo "### wild lane — hosted vs committed"
-            echo
-            echo "Renderer-free of FreeCAD (matplotlib Agg, pinned): byte-identity"
-            echo "IS expected here, so a non-empty diff is a real finding."
-            echo
-            echo '```'
-            git status --porcelain -- demos/renders-wild/ || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Same treatment as the PNG lanes, minus their one excuse: no GL
-      # is involved anywhere in this lane, so a re-baseline here is
-      # never a mesa re-rasterisation — it is a real pixel change or a
-      # determinism finding. That makes the neutral check's "look at
-      # the images" more pointed here than anywhere else, which is
-      # exactly why it is still a check and not a log line.
-      - name: re-baseline committed lane
+      - name: re-baseline committed lane (freecad)
+        if: ${{ !cancelled() && steps.render.outputs.freecad_ok == 'true' }}
         uses: ./.github/actions/rebaseline-lane
         with:
-          lane: wild
-          dir: demos/renders-wild
+          lane: freecad
+          dir: demos/renders-freecad
           push_to: ${{ env.PUSH_TARGET }}
-          # On a pull_request `github.sha` is the MERGE commit; a check
-          # posted there never shows on the PR. ci.yml passes the PR's
-          # head sha explicitly.
           report_sha: ${{ inputs.report_sha }}
           token: ${{ github.token }}
