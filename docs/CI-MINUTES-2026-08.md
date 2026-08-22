@@ -233,6 +233,16 @@ none of them is near the critical path (`build + archive (interval)` at
 |---|---|---|---|
 | test (interval) | 20 s | ~40 s | no — ends ~12.9 of 13.75 |
 | rustfmt + rustdoc | 46 s | ~54 s | no — ends ~1.5 |
+| persistence | 80 s | ~85 s | no |
+| band 4 corpus | 78 s | ~82 s | no |
+
+The persistence and corpus figures carry an inferred split: their
+`cargo test` step is 42–47 s of compile *plus* run, and the follow-on
+steps rounded to 0 s, so the added second-ε execution cannot be
+separated from the log. The bound is what matters — the extra ε row
+costs strictly less than the whole 46 s step, so even at the absurd
+worst case those jobs reach ~126 s, still six times under the critical
+path. **The run's wall clock does not move.**
 
 (The `rustfmt + rustdoc` row moved again with **#840**, which sites the
 #807 wasm32 guard in that same job: `fmt` is now `rustfmt + rustdoc
@@ -250,16 +260,63 @@ boundary has an unstable billed cost**, and a single measurement of one
 will read as a flat number when it is not. Both of the merges above
 that land "inside one billed minute" are worth re-reading with that in
 mind.)
-| persistence | 80 s | ~85 s | no |
-| band 4 corpus | 78 s | ~82 s | no |
 
-The persistence and corpus figures carry an inferred split: their
-`cargo test` step is 42–47 s of compile *plus* run, and the follow-on
-steps rounded to 0 s, so the added second-ε execution cannot be
-separated from the log. The bound is what matters — the extra ε row
-costs strictly less than the whole 46 s step, so even at the absurd
-worst case those jobs reach ~126 s, still six times under the critical
-path. **The run's wall clock does not move.**
+**2026-08-22, and it settles that instability the expensive way.** The
+rustdoc gate stopped being `cargo doc --workspace` and now also
+documents the six cargo roots the workspace excludes — `demos/tour`,
+`demos/wild`, the three `tools/` crates and `interval-transcendentals`
+— plus a `--selftest` in front of it (D40/D41). Measured on two
+code-tier runs, warm cache both: `rustdoc (gate)` **34 s → 87 s**, and
+the `fmt` job **87 s → 135 s**, which is **2 → 3 billed minutes**. It
+does not straddle any more; it bills 3. The two `cargo doc` steps this
+deleted from the `k-lint` job gave back nothing measurable (that job
+builds those crates for its own clippy and test rows, so their doc pass
+was reusing warm artifacts at ~1 s), so the change is **+1 billed minute
+per code-tier PR run**, not a transfer. The reason it costs what it
+costs is that the `fmt` job builds all six of those roots from cold —
+`Swatinem/rust-cache` in that job caches the kernel workspace's
+`target/` and not the excluded roots'. Declaring those roots to that
+action (its `workspaces:` input), or pointing the whole gate at one
+`CARGO_TARGET_DIR`, is the lever if this minute is ever worth
+collecting; neither was measured here. Still off the critical path:
+2.3 min against a 12 min `build + archive (interval)`.
+
+**These two figures are re-taken by nothing, and that is a decision.**
+No register in `ci.yml` re-measures them — R4 is the Python suite and
+has nothing to do with this job — so if the gate's cost drifts, this
+paragraph goes quietly stale the way a hand-written count does. The
+reason it is left that way rather than guarded: a *billed-minute* figure
+is not a property of the tree, it is a property of a runner on a day,
+and the paragraph directly above says why — this job straddles a minute
+boundary, so a guard pinning 3 would red on warm-cache noise and a guard
+pinning "≤ 3" would pass through the entire drift it exists to catch.
+There is nothing to assert that is both true and useful, which is the
+honest shape of Q6 here rather than an oversight. What IS derived is the
+root count: the gate's success line reports the number of roots the run
+actually documented, so the six above is checkable against any run's log
+and does not depend on this sentence being maintained. The paragraph
+below re-takes the timings BY HAND, which is what maintaining an
+unguardable figure looks like — a deliberate act carrying the run id it
+came from, not a number that keeps itself true.
+
+**Re-measured after two widenings, on run `32553404730`** (warm cache,
+code tier, same method): `--examples` was added to every pass, and pass 2 went
+from default features to `--all-features` on every root but
+`interval-transcendentals` — so the `fmt` job now also builds `demos/tour` with
+`probe` and `budget` on. `rustdoc (gate)` **87 s → 142 s** and the `fmt` job
+**135 s → 193 s**, which is **3 → 4 billed minutes**: another **+1 billed
+minute per code-tier PR run**, on top of the +1 above. The step breakdown from
+that run — rustfmt 3 s, rustdoc gate 142 s, wasm32 19 s, setup and cache 25 s —
+says where it all is, and it is all in the gate.
+
+Both widenings were taken because each closed a hole the gate was silently
+green over, and each turned up a live break the moment it opened: an unresolved
+link in `crates/step-export`'s example tree, which no rustdoc lint had ever
+read, and another in `demos/tour/src/tessbudget.rs`, which exists only under
+the `budget` feature the old default-features pass never turned on. Still off
+the critical path: 3.2 min against a 12 min `build + archive (interval)`. The
+`workspaces:`/`CARGO_TARGET_DIR` lever named above is now worth proportionally
+more, and is still unmeasured.
 
 ## Where that leaves a code-tier PR
 
