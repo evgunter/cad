@@ -679,8 +679,9 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # gate in scripts/gates/ does it: the script's flags and its loop over
 # the cargo roots outside the workspace can each be dropped and leave it
 # green over a broken tree. That script is not IN scripts/gates/ (its
-# header says why), so `gate-roster.sh` does not check this wiring —
-# delete the selftest line from either half and no gate reds.
+# header says why), but `gate-roster.sh` names it in OUTLIER_GATES and
+# checks this wiring anyway — dropping either half of the line below
+# reds that gate.
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }

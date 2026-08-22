@@ -215,7 +215,11 @@ gate_selftest() {
   gate_selftest_case 'no Cargo.toml under' plant_no_manifest
   selftest_cargo_reply 'could not read the target counts' 'not json at all'
   selftest_cargo_reply 'has no members' '{\"packages\": []}'
-  printf '%s selftest OK: passes a workspace whose members each declare one [[test]], and one whose cargo writes to stderr; fires on a member with two test targets, a root with no manifest, a cargo reply it cannot parse, and a reply naming no members\n' "$(gate_name)"
+  # A cargo that REPLIES badly and a cargo that FAILS are two cases; the
+  # harness above covers only the first, and the second is the one that
+  # dies at the assignment with the reader's diagnosis to write.
+  gate_selftest_without_tool cargo 'cargo metadata failed under'
+  printf '%s selftest OK: passes a workspace whose members each declare one [[test]], and one whose cargo writes to stderr; fires on a member with two test targets, a root with no manifest, a cargo reply it cannot parse, a reply naming no members, and a cargo that cannot run at all\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

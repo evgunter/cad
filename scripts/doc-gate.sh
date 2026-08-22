@@ -37,15 +37,20 @@
 # argument. Whether to reinstate it (and render two doc sets, public and
 # private) is banked as its own question: issue #519.
 #
-# COVERAGE: EVERY CARGO MANIFEST IN THE TREE, IN TWO PASSES. `cargo doc
-# --workspace` sees workspace MEMBERS, and the root manifest excludes
-# `demos`, `tools` and `interval-transcendentals` — five more cargo
-# roots whose prose that pass cannot reach. So the gate runs the
-# workspace pass and then one `--no-deps` pass per manifest the
-# workspace pass did not cover. The two sets are complementary BY
-# CONSTRUCTION: `cargo metadata` answers which manifests `--workspace`
-# just documented, `find` answers which exist, and every manifest lands
-# in exactly one pass.
+# COVERAGE: EVERY CARGO MANIFEST THE REPOSITORY TRACKS, IN TWO PASSES.
+# `cargo doc --workspace` sees workspace MEMBERS, and the root manifest
+# excludes `demos`, `tools` and `interval-transcendentals` — six more
+# cargo roots (`demos/tour`, `demos/wild`, `tools/k-lint`,
+# `tools/tess-lint`, `tools/tess-meter`, `interval-transcendentals`)
+# whose prose that pass cannot reach. So the gate runs the workspace
+# pass and then one `--no-deps` pass per manifest the workspace pass did
+# not cover. The two sets are complementary BY CONSTRUCTION: `cargo
+# metadata` answers which manifests `--workspace` just documented, `git
+# ls-files` answers which exist, and every manifest lands in exactly one
+# pass. The six is not load-bearing — the list is derived, and the
+# success line reports the count the run actually saw — but a number
+# written here that disagrees with the run is the drift this gate is
+# about, so it is spelled out rather than summarised.
 #
 # THE ROOT LIST IS DERIVED AND MUST STAY DERIVED. A literal list here
 # would be the second hand-written roster in this repo, and
@@ -59,6 +64,27 @@
 # listed) is covered too, and a renamed or restructured field cannot
 # make the gate go quiet.
 #
+# DERIVED FROM THE REPOSITORY, NOT FROM THE FILESYSTEM. The other half
+# of the derivation — which manifests EXIST — is `git ls-files`, the
+# same instrument scripts/gates/ uses to decide what is in scope. A
+# `find` over the checkout answers a different question, and answers it
+# wrong: a working checkout grows directories that are not this repo's
+# source, and this one grows a whole checkout per agent lane under
+# `.claude/worktrees/`. Measured while writing this: 23 tracked
+# manifests, 115 on disk. Every one of those 92 is outside the outer
+# `cargo metadata`, so pass 2 would `cargo doc --manifest-path
+# .claude/worktrees/agent-X/Cargo.toml` under DEFAULT features — which
+# is the exact misread the `Cargo.toml` skip in the loop below exists
+# to prevent, wearing a path prefix, ninety-two times over. Pruning the
+# offending directory names is the weaker answer: the prune list has to
+# grow every time the checkout learns to grow a new directory, and the
+# gate is wrong-and-quiet in the interval. `git ls-files` cannot be
+# defeated by a directory someone adds later, because an untracked tree
+# is never source. Hosted CI never saw this — clean checkout, and the
+# job `rm -rf`s `.claude` — but the local half runs where the worktrees
+# live, which is the half that matters for a gate a developer is meant
+# to run before pushing.
+#
 # The excluded roots went uncovered, and the hole was patched one root
 # at a time: #709 moved ~1,050 lines of prose from
 # `crates/mesh/src/budget.rs` into `tools/tess-meter` — prose that went
@@ -68,7 +94,7 @@
 # covers those two roots along with the other three, so a third copy is
 # never the answer to a fourth root.
 #
-# FEATURES, AND WHY THE TWO PASSES DIFFER.
+# FEATURES: --all-features EVERYWHERE, WITH ONE NAMED EXCEPTION.
 #
 # --all-features on the WORKSPACE pass, UNLIKE the clippy job. Clippy
 # avoids it because the `interval` feature is a second build graph whose
@@ -82,34 +108,70 @@
 # went unchecked entirely. Documenting the full feature set is also what
 # docs.rs does by default.
 #
-# DEFAULT features on the roots outside the workspace, which is the
-# posture the two deleted hand-copied steps already had, and a ruling
-# this repo has already made once: ci.yml's `interval backend crate` job
-# is "deliberately the crate's DEFAULT feature set: without
-# `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
-# the graph". That crate's ONLY feature is that test-only oracle (its
-# manifest: `src/` must never reference `inari` or this feature), so
-# --all-features there would document not one extra line while dragging
-# the LGPL C build back into a doc job — the exact thing the exclusion
-# exists to prevent.
+# THE EXCEPTION IS ONE ROOT, AND IT IS NAMED. `interval-transcendentals`
+# is documented under DEFAULT features, a ruling this repo has already
+# made once: ci.yml's `interval backend crate` job is "deliberately the
+# crate's DEFAULT feature set: without `oracle-inari` there is no
+# inari/gmp-mpfr-sys and no C toolchain in the graph". That crate's ONLY
+# feature is that test-only oracle (its manifest: `src/` must never
+# reference `inari` or this feature), so --all-features there would
+# document not one extra line of `src/` while dragging the LGPL C build
+# back into a doc job — the exact thing the exclusion exists to prevent.
+#
+# EVERY OTHER ROOT GETS --all-features, and the exception list is the
+# way round it is for a reason. The LGPL argument above justifies
+# exactly one root; applying it to all six was one root's argument
+# stretched over five others, and it cost coverage. Of the six, only two
+# declare features at all, and the second is `demos/tour`, whose `probe`
+# and `budget` gate the tour's OWN `src/probe.rs` and its dispatch — not
+# only the kernel features they forward. Under default features that
+# file's prose was documented by NOTHING. So the default here is the
+# same flag pass 1 uses and docs.rs uses, and the exception carries its
+# reason at the constant. A seventh root added tomorrow gets the
+# covering treatment without anyone remembering to ask; the one root
+# that must not is spelled out where a reader trips over it.
 #
 # TARGETS, AND THE HALF-COVERED PACKAGE. `cargo doc`'s default target
 # selection documents a package's library and SKIPS a binary that shares
 # its name — silently, with no warning and a zero exit. `tools/k-lint`
 # is exactly that arrangement, and a broken intra-doc link planted in
 # its `src/main.rs` passed this gate green. So every pass here runs a
-# second `--bins` invocation; see doc_pass below for why that spelling
-# and not `--lib --bins`. What is still uncovered by construction is
-# `tests/`, `examples/` and `benches/`: rustdoc builds no test targets
-# at all, so an intra-doc link written under `tests/` is inert on every
-# tier. That is a decision this gate cannot take on its own — it is
-# banked as D113, with the census at S135.
+# second `--bins --examples` invocation; see doc_pass below for why that
+# spelling and not `--lib --bins`.
 #
-# THE RESIDUAL, stated because it is real: `demos/tour`'s `probe` and
-# `budget` features gate the tour's OWN `src/probe.rs` and its dispatch,
-# not only the kernel features they forward, so that file's prose is
-# documented by nothing. It is the one place where the rule above costs
-# coverage rather than only cost.
+# `--examples` IS THE SAME ONE-FLAG FIX AS `--bins`, and it is here for
+# the same reason. The claim that `examples/` is uncovered BY
+# CONSTRUCTION was wrong: "rustdoc builds no test targets at all" holds
+# for `tests/` and `benches/`, which have no `cargo doc` target filter,
+# but `cargo doc --examples` exists. Five Rust example targets carry
+# ~50 doc-comment lines no rustdoc lint had ever read
+# (`crates/step-export/` ×2, `crates/step-import/`, `crates/stl/`,
+# `interval-transcendentals/`); four of the five are in workspace
+# members and are now covered by pass 1.
+#
+# WHAT IS STILL UNCOVERED, AND WHY, stated rather than left to be
+# rediscovered:
+#
+#   * `tests/` and `benches/`. No `cargo doc` filter selects them —
+#     rustdoc genuinely builds no test target — so an intra-doc link
+#     written under `tests/` is inert on every tier. That is a decision
+#     this gate cannot take on its own: banked as D113, census at S135.
+#   * `interval-transcendentals/examples/bench.rs` (18 doc lines).
+#     Its `[[example]]` declares `required-features = ["oracle-inari"]`,
+#     and that root is the one documented under DEFAULT features, so
+#     `--examples` selects nothing there and cargo says so only as a
+#     no-op warning. This is the SAME SILENT-SKIP SHAPE as the k-lint
+#     binary above — a target filter that matches nothing exits zero —
+#     and it is accepted here because the alternative is the LGPL C
+#     toolchain in a doc job, which is the whole reason that root is
+#     excepted. Covering it means an `oracle-inari` doc pass with the
+#     inari graph, which is a cost decision, not a spelling one.
+#   * `build.rs`, and any future `[[bin]]` or `[[example]]` behind
+#     `required-features` that the root's feature set does not turn on.
+#     Cargo has no target filter for a build script at all; the
+#     `required-features` case is the bullet above, generalised. A new
+#     one arrives silently — nothing here will say so — which is the
+#     price of the exception paragraph above and is named as such.
 #
 # THE SELF-TEST, AND THE ONE THING NOT WATCHING IT. Every gate in
 # scripts/gates/ runs `--selftest` first, on the standing rule that a
@@ -123,12 +185,16 @@
 # `cargo doc --workspace --all-features` inside that row, which
 # ci-local.sh already runs as a row of its own.
 #
-# THE TRADE THAT BUYS, WRITTEN DOWN RATHER THAN LEFT TO BE
-# REDISCOVERED: `gate-roster.sh` proves that both halves call each
-# gate's `--selftest` AND the gate — and its roster is the DIRECTORY, so
-# it says nothing about this script. Delete `--selftest` from either
-# half's rustdoc row and no gate reds. That is the price of the siting
-# above, and it is paid knowingly.
+# AND THE SITING COSTS NOTHING, because the watching does not have to
+# move with the file. `gate-roster.sh` proves that both halves call each
+# gate's `--selftest` AND the gate; its roster is the DIRECTORY, so it
+# used to say nothing about this script and deleting `--selftest` from
+# either half's rustdoc row red nothing. That is not a trade anyone had
+# to accept: `check-ci-mirror-parity.py`'s TIER_BLIND already implements
+# "this NAMED PATH must be invoked by the hosted half and by the local
+# half", and gate-roster.sh now carries the same shape for gates sited
+# outside its directory — see OUTLIER_GATES there. This script is its
+# one entry, checked exactly as a member of the directory is.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/gates/lib.sh"
@@ -144,12 +210,30 @@ abs_path() {
   (cd "$(dirname "$1")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$1")")
 }
 
-# Every manifest in the tree. `target/` is pruned because a build
-# directory holds vendored manifests that are not this repo's prose, and
-# `.git/` because a packed tree is not source.
+# Every manifest the REPOSITORY tracks under $PWD, newline-delimited,
+# repo-relative. `git ls-files` and not `find`: see the derivation
+# paragraph in the header for why a checkout is the wrong oracle for
+# what this repo's source is. Run from $PWD, so it answers about the
+# tree the gate was pointed at and nothing above it.
+#
+# A FAILED READER IS NOT AN EMPTY TREE. Without this branch a `git` that
+# cannot answer — no repository, no git — would hand back an empty list,
+# pass 2 would run zero times, and the gate would report a green
+# "0 root(s) outside it" that is indistinguishable from a repo with no
+# excluded roots. That is the shape S157 is about, so it is diagnosed
+# and fatal.
 tree_manifests() {
-  find . \( -name target -o -name .git \) -prune -o -name Cargo.toml -print \
-    | sort
+  local out
+  if ! out=$(git ls-files -- '*Cargo.toml' 2>&1); then
+    printf '%s\n' "$out" >&2
+    gate_error "$(gate_name): git ls-files failed in $PWD, so the gate cannot tell which manifests this repository tracks — an empty list would silently skip every cargo root outside the workspace and still report green"
+    return 1
+  fi
+  if [ -z "$out" ]; then
+    gate_error "$(gate_name): git tracks no Cargo.toml under $PWD, yet the gate is standing on one — the manifests are untracked, or this is not the tree the repository thinks it is, and either way pass 2 would scan nothing and call it green"
+    return 1
+  fi
+  printf '%s' "$out" | sort
 }
 
 # The manifests `cargo doc --workspace` just covered. `--no-deps` makes
@@ -167,25 +251,36 @@ workspace_manifests() {
 
 # One pass, its own diagnosis, and TWO cargo invocations — because
 # `cargo doc`'s default target selection SILENTLY SKIPS a binary whose
-# name matches its package's library. `tools/k-lint` is the live case:
-# lib.rs and main.rs, one crate name, and a planted broken link in
-# main.rs left this gate green until `--bins` was added. The second
-# invocation is a no-op warning ("target filter `bins` specified, but no
-# targets matched") for a package with no bin, which is what makes it
-# safe to run unconditionally; `--lib --bins` is NOT the shorter
-# spelling, because `--lib` is a hard error on a bin-only package like
-# `demos/tour`.
+# name matches its package's library, and selects no example at all.
+# `tools/k-lint` is the live case for the first: lib.rs and main.rs, one
+# crate name, and a planted broken link in main.rs left this gate green
+# until `--bins` was added. The second invocation is a no-op warning
+# ("target filters `bins`, `examples` specified, but no targets matched")
+# for a package with neither, which is what makes it safe to run
+# unconditionally; `--lib --bins` is NOT the shorter spelling, because
+# `--lib` is a hard error on a bin-only package like `demos/tour`, while
+# `--bins --examples` is not an error on any of them.
 doc_pass() {
   local why=$1; shift
   local rc=0
   RUSTDOCFLAGS="$RUSTDOC_LINTS" cargo doc --no-deps --document-private-items "$@" || rc=1
-  RUSTDOCFLAGS="$RUSTDOC_LINTS" cargo doc --no-deps --document-private-items --bins "$@" || rc=1
+  RUSTDOCFLAGS="$RUSTDOC_LINTS" cargo doc --no-deps --document-private-items --bins --examples "$@" || rc=1
   [ "$rc" -eq 0 ] || gate_error "$(gate_name): rustdoc rejected $why"
   return "$rc"
 }
 
+# THE ONE ROOT DOCUMENTED UNDER DEFAULT FEATURES, named here with its
+# reason rather than derived, because there is nothing to derive it
+# from: no manifest field says "this crate's optional feature drags an
+# LGPL C toolchain into the graph". Matched on the repo-relative
+# manifest path `git ls-files` reports. Renaming or moving the crate
+# does not make the gate go quiet — it makes the root fall into the
+# --all-features default, where the inari build is loud rather than
+# silent. See the FEATURES paragraph in the header.
+DEFAULT_FEATURES_ROOT=interval-transcendentals/Cargo.toml
+
 gate() {
-  local rc=0 m members n=0
+  local rc=0 m members manifests n=0
   local -a roots=()
   if [ ! -f Cargo.toml ]; then
     gate_error "$(gate_name): no Cargo.toml under $PWD — the gate documented nothing, which is not a pass"
@@ -201,16 +296,23 @@ gate() {
   # `--no-deps` pass each, so a package in a nested workspace is
   # documented exactly once however those workspaces are arranged.
   members=$(workspace_manifests)
+  # BOTH LISTS CAPTURED, NOT PIPED OR PROCESS-SUBSTITUTED. Each reader
+  # can fail, and a failed reader must kill the gate rather than hand
+  # back an empty list: inside `< <(…)` a non-zero return is invisible,
+  # so the loop would run zero times and the gate would report green
+  # over a tree it never read. Under `set -e` a failed command
+  # substitution dies AT THE ASSIGNMENT — after the reader has written
+  # its own `gate_error` to STDERR, which is why lib.sh puts diagnoses
+  # there and not on stdout.
+  manifests=$(tree_manifests)
   while IFS= read -r m; do
     # THE WORKSPACE'S OWN MANIFEST IS NOT A MEMBER OF IT. This one is
     # virtual (no root package), so `cargo metadata`'s package list
     # cannot contain it and the membership test below reads it as an
     # uncovered root — whereupon this loop documents every member a
-    # SECOND time under DEFAULT features, which is exactly the misread
-    # the --all-features paragraph above exists to prevent: twelve
-    # correct links into `#[cfg(feature = ...)]` code report as broken.
-    # It is the manifest pass 1 was invoked on; it is covered.
-    [ "$m" = ./Cargo.toml ] && continue
+    # SECOND time, one package at a time, for no coverage at all. It is
+    # the manifest pass 1 was invoked on; it is covered.
+    [ "$m" = Cargo.toml ] && continue
     # NEWLINE-DELIMITED ON BOTH SIDES, and the delimiters are added HERE
     # rather than stored on `$members`: a command substitution strips
     # trailing newlines, so a list built with one would leave its LAST
@@ -226,37 +328,57 @@ $(abs_path "$m")
 "*) continue ;;
     esac
     roots+=("$m")
-  done < <(tree_manifests)
+  done <<<"$manifests"
 
+  local -a feat
+  local defaulted=0
   for m in ${roots[@]+"${roots[@]}"}; do
     n=$((n + 1))
+    feat=(--all-features)
+    if [ "$m" = "$DEFAULT_FEATURES_ROOT" ]; then
+      feat=()
+      defaulted=$((defaulted + 1))
+    fi
     doc_pass "$m — this cargo root is outside the kernel workspace, so the workspace pass never reads its prose and this pass is the only thing that does" \
-      --manifest-path "$m" || rc=1
+      --manifest-path "$m" ${feat[@]+"${feat[@]}"} || rc=1
   done
 
   GATE_SCAN_FILES=$n
   [ "$rc" -eq 0 ] || exit 1
-  gate_ok "every cargo manifest in the tree renders, library and binary targets alike: the workspace under --all-features, plus ${#roots[@]} root(s) outside it under default features"
+  gate_ok "every cargo manifest this repository tracks renders — library, binary and example targets alike: the workspace pass plus ${#roots[@]} root(s) outside it, all under --all-features except $defaulted named exception(s)"
 }
 
 # THE FIXTURE. Dependency-free by design — the cases are about this
 # script's control flow and its flags, not about the kernel, and a
 # fixture that built the kernel would cost minutes to prove seconds of
-# logic. Two packages, because the gate has two passes: a workspace
-# MEMBER and a root the workspace EXCLUDES. `edition = "2021"` rather
-# than the repo's 2024: the fixture is built by whatever toolchain is
-# default outside this tree, since rust-toolchain.toml does not reach a
-# /tmp directory. Both packages carry a lib AND a same-named bin, which
-# is the arrangement `cargo doc`'s default target selection skips half
-# of — the fixture has to contain it or the `--bins` invocation above is
-# unguarded.
+# logic. THREE packages, one per distinct treatment the gate has: a
+# workspace MEMBER (pass 1), a root the workspace EXCLUDES (pass 2 under
+# --all-features), and the root named by DEFAULT_FEATURES_ROOT, planted
+# at that exact path because the gate matches on it (pass 2 under
+# default features). `edition = "2021"` rather than the repo's 2024: the
+# fixture is built by whatever toolchain is default outside this tree,
+# since rust-toolchain.toml does not reach a /tmp directory.
+#
+# Every package carries a lib, a SAME-NAMED bin and an EXAMPLE — the two
+# arrangements `cargo doc`'s default target selection skips silently.
+# The fixture has to contain both or the `--bins --examples` invocation
+# above is unguarded.
+#
+# AND IT IS A GIT REPOSITORY, because the gate derives its root list
+# from `git ls-files`. `git add` and no commit: `ls-files` reads the
+# INDEX, so an added path is tracked and that is the whole requirement.
+# The planters below append to files planted here, so they need no
+# second `add`; a planter that writes a NEW path is writing something
+# UNTRACKED, which is a case of its own.
 gate_plant_clean() {
   local r=$1
-  mkdir -p "$r/crates/clean/src" "$r/outside/src"
+  mkdir -p "$r/crates/clean/src" "$r/crates/clean/examples" \
+    "$r/outside/src" "$r/outside/examples" \
+    "$r/interval-transcendentals/src"
   {
     printf '[workspace]\nresolver = "2"\n'
     printf 'members = ["crates/clean"]\n'
-    printf 'exclude = ["outside"]\n'
+    printf 'exclude = ["outside", "interval-transcendentals"]\n'
   } > "$r/Cargo.toml"
   {
     printf '[package]\nname = "clean"\nversion = "0.0.0"\nedition = "2021"\n'
@@ -267,9 +389,15 @@ gate_plant_clean() {
   } > "$r/crates/clean/src/lib.rs"
   printf '//! The member bin, linking to [`main`].\nfn main() {}\n' \
     > "$r/crates/clean/src/main.rs"
+  printf '//! The member example, linking to [`main`].\nfn main() {}\n' \
+    > "$r/crates/clean/examples/demo.rs"
   {
     printf '[workspace]\n\n'
-    printf '[package]\nname = "outside"\nversion = "0.0.0"\nedition = "2021"\n'
+    printf '[package]\nname = "outside"\nversion = "0.0.0"\nedition = "2021"\n\n'
+    # A feature gating this root's OWN code, which is `demos/tour`'s
+    # arrangement: under default features the item behind it is never
+    # compiled and its prose is read by nothing.
+    printf '[features]\nprobe = []\n'
   } > "$r/outside/Cargo.toml"
   {
     printf '//! A root outside the workspace, linking to [`identity`].\n'
@@ -277,6 +405,19 @@ gate_plant_clean() {
   } > "$r/outside/src/lib.rs"
   printf '//! The outside bin, linking to [`main`].\nfn main() {}\n' \
     > "$r/outside/src/main.rs"
+  printf '//! The outside example, linking to [`main`].\nfn main() {}\n' \
+    > "$r/outside/examples/demo.rs"
+  {
+    printf '[workspace]\n\n'
+    printf '[package]\nname = "interval-transcendentals"\nversion = "0.0.0"\nedition = "2021"\n\n'
+    printf '[features]\noracle-inari = []\n'
+  } > "$r/interval-transcendentals/Cargo.toml"
+  {
+    printf '//! The feature-excepted root, linking to [`identity`].\n'
+    printf 'pub fn identity(x: f64) -> f64 { x }\n'
+  } > "$r/interval-transcendentals/src/lib.rs"
+  git -C "$r" init -q >/dev/null 2>&1
+  git -C "$r" add -A >/dev/null 2>&1
 }
 
 # The shape #740 and #744 arrived in, and the shape #755 arrived in: a
@@ -308,6 +449,64 @@ plant_broken_link_in_excluded_root_bin() {
     >> "$1/outside/src/main.rs"
 }
 
+# THE EXAMPLE, in each pass, and the reason `--examples` is not a
+# tidiness flag: default target selection selects no example AT ALL, so
+# before it was added the ~50 doc-comment lines under the repo's five
+# `examples/` trees were read by nothing, silently and with a zero exit.
+plant_broken_link_in_member_example() {
+  printf '\n/// Links to [`no_such_item`].\npub fn documented() {}\n' \
+    >> "$1/crates/clean/examples/demo.rs"
+}
+
+plant_broken_link_in_excluded_root_example() {
+  printf '\n/// Links to [`no_such_item`].\npub fn documented() {}\n' \
+    >> "$1/outside/examples/demo.rs"
+}
+
+# --all-features ON A ROOT OUTSIDE THE WORKSPACE. `demos/tour`'s live
+# arrangement: a feature gating the root's OWN module. Under default
+# features this item is not compiled and its prose is documented by
+# nothing, which is what the gate used to do to every excluded root.
+plant_broken_link_behind_a_feature_in_excluded_root() {
+  {
+    printf '\n#[cfg(feature = "probe")]\n'
+    printf '/// Links to [`no_such_item`].\npub fn documented() {}\n'
+  } >> "$1/outside/src/lib.rs"
+}
+
+# THE NAMED EXCEPTION, and the case that keeps it honest in the other
+# direction: the same break behind the excepted root's own feature must
+# NOT fire, because that root is documented under DEFAULT features on
+# purpose. Delete DEFAULT_FEATURES_ROOT's branch and this reds — which
+# is the LGPL C toolchain arriving in a doc job, caught here rather than
+# on a runner.
+plant_broken_link_behind_the_excepted_feature() {
+  {
+    printf '\n#[cfg(feature = "oracle-inari")]\n'
+    printf '/// Links to [`no_such_item`].\npub fn documented() {}\n'
+  } >> "$1/interval-transcendentals/src/lib.rs"
+}
+
+# THE DERIVATION ITSELF. A whole second checkout under `.claude/`, the
+# way this repo's agent worktrees arrive — 92 of them on disk against 23
+# tracked, when this case was written — carrying a break in a root the
+# outer `cargo metadata` has never heard of. UNTRACKED, so `git
+# ls-files` does not report it and the gate must PASS. Swap the
+# derivation back to `find` and this case reds, which is the point: it
+# is the only thing standing between a developer's checkout and a pass 2
+# that documents every lane's worktree under the wrong feature set.
+plant_untracked_worktree_with_broken_link() {
+  mkdir -p "$1/.claude/worktrees/agent-x/src"
+  {
+    printf '[workspace]\n\n'
+    printf '[package]\nname = "lane"\nversion = "0.0.0"\nedition = "2021"\n'
+  } > "$1/.claude/worktrees/agent-x/Cargo.toml"
+  {
+    printf '//! A lane worktree.\n'
+    printf '/// Links to [`no_such_item`].\npub fn documented() {}\n'
+  } > "$1/.claude/worktrees/agent-x/src/lib.rs"
+}
+
 # --document-private-items, pinned. Without the flag rustdoc never
 # renders a private item and so never resolves its links, and this
 # fixture goes green — which is precisely how the flag could be dropped
@@ -335,10 +534,24 @@ gate_selftest() {
   gate_selftest_case "$want" plant_broken_link_in_excluded_root
   gate_selftest_case "$want" plant_broken_link_in_member_bin
   gate_selftest_case "$want" plant_broken_link_in_excluded_root_bin
+  gate_selftest_case "$want" plant_broken_link_in_member_example
+  gate_selftest_case "$want" plant_broken_link_in_excluded_root_example
+  gate_selftest_case "$want" plant_broken_link_behind_a_feature_in_excluded_root
   gate_selftest_case "$want" plant_broken_link_on_private_item
   gate_selftest_passes "public prose linking to a private sibling" \
     plant_public_link_to_private_item
-  printf '%s selftest OK: passes a clean two-root fixture and a public link to a private sibling; fires on a broken link in a workspace member and in a root outside the workspace, in each of their same-named binaries, and on a private item\n' \
+  gate_selftest_passes "prose behind the named default-features root's own feature" \
+    plant_broken_link_behind_the_excepted_feature
+  gate_selftest_passes "a cargo root the repository does not track (an agent worktree under .claude/)" \
+    plant_untracked_worktree_with_broken_link
+  # THE TWO READERS. Both decide whether pass 2 covers anything, and
+  # neither had ever been shown to fail — S157's class, in the gate
+  # whose subject is that a guard never shown to fire is not a guard.
+  # Each stub also breaks the pass ABOVE the reader, so the wanted text
+  # is the reader's own diagnosis and not merely a non-zero exit.
+  gate_selftest_without_tool cargo "cargo metadata failed"
+  gate_selftest_without_tool git "git ls-files failed"
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, prose behind the excepted root'"'"'s feature, and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, and when either cargo or git cannot answer\n' \
     "$(gate_name)"
 }
 
