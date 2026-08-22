@@ -224,13 +224,28 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
 
     The paths are built as `ROOT / "docs" / "guide" / "examples.md"`, so they
     are read the way they are written: an `ast` walk over `/`-chains of string
-    constants, joined. WHAT THIS DOES NOT SEE, said plainly because a
-    disclosed blind spot is a work order: a page named any other way — an
-    f-string, a glob, a name assembled at runtime, a path read from a fixture
-    file. Those stay in the docs tier and their suite stays skippable. Nor is
-    the leading `Name` checked to BE the repo root: a chain rooted at a test
-    directory resolves to a path that exists nowhere and simply matches no
-    diff. The shape in use is the shape checked.
+    constants, joined. Nor is the leading `Name` checked to BE the repo root: a
+    chain rooted at a test directory resolves to a path that exists nowhere and
+    simply matches no diff. The shape in use is the shape checked.
+
+    FAILS CLOSED ON EVERY MENTION IT CAN SEE, which is the posture
+    `_compiled_markdown` gets for free and this half has to buy. A `.md` STRING
+    LITERAL anywhere in one of these sources that no resolved chain accounts for
+    raises `Bail` — TIER=all — exactly as an unresolvable `include!` does on the
+    Rust side. That is the guard against the failure mode that has no other
+    tell: a page re-spelled some way this walk does not parse
+    (`Path(__file__).parents[1] / "README.md"`), which does not error, does not
+    shrink anything visibly, and simply drops that page into the docs tier where
+    its suite stops running. The literal is still there to be seen, so it is
+    read as uncertainty rather than as absence.
+
+    THE RESIDUE, said plainly because a disclosed blind spot is a work order: a
+    page whose name never appears as a literal at all — assembled from parts, a
+    glob, an f-string, a name read from a fixture file. Nothing in the source
+    ends in `.md`, so there is nothing to fail closed ON, and such a page stays
+    in the docs tier with its suite skippable. Widening a mention this DOES see
+    into a resolved path is a two-line change to `parts`; a page with no literal
+    needs a different instrument.
     """
     import ast
 
@@ -262,17 +277,46 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
                     tree = ast.parse(fh.read(), filename=src)
             except (OSError, SyntaxError) as exc:
                 raise Bail(f"cannot read {src}: {exc}") from exc
+            resolved: set[str] = set()
             for node in ast.walk(tree):
                 if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Div):
                     continue
                 chain = parts(node)
                 if chain and chain[-1].endswith(".md"):
-                    out.add("/".join(chain))
+                    resolved.add("/".join(chain))
+            # Every `.md` literal in the file must be accounted for by one of
+            # the chains above. A mention that is visible and unresolved is
+            # uncertainty, and uncertainty is TIER=all.
+            seen = {
+                n.value
+                for n in ast.walk(tree)
+                if isinstance(n, ast.Constant)
+                and isinstance(n.value, str)
+                and n.value.endswith(".md")
+            }
+            for lit in sorted(seen):
+                if any(r == lit or r.endswith("/" + lit) for r in resolved):
+                    continue
+                raise Bail(
+                    f"{os.path.relpath(src, root)} names `{lit}` in a way this scan cannot "
+                    "resolve to a repo path, so whether that page is executed by a suite "
+                    "cannot be read here — and that is what decides the docs tier"
+                )
+            out |= resolved
     return frozenset(out)
 
 
 def _consumed_markdown(root: str) -> frozenset[str]:
-    """Markdown a BUILD OR A SUITE consumes, from both directions."""
+    """Markdown a BUILD OR A SUITE consumes, from both directions.
+
+    Both halves fail closed on every consumption they can see, which is what
+    makes the union safe to take: an `include!` that cannot be resolved and a
+    `.md` literal that cannot be resolved each raise `Bail`, so a consumer
+    re-spelled out of one parser's reach becomes TIER=all rather than becoming
+    a page in the docs tier. Neither half can see a page whose name is never
+    written down; that residue is `_markdown_read_by_python`'s to state and it
+    does.
+    """
     return _compiled_markdown(root) | _markdown_read_by_python(root)
 
 
@@ -535,17 +579,35 @@ def _plant_fixture(t: str) -> str:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
         open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
-    # A page rustdoc compiles in, a page a python suite reads, and a page
-    # that is only prose. The docs tier must separate these three.
-    os.makedirs(os.path.join(t, "docs"), exist_ok=True)
-    for page in ("GUIDE.md", "PYPAGE.md", "PROSE.md"):
+    # Four consumed pages and one that is only prose. The docs tier must
+    # separate them, and the four are spelled deliberately unlike each other:
+    # every arm of the derivation is the only thing holding one of them out of
+    # the docs tier, so narrowing any one arm drops a page and reds a case.
+    #
+    # SUBDIRECTORIES ARE THE LIVE SHAPE. Four of this repo's five real consumed
+    # pages sit under `docs/guide/`, so the fixture puts consumed pages there
+    # too: a battery that only ever planted them at `docs/` top level would
+    # pass with `docs/guide/` treated as a documentation prefix.
+    os.makedirs(os.path.join(t, "docs", "guide"), exist_ok=True)
+    for page in ("GUIDE.md", "TOURPAGE.md", "PROSE.md"):
         with open(os.path.join(t, "docs", page), "w") as fh:
             fh.write("prose\n")
+    for page in ("PYPAGE.md", "ASSET.md"):
+        with open(os.path.join(t, "docs", "guide", page), "w") as fh:
+            fh.write("prose\n")
+    # `include_str!` from a workspace member, and `include_bytes!` from the
+    # same one: the regex spans the family, not one spelling of it.
     with open(os.path.join(t, "crates", "topo", "src", "guide.rs"), "w") as fh:
         fh.write('#![doc = include_str!("../../../docs/GUIDE.md")]\n')
+        fh.write('const A: &[u8] = include_bytes!("../../../docs/guide/ASSET.md");\n')
+    # An EXCLUDED workspace compiles one in too. `demos/tour` is a real crate
+    # with real doctests; the docs tier does not stop at the workspace edge.
+    os.makedirs(os.path.join(t, "demos", "tour", "src"), exist_ok=True)
+    with open(os.path.join(t, "demos", "tour", "src", "lib.rs"), "w") as fh:
+        fh.write('#![doc = include_str!("../../../docs/TOURPAGE.md")]\n')
     os.makedirs(os.path.join(t, "crates", "stl", "tests"), exist_ok=True)
     with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
-        fh.write('PAGE = ROOT / "docs" / "PYPAGE.md"\n')
+        fh.write('PAGE = ROOT / "docs" / "guide" / "PYPAGE.md"\n')
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
@@ -564,7 +626,9 @@ def _plant_fixture(t: str) -> str:
         fh.write("#!/bin/sh\n")
         fh.write('[ "$1" = metadata ] || { echo "stub cargo: $*" >&2; exit 1; }\n')
         fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
-    os.chmod(stub, 0o755)
+    # Owner-only. The stub is executed by this process out of a tempdir it
+    # owns; nothing else needs to read it, let alone run it.
+    os.chmod(stub, 0o700)
     return t
 
 
@@ -633,6 +697,16 @@ def selftest() -> None:
             # whole guard against this, and `all()` over a list nobody tests
             # is a claim.
             ("a .rs beside a .md", ["docs/DESIGN.md", "crates/topo/src/lib.rs"], "closure"),
+            # NOT WORKSPACE-LEVEL, so these two are not in that allowlist —
+            # they sit inside a member and must SCOPE. They are here because
+            # the docs tier is about what a build reads, not about what a human
+            # reads, and both of these are read by a build: this repo carries
+            # `crates/topo/proptest-regressions/*.txt` (the seeds a proptest
+            # replays) and `.step`/`.expect` pairs under `tests/fixtures/` (the
+            # goldens a comparison asserts against). Treating either as prose
+            # skips the suite whose input just changed.
+            ("a proptest regression seed", ["crates/topo/proptest-regressions/seq.txt"], "closure"),
+            ("a golden test fixture", ["crates/topo/tests/fixtures/cube.step"], "closure"),
             # `docs/` is not a docs PREFIX here and must not become one: the
             # k-lint job's committed input lives under it.
             ("a non-.md file under docs/", ["docs/k-report-data/margins.json"], "all"),
@@ -651,14 +725,32 @@ def selftest() -> None:
             ("a member manifest", ["crates/topo/Cargo.toml"], "all"),
             ("an unrecognised crate directory", ["crates/brand-new/src/lib.rs"], "all"),
             ("an unrecognised top-level file", ["deny.toml"], "all"),
+            # THE REST OF THE ALLOWLIST COMMENT IN `classify`, one case each.
+            # That comment enumerates what is workspace-level and therefore
+            # unscopable; an entry named there with no case here is a rule
+            # stated and not held, and widening `_is_docs` over it stays green.
+            ("the workspace manifest", ["Cargo.toml"], "all"),
+            ("the toolchain pin", ["rust-toolchain.toml"], "all"),
+            ("cargo configuration", [".cargo/config.toml"], "all"),
+            # `k-lint` is the only job that compiles these two, so a docs
+            # verdict on either skips the only build that would have seen it.
+            ("the excluded demos workspace", ["demos/tour/src/main.rs"], "all"),
+            ("the excluded tools workspace", ["tools/k-lint/src/main.rs"], "all"),
             ("the excluded interval workspace", ["interval-transcendentals/src/lib.rs"], "all"),
             # A .md rustdoc COMPILES IN: every Rust block in it is a doctest,
             # so an edit to it can turn a build red. This is the live shape —
             # `crates/pncad/src/guide.rs` does exactly this to `docs/GUIDE.md`
             # and four pages under `docs/guide/`.
             ("a page compiled into rustdoc", ["docs/GUIDE.md"], "all"),
-            # And the other consumer: a page a python suite executes.
-            ("a page a python suite reads", ["docs/PYPAGE.md"], "all"),
+            # The same fact through the other two arms of the same derivation.
+            # Without these, `_INCLUDE_RE` could narrow to `include_str!` alone
+            # and `_RUST_TREES` could shrink to `("crates",)` with every case
+            # green — two claims in the header that nothing checked.
+            ("a page embedded as bytes", ["docs/guide/ASSET.md"], "all"),
+            ("a page compiled into an excluded workspace", ["docs/TOURPAGE.md"], "all"),
+            # And the other consumer: a page a python suite executes, IN A
+            # SUBDIRECTORY, which is where the real ones live.
+            ("a page a python suite reads", ["docs/guide/PYPAGE.md"], "all"),
         ):
             _files_case(t, f"{what} must NOT classify docs", files,
                         TIER=tier, RUN_BUILD="true", RUN_K_LINT="true")
@@ -736,15 +828,38 @@ def selftest() -> None:
                 _selftest_invoke(t, ["--files", "-"], "docs/PROSE.md\n"),
                 {"TIER": "all", "RUN_BUILD": "true"})
 
+    # --- THE DERIVATION ITSELF FAILING TO PARSE, on the python side. Its own
+    # fixture, for the same reason the `include!` case above has one: this is
+    # supposed to poison every verdict, so it cannot share a tree with cases
+    # that expect a clean derivation.
+    #
+    # A page named by any spelling the `/`-chain walk does not parse is the one
+    # failure with no other tell — the suite still reads the page, the set
+    # silently loses it, and the page falls into the docs tier where that suite
+    # stops running. `_selftest_docs_premise` cannot catch it: "everything in
+    # the set is non-docs" is true of a set that lost a member. The visible
+    # `.md` literal is what is left to fail closed on.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
+            fh.write('PAGE = Path(__file__).resolve().parents[2] / "docs" / "guide" / "PYPAGE.md"\n')
+        _expect("a page named by a spelling the scan cannot resolve must not leave the docs tier open",
+                _selftest_invoke(t, ["--files", "-"], "docs/guide/PYPAGE.md\n"),
+                {"TIER": "all", "RUN_BUILD": "true"})
+
     _selftest_docs_premise()
     print(
         "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
         "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
         "not a non-.md file under docs/, not a path one character off a docs prefix, "
         "not an edit to this script, a gate, the workflow, the lockfile or a member "
-        "manifest, not an unrecognised crate directory or top-level file, not an empty "
+        "manifest, not an unrecognised crate directory or top-level file, not the "
+        "workspace manifest, toolchain pin or cargo config, not an excluded workspace, "
+        "not a proptest seed or a golden fixture, not an empty "
         "diff, not a crate source renamed to a .md, and not a page that rustdoc compiles "
-        "in or a python suite executes; the closure follows dev-dependency "
+        "in — by any include! spelling, from any rust tree — or that a python suite "
+        "executes, including one named by a spelling the scan cannot resolve; "
+        "the closure follows dev-dependency "
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
         "not on their prose"
     )
@@ -752,12 +867,30 @@ def selftest() -> None:
 
 def _selftest_docs_premise() -> None:
     """THE PREMISE THE DOCS TIER RESTS ON, read off the REAL tree rather than
-    asserted in a header. `_consumed_markdown` fails closed — an unreadable
-    source or an `include!` it cannot resolve raises `Bail`, which makes every
-    change set TIER=all — and the only trace of that in a real run is one line
-    on stderr inside the filter job. Here it is a red self-test instead."""
+    asserted in a header.
+
+    WHAT THIS PROVES AND WHAT IT DOES NOT, because the difference is the whole
+    reason this function is not enough on its own. It proves the union comes
+    back derivable on this tree and that nothing in it is misfiled as
+    documentation. It does NOT prove the union is COMPLETE: "every member of
+    this set is non-docs" is vacuously true of a set that has quietly lost
+    members, and a derivation that stopped recognising a spelling loses them
+    without erroring. Completeness rests on `_markdown_read_by_python` and
+    `_compiled_markdown` failing closed on every consumption they can see — a
+    mention neither can resolve raises `Bail` rather than going missing — and
+    that is what turns a re-spelled page into the red below instead of into a
+    quietly smaller set.
+
+    The `Bail` is caught here for one reason: in a real run its only trace is a
+    line on stderr inside the filter job, under a TIER=all that looks like any
+    other conservative verdict. Here it is a named self-test failure."""
     root = _repo_root()
-    consumed = _consumed_markdown(root)
+    try:
+        consumed = _consumed_markdown(root)
+    except Bail as exc:
+        raise SystemExit(
+            f"SELFTEST FAILED: this tree's consumed-markdown set cannot be derived: {exc}"
+        ) from exc
     for path in sorted(consumed):
         if _is_docs(path, consumed):
             raise SystemExit(f"SELFTEST FAILED: {path} is consumed by a build or a suite and still "

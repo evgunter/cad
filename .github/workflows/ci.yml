@@ -1266,8 +1266,15 @@ jobs:
   # doc-tests (both need this graph compiled anyway), then archives the
   # test binaries for the `test-interval` matrix below.
   #
-  # NO LOCAL MIRROR: the same archive split as `build` above, for the interval
-  # graph — one machine locally, so nothing is archived and nothing is shipped.
+  # NO LOCAL MIRROR: the archive split, the same as `build` above and for the
+  # same reason — one machine locally, so nothing is archived and nothing is
+  # shipped. That is the part with no local half, and it is not the whole job:
+  # `list archived tests (interval)` IS reproduced locally, inside
+  # ci-local.sh's `interval_selection`, which computes both operands of the set
+  # difference in one function. Its marker cites `test-interval`, the job whose
+  # legs consume the selection, rather than this one, so the citation names
+  # where the listing is USED — which is why this job still reads as
+  # unmirrored and needs this line.
   # The interval clippy and doc-test passes are not in this job; they are
   # `lint-interval`, which the local half mirrors and cites.
   build-interval:
@@ -2623,11 +2630,12 @@ jobs:
   # runner's core count) rather than restated here: this job renders the
   # canonical frames, so it must not be the place a second opinion about
   # how they are produced can creep in.
-  # NO LOCAL MIRROR: the FreeCAD render lanes, which re-baseline committed
-  # cells from a GITHUB_TOKEN bot commit on main. The local half's
-  # `render-hosted.sh` DISPATCHES this workflow rather than reproducing it —
-  # reproducing it would need the pinned FreeCAD AppImage and would write
-  # baselines from a developer's machine.
+  # NO LOCAL MIRROR: a caller with no steps of its own. It hands render.yml
+  # four lanes, and each of those says at its own key whether it has a local
+  # half — `tour` and `uv` do and are cited, `montage` and `wild` say why they
+  # cannot. One reason written here would have to be true of all four, and the
+  # FreeCAD one is true of `montage` alone: the local half already runs the
+  # other two lanes' work through `uv sheet drift (demos)`.
   renders:
     name: render lanes
     needs: filter

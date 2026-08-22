@@ -321,6 +321,13 @@ manifest_selftest() {
 # (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
 # This row is a sanctioned automated render — renderer-free, and
 # `git diff --exit-code` un-does the question of drift by failing on it.
+#
+# The two markers below are the LANES this row reproduces, in render.yml
+# rather than in ci.yml: the same `cargo run --release -- ../out` the `tour`
+# lane runs, and the same `demos/render-uv.sh` the `uv` lane runs. What it
+# does not reproduce is their re-baseline, which is the sentence above.
+# HOSTED MIRROR: tour / demo tour (STL + STEP + UV SVGs + scenes.json)
+# HOSTED MIRROR: uv / compose (demos/render-uv.sh)
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
@@ -346,8 +353,8 @@ step_import() {
   scripts/check_step.sh
 }
 
-# Mirror of hosted's `release-corruption` job. The ONE row in either
-# gate that compiles the release profile: two suites in crates/topo split
+# The ONE row in either gate that compiles the release profile: two
+# suites in crates/topo split
 # their expectations on `cfg(debug_assertions)`, so the ordinary rows
 # above can only ever run one half. Scoped to `-p topo --lib` — the
 # compile is the whole cost (93 s on a cold hosted cache). The guards
@@ -381,8 +388,8 @@ topo_release() {
   return "$rc"
 }
 
-# Mirror of hosted's `python-suite` job (LIB PY-CI). Hosted runs the
-# wheel path — maturin build, venv, pip install, unittest discover.
+# LIB PY-CI. Hosted runs the wheel path — maturin build, venv, pip
+# install, unittest discover.
 # The local row is the staged-cdylib fallback run-python-tests.sh
 # exists for: same cargo-built extension module, same interpreter
 # contract, same unittest discovery over the same tests/ directory —
@@ -526,11 +533,10 @@ rebuild_latency() { cargo test -p editor-core --test all -- --ignored --nocaptur
 # u128 rational arithmetic. NOT `+` and `-` (their pads are bounded from
 # above here but a dropped one shows only against the oracle), and NOT
 # the seven transcendentals (their truth needs a multi-precision
-# reference). Hosted mirror: ci.yml's `interval-backend` job.
+# reference).
 #
 # The two directions this row cannot cover — a dropped `+`/`-` pad, and a
-# dropped transcendental pad — belong to `oracle_certify` below, which is
-# this half's mirror of ci.yml's `oracle-certify` job.
+# dropped transcendental pad — belong to `oracle_certify` below.
 # HOSTED MIRROR: interval-backend / tests (default features — the oracle stack must stay out)
 interval_backend() {
   (cd interval-transcendentals \
@@ -578,17 +584,20 @@ oracle_certify() {
 # Demos hygiene (M4 PR 8b pickup): demos/tour is workspace-excluded, so
 # the workspace fmt/clippy rows above never see it — fmt drift and
 # clippy errors accumulated invisibly until 8b. This row keeps them from
-# silently returning. Hosted mirror: the ci.yml `k-lint` job runs the
-# same two commands before its probe sweep (the tour must build there
-# anyway — the demo scenes are half the lint's subject matter).
+# silently returning. Hosted runs the same two pairs before its probe
+# sweep (the tour must build there anyway — the demo scenes are half the
+# lint's subject matter); the markers below are what holds that true.
+# HOSTED MIRROR: k-lint / demos tour fmt + clippy
+# HOSTED MIRROR: k-lint / demos wild fmt + clippy
 demos_hygiene() {
   (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings) && \
     (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
-# Hosted mirror: ci.yml's "demos tour eps pin (#99)" row. Scoped to the
-# integration test for the reason stated there — `--bin demo-tour`'s
-# unit tests carry two rows that are red on main (issue #782).
+# Scoped to the integration test for the reason stated at the hosted
+# step — `--bin demo-tour`'s unit tests carry two rows that are red on
+# main (issue #782).
+# HOSTED MIRROR: k-lint / demos tour eps pin (#99)
 demos_eps_pin() {
   (cd demos/tour && cargo test --release --test eps_regression)
 }
@@ -708,7 +717,7 @@ tesslint_gate() {
     --baseline ../../docs/tess-budget-data/tess-budget-baseline.csv)
 }
 
-# The wasm32 guard (#807), local half of ci.yml's `wasm32 check` step.
+# The wasm32 guard (#807).
 # ONE LEG, the interval one, on Evan's ruling of 2026-08-21 that the
 # purely-additive lint suffices for the default build. Read that step's
 # comment for the subsumption argument, for the lint residual this guard
@@ -742,8 +751,8 @@ run_row "rustdoc (gate)"               scripts/doc-gate.sh
 run_row "wasm32 check (#807)"          wasm_check
 # ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
-# src/tolerance.rs — three orders either side. Mirror of ci.yml's `test`
-# matrix over the default archive; the first row compiles, the eps rows
+# src/tolerance.rs — three orders either side. Over the default archive;
+# the first row compiles, the eps rows
 # reuse target/ (build-once is automatic locally — see the header).
 run_row "test (eps = default)"         test_default
 run_row "test (eps = 1e-6)"            test_eps 1e-6
