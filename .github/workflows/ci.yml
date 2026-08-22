@@ -738,7 +738,63 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
+      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921).
+      #
+      # `Swatinem/rust-cache` caches the target directories it is TOLD
+      # about, and its default is one: `./target`. The rustdoc gate below
+      # documents SEVEN cargo roots — the workspace plus the six the
+      # workspace excludes — and each of those six builds into a target
+      # directory of its own, under its own directory. Every one of them
+      # therefore compiled from nothing on EVERY run of this job,
+      # `demos/tour` and `demos/wild` rebuilding the whole kernel each
+      # time, while the workspace pass ran against a warm graph.
+      #
+      # MEASURED, hosted, 2 vCPU, warm cache with one kernel doc comment
+      # changed — the case a real PR is (run 32583370980, two jobs one
+      # input apart):
+      #
+      #   `scripts/doc-gate.sh`   67 s -> 33 s
+      #   whole job              136 s -> 99 s, i.e. 3 billed -> 2 billed
+      #
+      # The cache entry grows 155 MB -> 245 MB compressed, paid ONLY when
+      # the key rotates: a warm run logs "Cache up-to-date" and re-saves
+      # nothing. Restore costs ~4 s more. Write-up: F6 in
+      # docs/CI-MINUTES-2026-08.md.
+      #
+      # DERIVED, NOT COPIED, and that is the whole reason this step
+      # exists rather than a `workspaces:` roster written out below.
+      # scripts/doc-gate.sh's header argues at length that its root list
+      # must stay derived, because a root added to `workspace.exclude`
+      # and forgotten in a hand-kept copy is a tree nothing covers,
+      # reading as covered. A hand-kept copy HERE has the same shape one
+      # currency down: the forgotten root silently leaves the cache, and
+      # nothing says so. So the workflow asks the gate. `--print-roots`
+      # runs the same derivation the gate runs and prints `.` plus one
+      # directory per root outside the workspace.
+      #
+      # BEFORE rust-cache, which it has to be, since its output is that
+      # action's input. That is safe: the mode reads `git ls-files` and
+      # `cargo metadata --no-deps`, and `--no-deps` needs no registry
+      # index (checked under an empty CARGO_HOME), so nothing here
+      # depends on the `~/.cargo` this step precedes restoring.
+      - name: derive the cargo roots the rustdoc gate documents
+        id: doc-roots
+        # CAPTURED FIRST, THEN WRITTEN. Inline inside the block, a gate
+        # that died mid-list would leave an unterminated heredoc
+        # delimiter in $GITHUB_OUTPUT and the failure would be read as a
+        # malformed-output error rather than as the gate's own
+        # diagnosis. The assignment fails under `bash -e` before
+        # anything is appended.
+        run: |
+          roots=$(scripts/doc-gate.sh --print-roots)
+          {
+            echo 'roots<<DOC_GATE_ROOTS'
+            printf '%s\n' "$roots"
+            echo 'DOC_GATE_ROOTS'
+          } >> "$GITHUB_OUTPUT"
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ steps.doc-roots.outputs.roots }}
       - name: rustfmt
         run: cargo fmt --all --check
       # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
