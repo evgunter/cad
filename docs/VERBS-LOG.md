@@ -238,3 +238,29 @@ VERBS-ARCEVAL dispatched (difficulty S logged pre-dispatch,
 block VERBS-1 slot 3; the investigator's lane continues as the
 implementer — full context, arm-consistent), branch verbs/arceval.
 #920 merges after this lands via a real re-draw.
+
+## Design-conversation rounds with Evan (2026-08-22, afternoon)
+
+- **#907 (Q8)**: two rounds folded. Round 1 — self-intersection
+  doors added to O1 (trimmed offset as a later topology verb over
+  the same intensional spec; solved-d tangency = declared-contact
+  spelling now, M10 root-solve banked); O4 rewritten as
+  definition-vs-execution (sealed shell = degenerate no-crossing
+  arm through the boolean's void-insertion door; #750 avoided
+  by-construction; Wave-2 coupling dropped). Round 2 — Evan's
+  sweep note: the refined invariant ("every cavity is born through
+  the shared void-insertion door") admits the holed full revolve
+  as its third producer, which IS VERBS-RING — the plan row is
+  redefined (RING factors the door, first consumer, gated on
+  ratification), and DESIGN.md's M2 bullet is revised in the PR.
+  Final 👍 requested (watchlisted).
+- **#908 (draft)**: Evan corrected DR1's cost reading — R1 bars
+  only exact conic special cases; fitted-NURBS plane×cone sections
+  are fine, so the cylinder arm is a fitted-SSI lane (plumbing),
+  not a ratified-decision change. DR6's checker confirmed
+  kind-general (normal enclosures exist per kind, not per verb).
+  Folded; 👍 requested (watchlisted).
+- ARCEVAL: PR #922 open, hosted draw missed the 1e-12 point
+  (pinned interval lane, default ε drawn) — ordinal-62 single
+  review dispatched with the 1e-12 repro as the reviewer's
+  unique-signal run.
