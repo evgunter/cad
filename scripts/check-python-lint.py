@@ -328,8 +328,9 @@ CLEAN_SRC = "VALUE = 1\n"
 
 
 class Tally:
-    """Cases run and cases failed, COUNTED. What this replaces was
-    `len(CASES) + 5` — a hand-maintained number inside a self-test."""
+    """Cases run and cases failed, COUNTED — so the number this file prints
+    comes from the cases it actually ran, not from a total kept by hand
+    somewhere below them."""
 
     def __init__(self) -> None:
         self.ran = 0
