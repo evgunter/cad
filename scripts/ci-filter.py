@@ -243,7 +243,13 @@ def _all_tier(root: str) -> dict[str, str]:
     try:
         dir_of, _ = _members(root)
         pkgs = ",".join(sorted(dir_of.values()))
-    except Exception:
+    # Fail CLOSED, the same posture as the caller below and stated in the same
+    # words on purpose. TIER is already "all" and CARGO_SCOPE already
+    # "--workspace" by the time this runs, and `decorate` sets every job flag
+    # true on TIER=all without consulting PKGS — so an unreadable member list
+    # costs the ECHOED package names and nothing that is RUN. No job is skipped
+    # by taking this branch.
+    except Exception:  # noqa: BLE001 — fail CLOSED, like the caller below
         pkgs = ""
     return {"TIER": "all", "PKGS": pkgs, "CARGO_SCOPE": "--workspace"}
 

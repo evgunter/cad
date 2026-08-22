@@ -83,6 +83,12 @@ TIER_BLIND = (
     "scripts/gates/gate-roster.sh",
     "scripts/gates/probe-suite-census.sh --citations",
     "scripts/check-ci-mirror-parity.py",
+    # The python linter. Its inputs are every tracked .py and .pyi, some of
+    # them under `local-scripts/` — a tree whose changes classify TIER=docs and
+    # which every hosted job but `mirror` deletes at checkout. Sited anywhere
+    # else it would skip those while claiming the repo. No count is written
+    # here: the row derives and prints its own from `git ls-files`.
+    "scripts/check-python-lint.py",
 )
 
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a
@@ -364,7 +370,7 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
     inner = item_indent + 2
     # The `- ` line carries the item's first mapping key at column `inner`.
     first_n, _, first_text = item[0]
-    rows = [(first_n, inner, " " * inner + first_text.lstrip()[2:])] + list(item[1:])
+    rows = [(first_n, inner, " " * inner + first_text.lstrip()[2:]), *item[1:]]
     k = 0
     while k < len(rows):
         n, ind, text = rows[k]
@@ -402,22 +408,22 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
 
 def non_comment(path: str) -> list[str]:
     with open(path, encoding="utf-8") as fh:
-        return [l for l in fh.read().splitlines() if not COMMENT_RE.match(l)]
+        return [line for line in fh.read().splitlines() if not COMMENT_RE.match(line)]
 
 
 def invocations(lines: list[str]) -> set[str]:
     """Every scripts/** or demos/** path named. The leading boundary in
     SCRIPT_RE keeps `local-scripts/ci-local.sh` from being read as an
     invocation of `scripts/ci-local.sh`."""
-    return {m for l in lines for m in SCRIPT_RE.findall(l)}
+    return {m for line in lines for m in SCRIPT_RE.findall(line)}
 
 
 def gate_modes(lines: list[str]) -> set[str]:
     """`scripts/gates/X.sh --flag` pairs, ignoring `--selftest` (every half runs
     that for every gate) and `--root` (a fixture argument, never a mode)."""
     out = set()
-    for l in lines:
-        for m in re.finditer(r"(scripts/gates/[A-Za-z0-9_-]+\.sh)\s+(--[a-z-]+)", l):
+    for line in lines:
+        for m in re.finditer(r"(scripts/gates/[A-Za-z0-9_-]+\.sh)\s+(--[a-z-]+)", line):
             if m.group(2) not in ("--selftest", "--root"):
                 out.add(f"{m.group(1)} {m.group(2)}")
     return out
@@ -437,7 +443,7 @@ def reachable(root: str, seeds: set[str]) -> set[str]:
             continue
         try:
             with open(full, encoding="utf-8", errors="replace") as fh:
-                body = [l for l in fh.read().splitlines() if not COMMENT_RE.match(l)]
+                body = [line for line in fh.read().splitlines() if not COMMENT_RE.match(line)]
         except OSError:
             continue
         # A script names its siblings by BASENAME as often as by path
@@ -465,12 +471,12 @@ def reachable(root: str, seeds: set[str]) -> set[str]:
         # that neither half names *and no named script reaches*.
         here = os.path.dirname(cur)
         named = invocations(body)
-        for l in body:
+        for line in body:
             # `name.sh`, and `./name.sh` — the spelling a script uses to source
             # a sibling (`. ./hosted-render-guard.sh`), which a path-shaped
             # matcher does not see.
-            for m in (re.findall(r"(?:^|[^A-Za-z0-9_/.-])([A-Za-z0-9_.-]+\.(?:sh|py))", l)
-                      + re.findall(r"\./([A-Za-z0-9_.-]+\.(?:sh|py))", l)):
+            for m in (re.findall(r"(?:^|[^A-Za-z0-9_/.-])([A-Za-z0-9_.-]+\.(?:sh|py))", line)
+                      + re.findall(r"\./([A-Za-z0-9_.-]+\.(?:sh|py))", line)):
                 cand = os.path.join(here, m)
                 if os.path.isfile(os.path.join(root, cand)):
                     named.add(cand)
@@ -484,13 +490,13 @@ def reachable(root: str, seeds: set[str]) -> set[str]:
 def local_docs_exit_line(lines: list[str]) -> int:
     """The line index of the local half's docs-tier early exit. Claim 7 needs
     it: a row placed after it does not run on the tier it is about."""
-    for i, l in enumerate(lines):
-        if re.search(r'"\$TIER"\s*=\s*docs', l):
+    for i, line in enumerate(lines):
+        if re.search(r'"\$TIER"\s*=\s*docs', line):
             for j in range(i, min(i + 12, len(lines))):
                 if re.match(r'\s*exit (0|"?\$[A-Za-z_]\w*"?)\s*$', lines[j]):
                     return j
             raise Bail(f"{LOCAL_HALF}:{i + 1}: the docs-tier branch opens here and no `exit` follows "
-                       f"it within 12 lines: {l.strip()!r}. Claim 7's whole question is which rows run "
+                       f"it within 12 lines: {line.strip()!r}. Claim 7's whole question is which rows run "
                        "BEFORE that exit, so this reader will not guess where the branch ends. If the "
                        f"branch now ends another way," + teach("`local_docs_exit_line`"))
     raise Bail(f"{LOCAL_HALF}: no docs-tier branch found — nothing matches `\"$TIER\" = docs`. Claim 7 "
@@ -516,22 +522,22 @@ def shell_functions(lines: list[str]) -> dict[str, tuple[int, int]]:
     own body. Bails on a definition-shaped line in a spelling not listed."""
     funcs: dict[str, tuple[int, int]] = {}
     open_at: tuple[str, int] | None = None
-    for i, l in enumerate(lines):
+    for i, line in enumerate(lines):
         if open_at is not None:
-            if re.fullmatch(r"\}\s*", l):
+            if re.fullmatch(r"\}\s*", line):
                 funcs[open_at[0]] = (open_at[1], i)
                 open_at = None
             continue
-        if not FUNC_HINT_RE.match(l):
+        if not FUNC_HINT_RE.match(line):
             continue
-        m = FUNC_ONELINE_RE.fullmatch(l)
+        m = FUNC_ONELINE_RE.fullmatch(line)
         if m:
             funcs[m.group(1)] = (i, i)
             continue
-        m = FUNC_OPEN_RE.fullmatch(l)
+        m = FUNC_OPEN_RE.fullmatch(line)
         if not m:
             raise Bail(f"{LOCAL_HALF}:{i + 1}: looks like a shell function definition and is not a "
-                       f"spelling this recogniser knows: {l.strip()!r}. Recognised today: `name() {{`, "
+                       f"spelling this recogniser knows: {line.strip()!r}. Recognised today: `name() {{`, "
                        "`name () {`, `function name {`, and the one-line `name() { …; }`. Claim 7 "
                        "has to know where a row is RUN, not where it is written, and it will not guess."
                        + teach("`FUNC_OPEN_RE` / `FUNC_ONELINE_RE`, beside `FUNC_HINT_RE`"))
@@ -561,8 +567,8 @@ def local_call_sites(lines: list[str], want: str) -> list[int]:
         return None
 
     sites: list[int] = []
-    for i, l in enumerate(lines):
-        if want not in l:
+    for i, line in enumerate(lines):
+        if want not in line:
             continue
         host = enclosing(i)
         if host is None:
@@ -717,8 +723,8 @@ def check(root: str) -> list[str]:
     for name in sorted(os.listdir("tools")):
         if not os.path.isdir(f"tools/{name}"):
             continue
-        in_h = any(f"tools/{name}" in l for l in hosted_lines)
-        in_l = any(f"tools/{name}" in l for l in local_lines)
+        in_h = any(f"tools/{name}" in line for line in hosted_lines)
+        in_l = any(f"tools/{name}" in line for line in local_lines)
         if not (in_h and in_l):
             side = "the hosted half only" if in_h else ("the local half only" if in_l else "neither half")
             err(f"tools/{name} is a workspace-excluded crate named by {side}. Nothing else "
@@ -749,17 +755,17 @@ def check(root: str) -> list[str]:
                         "calling out of it runs steps nobody here has looked at")
                 continue
             checkout = next((i for i, st in enumerate(steps)
-                             if any("actions/checkout" in l for l in st.lines)), None)
+                             if any("actions/checkout" in line for line in st.lines)), None)
             if checkout is None:
                 continue
             reads = next((i for i, st in enumerate(steps)
-                          if any(("local-scripts" in l or ".claude" in l) and "rm -rf" not in l
-                                 for l in st.lines)), None)
-            pruned = {t for i, st in enumerate(steps) for l in st.lines
-                      if "rm -rf" in l and i > checkout
-                      for t in ("local-scripts", ".claude") if t in l}
+                          if any(("local-scripts" in line or ".claude" in line) and "rm -rf" not in line
+                                 for line in st.lines)), None)
+            pruned = {t for i, st in enumerate(steps) for line in st.lines
+                      if "rm -rf" in line and i > checkout
+                      for t in ("local-scripts", ".claude") if t in line}
             first_prune = next((i for i, st in enumerate(steps)
-                                if any("rm -rf" in l and "local-scripts" in l for l in st.lines)), None)
+                                if any("rm -rf" in line and "local-scripts" in line for line in st.lines)), None)
             if path == HOSTED_HALF and job.name == SITING_JOB:
                 siting_job_seen = True
                 if pruned:
@@ -786,7 +792,7 @@ def check(root: str) -> list[str]:
     ci_jobs = {j.name: j for j in read_workflow(HOSTED_HALF)}
     local_exit = local_docs_exit_line(non_comment(LOCAL_HALF))
     for want in TIER_BLIND:
-        hosts = [j for j in ci_jobs.values() if any(want in l for st in j.steps for l in st.lines)]
+        hosts = [j for j in ci_jobs.values() if any(want in line for st in j.steps for line in st.lines)]
         if not hosts:
             err(f"no ci.yml job runs `{want}`, which is one of the checks whose INPUTS are the docs tier. "
                 "A check nobody runs cannot fire anywhere")
@@ -814,8 +820,8 @@ def check(root: str) -> list[str]:
     steps = {(j.name, st.name) for j in ci_jobs.values() for st in j.steps if st.name}
     # Markers ARE comments, so they are read from the raw file.
     with open(LOCAL_HALF, encoding="utf-8") as fh:
-        markers = sorted({m.group(1) for l in fh.read().splitlines()
-                          for m in [MARKER_RE.search(l)] if m})
+        markers = sorted({m.group(1) for line in fh.read().splitlines()
+                          for m in [MARKER_RE.search(line)] if m})
     for marker in markers:
         if " / " not in marker:
             err(f"{LOCAL_HALF} has a HOSTED MIRROR marker `{marker}` that is not `<job> / <step name>`. The "
@@ -849,9 +855,11 @@ def plant_clean(t: str) -> None:
     names = [f"check-{i}.sh" for i in range(MIRROR_MARKER_FLOOR)]
     for n in names:
         open(os.path.join(t, "scripts", n), "w").close()
-    open(os.path.join(t, "scripts/gates/probe-suite-census.sh"), "w").close()
-    open(os.path.join(t, "scripts/check-ci-mirror-parity.py"), "w").close()
-    open(os.path.join(t, "scripts/gates/gate-roster.sh"), "w").close()
+    # Derived from TIER_BLIND, not listed beside it: claim 3 requires every
+    # named check to exist on disk, so a fixture that enumerates them fails the
+    # moment the list grows — which is a self-test breaking on a correct change.
+    for want in TIER_BLIND:
+        open(os.path.join(t, want.split()[0]), "w").close()
     with open(os.path.join(t, HOSTED_HALF), "w") as fh:
         fh.write("jobs:\n")
         fh.write(f"  {SITING_JOB}:\n    steps:\n      - uses: actions/checkout@v4\n")
@@ -928,10 +936,16 @@ def selftest() -> None:
         if rc != 0:
             raise SystemExit(f"SELFTEST FAILED: the checker FAILED on a clean fixture\n{out}")
 
-    def hosted_only(t):        _append(HOSTED_HALF, "      - name: new\n        run: scripts/check-new.sh\n")(t); open(os.path.join(t, "scripts/check-new.sh"), "w").close()
-    def local_only(t):         _append(LOCAL_HALF, "scripts/check-local.sh\n")(t); open(os.path.join(t, "scripts/check-local.sh"), "w").close()
+    def hosted_only(t):
+        _append(HOSTED_HALF, "      - name: new\n        run: scripts/check-new.sh\n")(t)
+        open(os.path.join(t, "scripts/check-new.sh"), "w").close()
+    def local_only(t):
+        _append(LOCAL_HALF, "scripts/check-local.sh\n")(t)
+        open(os.path.join(t, "scripts/check-local.sh"), "w").close()
     def gate_mode_one_side(t): _append(HOSTED_HALF, "      - name: cit\n        run: scripts/gates/probe-suite-census.sh --crates\n")(t)
-    def ghost_path(t):         _append(HOSTED_HALF, "      - name: g\n        run: scripts/gone.sh\n")(t); _append(LOCAL_HALF, "scripts/gone.sh\n")(t)
+    def ghost_path(t):
+        _append(HOSTED_HALF, "      - name: g\n        run: scripts/gone.sh\n")(t)
+        _append(LOCAL_HALF, "scripts/gone.sh\n")(t)
     def orphan(t):             open(os.path.join(t, "scripts/orphan.sh"), "w").close()
     def tools_one_side(t):     os.makedirs(os.path.join(t, "tools/lonely"))
     def unpruned_job(t):       _append(HOSTED_HALF, "  extra:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n")(t)
@@ -965,7 +979,9 @@ def selftest() -> None:
     def marker_wrong_job(t):   _sub(t, LOCAL_HALF, "# HOSTED MIRROR: discipline / mirrored step 0", "# HOSTED MIRROR: k-lint / mirrored step 0")
     def marker_step_renamed(t): _sub(t, HOSTED_HALF, "- name: mirrored step 0", "- name: mirrored step zero")
     def markers_deleted(t):    _sub(t, LOCAL_HALF, "# HOSTED MIRROR: ", "# was: ")
-    def exemption_inverted(t): _sub(t, LOCAL_HALF, "demos/render-uv.sh\n", ""); _append(HOSTED_HALF, "      - name: uv\n        run: demos/render-uv.sh\n")(t)
+    def exemption_inverted(t):
+        _sub(t, LOCAL_HALF, "demos/render-uv.sh\n", "")
+        _append(HOSTED_HALF, "      - name: uv\n        run: demos/render-uv.sh\n")(t)
 
     _case("and local-scripts/ci-local.sh does not", hosted_only)
     _case("and .github/workflows/ci.yml does not", local_only)

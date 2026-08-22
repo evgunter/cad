@@ -266,8 +266,10 @@ def _selftest():
     # (measured: scaling one output component reds both up axes here).
     # Integer coordinates, so the three products sum exactly in any
     # order.
+    # `strict=True`: a dot product of mismatched vectors is a bug in the caller,
+    # and a truncating `zip` would answer it with a number instead of saying so.
     def dot(a, b):
-        return sum(x * y for x, y in zip(a, b))
+        return sum(x * y for x, y in zip(a, b, strict=True))
 
     pairs = (
         ((2.0, -5.0, 11.0), (3.0, 7.0, -2.0)),
@@ -354,7 +356,7 @@ def _selftest():
             try:
                 read_scenes(d)
             except SystemExit as e:
-                for want in wanted + ("re-run the generator",):
+                for want in (*wanted, "re-run the generator"):
                     assert want in str(e), (path, want, str(e))
             else:
                 raise AssertionError(f"a manifest missing {path} must refuse")
