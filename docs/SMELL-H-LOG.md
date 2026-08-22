@@ -811,6 +811,176 @@ in a lane's PR because it is about how this track works, not about any
 one row; the lane's own summary is the best statement of it: *"I keep
 treating one confirming sample as the whole set."*
 
+### H-R16. `H-f`'s target: zero lane traits, by a three-function split — unreachability, not refusal
+
+**Ruled by Evan, 2026-08-21, in session.** `H-f` (`H5` = `C7` + `S33`)
+opens on this rather than on `S3`'s steelman conclusion, which is the
+more conservative answer and is **not** what was asked for.
+
+**The target.** Delete the four lane traits and make what they guarded
+**unreachable at the type level by anything they would have refused** —
+the guarantee is a compile error, not a run-time arm. **`S3`'s steelman
+proposes a *collapse*** — one trait plus a rank-2 job callback in
+`geom-core`, sixteen impls down to two — and **one lane trait is still a
+lane trait.** The ruling points past it, at zero.
+
+**Vocabulary, because the wrong word imports the wrong shape.** A
+tightened bound does **not refuse**: there is no arm, no
+`LaneUnsupported`, no diagnostic, nothing that runs — the call cannot be
+formed. A lane trait refuses at run time; `T: CertifiedBounds` makes the
+program that would need refusing **unwritable**. The orchestrator called
+this *"a typed refusal"* and was corrected; the phrase smuggles the lane
+trait's own shape into its replacement.
+
+**The mechanism — a three-function split** (Evan's shape, names
+indicative):
+
+```
+fn validate_geometric_structural<T: Decide>(…)                                // checks 1-6
+fn validate_geometric_certified<T: Decide + Bounds + CertifiedEnclosure>(…)   // check 7
+fn validate_geometric<T: Decide + Bounds + CertifiedEnclosure>(body) -> … {
+    validate_geometric_structural(body)?;
+    validate_geometric_certified(body)
+}
+```
+
+The composed entry carries the **union** of bounds, so it is uncallable
+at a dual — that is the point, and it costs exactly one in-repo site
+(`sweep/tests/extrude_acceptance.rs:565` moves to the structural half).
+
+**How this clears `H-R3`, which forecloses the looser reading.** `H-R3`
+ruled that deleting the four traits breaks no *guarantee* — their doors
+carry `CertifiedEnclosure` already — but removes a **capability**:
+`Body<Dual64>`'s ability to go through a validation pass at all. **The
+split preserves the capability without a trait**, because the dual calls
+a real function rather than reaching a refusing impl. *Delete with
+nothing replacing* and *split the pass* are different proposals, and
+`H-R3` forecloses only the first.
+
+**The precedent is already in the tree, in the file the census starts
+in.** `topo/src/props.rs:186`'s `mass_properties_impl` is bounded
+`T: Decide` and takes the certified quadrature as a **closure argument**;
+`mass_properties_closed_form<T: Decide>` (`:175`) already passes
+`|_,_,_,_,_| Ok(None)` — **the identical closure `PropsQuadLane`'s dual
+impl returns.** So for this trait the split is nearly free: the two
+functions exist, and the trait's whole contribution is selecting between
+two closures a caller could name directly.
+
+**Two things `H-f` must not miss.**
+
+1. **The `errors.is_empty()` gate is load-bearing and undocumented as an
+   invariant.** Check 7 runs only after checks 1-6 pass, and
+   `validate.rs:604` says so about itself — *"a sequencing fact elsewhere
+   in this file, not an invariant this variant enforces."* Split naively
+   into two independent calls and `VolumeUncomputable` starts firing on
+   corrupt bodies that were previously refused by the check naming their
+   actual corruption. The `?` in the composed function preserves it, and
+   improves on it: an implicit `if` in the middle of a battery becomes
+   the composition.
+2. **The two seams do not cost the same, and the asymmetry is about
+   contracts, not mechanism.** H-g opened all 14 bracket reads in
+   `sweep/fillet/`: **11 are typed-error payloads** (the decision comes
+   from `decide(...)`; the read is only the diagnostic), **3 are
+   selections** needing `Bounds` and not `CertifiedEnclosure`, and
+   `blend.rs` — which builds the geometry — is `T: Real` with **zero**
+   bracket reads. So the dual wants the fillet door's **product and none
+   of its verdicts**. `validate_geometric` is the opposite:
+   `extrude_acceptance.rs:565` asserts the **verdict**. Checks 1-6 are a
+   meaningful validator on their own, so its structural half hands a
+   caller *less information*; the fillet's structural half hands back **a
+   body whose safety checks did not run**, which is a *weaker object*.
+   H-g priced it exactly: sound only along an already-validated
+   configuration, **a contract that does not exist today**. Splitting the
+   fillet therefore means writing that contract or deciding the
+   uncertified half is not public.
+
+**A non-issue, checked so `H-f` does not spend time on it.** `S3` warns
+that *"a `topo`-side alias trait may survive."* It does, and it is
+harmless: `EvalScalar` (`eval/mod.rs:897`) is a **method-less** trait
+with a blanket impl, purely a name for a bound set. When `PropsQuadLane`
+goes it names the certified terms directly. A trait with no method and no
+refusing impl is not the pattern being deleted.
+
+**The exposure `H-f` states rather than resolves.** All of this rests on
+**`D1`**, whose *"at least for now"* `H-R3` already flagged as
+load-bearing — *"it closes the seams, it does not settle whether any of
+them should ever be differentiable."* Since 2026-08-19 the dual's refusal
+rests on the **ruling** rather than on its lack of a bracket, so what a
+dual may do is a decision, not a fact about the type. **That hedge is now
+collected into `DESIGN.md`'s M10 roadmap entry** (#891, Evan
+2026-08-21) as an open question — *what does a `Dual` actually have to
+do*, and clean up the `Bounds`/`CertifiedEnclosure` split on the answer.
+**`H-f` states this exposure in its PR and does not resolve it.**
+
+**`H-f`'s opening task is a census, not a change.** `PropsQuadLane`
+splits nearly free because its certified half is already a closure
+parameter. **Nothing establishes that the other three do**, and `S3`
+gives a reason to doubt it: `ChartRegionLane`'s `Option<Result<..>>`
+routes two distinct absences to one `CensusUnsupported` at both
+consumers. Measure `PcurveFittedLane`, `EdgeNurbsLane` and
+`ChartRegionLane` before designing their splits.
+
+**One correction to the orchestrator's own argument for the fold**, per
+`H-R9`, raised by H-g with the receipt. The orchestrator cited
+`DESIGN.md:574`'s coming cascade — *the mint pass needs the
+`PcurveFittedLane` bound on every constructor* — and concluded #883 was
+*"migration one over those signatures."* **False**: that cascade is about
+`PcurveFittedLane` on **constructors**, and `grep -rn
+"PcurveFittedLane\|BracketLane" crates/sweep/` returns **zero** — `sweep`
+names no lane trait at all, so #883's 20 signatures are not those
+signatures. **The fold of #883 into `H5` stands on the other two
+receipts**, both verified in `S3`'s own text: the fillet battery is one of
+the two sites where the pattern was *deliberately declined*, and #883's
+fork is `S3`'s collapse question. The discarded receipt was the
+orchestrator's, not the record's.
+
+## Inherited from Track I (2026-08-21)
+
+**Track I closed in #890 and left decisions behind it.** Evan assigned
+**#884** to this orchestrator — *"you're responsible for 884 now"*, with
+**licence to correct it**, not merely to shepherd it. Recorded here
+because Track I's log is now a closed record and this is live state.
+
+- **`S82` → issue #893.** Its verdict line was empty; #884 had offered it
+  to Evan as a third decision and nothing answered. **Unowned rather than
+  deferred**, once Track I closed. Routed to an issue because it is a
+  defect in what a predicate *decides* — the sphere rim lever collapses
+  as `cos v̄ → 0`, so two distinct near-polar rims decide `Zero` and a
+  non-rectangular domain **passes**. `#723`/`#862` are the routing
+  precedents; `S82` is `#723`'s sibling by a second mechanism, which its
+  own text said. Re-derived before filing (`props/curved.rs:1193`),
+  per `H-R1`. **A second finding fell out of writing it**:
+  `docs/predicate-dimension-audit.md` marks the row **`OK`** while its own
+  prose at `:171`/`:550` describes the defect — a document passing in its
+  verdict column what it fails in its prose. Folded into #893.
+- **`S65`'s option table rests on a corrected premise, twice over.**
+  (1) Option B was argued as *"the only form consistent with D9"* on a
+  **misreading of D9** — fixed in **#892**; D9 is scoped to
+  input-reachable states and the D2 addendum makes a panic the ratified
+  mechanism for a bug state, so `assert!` was never excluded. (2) Evan's
+  release-profile directive may make the `#[cfg(debug_assertions)]`
+  backstop **live in release**, which would falsify `S65`'s founding
+  sentence — *"compiled out of every build that ships a mesh"* — and
+  leave the table describing a tree that no longer exists. **Being
+  verified by the `d9-pickup` lane against that specific block**, not
+  against release builds in general.
+- **#884 question 1 is RULED by this orchestrator**: D9's *"mesh
+  structure is a function of (body, δ) alone"* takes the **stronger**
+  reading, and the pole classification owes a **guard, not a qualifier**.
+  Weakening a ratified promise to accommodate a state that could only
+  arise from value coincidence makes the document quieter about exactly
+  the case worth hearing about. Evan reached the same answer independently
+  in ordering the `walk.rs` guard. **Open sub-question**: that guard is
+  vertex-against-*vertex* and the ε read at `walk.rs:995` is
+  vertex-against-*pole* — related, not identical, and not to be conflated
+  in the ruling until the lane reports whether one covers the other.
+- **Option C is mis-filed and leaves the decision table.** *"Keep the
+  floor, widen it"* is orthogonal to A/B, priced at zero, never costed —
+  the PR says so itself. A work item sitting in a decision table makes
+  the table read as a choice among equals. Its two named gaps: the
+  full-2π seam case has **no floor in any build**, and cross-face
+  identification has **no check at all**.
+
 ## Incidents
 
 ### A closed track left a lane with a dirty tree, and only the cleaner's refusal saw it (2026-08-21)

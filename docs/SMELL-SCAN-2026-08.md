@@ -10022,7 +10022,22 @@ exercising a near-polar interior rim. It is also the answer to "does the
 new predicate have the same premise gap anywhere else" — yes, on the
 same kind #723 is open on, by a second mechanism.
 
-**Verdict:**
+**Verdict: FILED AS ISSUE #893 (2026-08-21) — a kernel-logic defect, so
+it leaves this document.** Offered to Evan as a third decision in #884
+and never answered; Track I, whose ground this is, closed in #890, so it
+was unowned rather than deferred. **The routing was not a judgement
+call**: `S82` is a defect in what the predicate *decides*, not in how the
+code reads, and this scan sends those to a register that executes —
+`#723` and `#862` are the precedents, both struck out of a style row
+rather than absorbed into one. **`S82` is `#723`'s sibling by a second
+mechanism**, which its own text above already says.
+
+**The one thing worth carrying that the issue's title does not**: the
+audit table at `docs/predicate-dimension-audit.md` still marks this row
+**`OK`** while its own prose at `:171`/`:550` describes the defect. A
+document that records a fault in prose and passes it in its verdict
+column is a second finding wearing the first one's clothes, and #893
+asks for that row to be corrected as part of the fix.
 
 ## S83. `seam_tol` / `MarchTolMismatch` cannot be reached and has no row; `MarchTol` is public with no possible caller
 
