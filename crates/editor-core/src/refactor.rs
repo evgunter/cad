@@ -97,12 +97,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{Qualifier, RoleSeg, StableName};
+use crate::names::{Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
+use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
 /// between the two documents' node id spaces.
@@ -534,9 +535,17 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
     })
 }
 
-/// One segment of [`remap_name`]'s rewrite. The match is EXHAUSTIVE on
-/// purpose (the walk_names rule): a future [`RoleSeg`] variant
-/// embedding names must be classified here or the compile breaks.
+/// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
+/// by whether the variant embeds a [`StableName`], recursing into the
+/// ones that do. Not to be confused with `eval::anchor`'s function of
+/// the same name, which partitions the same enum by whether it embeds a
+/// PROFILE LOCATOR and deliberately does not recurse.
+///
+/// The match is EXHAUSTIVE on purpose (the walk_names rule): a future
+/// [`RoleSeg`] variant embedding names must be
+/// classified here or the compile breaks — or, if it embeds no name,
+/// added to [`crate::names::name_free_seg`], which is the one place
+/// that answer is written for this and its two sibling matches.
 #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
 fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     use RoleSeg as R;
@@ -554,23 +563,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     };
     Ok(match seg {
         // Name-free segments cross verbatim.
-        R::OutputBody
-        | R::Cap(_)
-        | R::Lateral(_)
-        | R::RimEdge(..)
-        | R::LateralEdge(_)
-        | R::CapVertex(..)
-        | R::Band(_)
-        | R::BandRim(_)
-        | R::BandRimPi(_)
-        | R::BandPi(_)
-        | R::Meridian(..)
-        | R::MeridianVertex(..)
-        | R::RevolveCap(_)
-        | R::Pole(_)
-        | R::AxisEdge(_)
-        | R::SplitBody(_)
-        | R::SectionFace { .. } => seg.clone(),
+        name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
         R::Seam { a, b } => R::Seam {
@@ -814,6 +807,7 @@ pub fn split(
     doc: &ProfileDoc,
     cut: &BTreeSet<RecipeNodeId>,
     part_id: DocumentId,
+    tol: Tol,
 ) -> Result<SplitOutcome, SplitError> {
     if cut.is_empty() {
         return Err(SplitError::EmptyCut);
@@ -1000,13 +994,13 @@ pub fn split(
         .collect();
 
     // ---- The part document, as recorded edits from empty ----
-    let mut part = Doc::empty(part_id);
+    let mut part = Doc::empty(part_id, tol);
     let mut part_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let part_apply = |part: &mut ProfileDoc,
                       edits: &mut Vec<DocEdit<ProfileProgram>>,
                       edit: DocEdit<ProfileProgram>|
      -> Result<(), SplitError> {
-        *part = apply(part, &edit)
+        *part = apply(part, &edit, tol)
             .map_err(|error| SplitError::PartEdit {
                 error: Box::new(error),
             })?
@@ -1100,7 +1094,7 @@ pub fn split(
             DocEdit::SetRoots { roots: part_roots },
         )?;
     }
-    let pin = content_pin(&part).map_err(|error| SplitError::Pin {
+    let pin = content_pin(&part, tol).map_err(|error| SplitError::Pin {
         error: Box::new(error),
     })?;
 
@@ -1168,7 +1162,7 @@ pub fn split(
                      edits: &mut Vec<DocEdit<ProfileProgram>>,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
-        let applied = apply(remainder, &edit).map_err(|error| SplitError::RemainderEdit {
+        let applied = apply(remainder, &edit, tol).map_err(|error| SplitError::RemainderEdit {
             error: Box::new(error),
         })?;
         *remainder = applied.doc;
@@ -1297,6 +1291,7 @@ pub fn inline(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
     resolver: &dyn PartResolver,
+    tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
@@ -1316,7 +1311,7 @@ pub fn inline(
         }
     }
     let part = resolver
-        .resolve(doc_ref)
+        .resolve(doc_ref, tol)
         .map_err(|failure| InlineError::Unresolved { failure })?;
     if part.epsilon().to_bits() != doc.epsilon().to_bits() {
         return Err(InlineError::EpsilonSeam {
@@ -1387,7 +1382,7 @@ pub fn inline(
                 edits: &mut Vec<DocEdit<ProfileProgram>>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> {
-        *current = apply(current, &edit)
+        *current = apply(current, &edit, tol)
             .map_err(|error| InlineError::Edit {
                 error: Box::new(error),
             })?

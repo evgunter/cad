@@ -1,7 +1,16 @@
 //! Per-face integral properties over the **exact** B-rep (M2 PR 7):
-//! closed-form face contributions to the divergence-theorem volume and
-//! the surface area. Key-free like the rest of this crate — the owning
-//! body flattens each face loop into [`LoopEdge`]s and injects them.
+//! face contributions to the divergence-theorem volume and the surface
+//! area. Key-free like the rest of this crate — the owning body
+//! flattens each face loop into [`LoopEdge`]s and injects them.
+//!
+//! **Two lanes, and this header describes one of them.** Everything
+//! below is the CLOSED-FORM lane: the M2 analytic surfaces over
+//! structurally verified iso-parameter rectangles. The other is
+//! [`quad`], the certified-quadrature lane — NURBS patches, conic-
+//! trimmed faces, an enclosure with a `pad` rather than an exact
+//! number — and it is `pub`, larger than this lane, and governed by
+//! its own module docs. A claim here about "every face" or "no
+//! fallback" is a claim about the closed-form lane only.
 //!
 //! # Formulation
 //!
@@ -74,8 +83,11 @@
 //! their meridian plane at the surface's radii) are certified as
 //! consistency residuals through the crate's
 //! [`decide`](crate::dihedral) funnel, and a definite failure of any
-//! of them is a typed [`PropsError`] — scope-boxed fail-loud, no
-//! silent quadrature fallback.
+//! of them is a typed [`PropsError`] — scope-boxed fail-loud. **No
+//! silent quadrature fallback**: the [`quad`] lane exists and is
+//! `pub`, but nothing here routes to it on a refusal. A caller that
+//! wants it asks for it, so a refusal from this lane is a refusal the
+//! caller sees.
 //!
 //! **The rectangle itself is ONE named predicate** —
 //! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
@@ -88,19 +100,50 @@
 //! cross-shaped domain and certified a 19%-low volume with `pad = 0.0`
 //! (#649).
 //!
-//! **What the predicate is and is not, stated exactly** (#714's
-//! review; the loose version of this paragraph asserted the premise
-//! outright):
+//! **What the predicate is and is not, stated exactly**:
 //!
 //! * Every **flux/area closed form** runs it before integrating —
-//!   cylinder, cone, rim-bearing sphere, torus — with **two
-//!   exemptions**, so "every curved kind" is not the claim. The first
-//!   is the **rimless sphere band**, which has no rims to place and
-//!   whose whole-latitude-band domain is a rectangle by construction.
-//!   The second is [`boundary_material_sign`], which derives only a
-//!   SIDE from one rim's traversal and integrates nothing; its callers
-//!   must treat any error as exempt, so running the predicate there
-//!   could only convert an answer into an exemption.
+//!   cylinder, cone, rim-bearing sphere, torus — with **one
+//!   exemption**, so "every curved kind" is not the claim: the
+//!   **rimless sphere band**, which carries no rim, so the predicate
+//!   is vacuous on it rather than satisfied by it. What that arm does
+//!   establish (its meridians all lie on ONE great circle, which is
+//!   where `Δu = π` comes from) and what it does not (its `v`-extent,
+//!   still `min_max` over meridian ENDPOINT latitudes — #723's
+//!   mechanism, reaching the one arm #723's text does not name) is
+//!   stated at `curved::sphere`, at the arm.
+//! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
+//!   because every one of them reaches a side derivation that rests
+//!   on this premise. It was listed here as a second exemption, on the
+//!   argument that *"running the predicate there could only convert an
+//!   answer into an exemption"* — which covers the ERROR direction
+//!   only. The three linearly-leveled arms derive a side from
+//!   `lo + hi − 2v`, *which extreme is this rim at*, and on a domain
+//!   that is not a rectangle that returns a definite ±1 depending on
+//!   where the owning body's loop flattening started rather than on
+//!   the face: two rotations of one edge cycle, two opposite signs.
+//!   Tier 3's curved check 6 turned the wrong one into a
+//!   `CurvedSenseInverted`, and check 7 being gated on
+//!   `errors.is_empty()`, the wrong diagnosis SUPPRESSED the honest
+//!   `NotIsoRectangle` the flux lane raises on the same face. The
+//!   premise and the side now travel together
+//!   (`curved::linear_rim_side`), so what its callers must treat as
+//!   exempt is what such a face now produces.
+//!
+//!   **The torus arm is not exempt either, and the argument that it
+//!   was is retired here rather than restated.** That argument said
+//!   the arm reads only the anchor meridian's chart orientation and
+//!   the rim sharing that meridian's `t0` vertex — *two facts about
+//!   one CORNER* — so no global inference is on the path. It is
+//!   false. The anchor-end choice cancels against `dv/dt` only when
+//!   the two rims FLANKING that meridian carry opposite `d_u`. Every
+//!   corner of a rectangle gives that; a **reflex** corner does not,
+//!   and on an L-shaped domain the six rotations of one cycle answer
+//!   `+ + − − + +` while the flux lane refuses all six. One corner is
+//!   true and not sufficient — the PAIR is what the premise buys, and
+//!   only a rectangle guarantees it. The arm runs
+//!   `require_rims_at_extremes` on the same `torus_ends` extremes the
+//!   flux lane uses.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it**. The

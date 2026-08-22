@@ -4,13 +4,14 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::Tolerance;
+use geom_core::Tol;
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
+use crate::sizing::{SizingTols, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
@@ -26,8 +27,10 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// tier-3 geometry); tessellation does not re-validate — corrupt input
 /// surfaces as typed errors where cheaply detectable (dangling keys,
 /// `Nurbs` placeholders, certificate failures) and is otherwise
-/// garbage-in/garbage-out on the mesh *values* while
-/// [`crate::validate::check_mesh`] stays available as the backstop.
+/// garbage-in/garbage-out on the mesh *values*.
+/// [`crate::validate::check_mesh`] is the backstop for that, and
+/// **this function does not call it**: it is available to a caller,
+/// and the acceptance suites run it, but nothing on this path does.
 ///
 /// # Errors
 ///
@@ -37,12 +40,12 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// carriers, rings on curved faces, a curved face whose iso domain is
 /// not its own UV rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
-pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateError> {
+pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
-    let eps = Tolerance::get().eps;
-    let delta_s = chordal * 0.5;
+    let eps = tol.eps();
+    let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
     let mut positions = Vec::new();
@@ -92,7 +95,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             .ok_or(TessellateError::MissingEntity {
                 what: "face surface",
             })?;
-        let tol = crate::curved::Tol {
+        let tol = SizingTols {
             delta: chordal,
             delta_s,
             eps,

@@ -39,7 +39,7 @@ use geom::Surface;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::blend::{BlendArm, EdgeBlend, plane_plane_blend, plane_sphere_blend};
 use super::{CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
@@ -139,16 +139,70 @@ pub enum ChainClosure {
 }
 
 /// One resolved chain.
+///
+/// **A chain has a first link.** [`walk_chains`] mints one from a seed
+/// link and only ever grows it, so "no links" is not a state this type
+/// can hold — which is why [`Chain::first`] hands one back without an
+/// `Option`, and why nothing downstream carries an empty-chain
+/// refusal. The two link fields are private for exactly that reason: a
+/// public `Vec` would re-admit the state the walk cannot produce.
 #[derive(Clone, Debug)]
 pub struct Chain<T: Real> {
-    /// The chain's links, in walk order.
-    pub links: Vec<Link<T>>,
+    /// The chain's first link, in walk order.
+    first: Link<T>,
+    /// The links after [`Chain::first`], in walk order.
+    rest: Vec<Link<T>>,
     /// The vertices at which consecutive links meet — the junctions
     /// predicate 4 judges. One per adjacent pair, plus the
     /// wrap-around vertex on a closed chain.
     pub junctions: Vec<VertexKey>,
     /// How it terminates.
     pub closure: ChainClosure,
+}
+
+impl<T: Real> Chain<T> {
+    /// Assemble a chain from its first link and the rest.
+    ///
+    /// The signature is the invariant: there is no way to spell a chain
+    /// with no links, here or anywhere else.
+    #[must_use]
+    pub(crate) fn new(
+        first: Link<T>,
+        rest: Vec<Link<T>>,
+        junctions: Vec<VertexKey>,
+        closure: ChainClosure,
+    ) -> Self {
+        Self {
+            first,
+            rest,
+            junctions,
+            closure,
+        }
+    }
+
+    /// The chain's first link in walk order — always present.
+    pub fn first(&self) -> &Link<T> {
+        &self.first
+    }
+
+    /// The links after [`Chain::first`], in walk order.
+    pub fn rest(&self) -> &[Link<T>] {
+        &self.rest
+    }
+
+    /// Every link, in walk order. Never empty.
+    pub fn links(&self) -> impl Iterator<Item = &Link<T>> + Clone {
+        core::iter::once(&self.first).chain(self.rest.iter())
+    }
+
+    /// How many links the chain has — at least one.
+    ///
+    /// Not `len`, so that no `is_empty` is owed: a constant `false`
+    /// would be an accessor whose only effect is to suggest the
+    /// question is open.
+    pub fn link_count(&self) -> usize {
+        1 + self.rest.len()
+    }
 }
 
 /// The battery's verdict: every chain resolved, every predicate
@@ -192,11 +246,56 @@ fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T,
     Some((c.carrier().clone(), t0, t1))
 }
 
-/// The straight-line extent of a link's edge — the curvature-free
-/// lever arm every angular predicate folds against, exactly as the
-/// dihedral classifier does.
+/// Sample `i` of the battery's per-link parameter schedule — the
+/// [`CHAIN_SAMPLES`] places every chain predicate looks along
+/// `[t0, t1]`, spelled once. The two ends are the interval bounds
+/// EXACTLY (not `t0 + span·1` arithmetic, which can miss `t1` by an
+/// ulp): the lever arm's reduction to the endpoint chord on straight
+/// edges is bit-exact because sample 0 IS `t0` and the last sample
+/// IS `t1`.
+fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
+    if i == 0 {
+        t0
+    } else if i == CHAIN_SAMPLES - 1 {
+        t1
+    } else {
+        t0 + (t1 - t0) * T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1))
+    }
+}
+
+/// The midpoint parameter of a link — the dihedral classifier's
+/// sample, spelled once.
+fn mid_param<T: Decide>(t0: T, t1: T) -> T {
+    (t0 + t1) / T::from_f64(2.0)
+}
+
+/// The lever arm of a link's edge — the curvature-free straight
+/// extent every angular predicate folds against: the **maximum
+/// pairwise chord** over the battery's own per-link schedule
+/// ([`chain_sample_at`], all [`CHAIN_SAMPLES`] samples) — the same
+/// places the other chain predicates look, on purpose.
+///
+/// Every chord lower-bounds arc length, so the lever never
+/// over-reports the edge's extent — a margin in meters folded
+/// against it stays conservative. On a collinear carrier the
+/// endpoint pair dominates every other pair and the schedule's ends
+/// are `t0`/`t1` exactly, so a straight edge meters bit-identically
+/// to its endpoint chord. On a CLOSED edge, where that endpoint
+/// chord is structurally zero, the interior pairs meter the rim —
+/// the schedule spans diametral pairs, so a full circular rim meters
+/// its diameter — and the dihedral is judged at an honest lever
+/// rather than a collapsed one.
 fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    (carrier.eval(t1) - carrier.eval(t0)).norm()
+    let pts: Vec<Point3<T>> = (0..CHAIN_SAMPLES)
+        .map(|i| carrier.eval(chain_sample_at(t0, t1, i)))
+        .collect();
+    let mut best = T::zero();
+    for (i, a) in pts.iter().enumerate() {
+        for b in &pts[(i + 1)..] {
+            best = best.max((*b - *a).norm());
+        }
+    }
+    best
 }
 
 // ---------------------------------------------------------------
@@ -221,7 +320,9 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
 /// # Errors
 ///
 /// [`FilletError::RadiusHeadroom`] on a definite `Zero`/`Negative`;
-/// [`FilletError::Escalated`] in band or on poison.
+/// [`FilletError::Escalated`] in band or on poison;
+/// [`FilletError::BodyNotIntact`] when the face or its stored surface
+/// does not resolve.
 pub fn radius_headroom<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -230,13 +331,15 @@ pub fn radius_headroom<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), FilletError> {
     let Some(f) = body.get_face(face) else {
-        return Err(FilletError::Op {
-            detail: format!("missing face {face:?}"),
+        return Err(FilletError::BodyNotIntact {
+            at: EntityId::Face(face),
+            detail: "a link's support face, for the curvature headroom predicate",
         });
     };
     let Some(s) = body.get_surface(f.surface) else {
-        return Err(FilletError::Op {
-            detail: format!("missing surface for face {face:?}"),
+        return Err(FilletError::BodyNotIntact {
+            at: EntityId::Face(face),
+            detail: "a support face's stored surface, for the curvature headroom predicate",
         });
     };
     let arm = geom_brep::curvature_lever_arm(s, p);
@@ -311,11 +414,18 @@ pub fn spine_regularity<T: Decide + Bounds>(
 /// reverses the traversal, and the triple product is invariant under
 /// doing both.
 ///
-/// `Positive` is convex, `Negative` concave, `Zero` is a tangential
-/// edge with no side for the ball to roll on. C8 requires the sign to
+/// `Positive` is convex, `Negative` concave, `Zero` is a dihedral
+/// with no definite wedge side at this lever — refused as
+/// [`FilletError::TangentialEdge`], of which genuine tangency is one
+/// cause. C8 requires the sign to
 /// be CONSTANT along the chain — a dihedral flipping mid-chain has no
 /// constant-radius rolling-ball blend at all — so the caller escalates
 /// on a flip rather than blending each run silently.
+///
+/// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
+/// margin is: an angle at a collapsed arm is not a question, so a
+/// non-positive arm escalates `Invalid` rather than classifying —
+/// the same predicate at the LINK site instead of the joint.
 ///
 /// # Errors
 ///
@@ -329,17 +439,33 @@ pub fn convexity_at<T: Decide + Bounds>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<(Convexity, T), FilletError> {
+    let site = FilletSite::Link { edge };
+    match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(esc(
+                site,
+                Indeterminate {
+                    margin: MarginDiag::Invalid,
+                    band,
+                    predicate: Some("fillet3_chain_arm"),
+                },
+            ));
+        }
+    }
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
-    let sign = decide("fillet3_convexity_sign", margin, band)
-        .map_err(|e| esc(FilletSite::Link { edge }, e))?;
+    let sign = decide("fillet3_convexity_sign", margin, band).map_err(|e| esc(site, e))?;
     match sign {
         Sign::Positive => Ok((Convexity::Convex, margin.value())),
         Sign::Negative => Ok((Convexity::Concave, margin.value())),
-        // A tangential edge: the supports share a tangent plane, so
-        // there is no wedge to roll a ball into. Its own situation and
-        // its own error (fix pass F6) — it does not DISAGREE with the
-        // chain's convexity, it has none, and reporting it as a "flip"
-        // handed the reader a chain verdict that was never taken.
+        // A decided Zero establishes that the dihedral has no
+        // definite wedge side at this lever — `(n_a × n_b)·τ̂` folded
+        // against the arm is coincident with zero. Genuine tangency
+        // (the supports sharing a tangent plane) is one cause, not
+        // the established fact. Its own situation and its own error —
+        // it does not DISAGREE with the chain's convexity, none was
+        // decided, and reporting it as a "flip" would hand the reader
+        // a chain verdict that was never taken.
         Sign::Zero => Err(FilletError::TangentialEdge {
             edge,
             margin: margin.value().lo(),
@@ -550,7 +676,7 @@ fn resolve_link<T: Decide + Bounds>(
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
-    let mid = (t0 + t1) / T::from_f64(2.0);
+    let mid = mid_param(t0, t1);
     let p = carrier.eval(mid);
     let tau = carrier.deriv(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
@@ -731,11 +857,16 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         } else {
             ChainClosure::Open { head, tail }
         };
-        chains.push(Chain {
-            links: order.into_iter().map(|i| links[i].clone()).collect(),
-            junctions,
-            closure,
-        });
+        let mut walked = order.into_iter().map(|i| links[i].clone());
+        let Some(first) = walked.next() else {
+            // `order` was minted `vec![seed]` at the top of this
+            // iteration and only pushed to or inserted into since.
+            unreachable!(
+                "chain walk: `order` is seeded with this iteration's `seed` link and \
+                 never shrinks"
+            )
+        };
+        chains.push(Chain::new(first, walked.collect(), junctions, closure));
     }
     chains
 }
@@ -779,13 +910,12 @@ pub fn run_battery<T: Decide + Bounds>(
     // --- 1. radius vs curvature headroom, at every sample of every
     // link, on BOTH supports.
     for chain in &chains {
-        for link in &chain.links {
+        for link in chain.links() {
             let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
                 return Err(FilletError::ChainNotConnected { edge: link.edge });
             };
             for i in 0..CHAIN_SAMPLES {
-                let f = T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1));
-                let p = carrier.eval(t0 + (t1 - t0) * f);
+                let p = carrier.eval(chain_sample_at(t0, t1, i));
                 radius_headroom(body, link.face_a, p, r, band)?;
                 radius_headroom(body, link.face_b, p, r, band)?;
             }
@@ -799,7 +929,7 @@ pub fn run_battery<T: Decide + Bounds>(
 
     // --- 3. spine regularity, per link.
     for chain in &chains {
-        for link in &chain.links {
+        for link in chain.links() {
             spine_regularity(link.blend.spine_curvature, r, band)?;
         }
     }
@@ -808,9 +938,10 @@ pub fn run_battery<T: Decide + Bounds>(
     // junctions the walk recorded are exactly the vertices where two
     // requested links meet; every other chain end goes to predicate 6.
     for chain in &chains {
+        let ring: Vec<&Link<T>> = chain.links().collect();
         for (i, v) in chain.junctions.iter().enumerate() {
-            let a = &chain.links[i % chain.links.len()];
-            let b = &chain.links[(i + 1) % chain.links.len()];
+            let a = ring[i % ring.len()];
+            let b = ring[(i + 1) % ring.len()];
             let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
                 (carrier_of(body, a.edge), carrier_of(body, b.edge))
             else {
@@ -855,13 +986,13 @@ pub fn run_battery<T: Decide + Bounds>(
     // per-link sign was decided during resolution; here it must AGREE
     // across the chain, C8's escalate-on-flip).
     for chain in &chains {
-        let first = chain.links[0].convexity;
-        for link in &chain.links {
+        let first = chain.first().convexity;
+        for link in chain.links() {
             if link.convexity != first {
                 let p = {
                     let (c, t0, t1) = carrier_of(body, link.edge)
                         .ok_or(FilletError::ChainNotConnected { edge: link.edge })?;
-                    c.eval((t0 + t1) / T::from_f64(2.0))
+                    c.eval(mid_param(t0, t1))
                 };
                 let n_a = outward(body, link.face_a, p);
                 let n_b = outward(body, link.face_b, p);
@@ -995,7 +1126,7 @@ fn consumption_sweep<T: Decide + Bounds>(
     let mut setback: Vec<(EdgeKey, FaceKey, T)> = Vec::new();
     let mut faces: Vec<FaceKey> = Vec::new();
     for chain in chains {
-        for l in &chain.links {
+        for l in chain.links() {
             setback.push((l.edge, l.face_a, l.blend.trim_a.1));
             setback.push((l.edge, l.face_b, l.blend.trim_b.1));
             for f in [l.face_a, l.face_b] {
@@ -1034,10 +1165,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 };
                 let pts = (0..CHAIN_SAMPLES)
-                    .map(|i| {
-                        let f = T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1));
-                        c.eval(t0 + (t1 - t0) * f)
-                    })
+                    .map(|i| c.eval(chain_sample_at(t0, t1, i)))
                     .collect();
                 boundary.push((h.edge, pts));
             }

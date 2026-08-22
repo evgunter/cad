@@ -68,6 +68,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use editor_core::{CancelToken, EvalOptions, evaluate};
 
 use corpus::{cone, documents, eval, failures};
+use geom_core::Tol;
 
 /// The committed STRUCTURAL manifest, relative to the crate root.
 /// Machine-independent; carries no milliseconds.
@@ -169,6 +170,7 @@ fn measure() -> Vec<Row> {
                 Some(&prior),
                 &CancelToken::new(),
                 &EvalOptions::default(),
+                Tol::witness(),
             );
             incrs.push(t0.elapsed());
             // The COUNTED-REUSE assertion (not a timing gate).
@@ -333,9 +335,9 @@ fn emit(rows: &[Row], path: &str) {
 
 /// **`#[ignore]` BY DESIGN — this row is REPORTING, and the ε matrix
 /// paid for it 5×.** It is not a gate (see the module docs: no
-/// threshold, a slow row is a report), so the only thing the ε battery
-/// bought was ~18 s × 5 rows of wall clock printing a table nobody
-/// reads per-ε.
+/// threshold, a slow row is a report), so the ε battery bought only
+/// wall clock, printing a table nobody reads per-ε. The `#[ignore]`
+/// rests on the coverage argument below.
 ///
 /// INVARIANT: nothing is uncovered by ignoring it here. Its
 /// green-document and counted-reuse assertions are a strict subset of

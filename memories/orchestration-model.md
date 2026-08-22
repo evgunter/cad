@@ -35,7 +35,7 @@ Evan's standing instructions for implementation work (given at M0 start,
   Evan's preference matters. When unsure which kind a decision is,
   treat it as a fork.
 - **Keep an orchestrator log of design decisions made unilaterally**
-  (M0's is `docs/archive/M0-LOG.md`, L-numbered decisions) and generally maintain
+  (L-numbered decisions, the shape M0's used) and generally maintain
   state-of-work knowledge in version control.
 - **Before stopping, write down and commit all crucial state** (log
   updates, memories, in-flight branch status) so the next session can

@@ -7,13 +7,13 @@
 //!
 //! Salvage adaptations: every band here is built **purely** via
 //! `Band::new(1e-9, 1e-8)` — the same numbers the review's default-ε run
-//! used through `Band::linear()` — so this binary never touches the
+//! used through `Band::linear(Tol::witness())` — so this binary never touches the
 //! global tolerance (funnel-test discipline, `src/tolerance.rs`) and the
 //! probe margins stay meaningful under the CI ε matrix. The review's
 //! `envband` demo (linear/angular constructors tracking the global) is
 //! dropped as a duplicate of the shipped `tests/band_tolerance.rs`; its
 //! `Band::angular()` probes predate the D4 revision that replaced the
-//! global angular tolerance with per-call-site `Band::angular_at(lever)`.
+//! global angular tolerance with per-call-site `Band::angular_at(Tol::witness(), lever)`.
 //!
 //! # Leak checks (compile-fail probes, documentary)
 //!
@@ -39,7 +39,7 @@
 //! ```
 //!
 //! ERGONOMICS PROBE — construction code returning
-//! `Result<_, Indeterminate>` cannot `?` a `Band::linear()` failure:
+//! `Result<_, Indeterminate>` cannot `?` a `Band::linear(Tol::witness())` failure:
 //! `BandError` does not convert into `Indeterminate` (two error types on
 //! the same happy path). Recorded as a finding; the ratified calling
 //! convention is that the *operation's* error enum absorbs `BandError`
@@ -49,7 +49,7 @@
 //! ```compile_fail,E0277
 //! use geom_core::{Band, Decide, Indeterminate, Sign};
 //! fn classify(m: f64) -> Result<Sign, Indeterminate> {
-//!     let band = Band::linear()?; // BandError does not become Indeterminate
+//!     let band = Band::linear(Tol::witness())?; // BandError does not become Indeterminate
 //!     m.sign_within(band)
 //! }
 //! ```
@@ -217,7 +217,7 @@ fn display_messages_and_error_objects() {
 #[test]
 fn sign_and_margin_diag_consumer_semantics() {
     // The ratified default K is 10 (since M2 PR 7 the run value is
-    // ε-style configuration, `Tolerance::get().k`, defaulting to this).
+    // ε-style configuration, `Tol::witness().get().k`, defaulting to this).
     assert_eq!(DEFAULT_K, 10.0);
     // Sign equality/copy semantics as a consumer sees them.
     let s = Sign::Positive;

@@ -1,7 +1,7 @@
 //! The curated common surface: `use pncad::prelude::*;`.
 //!
 //! The inventory is *measured*, not chosen by taste. It is what the
-//! eighteen tour scenes, the STEP-export corpus, and the
+//! tour scenes, the STEP-export corpus, and the
 //! document-layer corpus actually import — the authoring vocabulary a
 //! model needs on the way from a coordinate table to an exported
 //! solid. Everything the corpus reaches for less than corpus-wide
@@ -12,13 +12,7 @@
 //! is guarded: `pncad/tests/all.rs` authors the whole ladder — profile,
 //! body, booleans, validate, mesh, export — through the prelude ALONE, so
 //! a name dropped from this list that a journey still needs fails to
-//! compile there. MINIMALITY is not. The corpus-frequency measurement
-//! that chose the cut ("what the corpus reaches for corpus-wide") was
-//! taken once, by hand, and nothing re-takes it: a nineteenth scene, or a
-//! name that quietly stopped being corpus-wide, moves the answer with
-//! nothing going red. That is unguarded rather than unguardable — a
-//! re-run of the import census would guard it — and it is recorded here
-//! rather than deferred silently.
+//! compile there. MINIMALITY is not.
 //!
 //! The shape of it follows the user journey the tour documents:
 //!
@@ -42,10 +36,17 @@
 pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // `Band` is here because `fillet_edges` (group 3) takes one: a prelude
 // operation whose arguments are not prelude-constructible is a rung the
-// user cannot start from. The recipe is `Band::linear()` — the run's
+// user cannot start from. The recipe is `Band::linear(tol)` — the run's
 // tolerance ε as the coincidence threshold, K·ε as the escalation
 // threshold — which is what every kernel operation builds internally.
-pub use geom_core::{Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+// `Tol` is here for the same reason one rung down: it is the first
+// argument of every authoring call that decides anything, and a
+// prelude that cannot name it is a prelude you cannot author from.
+// `Tol::witness()` is the one line a program writes before modelling
+// — see `crate::tolerance`.
+pub use geom_core::{
+    Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tol, Tolerance, Vec2, Vec3,
+};
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
 // `Length` is the API-boundary quantity newtype; the kernel-internal
@@ -127,7 +128,10 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 pub use step_import::{ImportOptions, StepImportError, import_step};
-pub use stl::{write_ascii, write_binary};
+pub use stl::{
+    AsciiOptions, BinaryHeader, BinaryHeaderError, BinaryOptions, SolidName, SolidNameError,
+    write_ascii, write_binary,
+};
 
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door: the checking

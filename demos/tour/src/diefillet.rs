@@ -45,6 +45,7 @@ use pncad::topo::Body;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 const L: f64 = 1.0;
 const R: f64 = 0.12;
@@ -162,8 +163,8 @@ struct Die {
     rims: usize,
 }
 
-fn eval(doc: &Doc<ProfileProgram>) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
+    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
 }
 
 /// Builds the die document, materializing each blend's edge set
@@ -174,10 +175,10 @@ fn eval(doc: &Doc<ProfileProgram>) -> Evaluation<f64> {
 /// "every plane–sphere rim" that re-ran on every edit would silently
 /// grow under an upstream change, which is the staleness the freeze
 /// exists to prevent (`pncad::select` module docs).
-fn build() -> Die {
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die");
+fn build(tol: Tol) -> Die {
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
@@ -202,7 +203,7 @@ fn build() -> Die {
 
     // ---- the blank: EVERY edge of the cube, at one radius ----
     // No predicate needed — "all of them" has its own door.
-    let all_twelve = all_edges(&eval(&doc), cube);
+    let all_twelve = all_edges(&eval(&doc, tol), cube);
     let blank = insert(&mut doc, Node::fillet(cube, len(R), all_twelve));
 
     // ---- the master ball, poled along +Z ----
@@ -293,11 +294,12 @@ fn build() -> Die {
     // pip cavity contributes circles (two rim arcs, two meridian
     // seams), so the carrier tag alone separates them.
     let box_edges = select_where(
-        &eval(&doc),
+        &eval(&doc, tol),
         pipped,
         &edges,
         &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
         &params,
+        tol,
     )
     .expect("EXACT atoms are total");
     let blanked = insert(&mut doc, Node::fillet(pipped, len(R), box_edges.clone()));
@@ -311,7 +313,7 @@ fn build() -> Die {
     // surface have no dihedral wedge to roll a ball into. The
     // exclusion is by DESCRIPTION, not by a hand-maintained omission.
     let rims = select_where(
-        &eval(&doc),
+        &eval(&doc, tol),
         blanked,
         &edges,
         &[GeomPred::AdjacentKinds(
@@ -319,6 +321,7 @@ fn build() -> Die {
             SurfaceKindSet::just(SurfaceKind::Sphere),
         )],
         &params,
+        tol,
     )
     .expect("EXACT atoms are total");
     let composed = insert(&mut doc, Node::fillet(blanked, len(RIM_R), rims.clone()));
@@ -354,9 +357,15 @@ fn blank_volume() -> f64 {
         + (4.0 / 3.0) * PI * R.powi(3)
 }
 
-pub fn stops() -> Vec<Stop> {
-    let die = build();
-    let ev = evaluate::<f64>(&die.doc, None, &CancelToken::new(), &EvalOptions::default());
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let die = build(tol);
+    let ev = evaluate::<f64>(
+        &die.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
 
     // The two geometric selections ARE the composed stop's claim, so
     // they are pinned as counts: twelve lines, and 21 rims × two arcs
@@ -372,7 +381,7 @@ pub fn stops() -> Vec<Stop> {
     );
 
     let blank = body_at(&ev, die.blank);
-    let vol = pncad::topo::mass_properties(&blank).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&blank, tol).unwrap().volume;
     let want = blank_volume();
     assert!(
         (vol - want).abs() < 1e-9 * want,
@@ -385,11 +394,11 @@ pub fn stops() -> Vec<Stop> {
     );
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = body_at(&ev, die.pipped);
-    let pip_vol = pncad::topo::mass_properties(&pipped).unwrap().volume;
+    let pip_vol = pncad::topo::mass_properties(&pipped, tol).unwrap().volume;
     let composed = body_at(&ev, die.composed);
-    let comp = pncad::topo::mass_properties(&composed).unwrap();
+    let comp = pncad::topo::mass_properties(&composed, tol).unwrap();
     assert_eq!(
-        pncad::topo::validate_geometric(&composed),
+        pncad::topo::validate_geometric(&composed, tol),
         Ok(()),
         "the composed die is tier-3 valid"
     );

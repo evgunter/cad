@@ -16,13 +16,14 @@ use editor_core::{
     Dimension, DocEdit, DocParam, Expr, MetaValue, Node, ParamName, ProfileDoc, load, save,
 };
 use fixture::desc;
+use geom_core::Tol;
 use proptest::prelude::*;
 
 /// Round-trips one value through every float slot at once; returns
 /// the loaded document for slot-by-slot bit assertions.
 fn round_trip(value: f64) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty_derived("m4_pr6_floats");
-    let push = |d: &ProfileDoc, e| editor_core::apply(d, &e).expect("edit").doc;
+    let mut doc = ProfileDoc::empty_derived("m4_pr6_floats", Tol::witness());
+    let push = |d: &ProfileDoc, e| editor_core::apply(d, &e, Tol::witness()).expect("edit").doc;
     doc = push(
         &doc,
         DocEdit::SetDocParam {
@@ -61,8 +62,8 @@ fn round_trip(value: f64) -> ProfileDoc {
             }),
         },
     );
-    let text = save(&doc, &[]).expect("save");
-    load(&text).expect("load").doc
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    load(&text, Tol::witness()).expect("load").doc
 }
 
 fn assert_bits(label: &str, value: f64, loaded: f64) {
@@ -139,9 +140,9 @@ fn epsilon_round_trips_bit_exactly() {
     // ε is recorded in-document (D4); its bits survive save/load.
     // (The in-process reconcile door requires it to MATCH the
     // committed ambient ε, so the probe uses the ambient value.)
-    let doc = ProfileDoc::empty_derived("m4_pr6_floats");
-    let text = save(&doc, &[]).expect("save");
-    let loaded = load(&text).expect("load");
+    let doc = ProfileDoc::empty_derived("m4_pr6_floats", Tol::witness());
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
     assert_bits("epsilon", doc.epsilon(), loaded.doc.epsilon());
 }
 

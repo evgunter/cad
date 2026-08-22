@@ -24,10 +24,22 @@
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
 //!   detectable. **A mutation phase announces a failed lookup rather
-//!   than discarding it, at every write.** Every key a
+//!   than discarding it, at every write in these modules** — and, as
+//!   of D21, at every write in `split_edge`, the attach setters,
+//!   `movefac`, `revert`, `merge_coplanar_faces`' role pass, the
+//!   boolean graft and the splitting carve. That enumeration is the
+//!   claim; it is not "the whole crate", and it has **one named
+//!   exception**: `merge_coplanar_faces`' ring re-homing still
+//!   defaults a failed face lookup to an empty ring list, because its
+//!   key arrives from a loop's back-pointer and no check in the call
+//!   proves it — so its disposition is a typed error rather than a
+//!   panic, and it is open as `SMELL-SCAN-2026-08.md`'s **D88**. Every
+//!   key a
 //!   mutation writes through is either minted in that phase or proven
-//!   live by the plan phase, which returns
-//!   [`EulerOpError::StaleKey`] otherwise; the writes themselves state
+//!   live by a check in the same call — here the plan phase, which
+//!   returns [`EulerOpError::StaleKey`] otherwise — and never by the
+//!   body's tier-1 validity, which is a whole-body property no single
+//!   call establishes; the writes themselves state
 //!   that impossibility as `unreachable!` (the addendum's row 4), and
 //!   the one write helper these modules share
 //!   ([`Body::link_half_edges`]) states it as a precondition its
@@ -176,8 +188,10 @@
 //! ```
 //! use geom_core::Point3;
 //! use topo::{Body, MefSite, MevSite};
+//! use geom_core::Tol;
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! // The skeletal body: one face whose outer loop is a lone vertex.
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
@@ -186,13 +200,14 @@
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! // Split the loop with a second v–w edge: the segment closes into a
 //! // two-edge, two-face pillow — the smallest closed manifold body.
 //! let split = body.mef_chord(MefSite::Chords {
 //!     he1: seg.he_plus,
 //!     he2: seg.he_minus,
-//! })?;
+//! }, tol)?;
 //! assert_eq!(topo::validate(&body), Ok(()));
 //! assert_eq!(body.vertices().count(), 2);
 //! assert_eq!(body.edges().count(), 2);
@@ -211,7 +226,7 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
-use geom_core::{Band, Decide, Point3, Real};
+use geom_core::{Band, Decide, Point3, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{
@@ -219,6 +234,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::live::Live;
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -422,10 +438,14 @@ pub(crate) struct MevFanPlan<T: Real> {
     pub(crate) p_old: Point3<T>,
     /// The clockwise orbit run `[he1 .. he2)` to reassign.
     pub(crate) run: Vec<HalfEdgeKey>,
-    /// `prev(he1)` (validated resolvable).
-    pub(crate) he1_prev: HalfEdgeKey,
-    /// `prev(he2)` (validated resolvable).
-    pub(crate) he2_prev: HalfEdgeKey,
+    /// The two fan half-edges, proven live.
+    pub(crate) he1: Live,
+    /// See [`MevFanPlan::he1`].
+    pub(crate) he2: Live,
+    /// `prev(he1)`, proven live.
+    pub(crate) he1_prev: Live,
+    /// `prev(he2)`, proven live.
+    pub(crate) he2_prev: Live,
     /// `he1`'s parent loop.
     pub(crate) he1_loop: LoopKey,
     /// `he2`'s parent loop.
@@ -934,7 +954,8 @@ impl<T: Decide> Body<T> {
     /// Euler vector: `(v +1, e 0, f +1, h 0, r 0, s +1)` — arena deltas
     /// +1 solid, +1 shell, +1 face, +1 loop, +1 vertex. (The shell is
     /// our entity, absent in GWB, where a "solid" is one connected
-    /// boundary; multi-shell solids arrive at M3.)
+    /// boundary; a solid here may hold several, and does whenever a
+    /// boolean leaves a void shell — [`crate::Solid`].)
     ///
     /// **Minting order** (D9, exact): point, surface, vertex, solid,
     /// shell, loop, face. The seed face's surface is the
@@ -1112,13 +1133,14 @@ impl<T: Decide> Body<T> {
         site: MevSite,
         point: Point3<T>,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MevSite::Fan { he1, he2 } => self.mev_fan(site, he1, he2, point, curve),
-            MevSite::Lone { r#loop } => self.mev_lone(site, r#loop, point, curve),
+            MevSite::Fan { he1, he2 } => self.mev_fan(site, he1, he2, point, curve, tol),
+            MevSite::Lone { r#loop } => self.mev_lone(site, r#loop, point, curve, tol),
         }?;
 
         #[cfg(debug_assertions)]
@@ -1149,6 +1171,7 @@ impl<T: Decide> Body<T> {
         &mut self,
         site: MevSite,
         point: Point3<T>,
+        tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
         let old = match site {
             MevSite::Fan { he1, .. } => self.resolve_half_edge(he1)?.start,
@@ -1165,7 +1188,7 @@ impl<T: Decide> Body<T> {
             }
         };
         let p_old = self.resolve_vertex_point(old)?;
-        self.mev(site, point, EdgeCurveSpec::line_between(p_old, point))
+        self.mev(site, point, EdgeCurveSpec::line_between(p_old, point), tol)
     }
 
     /// MEF — *make edge, face*: split a loop (or an empty loop) with a
@@ -1255,13 +1278,14 @@ impl<T: Decide> Body<T> {
         site: MefSite,
         curve: EdgeCurveSpec<T>,
         surface: FaceSurface<T>,
+        tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MefSite::Chords { he1, he2 } => self.mef_chords(site, he1, he2, curve, surface),
-            MefSite::Lone { r#loop } => self.mef_lone(site, r#loop, curve, surface),
+            MefSite::Chords { he1, he2 } => self.mef_chords(site, he1, he2, curve, surface, tol),
+            MefSite::Lone { r#loop } => self.mef_lone(site, r#loop, curve, surface, tol),
         }?;
 
         #[cfg(debug_assertions)]
@@ -1297,7 +1321,7 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mef`].
-    pub fn mef_chord(&mut self, site: MefSite) -> Result<MefCreated, EulerOpError> {
+    pub fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError> {
         let (u1, u2) = match site {
             MefSite::Chords { he1, he2 } => (
                 self.resolve_half_edge(he1)?.start,
@@ -1322,7 +1346,7 @@ impl<T: Decide> Body<T> {
             let p2 = self.resolve_vertex_point(u2)?;
             EdgeCurveSpec::line_between(p1, p2)
         };
-        self.mef(site, spec, FaceSurface::Inherit)
+        self.mef(site, spec, FaceSurface::Inherit, tol)
     }
 
     /// Finds the half-edge running `from → to` in `face`, or `None`.
@@ -1381,16 +1405,15 @@ impl<T: Decide> Body<T> {
         he2: HalfEdgeKey,
         point: Point3<T>,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let plan = self.mev_fan_plan(he1, he2)?;
         // ---- Geometry gate (still no mutation): certify the spec
         // against old point → new point (D4 ¶2 at attachment).
-        let certified = self.certify_edge_spec(curve, plan.p_old, point)?;
+        let certified = self.certify_edge_spec(curve, plan.p_old, point, tol)?;
         // ---- Mutation (infallible from here on). ----
         Ok(self.mev_fan_execute(
-            he1,
-            he2,
             plan,
             point,
             MevCurveMint::Certified(certified),
@@ -1406,9 +1429,9 @@ impl<T: Decide> Body<T> {
         he1: HalfEdgeKey,
         he2: HalfEdgeKey,
     ) -> Result<MevFanPlan<T>, EulerOpError> {
-        let he1_data = self.resolve_half_edge(he1)?;
+        let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
         let (v, he1_prev, he1_loop) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
-        let he2_data = self.resolve_half_edge(he2)?;
+        let (he2_live, he2_data) = self.resolve_half_edge_live(he2)?;
         let (he2_start, he2_prev, he2_loop) = (he2_data.start, he2_data.prev, he2_data.parent_loop);
         if he2_start != v {
             return Err(EulerOpError::FanStartMismatch { he1, he2 });
@@ -1432,19 +1455,16 @@ impl<T: Decide> Body<T> {
                 .ok_or(EulerOpError::FanOrbitBroken { he1, he2 })?;
             orbit[..position].to_vec()
         };
-        // The splice writes through both prev links; validate them now
-        // so the mutation below cannot fail midway (atomicity).
-        for prev in [he1_prev, he2_prev] {
-            if !self.half_edges.contains_key(prev) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(prev),
-                });
-            }
-        }
+        // The splice writes through both prev links; prove them now so
+        // the mutation below cannot fail midway (atomicity).
+        let he1_prev = self.require_live(he1_prev)?;
+        let he2_prev = self.require_live(he2_prev)?;
         Ok(MevFanPlan {
             v,
             p_old,
             run,
+            he1: he1_live,
+            he2: he2_live,
             he1_prev,
             he2_prev,
             he1_loop,
@@ -1460,8 +1480,6 @@ impl<T: Decide> Body<T> {
     /// vertex must exist first (mev_null's documented order).
     pub(crate) fn mev_fan_execute(
         &mut self,
-        he1: HalfEdgeKey,
-        he2: HalfEdgeKey,
         plan: MevFanPlan<T>,
         point: Point3<T>,
         mint: MevCurveMint<T>,
@@ -1471,6 +1489,8 @@ impl<T: Decide> Body<T> {
             v,
             p_old: _,
             run,
+            he1,
+            he2,
             he1_prev,
             he2_prev,
             he1_loop,
@@ -1506,6 +1526,8 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(he2_prev, he_minus);
             self.link_half_edges(he_minus, he2);
         }
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         // Reassign the clockwise run to the new vertex.
         for &moved in &run {
             let Some(he) = self.get_half_edge_mut(moved) else {
@@ -1542,11 +1564,12 @@ impl<T: Decide> Body<T> {
         loop_key: LoopKey,
         point: Point3<T>,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
         // ---- Preconditions. ----
         let (v, p_old) = self.mev_lone_plan(loop_key)?;
         // ---- Geometry gate (still no mutation). ----
-        let certified = self.certify_edge_spec(curve, p_old, point)?;
+        let certified = self.certify_edge_spec(curve, p_old, point, tol)?;
         // ---- Mutation (infallible from here on). ----
         Ok(self.mev_lone_execute(
             loop_key,
@@ -1593,6 +1616,8 @@ impl<T: Decide> Body<T> {
         // The two halves form the whole cycle: v → w → v.
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("mev lone: `loop_key` proven live by mev_lone_plan")
         };
@@ -1668,11 +1693,12 @@ impl<T: Decide> Body<T> {
         he2: HalfEdgeKey,
         curve: EdgeCurveSpec<T>,
         surface: FaceSurface<T>,
+        tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
         // ---- Preconditions. ----
-        let he1_data = self.resolve_half_edge(he1)?;
+        let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
         let (u1, he1_prev, loop_key) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
-        let he2_data = self.resolve_half_edge(he2)?;
+        let (he2_live, he2_data) = self.resolve_half_edge_live(he2)?;
         let (u2, he2_prev) = (he2_data.start, he2_data.prev);
         if he2_data.parent_loop != loop_key {
             return Err(EulerOpError::NotSameLoop { he1, he2 });
@@ -1698,13 +1724,10 @@ impl<T: Decide> Body<T> {
                 .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
             cycle[..position].to_vec()
         };
-        for prev in [he1_prev, he2_prev] {
-            if !self.half_edges.contains_key(prev) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(prev),
-                });
-            }
-        }
+        // The splice writes through both prev links; prove them now so
+        // the mutation below cannot fail midway (atomicity).
+        let he1_prev = self.require_live(he1_prev)?;
+        let he2_prev = self.require_live(he2_prev)?;
         let face_data = self.get_face(face_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face_key),
         })?;
@@ -1721,7 +1744,7 @@ impl<T: Decide> Body<T> {
         let p2 = self.resolve_vertex_point(u2)?;
         // ---- Geometry gates (still no mutation). ----
         self.check_face_surface(&surface)?;
-        let certified = self.certify_edge_spec(curve, p1, p2)?;
+        let certified = self.certify_edge_spec(curve, p1, p2, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented on `mef`): surface (for New),
@@ -1748,15 +1771,17 @@ impl<T: Decide> Body<T> {
             // Circular one-edge face: the new loop is he_minus alone.
             self.link_half_edges(he_minus, he_minus);
             self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he1);
+            self.link_half_edges(he_plus, he1_live);
         } else {
             // New loop: … → prev(he2) → he_minus → he1 → … (he1's side)
             // Old loop: … → prev(he1) → he_plus → he2 → … (he2's side)
             self.link_half_edges(he2_prev, he_minus);
-            self.link_half_edges(he_minus, he1);
+            self.link_half_edges(he_minus, he1_live);
             self.link_half_edges(he1_prev, he_plus);
-            self.link_half_edges(he_plus, he2);
+            self.link_half_edges(he_plus, he2_live);
         }
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         // Move he1's side into the new loop.
         for &moved in &run {
             let Some(he) = self.get_half_edge_mut(moved) else {
@@ -1795,6 +1820,7 @@ impl<T: Decide> Body<T> {
         loop_key: LoopKey,
         curve: EdgeCurveSpec<T>,
         surface: FaceSurface<T>,
+        tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
         // ---- Preconditions. ----
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
@@ -1818,7 +1844,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gates (still no mutation): the self-loop edge
         // closes at the lone vertex — both endpoints are its point.
         self.check_face_surface(&surface)?;
-        let certified = self.certify_edge_spec(curve, anchor, anchor)?;
+        let certified = self.certify_edge_spec(curve, anchor, anchor, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         // Same minting order as Chords: surface (for New), curve,
@@ -1835,6 +1861,8 @@ impl<T: Decide> Body<T> {
         // association as Chords — he1's "side" is the new loop).
         self.link_half_edges(he_plus, he_plus);
         self.link_half_edges(he_minus, he_minus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("mef lone: `loop_key` proven live by this function's plan phase")
         };
@@ -1868,12 +1896,12 @@ impl<T: Decide> Body<T> {
 
     /// Resolves a half-edge argument, copying out its fields
     /// ([`EulerOpError::StaleKey`] if it does not resolve).
+    ///
+    /// An operator that also splices through the key wants
+    /// [`Body::resolve_half_edge_live`], which is this lookup keeping
+    /// the proof it earns rather than re-earning it.
     pub(crate) fn resolve_half_edge(&self, he: HalfEdgeKey) -> Result<HalfEdge, EulerOpError> {
-        self.get_half_edge(he)
-            .cloned()
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he),
-            })
+        self.resolve_half_edge_live(he).map(|(_, data)| data)
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
@@ -1896,8 +1924,9 @@ impl<T: Decide> Body<T> {
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
+        tol: Tol,
     ) -> Result<EdgeCurve<T>, EulerOpError> {
-        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         EdgeCurve::certify(
@@ -1994,14 +2023,16 @@ impl<T: Decide> Body<T> {
     /// part of every op's documented minting order) and wires the
     /// edge ↔ half-edge bijection. Each half is described by its
     /// `(start vertex, parent loop)` pair; `next`/`prev` are left
-    /// provisional (null keys) for the caller's splice.
+    /// provisional (null keys) for the caller's splice — which is why
+    /// the halves come back [`Live`]: they were just inserted, and the
+    /// caller's next act is to splice them.
     pub(crate) fn mint_halves(
         &mut self,
         edge: EdgeKey,
         plus: (VertexKey, LoopKey),
         minus: (VertexKey, LoopKey),
         provenance: &Provenance,
-    ) -> (HalfEdgeKey, HalfEdgeKey) {
+    ) -> (Live, Live) {
         let half = |(start, parent_loop): (VertexKey, LoopKey)| HalfEdge {
             edge,
             start,
@@ -2018,6 +2049,10 @@ impl<T: Decide> Body<T> {
         };
         e.he_plus = he_plus;
         e.he_minus = he_minus;
+        let (Some(he_plus), Some(he_minus)) = (Live::of(self, he_plus), Live::of(self, he_minus))
+        else {
+            unreachable!("mint_halves: both halves were inserted four statements above")
+        };
         (he_plus, he_minus)
     }
 
@@ -2074,40 +2109,38 @@ impl<T: Decide> Body<T> {
 
     /// Writes the mutual `next`/`prev` link `a → b`.
     ///
-    /// **Precondition: both keys are live, and the caller discharges
-    /// that in its own call.** The closure property is the claim; a
-    /// list of the ways to discharge it is not — an enumeration frozen
-    /// here is what rots as callers are added. A key qualifies when
-    /// *this call* has already established it resolves: minted in this
-    /// mutation phase, or refused by this plan phase if it did not.
-    /// Never because the body is tier-1 valid, which is a whole-body
-    /// property no single call establishes.
+    /// **The precondition is the argument type.** Every door that hands
+    /// out a [`Live`] performs the lookup — [`Live::of`],
+    /// [`Body::require_live`], [`Body::resolve_half_edge_live`],
+    /// [`Body::loop_cycle_live`] — so a key nothing has resolved cannot
+    /// arrive here. What the token does and does not claim — in
+    /// particular that it is a statement about the moment it was made,
+    /// and that half-edge removal is therefore the last thing a
+    /// mutation phase may do — is the [`live`](crate::live) module
+    /// docs.
     ///
     /// **A bounded walk proves its members, not their `prev` fields.**
-    /// [`Body::loop_cycle`] and [`Body::vertex_orbit`] resolve every
-    /// member they return, so a walk hands you those keys proven — and
-    /// nothing else. `loop_cycle` steps `next`, so having walked from
-    /// `he` proves `next(he)` and says nothing about `prev(he)`. That
-    /// inference is the one that put an unproven key here, so it is
-    /// named rather than left to be re-derived.
+    /// [`Body::loop_cycle_live`] hands out a token per member and
+    /// nothing else. The walk steps `next`, so having walked from `he`
+    /// says nothing about `prev(he)`: that key wants
+    /// [`Body::require_live`] in the plan phase, like any other
+    /// value read out of the arena.
     ///
-    /// A failed lookup here is therefore the D2 addendum's row 4. The
-    /// two arms below cannot name their call site the way a per-site
-    /// `unreachable!` does — a shared helper knows none of its
-    /// callers — so it is `#[track_caller]` and the panic reports the
-    /// caller's location instead. `SMELL-SCAN-2026-08.md`'s **D25**
-    /// proposes retiring the prose precondition for a `Live` key type
-    /// that makes the discharge structural.
+    /// A failed lookup here is the D2 addendum's row 4 — a token that
+    /// outlived the removal of its key. The two arms cannot name their
+    /// call site the way a per-site `unreachable!` does, a shared
+    /// helper knowing none of its callers, so this is `#[track_caller]`
+    /// and the panic reports the caller's location instead.
     #[track_caller]
-    pub(crate) fn link_half_edges(&mut self, a: HalfEdgeKey, b: HalfEdgeKey) {
-        let Some(he) = self.get_half_edge_mut(a) else {
-            unreachable!("link_half_edges: `a` was not proven live by its caller")
+    pub(crate) fn link_half_edges(&mut self, a: Live, b: Live) {
+        let Some(he) = self.get_half_edge_mut(a.key()) else {
+            unreachable!("link_half_edges: `a`'s proof outlived its key")
         };
-        he.next = b;
-        let Some(he) = self.get_half_edge_mut(b) else {
-            unreachable!("link_half_edges: `b` was not proven live by its caller")
+        he.next = b.key();
+        let Some(he) = self.get_half_edge_mut(b.key()) else {
+            unreachable!("link_half_edges: `b`'s proof outlived its key")
         };
-        he.prev = a;
+        he.prev = a.key();
     }
 
     /// D1's ratified postcondition-assert clause: after a successful
@@ -2172,8 +2205,9 @@ impl<T: geom_brep::EdgeNurbsLane> Body<T> {
         &mut self,
         edge: crate::entity::EdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<CurveKey, EulerOpError> {
-        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec_nurbs_lane)
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec_nurbs_lane, tol)
     }
 
     /// [`Body::certify_edge_spec`] with the plane × NURBS lane wired in.
@@ -2182,8 +2216,9 @@ impl<T: geom_brep::EdgeNurbsLane> Body<T> {
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
+        tol: Tol,
     ) -> Result<EdgeCurve<T>, EulerOpError> {
-        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         EdgeCurve::certify_nurbs_lane(
@@ -2204,6 +2239,7 @@ impl<T: geom_brep::EdgeNurbsLane> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::fixtures::{NgonPillow, arena_snapshot, deep_snapshot, pillow, prov};
@@ -2292,7 +2328,7 @@ mod tests {
         let site = MevSite::Lone {
             r#loop: seed.r#loop,
         };
-        let seg = body.mev_line(site, p(1.0)).unwrap();
+        let seg = body.mev_line(site, p(1.0), Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // he_plus runs OLD vertex → NEW vertex (the documented deviation
@@ -2352,6 +2388,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         // he1 == he2 at the old vertex: empty run, dangling strut.
@@ -2362,6 +2399,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -2403,6 +2441,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         let strut_at = |body: &mut Body<f64>, x: f64| {
@@ -2412,6 +2451,7 @@ mod tests {
                     he2: a.he_plus,
                 },
                 p(x),
+                Tol::witness(),
             )
             .unwrap()
         };
@@ -2441,7 +2481,7 @@ mod tests {
             he1: b.he_plus,
             he2: d.he_plus,
         };
-        let split = body.mev_line(site, p(5.0)).unwrap();
+        let split = body.mev_line(site, p(5.0), Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let v = seed.vertex;
@@ -2488,13 +2528,17 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(
             body.vertex_orbit(seg.he_plus),
@@ -2508,6 +2552,7 @@ mod tests {
                     he2: split.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -2544,6 +2589,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         // he1 == he2 at the new vertex: empty run, self-loop face.
@@ -2551,7 +2597,7 @@ mod tests {
             he1: seg.he_minus,
             he2: seg.he_minus,
         };
-        let circ = body.mef_chord(site).unwrap();
+        let circ = body.mef_chord(site, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // New face's outer loop: the self-cycled minus half alone.
@@ -2589,9 +2635,12 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
         let circ = body
-            .mef_chord(MefSite::Lone {
-                r#loop: seed.r#loop,
-            })
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
 
@@ -2657,7 +2706,7 @@ mod tests {
     /// cannot be built through Euler ops until PR 3's kemr, so the raw
     /// builder supplies the fixture).
     fn pillow_with_island() -> (NgonPillow, Island) {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let body = &mut t.body;
         let null_he = HalfEdgeKey::default();
 
@@ -2677,8 +2726,8 @@ mod tests {
             },
             prov(),
         );
-        let cu2 = body.add_curve(crate::fixtures::test_curve(p(10.0)));
-        let cu3 = body.add_curve(crate::fixtures::test_curve(p(11.0)));
+        let cu2 = body.add_curve(crate::fixtures::test_curve(p(10.0), Tol::witness()));
+        let cu3 = body.add_curve(crate::fixtures::test_curve(p(11.0), Tol::witness()));
         let e2 = body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -2778,7 +2827,7 @@ mod tests {
             he1: island.r0,
             he2: island.r1,
         };
-        let split = t.body.mef_chord(site).unwrap();
+        let split = t.body.mef_chord(site, Tol::witness()).unwrap();
         assert_eq!(validate(&t.body), Ok(()));
 
         // he1's side (r0) became the NEW face's outer loop...
@@ -2880,7 +2929,7 @@ mod tests {
 
     #[test]
     fn stale_half_edge_key_is_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let dead = t.body.add_half_edge(
             HalfEdge {
                 edge: t.edges[0],
@@ -2902,22 +2951,26 @@ mod tests {
                     he2: dead,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap_err()
         });
         // Same rejection through mef's addressing.
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: dead,
-                he2: dead,
-            })
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: dead,
+                    he2: dead,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
 
     #[test]
     fn stale_loop_key_is_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let dead = t.body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty {
@@ -2932,17 +2985,18 @@ mod tests {
             key: EntityId::Loop(dead),
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev_line(MevSite::Lone { r#loop: dead }, p(9.0))
+            body.mev_line(MevSite::Lone { r#loop: dead }, p(9.0), Tol::witness())
                 .unwrap_err()
         });
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Lone { r#loop: dead }).unwrap_err()
+            body.mef_chord(MefSite::Lone { r#loop: dead }, Tol::witness())
+                .unwrap_err()
         });
     }
 
     #[test]
     fn stale_anchor_point_is_rejected_as_stale_geometry() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Corrupt: v0's point is removed; mef needs its coordinates for
         // the placeholder curve anchor.
         let dead_point = t.body.points.remove(t.points[0]);
@@ -2954,17 +3008,20 @@ mod tests {
         // precondition (same loop, cycle walk, prevs, face, shell)
         // passes, so the anchor resolution is what fires.
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            })
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
 
     #[test]
     fn fan_start_mismatch_is_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // a0 starts at v0, a1 at v1.
         let expected = EulerOpError::FanStartMismatch {
             he1: t.hes_a[0],
@@ -2977,6 +3034,7 @@ mod tests {
                     he2: t.hes_a[1],
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap_err()
         });
@@ -2984,7 +3042,7 @@ mod tests {
 
     #[test]
     fn broken_fan_orbit_is_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Corrupt the edge ↔ half-edge bijection so mate(a0) fails: the
         // orbit walk from a0 breaks. a0 and b1 both start at v0.
         t.body.get_edge_mut(t.edges[0]).unwrap().he_plus = t.hes_a[1];
@@ -2999,6 +3057,7 @@ mod tests {
                     he2: t.hes_b[1],
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap_err()
         });
@@ -3006,53 +3065,59 @@ mod tests {
 
     #[test]
     fn chords_in_different_loops_are_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let expected = EulerOpError::NotSameLoop {
             he1: t.hes_a[0],
             he2: t.hes_b[0],
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_b[0],
-            })
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_b[0],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
 
     #[test]
     fn broken_loop_cycle_is_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Tear a0's next into loop B: the cycle walk from a0 can never
         // reach a1 (nor return to a0).
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = t.hes_b[0];
         let expected = EulerOpError::LoopCycleBroken { r#loop: t.loop_a };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            })
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
 
     #[test]
     fn non_empty_loop_is_rejected_by_lone_sites() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let expected = EulerOpError::LoopNotEmpty { r#loop: t.loop_a };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mev_line(MevSite::Lone { r#loop: t.loop_a }, p(9.0))
+            body.mev_line(MevSite::Lone { r#loop: t.loop_a }, p(9.0), Tol::witness())
                 .unwrap_err()
         });
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Lone { r#loop: t.loop_a })
+            body.mef_chord(MefSite::Lone { r#loop: t.loop_a }, Tol::witness())
                 .unwrap_err()
         });
     }
 
     #[test]
     fn chords_claiming_an_empty_parent_loop_are_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Corrupt: a fresh empty loop, and a0/a1 claim it as parent.
         let p2 = t.body.add_point(p(9.0));
         let v2 = t.body.add_vertex(
@@ -3073,17 +3138,20 @@ mod tests {
         t.body.get_half_edge_mut(t.hes_a[1]).unwrap().parent_loop = empty;
         let expected = EulerOpError::LoopNotCycle { r#loop: empty };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            })
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
 
     #[test]
     fn chords_with_dangling_second_start_vertex_are_rejected() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Corrupt: a1's start vertex (v1) is removed; every earlier
         // precondition (resolution, same loop, cycle walk, prevs, face,
         // shell, anchor at v0) passes, so the start(he2) liveness check
@@ -3093,10 +3161,13 @@ mod tests {
             key: EntityId::Vertex(t.vertices[1]),
         };
         assert_err_and_unchanged(&mut t.body, &expected, |body| {
-            body.mef_chord(MefSite::Chords {
-                he1: t.hes_a[0],
-                he2: t.hes_a[1],
-            })
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: t.hes_a[0],
+                    he2: t.hes_a[1],
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -3117,6 +3188,7 @@ mod tests {
                         r#loop: LoopKey::default(),
                     },
                     p(9.0),
+                    Tol::witness(),
                 )
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::StaleKey { .. }));
@@ -3127,6 +3199,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         if with_failures {
@@ -3138,22 +3211,29 @@ mod tests {
                         he2: seg.he_minus,
                     },
                     p(9.0),
+                    Tol::witness(),
                 )
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::FanStartMismatch { .. }));
         }
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         if with_failures {
             // Lone site on a loop that is a cycle now.
             let err = body
-                .mef_chord(MefSite::Lone {
-                    r#loop: seed.r#loop,
-                })
+                .mef_chord(
+                    MefSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::LoopNotEmpty { .. }));
         }
@@ -3164,23 +3244,30 @@ mod tests {
                     he2: seg.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         if with_failures {
             // Chords across the two digon loops.
             let err = body
-                .mef_chord(MefSite::Chords {
-                    he1: seg.he_plus,
-                    he2: split.he_plus,
-                })
+                .mef_chord(
+                    MefSite::Chords {
+                        he1: seg.he_plus,
+                        he2: split.he_plus,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap_err();
             assert!(matches!(err, EulerOpError::NotSameLoop { .. }));
         }
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: strut.he_minus,
-                he2: strut.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         (seed, seg, split, strut, circ)

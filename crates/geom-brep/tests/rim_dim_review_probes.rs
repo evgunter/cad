@@ -17,6 +17,13 @@
 //!   tolerance, honest verdict is COMPUTE. Pre-fix the area comparand
 //!   δ·r = 500ε >> Kε decisively SPLIT them (spurious refusal);
 //!   post-fix must compute.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p geom-brep --features probe --test all -- rim_dim_review_probes::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -24,6 +31,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
+use geom_core::Tol;
 use geom_core::k_stats::Probe;
 use geom_core::{Band, Point3, Vec3};
 
@@ -83,9 +91,14 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
 /// Small body, split 50ε (ε ambient): honest verdict is typed refusal.
 #[test]
 fn small_body_rims_50eps_apart_refuse() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e-4, 1e-3, 50.0 * eps);
-    let got = curved_face(&surface, &edges, Probe(1.0), Band::linear().unwrap());
+    let got = curved_face(
+        &surface,
+        &edges,
+        Probe(1.0),
+        Band::linear(Tol::witness()).unwrap(),
+    );
     assert!(
         got.is_err(),
         "50eps-separated split rim must NOT silently group (pre-fix the area \
@@ -97,9 +110,14 @@ fn small_body_rims_50eps_apart_refuse() {
 /// (coincident at tolerance).
 #[test]
 fn large_body_rims_half_eps_apart_compute() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e3, 1e4, 0.5 * eps);
-    let got = curved_face(&surface, &edges, Probe(1.0), Band::linear().unwrap());
+    let got = curved_face(
+        &surface,
+        &edges,
+        Probe(1.0),
+        Band::linear(Tol::witness()).unwrap(),
+    );
     assert!(
         got.is_ok(),
         "0.5eps-separated split rim is coincident at tolerance; pre-fix the \

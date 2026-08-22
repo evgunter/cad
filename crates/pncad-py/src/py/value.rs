@@ -27,9 +27,6 @@
 //!   Declarations is reachable too. It is deferred because the
 //!   naming/selection projection is a design subject of its own, and
 //!   binding a provisional shape here would fork it.
-//!
-//! Neither row is "no accessor exists"; an earlier revision of this
-//! comment claimed that, and it was false.
 
 use std::sync::Arc;
 
@@ -39,8 +36,9 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{export_error_tag, node_error_tag};
+use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
+use pncad::tolerance::Tol;
 use pncad::topo;
 
 /// Raise `EvaluationError` with a stable `reason` tag.
@@ -196,7 +194,8 @@ pub(crate) struct Body {
 impl Body {
     /// Volume, area, and their certified pads.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        let props = topo::mass_properties(&self.inner).map_err(|err| {
+        let tol = Tol::witness();
+        let props = topo::mass_properties(&self.inner, tol).map_err(|err| {
             typed_err(
                 py,
                 ErrorClass::Validation,
@@ -229,10 +228,11 @@ impl Body {
 
     /// Geometric validation only.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
+        let tol = Tol::witness();
         self.run_validator(
             py,
             "validate_geometric",
-            topo::validate_geometric(&self.inner),
+            topo::validate_geometric(&self.inner, tol),
         )
     }
 }
@@ -241,11 +241,14 @@ impl Body {
     /// Shared shape for the validator doors, which all return
     /// `Result<(), Vec<ValidationError>>`.
     ///
-    /// `ValidationError` has no `Display` and no curated tag mapping,
-    /// so the exception carries the failure COUNT as structured data
-    /// and the `Debug` rendering as the human message. Per-variant
-    /// tags are the same mechanical work `crate::tags` does for edits,
-    /// deferred with the rest of the read-back surface.
+    /// `ValidationError` has no curated tag mapping, so the exception
+    /// carries the failure COUNT as structured data and a rendering of
+    /// the whole list as the human message. Per-variant tags are the
+    /// same mechanical work `crate::tags` does for edits, deferred
+    /// with the rest of the read-back surface — and so is the choice
+    /// to render the list with `Debug`: the enum does implement
+    /// `Display`, one prose sentence with recourse per finding, and
+    /// nothing composes it here.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -561,8 +564,16 @@ impl Evaluation {
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
+        let tol = Tol::witness();
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
-        match pncad::select::select_where(&self.inner, node.0, &selector.0, &atoms, &self.params) {
+        match pncad::select::select_where(
+            &self.inner,
+            node.0,
+            &selector.0,
+            &atoms,
+            &self.params,
+            tol,
+        ) {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
         }
@@ -595,7 +606,8 @@ impl Evaluation {
         a: &NodeId,
         b: &NodeId,
     ) -> PyResult<Vec<super::flush::FlushFinding>> {
-        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0) {
+        let tol = Tol::witness();
+        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0, tol) {
             Ok(findings) => Ok(findings
                 .into_iter()
                 .map(super::flush::FlushFinding)
@@ -630,11 +642,12 @@ impl Evaluation {
         node: &NodeId,
         product_name: Option<String>,
     ) -> PyResult<String> {
+        let tol = Tol::witness();
         let mut options = pncad::step_export::StepOptions::default();
         if let Some(name) = product_name {
             options.product_name = name;
         }
-        pncad::export::step_for_node(&self.inner, node.0, &options)
+        pncad::export::step_for_node(&self.inner, node.0, &options, tol)
             .map_err(|err| export_err(py, *node, &err))
     }
 
@@ -691,10 +704,17 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
 /// assert it without reaching past the module.
 #[pyfunction]
 pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
-    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default()) {
+    let tol = Tol::witness();
+    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
+    {
         Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
             inner: Arc::new(body),
         }),
+        // Not a refusal variant: the import SUCCEEDED and produced
+        // the other arm of `StepImport`, which this door does not
+        // adopt. Its tag is the arm's name and shares the namespace
+        // with `step_import_error_tag`'s, which contains no
+        // `wireframe`.
         Ok(pncad::step_import::StepImport::Wireframe { .. }) => Err(typed_err(
             py,
             ErrorClass::StepImport,
@@ -704,11 +724,21 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
                 PyString::new(py, "wireframe").unbind().into_any(),
             )],
         )),
+        // The tag is the importer's own, through `crate::tags`. Every
+        // arm of `StepImportError` is reachable here, and the entity
+        // id and line that would tell them apart live in the message
+        // prose — so one literal for all twenty-one would make them
+        // indistinguishable to a caller.
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
             err.to_string(),
-            &[("variant", PyString::new(py, "refused").unbind().into_any())],
+            &[(
+                "variant",
+                PyString::new(py, step_import_error_tag(&err))
+                    .unbind()
+                    .into_any(),
+            )],
         )),
     }
 }
@@ -719,12 +749,14 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 /// failed — ask the returned object.
 #[pyfunction]
 pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
+    let tol = Tol::witness();
     Evaluation {
         inner: d::evaluate::<f64>(
             &doc.inner,
             None,
             &d::CancelToken::new(),
             &d::EvalOptions::default(),
+            tol,
         ),
         params: doc.inner.param_env::<f64>(),
     }

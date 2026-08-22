@@ -1,5 +1,5 @@
 # In-house STEP AP214 analytic-subset EXPORT writer (M4 PR 7; the F6
-# decision — docs/M4-LOG.md 2026-07-23 — adopted nothing at runtime).
+# decision, 2026-07-23 — adopted nothing at runtime).
 # Export layer like `stl`: f64-only, not scalar-generic. Import is M7
 # and deliberately absent here.
 [package]

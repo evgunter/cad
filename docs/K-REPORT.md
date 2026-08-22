@@ -160,7 +160,7 @@ gathered across M2's full pipeline.
 
   **What CI now covers, stated precisely** (D17, closed 2026-08-20).
   `k_report.rs` is both **type-checked and run** on every building
-  merge. The `k-lint` job's *"type-check every probe-gated test target"*
+  merge. The `k-lint` job's *"compile and list every probe-gated test target"*
   step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step
@@ -168,7 +168,59 @@ gathered across M2's full pipeline.
   `scripts/k_probe_sweep.sh` then *executes* this
   harness at all three ε beside the Band 4 corpus and the tour scenes.
   The two are not interchangeable: a type-check cannot see a panic, and
-  running one harness says nothing about the other thirteen suites.
+  running one harness says nothing about the suites nothing runs.
+
+  **Which suites CI executes, rostered rather than counted.** The
+  executed set is `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`,
+  and `scripts/k_probe_sweep.sh` is what runs it: two `--ignored` dump
+  invocations (`m4_pr8_k_probe::` in `editor-core`, `k_report::` in
+  `sweep`) inside the ε loop, and two default-selection preconditions
+  before it (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::`, both in
+  `editor-core`). Every other censused suite is compiled and not run, and
+  each of them says so in its own header — the census gate refuses a
+  probe suite that is on neither side, so a new one has to pick.
+
+  **The roster is floored on what RAN, not on what a filter could
+  match.** The sweep records the runner's own passed and ignored counts
+  per invocation and `--check-executed` reads them back. Reachability
+  would be the wrong key: `run_dump` passes `--ignored`, so a filter
+  naming a suite of plain `#[test]`s matches the module and executes none
+  of it — a floor built on "some filter names it" scores such a suite
+  covered while it is inert. **The selection is part of the roster key**
+  for the same reason: `--ignored` and the default selection run disjoint
+  halves of a suite.
+
+  **And the floor alone is not the whole check.** A floor catches a suite
+  that stops running; it cannot catch one that grows a test no rostered
+  selection reaches. Every rostered suite is therefore invoked once under
+  the default selection, which reports how many `#[ignore]`d tests it
+  skipped, and that number must equal what the `--ignored` invocation
+  ran. The two selections then cover the suite with nothing left over,
+  from the runner's own numbers rather than from a predicate over the
+  source.
+
+  **The distinction that was wrong, stated so it is not re-inferred.**
+  Earlier prose put `editor-core`'s suites on the executed side because
+  the sweep's invocation names that crate with `-p`. **Naming the crate
+  is not naming the suite, and naming the suite is not naming the
+  selection**: `crates/editor-core/tests/m5_pr5_corpus_probe.rs` was
+  selected by no filter at all, and `m4_pr8_k_probe.rs`'s
+  `corpus_evaluates_green_at_probe` sat inside a module the sweep DID
+  name while carrying no `#[ignore]` — so the one filter that reached its
+  module ran the other test in it and never that one. Both run now, as
+  preconditions, once and outside the ε loop — **and the reason is
+  redundancy, not ε-invariance.** What both actually assert is one-sided
+  *greenness* at `Probe`; neither compares a `Probe` result against an
+  f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
+  `run_doc` asserts the same predicate over every corpus document at all
+  three ε on every merge, so the ε sweep of that property is already
+  paid. What running the default selection adds is that these bodies
+  execute at all, and the `#[ignore]`d complement the floor reconciles.
+  It runs at a stated ε (1e-9) rather than at whatever the ambient
+  default happens to be.
+
+  The total is deliberately not written here: it is that gate's derived
+  tally, recomputed on every merge.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
@@ -285,7 +337,7 @@ candidate in {3, 10, 30, 100} behaves identically on this corpus — so
 the value is currently free, and a free parameter should keep its
 ratified, documented default rather than churn. (Per Evan's #41
 direction, K is now ε-style per-run configuration —
-`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10 — so future
+`Tol::k`, env `CAD_AMBIGUITY_K`, default 10 — so future
 corpora can probe alternatives without code changes.)
 Retaining a full decade of escalation headroom above ε remains the
 right *a-priori* posture for M3, where boolean/SSI margins will be
@@ -936,7 +988,7 @@ hosted run without anyone re-reading this report.
 
 Note that the machinery for a future change is already in place and
 costs nothing to leave there: K is per-run configuration
-(`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10), so a
+(`Tol::k`, env `CAD_AMBIGUITY_K`, default 10), so a
 future corpus can probe alternatives without code changes. Closing
 #89 ratifies the default; it does not weld the dial.
 

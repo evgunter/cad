@@ -60,11 +60,11 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
-use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
-use crate::k_stats::decide;
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
@@ -440,9 +440,9 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     incoming: FilletSide<T>,
     arrival: FilletSide<T>,
     radius: T,
-    tol: Tolerance,
+    tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
-    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(PathError::Band)?;
+    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
     // and the other root is usually the one they meant. A corner that

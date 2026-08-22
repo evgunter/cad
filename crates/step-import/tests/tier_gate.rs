@@ -53,10 +53,8 @@
 //! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
 //! unit (one of them, `band_c180`, at the gate itself — the inside-out
 //! torus band, refusing now through the general mechanism that
-//! replaced its band-only backstop), and one file is a wireframe. The
-//! previously-'importing' body that turns out to have been invalid all
-//! along — #260's "arguably the point" — is NOT in the committed
-//! corpus; the one body class the gate newly refuses is the
+//! replaced its band-only backstop), and one file is a wireframe.
+//! The one body class the gate newly refuses is the
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
 //!
@@ -77,6 +75,7 @@
 use std::path::{Path, PathBuf};
 
 use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// What a corpus file does at import, at every tolerance in the sweep.
@@ -120,8 +119,8 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 /// **`dm1-id-214.stp` is swept at its own ε_in only** (the 2026-08-13
 /// test-time audit). dm1 is by far the most expensive import in the
 /// corpus, and importing it three times per ambient row was 74% of this
-/// test's entire cost — the other 53 files, across all three ε_in tags,
-/// together cost a small fraction of it.
+/// test's entire cost — every other file in [`CORPUS`], across all three
+/// ε_in tags, together cost a small fraction of it.
 ///
 /// **What that costs, said plainly:** the EXECUTED measurement that
 /// dm1's disposition is ε_in-invariant at each ambient band. Its nine
@@ -618,7 +617,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(&body),
+            topo::validate_geometric(&body, Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -683,7 +682,7 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
     if row != EpsSensitive {
         return Some(row);
     }
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     EPS_ROWS
         .iter()
         .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)
@@ -710,13 +709,13 @@ fn every_corpus_import_passes_the_shared_gate() {
                 // Off the pinned ambient matrix. The disposition of an
                 // ε-sensitive file is not knowable here, but the gate's
                 // claim still is, and asserting it is not nothing.
-                assert_typed_outcome(&who, import_step(&text, &options));
+                assert_typed_outcome(&who, import_step(&text, &options, Tol::witness()));
                 continue;
             };
-            match (import_step(&text, &options), want) {
+            match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(&body),
+                        topo::validate_geometric(&body, Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \
@@ -814,7 +813,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/band/band_c180.stp"),
     )
     .unwrap();
-    let e = import_step(&text, &ImportOptions::default()).unwrap_err();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
     let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };

@@ -341,26 +341,25 @@ The tour ships **two montage sheets** with identical grids, captions,
 scene order, and cameras (both read `scenes.json`) — cell-for-cell
 comparable, differing ONLY in whose tessellation is on screen:
 
-**Cell count: 19 on each sheet** (4 columns × 5 rows, last row short
-by one — `compose_montage.py` derives the row count, nothing is
-hardcoded). The derivation: the tour emits 34 scenes, of which 15 are
-`montage: false` — the four standalone renders kept out of the sheet
-by the #91 revision notes and the M6 curation pass (`bracket`, `die`,
-`silhouette`, `az`), the two under-filled heat-sink variants
-(`heatsink5`, `heatsink7` — the sheet carries only the 9-fin panel),
-the five shadow proofs (`silhouette3_shadow_{z,x,y}`,
-`twisted_duct_shadow_{z,y}`), and the four scenes the **montage-v2
-curation** (Evan's #218 follow-up) moved to standalone:
-`tube_along_arc`, `diefillet`, `diepips` (interesting for how they
-work — stored intent parameters, the fillet battery, the closed-group
-cut — but not visually without that context), and `s_duct` (its S
-solid is two glued partial revolves, shape for shape, so the honest
-not-a-revolve sweep cell is now `twisted_duct`). 34 − 15 = 19. The
-count was 18 at the globe lily; the **montage refresh** added
-`tube_along_arc` (19), the trimmed-NURBS tessellation lane landed the
-refresh's three blocked NURBS-walled scenes (22), the #218 review
-re-posed the sweep cell as `s_duct`, and **montage-v2** cut four cells
-and added `twisted_duct` (19).
+**Cell count: every scene the tour marks `montage: true`.** The tour
+prints the three numbers (scenes, montage cells, standalone) on its
+last line, and `compose_montage.py` derives the grid from the manifest
+— nothing is hardcoded, here included. A count written down here is a
+number a new stop makes wrong.
+
+**The rule for staying off the sheet**, which is the part that does not
+drift: a scene is `montage: false` when it is a *proof* rather than a
+part. That is the shadow renders (a silhouette read against its own
+projection needs its own frame), the parameter variants whose point is
+the comparison and not the shape (`heatsink5`/`heatsink7` against the
+9-fin panel the sheet carries), and the scenes whose interest is HOW
+they are built rather than how they look — `diefillet`, `diepips`,
+`tube_along_arc`, `s_duct` (its S solid is two glued partial revolves,
+shape for shape, so the honest not-a-revolve sweep cell is
+`twisted_duct`), plus the standalone renders the #91 revision notes and
+the M6 curation pass set aside (`bracket`, `die`, `silhouette`, `az`).
+The authority is the `montage` field at each `Stop`, and each one that
+is `false` says why beside it.
 
 - `renders/montage.png` — **the kernel's own facets**. Every cell
   renders the tour's exported STL mesh, i.e. the M5 trimmed/pcurve
@@ -539,7 +538,7 @@ verbatim.
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
 | `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's first ORGANIC subject and a deliberate stress test: thirteen closed solids (three torus-segment stem tubes from `tube_along_arc`; one sphere-zone lantern with a conical mouth from `revolve(Full)`; the BUD, which is that same meridian said three times PARTIALLY — three 156° pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally like a pinwheel; two keeled leaf blades from `sweep_body`; and four from `loft_body` — the long basal leaf and the three sepals), walked by a turtle so consecutive stem arcs are **G1 by construction**. The analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The six blades are the fitted pieces — a skin is a B-spline wall through exact spine points. The two SWEPT ones hold ONE width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the four LOFTED ones do both, because `loft_body` takes the sections and the placements as separate lists, so the long leaf runs rectangle-at-the-stem to wide diamond to small diamond while turning 160° about its own spine (eased toward the tip), and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Every blade section is straight lines and not the old crescent's arcs — a limit that has since EXPIRED: the skin lane refused a rational wall until #306 landed the span meter's rational arm (`m7_skin_integral`'s Pin 4 was written to flip when that happened, and has). Restoring the lanceolate arcs is outstanding work on this stop, gated on checking the QUADRATURE half of the rational bank, which #306 did not retire. Nothing is JOINED either — the stop is followed by **eight live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam, graft the leaf's sheath onto its blade at a declared identical rectangle) and assert each typed refusal, panicking if one ever retires |
-| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder + two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards (which is the better construction for coaxial supports, and the one `fillet_edges` cannot make). The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry, not a kernel limit. The three bodies MEET on coincident annular faces (elbow↔elbow to 5e-16 m, loop↔neck bit-exactly — declared-REST numbers) and NONE of them can be joined: the boolean operand gate is per-face-kind and rejects any body carrying a cone or a torus, so the self-intersection an immersed Klein bottle must have is left un-trimmed too. Rendered SEE-THROUGH (the manifest's per-body `transparency`), from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **seven live wall probes**, two of which pin DEFECTS rather than absences — `fillet_edges` mis-metering every closed rim into a false `TangentialEdge` (#554, probed against the same corner on a partial revolve, which answers honestly), and `mesh::planar`'s banked sub-floor chart residue, "synthetic today" until this bulb's annular cap hit it (#555) |
+| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder + two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards (which is the better construction for coaxial supports, and the one `fillet_edges` cannot make). The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry, not a kernel limit. The three bodies MEET on coincident annular faces (elbow↔elbow to 5e-16 m, loop↔neck bit-exactly — declared-REST numbers) and NONE of them can be joined: the boolean operand gate is per-face-kind and rejects any body carrying a cone or a torus, so the self-intersection an immersed Klein bottle must have is left un-trimmed too. Rendered SEE-THROUGH (the manifest's per-body `transparency`), from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **seven live wall probes**, one of which pins a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, "synthetic today" until this bulb's annular cap hit it (#555). Walls 1–2 once split over #554's false `TangentialEdge` on closed rims; since VERBS-RIM fixed the lever they pin the same honest `SpineUnsupported` on the full and the partial revolve alike — the missing cone×cylinder arm, probed back to back |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Five committed **shadow proofs** ride beside the montage panels
@@ -900,7 +899,7 @@ tree used to be meaningless, because those cells were drawn against a
 developer host's GL stack and these by llvmpipe on a runner; since the
 #338 canonical-producer ruling and its re-baseline, both sides are the
 hosted producer's output, and a repeat hosted render of one commit is
-byte-identical (measured across all 55 cells of both PNG lanes). So each
+byte-identical (measured across every cell of both PNG lanes). So each
 lane's diff is a real finding, and ci.yml's `renders` job fails on it.
 
 The one caveat that survives is the runner image: its mesa bumps roughly
@@ -932,3 +931,15 @@ lane in CI keeps mesh coverage either way).
 in `scenes.json` order with captions, for every render path;
 `--montage=NAME` / `--banner=TEXT` give the STEP lane its own filename
 and provenance banner on the same grid.
+
+`manifest.py` is the one reader of `scenes.json` — imported by both
+renderers and the composer, and run as `manifest.py --scene-names` by
+`render.sh`'s scene loop. It holds the field names, the walk, and the
+`view.up` convention; the last of these in the world → display
+direction only, with the display → world direction a camera needs
+*derived* from it, so the two cannot drift apart. Every field it names
+is read, never defaulted: both producers write all of them for every
+entry, so a missing one refuses (naming the scene, the body and the
+key) instead of rendering something plausible. `python3 manifest.py
+--selftest` pins all of that. The UV lane's `uv.json` has one reader
+(`compose_uv_montage.py`) and is walked there.

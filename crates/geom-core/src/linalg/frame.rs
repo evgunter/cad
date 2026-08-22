@@ -99,6 +99,7 @@ use crate::predicate::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Sign,
 };
 use crate::real::Real;
+use crate::tolerance::Tol;
 
 /// Which input a [`FrameError::Degenerate`] refusal is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -279,8 +280,9 @@ pub fn point_at<T: Decide>(
     eye: Point3<T>,
     target: Point3<T>,
     roll_reference: Vec3<T>,
+    tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
-    let band = Band::linear().map_err(FrameError::Band)?;
+    let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
     definitely_positive("frame_point_at_aim", aim.norm(), band, FrameInput::Aim)?;
     let unit = aim.normalize();
@@ -322,8 +324,9 @@ pub fn point_at<T: Decide>(
 pub fn path_start_frame<T: Decide>(
     origin: Point3<T>,
     tangent: Vec3<T>,
+    tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
-    let band = Band::linear().map_err(FrameError::Band)?;
+    let band = Band::linear(tol).map_err(FrameError::Band)?;
     definitely_positive(
         "frame_path_start_tangent",
         tangent.norm(),
@@ -400,8 +403,9 @@ pub fn path_start_frame<T: Decide>(
 pub fn mirror_across_plane<T: Decide>(
     point: Point3<T>,
     normal: Vec3<T>,
+    tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
-    let band = Band::linear().map_err(FrameError::Band)?;
+    let band = Band::linear(tol).map_err(FrameError::Band)?;
     definitely_positive(
         "frame_mirror_normal",
         normal.norm(),
@@ -423,6 +427,7 @@ pub fn mirror_across_plane<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::tolerance::Tol;
 
     /// The frame's twelve entries, in column order then translation —
     /// the whole map, bit for bit. Orientation pins compare these, so a
@@ -496,6 +501,7 @@ mod tests {
             Point3::new(1.0, 2.0, 3.0),
             Point3::new(1.0, 2.0, 7.0),
             Vec3::unit_y(),
+            Tol::witness(),
         )
         .unwrap();
         assert_eq!(
@@ -509,7 +515,13 @@ mod tests {
             .map(f64::to_bits)
         );
         // Row B — aim along +X with the +Z reference: the cyclic frame.
-        let b = point_at(Point3::origin(), Point3::new(4.0, 0.0, 0.0), Vec3::unit_z()).unwrap();
+        let b = point_at(
+            Point3::origin(),
+            Point3::new(4.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            Tol::witness(),
+        )
+        .unwrap();
         assert_eq!(
             bits12(&b),
             [
@@ -527,7 +539,7 @@ mod tests {
         // The pinned convention: local +Z is the aim; the reference has
         // no local +X component and a POSITIVE local +Y one.
         for (eye, target, r) in aim_cases() {
-            let f = point_at(eye, target, r).unwrap();
+            let f = point_at(eye, target, r, Tol::witness()).unwrap();
             let aim = (target - eye).normalize();
             let (x, y, z) = (f.linear.c0, f.linear.c1, f.linear.c2);
             assert!((z.x - aim.x).abs() <= 1e-15);
@@ -550,7 +562,7 @@ mod tests {
     #[test]
     fn point_at_round_trips_through_affine3() {
         for (eye, target, r) in aim_cases() {
-            let f = point_at(eye, target, r).unwrap();
+            let f = point_at(eye, target, r, Tol::witness()).unwrap();
             let back = f.inverse() * f;
             for res in rigidity_residuals(&back) {
                 assert!(res.abs() <= 1e-13, "round-trip rigid: {res}");
@@ -566,7 +578,7 @@ mod tests {
         let e = Point3::new(1.0, 1.0, 1.0);
         // No aim: the two points coincide.
         assert_eq!(
-            point_at(e, e, Vec3::unit_z()).unwrap_err(),
+            point_at(e, e, Vec3::unit_z(), Tol::witness()).unwrap_err(),
             FrameError::Degenerate {
                 input: FrameInput::Aim,
                 indeterminate: None
@@ -582,7 +594,7 @@ mod tests {
             Vec3::zero(),
         ] {
             assert_eq!(
-                point_at(e, t, r).unwrap_err(),
+                point_at(e, t, r, Tol::witness()).unwrap_err(),
                 FrameError::Degenerate {
                     input: FrameInput::RollReference,
                     indeterminate: None
@@ -597,7 +609,8 @@ mod tests {
             point_at(
                 Point3::origin(),
                 Point3::new(1e200, 1e200, 1e200),
-                Vec3::unit_z()
+                Vec3::unit_z(),
+                Tol::witness(),
             )
             .unwrap_err(),
             FrameError::Degenerate {
@@ -607,7 +620,12 @@ mod tests {
         );
         // Poison refuses too — as an in-band (invalid-margin) outcome,
         // never as a silently NaN frame.
-        let p = point_at(e, Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z());
+        let p = point_at(
+            e,
+            Point3::new(f64::NAN, 0.0, 0.0),
+            Vec3::unit_z(),
+            Tol::witness(),
+        );
         assert!(matches!(
             p,
             Err(FrameError::Degenerate {
@@ -624,7 +642,8 @@ mod tests {
         // cone, and the resulting frame is pinned entry for entry.
         // (The signed zeros are the cross product's exact
         // cancellations; the pin is the bits, so they are pinned too.)
-        let up = path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, 5.0)).unwrap();
+        let up =
+            path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, 5.0), Tol::witness()).unwrap();
         assert_eq!(
             bits12(&up),
             [
@@ -635,7 +654,8 @@ mod tests {
             ]
             .map(f64::to_bits)
         );
-        let down = path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, -2.0)).unwrap();
+        let down =
+            path_start_frame(Point3::origin(), Vec3::new(0.0, 0.0, -2.0), Tol::witness()).unwrap();
         assert_eq!(
             bits12(&down),
             [
@@ -666,8 +686,14 @@ mod tests {
             Vec3::new(1.0, 2.0, 3.0),
             Vec3::new(-0.25, 7.5, 0.125),
         ] {
-            let a = path_start_frame(Point3::origin(), t).unwrap();
-            let b = point_at(Point3::origin(), Point3::origin() + t, Vec3::unit_z()).unwrap();
+            let a = path_start_frame(Point3::origin(), t, Tol::witness()).unwrap();
+            let b = point_at(
+                Point3::origin(),
+                Point3::origin() + t,
+                Vec3::unit_z(),
+                Tol::witness(),
+            )
+            .unwrap();
             assert_eq!(bits12(&a), bits12(&b));
         }
     }
@@ -681,7 +707,7 @@ mod tests {
             Vec3::new(1e-12, 0.0, 0.0),
         ] {
             assert_eq!(
-                path_start_frame(Point3::origin(), t).unwrap_err(),
+                path_start_frame(Point3::origin(), t, Tol::witness()).unwrap_err(),
                 FrameError::Degenerate {
                     input: FrameInput::Tangent,
                     indeterminate: None
@@ -691,7 +717,11 @@ mod tests {
         // Poison refuses as an invalid-margin outcome, carrying the
         // classifier payload.
         assert!(matches!(
-            path_start_frame(Point3::origin(), Vec3::new(f64::NAN, 1.0, 0.0)),
+            path_start_frame(
+                Point3::origin(),
+                Vec3::new(f64::NAN, 1.0, 0.0),
+                Tol::witness()
+            ),
             Err(FrameError::Degenerate {
                 input: FrameInput::Tangent,
                 indeterminate: Some(_)
@@ -704,7 +734,12 @@ mod tests {
         // ladder refuses. This is the one reachable `ReferenceLadder`
         // class, and the alternative is a silently all-zero frame.
         assert_eq!(
-            path_start_frame(Point3::origin(), Vec3::new(1e200, 1e200, 1e200)).unwrap_err(),
+            path_start_frame(
+                Point3::origin(),
+                Vec3::new(1e200, 1e200, 1e200),
+                Tol::witness()
+            )
+            .unwrap_err(),
             FrameError::Degenerate {
                 input: FrameInput::ReferenceLadder,
                 indeterminate: None
@@ -722,7 +757,7 @@ mod tests {
         ] {
             assert!(
                 !matches!(
-                    path_start_frame(Point3::origin(), t),
+                    path_start_frame(Point3::origin(), t, Tol::witness()),
                     Err(FrameError::Degenerate {
                         input: FrameInput::ReferenceLadder,
                         ..
@@ -737,7 +772,7 @@ mod tests {
     fn mirror_orientation_pin_and_involution() {
         // Reflection across the xy-plane: diag(1, 1, −1), no
         // translation. Exact, so the whole map pins bitwise.
-        let m = mirror_across_plane(Point3::origin(), Vec3::unit_z()).unwrap();
+        let m = mirror_across_plane(Point3::origin(), Vec3::unit_z(), Tol::witness()).unwrap();
         assert_eq!(
             bits12(&m),
             [
@@ -755,7 +790,7 @@ mod tests {
         assert_eq!(rigidity_residuals(&m)[6], -2.0);
         // A reflection is its own inverse — composed with an
         // independently built copy of itself, exactly the identity.
-        let again = mirror_across_plane(Point3::origin(), Vec3::unit_z()).unwrap();
+        let again = mirror_across_plane(Point3::origin(), Vec3::unit_z(), Tol::witness()).unwrap();
         assert_eq!(bits12(&(m * again)), bits12(&Affine3::identity()));
     }
 
@@ -763,7 +798,7 @@ mod tests {
     fn mirror_fixes_its_plane_and_flips_handedness() {
         let p = Point3::new(1.0, -2.0, 3.0);
         let n = Vec3::new(0.5, 1.5, -0.25);
-        let m = mirror_across_plane(p, n).unwrap();
+        let m = mirror_across_plane(p, n, Tol::witness()).unwrap();
         // det = −1 and the columns stay orthonormal: an isometry, not a
         // rigid motion.
         assert!((m.linear.determinant() + 1.0).abs() <= 1e-15);
@@ -790,21 +825,31 @@ mod tests {
         assert!((m.transform_point(m.transform_point(x)) - x).norm() <= 1e-14);
         // Composed with a frame, the mirror is what flips its
         // handedness — the consequence a consumer must reverse.
-        let f = point_at(Point3::origin(), Point3::new(1.0, 2.0, 3.0), Vec3::unit_z()).unwrap();
+        let f = point_at(
+            Point3::origin(),
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::unit_z(),
+            Tol::witness(),
+        )
+        .unwrap();
         assert!(((m * f).linear.determinant() + 1.0).abs() <= 1e-14);
     }
 
     #[test]
     fn mirror_refuses_a_plane_with_no_normal() {
         assert_eq!(
-            mirror_across_plane(Point3::origin(), Vec3::<f64>::zero()).unwrap_err(),
+            mirror_across_plane(Point3::origin(), Vec3::<f64>::zero(), Tol::witness()).unwrap_err(),
             FrameError::Degenerate {
                 input: FrameInput::MirrorNormal,
                 indeterminate: None
             }
         );
         assert!(matches!(
-            mirror_across_plane(Point3::origin(), Vec3::new(f64::NAN, 0.0, 1.0)),
+            mirror_across_plane(
+                Point3::origin(),
+                Vec3::new(f64::NAN, 0.0, 1.0),
+                Tol::witness()
+            ),
             Err(FrameError::Degenerate {
                 input: FrameInput::MirrorNormal,
                 indeterminate: Some(_)
@@ -819,15 +864,23 @@ mod tests {
         // full-string pin).
         for (e, needle) in [
             (
-                point_at(Point3::origin(), Point3::origin(), Vec3::<f64>::unit_z()).unwrap_err(),
+                point_at(
+                    Point3::origin(),
+                    Point3::origin(),
+                    Vec3::<f64>::unit_z(),
+                    Tol::witness(),
+                )
+                .unwrap_err(),
                 "aim",
             ),
             (
-                path_start_frame(Point3::origin(), Vec3::<f64>::zero()).unwrap_err(),
+                path_start_frame(Point3::origin(), Vec3::<f64>::zero(), Tol::witness())
+                    .unwrap_err(),
                 "path tangent",
             ),
             (
-                mirror_across_plane(Point3::origin(), Vec3::<f64>::zero()).unwrap_err(),
+                mirror_across_plane(Point3::origin(), Vec3::<f64>::zero(), Tol::witness())
+                    .unwrap_err(),
                 "mirror plane normal",
             ),
         ] {

@@ -10,19 +10,21 @@
 //! touch of the global).
 //!
 //! Deliberately NO explicit `init` here: the global self-initializes from
-//! the environment on the first `Band::linear()` call, so the multi-ε CI
+//! the environment on the first `Band::linear(Tol::witness())` call, so the multi-ε CI
 //! matrix (`CAD_TOLERANCE_EPS`) genuinely exercises *different bands*
 //! through this test — every assertion is written relative to the run's
 //! ε, not to a fixed value.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign, Tolerance};
+use geom_core::Tol;
+use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign};
 
 #[test]
 fn bands_track_the_global_tolerance() {
-    let band = Band::linear().expect("the run's eps is sane, so K*eps cannot overflow");
-    let tolerance = Tolerance::get();
+    let band =
+        Band::linear(Tol::witness()).expect("the run's eps is sane, so K*eps cannot overflow");
+    let tolerance = Tol::witness().get();
 
     // linear() is exactly (eps, K*eps) of the committed tolerance...
     assert_eq!(band.zero(), tolerance.eps);
@@ -32,7 +34,8 @@ fn bands_track_the_global_tolerance() {
     // there is no global angular tolerance (D4 ¶1, revised 2026-07-16).
     // At the unit lever arm (r = 1) the derived angle is exactly eps, so
     // the angular band coincides with the linear one.
-    let unit = Band::angular_at(1.0).expect("the run's eps is sane, so eps/1 forms a band");
+    let unit = Band::angular_at(Tol::witness(), 1.0)
+        .expect("the run's eps is sane, so eps/1 forms a band");
     assert_eq!(unit.zero(), tolerance.eps);
     assert_eq!(unit.escalate(), tolerance.k * tolerance.eps);
     assert_eq!(unit, band);
@@ -41,7 +44,7 @@ fn bands_track_the_global_tolerance() {
     // zero = eps/r, escalate = K*(eps/r).
     let kappa_rel = 4.0;
     let arm = 1.0 / kappa_rel;
-    let curved = Band::angular_at(arm).expect("eps/arm is a sane finite threshold");
+    let curved = Band::angular_at(Tol::witness(), arm).expect("eps/arm is a sane finite threshold");
     assert_eq!(curved.zero(), tolerance.eps / arm);
     assert_eq!(curved.escalate(), tolerance.k * (tolerance.eps / arm));
 
@@ -52,7 +55,7 @@ fn bands_track_the_global_tolerance() {
     // MAX/K threshold — so escalate = K*(MAX/2) overflows to +inf.
     let tiny_arm = tolerance.eps / (f64::MAX / 2.0);
     assert_eq!(
-        Band::angular_at(tiny_arm),
+        Band::angular_at(Tol::witness(), tiny_arm),
         Err(BandError::InvalidValue {
             field: BandField::Escalate,
             value: f64::INFINITY,

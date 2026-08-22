@@ -15,8 +15,7 @@
 //! to how the numbers are READ cannot reach the lane that produces
 //! them.
 //!
-//! **The rule, with its one exception, because it is otherwise stated
-//! absolutely and bent quietly.** The rule is: the kernel reports what
+//! **The rule, with its one exception.** The rule is: the kernel reports what
 //! nothing downstream can recover. `FaceMeasure::patch_steps` and
 //! `CellMeasure::steps` BREAK it — they are `grid_steps(delta_s)` over
 //! `(muu, muv, mvv)`, and all four values ride in the same struct, so
@@ -27,15 +26,6 @@
 //! could drift from the one being measured, and a column comparing
 //! the two would then be reporting on the copy. Reporting the answer
 //! keeps one derivation. Everything else in the row is derived here.
-//!
-//! **The successor risk, stated because S30's own lesson is one level
-//! up.** S30 happened because a gating rule was easy to certify green
-//! and quietly became the whole review. "Is it in `tools/`?" is just as
-//! easy to certify green, and answers just as little: it says nothing
-//! about whether this crate has grown a second schedule, a second
-//! certificate, or an argument the kernel should have made. The
-//! question that matters stays "could the kernel have been asked for
-//! this instead, and would it then own two of something?"
 //!
 //! # The slack factors
 //!
@@ -458,12 +448,12 @@ impl From<&CellMeasure> for Bound {
 /// direction (`h = ∞`, e.g. the ruled direction of a wall with
 /// `muv = 0`) takes one.
 ///
-/// **It is the second spelling of the lane's `chords::ceil_count`, and
+/// **It is the second spelling of the lane's `sizing::ceil_count`, and
 /// it deliberately does not match it.** They cannot share an import —
 /// two cargo roots — so the divergences are stated instead of left to
 /// be discovered:
 ///
-/// * `ceil_count` REFUSES a count at or above `MAX_STEPS` (2^24) with
+/// * `ceil_count` REFUSES a count at or above its `MAX_COUNT` (2^24) with
 ///   a typed error, because it is about to allocate that many grid
 ///   points. This one counts and returns, because it sizes nothing:
 ///   an absurd counterfactual is a number in a diagnostic column, and
@@ -474,7 +464,10 @@ impl From<&CellMeasure> for Bound {
 ///   normal thing for a counterfactual to be asked about.
 ///
 /// The shared part — `ceil(extent / h)`, floored at one — is the part
-/// the columns are comparable through, and it is identical.
+/// the columns are comparable through, and it is identical. The
+/// different NAME is the tell: the lane says *count* for a `usize`
+/// division count it is about to allocate for, and this says
+/// *divisions* for an `f64` counterfactual that allocates nothing.
 pub fn divisions(extent: f64, h: f64) -> f64 {
     if h.is_finite() && h > 0.0 {
         (extent / h).ceil().max(1.0)
@@ -490,9 +483,38 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// exactly where these walls live — a ruled direction has `muu = 0`
 /// and pushes the optimum onto the `h_u ≤ extent` boundary — and the
 /// two `ceil`s make the true objective a step function anyway.
+///
+/// # Why these two carry no mechanical guard
+///
+/// **Not an omission: the quantity anyone would guard — the cell count
+/// this scan produces — is DISCONTINUOUS in the parameters they would
+/// guard it against.** Moving the sample count by one moves the worst
+/// relative excess by percentage points in either direction, with no
+/// convergence, so no tolerance on it can admit every refinement and
+/// exclude every degradation: wide enough to survive the jumps is too
+/// weak to catch anything, tight enough to catch a degradation is a
+/// lottery on which lattice the count lands.
+///
+/// **The discontinuity is the two `ceil`s, not the scan.** The same
+/// worst-excess computed WITHOUT them — the cost as a continuous
+/// function of `t` — falls smoothly with resolution and depends on the
+/// sampling step `2·DECADES/(SAMPLES−1)` and the range, which is what
+/// these two constants actually set. A guard on THAT quantity is
+/// continuous where a guard on the cell count cannot be; it is not
+/// written here because it measures something these columns do not
+/// report.
+///
+/// **So what these constants guarantee is a resolution in aspect
+/// ratio, and not a bound on the answer.** The `ceil` quantisation on
+/// top of it is real and is not theirs to control. Anyone re-tuning
+/// them should know that the shipped pair is not even locally best on
+/// the cell count, and that this is exactly the kind of fact a step
+/// function produces and no amount of tuning removes.
 const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
-const SPLIT_SCAN_STEPS: usize = 321;
+/// SAMPLES, not steps: a step in this crate's vocabulary is a UV
+/// increment, and these are trial aspect ratios.
+const SPLIT_SCAN_SAMPLES: usize = 321;
 
 /// The cheapest uniform grid a bound admits over one box: minimize
 /// `divisions(U, h_u) · divisions(V, h_v)` subject to the SAME
@@ -535,9 +557,9 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
         lane_u,
         lane_v,
     );
-    for k in 0..SPLIT_SCAN_STEPS {
+    for k in 0..SPLIT_SCAN_SAMPLES {
         #[allow(clippy::cast_precision_loss)]
-        let f = k as f64 / (SPLIT_SCAN_STEPS - 1) as f64;
+        let f = k as f64 / (SPLIT_SCAN_SAMPLES - 1) as f64;
         let (hu, hv) = steps(10.0f64.powf(SPLIT_SCAN_DECADES * f.mul_add(2.0, -1.0)));
         let n = divisions(du, hu) * divisions(dv, hv);
         if n < best.0 {

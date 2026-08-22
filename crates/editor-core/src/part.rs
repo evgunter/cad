@@ -21,6 +21,7 @@
 
 use crate::ident::DocRef;
 use crate::program::ProfileDoc;
+use geom_core::Tol;
 
 /// Which seam rule a resolution failed (A2/A4). The classification is
 /// the RESOLVER's — it is the layer that knows why — and it exists so
@@ -71,5 +72,5 @@ pub trait PartResolver: core::fmt::Debug + Send + Sync {
     /// [`ResolveFailure`] — the implementation's own refusal,
     /// classified by [`ResolveFault`]. A document is returned ONLY if
     /// it hashes to the reference's pin.
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure>;
+    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure>;
 }

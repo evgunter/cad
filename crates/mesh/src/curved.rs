@@ -12,15 +12,11 @@
 //! so it is CHECKED here rather than assumed —
 //! [`TessellateError::UnsupportedCurvedDomain`], S28.
 //!
-//! The check is BANDED, in metres, not exact. It had to be: an iso
-//! side carried by more than one edge used to be only *analytically*
-//! straight, because each sub-edge derived the side's constant
-//! coordinate from its own carrier point (issue #653). Exactness there
-//! was a claim, it was false, and it false-refused valid parts. #653's
-//! option 2 then made the claim true at the source
-//! (`walk::iso_side_starts`), so the band separates nothing in tree any
-//! more and is kept as a backstop with a synthetic witness — the whole
-//! argument is at `entries_off_bbox`.
+//! The check is BANDED, in metres, not exact. `walk::iso_side_starts`
+//! makes an iso side carried by several edges exactly straight at the
+//! source, so the band separates nothing in tree and is kept as a
+//! backstop with a synthetic witness (#653; the argument is at
+//! `entries_off_bbox`).
 //!
 //! Boundary polyline segments are inserted as CDT **constraints**, so
 //! the triangulation conforms to the shared chord segments in both
@@ -31,23 +27,51 @@
 //! two corners of the same mesh vertex is degenerate in 3-D and is
 //! dropped, which collapses the strip along the pole side into a fan
 //! around the pole (one dropped triangle per collapsed side; its two
-//! non-collapsed edges become the identified fan edges — manifoldness
-//! is re-checked by the mesh validator).
+//! non-collapsed edges become the identified fan edges).
 //!
 //! **That count — ONE dropped triangle per collapsed side — is a
 //! claim about the grid, not a theorem** (issue #678). It holds only
-//! while the interior grid SEPARATES the two pole entries, and
-//! `nu == 2` does not: the single interior column at `u = (u0+u1)/2`
-//! is equidistant from both, the CDT fans both of them over it, and
-//! the identified edge `(pole, column)` is then used FOUR times —
-//! silently, because `tessellate` does not run the validator.
-//! [`pole_columns`] is what makes the premise true (it floors `nu` at
-//! 3 on a walk carrying a pole), and a `debug_assert` over the
-//! emitted patch re-derives the conclusion (D2 addendum row 5). Read
-//! the sentence above as conditional on both.
+//! while the interior grid SEPARATES the two pole entries;
+//! [`pole_columns`] is what makes that true and carries the argument,
+//! including the one column count that falsifies it.
+//!
+//! **The two things that hold it up run in different builds, and which
+//! builds is a manifest setting.** The floor is three lines and runs
+//! everywhere. The `debug_assert` in [`tessellate_curved`]'s emit pass
+//! that re-derives the conclusion over the patch (D2 addendum row 5)
+//! is `#[cfg(debug_assertions)]`, which cargo's release default
+//! compiles out — but the root `Cargo.toml`'s `[profile.release]` sets
+//! `debug-assertions = true`, so **every profile this workspace builds
+//! today runs the re-derivation**. That stanza is a pre-publish
+//! posture and is on `DESIGN.md`'s *Before publishing* list to come
+//! back out; with it gone, the floor is the entire guard in release,
+//! for a class whose failure is a *silently* non-watertight mesh
+//! returned as `Ok`. `tessellate` does not run
+//! [`crate::validate::check_mesh`] in any build.
+//!
+//! **The MECHANISM is settled and the flag is not what settled it.**
+//! The state this re-derives is D2 addendum **row 5** — the crate
+//! computes `nu`/`nv` itself from `(surface, delta)`, so a firing means
+//! the kernel's own sizing corrupted a mesh from a body
+//! `topo::validate` accepts — and D9's converse half makes a panic the
+//! obligation for such a state, not a tolerance. `SMELL-SCAN-2026-08.md`
+//! **S65** asked whether release should instead REFUSE typed; that is
+//! ruled out for a row-5 state, because downgrading a bug to a typed
+//! error launders it into a supported outcome. Ruled in **#884**; the
+//! flag decides only the REACH.
+//!
+//! **What the ruling depends on, stated because it does depend on it:**
+//! the competing reading is row 2 (*valid but unbuilt*, hence a typed
+//! refusal), and it turns on whether [`pole_columns`] closes the
+//! `nu == 2` class. If that floor is ever falsified, the state moves and
+//! so does the mechanism. S65's option C — the full-2π seam case with no
+//! floor in any build, and cross-face identification with no check at
+//! all — is **#897**, and the second of those is outside this
+//! re-derivation by construction: it reads THIS patch's pole-incident
+//! edges only.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
-//! δ_s = δ/2 and φ = [`crate::chords::sagitta_angle`]:
+//! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
 //! cylinder — hu = φ(δ_s, r), no interior rows (ruled in v);
 //! cone — hu = φ(δ_s, ρ_max), rows every ρ_max·hu slant meters (ruled
 //! in v, but rows keep triangles azimuth-local so the radius-scaled
@@ -63,42 +87,9 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chords::{ceil_count, sagitta_angle, torus_grid_step};
+use crate::sizing::{SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
-
-/// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
-/// and the run's kernel ε — never sizing, and never a value the mesh
-/// carries. ε reaches three places from here and no more: pole/apex
-/// vertex identification in [`crate::walk`]; this lane's banded domain
-/// guard, which only chooses whether to REFUSE; and the per-triangle
-/// certificate assertion in [`crate::trimmed`]'s review probe, which
-/// is absent from a default build.
-///
-/// **No consumer SNAPS a value.** The one that did — the loop-closure
-/// snap — is gone (S22); the domain guard only chooses whether to
-/// refuse, and the probe assertion emits nothing. That is the exact
-/// claim, and it is weaker than "ε cannot move an emitted coordinate",
-/// which is FALSE as stated: pole/apex identification is a
-/// CLASSIFICATION, and its outcome substitutes the pole's exact `v`
-/// for `Chart::v_of(p)` and emits TWO `pole: true` polygon entries
-/// instead of one. Both reach the UV polygon, hence the bounding box,
-/// hence this lane's interior grid and the pole fan's triangles. So an
-/// ε that flipped that classification WOULD move emitted coordinates.
-/// What is true is that nothing in the tree flips it: no in-tree body
-/// puts a non-pole vertex within any of the suite's ε rows of a pole.
-/// Whether one is REACHABLE is not established — `revolve` would very
-/// likely refuse such a sliver, and a STEP import is the plausible
-/// route in — so the ε-dependence here is structural and UNEXERCISED,
-/// which is not the same as absent or unreachable.
-pub(crate) struct Tol {
-    /// The chordal tolerance δ.
-    pub delta: f64,
-    /// The sizing target δ_s = δ/2.
-    pub delta_s: f64,
-    /// The kernel ε (pole/apex identification; the domain guard's band).
-    pub eps: f64,
-}
 
 /// Tessellates one curved face into outward-wound triangles,
 /// appending interior grid points to `positions`.
@@ -108,7 +99,7 @@ pub(crate) fn tessellate_curved(
     surface: &Surface<f64>,
     chords: &HashMap<EdgeKey, Vec<u32>>,
     positions: &mut Vec<Point3<f64>>,
-    tol: &Tol,
+    tol: &SizingTols,
 ) -> Result<Vec<[u32; 3]>, TessellateError> {
     let face = body
         .get_face(fk)
@@ -165,7 +156,7 @@ pub(crate) fn tessellate_curved(
     // reads do not overlap.)
     let flip = area2 < 0.0;
 
-    // The walk's chart singularity, as `grid_steps` reads it: whether
+    // The walk's chart singularity, as `grid_counts` reads it: whether
     // a pole/apex entry is present, and how many INTERIOR chord points
     // the meridian sides carry between the pole row and the opposite
     // row. Zero on a cone (its meridian is a straight ruling); always
@@ -180,8 +171,8 @@ pub(crate) fn tessellate_curved(
         .filter(|e| !e.pole && e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
         .count();
 
-    // Grid steps per kind (module docs).
-    let (nu, nv) = grid_steps(
+    // Grid counts per kind (module docs).
+    let (nu, nv) = grid_counts(
         &chart,
         tol.delta_s,
         u1 - u0,
@@ -347,54 +338,89 @@ pub(crate) fn tessellate_curved(
 /// lets an interior grid point land on — or across — a boundary
 /// constraint.
 ///
-/// **THE COMPARISON IS BANDED, IN METRES, AND IS NOW A BACKSTOP.** An
-/// earlier form compared exactly, on the premise that [`crate::walk`]
-/// makes every rectangle side bitwise straight. That premise was FALSE
-/// when #648 relied on it: the walk assigned the constant coordinate
-/// once per EDGE, which makes a side bitwise straight only when the
-/// side IS one edge, and an iso side carried by two or more edges had
-/// each sub-edge derive its own column from an `atan2` of a DIFFERENT
-/// point of the same carrier — analytically equal, ulps apart under a
-/// general rigid placement. A split frustum wedge, placed obliquely,
-/// put an entry 6.2e-17 m off its own box and the exact form refused a
-/// domain that IS the swept rectangle.
+/// **THE COMPARISON IS BANDED, IN METRES, AND IS A BACKSTOP.** Each
+/// axis' gap is converted to metres by its own lever arm
+/// ([`Chart::radial`] for u — the point's distance from the axis — and
+/// [`Chart::v_lever`] for v) and banded by [`crate::walk::gap_is_noise`],
+/// the crate's ONE ε band, which the walk's three detectors also
+/// call — one spelling, so the two halves of the rule cannot drift.
+/// The band admits ulp wobble on a straight side and nothing else: a
+/// genuine re-entrant corner (a keyway, a milled flat) is a FEATURE
+/// width off the box, six or more orders of magnitude outside ε.
 ///
-/// **#653 made the premise true**: `walk::iso_side_starts` groups the
-/// sub-edges into runs and gives each run one coordinate, so every
-/// walk this build produces sits on its box BITWISE. The band did not
-/// become wrong, it became a backstop — and the honest consequence is
-/// that it lost its live evidence. No in-tree fixture needs it, and
-/// `a_split_then_placed_swept_face_is_not_refused` (#648's own
-/// regression row) no longer discriminates banded from exact. The row
-/// that does is synthetic and labelled as such:
+/// Every walk this build produces sits on its box BITWISE, so no
+/// in-tree fixture needs the band and its red-when-reverted row is
+/// synthetic and says so:
 /// `the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses`.
+/// Kept anyway, because the direction of a wrong answer is asymmetric
+/// here: this guard REFUSES, so an over-tight comparison rejects a
+/// valid part, while an over-loose one lets through a wobble six
+/// orders of magnitude smaller than the feature it would have to be
+/// confused with. What makes the entries bitwise straight, and what
+/// would stop doing so, is `walk::iso_side_starts`.
 ///
-/// It is kept rather than reverted because the direction of a wrong
-/// answer is asymmetric here: this guard REFUSES, so an over-tight
-/// comparison rejects a valid part, while an over-loose one lets
-/// through a wobble six orders of magnitude smaller than the feature it
-/// would have to be confused with.
-///
-/// The entry's distance from the box is measured through the chart's
-/// own lever arms ([`Chart::radial`] for u — the point's distance from
-/// the axis — and [`Chart::v_lever`] for v), against the run's `eps`,
-/// by calling [`crate::walk::gap_is_noise`] — the crate's ONE ε band,
-/// which the walk's three detectors also call. It used to be spelled
-/// out again here; two spellings of one predicate is how the two halves
-/// of a rule drift apart. The band admits ulp wobble on a straight side
-/// and nothing else: a genuine re-entrant corner (a keyway, a milled
-/// flat) is a FEATURE width off the box, six or more orders of
-/// magnitude outside ε.
+/// **A lever of ZERO is not a zero distance, it is NO metric — and an
+/// axis without one admits nothing.** [`Chart::radial`] vanishes
+/// exactly on the chart axis (a sphere pole, a cone apex), where every
+/// u names the same point, so `gap_is_noise(du, 0, eps)` is `0 < eps`
+/// and would admit that entry at any u at all — the fail-open
+/// `walk`'s own `unreachable!` refuses to write, whose retired default
+/// was this same zero lever. A pole entry is admitted on its other
+/// axis instead, and is entitled to be: the walk gives it the CHART's
+/// pole v ([`Chart::poles`]) and the box is the entries' own min/max,
+/// so its v gap is zero bitwise — the fact the old exemption rested
+/// on silently, asserted now by `a_pole_entry_sits_on_its_own_box_in_v`.
 ///
 /// It takes the caller's own bounding box rather than recomputing one,
 /// so the rectangle it checks is exactly the box the interior grid
 /// spans. `levers` is parallel to `poly`.
+///
+/// # Closed at bitwise zero, NARROWED rather than eliminated
+///
+/// `lever > 0.0` refuses the exact-`0.0` lever a chart singularity
+/// produces, and that is the whole class an adversarial sweep of this
+/// build found: 834 zero-lever entries across five crates, every one a
+/// pole with `lu == 0` and its `v` gap bitwise zero. It does **not**
+/// close the band on a lever that is merely TINY. At `lu = 1e-20`,
+/// `gap * lu < eps` is true for every gap a UV coordinate can hold, so
+/// a sub-ε lever admits exactly the way a zero one did.
+/// `walk::iso_side_starts` bars the same `Chart::radial` with
+/// `radial(junction) > eps` — **one predicate, two spellings, and this
+/// is the looser one.** Nothing in tree produces a non-zero sub-ε
+/// lever (`radial` is a distance from an axis; a point is on it or a
+/// modelling distance away from it), so widening this to `> eps` is a
+/// behaviour change on a class nobody has shown reachable. Stated
+/// here rather than taken.
+///
+/// **`lv` vanishing is UNEXERCISED, not handled.** Every zero lever in
+/// the tree is a `lu` at a pole, so the payload's `(true, false)` and
+/// `(false, false)` arms below are argued and not measured. The route
+/// that would exercise them — a torus whose `R < r` gives a horn or
+/// spindle axis point — is refused by `sweep::revolve` at construction
+/// and NOT checked by `step-import`; that asymmetry is **issue #889**,
+/// and this guard REFUSES such a face rather than meshing it.
 fn entries_off_bbox(
     poly: &[UvPoint],
     levers: &[(f64, f64)],
     (u0, u1, v0, v1): (f64, f64, f64, f64),
     eps: f64,
 ) -> Vec<(usize, f64)> {
+    // An axis puts the entry ON the box when its own gap is noise in
+    // metres, and an axis with no lever arm has no metric and puts it
+    // nowhere (doc above). NaN-safe by construction: `gap_is_noise` is
+    // a `<`, so a poisoned coordinate is false on both axes and the
+    // entry stays a refusal rather than being admitted.
+    let on_box = |gap: f64, lever: f64| lever > 0.0 && gap_is_noise(gap, lever, eps);
+    // A NaN lever would read as "no metric" on both tests above and
+    // produce a refusal reporting 0 m — silent where the crate is
+    // supposed to be loud. `Chart::radial` is a norm and cannot
+    // produce one from finite input, so this is a kernel-defect
+    // detector, not an input check.
+    debug_assert!(
+        levers.iter().all(|&(lu, lv)| !lu.is_nan() && !lv.is_nan()),
+        "a lever arm is NaN: the payload below cannot distinguish it from a \
+         degenerate chart axis, and both report 0 m"
+    );
     poly.iter()
         .zip(levers)
         .enumerate()
@@ -402,22 +428,38 @@ fn entries_off_bbox(
             // Every entry is inside the box by construction (the box is
             // the entries' own min/max), so the spatial distance to the
             // box BOUNDARY is the smallest of the four side gaps, each
-            // converted to metres by its axis' lever arm — so the entry
-            // is ON the box iff the nearest of the four is noise. Taken
-            // per axis (nearest of the two sides, then the band) so the
+            // converted to metres by its axis' lever arm. Taken per
+            // axis (nearest of the two sides, then the band) so the
             // lever arm goes to the shared predicate rather than being
             // applied here: `lu`, `lv >= 0`, so per-axis and
             // all-four-at-once select the same gap either way.
             let du = (e.u - u0).abs().min((e.u - u1).abs());
             let dv = (e.v - v0).abs().min((e.v - v1).abs());
-            // NaN-safe by construction: `gap_is_noise` is a `<`, so a
-            // poisoned coordinate is false on both axes and the entry
-            // stays a refusal rather than being admitted.
-            if gap_is_noise(du, lu, eps) || gap_is_noise(dv, lv, eps) {
-                None
-            } else {
-                Some((i, (du * lu).min(dv * lv)))
+            if on_box(du, lu) || on_box(dv, lv) {
+                return None;
             }
+            // The payload is a DISTANCE, so it reports the axes that
+            // have one: at a pole `du * lu` is 0 m for every u, and a
+            // refusal reading 0 m tells its reader nothing — the
+            // number is what separates "re-author your part" from
+            // "kernel bug" (`require_swept_rectangle`).
+            let d = match (lu > 0.0, lv > 0.0) {
+                (true, true) => (du * lu).min(dv * lv),
+                (true, false) => du * lu,
+                (false, true) => dv * lv,
+                // No metric on EITHER axis: the chart is degenerate in
+                // both directions here, so the entry and the box share
+                // one point in space and 0 m is the true distance, not
+                // a blind default. It reads the same as the payload
+                // this match exists to remove — and is not it, because
+                // an entry ON the box never reaches here (it returned
+                // above), so a reported 0 means exactly "off the box in
+                // UV, nowhere in space", which routes to "kernel bug"
+                // correctly. UNREACHABLE today: it needs `lv == 0`,
+                // which no fixture produces (see the doc).
+                (false, false) => 0.0,
+            };
+            Some((i, d))
         })
         .collect()
 }
@@ -459,63 +501,26 @@ fn entries_off_bbox(
 ///
 /// The check here still earns its place, because it also answers a
 /// SECOND question `props` cannot (*did the walk produce a consistent
-/// polygon* — #653's ulp wobble, which is why the bar is spatial);
+/// polygon*, which is why the bar is spatial — [`entries_off_bbox`]);
 /// folding the first question into a call on the face-level predicate
 /// is the open follow-up, **issue #726**, not this unit.
 ///
-/// **With one qualification `mesh` now owes itself.**
-/// `walk::iso_side_starts` (#653) is a line IN `mesh` that can defeat
-/// this check, because it collapses consecutive same-kind traversals
-/// onto one coordinate on a premise `walk::classify` never verifies:
-/// that every boundary edge is an iso-curve of the chart. Where that
-/// premise fails — an obliquely-cut SPHERE face, whose every plane
-/// section is a `Circle` and so is not diverted to the trimmed lane —
-/// the collapse can turn a polygon this guard would have REFUSED into
-/// one that is its own bounding rectangle and is admitted. Two
-/// upstream gates keep it unreachable today (`topo::boolean` refuses
-/// the tilted plane × sphere section typed; `import_step`'s tier-3
-/// `props::curved::sphere_boundary` admits only coaxial rims and
-/// centre-centred great circles), which is the same shape as the
-/// sentence above rather than an exception to it. Stated in full,
-/// with what would harden it, at `walk::iso_side_starts`.
+/// **One line in `mesh` can defeat it.** `walk::iso_side_starts`
+/// collapses consecutive same-kind traversals onto one coordinate on a
+/// premise `walk::classify` never verifies — that every boundary edge
+/// is an iso-curve of the chart — and where that premise fails the
+/// collapse can turn a polygon this guard would have REFUSED into one
+/// that is its own bounding rectangle. The failing case (an obliquely
+/// cut SPHERE, whose every plane section is a `Circle` and so is not
+/// diverted to the trimmed lane), the two upstream gates that keep it
+/// unreachable today, and what would harden it are all stated at
+/// `walk::iso_side_starts`. It is the same shape as the paragraph
+/// above rather than an exception to it.
 ///
-/// **The bar is spatial** ([`entries_off_bbox`]): comparing exactly
-/// produced FALSE REFUSALS on bodies whose domain is the swept
-/// rectangle to within an ulp (issue #653).
-///
-/// **#653 removed the band's live evidence, and the band is kept
-/// anyway.** `walk` now assigns one coordinate per ISO SIDE rather than
-/// per edge, so every walk entry this build produces sits on its box
-/// **bitwise**: the banded and exact forms agree everywhere the suite
-/// looks, and what the band guards is asserted directly upstream by
-/// `a_multiply_carried_iso_side_is_bitwise_straight_and_meshes_watertight`
-/// (`== 0.0`). So the band's own red-when-reverted row had to be
-/// SYNTHETIC —
-/// `the_band_admits_a_sub_eps_entry_that_the_exact_form_refuses` — and
-/// [`entries_off_bbox`] states why keeping it is the right call. What a
-/// reader must NOT do is read
-/// `a_split_then_placed_swept_face_is_not_refused` as evidence about
-/// the band: since #653 that row is evidence about the invariant.
-///
-/// **A class note, because this fix invalidated more than one
-/// sentence** (§C13's `face_box` precedent). Every doc in `crates/mesh`
-/// that argued a tolerance from a MEASURED number measured a
-/// population #653 has eliminated, and no convention covers those
-/// sentences. The two that argued from a NUMBER were
-/// `entries_off_bbox`'s 1.4985e-15 m and `the_band_separates_…`'s
-/// hardcoded copy of it; both now derive their live half from the tree
-/// and label the sweep figure as historical. **The rule: a measured
-/// constant in this crate is re-derivable from the tree, or it says it
-/// is not.**
-///
-/// The sweep for the weaker form — prose asserting the per-edge
-/// premise without a number — took five more sites, in three files:
-/// this module's header, the interior-grid comment in
-/// [`tessellate_curved`], [`entries_off_bbox`],
-/// `TessellateError::UnsupportedCurvedDomain`'s doc in `types.rs`, and
-/// `mesh/lib.rs`'s crate header. Only two of those are in the file the
-/// guard lives in, which is the §C10 point: a claim lives wherever it
-/// was written down.
+/// **A measured constant in this crate is re-derivable from the tree,
+/// or it says it is not.** The band's own doc ([`entries_off_bbox`])
+/// is where that bites hardest, and `walk`'s module header states the
+/// straight-iso-side premise more fully than any other site.
 fn require_swept_rectangle(
     fk: FaceKey,
     poly: &[UvPoint],
@@ -550,11 +555,11 @@ fn require_swept_rectangle(
     })
 }
 
-/// The pole-fan separation floor on the u step count (issue #678).
+/// The pole-fan separation rule on the u column count (issue #678).
 ///
 /// The module header's fan argument — one dropped triangle per
 /// collapsed side — needs the interior grid to SEPARATE the walk's two
-/// pole entries, and `nu == 2` is the one step count that does not:
+/// pole entries, and `nu == 2` is the one column count that does not:
 /// the single interior column at `u = (u0 + u1)/2` is equidistant from
 /// both, the CDT fans both over its upper half, and the identified
 /// mesh edge `(pole, column)` is used FOUR times. `check_mesh` reports
@@ -567,75 +572,69 @@ fn require_swept_rectangle(
 /// rim and splits between them at one shared vertex. At `nu >= 3` each
 /// entry's nearest column occludes the other's.
 ///
-/// # Corrective on the cone, prophylactic on the sphere
+/// **Corrective on the cone.** A cone's meridian is a straight RULING
+/// carrying ZERO interior chord points (`npoly = 5` = 2 apex + 3 rim),
+/// so nothing sits between an apex entry and the rim and `nv` alone
+/// decides: clean at `nv <= 3`, dirty at `nv >= 4`.
+/// `cone_wedge(1, pi/4)` is clean at delta = 0.1 and dirty at
+/// delta = 0.05 — one delta-step from the defect.
 ///
-/// A/B over 281 public-API configurations (cone wedges, sphere lunes,
-/// sphere caps): **7 rows go dirty -> clean, every one of them cone**;
-/// 57 clean rows re-size, **49 of them sphere**; and **no sphere row
-/// has ever been measured dirty**, out of ~200.
+/// **Prophylactic on the sphere, and not clean by luck.** A sphere's
+/// meridian is an ARC and always carries interior chord points, which
+/// occlude the cross-fan — `sphere_wedge(pi/4)` at delta = 0.05 is
+/// **clean at `nu = 2, nv = 8`**, seven interior column vertices and
+/// an overlap that could have held six edges, which is the observation
+/// the paragraph rests on and the one that makes this arm different
+/// from the cone's rather than a restatement of it. Dirty needs
+/// `nv >= 3`, and the meridian's
+/// chord step `phi(delta_s, r)` and the grid's
+/// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
+/// apart with both capped, so `nv >= 3` FORCES at least two of those
+/// points. The arm is kept (Evan, 2026-08-19) so the rule reads as one
+/// sentence rather than one chart but not the other, and the mechanism
+/// it rests on — the occluding points EXIST — is asserted in
+/// [`grid_counts`]'s sphere arm rather than written down here.
 ///
-/// **Cone — corrective, and genuinely clean-by-luck when it is clean.**
-/// A cone's meridian is a straight RULING, so it carries ZERO interior
-/// chord points (`npoly = 5` = 2 apex + 3 rim) and nothing sits between
-/// an apex entry and the rim. `nv` alone then decides: `nu == 2` is
-/// clean at `nv <= 3` — too few interior rows for the overlap to
-/// contain an edge — and dirty at `nv >= 4`. `cone_wedge(1, pi/4)` is
-/// clean at delta = 0.1 (`nv = 3`) and dirty at delta = 0.05
-/// (`nv = 4`): one delta-step from the defect.
+/// Both readings come from an A/B over 281 public-API configurations:
+/// 7 rows dirty -> clean, every one of them cone; 57 clean rows
+/// re-size, 49 of them sphere; no sphere row ever measured dirty, out
+/// of ~200; zero drift in the three render corpora. Those last two are
+/// #678's own open questions — *does the sphere lane reach the defect
+/// in practice*, *is any corpus body in the changed class* — answered,
+/// and this is their only home. **Historical** — that sweep is not in
+/// the tree and nothing here re-derives it.
 ///
-/// **Sphere — prophylactic, and NOT clean by luck.** The same reading
-/// is false here, and a single row falsifies it: `sphere_wedge(pi/4)`
-/// at delta = 0.05 is `nu = 2, nv = 8` — seven interior column
-/// vertices, an overlap that could hold six edges — and it is clean. A
-/// sphere's meridian is an ARC and always carries interior chord
-/// points (lune `npoly = 10`, cap `npoly = 6`); those points occlude
-/// the cross-fan. Structural, not lucky: dirty needs `nv >= 3`, and
-/// the meridian's chord step `phi(delta_s, r)` and the grid's
-/// `phi(delta_s / 1.25, r)` are never more than ~12% apart with both
-/// pi/4-capped, so `nv >= 3` FORCES at least two interior meridian
-/// points. The sphere arm is kept anyway (Evan, 2026-08-19) so the
-/// rule reads as one sentence rather than one chart but not the other
-/// — and what it rests on is CHECKED, not just written down: see the
-/// `debug_assert` in [`grid_steps`]'s sphere arm, which asserts the
-/// mechanism (the occluding points exist) rather than the conclusion.
+/// **The option not taken** is `nu == 2 && nv >= 3`, available right
+/// here since both counts are in the same arm: it would preserve all
+/// eight cone re-sizings, but it makes `nu` a function of `nv` — the
+/// schedule's two axes stop being independent — and it leaves the
+/// `ceil` knife edge live at `nv <= 3` instead of removing the class.
+/// The third option, per-face manifoldness re-derivation over the
+/// emitted patch, is the D2-addendum row-5 mechanism and ships BESIDE
+/// this floor in [`tessellate_curved`]'s emit pass rather than instead
+/// of it.
 ///
-/// # The option this doc used to exclude by silence
-///
-/// The choice here is three-way, and an earlier draft of this comment
-/// offered two — floor-as-written versus per-face manifoldness
-/// re-derivation — which makes the missing one look unconsidered
-/// rather than rejected. It is `nu == 2 && nv >= 3`: available right
-/// here, since both counts are in the same arm, and it would preserve
-/// all eight cone re-sizings. Not taken, for two reasons — it makes
-/// `nu` a function of `nv`, so the schedule's two axes stop being
-/// independent, and it leaves the `ceil` knife edge live at `nv <= 3`
-/// instead of removing the class. The remaining option, per-face
-/// manifoldness re-derivation over the emitted patch, is the
-/// D2-addendum row-5
-/// mechanism (`DESIGN.md`'s row 5 says `debug_assert`, not "make it
-/// unreachable"), which now ships BESIDE this floor in
-/// [`tessellate_curved`]'s emit pass rather than instead of it.
-///
-/// # Blast radius, and #678's two open questions
-///
-/// Only pole faces with `nu == 2` re-size. A full revolve can never be
-/// one: [`sagitta_angle`] hard-caps at pi/4 on both branches, and
-/// [`torus_grid_step`] is `.min`'d against the same cap, so a `2*pi`
-/// span gives `nu >= 8` — confirmed in the A/B, where no full-revolve
-/// face appears with `nu <= 2`.
-///
-/// `Fixes #678` closes the only other home of that issue's two open
-/// questions, so both answers live here. *Does the sphere lane reach
-/// the defect in practice?* **No** — ~200 configurations, including
-/// the cap shape the issue named and nobody had built. *Is any corpus
-/// body in the changed class?* **No** — `demos/renders`,
-/// `demos/renders-wild` and `demos/renders-freecad` all report zero
-/// drift.
+/// Only pole faces with `nu == 2` re-size, and a full revolve is never
+/// one: [`sagitta_step`] hard-caps at
+/// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
+/// [`torus_grid_step`] is capped against the same value here, so a
+/// `2*pi` span gives `nu >= 8`.
 fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
 }
 
-/// Interior grid step counts (nu, nv) for the face's UV spans.
+/// The sphere arm's extra sizing margin: it sizes at δ_s divided by
+/// this rather than at δ_s itself.
+///
+/// Near the equator a full-step grid triangle's true deviation
+/// approaches 2·δ_s = δ from below, so sizing at exactly δ_s would
+/// lean on [`ceil_count`]'s step-shrink (`span/⌈span/h⌉ < h`) as the
+/// only slack. The margin buys real headroom cheaply (≈12% more counts
+/// per axis) and keeps a future sizing change from silently landing on
+/// the certificate boundary; the certificate remains the backstop.
+const SPHERE_SIZING_MARGIN: f64 = 1.25;
+
+/// The interior grid counts `(nu, nv)` for the face's UV spans.
 ///
 /// `has_pole` and `meridian_interior` describe the boundary walk's
 /// chart singularity: whether it carries a pole/apex entry at all, and
@@ -646,7 +645,7 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// and for a torus, so `has_pole` is false on those two arms for every
 /// input there is, and the `debug_assert`s below say so in a form that
 /// fails if it ever stops being true.
-fn grid_steps(
+fn grid_counts(
     chart: &Chart,
     delta_s: f64,
     uspan: f64,
@@ -655,16 +654,15 @@ fn grid_steps(
     has_pole: bool,
     meridian_interior: usize,
 ) -> Result<(usize, usize), TessellateError> {
-    let cap = core::f64::consts::FRAC_PI_4;
     match chart.kind {
         ChartKind::Cylinder { r } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a cylinder");
-            let hu = sagitta_angle(delta_s, r);
+            let hu = sagitta_step(delta_s, r);
             Ok((ceil_count(uspan, hu)?, 1))
         }
         ChartKind::Cone { half_angle } => {
             let rho_max = v_absmax * half_angle.sin();
-            let hu = sagitta_angle(delta_s, rho_max);
+            let hu = sagitta_step(delta_s, rho_max);
             let hv = rho_max * hu;
             Ok((
                 pole_columns(ceil_count(uspan, hu)?, has_pole),
@@ -672,15 +670,7 @@ fn grid_steps(
             ))
         }
         ChartKind::Sphere { r } => {
-            // Deliberate 1.25 sizing margin: near the equator a
-            // full-step grid triangle's true deviation approaches
-            // 2·δ_s = δ from below, so sizing at exactly δ_s would
-            // lean on ceil_count's step-shrink (span/⌈span/h⌉ < h) as
-            // the only slack. Targeting δ_s/1.25 buys real headroom
-            // cheaply (≈12% more steps per axis) and keeps future
-            // sizing tweaks from silently landing on the certificate
-            // boundary; the certificate remains the backstop.
-            let h = sagitta_angle(delta_s / 1.25, r);
+            let h = sagitta_step(delta_s / SPHERE_SIZING_MARGIN, r);
             let (nu, nv) = (ceil_count(uspan, h)?, ceil_count(vspan, h)?);
             // D2 addendum row 5 — and the whole warrant for calling
             // this arm PROPHYLACTIC rather than corrective
@@ -703,7 +693,7 @@ fn grid_steps(
         }
         ChartKind::Torus { major, minor } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
-            let h = torus_grid_step(delta_s, major, minor).min(cap);
+            let h = cap_angular(torus_grid_step(delta_s, major, minor));
             Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
         }
     }
@@ -723,7 +713,8 @@ mod tests {
     //! nothing this build authors trips it.
 
     use super::*;
-    use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+    use geom_core::Tol;
+    use geom_core::{Affine3, Point2, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
@@ -733,7 +724,7 @@ mod tests {
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -762,7 +753,7 @@ mod tests {
     /// The run's kernel ε — the length this lane's band measures
     /// against, read from the same place `tessellate` reads it.
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     /// Unit lever arms for a synthetic polygon, so its UV units ARE
@@ -795,7 +786,7 @@ mod tests {
     /// router's own screens (`tessellate.rs`), so a face that survives
     /// them is a face `tessellate_curved` receives.
     fn curved_walks(body: &Body<f64>) -> Vec<Walked> {
-        let eps = Tolerance::get().eps;
+        let eps = Tol::witness().get().eps;
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, v) in body.vertices() {
@@ -837,9 +828,14 @@ mod tests {
             ProfileVertex::new(p2(0.0, -1.0), 1.0),
             ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// A partial-revolve sphere band — the pole-to-pole wedge whose
@@ -850,23 +846,38 @@ mod tests {
             ProfileVertex::new(p2(0.0, -1.0), 1.0),
             ProfileVertex::new(p2(0.0, 1.0), 0.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn cone_body() -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn washer() -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn donut() -> Body<f64> {
@@ -874,16 +885,26 @@ mod tests {
             ProfileVertex::new(p2(2.0, -0.5), 1.0),
             ProfileVertex::new(p2(2.0, 0.5), 1.0),
         ]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn wedge(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// Axis-touching partial wedge (`tests/common::axis_wedge`): the
@@ -892,9 +913,14 @@ mod tests {
     /// *because the walk is hardest there*.
     fn axis_wedge(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// The mirror-nappe diamond (`review_m2_pr6_walk_shapes.rs`'s
@@ -903,9 +929,14 @@ mod tests {
     /// the other hardest-walk shape.
     fn mirror_nappe(theta: f64) -> Body<f64> {
         let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)]);
-        revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
-            .unwrap()
-            .body
+        revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn rounded_prism() -> Body<f64> {
@@ -924,9 +955,13 @@ mod tests {
         ]);
         let n = lp.vertices().len();
         lp = lp.with_tangent_joints((0..n).collect());
-        extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(1.0),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
@@ -940,19 +975,32 @@ mod tests {
             p2(4.0, 4.0),
             p2(0.0, 4.0),
         ]);
-        let slab = extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
-            .unwrap()
-            .body;
+        let slab = extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(1.0),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
         let half = ProfileLoop::new(vec![
             ProfileVertex::new(p2(0.0, -0.5), 1.0),
             ProfileVertex::new(p2(0.0, 0.5), 0.0),
         ]);
-        let ball = revolve(&validated(vec![half]), axis_y(), Revolution::Full)
-            .unwrap()
-            .body;
-        let ball =
-            topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(2.0, 2.0, 1.2))).unwrap();
-        topo::boolean::subtract(&slab, &ball)
+        let ball = revolve(
+            &validated(vec![half]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap()
+        .body;
+        let ball = topo::transform_rigid(
+            &ball,
+            &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)),
+            Tol::witness(),
+        )
+        .unwrap();
+        topo::boolean::subtract(&slab, &ball, Tol::witness())
             .expect("the die pip cuts")
             .body()
             .expect("a pip is a dent, not a void")
@@ -1027,7 +1075,7 @@ mod tests {
                 // Not `ok &= …`: the second split of a failed first is
                 // meaningless, and the first failure is the reportable
                 // one.
-                if let Err(e) = b.split_edge(ek, t0 + (t1 - t0) * f) {
+                if let Err(e) = b.split_edge(ek, t0 + (t1 - t0) * f, Tol::witness()) {
                     failed = Some(format!("edge {i} @{f}: split_edge {e:?}"));
                     break;
                 }
@@ -1036,7 +1084,7 @@ mod tests {
                 skipped.push(why);
                 continue;
             }
-            match topo::transform_rigid(&b, &placement) {
+            match topo::transform_rigid(&b, &placement, Tol::witness()) {
                 Ok(placed) => out.push((i, placed)),
                 Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
             }
@@ -1054,6 +1102,17 @@ mod tests {
     /// spelling. There is one spelling of this metric in the crate and
     /// it is the one that ships; a hand transcription in a test goes
     /// stale the moment the kernel's changes.
+    ///
+    /// **So this is the METRIC, not the guard**, and the difference is
+    /// the band: at `eps = 0.0` the admit test is uniformly false, so
+    /// no entry here takes the branch a real tessellation takes for
+    /// all of them. The banded verdict on the same bodies is the
+    /// caller's `UnsupportedCurvedDomain` arm.
+    ///
+    /// The degenerate-axis rule does show through: a pole entry
+    /// reports its v gap here rather than the 0 m its vanished u lever
+    /// would have made of any u — which is what lets this metric see a
+    /// pole entry off its box at all.
     fn worst_entry_off_box(body: &Body<f64>) -> f64 {
         let mut worst: f64 = 0.0;
         for (_, poly, levers) in curved_walks(body) {
@@ -1156,7 +1215,7 @@ mod tests {
                     // refuse identically before and after. What must
                     // never happen is `Ok` plus a dirty mesh — the #653
                     // defect's signature.
-                    match crate::tessellate(&placed, 0.1) {
+                    match crate::tessellate(&placed, 0.1, Tol::witness()) {
                         Ok(mesh) => {
                             checked += 1;
                             here += 1;
@@ -1164,6 +1223,25 @@ mod tests {
                                 dirty.push(format!("{name} edge {i} @{fracs:?}: {e:?}"));
                             }
                         }
+                        // The one refusal that IS a counterexample:
+                        // the domain guard running at the run's own ε.
+                        // `worst_entry_off_box` measured this same
+                        // population at `eps = 0.0`, where the admit
+                        // test is uniformly false and no entry takes
+                        // the branch a real tessellation takes for all
+                        // of them; this arm is where the banded form
+                        // gets its verdict on the same bodies, for
+                        // free.
+                        Err(TessellateError::UnsupportedCurvedDomain {
+                            off_bbox,
+                            first_uv,
+                            max_distance,
+                            ..
+                        }) => crooked.push(format!(
+                            "{name} edge {i} @{fracs:?}: the banded guard refused it — \
+                             {off_bbox} entries off the box, first at {first_uv:?}, \
+                             worst {max_distance} m"
+                        )),
                         Err(_) => refused += 1,
                     }
                 }
@@ -1253,7 +1331,7 @@ mod tests {
     fn no_fixture_refuses_through_the_public_entry_point() {
         for (name, body) in fixtures() {
             for delta in [0.25, 0.04] {
-                let mesh = crate::tessellate(&body, delta)
+                let mesh = crate::tessellate(&body, delta, Tol::witness())
                     .unwrap_or_else(|e| panic!("{name} at delta={delta} refused: {e:?}"));
                 crate::validate::check_mesh(&mesh)
                     .unwrap_or_else(|e| panic!("{name} at delta={delta} meshed dirty: {e:?}"));
@@ -1399,6 +1477,112 @@ mod tests {
         );
     }
 
+    /// **THE ZERO-LEVER WITNESS.** An axis whose lever arm is 0 carries
+    /// no metric, so it decides nothing — the entry has to be on the
+    /// box in the other one.
+    ///
+    /// `Chart::radial` is 0 exactly at a chart singularity, and
+    /// `gap * 0 < eps` is true for every gap there is: banded against a
+    /// vanished lever, the u axis admits a pole entry at ANY u. The two
+    /// halves are asserted together because only the pair is the rule —
+    /// the first alone would be satisfied by refusing every pole entry
+    /// there is, which would false-refuse every sphere and cone this
+    /// lane meshes.
+    #[test]
+    fn a_zero_lever_axis_admits_nothing() {
+        // Strictly inside the box on BOTH axes — a re-entrant corner,
+        // 2 m off in v at unit lever.
+        let poly = uv(&[(0.0, 0.0), (4.0, 0.0), (2.0, 2.0), (4.0, 4.0), (0.0, 4.0)]);
+        let mut levers = unit_levers(poly.len());
+        levers[2] = (0.0, 1.0);
+        assert_eq!(
+            entries_off_bbox(&poly, &levers, bbox(&poly), eps()),
+            vec![(2, 2.0)],
+            "an entry off the box on both axes is off the box, and the distance \
+             reported is the one axis that has a metric"
+        );
+
+        // The shape a pole entry actually has: interior in u, ON the
+        // box in v. Admitted, and it must be — this is every sphere
+        // pole and cone apex in the suite.
+        let poly = uv(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 4.0), (0.0, 4.0)]);
+        let mut levers = unit_levers(poly.len());
+        levers[3] = (0.0, 1.0);
+        assert!(
+            entries_off_bbox(&poly, &levers, bbox(&poly), eps()).is_empty(),
+            "a pole entry is on its box in v, and that is what admits it"
+        );
+    }
+
+    /// **THE EXEMPTION, ASSERTED.** Every pole entry the walk emits
+    /// carries a zero u lever and sits on its own bounding box in v.
+    ///
+    /// [`entries_off_bbox`] admits a pole entry on its v gap alone
+    /// (the u axis has no metric there), so this is the fact that
+    /// makes a sphere pole and a cone apex meshable rather than
+    /// refused. It held silently before it was written down: the walk
+    /// gives a pole entry the CHART's pole v ([`Chart::poles`]), the
+    /// box is the entries' own min/max, and no chart puts a v beyond
+    /// its own pole. If a face ever arrives whose pole v is interior —
+    /// a cone spanning both nappes would be one — this row goes red
+    /// and the guard REFUSES that face rather than meshing it, which
+    /// is the outcome the payload argument in
+    /// [`require_swept_rectangle`] wants.
+    ///
+    /// **The non-vacuity floor is global, not per fixture** (§C10),
+    /// and that is a real difference from the rows above: most
+    /// fixtures here have no pole at all, so "this fixture stopped
+    /// contributing" is not distinguishable from "this fixture never
+    /// had one". What IS per fixture is the other direction — a pole
+    /// entry can only come from a chart that has poles — so a walk
+    /// that started inventing them is caught where it happens.
+    #[test]
+    fn a_pole_entry_sits_on_its_own_box_in_v() {
+        let mut seen = 0usize;
+        let mut per_fixture: Vec<(&str, usize)> = Vec::new();
+        for (name, body) in fixtures() {
+            let mut here = 0usize;
+            for (fk, poly, levers) in curved_walks(&body) {
+                let (_, _, v0, v1) = bbox(&poly);
+                let charted = body
+                    .get_face(fk)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .and_then(Chart::of)
+                    .is_some_and(|c| !c.poles().is_empty());
+                for (e, &(lu, _)) in poly.iter().zip(&levers).filter(|(e, _)| e.pole) {
+                    here += 1;
+                    assert!(
+                        charted,
+                        "{name} face {fk:?}: a pole entry at ({}, {}) on a chart whose \
+                         `poles()` is empty",
+                        e.u, e.v
+                    );
+                    assert_eq!(
+                        lu, 0.0,
+                        "{name} face {fk:?}: pole entry at ({}, {}) carries a u lever of \
+                         {lu}, not 0 — `entries_off_bbox`'s degenerate-axis rule is \
+                         about a different set of entries than the walk's pole flag",
+                        e.u, e.v
+                    );
+                    assert!(
+                        e.v == v0 || e.v == v1,
+                        "{name} face {fk:?}: pole entry at ({}, {}) is interior in v \
+                         (box v {v0}..{v1}), so nothing admits it and the face is \
+                         refused — see `entries_off_bbox`",
+                        e.u,
+                        e.v
+                    );
+                }
+            }
+            seen += here;
+            per_fixture.push((name, here));
+        }
+        assert!(
+            seen > 0,
+            "no fixture walked a pole entry, so this row asserts nothing: {per_fixture:?}"
+        );
+    }
+
     /// **THE MARGIN — the whole argument for banding in one row.**
     ///
     /// Between what the band must admit and what it must refuse there
@@ -1416,15 +1600,6 @@ mod tests {
     /// placed on the ε scale and not on either population's scale, so a
     /// future ε change is visible here rather than silently
     /// re-classifying parts.
-    ///
-    /// **On the number that used to be here.** This row read
-    /// `wobble = 1.4985e-15`, the worst entry over the PR's 1524-row
-    /// split × placement sweep. That sweep is not in the tree and its
-    /// population no longer exists — #653 eliminated it — so the
-    /// constant could not be re-derived by anyone reading this, which
-    /// is §C13's `face_box` shape exactly. It is kept below only as a
-    /// labelled historical upper bound, and the live half of the
-    /// argument is an ulp the row computes for itself.
     #[test]
     fn the_band_separates_a_feature_from_an_ulp_by_orders_of_magnitude() {
         let e = eps();
@@ -1445,12 +1620,6 @@ mod tests {
             feature / ulp > 1e14,
             "the two populations must be separated by orders of magnitude, not tuning"
         );
-        // HISTORICAL, not re-derivable from this tree: the worst such
-        // entry over the pre-#653 sweep in the PR was 1.4985e-15 m,
-        // 6.7e5 inside eps. Recorded as the upper bound the band was
-        // actually shown to clear, and NOT asserted from — the
-        // population it came from is gone.
-        assert!(1.498_5e-15_f64 < e);
     }
 
     /// The counterexample body: a frustum wedge (`revolve` of a
@@ -1475,6 +1644,7 @@ mod tests {
             &validated(vec![lp]),
             axis_y(),
             Revolution::Partial(core::f64::consts::FRAC_PI_2),
+            Tol::witness(),
         )
         .unwrap()
         .body;
@@ -1485,8 +1655,10 @@ mod tests {
             .certified()
             .unwrap()
             .params();
-        body.split_edge(ek, t0 + (t1 - t0) * 0.312_9).unwrap();
-        body.split_edge(ek, t0 + (t1 - t0) * 0.156_45).unwrap();
+        body.split_edge(ek, t0 + (t1 - t0) * 0.312_9, Tol::witness())
+            .unwrap();
+        body.split_edge(ek, t0 + (t1 - t0) * 0.156_45, Tol::witness())
+            .unwrap();
         // Deliberately irrational-ish: an axis-aligned or dyadic
         // placement keeps the sub-edge azimuths bitwise equal and the
         // row goes green for the wrong reason.
@@ -1496,7 +1668,7 @@ mod tests {
             Affine3::rotation_about_axis(Point3::origin(), irr, 1.0 / 3.0).linear,
             Vec3::new(0.117, -0.339_1, 5.001_7),
         );
-        topo::transform_rigid(&body, &placement).unwrap()
+        topo::transform_rigid(&body, &placement, Tol::witness()).unwrap()
     }
 
     /// **THE REGRESSION ROW (issue #653).** This body meshed
@@ -1537,7 +1709,7 @@ mod tests {
              box means the iso-side runs stopped working"
         );
 
-        let mesh = crate::tessellate(&body, 0.1).expect("must not refuse");
+        let mesh = crate::tessellate(&body, 0.1, Tol::witness()).expect("must not refuse");
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
         assert_eq!(n, 42, "the pre-guard triangle count, unchanged");

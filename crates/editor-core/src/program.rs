@@ -39,6 +39,7 @@ use profile::{ArcSweep, SketchPlane, Step, Target};
 
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{SlotId, StepArg};
+use geom_core::Tol;
 
 /// Where a target-taking step ends: an authored point (two Length
 /// expressions) or the entry vertex (`Start` — structural; targeting it
@@ -55,6 +56,16 @@ pub enum ProgramTarget {
 /// [`profile::Step`], structural tags literal, continuous args [`Expr`]
 /// (V2's table: coordinates/lengths/radii `Length`, angle/turn/phase
 /// `Angle`, bulge and director components `Scalar`).
+///
+/// It is a second spelling of a vocabulary `profile` declares once,
+/// and it has to be: a step here carries `Expr`s and serializes, and
+/// G1 layering keeps both out of the kernel crate.
+/// [`LoopProgram::from_recorded`] below
+/// is exhaustive on [`profile::Step`], so a verb the transition table
+/// gains breaks this file at compile, and
+/// `tests/switch_program_vocabulary.rs` is the census that makes it
+/// break for the right reason: the verb has to arrive HERE, not merely
+/// be discharged in `from_recorded`'s error arm.
 ///
 /// Fields are public data (the node-slot pattern: dimensions are
 /// checked at the edit door via [`ProfileProgram::slots`] +
@@ -256,7 +267,7 @@ pub trait ProfilePayload {
     /// under the CURRENT parameter environment, refusing typed at the
     /// edit door. The evaluation-time twin re-checks under every
     /// binding that is ever evaluated.
-    fn check(&self, _env: &ParamEnv<f64>) -> Result<(), ProgramRefusal> {
+    fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
         Ok(())
     }
 }
@@ -311,9 +322,12 @@ pub enum ProgramRefusal {
     Validate(profile::ProfileError),
 }
 
-// LIB-DOORS F6 (reopened on review): a human-readable rendering,
-// problem-stating per arm; the geometry class already carries the
-// driver's rendered prose and passes it through.
+// LIB-DOORS F6 (reopened on review): a human-readable rendering. Each
+// arm names the failing stage and then forwards its payload's own
+// prose — the geometry class the driver's rendered refusal, the
+// validate class `ProfileError`'s `Display`. `Resolve` states its
+// problem instead because `EvalError` has no `Display` to forward;
+// `Transition` holds a lattice state rather than a refusal.
 impl core::fmt::Display for ProgramRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -329,7 +343,7 @@ impl core::fmt::Display for ProgramRefusal {
                 step,
                 rendered,
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
-            Self::Validate(_) => f.write_str("the replayed loops failed profile validation"),
+            Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
         }
     }
 }
@@ -348,10 +362,17 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     }
 }
 
-/// The argument roles of one chain step, enumeration order = the
-/// step's own field order (deterministic; pinned by tests).
 /// The argument roles of one arc spec; `second` selects the arrival
-/// (spec₂) role twins so a fused step's two specs never collide.
+/// (spec₂) role twins.
+///
+/// The twins cover the positional roles only. `Bulge`, `Sweep` and
+/// `ArcLen` have none, because none of them is an arrival mode (§2c:
+/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
+/// `Center` alone), so no recording surface can put one in second
+/// position. Enumeration stays total over the data type regardless,
+/// and for a HAND-BUILT step whose two specs are the SAME one of
+/// those three the reused role addresses the incoming spec's argument
+/// twice and the arrival's not at all — issue #829.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -362,9 +383,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // Bulge is never an arrival (§2c); a second-position Bulge is
-        // unrepresentable from the recording surface, but slot
-        // enumeration must stay total over the data type.
+        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
             out.push(A::Bulge);
@@ -400,6 +419,8 @@ fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     }
 }
 
+/// The argument roles of one chain step, enumeration order = the
+/// step's own field order (deterministic; pinned by tests).
 fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     use ProgramStep as P;
     use StepArg as A;
@@ -659,6 +680,11 @@ fn res_target(
 }
 
 /// Resolves one chain step to its scalar-valued mirror.
+///
+/// This is the direction the compiler cannot check: it MATCHES
+/// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
+/// table gains is invisible here. The census in
+/// `tests/switch_program_vocabulary.rs` is what sees it.
 fn res_step(
     s: &ProgramStep,
     env: &ParamEnv<f64>,
@@ -843,13 +869,13 @@ impl ProfileProgram {
     /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
     /// pins). Used by the edit door; evaluation re-runs the same
     /// ladder per binding with full typed errors.
-    pub fn check(&self, env: &ParamEnv<f64>) -> Result<(), ProgramRefusal> {
+    pub fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         let resolved = self
             .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
         let mut loops = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let lp = profile::replay(steps).map_err(|e| match e.kind {
+            let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
                         loop_: li as u32,
@@ -867,7 +893,7 @@ impl ProfileProgram {
             loops.push(lp);
         }
         profile::Profile::new(self.plane, loops)
-            .validate(geom_core::Tolerance::get())
+            .validate(tol)
             .map(|_| ())
             .map_err(ProgramRefusal::Validate)
     }
@@ -1086,8 +1112,8 @@ impl ProfilePayload for ProfileProgram {
         self.loops.get_mut(loop_ as usize)?.expr_mut(step, arg)
     }
 
-    fn check(&self, env: &ParamEnv<f64>) -> Result<(), ProgramRefusal> {
-        ProfileProgram::check(self, env)
+    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        ProfileProgram::check(self, env, tol)
     }
 }
 

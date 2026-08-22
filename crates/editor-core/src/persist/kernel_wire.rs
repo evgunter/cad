@@ -11,7 +11,7 @@
 //!   crate's job;
 //! - a shared vocabulary is ONE enum, defined lowest and re-exported
 //!   upward, never a parallel enum (CONTACT-DESIGN C4's layering
-//!   ruling, `M9-1-SPEC.md:22`) — so a mirror enum carrying the
+//!   ruling) — so a mirror enum carrying the
 //!   derives is not available either.
 //!
 //! A `#[serde(with)]` module satisfies both: the TYPE stays the

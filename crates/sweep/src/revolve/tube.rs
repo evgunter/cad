@@ -29,7 +29,7 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3,
 };
 
 use super::axis::AxisFrame;
@@ -136,8 +136,9 @@ pub fn tube_along_arc<T: Decide>(
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
+    tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    let band = Band::linear().map_err(TubeError::Band)?;
+    let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
     let esc = |source| TubeError::Escalated { source };
@@ -216,9 +217,21 @@ pub fn tube_along_arc<T: Decide>(
     // ---- The swept traversal, constructed DIRECTLY (module docs):
     // the full tube circle as two half-circle arcs whose stored
     // centre `(R, 0)` and radius `r` are the exact intent values, in
-    // the REVERSED order the positive-θ sweep traverses (the same
-    // transform `swept_segments` applies to a canonical CCW loop:
-    // endpoints swapped, bulge −1, turn Negative). ----
+    // the REVERSED order the positive-θ sweep traverses.
+    //
+    // A hand-written COPY OF `swept::swept_segments`' reversal
+    // involution — endpoints swapped, bulge negated, turn flipped —
+    // written out for a known two-arc input instead of computed.
+    // (Phrased with the marker vocabulary on purpose: a duplication
+    // declared in words the tree's own greps do not carry is a
+    // duplication nothing will find. S131.)
+    // It cannot call the shared builder: that takes a `ValidatedLoop`,
+    // whose arc centre and radius come back from bulge arithmetic,
+    // and storing the caller's numbers instead of reconstructing them
+    // is this door's entire reason to exist (module docs). So the
+    // convention is shared with `swept_segments` and the code is not:
+    // **a change to that involution is a change to these constants.**
+    // ----
     let (rr, r) = (major_radius, minor_radius);
     let c_sk = Point2::new(rr, T::zero());
     let (lo, hi) = (
@@ -244,13 +257,14 @@ pub fn tube_along_arc<T: Decide>(
     let loops = [segs];
     let classes_arr = [classes];
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes_arr, theta, band)
+        full::build_full(&frame, &loops, &classes_arr, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes_arr, theta, true, band)
+        partial::build_partial(&frame, &loops, &classes_arr, theta, true, band, tol)
     }
     .map_err(TubeError::Revolve)?;
     // The same final pass as every constructor since M6-3: stored
     // certified pcurves at rest.
-    topo::mint_pcurves(&mut out.body).map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
+    topo::mint_pcurves(&mut out.body, tol)
+        .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
     Ok(out)
 }

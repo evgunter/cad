@@ -13,6 +13,7 @@ use sweep::skin::{lift_surface, loft_geometry, segment_curve, sweep_geometry};
 
 mod common;
 use common::chain;
+use geom_core::Tol;
 
 fn contained(surface: &NurbsSurface<f64>, grid: usize) {
     let lifted = lift_surface::<Interval>(surface).expect("lifts");
@@ -37,7 +38,13 @@ fn contained(surface: &NurbsSurface<f64>, grid: usize) {
 #[test]
 fn review_interval_containment_dense_loft_and_sweep() {
     let places = [0.0, 1.0, 2.0].map(|z| Affine3::translation(Vec3::new(0.0, 0.0, z)));
-    let loft = loft_geometry(&[chain(1.0), chain(1.6), chain(1.0)], &places, 2).expect("loft");
+    let loft = loft_geometry(
+        &[chain(1.0), chain(1.6), chain(1.0)],
+        &places,
+        2,
+        Tol::witness(),
+    )
+    .expect("loft");
     for wall in &loft.walls[0] {
         contained(wall, 96);
     }
@@ -52,7 +59,15 @@ fn review_interval_containment_dense_loft_and_sweep() {
         Affine3::identity(),
     )
     .expect("path");
-    let swept = sweep_geometry(&chain(1.0), Affine3::identity(), &path, 5, 3).expect("sweeps");
+    let swept = sweep_geometry(
+        &chain(1.0),
+        Affine3::identity(),
+        &path,
+        5,
+        3,
+        Tol::witness(),
+    )
+    .expect("sweeps");
     for wall in &swept.walls[0] {
         contained(wall, 64);
     }

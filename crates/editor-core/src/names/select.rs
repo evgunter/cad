@@ -44,7 +44,7 @@
 //! terms, print, or diff one; a `Fn(&StableName) -> bool` could do
 //! none of that.
 
-use geom_core::{Band, Decide};
+use geom_core::{Band, Decide, Tol};
 
 use crate::eval::{Evaluation, NodeResult};
 use crate::expr::ParamEnv;
@@ -54,6 +54,7 @@ use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
 use super::role::{
     CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, SplitHalf, StableName,
+    name_free_seg,
 };
 use super::table::{EntityRef, Entry};
 
@@ -327,7 +328,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// carries verdicts rather than a role argument and contributes none.
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
 /// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
-/// classified here or the compile breaks.
+/// classified here or the compile breaks — or, if it embeds no name,
+/// added to [`crate::names::name_free_seg`], which is the one place
+/// that answer is written for this and its two sibling matches.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
@@ -353,24 +356,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
         // A verdict qualifier, not a role argument (see the doc note).
         RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
-        // Name-free segments (kept explicit — see the doc note).
-        RoleSeg::OutputBody
-        | RoleSeg::Cap(_)
-        | RoleSeg::Lateral(_)
-        | RoleSeg::RimEdge(..)
-        | RoleSeg::LateralEdge(_)
-        | RoleSeg::CapVertex(..)
-        | RoleSeg::Band(_)
-        | RoleSeg::BandRim(_)
-        | RoleSeg::BandRimPi(_)
-        | RoleSeg::BandPi(_)
-        | RoleSeg::Meridian(..)
-        | RoleSeg::MeridianVertex(..)
-        | RoleSeg::RevolveCap(_)
-        | RoleSeg::Pole(_)
-        | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. } => Vec::new(),
+        name_free_seg!() => Vec::new(),
     }
 }
 
@@ -661,12 +647,13 @@ pub fn select_where<T: Decide>(
     sel: &Selector,
     geom: &[GeomPred],
     params: &ParamEnv<T>,
+    tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
     let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;
-    let band = Band::linear().map_err(|_| SelectRefusal::Band)?;
+    let band = Band::linear(tol).map_err(|_| SelectRefusal::Band)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in value.name_table.iter() {
         if !sel.matches(name) {

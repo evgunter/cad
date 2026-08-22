@@ -19,6 +19,7 @@ mod revolve_common;
 
 use geom::Surface;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
@@ -36,7 +37,7 @@ fn half_disc() -> ProfileLoop<f64> {
 #[test]
 fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     let vp = validated(vec![half_disc()]);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(counts(&t.body), (2, 2, 2, 0));
     // Both band faces share ONE sphere surface (the only surface).

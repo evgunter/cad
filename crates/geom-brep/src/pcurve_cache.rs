@@ -1,5 +1,5 @@
-//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4, and the
-//! `docs/M5-PR6-SPEC.md` sections it mechanizes): the chart-image cache
+//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4): the
+//! chart-image cache
 //! of an edge's certified 3-D carrier, certified **in meters through
 //! the map**.
 //!
@@ -112,8 +112,8 @@
 //!   azimuth channel of a [`Pcurve::Harmonic`] is `α + β·t` with a
 //!   *single* stored `α` and a winding `β ∈ {−1, 0, +1}`. There is no
 //!   per-sample branch choice to get wrong: the M2 PR 5 meridian
-//!   finding ("nearest-previous per-sample unwrapping is a bug",
-//!   `docs/M2-LOG.md`) is generalized here by making the wrong unwrap
+//!   finding ("nearest-previous per-sample unwrapping is a bug")
+//!   is generalized here by making the wrong unwrap
 //!   **unrepresentable** — a τ jump cannot be expressed. Which branch
 //!   (`α + kτ`) a given half-edge takes is chosen once per face by the
 //!   loop walk in `topo::pcurves` and *certified* by loop continuity
@@ -2670,8 +2670,8 @@ fn run_iso_arc_checks<T: Decide>(
     // most `Δ·stretch_u` in metres. That quantity is DECIDED here and
     // then PAID into the envelope below — never assumed away.
     //
-    // **A posture change, called out** (the first draft did not): this
-    // check used to be an exact `f64` comparison, whose only outcomes
+    // **A posture change, called out.** This check used to be an exact
+    // `f64` comparison, whose only outcomes
     // were "structure holds" and a definite typed refusal. Routing it
     // through `decide` adds a third — a knot deviation inside the
     // ambiguity band ESCALATES rather than refusing definitely. That
@@ -3741,11 +3741,12 @@ pub fn chart_pcurve<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
+    use geom_core::Tol;
 
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.

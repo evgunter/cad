@@ -10,7 +10,8 @@ use core::f64::consts::TAU;
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
@@ -29,7 +30,7 @@ fn disc() -> ValidatedProfile<f64> {
         ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -45,17 +46,21 @@ fn revolved_tube() -> Body<f64> {
         ProfileVertex::new(p2(0.4, 0.6), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, Revolution::Full).unwrap().body
+    revolve(&profile, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn cylinder_body() -> Body<f64> {
-    extrude(&disc(), Extrusion::Distance(1.0)).unwrap().body
+    extrude(&disc(), Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
@@ -66,7 +71,7 @@ fn tilted_cut() -> (Body<f64>, Body<f64>) {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(a), SplitPart::Body(b)) = (result.above, result.below) else {
         panic!("both sides carry material");
     };
@@ -170,7 +175,7 @@ fn section_edges_carry_a_cylinder_chart_cache_and_no_plane_chart_one() {
 #[test]
 fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
     let mut body = revolved_tube();
-    topo::mint_pcurves(&mut body).unwrap();
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let mut found = 0usize;
     for (_, edge) in body.edges() {
         let (Some(a), Some(b)) = (body.pcurve(edge.he_plus), body.pcurve(edge.he_minus)) else {
@@ -226,28 +231,30 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![square])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let mut prism = extrude(&profile, Extrusion::Distance(1.0)).unwrap().body;
+    let mut prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     assert_eq!(prism.pcurves().count(), 0);
-    topo::mint_pcurves(&mut prism).unwrap();
+    topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");
 
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::unit_z(),
     };
-    let result = split(&prism, &plane).unwrap();
+    let result = split(&prism, &plane, Tol::witness()).unwrap();
     for part in [result.above.body(), result.below.body()]
         .into_iter()
         .flatten()
     {
         assert_eq!(part.pcurves().count(), 0);
-        assert_eq!(validate_geometric(part), Ok(()));
+        assert_eq!(validate_geometric(part, Tol::witness()), Ok(()));
     }
 
     // Derive-on-demand still answers, exactly (the chart is affine).
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let (he, _) = prism.half_edges().next().unwrap();
     let derived = topo::pcurve_of(&prism, he, band).unwrap();
     let Pcurve::Harmonic { pa, pb, .. } = derived else {
@@ -313,7 +320,7 @@ fn a_tampered_branch_is_refused_at_rest() {
             .carrier()
             .clone()
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     // A window wide enough that trim containment is not what fires —
     // the finding must be the BRANCH, not the box.
     let window = topo::ChartWindow {
@@ -335,7 +342,7 @@ fn a_tampered_branch_is_refused_at_rest() {
         "{findings:?}"
     );
     // And the ladder surfaces it typed.
-    let errs = validate_geometric(&above).unwrap_err();
+    let errs = validate_geometric(&above, Tol::witness()).unwrap_err();
     assert!(
         errs.iter().any(|e| format!("{e}").contains("pcurve")),
         "{errs:?}"
@@ -368,7 +375,7 @@ fn a_cache_certified_against_another_edge_fails_the_tier_gate() {
         .expect("two half-edges with different carrier intervals");
     let donor = above.pcurve(a).unwrap().clone();
     above.attach_pcurve(b, donor);
-    let findings = topo::pcurves::validate_pcurves(&above, Band::linear().unwrap());
+    let findings = topo::pcurves::validate_pcurves(&above, Band::linear(Tol::witness()).unwrap());
     assert!(!findings.is_empty(), "the swap must be caught");
     assert!(
         findings.iter().any(|f| matches!(
@@ -379,7 +386,7 @@ fn a_cache_certified_against_another_edge_fails_the_tier_gate() {
         )),
         "{findings:?}"
     );
-    assert!(validate_geometric(&above).is_err());
+    assert!(validate_geometric(&above, Tol::witness()).is_err());
 }
 
 /// A body carrying caches survives a rigid transform: the caches are
@@ -390,9 +397,11 @@ fn a_rigid_transform_re_derives_the_caches() {
     let (above, _) = tilted_cut();
     let before = above.pcurves().count();
     let map = geom_core::Affine3::translation(Vec3::new(1.0, -2.0, 0.5));
-    let moved = topo::transform::transform_rigid(&above, &map).unwrap();
+    let moved = topo::transform::transform_rigid(&above, &map, Tol::witness()).unwrap();
     assert_eq!(moved.pcurves().count(), before);
-    assert!(topo::pcurves::validate_pcurves(&moved, Band::linear().unwrap()).is_empty());
+    assert!(
+        topo::pcurves::validate_pcurves(&moved, Band::linear(Tol::witness()).unwrap()).is_empty()
+    );
 }
 
 /// Determinism (D9): the same cut replayed produces byte-identical
@@ -429,11 +438,15 @@ fn caches_certify_on_the_interval_lane() {
         ProfileVertex::new(ip2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&profile, Extrusion::Distance(Interval::from_f64(1.0)))
-        .unwrap()
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let phi = 0.3f64;
     let plane = SplitPlane {
         origin: Point3::new(
@@ -447,7 +460,7 @@ fn caches_certify_on_the_interval_lane() {
             Interval::from_f64(phi.cos()),
         ),
     };
-    let result = split(&body, &plane).unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
     let mut seen = 0usize;
     for part in [result.above.body(), result.below.body()]
         .into_iter()
@@ -462,7 +475,9 @@ fn caches_certify_on_the_interval_lane() {
             assert!(geom_core::Bounds::hi(c.max_residual) < 1e-11);
             assert!(geom_core::Bounds::hi(c.envelope) < 1e-11);
         }
-        assert!(topo::pcurves::validate_pcurves(part, Band::linear().unwrap()).is_empty());
+        assert!(
+            topo::pcurves::validate_pcurves(part, Band::linear(Tol::witness()).unwrap()).is_empty()
+        );
     }
     assert!(seen > 0);
 }
@@ -486,9 +501,9 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
         origin: Point3::new(0.0, 0.3, 0.0),
         normal: Vec3::new(phi.sin(), phi.cos(), 0.0),
     };
-    match split(&tube, &plane) {
+    match split(&tube, &plane, Tol::witness()) {
         Ok(result) => {
-            let band = Band::linear().unwrap();
+            let band = Band::linear(Tol::witness()).unwrap();
             for part in [result.above.body(), result.below.body()]
                 .into_iter()
                 .flatten()
@@ -500,8 +515,18 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
         Err(e) => {
             // A typed refusal is an acceptable outcome for a frontier
             // configuration; a panic or a silently wrong body is not.
+            // `split`'s signature is what makes the refusal typed, so
+            // what is left to check at runtime is that it reaches a
+            // human as prose: every arm of `SplitError` names the split
+            // — three through their own stage (`split_reduce`, `split
+            // join`, `split finish`), one through the door's name —
+            // and none of them renders a payload's `Debug`.
             let msg = format!("{e}");
-            assert!(msg.starts_with("split: "), "{msg}");
+            assert!(
+                msg.contains("split"),
+                "the refusal must name its door: {msg}"
+            );
+            assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
         }
     }
 }
@@ -519,8 +544,8 @@ fn a_rotated_tilted_cut_mints_branch_consistent_caches() {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: Vec3::new(phi.sin() * rot.cos(), phi.sin() * rot.sin(), phi.cos()),
     };
-    let result = split(&body, &plane).unwrap();
-    let band = Band::linear().unwrap();
+    let result = split(&body, &plane, Tol::witness()).unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mut caches = 0usize;
     for part in [result.above.body(), result.below.body()]
         .into_iter()

@@ -1,15 +1,43 @@
 # Predicate-comparand dimensional audit (M7, rim-dimensional unit)
 
-Every decision-boundary comparand in `geom-brep` and `topo` (every
-`classify`/`require_zero`/`require_extent`/`decide` funnel call and
-every raw `sign_within` use), audited for the ratified ε semantics
-(D4): **a margin classified against the linear band must be a LENGTH
-in meters — the point deviation from specified geometry**. Angles and
-dimensionless quantities meter through a named lever arm (θ·r);
-squared quantities are rooted (or divided by a length, the `/2r`
-linearization) before comparison; a product of two lengths is an
-area-dimensioned defect (the class of the fixed `du_of_rims` bug and
+Decision-boundary comparands in `geom-brep` and `topo` — every
+`classify` / `require_zero` / `require_extent` / `decide` funnel call
+and every raw `sign_within` use in shipped code — audited for the
+ratified ε semantics (D4): **a margin classified against the linear
+band must be a LENGTH in meters — the point deviation from specified
+geometry**. Angles and dimensionless quantities meter through a named
+lever arm (θ·r); squared quantities are rooted (or divided by a length,
+the `/2r` linearization) before comparison; a product of two lengths is
+an area-dimensioned defect (the class of the fixed `du_of_rims` bug and
 the #89 in-band landing).
+
+**Not *every* comparand, and not the workspace's.** Two bounds, both
+deliberate, both measured rather than asserted — see *Coverage of the
+two crates, measured* below the head matter. **(1) Two crates.** The
+sweep reads `geom-brep` and `topo` and stops, because the dimensional
+argument is made where the comparand is built and the out-of-ledger
+crates make theirs at their own sites; the clause-(i) note below says
+so of `profile`, `sweep`, `editor-core`'s eval/naming and
+`geom-curves`, and the funnel-bypass paragraph after the tables calls
+its scoping *"on purpose"*. The bound binds the **table**, not the
+document: F12, F13, F14 and F15 are `editor-core` rows, carried here
+because this is where the argument that named them lives. So **this is
+not the workspace's predicate-name roster** — that is
+`docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
+orphans are all outside these two crates by construction (`profile`
+×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
+hole in it. **(2) Not complete inside them.** Of **246** funnel-reaching
+names in the two crates the tables and their prose reach **223**, carry
+an individual `dim` verdict for **121**, and miss **23** entirely; the
+23 are listed under *Uncovered names* below the tables and are §D's
+**D46**. The word *every* was this document's for a year and it was
+never true of the second bound; it is retired here rather than
+footnoted.
+
+**One qualifier the first paragraph's *"every raw `sign_within` use"*
+leaves open**: the sweep covers **shipped** code — `topo/src/seqgen.rs`'s
+candidate filter is a raw `sign_within` under `#[cfg(test)]`, never
+instantiated at the recording scalar, and is outside it.
 
 Trigger and method: the `props_rim_level_group` defect (fixed in this
 unit — `crates/geom-brep/src/props/curved.rs`, the `RimLevel` enum)
@@ -31,7 +59,7 @@ margin fold-in — one quantity, the NURBS carrier's metric rate, that
 three sites had handled three different ways).
 
 **Known rot in the `file:line` column, recorded rather than swept
-here.** Every pointer in the ~230-row table below is hand-written, and
+here.** Every pointer in the 143-row table below is hand-written, and
 no test, lint or CI row checks any of them: an edit to a cited file
 silently shifts every row below it. The two `splitting/rules.rs` rows
 were re-resolved in #661 because that PR moved them (+2 lines) — and
@@ -63,10 +91,19 @@ compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4,
 F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
 F15 ×1 —
-8 shipped sites, tracked as issue #214 and pinned by the census count
-assertion `geom-core/tests/flagged_census.rs`: no new site ships
-without a row here, and the count only moves together with this
-section).
+8 shipped sites, tracked as issue #214 and pinned by
+`geom-core/tests/flagged_census.rs`: no new site ships without a row
+here, and the count only moves together with this section).
+
+**The `- **FNN**` bullet headings in *Findings (dispositions)* below are
+machine-read** (#801). `flagged_census.rs` extracts the fourth argument
+of every shipped `decide_flagged` call and requires it to name one of
+them, so a row renumbered, retitled out of that bullet form, or never
+written fails the suite rather than sitting as an unresolvable citation
+in the kernel. Reformat the headings and the census says so — it refuses
+to pass on an empty row set rather than reporting a hole of zero. The
+site COUNT above is still hand-synced with the constant in that test;
+that half derives from nothing and is §S13's *magic count*.
 Composition disclosure (review MIN-2): `Margin` deliberately has no
 arithmetic, so a margin whose FINAL op is a plain length
 sum/difference/min/max may carry a lever, root, or quotient INSIDE the
@@ -106,6 +143,128 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 `/2r`-normalized to meters; `implicit_gradient` unit on-locus;
 `curvature_lever_arm` meters; `TangentJet.kappa_rel` 1/m;
 `speed_lower_bound()` meters per parameter unit.
+
+## Coverage of the two crates, measured
+
+**Against main at `43e2998d`** — carried explicitly, because this is a
+survey written into the tree it surveys (§D's D23). *(Taken three
+times: `f87b203`, then `a0a6e1a5` after main moved `census.rs` and
+`splitting/rules.rs` under it, then here after `topo` gained `live.rs`
+and rewrote `split.rs`. Every figure reproduced at all three.)*
+
+**What is in scope.** K-REPORT's restated rule: a name is in scope if
+it reaches the `geom_core::k_stats` funnel *however it is spelled at
+the call site*. In these two crates that is ten spellings — `decide`,
+`decide_flagged`, `decide_invariant`, and the `check_residual` /
+`classify` / `classify_len` / `require_zero` / `require_extent` /
+`gap_is_zero` / `signed_is_zero` wrappers.
+
+**Names — the deliverable.** **246** distinct predicate names: **210**
+written as a literal at one of those spellings, and **36 carried** by a
+module-private `const`, a struct field or a local table
+(`sector_shape.rs`'s three consts, `ray_parity::ParityRows` twice over,
+`transform.rs`'s two arrays, `carrier_eq.rs`'s margin tuples,
+`contact_verify.rs`'s and `splitting/order.rs`'s loop tuples,
+`pcurve_cache.rs`'s winding closure, `pcurves.rs`'s two closures).
+
+| the document's relation to a name | count |
+|---|---|
+| carries an individual row with a `dim` verdict | **121** |
+| named only in prose, no `dim` column | 3 |
+| reached only through a family cell or slash-list | 99 |
+| **reached, on the most generous reading** | **223** |
+| **recorded nowhere, under any reading** | **23** |
+
+**Reach is not verdict, and the asymmetry runs one way.** The 99 family
+matches are a judgement: glosses like *"pm_census vv/ve/vf/ef gaps,
+spans, residuals"* and *"sphere/torus meridian checks"* were read as
+covering every name they plausibly reach, which is the reading most
+favourable to this document. So **223 is a ceiling on REACH**, **23 a
+floor on the hole** — a stricter reader moves names out of the 99 and
+into the 23, and nothing can move one out of the 23, because those
+names appear nowhere above this section in any form. And **reach is not
+a dimensional verdict**: the number of names this document has actually
+dimensioned, one row and one `dim` cell each, is **121**. The other 102
+are covered by a family gloss or a sentence, which is a claim about a
+family and not a check on a comparand.
+
+**Sites are NOT the deliverable, and this is why.** Counting them is
+still useful as a cross-check, so the ledger is below — but D19's
+lesson (*"a count of SITES was never the right measure of a NAME
+roster"*) has a second edge here: **about thirty helpers in these two
+crates fix a name internally and have more than one caller** —
+`require_extent`, `require_rim_incidence`, `du_of_rims`,
+`classify_dihedral`, `enters_material`, `point_in_loop`,
+`volume_backstop`, `tangent_locus_relation` and the rest — so *"where a
+decision is posed"* and *"where the funnel is called"* differ by a wide,
+convention-dependent margin. The roster is unharmed (every one of those
+names is a literal at the wrapper's own funnel call, so all are in the
+210), which is exactly the point: the name count is stable under the
+convention and the site count is not.
+
+| | |
+|---|---|
+| raw matches of the ten spellings | 322 |
+| − prose inside doc comments (`boolean/ops.rs:3`, `chord_join.rs:188`, `sector_shape.rs:412`, `:456`) | 4 |
+| − a `format!("decide({rung}"` string inside a test (`chord_join.rs:2481`) | 1 |
+| − two calls to an unrelated local `classify` closure (`splitting/join.rs:278`) | 2 |
+| **= funnel call sites** | **315** |
+| − forwarding hops (first argument is a name *parameter* of the enclosing fn or closure, so the name is chosen by its caller) | 13 |
+| **= sites at which a name is fixed** | **302** |
+
+**Both halves of the measurement have a blind spot, and neither is a
+roster alone** (K-REPORT's framing; it reproduces here). A code scan
+misses names not written at a funnel site — the 36 carried ones, 15% of
+the roster. A corpus column misses names the corpus never exercises —
+**80** of the 246 do not appear in the committed M7 baseline at all,
+and that baseline in turn still carries six spellings the tree has
+retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
+#652). Re-deriving:
+
+```sh
+# code half — every funnel site, all ten spellings, both crates.
+# It also matches doc-comment prose and `fn` definitions; the ledger
+# above says which, and they are subtractions, not sites.
+grep -rnE '\b(decide|decide_flagged|decide_invariant|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+  crates/geom-brep/src crates/topo/src
+# behavioural half — what the committed baseline emitted
+zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
+# coverage — compare against THIS FILE WITH ITS TWO SELF-DESCRIBING
+# SECTIONS REMOVED. `Uncovered names` lists the 23 and this section
+# names helpers that share spellings with predicates, so a re-derivation
+# that reads the whole file finds a hole of zero and calls it closed.
+sed -e '/^## Coverage of the two crates/,/^## geom-brep/d' \
+    -e '/^### Uncovered names/,/^## Findings/d' \
+    docs/predicate-dimension-audit.md
+```
+
+The first command is a **starting set, not an answer**: a site whose
+first argument is not a literal has to be read, and a spelling not in
+the alternation is invisible to it — `require_extent` was, until this
+measurement, absent from the alternation while being named in this
+file's own first paragraph. That residue is this table's standing cost,
+disclosed rather than discovered.
+
+**Nine names carry the K vocabulary and never reach the funnel**, so
+they are correctly outside the 246 and a reader who greps for one
+should know why. They live only in an `Indeterminate.predicate` —
+seven through `predicate: Some("…")` (`carrier_kind`,
+`contact_tangent_independent`, `contact_rest_senses_opposed`,
+`contact_rest_ladder_invariant`, `transversality`,
+`plane_nurbs_transversality_reported`, `validate_probe`) and two
+through an `invalid(band, "…")` helper (`bool_contfp_boundary`,
+`pm_census_containment`). None decides anything, none appears in the M7
+baseline, and none has a comparand to dimension.
+
+**Why no gate on 121 / 223 / 246 / 302 — the third answer to Q6.**
+Not "it is guarded" and not "dating it is enough": a gate would have to
+fix the family-matching convention in code, and that convention is the
+judgement this section is careful to expose rather than freeze. A green
+gate would assert a reading, not a fact. What *is* mechanical is
+already elsewhere — `geom-core/tests/flagged_census.rs` pins the
+`decide_flagged` count, and the K sweep recomputes the emitted-name set
+on every merge. The 23 are scheduled as their own unit (§D's **D46**),
+which is what actually moves the number.
 
 ## geom-brep
 
@@ -155,20 +314,20 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 | pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_azimuth_frame / sphere_chart_pole_frame / polar & meridional rates | metre projections/norms at six of the seven frame callers; on the CONE ruling lane's F13 fallback the frame input is a UNIT radial's projection — dimensionless. Tie-break-only either way (N5: the trilean picks between two formulas identical mod τ — verdict-neutral), and that lane is F13-flagged one decision earlier | m (mixed on the F13 lane) | OK as tie-break (N5; row corrected at the clause-(i) fix pass, review MIN-1) |
-| props/curved.rs:145/150 | props_rim_axis_parallel / center_on_axis | sin×r_c; perpendicular offset | m | OK |
-| props/curved.rs:208 | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (this unit) |
-| props/curved.rs:211–212 | props_rim_level_group (Unit) | Δ(sin,cos) × arm | m | OK (note N1) |
-| props/curved.rs:250 | props_rim_dir_group | (±1 diff) × arm ∈ {0, ±2·arm} | m | OK (note N2) |
-| props/curved.rs:263 | props_du_consistent | Δu (rad) × arm | m | OK |
-| props/curved.rs:286 | props_rim_side | per-kind: bare (Length) / ×arm (Unit) | m | FIXED (this unit) |
-| props/curved.rs:313/421 | props_meridian_axial / generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
-| props/curved.rs:323/343/451/553/677 | props_meridian_on_surface / rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
-| props/curved.rs:337/444/549/671 | props_circle_axis_class | cos × r_c | m | OK (note N3) |
-| props/curved.rs:372/484/589/740 | props_face_extent | m levels; sin-levels ×R; dt×minor | m | OK |
-| props/curved.rs:430 | props_meridian_apex | apex-line distance | m | OK |
-| props/curved.rs:487/488 | props_cone_nappe | slant levels (m) bare | m | OK |
-| props/curved.rs:576/598/695/706/728 | sphere/torus meridian checks | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs (`require_rims_at_extremes`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × arm (sphere ×R, torus ×minor) | m | OK (notes N1, N7; generalised from the torus-only site to all four kinds by S58/#649 — one predicate, metering still carried by [`RimLevel`]. N1 now has a second, sharper reading: the torus levers THIS predicate at `minor`, the exact arm, and its sibling `props_rim_level_group` at `major` one line later — the two are reconciled in `du_of_rims`' docs rather than unified, because unifying them resolves N1. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs`.) |
+| props/curved.rs (`require_rim_incidence`) | props_rim_axis_parallel / props_rim_center_on_axis | sin×r_c; perpendicular offset | m | OK |
+| props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (#89's unit) |
+| props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
+| props/curved.rs (`du_of_rims`) | props_rim_dir_group | (±1 diff) × `RimArms::azimuth` ∈ {0, ±2·arm} | m | OK (note N2) |
+| props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
+| props/curved.rs (`linear_rim_side`'s nested `side`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit) |
+| props/curved.rs (`cylinder_boundary`'s line arm / `cone_boundary`'s line arm) | props_meridian_axial / props_meridian_generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
+| props/curved.rs (the four `*_boundary` parses) | props_meridian_on_surface / props_rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
+| props/curved.rs (the four `*_boundary` parses) | props_circle_axis_class | cos × r_c | m | OK (note N3) |
+| props/curved.rs (`require_extent`, called from all four flux lanes) | props_face_extent | m levels; sin-levels ×R; dt×minor | m | OK |
+| props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
+| props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
+| props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
+| props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | OK (note N7; N1 RETIRED. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in a suite CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |
@@ -281,11 +440,39 @@ every margin the recorder sees is attributed to the predicate that
 actually decided it. The claim is scoped on purpose. One shipped raw
 `sign_within` exists elsewhere in the workspace — `editor-core`'s
 expression evaluator — and is carried below as **F12** rather than
-swept under the headline. Raw ε reads
-outside decisions: solver
+swept under the headline. Raw ε reads outside decisions: solver
 tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
+
+### Uncovered names (measured at `43e2998d`)
+
+Twenty-three names reach the funnel from `geom-brep` or `topo` and
+have **no row, no family cell and no mention** anywhere above this
+section. They are enumerated rather than audited: each wants its
+comparand read and a dimension verdict, which is a unit (§D's **D46**)
+and not a side errand of the measurement that found them. Three of the
+eight homes are files this document has never named at all —
+`edge_nurbs.rs`, `boolean/carrier_eq.rs`, `boolean/contact_verify.rs` —
+and the other five are named files whose rows predate these names.
+
+**Where the 23 verdicts land when D46 does them**: one row each in the
+`## geom-brep` or `## topo` table above, with `site`, `predicate`,
+`comparand`, `dim` and `status` filled the way every other row is —
+plus a disposition entry in *Findings* for any that come back FLAG, and
+its `F`-number. A name leaves this section only by acquiring that row;
+the section is empty when the two counts above meet at 246.
+
+| home | names |
+|---|---|
+| `geom-brep/certify.rs` | `carrier_in_seam_halfplane`, `carrier_on_iso_curve`, `plane_nurbs_on_locus`, `plane_nurbs_hull_sup` |
+| `geom-brep/edge_nurbs.rs` | `plane_nurbs_transversality` |
+| `geom-brep/pcurve_cache.rs` | `pcurve_chart_polar_affine`, `pcurve_chart_polar_winding` (the polar twins of the azimuth pair one row up) |
+| `geom-brep/props/curved.rs` | `props_band_coplanar` |
+| `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` |
+| `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
+| `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
+| `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
 
 ## Findings (dispositions)
 
@@ -508,31 +695,65 @@ Flagged, NOT fixed here (dispositions):
   rows into the N5 verdict-log channel) remains the editor-layer
   owner's scope call.
 
+**Every `props/curved.rs` row above is cited BY TARGET NAME, not by
+line** (S176(a)). The line numbers they carried were written against a
+2026-08 tree and had already rotted at #877's merge base; #877 moved
+200+ lines of the file and would have rotted the rest. A row whose
+citation cannot be resolved is a row nobody re-derives.
+
+**The audited POPULATIONS move under #877** — recorded here because
+this document's rows are about what is recorded, and all audited probe
+suites are green:
+
+- **sphere `props_rim_level_group`**: two decides per comparison became
+  **one**. The pair is `(sin v, 0)`, so the old second component was
+  `0 − 0` and always decided `Zero`; the chord folds it away. Same
+  verdict, one fewer sample.
+- **torus `props_rim_level_group`**: the recorded margin changes from a
+  per-component value at `major` to the chord at `minor` (N1's
+  retirement). Different number, and it is the exact one.
+- **`props_rim_side`**: now records on faces the gate previously
+  refused before reaching it — `boundary_material_sign`'s three
+  linearly-leveled arms run the premise first, so the population loses
+  the non-rectangular faces it used to include and the K stream stops
+  carrying sides that were a property of loop-flattening order.
+
 Notes (verified honest, kept for the design conversation):
 
-- **N1** Torus `props_rim_level_group` levers Δ(sin v, cos v) at
-  `major`, while the induced point deviation levers at `minor` (the
-  sibling `props_rim_level` uses × minor). Overstates by R/r —
-  conservative (escalates a truly-coincident pair, never merges a
-  distinct one). Lever-magnitude question, deferred to typed-margin.
-  **Sharper since #714** (S58): the two now sit on consecutive lines in
-  `torus()` — `require_rims_at_extremes(&rims, …, minor, …)` then
-  `du_of_rims(&rims, major, …)` — so the discrepancy is visible at a
-  glance and reads as an inconsistency unless N1 is known. #714's fix
-  pass reconciled them in `du_of_rims`' own docs (which arm is exact,
-  which is N1, and why the safe direction is the overstating one)
-  rather than unifying them, because splitting `du_of_rims`' single
-  `arm` in two would resolve this note in passing. The unification is
-  still the thing to do when typed margins land: `arm` there is doing
-  double duty for a minor-circle level difference AND an azimuthal
-  angle difference.
+- **N1 — RETIRED by S81.** Torus `props_rim_level_group` levered
+  Δ(sin v, cos v) at `major` while the induced point deviation levers
+  at `minor` (the sibling `props_rim_level` used × minor). It
+  overstated by R/r — conservative in the sense that it escalates or
+  splits a truly-coincident pair rather than merging a distinct one,
+  but conservative is not exact, and the split it produced was a
+  **refusal**: on a 1 m / 1 mm gasket, a rim arc whose split vertex sat
+  **0.5 nm** off level — half of ε — was metered as 0.5 µm, grouped
+  apart, and the face refused `props_du_consistent`
+  (`geom-brep/tests/s81_one_rim_level_rule.rs` is that face).
+  **The resolution is the one this note named**: `du_of_rims`' single
+  `arm` was doing double duty for a minor-circle LEVEL difference and
+  for an azimuthal angle difference, and it is now two fields
+  (`RimArms { level, azimuth }`). The level rule itself is one function
+  (`level_coincides`) for both call sites, so the arm cannot drift
+  again without both moving. Deferring this to "when typed margins
+  land" is what left the two spellings 90 lines apart for eight months;
+  typed margins will still find one rule here rather than two.
+
 - **N2** `props_rim_dir_group` compares a structural ±1 through the
   numeric funnel (margin 0 or ±2·arm). Guarded upstream: a rim with
   arm ≲ K·ε cannot reach it (`props_circle_axis_class` escalates
   first, cos·r_c in-band).
 - **N3** The cone's `du_of_rims` arm is the FIRST rim's radius
-  |v|·sinα (bounded below ≳ K·ε by the same axis-class guard); the
-  `T::one()` fallback is unreachable (empty-rims refusal precedes).
+  |v|·sinα (bounded below ≳ K·ε by the same axis-class guard). The
+  `T::one()` fallback is REACHED — both callers compute the arm before
+  they know whether there is a rim — but **never metered against**:
+  every route from it to a margin refuses on the empty rim list first,
+  by `du_of_rims`' opening `is_empty` on the flux lane and by
+  `linear_rim_side`'s `rims.first()` at the material-side gate. "The
+  empty-rims refusal precedes" named one of those two routes and was
+  false at the other (S112(d)); the invariant is what both establish,
+  and `s58_iso_rectangle::a_rim_free_cone_refuses_at_both_doors` is the
+  row.
 - **N4** `tangent_normal_parallel`'s arm 1/κ_rel is the ratified D4 ¶1
   tangency lever ("normal-parallel within θ ⟺ within ε of the locus");
   unbounded only in the refusing direction, and the second-order gate
@@ -553,7 +774,13 @@ Notes (verified honest, kept for the design conversation):
   rims can group as coincident although their true point separation is
   ~`R·Δv`. Dimensionally honest (the margin IS a length, and it is the
   quantity the area formula consumes), but the LEVER understates the
-   3-D deviation near the poles — the same lever-magnitude family as
-  N1, opposite direction (merges rather than escalates). Cone/cylinder
-  bare levels and the torus two-component pair do not share this.
-  Typed-margin conversation input.
+  3-D deviation near the poles — the same lever-magnitude family as
+  N1 (now retired), opposite direction: N1 escalated, this merges, and
+  it merges in the ACCEPTING direction. Cone/cylinder bare levels and
+  the torus two-component pair do not share this. Typed-margin
+  conversation input, and **smell-scan S82** — Evan's to answer, not a
+  lane's. S81's unification does not answer it and does not try to; it
+  makes it **cheaper**, because the sphere's lever is now one field
+  (`RimArms::uniform(radius)`'s `level`) at one site, feeding one rule,
+  rather than a scalar passed to two functions that metered it two
+  ways. Whatever the answer, it is a change to that field.

@@ -12,6 +12,7 @@ use topo::Body;
 
 mod common;
 use common::quad;
+use geom_core::Tol;
 
 const SQ: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 const TRAP: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -22,7 +23,7 @@ fn loft_at(zs: &[f64]) -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("loft builds")
         .body
 }
@@ -41,7 +42,7 @@ fn rational_pie() -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 1)
+    loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the rational pie lofts")
         .body
 }
@@ -68,6 +69,7 @@ fn swept_elbow() -> Body<f64> {
         &path,
         9,
         3,
+        Tol::witness(),
     )
     .expect("sweep builds")
     .body
@@ -127,7 +129,7 @@ fn z1_per_triangle_certificate_falsification() {
             budget::arm(Mode::Deviation {
                 samples_per_edge: 12,
             });
-            let m = mesh::tessellate(&body, delta).expect("tessellates");
+            let m = mesh::tessellate(&body, delta, Tol::witness()).expect("tessellates");
             let measures = budget::take();
             assert!(
                 !measures.is_empty(),
@@ -142,6 +144,16 @@ fn z1_per_triangle_certificate_falsification() {
             // face carrying one would come out "smallest" and escape.
             // A loop has no comparator to get wrong, and `!(x <= 1.0)`
             // is true for every NaN of either sign.
+            // MONOTONE THE EASY WAY, and this is the row hosted CI
+            // runs: `worst_ratio` only shrinks as `bound` grows, so a
+            // loose certificate passes this by a WIDER margin than a
+            // tight one. `budget_meter.rs`'s sibling row grew a
+            // measured floor beside its ceiling; this one has not, and
+            // the asymmetry is recorded as **S237**
+            // (`docs/SMELL-SCAN-2026-08.md`), unowned — with two more
+            // instances of the same shape in `nurbs_cert.rs`'s own
+            // test module, which #887's sweep missed and its
+            // adversarial review found.
             for f in &measures {
                 assert!(
                     f.worst_ratio <= 1.0,
@@ -193,7 +205,7 @@ fn z1_per_triangle_certificate_falsification() {
 fn z1_fixtures_still_tessellate_with_the_falsifier_gated_out() {
     for (name, body) in z1_fixtures() {
         for delta in Z1_DELTAS {
-            let m = mesh::tessellate(&body, delta).expect("tessellates");
+            let m = mesh::tessellate(&body, delta, Tol::witness()).expect("tessellates");
             let tris: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
             assert!(tris > 0, "{name} at delta={delta:.0e}: empty mesh");
             mesh::validate::check_mesh(&m)
@@ -213,7 +225,7 @@ fn z2_detached_pcurve_refuses_typed() {
         .next()
         .expect("body has pcurve caches");
     body.detach_pcurve(hek);
-    match mesh::tessellate(&body, 1e-2) {
+    match mesh::tessellate(&body, 1e-2, Tol::witness()) {
         Err(e) => {
             let s = format!("{e:?}");
             assert!(
@@ -230,7 +242,7 @@ fn z2_detached_pcurve_refuses_typed() {
 #[test]
 fn z5_positions_hash_stamp() {
     let body = swept_elbow();
-    let m = mesh::tessellate(&body, 1e-2).expect("tessellates");
+    let m = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for p in &m.positions {
         for b in [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()] {
@@ -255,7 +267,8 @@ fn z5_positions_hash_stamp() {
 #[test]
 fn z3_fine_nurbs_vs_coarse_planar_neighbor_watertight() {
     for delta in [5e-4, 2e-4] {
-        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta).expect("tessellates");
+        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta, Tol::witness())
+            .expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight at fine delta");
     }
 }

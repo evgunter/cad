@@ -1,5 +1,5 @@
 //! Null-entity scaffolding: typed attributes and the null-edge lane
-//! (M3 PR 1, fork F9 of `docs/M3-PLAN.md`).
+//! (M3 PR 1, fork F9).
 //!
 //! Ch. 14/15's splitting and boolean pipelines manufacture **null
 //! entities** — zero-length edges and two-loop "null faces" holding
@@ -214,8 +214,6 @@ impl<T: geom_core::Decide> Body<T> {
                 let plan = self.mev_fan_plan(he1, he2)?;
                 let point = plan.p_old; // bitwise coincident copy
                 self.mev_fan_execute(
-                    he1,
-                    he2,
                     plan,
                     point,
                     crate::euler::MevCurveMint::Null(new_side),
@@ -309,13 +307,14 @@ mod tests {
     use super::*;
     use crate::fixtures::{deep_snapshot, ops_cube};
     use crate::validate::{ValidationError, validate, validate_closed};
+    use geom_core::Tol;
 
     /// A null strut (`he1 == he2`) on a cube vertex: coincident point
     /// copy, F9 attribute recorded per side, tier 1 accepts, tier 2
     /// refuses by name, and the scaffolding is killable by `kev`.
     #[test]
     fn mev_null_strut_lifecycle() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -370,7 +369,7 @@ mod tests {
     /// `Below` puts the new vertex on the below side.
     #[test]
     fn mev_null_below_side_attribute() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -396,7 +395,7 @@ mod tests {
     /// error paths, exercised through the null lane).
     #[test]
     fn mev_null_atomic_on_error() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let err = body
@@ -416,7 +415,7 @@ mod tests {
     /// structural preconditions, and kill-op hygiene through `kfmrh`.
     #[test]
     fn null_face_record_lifecycle() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
         let outer1 = body.get_face(f1).unwrap().outer;
@@ -479,7 +478,7 @@ mod tests {
     /// named loop after the record was minted.
     #[test]
     fn stale_null_face_loop_record_reported() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
         let outer1 = body.get_face(f1).unwrap().outer;

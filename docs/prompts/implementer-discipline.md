@@ -86,3 +86,17 @@ If your unit fixes an instance of a class, say what pattern you swept with and
 an unverified claim, not a negative result. Note also that a sweep is accurate
 as of your merge base, not your merge: a long-running lane owes a re-sweep
 before it lands.
+
+**Assume it is a class.** The trigger above is your own judgement that the
+defect has siblings, and that judgement is where this rule misses. Before you
+write the scope sentence, grep for the **shape** — not the symbol — and put
+**the hit list and its disposition** in the PR description, one line per hit:
+fixed, or not-this-unit and why. A pattern with no hits recorded is a claim; a
+hit list is a receipt.
+
+Scope sentences read as completeness even when the claim above them does not
+share their scope. One euler-operator header asserts the universal — *"a
+mutation phase announces a failed lookup rather than discarding it, at every
+write"* — while its evidence is *"these modules"*; the same diff left three
+silent discards in a sibling file, ten lines below two `unreachable!`
+conversions it had just added.

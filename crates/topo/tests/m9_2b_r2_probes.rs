@@ -7,6 +7,7 @@
 mod common;
 
 use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::{
     Body, ContactRecords, PatchContact, TangentLocus, TangentLocusError, ValidationError,
@@ -23,7 +24,7 @@ fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b).unwrap();
+    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
     out
 }
 
@@ -38,7 +39,7 @@ fn probe_nested_instance_overlap_at_three_prime() {
     let outer = cube_scaled_at(4.0, 0.0, 0.0, 0.0);
     let inner = cube_scaled_at(1.0, 1.5, 1.5, 1.5);
     let body = assembly(&outer, &inner);
-    let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
+    let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
     // The union fix (F1): the containment arm of the loudness
     // backstop refuses the nested instance pair as UNDECIDABLE —
     // C6's interference class, named — instead of validating
@@ -85,7 +86,7 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
         face_a: top.expect("A top"),
         face_b: bottom.expect("B bottom"),
     });
-    let verdict = validate_pseudomanifold(&body, &records);
+    let verdict = validate_pseudomanifold(&body, &records, Tol::witness());
     println!("bogus planar patch verdict: {verdict:?}");
     assert!(
         verdict.is_err(),
@@ -166,7 +167,7 @@ fn the_backstop_rows_are_metre_dimensioned() {
         let outer = cube_scaled_at(4.0 * s, 0.0, 0.0, 0.0);
         let inner = cube_scaled_at(s, 1.5 * s, 1.5 * s, 1.5 * s);
         let nested = assembly(&outer, &inner);
-        let errs = validate_pseudomanifold(&nested, &ContactRecords::default())
+        let errs = validate_pseudomanifold(&nested, &ContactRecords::default(), Tol::witness())
             .expect_err("nested refuses at every scale");
         assert!(
             errs.iter()
@@ -176,7 +177,7 @@ fn the_backstop_rows_are_metre_dimensioned() {
         let far = cube_scaled_at(s, 10.0 * s, 0.0, 0.0);
         let apart = assembly(&outer, &far);
         assert_eq!(
-            validate_pseudomanifold(&apart, &ContactRecords::default()),
+            validate_pseudomanifold(&apart, &ContactRecords::default(), Tol::witness()),
             Ok(()),
             "scale {s}: separated instances stay clean"
         );

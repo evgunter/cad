@@ -9,6 +9,12 @@
 //! test suite run at several ε values (the multi-ε CI matrix) with zero
 //! test-code cooperation.
 //!
+//! The value lives in that lock and never leaves it. What travels is
+//! [`Tol`], a zero-sized witness that the lock is committed — see its
+//! docs for why the parameter carries evidence rather than the number,
+//! and `scripts/gates/witness-not-ambient.sh` for the half of that
+//! discipline the type system cannot enforce.
+//!
 //! # One number, not two
 //!
 //! There is exactly one global tolerance: the linear ε. There is
@@ -26,7 +32,7 @@
 //!   typed errors ([`ToleranceError`]) for invalid values or double
 //!   initialization. There is no API to change the value afterwards —
 //!   "never loosened mid-run" is structural.
-//! - [`Tolerance::get`] is **infallible and total**. On first use without a
+//! - [`Tol::witness`] is **infallible and total**. On first use without a
 //!   prior `init` it self-initializes from the environment ([`ENV_EPS`]):
 //!   a well-formed value wins, an absent variable falls back to the
 //!   compiled default, and a malformed or invalid value falls back to the
@@ -49,8 +55,12 @@
 //! model is a pure function of (parameter vector, ε). The `OnceLock` is
 //! what makes "one ε per process" structural rather than documentary,
 //! and it is kept for that reason — see `docs/SMELL-SCAN-2026-08.md`
-//! S22. What it lacked was a way to say *where the committed value came
-//! from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could
+//! S22. (That ruling's other half, *"do not thread ε"*, was reversed on
+//! 2026-08-21 once the parameter could be a witness rather than a value;
+//! the lock it defended is untouched by that reversal.)
+//!
+//! What the lock lacked was a way to say *where the committed value
+//! came from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could
 //! change what "coincident" means with no output line saying so
 //! (issues #415, #497).
 //!
@@ -66,7 +76,7 @@ use core::fmt;
 use std::sync::OnceLock;
 
 /// Environment variable consulted for ε on `get()` self-initialization
-/// (name fixed by CI's multi-ε matrix, L3 in `docs/M0-LOG.md`).
+/// (name fixed by CI's multi-ε matrix; M0 L3).
 pub const ENV_EPS: &str = "CAD_TOLERANCE_EPS";
 
 /// Compiled default for ε: 1e-9 m (ratified, D4 ¶1) — micron-to-kilometer
@@ -220,7 +230,7 @@ pub enum ToleranceEnvErrorKind {
 
 /// A recorded failure from `get()`'s env self-initialization.
 ///
-/// This is *recorded*, not raised — [`Tolerance::get`] stays total and
+/// This is *recorded*, not raised — [`Tol::witness`] stays total and
 /// falls back to the compiled default; retrieve it via
 /// [`Tolerance::env_init_errors`]. A test in this crate asserts the
 /// recorded slice is empty, which is what makes a malformed CI env value
@@ -316,7 +326,7 @@ impl fmt::Display for EpsilonSource {
 /// the way.
 ///
 /// Built by [`Tolerance::report`] (which commits the ambient bootstrap
-/// if nothing has, exactly as [`Tolerance::get`] does) or by
+/// if nothing has, exactly as [`Tol::witness`] does) or by
 /// [`Tolerance::committed_report`] (which never commits, so a program
 /// may report at any point without *deciding* ε by asking).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -480,13 +490,13 @@ impl Tolerance {
     ///   strictly positive (checked before touching the global state, so a
     ///   rejected call leaves initialization for later).
     /// - [`ToleranceError::AlreadyInitialized`] if the global tolerance was
-    ///   already committed — by an earlier `init` or by [`Tolerance::get`]'s
+    ///   already committed — by an earlier `init` or by [`Tol::witness`]'s
     ///   env self-initialization — carrying both the current and the
     ///   attempted value. There is no way to change the tolerance after
     ///   commitment (D4 ¶1: never loosened mid-run).
     ///
     /// When `init` is used it should be called during single-threaded
-    /// startup, before any [`Tolerance::get`]; racing `init` against a first
+    /// startup, before any [`Tol::witness`]; racing `init` against a first
     /// `get` is safe (a single commit wins, the loser gets a typed error),
     /// but which value wins is scheduling-dependent.
     pub fn init(tolerance: Tolerance) -> Result<(), ToleranceError> {
@@ -550,24 +560,13 @@ impl Tolerance {
         }
     }
 
-    /// The run's global tolerance. Infallible and total.
-    ///
-    /// On first call without a prior [`Tolerance::init`], self-initializes
-    /// from the environment ([`ENV_EPS`]); an absent variable falls back to
-    /// [`DEFAULT_EPS`], and a malformed or invalid value falls back to the
-    /// default while recording the failure (see
-    /// [`Tolerance::env_init_errors`]).
-    pub fn get() -> Tolerance {
-        global().tolerance
-    }
-
     /// Every failure recorded by `get()`'s env self-initialization.
     ///
     /// At most one entry per tolerance env var — at most two at present
     /// ([`ENV_EPS`] and [`ENV_K`]); the slice shape is kept stable for
     /// future run-global config vars.
     ///
-    /// Forces initialization (as if by [`Tolerance::get`]) if it has not
+    /// Forces initialization (as if by [`Tol::witness`]) if it has not
     /// happened yet, so the answer is definitive. An empty slice means the
     /// committed tolerance involved no rejected env value — in particular,
     /// initialization via [`Tolerance::init`] never consults the
@@ -584,7 +583,7 @@ impl Tolerance {
     /// 2026-08-19): the environment, an explicit [`Tolerance::init`],
     /// a loaded document, or the compiled default.
     ///
-    /// Forces initialization (as if by [`Tolerance::get`]) if it has
+    /// Forces initialization (as if by [`Tol::witness`]) if it has
     /// not happened yet, so the answer is definitive — use
     /// [`Tolerance::committed_report`] to ask without committing.
     ///
@@ -597,7 +596,7 @@ impl Tolerance {
     /// The run's tolerance and the provenance of its ε, as one
     /// printable line.
     ///
-    /// Forces initialization exactly as [`Tolerance::get`] does — so a
+    /// Forces initialization exactly as [`Tol::witness`] does — so a
     /// program that may later load a document should report through
     /// [`Tolerance::committed_report`] instead, which never decides ε
     /// by asking about it.
@@ -629,10 +628,96 @@ impl Tolerance {
     }
 }
 
+/// Evidence that the run's tolerance is committed, and the kernel's only
+/// door to reading it (D4 ¶1, "the witness, not the value" — ratified
+/// 2026-08-21).
+///
+/// # What it is for
+///
+/// ε has to be four things at once, and before this type the fourth
+/// fought the other three: **runtime-configurable**, **immutable**, **one
+/// source of truth**, and **named in the signature of everything that
+/// depends on it**. The [`OnceLock`] gives the first three and forfeits
+/// the fourth. Threading a [`Tolerance`] gives the fourth and erodes the
+/// third — [`Tolerance`]'s fields are public, so `tol: Tolerance` says
+/// "decides against *a* tolerance", which is exactly true and exactly the
+/// problem (S22 row 1's 2026-08-19 ruling rejected threading on that
+/// ground, and `profile`'s 256 call sites all passing the same global are
+/// the evidence it rested on).
+///
+/// `Tol` resolves it by carrying **evidence instead of the value**. It is
+/// zero-sized with a private field, and [`Tol::witness`] — which commits
+/// the ambient bootstrap exactly as the removed `Tolerance::get` did — is
+/// its only constructor. So the type has exactly **one inhabitant**: two
+/// `Tol` values are the same `Tol`, and a second ε is not a discipline
+/// problem but something the type cannot express. The value never leaves
+/// the `OnceLock`; passing a `Tol` passes the right to read it.
+///
+/// A `tol: Tol` parameter therefore says something a value parameter
+/// cannot: not "takes a tolerance" but *"decides against the run's ε,
+/// which the caller has already committed"*. The ε-**free** functions —
+/// the exact predicates, the combinatorial layer — are identifiable by
+/// the absence of the parameter, which is the half of the signal that
+/// carries information.
+///
+/// # Cost
+///
+/// None. A zero-sized argument compiles away, and [`Tol::get`] is the
+/// same acquire-load on an initialized [`OnceLock`] that every ambient
+/// read was.
+///
+/// # Obtaining one
+///
+/// [`Tol::witness`] is confined by CI gate to the `pncad` door, binaries
+/// and tests: kernel `src` receives a `Tol` from its caller and never
+/// mints one, which is what keeps an ambient read from quietly returning.
+/// Because witnessing **commits** ε, a program that may later load a
+/// document should not witness before the load — see
+/// [`Tolerance::committed_report`], the non-committing door, for the same
+/// hazard in its reporting form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Tol(());
+
+impl Tol {
+    /// Commits the run's tolerance if nothing has yet, and returns the
+    /// witness.
+    ///
+    /// Committing is exactly what the removed `Tolerance::get` did: with
+    /// no prior [`Tolerance::init`] this self-initializes from the
+    /// environment ([`ENV_EPS`]); an absent variable falls back to
+    /// [`DEFAULT_EPS`], and a malformed or invalid value falls back to
+    /// the default while recording the failure (see
+    /// [`Tolerance::env_init_errors`]). Infallible and total.
+    ///
+    /// Call it at a program's entry point, or in a test — **not** inside
+    /// kernel `src`, where the parameter is the point (see the [type
+    /// docs](Tol)).
+    pub fn witness() -> Self {
+        let _ = global();
+        Self(())
+    }
+
+    /// The run's committed tolerance — ε and K.
+    pub fn get(self) -> Tolerance {
+        global().tolerance
+    }
+
+    /// The run's committed linear tolerance ε, in meters.
+    pub fn eps(self) -> f64 {
+        self.get().eps
+    }
+
+    /// The run's committed ambiguity multiplier K.
+    pub fn k(self) -> f64 {
+        self.get().k
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::tolerance::Tol;
 
     // Process-global state discipline: tests share one process, so
     // everything here goes through the *pure* `resolve_from_env` /
@@ -760,7 +845,7 @@ mod tests {
     /// exactly here.
     #[test]
     fn global_get_env_sanity_and_once_semantics() {
-        let t = Tolerance::get();
+        let t = Tol::witness().get();
 
         // Env sanity: any malformed/invalid tolerance env var fails the run
         // here, loudly, with the recorded error in the message.
@@ -792,7 +877,7 @@ mod tests {
         );
 
         // get is stable: same value on every subsequent call.
-        assert_eq!(Tolerance::get(), t);
+        assert_eq!(Tol::witness().get(), t);
     }
     #[test]
     fn env_k_well_formed_value_wins() {

@@ -16,12 +16,13 @@ use std::fmt::Write as _;
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, Tolerance, Vec3};
+use geom_core::{Point3, Vec3};
 use topo::{Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
 
 use crate::real::fmt_real;
 use crate::volume::shell_signed_volume;
 use crate::{SharedIds, StepExportError, StepOptions, quoted};
+use geom_core::Tol;
 
 /// The surface variant's name, for typed refusals and for the
 /// curved-shell classification message.
@@ -827,6 +828,7 @@ impl<'a> Writer<'a> {
 pub(crate) fn write_document(
     body: &Body<f64>,
     options: &StepOptions,
+    tol: Tol,
 ) -> Result<String, StepExportError> {
     let name = quoted(&options.product_name, "product name")?;
     let mut w = Writer::new(body);
@@ -861,7 +863,7 @@ pub(crate) fn write_document(
             }
             value
         }
-        None => Tolerance::get().eps,
+        None => tol.eps(),
     };
     let eps_str = fmt_real(eps, "uncertainty")?;
     let unc = w.emit(&format!(
@@ -1034,14 +1036,12 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
-    /// **The two `Surface::Nurbs` states are told apart** (S9-flipped
-    /// at M6-3: the described state used to be a named frontier
-    /// refusal; it now EXPORTS, and this row pins the surface records
-    /// at byte level exactly as the curve rows above pin theirs —
-    /// both arms, the non-rational simple entity and the RATIONAL
-    /// complex instance, even though the first corpus body is
-    /// non-rational: cheap, and it keeps the arm from being dead
-    /// code).
+    /// **The two `Surface::Nurbs` states are told apart.** This row
+    /// pins the surface records at byte level exactly as the curve
+    /// rows above pin theirs — both arms, the non-rational simple
+    /// entity and the RATIONAL complex instance, even though the first
+    /// corpus body is non-rational: cheap, and it keeps the arm from
+    /// being dead code.
     #[test]
     fn the_nurbs_surface_arms_emit_and_the_placeholder_refuses() {
         let placeholder = Surface::<f64>::nurbs_placeholder();

@@ -82,7 +82,7 @@ pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real, Tol,
 };
 
 use crate::body::Body;
@@ -580,8 +580,23 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
-    /// An edge carrier is not a `Line` (F5).
+    /// The operand gate (F5) refused a rung-3 (`Nurbs`) carrier in an
+    /// INPUT operand: rung-3 edges are what the curved zip MINTS, not
+    /// what it consumes.
     CurvedEdgeUnsupported {
+        /// The offending operand and edge.
+        operand: Operand,
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// The both-edges-split point lane needs a carrier with an exact
+    /// point parameter and got one without. `Circle` and `Ellipse`
+    /// reach here: the operand gate admits them, so this is a
+    /// **narrower** condition than the gate's, at a later stage — which
+    /// is exactly why it is its own variant rather than a second reach
+    /// of [`Self::CurvedEdgeUnsupported`]. One doc and one message
+    /// covering both could name neither.
+    PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
         /// The edge.
@@ -956,9 +971,15 @@ impl core::fmt::Display for BooleanError {
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
                 "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
-                 (Nurbs) carrier — rung-3 INPUT operands are outside the supported \
-                 envelope (rung-3 edges are what the curved zip MINTS, not what it \
-                 consumes)"
+                 (Nurbs) carrier — refused at the operand gate: rung-3 edges are what \
+                 the curved zip MINTS, not what it consumes"
+            ),
+            Self::PointSplitCarrierUnsupported { operand, edge } => write!(
+                f,
+                "boolean_reduce: edge {edge:?} of operand {operand:?} must be split at \
+                 an event point, and its carrier has no exact point parameter — only a \
+                 Line does. The operand gate admits Circle and Ellipse; this lane is \
+                 narrower, and refuses rather than solving for the parameter"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
@@ -1191,8 +1212,9 @@ pub fn boolean_reduce<T: Decide + Bounds>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none())
+    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none(), tol)
 }
 
 /// [`boolean_reduce`] with declared coincidence intents (F5, M4
@@ -1209,8 +1231,16 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared_strategy(op, a_operand, b_operand, decls, SweepStrategy::Realized)
+    boolean_reduce_declared_strategy(
+        op,
+        a_operand,
+        b_operand,
+        decls,
+        SweepStrategy::Realized,
+        tol,
+    )
 }
 
 /// The differential suite's sweep-level door (PERF-PLAN §4.4 / C10,
@@ -1236,8 +1266,9 @@ pub fn sweep_traces<T: Decide + Bounds>(
     b_operand: &Body<T>,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
+    tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None)
+    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
@@ -1255,8 +1286,9 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
+    tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     reduce::gate_operand_kinds(a_operand, Operand::A)?;
     reduce::gate_operand_kinds(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
@@ -1286,6 +1318,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         strategy,
         &ab_knobs,
         Some(&mut ab),
+        tol,
     )?;
     reduce::sweep_direction(
         &mut b,
@@ -1296,6 +1329,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         strategy,
         &ba_knobs,
         Some(&mut ba),
+        tol,
     )?;
     Ok((ab, ba))
 }
@@ -1310,8 +1344,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
@@ -1335,6 +1370,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         strategy,
         &knobs,
         None,
+        tol,
     )?;
     reduce::sweep_direction(
         &mut b,
@@ -1345,6 +1381,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         strategy,
         &knobs,
         None,
+        tol,
     )?;
     let contacts = acc.finish();
 
@@ -1354,15 +1391,31 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
-        let out =
-            vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, &declared, band)?;
+        let out = vtxfac::classify_vertex_on_face(
+            &mut a,
+            &mut b,
+            Operand::A,
+            c,
+            op,
+            &declared,
+            band,
+            tol,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
     }
     for &c in &contacts.b_on_a {
-        let out =
-            vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, &declared, band)?;
+        let out = vtxfac::classify_vertex_on_face(
+            &mut b,
+            &mut a,
+            Operand::B,
+            c,
+            op,
+            &declared,
+            band,
+            tol,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);

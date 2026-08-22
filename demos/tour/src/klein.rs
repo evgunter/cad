@@ -77,27 +77,26 @@
 //!    `docs/KERNEL-VERBS.md` being paid for by hand, once per wall.
 //!    NOT a probe: there is no verb to call, so there is no refusal
 //!    to pin.
-//! 2. **`fillet_edges` on a FULL solid of revolution refuses
-//!    `TangentialEdge`, and the verdict is false** (wall 1, #554). A full
-//!    revolve's latitude rims are CLOSED circles: start vertex ==
-//!    end vertex. The fillet battery's lever arm is
-//!    `|carrier(t1) − carrier(t0)|`, the straight-line chord between
-//!    those endpoints — which is 5.5e-17 m on a closed rim instead of
-//!    the rim's diameter — and every angular predicate is levered
-//!    against it, so the dihedral classifier reads Zero and reports
-//!    "the supports share a tangent plane". They do not: the neck
-//!    cylinder and the body cone meet at 30°. The SAME profile
-//!    revolved PARTIALLY (open rims, chord 0.27 m) refuses
-//!    `SpineUnsupported` instead — the honest answer. Both are probed
-//!    here, one after the other, because the pair is the evidence.
-//! 3. **The cone×cylinder fillet arm is missing** (wall 2) — the
+//! 2. **A closed rim now meters an honest lever arm** (wall 1 — the
+//!    pair with wall 2 is the evidence). A full revolve's latitude
+//!    rims are CLOSED circles: start vertex == end vertex, so an
+//!    endpoint chord collapses to ~0 there. The battery's lever arm
+//!    is the maximum pairwise chord over the samples
+//!    `{t0, mid, t1}`, which meters a full circular rim at ~its
+//!    diameter — so the neck→flare corner on the FULL revolve
+//!    refuses `SpineUnsupported`, the same honest answer the SAME
+//!    profile revolved PARTIALLY gets. (This pair once split: the
+//!    endpoint-chord lever read ~0 on the closed rim and the
+//!    dihedral classifier decided Zero — a false `TangentialEdge` on
+//!    a 30° corner, #554. Both forms are still probed back to back
+//!    because agreement between them is exactly what #554 restored.)
+//! 3. **The cone×cylinder fillet arm is missing** (walls 1, 2) — the
 //!    `constant-radius fillet on CURVED support pairs` row. Recorded,
 //!    NOT wanted: Evan's reading (2026-08-16) is that the meridian
 //!    arc is the better answer for coaxial supports, because the
 //!    blend is then a constructed part of the shape instead of a
-//!    post-hoc roll. Wall 2 stands as the record of what the verb
-//!    says today, and as the control for wall 1 — it is the same
-//!    corner with an honest lever arm.
+//!    post-hoc roll. Both walls stand as the record of what the verb
+//!    says today, at an honest lever on both rims.
 //! 4. **No boolean may touch a Cone or a Torus face** (walls 3, 4).
 //!    The operand gate is per-FACE-KIND and it rejects the whole
 //!    body: `union` refuses `CurvedBooleanUnsupported { kind: Torus }`
@@ -188,7 +187,7 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Band, Mat3, Point3};
+use pncad::geom_core::{Affine3, Band, Mat3, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
 use pncad::sweep::fillet::{FilletError, fillet_edges};
@@ -321,38 +320,38 @@ fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
 /// neck→flare blend curves AWAY from the axis (outer offset is the
 /// smaller radius), the rim curves toward it. That bookkeeping is
 /// finding 1 in its most concrete form.
-fn band<S: Scalar>(m: &Meridian) -> ProfileLoop<S> {
+fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
     let half = S::from_f64(WALL / 2.0);
     Open.at(p2::<S>(m.ri, ZTOP))
-        .toward(S::from_f64(0.0), S::from_f64(-1.0))
+        .toward(S::from_f64(0.0), S::from_f64(-1.0), tol)
         .expect("the neck runs down")
-        .fillet(S::from_f64(m.rf) + half)
+        .fillet(S::from_f64(m.rf) + half, tol)
         .expect("the inner neck→flare blend")
-        .toward(S::from_f64(m.dir.0), S::from_f64(m.dir.1))
+        .toward(S::from_f64(m.dir.0), S::from_f64(m.dir.1), tol)
         .expect("the flare runs down and out")
-        .to(p2::<S>(m.g_in.0, m.g_in.1))
+        .to(p2::<S>(m.g_in.0, m.g_in.1), tol)
         .expect("the inner flare ends where the rim takes over")
         .tangent()
-        .tangent_arc_to(p2::<S>(m.h_from_in.0, m.h_from_in.1))
+        .tangent_arc_to(p2::<S>(m.h_from_in.0, m.h_from_in.1), tol)
         .expect("the rim arc, minor radius RRIM − WALL/2")
         .tangent()
-        .line(S::from_f64(m.z_tube - m.rim_z))
+        .line(S::from_f64(m.z_tube - m.rim_z), tol)
         .expect("the inner tube runs back up")
-        .line_to(p2::<S>(m.ri, m.z_tube))
+        .line_to(p2::<S>(m.ri, m.z_tube), tol)
         .expect("the inner tube's top rim")
-        .line_to(p2::<S>(m.h_from_out.0, m.h_from_out.1))
+        .line_to(p2::<S>(m.h_from_out.0, m.h_from_out.1), tol)
         .expect("and down its other wall")
         .tangent()
-        .tangent_arc_to(p2::<S>(m.g_out.0, m.g_out.1))
+        .tangent_arc_to(p2::<S>(m.g_out.0, m.g_out.1), tol)
         .expect("the rim arc, minor radius RRIM + WALL/2")
         .tangent()
-        .fillet(S::from_f64(m.rf) - half)
+        .fillet(S::from_f64(m.rf) - half, tol)
         .expect("the outer flare→neck blend")
-        .toward(S::from_f64(0.0), S::from_f64(1.0))
+        .toward(S::from_f64(0.0), S::from_f64(1.0), tol)
         .expect("the neck runs up")
-        .to(p2::<S>(m.ro, ZTOP))
+        .to(p2::<S>(m.ro, ZTOP), tol)
         .expect("the outer neck ends at the top rim")
-        .line_to(Start)
+        .line_to(Start, tol)
         .expect("the neck's top rim closes the band")
         .into()
 }
@@ -360,7 +359,7 @@ fn band<S: Scalar>(m: &Meridian) -> ProfileLoop<S> {
 /// The same band with the two blends taken OUT: a hard corner where
 /// the neck meets the flare. Built only to ask `fillet_edges` for the
 /// blend the band authors for free — walls 1 and 2.
-fn sharp_band<S: Scalar>(m: &Meridian) -> ProfileLoop<S> {
+fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
     // Where the flare's two offsets cross the neck's two walls.
     let corner = |g: (f64, f64), x: f64| {
         let s = (x - g.0) / m.dir.0;
@@ -371,29 +370,29 @@ fn sharp_band<S: Scalar>(m: &Meridian) -> ProfileLoop<S> {
     // `dir` is a unit vector.
     let flare_run = S::from_f64(((m.ro - m.g_out.0) / m.dir.0).abs());
     Open.at(p2::<S>(m.ri, ZTOP))
-        .line_to(corner(m.g_in, m.ri))
+        .line_to(corner(m.g_in, m.ri), tol)
         .expect("the neck runs down to the sharp corner")
-        .line_to(p2::<S>(m.g_in.0, m.g_in.1))
+        .line_to(p2::<S>(m.g_in.0, m.g_in.1), tol)
         .expect("the inner flare")
         .tangent()
-        .tangent_arc_to(p2::<S>(m.h_from_in.0, m.h_from_in.1))
+        .tangent_arc_to(p2::<S>(m.h_from_in.0, m.h_from_in.1), tol)
         .expect("the rim arc, minor radius RRIM − WALL/2")
         .tangent()
-        .line(S::from_f64(m.z_tube - m.rim_z))
+        .line(S::from_f64(m.z_tube - m.rim_z), tol)
         .expect("the inner tube runs back up")
-        .line_to(p2::<S>(m.ri, m.z_tube))
+        .line_to(p2::<S>(m.ri, m.z_tube), tol)
         .expect("the inner tube's top rim")
-        .line_to(p2::<S>(m.h_from_out.0, m.h_from_out.1))
+        .line_to(p2::<S>(m.h_from_out.0, m.h_from_out.1), tol)
         .expect("and down its other wall")
         .tangent()
-        .tangent_arc_to(p2::<S>(m.g_out.0, m.g_out.1))
+        .tangent_arc_to(p2::<S>(m.g_out.0, m.g_out.1), tol)
         .expect("the rim arc, minor radius RRIM + WALL/2")
         .tangent()
-        .line(flare_run)
+        .line(flare_run, tol)
         .expect("the outer flare")
-        .line_to(p2::<S>(m.ro, ZTOP))
+        .line_to(p2::<S>(m.ro, ZTOP), tol)
         .expect("the outer neck runs up to the top rim")
-        .line_to(Start)
+        .line_to(Start, tol)
         .expect("the neck's top rim closes the band")
         .into()
 }
@@ -401,19 +400,20 @@ fn sharp_band<S: Scalar>(m: &Meridian) -> ProfileLoop<S> {
 /// Revolves a meridian band about the bottle's axis. `Full` is the
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
-fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>) -> Body<S> {
+fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
         v3::<S>(0.0, 0.0, 1.0),
     );
     revolve(
-        &validated(plane, vec![loop_]).expect("the meridian band validates"),
+        &validated(plane, vec![loop_], tol).expect("the meridian band validates"),
         RevolveAxis {
             origin: p2::<S>(0.0, 0.0),
             dir: v2::<S>(0.0, 1.0),
         },
         revolution,
+        tol,
     )
     .expect("the meridian band revolves")
     .body
@@ -433,27 +433,28 @@ fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>) -> Body<S> 
 /// meters its radial coordinate from `dir`, and the annulus must land
 /// on the `r ≥ 0` side): the right-hand rule about −ŷ then carries
 /// the section UP, which is where the loop goes.
-fn elbow<S: Scalar>(z0: f64, sweep: f64) -> Body<S> {
+fn elbow<S: Scalar>(z0: f64, sweep: f64, tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(
         p3::<S>(0.0, 0.0, z0),
         v3::<S>(1.0, 0.0, 0.0),
         v3::<S>(0.0, 1.0, 0.0),
     );
     let annulus = vec![
-        circle(p2::<S>(0.0, 0.0), S::from_f64(R + WALL / 2.0))
+        circle(p2::<S>(0.0, 0.0), S::from_f64(R + WALL / 2.0), tol)
             .expect("the outer wall")
             .into(),
-        circle(p2::<S>(0.0, 0.0), S::from_f64(R - WALL / 2.0))
+        circle(p2::<S>(0.0, 0.0), S::from_f64(R - WALL / 2.0), tol)
             .expect("the inner wall")
             .into(),
     ];
     revolve(
-        &validated(plane, annulus).expect("the annulus validates"),
+        &validated(plane, annulus, tol).expect("the annulus validates"),
         RevolveAxis {
             origin: p2::<S>(RLOOP, 0.0),
             dir: v2::<S>(0.0, -1.0),
         },
         Revolution::Partial(S::from_f64(-sweep)),
+        tol,
     )
     .expect("the elbow revolves")
     .body
@@ -461,12 +462,12 @@ fn elbow<S: Scalar>(z0: f64, sweep: f64) -> Body<S> {
 
 /// The three bodies of the bottle, in surface order: bulb, then the
 /// loop's two arcs.
-fn bottle<S: Scalar>() -> [Body<S>; 3] {
+fn bottle<S: Scalar>(tol: Tol) -> [Body<S>; 3] {
     let m = meridian();
     [
-        bulb(band::<S>(&m), Revolution::Full),
-        elbow::<S>(ZTOP, SWEEP_OVER),
-        elbow::<S>(m.z_tube, SWEEP_IN),
+        bulb(band::<S>(&m, tol), Revolution::Full, tol),
+        elbow::<S>(ZTOP, SWEEP_OVER, tol),
+        elbow::<S>(m.z_tube, SWEEP_IN, tol),
     ]
 }
 
@@ -493,10 +494,12 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
         .collect()
 }
 
-/// The straight-line chord between an edge's endpoints — the lever
-/// arm every angular fillet predicate is metered against. Findings
-/// entry 2 is a statement about this number.
-fn endpoint_chord<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
+/// The lever arm every angular fillet predicate is metered against —
+/// the maximum pairwise chord over the battery's own per-link sample
+/// schedule (`sweep::fillet::battery::CHAIN_SAMPLES`). Findings
+/// entry 2 is a statement about this number: it stays ~the rim's
+/// diameter whether or not the rim closes.
+fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
     let e = body.get_edge(edge).expect("edge");
     let c = body
         .get_curve_geom(e.curve)
@@ -504,13 +507,27 @@ fn endpoint_chord<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
         .certified()
         .expect("a revolved rim carries a certified carrier");
     let (t0, t1) = c.params();
-    (c.carrier().eval(t1) - c.carrier().eval(t0)).norm().f()
+    let carrier = c.carrier();
+    let n = pncad::sweep::fillet::battery::CHAIN_SAMPLES;
+    let pts: Vec<_> = (0..n)
+        .map(|i| {
+            let f = S::from_f64(f64::from(i) / f64::from(n - 1));
+            carrier.eval(t0 + (t1 - t0) * f)
+        })
+        .collect();
+    let mut best = S::from_f64(0.0);
+    for (i, a) in pts.iter().enumerate() {
+        for b in &pts[(i + 1)..] {
+            best = best.max((*b - *a).norm());
+        }
+    }
+    best.f()
 }
 
 /// The bottle stop.
-pub fn stops() -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<Stop> {
     let m = meridian();
-    let [bulb, over, into] = bottle::<f64>();
+    let [bulb, over, into] = bottle::<f64>(tol);
 
     // The elbows' volumes are the annulus times the spine length,
     // exactly (Pappus with the centroid ON the spine): a closed-form
@@ -518,7 +535,7 @@ pub fn stops() -> Vec<Stop> {
     let ring = PI * ((R + WALL / 2.0).powi(2) - (R - WALL / 2.0).powi(2));
     for (name, body, sweep) in [("over", &over, SWEEP_OVER), ("into", &into, SWEEP_IN)] {
         let want = ring * sweep * RLOOP;
-        let got = pncad::topo::mass_properties(body)
+        let got = pncad::topo::mass_properties(body, tol)
             .expect("mass properties")
             .volume;
         assert!(
@@ -694,17 +711,21 @@ pub fn stops() -> Vec<Stop> {
 /// The bottle's frontier, run live (the lily's rule): every shape
 /// this model wanted and the kernel would not state, attempted for
 /// real and pinned by its own typed refusal.
-pub fn wall_probes<S: Scalar>() {
+pub fn wall_probes<S: Scalar>(tol: Tol) {
     println!("\n-- the Klein bottle's walls: what a non-orientable surface asks for --");
     let m = meridian();
-    let [bulb_body, over, into] = bottle::<S>();
+    let [bulb_body, over, into] = bottle::<S>(tol);
     let band_radius = S::from_f64(RF);
 
     // Walls 1 and 2 are ONE question asked of two bodies, and the
     // pair is the finding: the same corner, on a full and a partial
     // revolve of the SAME band.
-    let sharp_full = bulb::<S>(sharp_band::<S>(&m), Revolution::Full);
-    let sharp_part = bulb::<S>(sharp_band::<S>(&m), Revolution::Partial(S::from_f64(5.0)));
+    let sharp_full = bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol);
+    let sharp_part = bulb::<S>(
+        sharp_band::<S>(&m, tol),
+        Revolution::Partial(S::from_f64(5.0)),
+        tol,
+    );
     let full_edges = corner_edges(&sharp_full, SurfaceKind::Cone, SurfaceKind::Cylinder);
     let part_edges = corner_edges(&sharp_part, SurfaceKind::Cone, SurfaceKind::Cylinder);
     assert_eq!(
@@ -712,14 +733,14 @@ pub fn wall_probes<S: Scalar>() {
         (2, 2),
         "each sharp band has two cone×cylinder corners, one per wall"
     );
-    let (chord_full, chord_part) = (
-        endpoint_chord(&sharp_full, full_edges[0]),
-        endpoint_chord(&sharp_part, part_edges[0]),
+    let (lever_full, lever_part) = (
+        lever_arm(&sharp_full, full_edges[0]),
+        lever_arm(&sharp_part, part_edges[0]),
     );
     println!(
-        "   the fillet battery's lever arm on this corner: {chord_full:.3e} m when the \
-         rim is CLOSED (full revolve), {chord_part:.3e} m when it is open (partial). \
-         Same corner, same 30° dihedral."
+        "   the fillet battery's lever arm on this corner: {lever_full:.3e} m when the \
+         rim is CLOSED (full revolve), {lever_part:.3e} m when it is open (partial). \
+         Same corner, same 30° dihedral, honest levers both."
     );
     crate::walls::wall(
         "bottle",
@@ -730,15 +751,15 @@ pub fn wall_probes<S: Scalar>() {
             &sharp_full,
             &[full_edges[0]],
             band_radius,
-            Band::linear().expect("the run's band"),
+            Band::linear(tol).expect("the run's band"),
+            tol,
         ),
-        // The claim is the FALSEHOOD: a 40° dihedral reported as
-        // tangential, because the closed rim's endpoint chord is the
-        // lever arm and it is zero.
-        |e| matches!(e, FilletError::TangentialEdge { .. }),
-        "delete the sharp-band probe — and check WHY it passed: if the answer is \
-         still `TangentialEdge` on a transverse corner, the wall did not move, the \
-         report did",
+        // The honest refusal, and the SAME one wall 2 gets: the
+        // closed rim meters ~its diameter, the dihedral signs
+        // definitely, and what is actually missing is the
+        // cone×cylinder arm (findings entry 3).
+        |e| matches!(e, FilletError::SpineUnsupported { .. }),
+        "author the bulb's blends with fillet_edges instead of in the meridian",
     );
     crate::walls::wall(
         "bottle",
@@ -748,7 +769,8 @@ pub fn wall_probes<S: Scalar>() {
             &sharp_part,
             &[part_edges[0]],
             band_radius,
-            Band::linear().expect("the run's band"),
+            Band::linear(tol).expect("the run's band"),
+            tol,
         ),
         |e| matches!(e, FilletError::SpineUnsupported { .. }),
         "author the bulb's blends with fillet_edges instead of in the meridian",
@@ -761,7 +783,7 @@ pub fn wall_probes<S: Scalar>() {
         "bottle",
         3,
         "join the loop to the bulb (coincident annular mate)",
-        pncad::topo::union(&bulb_body, &over),
+        pncad::topo::union(&bulb_body, &over, tol),
         |e| {
             matches!(
                 e,
@@ -782,7 +804,7 @@ pub fn wall_probes<S: Scalar>() {
         "bottle",
         4,
         "cut the flare where the descending neck passes through it",
-        pncad::topo::subtract(&bulb_body, &into),
+        pncad::topo::subtract(&bulb_body, &into, tol),
         |e| matches!(e, BooleanError::CurvedOpUnsupported { .. }),
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
@@ -802,8 +824,12 @@ pub fn wall_probes<S: Scalar>() {
     let path =
         pncad::geom::NurbsCurve3::interpolate(&spine, 3).expect("the loop's spine interpolates");
     let annulus: Vec<ProfileLoop<f64>> = vec![
-        circle(p2(0.0, 0.0), R + WALL / 2.0).expect("outer").into(),
-        circle(p2(0.0, 0.0), R - WALL / 2.0).expect("inner").into(),
+        circle(p2(0.0, 0.0), R + WALL / 2.0, tol)
+            .expect("outer")
+            .into(),
+        circle(p2(0.0, 0.0), R - WALL / 2.0, tol)
+            .expect("inner")
+            .into(),
     ];
     crate::walls::wall(
         "bottle",
@@ -818,6 +844,7 @@ pub fn wall_probes<S: Scalar>() {
             &path,
             33,
             3,
+            tol,
         ),
         |e| matches!(e, LoftError::ReversedStacking),
         "build the loop as ONE body and drop the two-elbow split",
@@ -833,13 +860,14 @@ pub fn wall_probes<S: Scalar>() {
     let ring = validated(
         ring_plane,
         vec![
-            circle(p2::<S>(RLOOP, 0.0), S::from_f64(R + WALL / 2.0))
+            circle(p2::<S>(RLOOP, 0.0), S::from_f64(R + WALL / 2.0), tol)
                 .expect("outer")
                 .into(),
-            circle(p2::<S>(RLOOP, 0.0), S::from_f64(R - WALL / 2.0))
+            circle(p2::<S>(RLOOP, 0.0), S::from_f64(R - WALL / 2.0), tol)
                 .expect("inner")
                 .into(),
         ],
+        tol,
     )
     .expect("the annulus validates");
     crate::walls::wall(
@@ -853,6 +881,7 @@ pub fn wall_probes<S: Scalar>() {
                 dir: v2::<S>(0.0, 1.0),
             },
             Revolution::Full,
+            tol,
         ),
         |e| matches!(e, pncad::sweep::RevolveError::FullRevolveHoles),
         "say hollow rings in one revolve",
@@ -866,14 +895,15 @@ pub fn wall_probes<S: Scalar>() {
     // not generic over the scalar — meshing is a rendering-side
     // operation and takes the run's own numbers.
     let wider = bulb::<f64>(
-        band::<f64>(&meridian_at(ALPHA, RF, 0.85, RLOOP)),
+        band::<f64>(&meridian_at(ALPHA, RF, 0.85, RLOOP), tol),
         Revolution::Full,
+        tol,
     );
     crate::walls::wall(
         "bottle",
         7,
         "tessellate the same bottle with a 5 cm wider bottom rim",
-        pncad::mesh::tessellate(&wider, 1e-2),
+        pncad::mesh::tessellate(&wider, 1e-2, tol),
         |e| matches!(e, pncad::mesh::TessellateError::Triangulation { .. }),
         "check whether `mesh::planar`'s banked sub-floor case was CLOSED (the far \
          point's engineered exact-zero v-coordinate) — and if it was, say so in \

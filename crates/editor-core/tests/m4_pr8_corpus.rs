@@ -29,6 +29,7 @@ use topo::{mass_properties, validate, validate_closed};
 use corpus::{
     EDIT_KINDS, NODE_KINDS, SUB_KINDS, body_of, cone, documents, eval, failures, vocabulary,
 };
+use geom_core::Tol;
 
 #[test]
 fn every_document_evaluates_green() {
@@ -64,7 +65,7 @@ fn exact_mass_pins_hold() {
         assert_eq!(validate_closed(body), Ok(()), "{}: closed", d.name);
         let Some(pin) = d.pin else { continue };
         pinned += 1;
-        let m = mass_properties(body).expect("mass properties");
+        let m = mass_properties(body, Tol::witness()).expect("mass properties");
         assert_eq!(
             m.volume, pin.volume,
             "{}: volume {} != exact oracle {} (derivation in the document's module docs)",
@@ -96,6 +97,7 @@ fn incremental_recompute_reuses_the_cone_complement() {
             Some(&full),
             &CancelToken::new(),
             &EvalOptions::default(),
+            Tol::witness(),
         );
         let bad = failures(&after);
         assert!(

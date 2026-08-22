@@ -425,9 +425,10 @@ pub(super) fn pair_search<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// The 15.7 sign resolution, mirror-pinned (F3): against a face

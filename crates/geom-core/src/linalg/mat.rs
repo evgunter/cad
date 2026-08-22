@@ -70,7 +70,16 @@ impl<T: Real> Mat3<T> {
     ///
     /// Evaluation order (fixed, D9), with `(s, c) = angle.sin_cos()` and
     /// `t = 1 − c`: each off-diagonal entry is `((t·nᵢ)·nⱼ) ± (s·nₖ)` and
-    /// each diagonal entry is `((t·nᵢ)·nᵢ) + c`, exactly as parenthesized.
+    /// each diagonal entry is `(t·(nᵢ²)) + c`, exactly as parenthesized.
+    /// The diagonal's square is the tight square (`powi(2)`), taken
+    /// before the `t` scale: at `Interval` the plain `(t·nᵢ)·nᵢ` treats
+    /// the two `nᵢ` factors as independent, so an axis component whose
+    /// enclosure straddles zero gives the diagonal a spurious sign
+    /// excursion. Unlike the off-diagonals — genuine mixed products,
+    /// which stay as written — the diagonal is a scaled square, and `t`
+    /// is arbitrary, so this association is not the `f64` product's:
+    /// the two differ by a rounding and that difference is visible in
+    /// `f64` output.
     /// Orthogonality and unit determinant hold to rounding, not exactly.
     pub fn rotation_about(axis: Vec3<T>, angle: T) -> Self {
         let n = axis.normalize();
@@ -78,9 +87,9 @@ impl<T: Real> Mat3<T> {
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);
         Self::from_cols(
-            Vec3::new(t * x * x + c, t * x * y + s * z, t * x * z - s * y),
-            Vec3::new(t * x * y - s * z, t * y * y + c, t * y * z + s * x),
-            Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z * z + c),
+            Vec3::new(t * x.powi(2) + c, t * x * y + s * z, t * x * z - s * y),
+            Vec3::new(t * x * y - s * z, t * y.powi(2) + c, t * y * z + s * x),
+            Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z.powi(2) + c),
         )
     }
 
@@ -228,6 +237,81 @@ mod tests {
         for c in [r.c0, r.c1, r.c2] {
             assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
         }
+    }
+
+    /// The diagonal is `(t·nᵢ²) + c`, **bit-exactly and not
+    /// `((t·nᵢ)·nᵢ) + c`** — the association the doc comment states, at
+    /// an input that can tell the two apart.
+    ///
+    /// `t = 1 − cos θ` is arbitrary, so the two spellings differ by a
+    /// rounding on most oblique axes — unlike `vec.rs`'s `±1`-scaled
+    /// twin, which is exact either way.
+    ///
+    /// **DO NOT DELETE THIS AS REDUNDANT. It is the only thing in the
+    /// tree that objects.** Every committed artifact — every golden,
+    /// render, STEP export and k-lint row — rotates about an axis whose
+    /// components are `0` or `±1`, and there
+    /// `(t·0)·0 = t·(0²) = 0` and `(t·1)·1 = t·(1²) = t` make the two
+    /// associations identical. So re-associating this diagonal back
+    /// would move `f64` output for real callers with an **oblique**
+    /// axis while the entire committed corpus stayed byte-identical and
+    /// green. That was measured, not assumed: the conversion that
+    /// introduced this test changed 34.6% of random (θ, axis) diagonals
+    /// and re-cut no golden anywhere.
+    ///
+    /// The tree's one other oblique-axis bit-exact rotation row
+    /// (`editor-core/tests/asm2a_instantiate.rs`) cannot help: its
+    /// oracle re-spells the caller's own expression and so moves with
+    /// the code. That is smell-scan **S215**, and this doc comment is
+    /// the reason it is only a finding rather than a hole.
+    ///
+    /// **The angles are swept, not hand-picked.** Whether a given θ
+    /// separates the two spellings depends on libm's `sin_cos` to the
+    /// last ulp, so a hardcoded pair is a fixture that can silently
+    /// stop discriminating under a libm bump. The sweep asserts
+    /// instead that *some* angle in it discriminates each of the three
+    /// diagonals, which fails loudly if that ever stops being true.
+    #[test]
+    fn rotation_diagonal_takes_the_square_before_the_scale() {
+        // The RAW axis goes in: `rotation_about` normalizes internally,
+        // so handing it a pre-normalized vector normalizes twice and the
+        // expectation below would be modelling a different axis. (This
+        // test caught exactly that mistake being made in it.)
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let mut discriminating = [false; 3];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let r = Mat3::rotation_about(axis, theta);
+            // `Real::sin_cos`, NOT std's inherent `f64::sin_cos`. The
+            // kernel routes transcendentals through the pure-Rust `libm`
+            // crate BECAUSE the platform libm differs in the last ulp
+            // (D9; `real.rs`'s `libm_vs_std_divergence_census` measures
+            // it at ~3% of samples, max 1 ulp). At this precision that
+            // difference is the whole test, so std's method is the wrong
+            // oracle here — as this test demonstrated by rejecting it.
+            let (_, c) = <f64 as Real>::sin_cos(theta);
+            let t = 1.0 - c;
+            let got = [r.c0.x, r.c1.y, r.c2.z];
+            for (i, ni) in [n.x, n.y, n.z].into_iter().enumerate() {
+                let want = t * <f64 as Real>::powi(ni, 2) + c;
+                assert_eq!(
+                    got[i].to_bits(),
+                    want.to_bits(),
+                    "diagonal {i} at theta={theta}: {} vs documented t*n^2+c {}",
+                    got[i],
+                    want
+                );
+                if want.to_bits() != ((t * ni) * ni + c).to_bits() {
+                    discriminating[i] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating, [true; 3],
+            "no angle in the sweep separates ((t*n)*n)+c from (t*n^2)+c for \
+             every diagonal — this test no longer guards the association"
+        );
     }
 
     proptest! {

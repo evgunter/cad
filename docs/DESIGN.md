@@ -45,16 +45,14 @@ self-intersection and to compute tolerance stackups.
 
 ## The central commitment
 
-> **A model is a pure, replayable function from a parameter vector to a
-> solid.** `fn build(params: &Params) -> Result<Solid, ModelError>` —
-> deterministic, no hidden state. The B-rep is a derived value, never a
-> mutated-in-place object.
+> **A model is a pure, replayable function from a parameter vector and a
+> tolerance to a solid.** `fn build(params: &Params, tol: Tol) ->
+> Result<Solid, ModelError>` — deterministic, no hidden state. The B-rep is
+> a derived value, never a mutated-in-place object.
 
-**Not quite: there is one exception, and only one — ε.** No signature
-carries it and every predicate reads it, so a model is a pure function of
-its parameters *and* of ε, which is committed once per process before the
-first predicate and cannot be changed after (D4). Determinism is over the
-pair: the same parameters at the same ε give the same solid.
+Determinism is over the pair: the same parameters at the same ε give the
+same solid. ε is one value per run, committed once and never changed after
+— see D4 ¶1.
 
 Everything else follows from holding this invariant from day one:
 
@@ -857,9 +855,40 @@ applied to error handling. Five commitments:
    carriers only up to the certified residual; STL's f32 narrowing adds
    ≤1 ulp per coordinate on top, documented in the writer) — but this
    is an *export promise*, explicitly not a kernel invariant. The mesh
-   layer reads ε exactly once (pole vertex identification) and never
-   for sizing; display-layer comparisons are deliberately not Q1
-   predicates (none decide kernel topology).
+   layer never reads ε for sizing; display-layer comparisons are
+   deliberately not Q1 predicates (none decide kernel topology).
+
+   > **RULED 2026-08-21 — the stronger reading, and the pole
+   > classification owes a GUARD rather than a qualifier here.**
+   >
+   > **The deleted clause** said the mesh layer *"reads ε exactly once
+   > (pole vertex identification)"*. **That count was false** — four
+   > terminal ε reads across seven consumer sites. #872 replaced it with a
+   > computed pin (`mesh/tests/all.rs::the_eps_inventory_is_pinned`) so it
+   > cannot drift again. Only the count is deleted; *"never for sizing"* is
+   > true and checkable from `sizing`'s signatures.
+   >
+   > **The question underneath was the real one.** One of those reads is a
+   > **classification**, not a bar: pole identification substitutes the
+   > chart's exact `v` and emits two polygon entries instead of one, so an ε
+   > that flipped it would **move emitted coordinates with δ held fixed**.
+   > That makes the sentence above true of every body this build can mint
+   > and **not a theorem** — nothing in the tree flips it, but no argument
+   > establishes that nothing can, and a STEP import is the plausible route
+   > in.
+   >
+   > **The ruling: this paragraph keeps its promise unqualified, and the
+   > classification is guarded so the promise stays true** — filed as
+   > **#896**. Weakening a ratified promise to accommodate a state that
+   > could only arise from **value coincidence** would make this document
+   > quieter about exactly the case worth hearing about, and this project
+   > does not read intent into numerical coincidence. The guard says the
+   > same thing honestly and fails loudly if the belief is wrong.
+   >
+   > **#895's junction guard does not discharge #896**: it compares
+   > declared vertex against declared vertex, and this case is a junction
+   > against an **undeclared** analytic chart pole. Where the pole is itself
+   > declared the two overlap; where it is not, nothing looks.
 
    **The margin dimensional convention (RATIFIED 2026-08-05, Evan 👍 on PR #205 comment 5195787412; shaped
    in-chat with Evan — non-generic erased annotations, his call —
@@ -1108,8 +1137,22 @@ topology change is stated, not emergent.
 - Transcendentals via the pure-Rust `libm` crate: system libm sin/cos
   differ across platforms in the last ulp — enough to flip a marginal
   predicate.
-- The kernel never panics on any input: panics are bugs; every failure is
-  a typed error. *(Honest M1 footnote: operator debug postconditions
+- **The kernel never panics on any INPUT** — every failure that an input
+  can reach is a typed error. **A panic is therefore never a refusal: it
+  reports that a bug has already happened.** *Restated 2026-08-21 because
+  the original wording — "panics are bugs" — inverts on a careless read.*
+  It meant **a firing panic is evidence of a bug**; it reads just as
+  naturally as *"a panic in the source is a defect to remove"*, which is
+  the opposite of this rule, and it has been misread that way.
+  **The converse is a positive obligation, not a tolerance: a state that
+  can only be a kernel bug MUST panic** — as loudly and as early as it is
+  detectable (`unreachable!` or `debug_assert`, the D2 addendum's rows 4
+  and 5 below). The whole value of such a check is catching the defect at
+  the first moment it is observable, so downgrading one to silence, or to
+  a typed error, launders a bug into a supported outcome. The two halves
+  are **separate rules over disjoint state classes** — inputs never
+  panic; bug states always do — and neither licenses the other's
+  territory. *(Honest M1 footnote: operator debug postconditions
   are `debug_assert`s, and they are unreachable by input through the
   public API at every door but one — raw insertion is crate-internal,
   and the public mutation paths preserve tier 1: the Euler operators by
@@ -1166,11 +1209,84 @@ announced, not swallowed.
 
 | # | State class | Mechanism |
 |---|---|---|
+| **0** | **Can this state be made unrepresentable?** — asked of every state, before the rows below | **change the type.** Preferred over every row below whenever it is available |
 | 1 | Reachable by input, **invalid** | typed error |
 | 2 | Reachable by input, **valid but unbuilt** | typed `Unsupported*` error |
 | 3 | **Value-domain degeneracy** | poison — NaN / empty |
 | 4 | **Kernel bug**, observable in a branch | `unreachable!` |
 | 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
+
+**Row 0 (ratified 2026-08-20, Evan's sign-off; raised by D27).
+Representability comes before classification.** Rows 1–5 classify a
+state that exists. Row 0 asks whether it should exist at all, and it is
+answered **first**, before the classification begins. **When the answer
+is yes, that is the answer** — not one disposition among six, but the
+preferred one wherever it is available: a state that cannot be spelled
+needs no error variant, no `Display` arm, no recourse row, no test
+seed, and no row of this table.
+
+*It is a question, not a class, which is why it is row 0 and not row
+6.* It adds no bucket and renumbers nothing. What it adds is a step to
+the procedure: **a lane that files a state under any row owes the
+reason row 0 did not apply**, and a lane that reaches row 1 has already
+answered row 0. Without that step the procedure has no place for *"this
+state should not exist"* to be the answer, so a state fitting no row
+reads as a gap in the taxonomy — which is exactly how
+`FilletError::EmptyChain` came to sit under a row whose definition it
+failed, and how a sixth row came to look like the fix.
+
+*What "if possible" excludes, because a preference that outranks the
+alternatives is otherwise a licence.* Row 0 is answered against the
+cost of the type change, and the two ends of that scale are both in the
+tree:
+
+- **`EmptyChain` — yes.** The emptiness was an artefact of `Chain`
+  holding its links in a `Vec` when the walk mints every chain from a
+  seed link. Moving the first link into its own private field deleted
+  the state, both its refusal sites and the pin guarding it: **a
+  private field and a constructor signature, no public API change**
+  (D27, PR #768).
+- **`Live`'s generative brand — no, and it was already answered.**
+  Making a stale certificate unrepresentable needs a brand lifetime on
+  `Body`, which infects every signature in the workspace that names a
+  body, the public API included. #755 weighed exactly that and rejected
+  it, before row 0 existed — which is the evidence that this rule
+  describes what careful lanes already do rather than inventing an
+  obligation. **Row 0 must be able to say no out loud, and that is the
+  precedent for where the line falls.**
+
+So: yes when the change is local to the type and its constructors; no
+when it propagates into signatures that do not otherwise care. A "no"
+is a complete answer and is recorded as the reason a row below applies,
+not as a defeat.
+
+*Row 4's message convention stays prose, and D35 is the decision not to
+gate it (PR #809, 2026-08-20).* The shape the conversion passes applied
+— **the message states WHY the state cannot occur, not merely WHAT was
+violated, and carries the values a reader debugging it would want** —
+was settled by ruling across #740 and #744 and is recorded here rather
+than as a rule anyone checks. **No gate was built, and the population is
+the reason.** Re-derived at `25175838` over `crates/*/src`, an
+`unreachable!` in macro-call position stands at **103** kernel sites
+(plus 2 in `#[cfg(test)]` modules and 29 prose mentions a bare grep
+conflates with them). **76 of the 103 are one state, not 76** — an arena
+key proven live earlier in the same call did not resolve — whose row 0
+is the `Live` brand and was answered *no* above; their messages are one
+template, written by three conversion passes under one ruling, and read
+uniformly. Only **three** messages in the whole population stated the
+what and not the why, all three outside those passes, and all three are
+fixed in the same PR. **A shape gate cannot separate the two**, and the
+tree already shows both halves of why: `topo`'s
+`d18_no_unreachable_message_can_impersonate_the_postcondition` is a
+source walk over these messages that works *because* it forbids one
+spelling, and `quantity`'s `row_index` is a message-**less** site that a
+required-message rule could not satisfy at all — `unreachable!` routes
+every message through `format_args!`, which is not const-callable, and
+`panic!` is lint-banned. **What the population wants is not a message
+rule.** It is row 0 asked at the sites where the answer might be yes:
+the non-empty-by-construction sequences and the small-domain indices,
+which are where a converted arm should have been no arm — thirteen of
+them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96**.
 
 *Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
 `MarginDiag` is `Value` (f64 margin in the ambiguity band) or an
@@ -1245,11 +1361,11 @@ that operator's plan phase gained *new* row-1 `StaleKey` checks on
 `s2_data.faces` / `s2_data.solid` — those checks are added
 preconditions, not discard sites converting to row 1, and the two
 discards they license are among the 56. **Those last two
-arms carry a precondition rather than a per-site proof, and cannot
-carry one**: a shared helper does not know its caller, so the proof
-lives at each call site and the arm is `#[track_caller]` so a panic
-reports which one. Retiring that asymmetry — a `Live` key type that
-makes the discharge structural — is `SMELL-SCAN-2026-08.md`'s **D25**. **No site was row
+arms take a proven-live key rather than a precondition in prose**: a
+shared helper does not know its caller, so the proof is the argument
+type — `topo`'s `Live`, obtainable only through doors that perform the
+lookup — and the arms announce a proof that outlived its key,
+`#[track_caller]` so a panic reports the call site. **No site was row
 5** — rows 4/5 split on re-derivation, and a failed key lookup is
 observed rather than re-derived. The standard the conversion holds to,
 and the reason it survives a corrupt body: **every converted key is
@@ -1265,8 +1381,9 @@ in two — partitioned **41 row 2**, **49 row 1** and **18 row 4**. Row 2
 is four variants that each name the class they refuse (chain, run-out,
 stored geometry, body), plus the corner CONFIGURATION refusals routed
 into the existing `FilletCornerUnsupported`; row 1 is
-`BodyNotIntact`/`EmptyChain`/`RepeatedEdge`, and every payload that
-names an entity is `topo::EntityId`, not a second spelling of it.
+`BodyNotIntact`/`RepeatedEdge` (and `EmptyChain`, until D27 dissolved
+it — below), and every payload that names an entity is
+`topo::EntityId`, not a second spelling of it.
 
 **The 18 is a bounded claim, and the bound is the interesting part.**
 Every key an `unreachable!` there dereferences is minted by an operator
@@ -1286,24 +1403,75 @@ classification. The open question is **S14** — a public door that can
 leave a body tier-1-invalid, and slotmap keys that resolve to *live but
 wrong* entities rather than dangling.
 
-*One state this taxonomy does not contain, found by executing it.*
-`FilletError::EmptyChain` is not reachable by input (the battery seeds
-every chain with a link) and not locally provable (the emptiness is a
-property of the verdict handed in), so it is neither row 1 nor row 4.
-It is filed under row 1 today, failing that row's own definition.
-`SMELL-SCAN-2026-08.md`'s **D27** carries it, together with the
-front-door invariants whose absence as *types* is why the surgery has
-such states at all.
+*The one state this taxonomy did not contain — RETRACTED by D27 (PR
+#768), because the state is gone.* `FilletError::EmptyChain` was not
+reachable by input (the battery seeds every chain with a link) and not
+locally provable (the emptiness was a property of the verdict handed
+in), so it was neither row 1 nor row 4, and it sat under row 1 failing
+that row's own definition. It is no longer representable: `Chain` holds
+its first link in its own private field, `walk_chains` mints it from
+the seed link it already had, and the variant is deleted. **Rows 1–5
+stand unamended** — nothing was added to the classification and nothing
+in it was reclassified; what this case produced is **row 0** above, the
+question that comes before them. The same unit retired the front-door invariants
+the surgery was carrying as prose: `crates/sweep/src/fillet/admit.rs`
+mints one value per admitted clause, and the helpers that used to
+re-refuse a state their caller had already excluded now take the value
+and have no branch to write. **Nothing there became an `unreachable!`**
+— each refusal moved to the door that decides it rather than becoming a
+panic.
 
-*Still outstanding:* **discard sites elsewhere in `crates/topo`**,
-which the three-module census never counted and this addendum has
-never covered. A sweep finds **at least 14** — `split_edge`,
-`attach.rs`, `movefac.rs`, `revert.rs`, `splitting/finish.rs`,
-`boolean/combine.rs` — and that is a **floor from one spelling of the
-idiom**, not a census: successive sweeps have each found sites the
-previous pattern could not match (let-chains, field-access lookups).
-**Re-sweep rather than re-count** (`SMELL-SCAN-2026-08.md`'s **D21**,
-which carries the spellings that escaped). And, outside `crates/topo`,
+*This is row 0's first application, and row 0 is the rule it produced.*
+The disposition above is not special-cased to the fillet: it is what
+row 0 says to do, and it is written into the table rather than left as
+a story about one variant.
+
+**What row 0 changes about S14, and what it deliberately does not.**
+S14 asks whether the no-panic principle should be amended for a state
+`topo::instance`'s graft genuinely produces — a mid-transplant refusal
+leaving `dst` partially written, spent, and tier-1-invalid, which a
+caller may keep. Under row 0 the first question about that state is no
+longer *which row does it fall under* but **can
+`graft_disjoint_all_keyed` be restructured so that a partially-written
+destination is not representable?** — staging into a fresh body and
+committing on success, which is the shape `merge_coplanar_faces`
+already uses in this crate (`merge_faces.rs:468`, `let mut work =
+self.clone()`, under its own *"Never a partial commit: each sub-stage
+is tier-2-gated before adoption"*) and the shape D27 used. **That
+reframes S14; it does not answer it.** Whether the restructuring is
+affordable is precisely the "if possible" judgement above, and
+**S14 stays open and stays Evan's** — #740 left 46 lookup sites typed
+rather than converted because it is open, so anything that moves S14
+moves them.
+
+*The `crates/topo` sites outside W2c's three modules are done* (D21,
+PR #773) — **the sites, not the class**, and the difference is the
+part worth ratifying. The census re-derived to **17** under the stated
+reading *a lookup whose `None` is discarded at a write in a mutation
+phase*, and it found a **seventh** file the earlier floor of 14 did
+not name: `merge_faces.rs`, whose two sites spelled the discard
+`else { return Ok(()) }` under a comment that already said
+*unreachable*. The disposition is **16 row 4 + 1 row 0** — the odd one
+being `revert`'s edge loop, which carried no per-key value and so was
+rewritten to walk the arena directly and look nothing up, the shape
+this taxonomy should always prefer to a converted arm. Every converted
+key is minted in the same call or proven live by a check in the same
+call, **never** by tier-1 validity, and every arm was demonstrated
+live by poisoning its key and watching it fire with its own message.
+
+*Three things that closure does NOT cover, stated so no reader infers
+them.* **(a)** One `crates/topo` site cannot meet the standard and is
+deliberately unconverted: `merge_coplanar_faces`' ring re-homing reads
+its face key out of a loop's back-pointer, so its disposition is a
+typed error rather than a panic — `SMELL-SCAN-2026-08.md`'s **D88**,
+and the named exception to the enumeration in `topo::euler`'s module
+docs. **(b)** The **class is not confined to `crates/topo`**, and the
+crate clause is a scope of work rather than a claim about the class:
+verified instances live in `step-import`, `bvh` and `profile`, one of
+them five lines from a panicking `Index` on the same key — **D94**.
+**(c)** `boolean/combine.rs` answers one proof two ways — six
+minted-in-call keys refuse `row 1` where two identical ones now
+announce `row 4` — which is **D95**. And, outside `crates/topo`,
 idiom 2's `MissingEntity` router defects.
 
 **Replay with kills (M1, pinned in PRs #20/#23):** the determinism
@@ -1575,6 +1743,15 @@ precursor of the error-propagation feature.
   the parameter box. Sketch solver when sketches should become
   constraint-driven rather than programmatic. Design record:
   `docs/ERROR-DESIGN.md`.
+  **Note, carried in as an open question (Evan, 2026-08-21):** *figure
+  out what a `Dual` actually has to do*, and clean up the `Bounds` /
+  `CertifiedEnclosure` split on that answer. **D1**'s *"at least for
+  now"* is what this collects — since 2026-08-19 the dual's refusal
+  rests on the ruling rather than on its lack of a bracket, so what a
+  dual may do is a decision rather than a fact about the type.
+  **Deliberately not answered here**, and not to be answered by
+  speculating about what M10 will need: recorded so it is a question
+  M10 opens with rather than one it rediscovers.
 - **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as
@@ -2069,7 +2246,39 @@ before shelling/offset work (M5+), stated now.
 ### Q9: Project license and name
 
 License **resolved**: dual MIT OR Apache-2.0. Name: still pending —
-placeholder workspace acceptable; pre-publish renames are cheap.
+placeholder workspace acceptable; pre-publish renames are cheap. The
+rename is one entry on the **Before publishing** list below; the others
+are not name questions and are not filed here.
+
+### Before publishing (listed so they don't get lost)
+
+Not a design question — the set of things that are deliberately in a
+pre-publication state and have to be put back before the project ships.
+The list exists because each entry is individually invisible: nothing
+goes red when the project publishes with one of them still in the
+shipped state.
+
+- **Roll the version numbers.** No member manifest carries a `version`
+  field today, so every crate is cargo's default `0.0.0`, and
+  `[workspace.package]` says `publish = false` — *"nothing is
+  publishable until the project has its name (Q9)"*. Publishing means
+  setting real versions and dropping that line; **rolling them back is
+  what un-does a premature publish**, and the next entry rides along
+  with it.
+- **Turn release debug-assertions back off.** The root `Cargo.toml`'s
+  `[profile.release]` sets `debug-assertions = true`, so a release build
+  runs every `debug_assert` in the workspace — the D2-addendum row-5
+  postconditions, which cargo's release default would compile out. That
+  is the right posture for a kernel nobody depends on yet: D9's converse
+  half says a bug state must panic *as early as it is detectable*, and a
+  row-5 assert meeting a real part is information nothing else produces.
+  **Deleting the stanza is a real reduction in what a release build
+  checks, so it is a decision to take at publish rather than a chore to
+  tick off** — `SMELL-SCAN-2026-08.md`'s **S65** is the worked example
+  (the #678 watertightness backstop, ruled row 5 in **#884**: the
+  `debug_assert` is the settled mechanism, and only its release REACH
+  was ever in question — which is exactly what this stanza sets).
+- **The name (Q9).** Above.
 
 ### Deferred to their milestones (listed so they don't get lost)
 

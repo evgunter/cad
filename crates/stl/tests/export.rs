@@ -5,8 +5,9 @@
 
 mod common;
 
+use geom_core::Tol;
 use mesh::tessellate;
-use stl::{write_ascii, write_binary};
+use stl::{AsciiOptions, BinaryOptions, SolidName, write_ascii, write_binary};
 
 fn fnv(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -22,28 +23,28 @@ fn fnv(bytes: &[u8]) -> u64 {
 /// writers under test are pure functions of the mesh, so one build
 /// serves every claim made about them.
 ///
-/// **No memo, and that is the point.** This used to be a `OnceLock`
-/// "tessellated once per process". nextest is process-per-test, so the
-/// memo shared nothing across tests and each row that touched it paid
-/// the whole eleven-body tessellation. The rows that share it are now
-/// ONE test, which binds this list once; the only other caller is the
-/// `#[ignore]`d hash printer, which runs in its own process anyway.
+/// **No memo, and that is the point.** nextest is process-per-test, so
+/// a memo would share nothing across tests and every row that touched
+/// it would pay the whole eleven-body tessellation. The rows that
+/// share it are ONE test, which binds this list once; the only other
+/// caller is the `#[ignore]`d hash printer, which runs in its own
+/// process anyway.
 fn meshes() -> Vec<(&'static str, mesh::Mesh)> {
     common::acceptance_bodies()
         .into_iter()
-        .map(|(name, body, delta)| (name, tessellate(&body, delta).unwrap()))
+        .map(|(name, body, delta)| (name, tessellate(&body, delta, Tol::witness()).unwrap()))
         .collect()
 }
 
 fn binary_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_binary(mesh, &mut out).unwrap();
+    write_binary(mesh, &BinaryOptions::default(), &mut out).unwrap();
     out
 }
 
 fn ascii_of(mesh: &mesh::Mesh) -> Vec<u8> {
     let mut out = Vec::new();
-    write_ascii(mesh, &mut out).unwrap();
+    write_ascii(mesh, &AsciiOptions::default(), &mut out).unwrap();
     out
 }
 
@@ -141,34 +142,26 @@ fn parse_ascii(text: &str) -> Vec<[f32; 12]> {
 }
 
 /// **The writer laws that share one tessellation of the acceptance
-/// set.** Four rows until the test-cost audit:
-///
-/// - `ascii_and_binary_triangle_sets_identical` → the `AGREE` block;
-/// - `normals_are_unit_and_outward_consistent` → the `NORMAL` / `FLUX`
-///   blocks;
-/// - `binary_header_is_constant_and_not_solid` → the `HEADER` block;
-/// - `repeated_export_is_byte_identical` → the `BYTE-IDENTITY` block.
+/// set**: the `AGREE` block; the `NORMAL` / `FLUX` blocks; the
+/// `HEADER` block, with the `SOLID NAME` / `NAME/OPTIONS` blocks that
+/// pin the ASCII name's shipped default and its caller-settable path;
+/// and the `BYTE-IDENTITY` block.
 ///
 /// # One tessellation of eleven bodies, every law on it
 ///
-/// All four read the same acceptance meshes, and the `OnceLock` that
-/// was supposed to share them shares nothing under nextest, which runs
-/// one process per test — so the eleven-body tessellation (the donut's
-/// quadratic CDT included) ran four times per ε row. It runs once here.
-/// The header row had already been narrowed to build `l_prism` and
-/// `ball` DIRECTLY to dodge that cost; with the corpus in hand it takes
-/// those two rows straight out of it, which is the same two meshes
-/// (`common::acceptance_bodies` rows 0 and 2, both δ = 1e-2) with no
-/// build at all.
+/// They all read the same acceptance meshes, and nextest runs one
+/// process per test — so as separate rows the eleven-body
+/// tessellation (the donut's quadratic CDT included) would be paid
+/// once per row per ε row. It runs once here.
 ///
 /// The `BYTE-IDENTITY` block still rebuilds every body from its recipe
 /// and retessellates — that second build is the CONTENT of the claim,
 /// not duplicated setup, and merging must never remove it.
 ///
-/// What the split bought and a merged row cannot is failure ISOLATION,
-/// so every assertion NAMES its law — `AGREE`, `NORMAL`, `FLUX`,
-/// `HEADER`, `BYTE-IDENTITY` — and the message alone says which one
-/// broke.
+/// What a merged row cannot buy is failure ISOLATION, so every
+/// assertion NAMES its law — `AGREE`, `NORMAL`, `FLUX`, `HEADER`,
+/// `NAME`, `NAME/OPTIONS`, `BYTE-IDENTITY` — and the message alone
+/// says which one broke.
 #[test]
 fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // THE one tessellation. INVARIANT: nothing below may call
@@ -229,8 +222,8 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     }
 
     // ---- HEADER: two DIFFERENT bodies must produce the same 80-byte
-    // header, it must not sniff as ascii, and the record size must be
-    // exactly 84 + 50·n. The two are the "l_prism" and "ball" rows of
+    // DEFAULT header, it must not sniff as ascii, and the record size
+    // must be exactly 84 + 50·n. The two are the "l_prism" and "ball" rows of
     // `common::acceptance_bodies` (rows 0 and 2, both at δ = 1e-2) —
     // taken out of the list above rather than rebuilt.
     let by_name = |want: &str| -> &mesh::Mesh {
@@ -257,23 +250,115 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
     // ---- SOLID NAME: the ASCII writer's `solid <name>` opener is a
     // SHIPPED byte string with no other coverage — the byte oracles
     // above compare exports to each other, so a changed name is
-    // invisible to them. Pin the exact text, its input-independence,
-    // and that `endsolid` closes on the same name.
+    // invisible to them. Pin the exact DEFAULT text, its
+    // input-independence, and that `endsolid` closes on the same name.
+    // The expected strings are literals on purpose: sourcing them from
+    // `AsciiOptions::default()` would pin the writer's agreement with
+    // itself, not the bytes the library ships.
     let ascii_a = String::from_utf8(ascii_of(by_name("l_prism"))).expect("NAME: ascii is utf-8");
     let ascii_b = String::from_utf8(ascii_of(by_name("ball"))).expect("NAME: ascii is utf-8");
     for (which, text) in [("l_prism", &ascii_a), ("ball", &ascii_b)] {
         let first = text.lines().next().expect("NAME: ascii export is empty");
         assert_eq!(
-            first, "solid cad-kernel",
-            "NAME: {which}: the shipped solid name"
+            first, "solid part",
+            "NAME: {which}: the shipped default solid name"
         );
         let last = text
             .lines()
             .next_back()
             .expect("NAME: ascii export is empty");
         assert_eq!(
-            last, "endsolid cad-kernel",
+            last, "endsolid part",
             "NAME: {which}: endsolid must close on the same name"
+        );
+    }
+
+    // ---- NAME/OPTIONS: a caller-supplied name reaches BOTH the opener
+    // and the closer, and nothing else in the file moves. The tail
+    // comparison is what makes this a claim about the name rather than
+    // about the whole file: everything after the first line is
+    // byte-identical to the default export.
+    let named = {
+        let mut out = Vec::new();
+        write_ascii(
+            by_name("l_prism"),
+            &AsciiOptions {
+                solid_name: SolidName::new("widget-7").unwrap(),
+            },
+            &mut out,
+        )
+        .unwrap();
+        String::from_utf8(out).expect("NAME/OPTIONS: ascii is utf-8")
+    };
+    assert_eq!(
+        named.lines().next().unwrap(),
+        "solid widget-7",
+        "NAME/OPTIONS: the caller's name opens the solid"
+    );
+    assert_eq!(
+        named.lines().next_back().unwrap(),
+        "endsolid widget-7",
+        "NAME/OPTIONS: endsolid closes on the caller's name"
+    );
+    let body_of = |text: &str| -> String {
+        text.lines()
+            .skip(1)
+            .take_while(|l| !l.starts_with("endsolid"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(
+        body_of(&named),
+        body_of(&ascii_a),
+        "NAME/OPTIONS: only the solid name moves"
+    );
+    // The admissible set is `0x20..=0x7E`, and BOTH bounds are pinned
+    // plus the two characters just outside them. A row that only
+    // covered `'\n'` could not see the range widened — dropping the
+    // upper bound would make DEL and every non-ASCII character
+    // writable with nothing going red.
+    //
+    // The verdict is `SolidName::new`'s, not the writer's: the name is
+    // validated where it is built, so a name that exists is one the
+    // writer can emit. The row below still proves the ADMISSIBLE names
+    // reach a file — each `Ok` case is written through `write_ascii`
+    // as well — so the two halves cannot drift apart.
+    let name_verdict = |name: &str| -> Result<(), char> {
+        match SolidName::new(name) {
+            Ok(validated) => {
+                write_ascii(
+                    by_name("l_prism"),
+                    &AsciiOptions {
+                        solid_name: validated,
+                    },
+                    &mut Vec::new(),
+                )
+                .expect("NAME/OPTIONS: an admissible name must reach a file");
+                Ok(())
+            }
+            Err(stl::SolidNameError::Unrepresentable { character }) => Err(character),
+        }
+    };
+    for (name, want) in [
+        ("two\nlines", Err('\n')),
+        ("bell\u{7}", Err('\u{7}')),
+        ("del\u{7f}", Err('\u{7f}')),
+        ("caf\u{e9}", Err('\u{e9}')),
+        ("line\u{2028}sep", Err('\u{2028}')),
+        ("emoji\u{1f600}", Err('\u{1f600}')),
+        // The bounds themselves, and the empty name, are ADMISSIBLE —
+        // so a mutation that narrows the range reddens here rather
+        // than silently refusing legal names.
+        (" ", Ok(())),
+        ("~", Ok(())),
+        ("", Ok(())),
+        ("part 7 (rev C) — no: ASCII only", Err('\u{2014}')),
+    ] {
+        assert_eq!(
+            name_verdict(name),
+            want,
+            "NAME/OPTIONS: {name:?} must be {}",
+            if want.is_ok() { "written" } else { "refused" }
         );
     }
 
@@ -285,7 +370,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
         // against this freshly rebuilt one — the single retessellation
         // here serves both writers, and comparing a writer's output to
         // itself would assert nothing.
-        let rebuilt_mesh = tessellate(&body, delta).unwrap();
+        let rebuilt_mesh = tessellate(&body, delta, Tol::witness()).unwrap();
         let rebuilt = binary_of(&rebuilt_mesh);
         let first = by_name(name);
         let a = binary_of(first);
@@ -313,9 +398,9 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 /// so a future mesh-side fix flips this test loudly.
 #[test]
 fn coarse_cone_apex_fan_is_refused_typed() {
-    let mesh = tessellate(&common::cone(), 0.05).unwrap();
+    let mesh = tessellate(&common::cone(), 0.05, Tol::witness()).unwrap();
     let mut out = Vec::new();
-    match write_binary(&mesh, &mut out) {
+    match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}
         other => panic!("expected DegenerateTriangle at coarse delta, got {other:?}"),
     }
@@ -338,7 +423,7 @@ fn degenerate_mesh_is_refused_typed() {
         boundaries: vec![],
     };
     let mut out = Vec::new();
-    match write_binary(&mesh, &mut out) {
+    match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { triangle }) => {
             assert_eq!(triangle, [0, 1, 2]);
         }

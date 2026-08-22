@@ -68,6 +68,7 @@ use topo::PlaneRelation;
 
 use super::super::fixture::{desc, len};
 use super::{CorpusDoc, MassPin, Recorder};
+use geom_core::Tol;
 
 /// The four leg footprints, corner order `(0,0) → (4,0) → (4,3) →
 /// (0,3)`. Which faces are flush is no longer written down here —
@@ -120,9 +121,10 @@ pub fn document() -> CorpusDoc {
             prior.as_ref(),
             &CancelToken::new(),
             &EvalOptions::default(),
+            Tol::witness(),
         );
-        let findings =
-            find_flush_candidates(&ev, acc, ext).expect("corner-table flush pairs are definite");
+        let findings = find_flush_candidates(&ev, acc, ext, Tol::witness())
+            .expect("corner-table flush pairs are definite");
         // The inspection. Each leg shares planes with the accumulated
         // body in three families: its two corner wall planes (against
         // the top's — by leg 2, the already-MERGED — side faces), the

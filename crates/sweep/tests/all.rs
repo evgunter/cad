@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `sweep`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 60 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -168,6 +173,8 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_verbs_rim_lever_probes.rs"]
+mod review_verbs_rim_lever_probes;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
@@ -186,6 +193,10 @@ mod revolve_washer;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_rim_closed_lever.rs"]
+mod verbs_rim_closed_lever;
+#[path = "verbs_rim_r1_probes.rs"]
+mod verbs_rim_r1_probes;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

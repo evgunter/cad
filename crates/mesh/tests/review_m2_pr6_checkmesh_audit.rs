@@ -9,6 +9,7 @@ mod common;
 
 use common::{axis_y, ball, check_mesh_acceptance, cone, donut, p2, validated, washer, wedge};
 use geom_core::Point3;
+use geom_core::Tol;
 use mesh::validate::{MeshError, check_mesh};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::ProfileLoop;
@@ -176,9 +177,14 @@ fn survives_concentric_slit_annuli() {
         p2(2.0, 1.0),
         p2(1.0, 1.0),
     ]);
-    let body = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .unwrap()
-        .body;
+    let body = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     for delta in [0.7, 0.08] {
         check_mesh_acceptance(&body, delta, None);
     }
@@ -190,7 +196,7 @@ fn survives_seam_weld_no_bitwise_duplicate_positions() {
     // vertex ids — an unwelded seam would mint bitwise-equal duplicate
     // positions. Assert every position is bitwise-unique.
     for body in [ball(), cone(), donut(), washer(), wedge()] {
-        let mesh = tessellate(&body, 0.07).unwrap();
+        let mesh = tessellate(&body, 0.07, Tol::witness()).unwrap();
         let mut seen = std::collections::HashSet::new();
         for p in &mesh.positions {
             let key = (p.x.to_bits(), p.y.to_bits(), p.z.to_bits());
@@ -208,7 +214,7 @@ fn survives_seam_segments_shared_by_both_wall_sides() {
     // donut (all of whose edges are seam meridians or rims) is an edge
     // of exactly two kept triangles.
     let body = donut();
-    let mesh = tessellate(&body, 0.06).unwrap();
+    let mesh = tessellate(&body, 0.06, Tol::witness()).unwrap();
     let mut uses: std::collections::HashMap<(u32, u32), u32> = std::collections::HashMap::new();
     for patch in &mesh.patches {
         for tri in &patch.triangles {

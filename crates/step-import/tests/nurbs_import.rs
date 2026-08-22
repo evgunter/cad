@@ -1,4 +1,4 @@
-//! **M7-3 acceptance: NURBS-face import** (`docs/M7-3-SPEC.md` §2).
+//! **M7-3 acceptance: NURBS-face import.**
 //!
 //! The committed non-rational loft (`loft_prism`) runs the FULL row-1
 //! and fixed-point obligations through `roundtrip.rs` (it joined
@@ -25,18 +25,11 @@
 //!
 //! # Coverage honesty (spec §3)
 //!
-//! The exportable NURBS class was bounded by the loft/sweep skin's
-//! weight drift (#207): `sweep_body` with any curved path and
-//! `loft_body` with any non-uniform section spacing refused at
-//! assembly (`nurbs_span_meter` poison — the meter had no rational
-//! arm at all, so a drifted weight channel was fatal on its own).
-//! #207 fixed the drift at its source and M7's rational span meter
-//! retired the poison itself, so the bodies this suite round-trips are
-//! uniformly-spaced lofts by the fixture's own choice, not by refusal
+//! The bodies this suite round-trips are uniformly-spaced lofts by
+//! the fixture's own choice, not by refusal
 //! — polyline profiles (non-rational, full tier 3) and arc-bearing
 //! profiles (rational walls, which since M7-7 refuse at the import
-//! gate on the banked QUADRATURE lane — a different bank from the span
-//! meter's, and the one still open). That is a statement about the
+//! gate on the banked QUADRATURE lane, the one still open). That is a statement about the
 //! builder and the quadrature, not the reader: the import side reads
 //! any file in the written vocabulary, and only the at-rest gate has
 //! anything left to say about the rational one.
@@ -45,6 +38,7 @@
 mod common;
 
 use common::import_body;
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
@@ -74,7 +68,7 @@ fn native_arc_loft() -> topo::Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")
         .body
 }
@@ -131,8 +125,8 @@ fn reverse_data_section(text: &str) -> String {
 /// enclosure — the caller reuses it rather than paying a second
 /// rational quadrature, which is the expensive thing in these rows.
 fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::MassProperties<f64>> {
-    let target = 1024.0 * geom_core::Tolerance::get().eps;
-    match topo::mass_properties(body) {
+    let target = 1024.0 * geom_core::Tol::witness().get().eps;
+    match topo::mass_properties(body, Tol::witness()) {
         Ok(props) => Some(props),
         Err(err) => {
             let topo::MassPropsError::Face { source, .. } = &err else {
@@ -178,13 +172,9 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// mapped description form, so the reader reaches the same state the
 /// builder does.
 ///
-/// The writer/reader symmetry the row was written for is now literal
-/// AND green: `StepImport::Solid` may only carry a body the shared
-/// at-rest gate passes, so an `Ok` here IS the imported body's tier-3
-/// verdict. What used to make that impossible — a body whose volume
-/// the kernel could not compute is not tier-valid at rest, and
-/// shipping it would be import quietly holding a laxer standard than
-/// the kernel — has stopped being true rather than been relaxed.
+/// The writer/reader symmetry the row was written for is literal:
+/// `StepImport::Solid` may only carry a body the shared at-rest gate
+/// passes, so an `Ok` here IS the imported body's tier-3 verdict.
 ///
 /// **The rational parse arm is still pinned BY this row**: a reader
 /// that dropped the `RATIONAL_B_SPLINE_SURFACE` weights would produce
@@ -202,11 +192,10 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// This row is the single home for the rational arc-loft body's
 /// disposition. Two rows that built a CHARACTER-IDENTICAL
 /// `native_arc_loft` and quadratured it again were merged in here;
-/// each rational quadrature is the expensive thing in this class, and
-/// the three rows paid for ten between them where five state the same
-/// facts. Authorship is kept, which is this project's convention for
-/// adopted review probes (`docs/M7-LOG.md`, M7-1's "adopted BY MERGE
-/// with authorship kept"):
+/// each rational quadrature is the expensive thing in this class.
+/// Authorship is kept, which is this project's convention for
+/// adopted review probes (M7-1's "adopted BY MERGE with authorship
+/// kept"):
 ///
 /// * **the reversed-DATA arm is RW2 probe 1's** — the blinded review
 ///   of PR #353 (`rw2_probes.rs`), which re-imported the same export
@@ -231,7 +220,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");
     assert_eq!(topo::validate_closed(&native), Ok(()), "native tier 2");
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     // Computed ONCE: a rational quadrature is the expensive thing in
     // this row, and the round trip below reuses this enclosure. Tier 3
     // consumes exactly this number through its +V invariant, and the
@@ -266,9 +255,13 @@ fn arc_loft_natively_computes_its_rational_volume() {
     }
 
     // ---- The ROUND TRIP, which the bank used to block entirely. ----
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("the writer exports the rational-walled body");
-    match import_step(&text, &ImportOptions::default()) {
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the writer exports the rational-walled body");
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(step_import::StepImport::Solid { body, .. }) => {
             assert!(
                 certified,
@@ -276,7 +269,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                  quadrature certified — it cannot happen at an ε where the native \
                  body's own flux ran out of schedule"
             );
-            let got = topo::mass_properties(&body).expect("imported rational mass properties");
+            let got = topo::mass_properties(&body, Tol::witness())
+                .expect("imported rational mass properties");
             let want = native_props.as_ref().expect("the native side certified");
             // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
             // what soundness needs — two certified enclosures of one
@@ -316,14 +310,15 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // the same already-paid quadrature.
             let reordered = reverse_data_section(&text);
             assert_ne!(reordered, text, "the DATA section really was reordered");
-            let again = match import_step(&reordered, &ImportOptions::default()) {
+            let again = match import_step(&reordered, &ImportOptions::default(), Tol::witness()) {
                 Ok(step_import::StepImport::Solid { body: again, .. }) => again,
                 other => panic!(
                     "reversed-DATA: the reader's fixed point must not depend on entity \
                      order — the as-written file imported first-class, got {other:?}"
                 ),
             };
-            let back = topo::mass_properties(&again).expect("reversed-DATA mass properties");
+            let back = topo::mass_properties(&again, Tol::witness())
+                .expect("reversed-DATA mass properties");
             assert_eq!(
                 back.volume.to_bits(),
                 got.volume.to_bits(),
@@ -464,7 +459,8 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     );
     assert_ne!(text, orig, "the reparameterization applied");
     let step_import::StepImport::Solid { body, .. } =
-        import_step(&text, &ImportOptions::default()).expect("the reparameterized wall imports")
+        import_step(&text, &ImportOptions::default(), Tol::witness())
+            .expect("the reparameterized wall imports")
     else {
         panic!("loft_prism is a solid");
     };
@@ -493,5 +489,6 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         vec![0.0, 3.0],
         "both of the wall's seams adopt on ITS OWN knot-domain ends"
     );
-    topo::validate_geometric(&body).expect("and the reparameterized body is valid at rest");
+    topo::validate_geometric(&body, Tol::witness())
+        .expect("and the reparameterized body is valid at rest");
 }

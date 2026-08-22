@@ -5,13 +5,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
 
 mod common;
 use common::quad;
+use geom_core::Tol;
 
 /// Deviation 3's substituted behavior, executed: sections stacking
 /// definitely AGAINST the base normal refuse
@@ -29,7 +30,7 @@ fn probe_reversed_stacking_refuses_typed() {
         Affine3::translation(Vec3::new(0.0, 0.0, -1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, -2.0)),
     ];
-    match loft_body::<f64>(&sections, &places, 2) {
+    match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
         Err(LoftError::ReversedStacking) => {}
         other => panic!("expected ReversedStacking, got {other:?}"),
     }
@@ -46,7 +47,7 @@ fn probe_coincident_stacking_refuses_degenerate() {
         Affine3::identity(),
         Affine3::identity(),
     ];
-    match loft_body::<f64>(&sections, &places, 2) {
+    match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
         Err(LoftError::DegenerateStacking | LoftError::Skin(_)) => {}
         other => panic!("expected a degenerate refusal, got {other:?}"),
     }
@@ -66,13 +67,13 @@ fn probe_measure_revolve_minor_radius_drift() {
         ProfileVertex::new(Point2::new(major + minor, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let rev = revolve::<f64>(&vp, axis, Revolution::Full)
+    let rev = revolve::<f64>(&vp, axis, Revolution::Full, Tol::witness())
         .expect("the revolve donut builds")
         .body;
     let rev_minor = rev

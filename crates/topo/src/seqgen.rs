@@ -58,7 +58,7 @@
 //!   manufacturing them. (Killing the same edge from the other half is
 //!   the strut kill, which IS exactly invertible.)
 //! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
-//!   is then necessarily a self-loop) AND the surviving singleton loop
+//!   is then necessarily a self-loop, tol) AND the surviving singleton loop
 //!   is a ring — or the outer of a face that has rings. The one-op
 //!   re-make `mef(Chords{next(he), next(he)})` re-splits from the
 //!   surviving side, which necessarily leaves the big loop on the
@@ -77,7 +77,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Point3, Sign};
+use geom_core::{Band, Decide, Point3, Sign, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, SolidKey};
@@ -230,8 +230,8 @@ impl Ledger {
     /// tier-1 intermediate (like empty loops and struts). The
     /// component-aware per-shell form (per component
     /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
-    /// 2(c − Σgᵢ)) was ratified in `docs/M1-PLAN.md`'s PR 5 bullet,
-    /// corrected by PR 4, and is implemented as the validator's pass 11
+    /// 2(c − Σgᵢ)) was ratified at M1 PR 5, corrected by PR 4, and
+    /// is implemented as the validator's pass 11
     /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
     /// because the generator tracks the operator algebra, not surfaces.
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
@@ -270,11 +270,11 @@ const GROW_CAP: usize = 28;
 /// NOTHING is applicable, which for this catalog means the body is
 /// empty and even `mvfs` was weighted out — in practice never, since
 /// `mvfs` keeps weight on empty bodies.
-pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> {
+pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32, tol: Tol) -> Option<OpChoice> {
     let grow = body.half_edges().count() < GROW_CAP;
     let w = |grown: u32, shrunk: u32| if grow { grown } else { shrunk };
-    type Enumerate = fn(&Body<f64>) -> Vec<OpChoice>;
-    type Probe = fn(&Body<f64>) -> bool;
+    type Enumerate = fn(&Body<f64>, Tol) -> Vec<OpChoice>;
+    type Probe = fn(&Body<f64>, Tol) -> bool;
     // (weight, enumerator, short-circuiting emptiness probe) per op
     // kind, in fixed catalog order.
     //
@@ -340,13 +340,13 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
         }
         match probe {
             None => {
-                let candidates = enumerate(body);
+                let candidates = enumerate(body, tol);
                 if !candidates.is_empty() {
                     rows.push((weight, Rolled::Built(candidates)));
                 }
             }
             Some(any) => {
-                if any(body) {
+                if any(body, tol) {
                     rows.push((weight, Rolled::Deferred(enumerate)));
                 }
             }
@@ -361,7 +361,7 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
         if roll < weight {
             let candidates = match row {
                 Rolled::Built(candidates) => candidates,
-                Rolled::Deferred(enumerate) => enumerate(body),
+                Rolled::Deferred(enumerate) => enumerate(body, tol),
             };
             let index = (d2 as usize) % candidates.len();
             return Some(candidates[index]);
@@ -376,23 +376,23 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32) -> Option<OpChoice> 
 /// if the roll lands here.
 enum Rolled {
     Built(Vec<OpChoice>),
-    Deferred(fn(&Body<f64>) -> Vec<OpChoice>),
+    Deferred(fn(&Body<f64>, Tol) -> Vec<OpChoice>),
 }
 
 /// `mvfs` needs no site — it mints a fresh solid — so its single
 /// candidate exists whenever the row carries weight.
-fn mvfs_candidates(_body: &Body<f64>) -> Vec<OpChoice> {
+fn mvfs_candidates(_body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     vec![OpChoice::Mvfs]
 }
 
-fn mev_lone_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn mev_lone_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     empty_loops(body)
         .into_iter()
         .map(OpChoice::MevLone)
         .collect()
 }
 
-fn mef_lone_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn mef_lone_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     empty_loops(body)
         .into_iter()
         .map(OpChoice::MefLone)
@@ -406,7 +406,7 @@ fn empty_loops(body: &Body<f64>) -> Vec<LoopKey> {
         .collect()
 }
 
-fn mev_fan_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn mev_fan_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (he1, _) in body.half_edges() {
         let orbit = body.vertex_orbit(he1).expect("valid body: orbit closes");
@@ -417,7 +417,7 @@ fn mev_fan_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
-fn mef_chords_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn mef_chords_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (_, loop_data) in body.loops() {
         let LoopBoundary::Cycle { first } = loop_data.boundary else {
@@ -433,7 +433,7 @@ fn mef_chords_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
-fn kemr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn kemr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (_, edge) in body.edges() {
         let plus = body.get_half_edge(edge.he_plus).expect("half resolves");
@@ -447,7 +447,7 @@ fn kemr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
-fn mekr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn mekr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (_, face) in body.faces() {
         let loops: Vec<LoopKey> = core::iter::once(face.outer)
@@ -495,7 +495,7 @@ fn mekr_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
-fn kfmrh_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn kfmrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (f1, face1) in body.faces() {
         for (f2, face2) in body.faces() {
@@ -507,7 +507,7 @@ fn kfmrh_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
-fn mfkrh_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn mfkrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (_, face) in body.faces() {
         for &ring in &face.rings {
@@ -520,7 +520,7 @@ fn mfkrh_candidates(body: &Body<f64>) -> Vec<OpChoice> {
 /// Every genuine ring reparenting: each ring of each face, moved to
 /// every OTHER same-shell face (the same-face no-op is excluded — it
 /// exercises nothing). Deterministic double sweep of the face arena.
-fn ring_move_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn ring_move_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (from, face) in body.faces() {
         for &ring in &face.rings {
@@ -539,22 +539,22 @@ fn ring_move_candidates(body: &Body<f64>) -> Vec<OpChoice> {
 /// still describe the edge's current endpoints. A certified interval
 /// is forward by construction, so an interior fraction of it is
 /// definitely interior on both sides.
-fn split_edge_candidates(body: &Body<f64>) -> Vec<OpChoice> {
-    split_edge_sites(body).collect()
+fn split_edge_candidates(body: &Body<f64>, tol: Tol) -> Vec<OpChoice> {
+    split_edge_sites(body, tol).collect()
 }
 
 /// Whether [`split_edge_candidates`] would return anything, without
 /// building it. Same iterator, stopped at the first item: the two
 /// cannot disagree about emptiness, which is what [`choose_op`]'s roll
 /// needs from this row and all it needs.
-fn any_split_edge(body: &Body<f64>) -> bool {
-    split_edge_sites(body).next().is_some()
+fn any_split_edge(body: &Body<f64>, tol: Tol) -> bool {
+    split_edge_sites(body, tol).next().is_some()
 }
 
-fn split_edge_sites(body: &Body<f64>) -> impl Iterator<Item = OpChoice> + '_ {
+fn split_edge_sites(body: &Body<f64>, tol: Tol) -> impl Iterator<Item = OpChoice> + '_ {
     body.edges()
         .map(|(e, _)| e)
-        .filter(move |e| split_site(body, *e).is_some())
+        .filter(move |e| split_site(body, *e, tol).is_some())
         .map(OpChoice::SplitEdge)
 }
 
@@ -599,7 +599,7 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// captured spec is what completes the inverse — exactly, for any
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
-fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64>)> {
+fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
     let edge_data = body.get_edge(edge)?;
     let hp = edge_data.he_plus;
     let start = body.get_half_edge(hp)?.start;
@@ -607,7 +607,7 @@ fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
-    let band = Band::linear().ok()?;
+    let band = Band::linear(tol).ok()?;
     curve
         .recertify(p0, p1, |k| body.get_surface(k).cloned(), band)
         .ok()?;
@@ -653,14 +653,14 @@ fn split_site(body: &Body<f64>, edge: EdgeKey) -> Option<(f64, EdgeCurveSpec<f64
     ))
 }
 
-fn kev_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     body.half_edges()
         .filter(|&(he, he_data)| body.half_edge_end(he) != Some(he_data.start))
         .map(|(he, _)| OpChoice::Kev(he))
         .collect()
 }
 
-fn kef_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn kef_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (he, he_data) in body.half_edges() {
         let mate = body.mate(he).expect("valid body: mate resolves");
@@ -689,7 +689,7 @@ fn kef_candidates(body: &Body<f64>) -> Vec<OpChoice> {
     out
 }
 
-fn kvfs_candidates(body: &Body<f64>) -> Vec<OpChoice> {
+fn kvfs_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     body.solids()
         .filter(|&(solid, _)| is_skeletal(body, solid))
         .map(|(solid, _)| OpChoice::Kvfs(solid))
@@ -725,30 +725,30 @@ fn next_point(counter: &mut u32) -> Point3<f64> {
 /// Executes one choice. Panics on operator errors: [`choose_op`] only
 /// returns applicable sites, so an error here is a bug in either the
 /// enumeration or the operator.
-pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32) {
+pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, tol: Tol) {
     match choice {
         OpChoice::Mvfs => {
             body.mvfs(next_point(counter)).unwrap();
         }
         OpChoice::MevLone(l) => {
-            body.mev_line(MevSite::Lone { r#loop: l }, next_point(counter))
+            body.mev_line(MevSite::Lone { r#loop: l }, next_point(counter), tol)
                 .unwrap();
         }
         OpChoice::MevFan(he1, he2) => {
-            body.mev_line(MevSite::Fan { he1, he2 }, next_point(counter))
+            body.mev_line(MevSite::Fan { he1, he2 }, next_point(counter), tol)
                 .unwrap();
         }
         OpChoice::MefChords(he1, he2) => {
-            body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+            body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
         }
         OpChoice::MefLone(l) => {
-            body.mef_chord(MefSite::Lone { r#loop: l }).unwrap();
+            body.mef_chord(MefSite::Lone { r#loop: l }, tol).unwrap();
         }
         OpChoice::Kemr(he1, he2) => {
             body.kemr(he1, he2).unwrap();
         }
         OpChoice::Mekr(site) => {
-            body.mekr_chord(site).unwrap();
+            body.mekr_chord(site, tol).unwrap();
         }
         OpChoice::Kfmrh(f1, f2) => {
             body.kfmrh(f1, f2).unwrap();
@@ -769,8 +769,9 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32) {
             body.ring_move(ring, to_face).unwrap();
         }
         OpChoice::SplitEdge(e) => {
-            let (t, _) = split_site(body, e).expect("a split candidate has a splittable carrier");
-            body.split_edge(e, t).unwrap();
+            let (t, _) =
+                split_site(body, e, tol).expect("a split candidate has a splittable carrier");
+            body.split_edge(e, t, tol).unwrap();
         }
     }
 }
@@ -792,6 +793,7 @@ pub(crate) fn roundtrip(
     body: &mut Body<f64>,
     choice: OpChoice,
     counter: &mut u32,
+    tol: Tol,
 ) -> RoundtripOutcome {
     let before = canonical_form(body);
     match choice {
@@ -802,26 +804,26 @@ pub(crate) fn roundtrip(
         }
         OpChoice::MevLone(l) => {
             let created = body
-                .mev_line(MevSite::Lone { r#loop: l }, next_point(counter))
+                .mev_line(MevSite::Lone { r#loop: l }, next_point(counter), tol)
                 .unwrap();
             body.kev(created.he_plus).unwrap();
         }
         OpChoice::MevFan(he1, he2) => {
             let created = body
-                .mev_line(MevSite::Fan { he1, he2 }, next_point(counter))
+                .mev_line(MevSite::Fan { he1, he2 }, next_point(counter), tol)
                 .unwrap();
             body.kev(created.he_plus).unwrap();
         }
         OpChoice::MefChords(he1, he2) => {
-            let created = body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+            let created = body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
             body.kef(created.he_minus).unwrap();
         }
         OpChoice::MefLone(l) => {
-            let created = body.mef_chord(MefSite::Lone { r#loop: l }).unwrap();
+            let created = body.mef_chord(MefSite::Lone { r#loop: l }, tol).unwrap();
             body.kef(created.he_minus).unwrap();
         }
         OpChoice::Mekr(site) => {
-            let created = body.mekr_chord(site).unwrap();
+            let created = body.mekr_chord(site, tol).unwrap();
             body.kemr(created.he_plus, created.he_minus).unwrap();
         }
         OpChoice::Mfkrh(ring) => {
@@ -842,10 +844,10 @@ pub(crate) fn roundtrip(
             // `[t₀, t]` child, so `kev` restores the topology and the
             // re-attach restores the geometry (see `split_site`).
             let (t, spec) =
-                split_site(body, e).expect("a split candidate has a splittable carrier");
-            let created = body.split_edge(e, t).unwrap();
+                split_site(body, e, tol).expect("a split candidate has a splittable carrier");
+            let created = body.split_edge(e, t, tol).unwrap();
             body.kev(created.he_minus).unwrap();
-            body.set_edge_curve(e, spec).unwrap();
+            body.set_edge_curve(e, spec, tol).unwrap();
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
         OpChoice::Kemr(he1, he2) => {
@@ -873,7 +875,7 @@ pub(crate) fn roundtrip(
                     ring: result.ring,
                 },
             };
-            body.mekr_chord(site).unwrap();
+            body.mekr_chord(site, tol).unwrap();
         }
         OpChoice::Kfmrh(f1, f2) => {
             let result = body.kfmrh(f1, f2).unwrap();
@@ -915,7 +917,7 @@ pub(crate) fn roundtrip(
             } else {
                 MevSite::Fan { he1: b, he2: d } // general fan merge
             };
-            body.mev_line(site, w_coords).unwrap();
+            body.mev_line(site, w_coords, tol).unwrap();
         }
         OpChoice::Kef(he) => {
             let he_data = body.get_half_edge(he).expect("resolves").clone();
@@ -936,7 +938,8 @@ pub(crate) fn roundtrip(
                     return RoundtripOutcome::SkippedIrreversible;
                 }
                 body.kef(he).unwrap();
-                body.mef_chord(MefSite::Chords { he1: b, he2: b }).unwrap();
+                body.mef_chord(MefSite::Chords { he1: b, he2: b }, tol)
+                    .unwrap();
             } else {
                 body.kef(he).unwrap();
                 let site = if b == he && d == mate {
@@ -946,7 +949,7 @@ pub(crate) fn roundtrip(
                 } else {
                     MefSite::Chords { he1: b, he2: d } // general splice
                 };
-                body.mef_chord(site).unwrap();
+                body.mef_chord(site, tol).unwrap();
             }
         }
     }
@@ -972,7 +975,7 @@ pub(crate) fn roundtrip(
 /// themselves cost — the whole of teardown is ~1% of this lane, and
 /// making these reads lazy moved ~1% of THAT. Enumerate lazily where
 /// the enumerator is expensive, which here it is not.
-pub(crate) fn teardown(body: &mut Body<f64>) {
+pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
     let cap =
         10 * (body.half_edges().count() + body.faces().count() + body.vertices().count()) + 100;
     for _ in 0..cap {
@@ -997,15 +1000,15 @@ pub(crate) fn teardown(body: &mut Body<f64>) {
             assert_eq!(body.vertex_provenance.len(), 0);
             return;
         }
-        if let Some(OpChoice::Kef(he)) = kef_candidates(body).first().copied() {
+        if let Some(OpChoice::Kef(he)) = kef_candidates(body, tol).first().copied() {
             body.kef(he).unwrap();
             continue;
         }
-        if let Some(OpChoice::Kev(he)) = kev_candidates(body).first().copied() {
+        if let Some(OpChoice::Kev(he)) = kev_candidates(body, tol).first().copied() {
             body.kev(he).unwrap();
             continue;
         }
-        if let Some(OpChoice::Kemr(he1, he2)) = kemr_candidates(body).first().copied() {
+        if let Some(OpChoice::Kemr(he1, he2)) = kemr_candidates(body, tol).first().copied() {
             body.kemr(he1, he2).unwrap();
             continue;
         }
@@ -1018,7 +1021,7 @@ pub(crate) fn teardown(body: &mut Body<f64>) {
         // the stranded vertex) with kev — a compound step so the
         // potential still shrinks.
         if let Some(site) = first_empty_ring_site(body) {
-            let created = body.mekr_chord(site).unwrap();
+            let created = body.mekr_chord(site, tol).unwrap();
             body.kev(created.he_plus).unwrap();
             continue;
         }
@@ -1028,7 +1031,7 @@ pub(crate) fn teardown(body: &mut Body<f64>) {
             body.kfmrh(f1, f2).unwrap();
             continue;
         }
-        if let Some(OpChoice::Kvfs(solid)) = kvfs_candidates(body).first().copied() {
+        if let Some(OpChoice::Kvfs(solid)) = kvfs_candidates(body, tol).first().copied() {
             body.kvfs(solid).unwrap();
             continue;
         }
@@ -1110,6 +1113,7 @@ fn first_empty_outer_extra_face(body: &Body<f64>) -> Option<(FaceKey, FaceKey)> 
 
 #[cfg(test)]
 mod tests {
+    use geom_core::Tol;
     use proptest::prelude::*;
 
     use super::*;
@@ -1156,7 +1160,7 @@ mod tests {
         let mut counter = 0_u32;
         let mut tally = RoundtripTally::default();
         for &(d1, d2, d3) in decisions {
-            let Some(choice) = choose_op(&body, d1, d2) else {
+            let Some(choice) = choose_op(&body, d1, d2, Tol::witness()) else {
                 return Err(TestCaseError::fail("no applicable op (kernel bug)"));
             };
             if d3 % 4 == 0 {
@@ -1165,7 +1169,9 @@ mod tests {
                 if matches!(choice, OpChoice::Kev(_) | OpChoice::Kef(_)) {
                     tally.skippable += 1;
                 }
-                if roundtrip(&mut body, choice, &mut counter) == RoundtripOutcome::Done {
+                if roundtrip(&mut body, choice, &mut counter, Tol::witness())
+                    == RoundtripOutcome::Done
+                {
                     tally.executed += 1;
                 } else {
                     // Both documented irreversible subcases sit in
@@ -1182,7 +1188,7 @@ mod tests {
                 }
                 // The ledger is unchanged by a balanced pair.
             } else {
-                apply(&mut body, choice, &mut counter);
+                apply(&mut body, choice, &mut counter, Tol::witness());
                 ledger.apply(choice.ep_vector());
             }
             // Property (a): tier-1 validity after every op. (The debug
@@ -1198,7 +1204,7 @@ mod tests {
         }
         // Property (d): everything built can be killed back to nothing;
         // arenas AND provenance maps end empty (asserted inside).
-        teardown(&mut body);
+        teardown(&mut body, Tol::witness());
         Ok(tally)
     }
 
@@ -1321,9 +1327,9 @@ mod tests {
     fn teardown_handles_the_genus_one_acceptance_body() {
         // Deterministic teardown of the holed box: genus, rings, and 24
         // edges all unwound to nothing.
-        let t = ops_holed_box();
+        let t = ops_holed_box(Tol::witness());
         let mut body = t.body;
-        teardown(&mut body);
+        teardown(&mut body, Tol::witness());
     }
 
     #[test]
@@ -1338,8 +1344,8 @@ mod tests {
             let mut ledger = Ledger::default();
             let mut counter = 0_u32;
             for &(d1, d2, _) in &decisions {
-                let choice = choose_op(&body, d1, d2).expect("an op applies");
-                apply(&mut body, choice, &mut counter);
+                let choice = choose_op(&body, d1, d2, Tol::witness()).expect("an op applies");
+                apply(&mut body, choice, &mut counter, Tol::witness());
                 ledger.apply(choice.ep_vector());
                 assert_eq!(ledger.check(&body), Ok(()));
             }
@@ -1395,12 +1401,12 @@ mod tests {
             let mut counter = 0_u32;
             for _ in 0..32 {
                 let (d1, d2) = (roll(), roll());
-                let Some(choice) = choose_op(&body, d1, d2) else {
+                let Some(choice) = choose_op(&body, d1, d2, Tol::witness()) else {
                     fold(b"NONE");
                     continue;
                 };
                 fold(format!("{choice:?}").as_bytes());
-                apply(&mut body, choice, &mut counter);
+                apply(&mut body, choice, &mut counter, Tol::witness());
                 chosen += 1;
             }
         }

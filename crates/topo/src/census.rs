@@ -1052,9 +1052,12 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    exclusion ring. The reach boxes are SOUND per-kind supersets:
 ///    `reach_box` is [`crate::boolean::boxes::FaceBoxRule`] — the ONE
 ///    face-box rule — instantiated in this lane's arithmetic (the
-///    closure's own comment says why the arithmetic, and only the
-///    arithmetic, is separate). A kind with no cheap sound box refuses
-///    WITHOUT a distance test rather than under-claiming its reach. A
+///    closure's own comment carries what is LEFT of the reason for a
+///    second arithmetic, which since the D1 ruling is an allowlist
+///    gate and not a type fact; **#700** is where whether it survives
+///    is decided, and nothing compares the two derivations today). A
+///    kind with no cheap sound box refuses WITHOUT a distance test
+///    rather than under-claiming its reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
 ///    boss-on-plate class) — the record has to name both sides of the
@@ -1066,6 +1069,15 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    makes no boundary event at all (the reviewed nested-cube
 ///    witness), and interference is representable only through C6's
 ///    recorded gate-skips, which do not exist yet.
+///
+///    **This is the arm where a box that is too BIG is wrong**, and
+///    the direction is easy to get backwards: over-width in the
+///    containing reach box does not cost work here, it costs an
+///    answer — a solid genuinely outside stops having a definitely
+///    negative margin and is refused as the interference class. The
+///    cylinder arm is over-wide along its own axis by a full radius
+///    (**#862**), so the near-annulus case is reachable rather than
+///    hypothetical.
 ///
 /// Both arms clear a pair ONLY on a definitely-positive separation
 /// margin (`census_backstop_gap` / `census_backstop_containment` —
@@ -1982,6 +1994,7 @@ mod tests {
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Surface;
+    use geom_core::Tol;
     use geom_core::Vec3;
 
     fn band() -> Band {
@@ -2070,6 +2083,7 @@ mod tests {
                 },
                 p10,
                 bottom,
+                Tol::witness(),
             )
             .unwrap();
         let e_r = body
@@ -2079,6 +2093,7 @@ mod tests {
                     he2: e_b.he_minus,
                 },
                 p11,
+                Tol::witness(),
             )
             .unwrap();
         let top = rim(body, z1, false);
@@ -2090,6 +2105,7 @@ mod tests {
                 },
                 p01,
                 top,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -2103,6 +2119,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(p01, p00),
                 FaceSurface::Shared(cyl),
+                Tol::witness(),
             )
             .unwrap()
             .face;
@@ -2115,7 +2132,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
     }
 
@@ -2208,7 +2225,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
             let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
-            crate::pcurves::mint_pcurves(&mut body).unwrap();
+            crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             census_and_certify(&body, &ContactRecords::default(), band())
                 .into_iter()
                 .filter_map(|e| match e {
@@ -2260,7 +2277,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
             face_a: w1,
@@ -2287,7 +2304,7 @@ mod tests {
         // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band());
         assert!(
             arm.iter()
@@ -2339,7 +2356,7 @@ mod tests {
         // Same locus, next periodic branch; u-nested and z-nested so
         // no strut/vertex coincidences muddy the face-pair question.
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band());
         assert!(
             arm.iter().any(|e| matches!(
@@ -2371,7 +2388,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
             face_a: w1,

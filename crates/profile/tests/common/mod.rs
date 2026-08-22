@@ -3,20 +3,23 @@
 //! Fixtures are built at `f64` and lifted to other scalars via
 //! [`lift`]; geometry that must sit at an ε-relative margin takes the
 //! run's ε explicitly so the multi-ε CI rows genuinely re-exercise the
-//! bands. The run tolerance comes from `Tolerance::get()` — one read
-//! per test process (each integration binary is its own process, so the
-//! geom-core global-state discipline is satisfied).
-#![allow(dead_code)]
+//! bands. The run tolerance comes from `Tol::witness().get()` — one read
+//! per test process, and the crate's suites all run inside the one
+//! aggregated `all` binary, so the geom-core global-state discipline is
+//! satisfied by a single process-wide read.
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Real, Tolerance};
+use geom_core::Tol;
+use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
-pub fn tol() -> Tolerance {
-    Tolerance::get()
+pub fn tol() -> Tol {
+    Tol::witness()
 }
 
 /// tan(π/8) = √2 − 1: the bulge of a counterclockwise quarter-circle
@@ -132,21 +135,21 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
 pub fn bracket() -> ProfileLoop<f64> {
     let closed = Open
         .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(3.0, 0.0))
+        .line_to(Point2::new(3.0, 0.0), Tol::witness())
         .expect("bottom side")
-        .line_to(Point2::new(3.0, 1.0))
+        .line_to(Point2::new(3.0, 1.0), Tol::witness())
         .expect("right side")
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .expect("the incoming ray leaves (3, 1) toward −x")
-        .fillet(0.5)
+        .fillet(0.5, Tol::witness())
         .expect("r = 0.5 is a positive radius")
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .expect("the arrival side runs +y")
-        .to(Point2::new(1.0, 3.0))
+        .to(Point2::new(1.0, 3.0), Tol::witness())
         .expect("the bracket fillet fits both legs")
-        .line_to(Point2::new(0.0, 3.0))
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
         .expect("top side")
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .expect("the straight seam closes");
     pinned(closed)
 }
@@ -213,7 +216,7 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
 /// subset: wrap the chain's result and keep asserting whatever the test
 /// was already asserting on the loop.
 pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
-    let replayed = match profile::replay(&closed.program) {
+    let replayed = match profile::replay(&closed.program, Tol::witness()) {
         Ok(lp) => lp,
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };

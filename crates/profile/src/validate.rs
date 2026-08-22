@@ -41,7 +41,7 @@
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
-//! Every decision goes through the [`crate::k_stats::decide`] funnel
+//! Every decision goes through the [`geom_core::k_stats::decide`] funnel
 //! with one of these names — the unit of the K-experiment margin
 //! statistics:
 //!
@@ -101,12 +101,12 @@
 
 use core::fmt;
 
+use geom_core::k_stats::decide;
 use geom_core::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
-    Tolerance, Vec2,
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol,
+    Vec2,
 };
 
-use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::{Profile, ProfileLoop, ProfileVertex};
 
@@ -260,7 +260,7 @@ pub enum NoCornerReason {
     /// Tangent circles of radius `r` exist, but every one of them
     /// touches a leg **past the corner** — the arc would round a corner
     /// the legs do not actually reach (the branch rule's corner-side
-    /// extent test, `docs/M5-S2-SPEC.md` §1).
+    /// extent test).
     NoCornerSideCandidate,
 }
 
@@ -586,8 +586,8 @@ impl fmt::Display for ProfileError {
                 // fillet predicate renders the SAME recourse sentence as
                 // its definite refusal — one message and one recourse per
                 // user situation below eps_input, the margin riding the
-                // payload (D4 ¶1 addendum; docs/M5-S6-SPEC.md's shape,
-                // composed from these shared carriers).
+                // payload (D4 ¶1 addendum; M5 S6's shape, composed
+                // from these shared carriers).
                 if matches!(site, EscalationSite::Fillet) {
                     match source.predicate {
                         Some("fillet_corner_turn") => {
@@ -754,9 +754,10 @@ impl<T: Real> ValidatedLoop<T> {
     /// rather than the answer guessing.
     ///
     /// ```
-    /// use geom_core::{Point2, Tolerance};
+    /// use geom_core::{Point2, Tol};
     /// use profile::{ArcSweep, Center, Open, Profile, SegmentKind, SketchPlane, Start};
     ///
+    /// let tol = Tol::witness();
     /// // The tour rocker's eye slot: two R = 1 lobes meeting tip to
     /// // tip, the TOP tip filleted at R = 1/4, the bottom left sharp.
     /// let tip = 0.75f64.sqrt();
@@ -773,10 +774,11 @@ impl<T: Real> ValidatedLoop<T> {
     ///             winding: ArcSweep::Ccw,
     ///             p: Start,
     ///         },
+    ///         tol,
     ///     )
     ///     .expect("the near candidate resolves the tip");
     /// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
-    ///     .validate(Tolerance::get())
+    ///     .validate(tol)
     ///     .expect("the eye slot validates");
     ///
     /// // One filleted corner, found by structure — no radius scan.
@@ -892,8 +894,8 @@ impl<T: Decide> Profile<T> {
     /// escalation (in-band margin, poisoned coordinate) surfaces as
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
-    pub fn validate(&self, tol: Tolerance) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ProfileError::Band)?;
+    pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
@@ -1378,8 +1380,16 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
             SegKind::Arc(g) => {
                 let theta = four * s.bulge.atan();
                 // Circular-segment correction: (r²/2)(θ − sin θ),
-                // doubled here since we accumulate 2A.
-                twice_area = twice_area + g.radius * g.radius * (theta - theta.sin());
+                // doubled here since we accumulate 2A. `r²` is the tight
+                // square, and here it is the tight square of something
+                // already known nonnegative: `Seg::radius` is
+                // `signed_radius.abs()`, so at `Interval` the enclosure
+                // has `lo >= 0` and the plain product's four-corner
+                // minimum IS the tight square. The conversion changes no
+                // bound at any instantiation — it is here so the file
+                // spells a square the one way the rule names, not
+                // because this site was wide.
+                twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
                 perimeter = perimeter + g.radius * theta.abs();
             }
         }

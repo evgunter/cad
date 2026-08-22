@@ -12,11 +12,18 @@ use editor_core::{
     evaluate,
 };
 use fixture::{ang, desc, insert, len};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -76,7 +83,11 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
 
 #[test]
 fn extrude_names_every_boundary_entity_with_the_d2_roles() {
-    let (doc, ext) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 1.0);
+    let (doc, ext) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        1.0,
+    );
     let ev = run(&doc);
     let t = table(&ev, ext);
     // 1 body + 6 faces + 12 edges + 8 vertices.
@@ -139,7 +150,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
 
 /// Profile on the xy plane (the y datum axis lies in it).
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts])),
@@ -166,7 +177,7 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
 /// diameter. EVERY vertex of this loop is on the axis — the shape the
 /// pole export exists for.
 fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, -1.0)),
@@ -433,7 +444,11 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
 
 #[test]
 fn split_names_sections_fragments_and_crossings() {
-    let (doc, ext) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 2.0);
+    let (doc, ext) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        2.0,
+    );
     let (doc, plane) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -545,7 +560,11 @@ fn split_names_sections_fragments_and_crossings() {
 
 #[test]
 fn transform_passes_names_through_and_pattern_wraps_instances() {
-    let (doc, ext) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 1.0);
+    let (doc, ext) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        1.0,
+    );
     let (doc, tr) = insert(
         doc,
         Node::Transform {
@@ -593,7 +612,11 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
 
 #[test]
 fn declare_pairs_resolve_in_the_named_nodes_tables() {
-    let (doc, a) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 1.0);
+    let (doc, a) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        1.0,
+    );
     let (doc, b) = cube(doc, 0.5, 1.0);
     let pair = (
         name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top)),

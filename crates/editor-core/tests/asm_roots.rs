@@ -21,6 +21,7 @@ use editor_core::{
     RootFault, SCHEMA_VERSION, SnapshotError, content_pin, evaluate, load, save,
 };
 use fixture::{desc, insert, len, scl, square, step};
+use geom_core::Tol;
 
 /// The v5 bytes, kept verbatim as the clean break's refusal fixture
 /// (the M5 PR 10 / M6-5 precedent: a break nobody can demonstrate is
@@ -28,7 +29,13 @@ use fixture::{desc, insert, len, scl, square, step};
 const V5: &str = include_str!("golden/v5_golden.cad");
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// A unit square profile centered at `cx` on the z = 0 plane.
@@ -53,7 +60,9 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 // ---- Row 1: automatic maintenance (D-3) ----
@@ -65,7 +74,7 @@ fn row1a_no_consumer_insert_appends() {
     // A lone profile is a sink, so it roots itself; its extrude then
     // consumes it (row 1b's rule) and takes the slot.
     let (doc, p0) = insert(
-        ProfileDoc::empty_derived("asm-roots-1a"),
+        ProfileDoc::empty_derived("asm-roots-1a", Tol::witness()),
         Node::Profile(desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -99,7 +108,10 @@ fn row1a_no_consumer_insert_appends() {
 /// second and third of three tips lands where the second was.
 #[test]
 fn row1b_consuming_insert_replaces_at_earliest_position() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-1b"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-1b", Tol::witness()),
+        0.0,
+    );
     let (doc, _, b) = block(doc, 5.0);
     let (doc, _, c) = block(doc, 10.0);
     assert_eq!(doc.roots(), &[a, b, c][..]);
@@ -124,7 +136,10 @@ fn row1b_consuming_insert_replaces_at_earliest_position() {
 /// root's position.
 #[test]
 fn row1c_root_delete_rereoots_orphans_in_document_order() {
-    let (doc, _, keep) = block(ProfileDoc::empty_derived("asm-roots-1c"), 0.0);
+    let (doc, _, keep) = block(
+        ProfileDoc::empty_derived("asm-roots-1c", Tol::witness()),
+        0.0,
+    );
     let (doc, pa, a) = block(doc, 5.0);
     let (doc, pb, b) = block(doc, 10.0);
     let (doc, u) = insert(
@@ -154,7 +169,10 @@ fn row1c_root_delete_rereoots_orphans_in_document_order() {
 /// the set.
 #[test]
 fn row1d_set_roots_overrides() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-1d"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-1d", Tol::witness()),
+        0.0,
+    );
     let (doc, _, b) = block(doc, 5.0);
     let (doc, record) = step(doc.clone(), DocEdit::SetRoots { roots: vec![b, a] });
     assert_eq!(doc.roots(), &[b, a][..]);
@@ -165,7 +183,10 @@ fn row1d_set_roots_overrides() {
 /// at this layer is keeping the prior VALUE, and `apply` is pure).
 #[test]
 fn row1e_undo_restores_the_prior_root_list() {
-    let (before, _, a) = block(ProfileDoc::empty_derived("asm-roots-1e"), 0.0);
+    let (before, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-1e", Tol::witness()),
+        0.0,
+    );
     let (before, _, b) = block(before, 5.0);
     let prior_roots = before.roots().to_vec();
     for edit in [
@@ -180,7 +201,10 @@ fn row1e_undo_restores_the_prior_root_list() {
         },
         DocEdit::DeleteNode { id: b },
     ] {
-        let after = before.apply(&edit).expect("the edit applies").doc;
+        let after = before
+            .apply(&edit, Tol::witness())
+            .expect("the edit applies")
+            .doc;
         assert_ne!(after.roots(), &prior_roots[..], "the edit moved the list");
         assert_eq!(
             before.roots(),
@@ -196,11 +220,17 @@ fn row1e_undo_restores_the_prior_root_list() {
 /// Row 2a — ancestor-freedom refuses and NAMES BOTH nodes.
 #[test]
 fn row2a_ancestor_freedom_names_both() {
-    let (doc, profile, extrude) = block(ProfileDoc::empty_derived("asm-roots-2a"), 0.0);
+    let (doc, profile, extrude) = block(
+        ProfileDoc::empty_derived("asm-roots-2a", Tol::witness()),
+        0.0,
+    );
     let err = doc
-        .apply(&DocEdit::SetRoots {
-            roots: vec![profile, extrude],
-        })
+        .apply(
+            &DocEdit::SetRoots {
+                roots: vec![profile, extrude],
+            },
+            Tol::witness(),
+        )
         .expect_err("an ancestor pair must refuse");
     assert_eq!(
         err,
@@ -223,16 +253,19 @@ fn row2a_ancestor_freedom_names_both() {
 /// strands that tip's whole chain.
 #[test]
 fn row2b_coverage_refuses_on_a_crafted_save() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-2b"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-2b", Tol::witness()),
+        0.0,
+    );
     let (doc, _, b) = block(doc, 5.0);
-    let text = save(&doc, &[]).expect("the honest document saves");
+    let text = save(&doc, &[], Tol::witness()).expect("the honest document saves");
     let honest = format!("\"roots\": [\n      {},\n      {}\n    ]", a.0, b.0);
     assert!(
         text.contains(&honest),
         "the save's root list must be the two tips, in order"
     );
     let crafted = text.replace(&honest, &format!("\"roots\": [\n      {}\n    ]", a.0));
-    match load(&crafted) {
+    match load(&crafted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::Roots(RootFault::Uncovered { node }))) => {
             assert!(
                 node != a,
@@ -248,9 +281,12 @@ fn row2b_coverage_refuses_on_a_crafted_save() {
 /// order, and a repeated root would gather one body twice).
 #[test]
 fn row2c_duplicate_entry_refuses() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-2c"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-2c", Tol::witness()),
+        0.0,
+    );
     let err = doc
-        .apply(&DocEdit::SetRoots { roots: vec![a, a] })
+        .apply(&DocEdit::SetRoots { roots: vec![a, a] }, Tol::witness())
         .expect_err("a duplicate must refuse");
     assert_eq!(
         err,
@@ -259,7 +295,7 @@ fn row2c_duplicate_entry_refuses() {
     // And a dead entry refuses too.
     let ghost = RecipeNodeId(9_999);
     assert_eq!(
-        doc.apply(&DocEdit::SetRoots { roots: vec![ghost] })
+        doc.apply(&DocEdit::SetRoots { roots: vec![ghost] }, Tol::witness())
             .expect_err("a dead entry must refuse"),
         editor_core::EditError::Roots(RootFault::NotLive { root: ghost })
     );
@@ -271,10 +307,13 @@ fn row2c_duplicate_entry_refuses() {
 /// volume is the parts' sum.
 #[test]
 fn row3a_two_disjoint_extrudes_gather_additively() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-3a"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-3a", Tol::witness()),
+        0.0,
+    );
     let (doc, _, b) = block(doc, 5.0);
     let ev = run(&doc);
-    let product = editor_core::product(&doc, &ev).expect("the product gathers");
+    let product = editor_core::product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(product.solids().count(), 2, "one solid per root");
     let part = |id| match &ev.value(id).expect("the tip evaluated").payload {
         editor_core::ValuePayload::Body(body) => volume(body),
@@ -293,7 +332,10 @@ fn row3a_two_disjoint_extrudes_gather_additively() {
 /// provenance indices and `Instance(i)` names intact.
 #[test]
 fn row3b_pattern_root_gathers_n_solids_with_provenance() {
-    let (doc, _, extrude) = block(ProfileDoc::empty_derived("asm-roots-3b"), 0.0);
+    let (doc, _, extrude) = block(
+        ProfileDoc::empty_derived("asm-roots-3b", Tol::witness()),
+        0.0,
+    );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -307,7 +349,7 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
     );
     assert_eq!(doc.roots(), &[pattern][..], "the pattern is the only tip");
     let ev = run(&doc);
-    let product = editor_core::product(&doc, &ev).expect("the product gathers");
+    let product = editor_core::product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(product.solids().count(), 3, "N placed solids, no boolean");
 
     // Provenance: instances 1..N carry `Placed { node: pattern, i }`
@@ -347,7 +389,10 @@ fn row3b_pattern_root_gathers_n_solids_with_provenance() {
 /// wants both halves).
 #[test]
 fn row3c_split_root_gathers_both_pieces() {
-    let (doc, _, extrude) = block(ProfileDoc::empty_derived("asm-roots-3c"), 0.0);
+    let (doc, _, extrude) = block(
+        ProfileDoc::empty_derived("asm-roots-3c", Tol::witness()),
+        0.0,
+    );
     let (doc, plane) = insert(
         doc,
         Node::Datum(editor_core::Datum::Plane {
@@ -364,7 +409,7 @@ fn row3c_split_root_gathers_both_pieces() {
     );
     assert_eq!(doc.roots(), &[split][..], "the split consumed both inputs");
     let ev = run(&doc);
-    let product = editor_core::product(&doc, &ev).expect("the product gathers");
+    let product = editor_core::product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(product.solids().count(), 2, "both pieces are present");
     assert!(
         (volume(&product) - 1.0).abs() < 1e-9,
@@ -379,7 +424,7 @@ fn row3c_split_root_gathers_both_pieces() {
 #[test]
 fn row4_no_body_roots_refuses_typed() {
     let (doc, profile) = insert(
-        ProfileDoc::empty_derived("asm-roots-4"),
+        ProfileDoc::empty_derived("asm-roots-4", Tol::witness()),
         Node::Profile(desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -393,7 +438,7 @@ fn row4_no_body_roots_refuses_typed() {
         ev.value(profile).is_some(),
         "the profile itself evaluated — the refusal is about DENOTATION, not health"
     );
-    match editor_core::product(&doc, &ev) {
+    match editor_core::product(&doc, &ev, Tol::witness()) {
         Err(ProductError::NoBodyRoots) => {}
         other => panic!("a profile-only document must refuse NoBodyRoots, got {other:?}"),
     }
@@ -405,12 +450,15 @@ fn row4_no_body_roots_refuses_typed() {
 /// because it is product-solid order (D-1's include-by-default).
 #[test]
 fn row5a_root_reorder_moves_the_pin() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-5a"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-5a", Tol::witness()),
+        0.0,
+    );
     let (doc, _, b) = block(doc, 5.0);
     let (reordered, _) = step(doc.clone(), DocEdit::SetRoots { roots: vec![b, a] });
     assert_ne!(
-        content_pin(&doc).unwrap(),
-        content_pin(&reordered).unwrap(),
+        content_pin(&doc, Tol::witness()).unwrap(),
+        content_pin(&reordered, Tol::witness()).unwrap(),
         "a reorder is a different version"
     );
     // And it is really only the order that changed.
@@ -426,10 +474,13 @@ fn row5a_root_reorder_moves_the_pin() {
 /// of (root list, evaluation).
 #[test]
 fn row5b_root_neutral_edits_keep_the_product_order_stable() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-5b"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-5b", Tol::witness()),
+        0.0,
+    );
     let (doc, _, _b) = block(doc, 5.0);
     let roots_before = doc.roots().to_vec();
-    let first = editor_core::product(&doc, &run(&doc)).expect("gather 1");
+    let first = editor_core::product(&doc, &run(&doc), Tol::witness()).expect("gather 1");
     // A continuous edit on the first block's depth: the root list is
     // untouched, so the product's solid order must be too.
     let (doc, _) = step(
@@ -441,7 +492,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
         },
     );
     assert_eq!(doc.roots(), &roots_before[..], "the edit was root-neutral");
-    let second = editor_core::product(&doc, &run(&doc)).expect("gather 2");
+    let second = editor_core::product(&doc, &run(&doc), Tol::witness()).expect("gather 2");
     // Solid order IS gather order, read off the transplanted
     // provenance: solid k's faces were minted by root k's node.
     let order = |body: &topo::Body<f64>| -> Vec<Vec<u64>> {
@@ -457,7 +508,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
     );
     // …and a root REORDER is exactly what moves it.
     let (swapped, _) = step(doc, DocEdit::SetRoots { roots: vec![_b, a] });
-    let third = editor_core::product(&swapped, &run(&swapped)).expect("gather 3");
+    let third = editor_core::product(&swapped, &run(&swapped), Tol::witness()).expect("gather 3");
     assert_eq!(order(&third), vec![vec![_b.0], vec![a.0]]);
 }
 
@@ -496,7 +547,7 @@ fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
     // the number stays exact here.
     assert_eq!(SCHEMA_VERSION, 14);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
-    match load(V5) {
+    match load(V5, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -519,13 +570,16 @@ fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
 /// dump), and it round-trips through load with the root list intact.
 #[test]
 fn row6b_saves_are_byte_stable_and_roots_round_trip() {
-    let (doc, _, a) = block(ProfileDoc::empty_derived("asm-roots-6b"), 0.0);
+    let (doc, _, a) = block(
+        ProfileDoc::empty_derived("asm-roots-6b", Tol::witness()),
+        0.0,
+    );
     let (doc, _, b) = block(doc, 5.0);
     let (doc, _) = step(doc, DocEdit::SetRoots { roots: vec![b, a] });
-    let once = save(&doc, &[]).expect("saves");
-    let twice = save(&doc, &[]).expect("saves again");
+    let once = save(&doc, &[], Tol::witness()).expect("saves");
+    let twice = save(&doc, &[], Tol::witness()).expect("saves again");
     assert_eq!(once, twice, "two blesses, one byte string");
-    let loaded = load(&once).expect("the current-schema text loads");
+    let loaded = load(&once, Tol::witness()).expect("the current-schema text loads");
     assert_eq!(
         loaded.doc.roots(),
         &[b, a][..],
@@ -541,7 +595,7 @@ fn row6b_saves_are_byte_stable_and_roots_round_trip() {
 fn row6c_replay_rebuilds_the_root_list() {
     let mut log: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let id = editor_core::DocumentId::derive("asm-roots-6c");
-    let mut doc: Doc<ProfileProgram> = Doc::empty(id);
+    let mut doc: Doc<ProfileProgram> = Doc::empty(id, Tol::witness());
     for cx in [0.0, 5.0] {
         for node in [
             Node::Profile(desc(
@@ -556,16 +610,16 @@ fn row6c_replay_rebuilds_the_root_list() {
             },
         ] {
             let edit = DocEdit::InsertNode { node };
-            doc = doc.apply(&edit).expect("insert").doc;
+            doc = doc.apply(&edit, Tol::witness()).expect("insert").doc;
             log.push(edit);
         }
     }
     let swap = DocEdit::SetRoots {
         roots: doc.roots().iter().rev().copied().collect(),
     };
-    doc = doc.apply(&swap).expect("set roots").doc;
+    doc = doc.apply(&swap, Tol::witness()).expect("set roots").doc;
     log.push(swap);
-    let replayed = Doc::replay(id, &log).expect("the log replays");
+    let replayed = Doc::replay(id, &log, Tol::witness()).expect("the log replays");
     assert_eq!(replayed.roots(), doc.roots());
     assert!(replayed.bit_eq(&doc));
 }

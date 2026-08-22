@@ -27,11 +27,13 @@ one-liner fix. General lesson worth keeping: a repo-relative path cached
 in per-clone git config is invisible to a repo-side rename — grep for
 `git config` when moving directories.
 
-**Disk.** Each lane grows a 4–8 GB `target/`; never share
-`CARGO_TARGET_DIR` across parallel builds (cargo's lock serializes
-them); `~/.cache/gmp-mpfr-sys` IS shared safely. Session start: arm
-`disk-watchdog.sh` (WARN <15G, CRITICAL <8G) from the installed monitor
-copies. Under pressure: `local-scripts/clean-lanes.sh [--dry-run]`
+**Disk.** Each lane grows a multi-GB `target/` (`disk-watchdog.sh`'s
+header carries the current size, and the script its own WARN/CRITICAL
+thresholds — read them there); never share `CARGO_TARGET_DIR` across
+parallel builds (cargo's lock serializes them); `~/.cache/gmp-mpfr-sys`
+IS shared safely. Session start: arm `disk-watchdog.sh` from the
+installed monitor copies. Under pressure:
+`local-scripts/clean-lanes.sh [--dry-run]`
 (re-checks pushed/clean/no-stash before each rm and refuses loudly);
 NEVER touch a running gate's target; confirm the OWNING agent has
 terminated before cleaning its lane. After a disk-full crash, purge torn
@@ -45,12 +47,13 @@ batch loops.
 cleanup is pointed at: put outputs at `cad-work/<name>-substrate/`, the
 clone INSIDE it, and remove only the clone subdir at the seam.
 
-**Build concurrency.** 10 GB WSL2 ceiling. Heavy cargo operations are
-bounded machine-wide by `local-scripts/with-build-slot.sh` — flock slot
-files in `~/.local/share/cad-work/locks/`; flock releases on process
-death, including SIGKILL/OOM. **Width is 1 (a mutex), measured not
-assumed**: concurrent warm workspace rebuilds cost ~40% against
-sequential, and `-j` caps make it worse, so there is no jobs cap either
+**Build concurrency.** Bounded by the box's RAM ceiling, not by
+taste. Heavy cargo operations are bounded machine-wide by
+`local-scripts/with-build-slot.sh` — flock slot files in
+`~/.local/share/cad-work/locks/`; flock releases on process death,
+including SIGKILL/OOM. **Width is 1 (a mutex), measured not assumed**:
+concurrent warm workspace rebuilds were measured slower than sequential
+ones, and `-j` caps make it worse, so there is no jobs cap either
 (PR #230). `CAD_SLOT_WIDTH=2` re-widens if hardware changes; batteries
 then take ALL slots (`-x`), and two concurrent batteries are the
 documented OOM shape. `ci-local.sh` (hence `gate.sh`) and `test-fast.sh`
@@ -61,7 +64,7 @@ self-acquire; wrap raw `cargo` invocations yourself.
   starve behind a battery. Batteries and default jobs keep the main
   mutex. Its cost model is unverified — the leading suspect for
   pathological build waits is express-lane overlap with a main-slot
-  build on a 10 GB box, ahead of any compiler flag.
+  build on a memory-tight box, ahead of any compiler flag.
 - Choose `-n` (grab-or-exit-75, then retry) over the default blocking
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
@@ -107,6 +110,19 @@ ONCE in the foreground before arming it. A catch-all retry arm
 (`|| echo retry`) converts a permanent error into silent eternal
 waiting.
 
+**A restart loses the INBOX and keeps the WORKTREE**, and they then
+disagree. A queued orchestrator message is delivered at the lane's next
+tool round; a container restart before that round drops it, while the
+uncommitted work done for it survives on disk. A lane wakes holding a
+change with no traceable authority — and a diff caught MID-TRANSITION
+between two lost instructions reads exactly like work nobody asked for,
+where a coherent one would have read as somebody's finished intention.
+One lane reported itself for fabricating a ruling from Evan on that
+evidence; the rulings were real and both had arrived. **Revert first,
+ask second, do not conclude**: *"I cannot find the authority"* is
+evidence about the records, and after a restart the records are the
+unreliable half.
+
 **Death recovery.** A dead subagent's transcript AND its isolation
 worktree (with uncommitted work) survive — `git worktree list` from the
 main checkout, then SendMessage resumes it. Choose **fresh over resume**
@@ -119,6 +135,23 @@ every coherent unit. **A resume resets cwd to the orchestrator
 worktree**: every resumed command must carry `cd <clone> && ...` in the
 same Bash call, and post-resume battery claims are trusted only after
 verifying the transcript rows carried the cd.
+
+**Merging is destructive to checks — four rules, each guarding a silent or
+permanent failure rather than a red build.** Before merging, filter the check
+runs (`gh api .../check-runs`): reject any `conclusion` that is not `success`,
+**and separately confirm none is still in flight** — a check still running when
+you merge dies at checkout, can never be re-run (a `pull_request` run cannot
+re-checkout a merged ref), and its retry reproduces the failure, so it reads as
+a defect forever. Confirm a *skip* is habitual by checking earlier green runs of
+the same branch. Resolving a conflict where **both sides deleted** something:
+take the union of the deletions, **derived from `main`**, never "keep both
+sides" — keeping yours resurrects what another lane struck, and it looks clean.
+After any resolution, grep the **whole tree** for conflict markers, not the file
+you resolved: `git add -A && git commit --no-edit` on a merge stages a
+conflicted file verbatim and needs no message, so nothing prompts. Then check
+the post-condition **against the merged tree**, not against your diff — a row
+you never touched cannot appear in your diff, which is why the diff cannot tell
+you whether it should have been.
 
 **CONFLICTING = silent CI outage.** A PR that goes CONFLICTING against
 main runs NO check runs at all — it looks like CI is absent, not
@@ -133,3 +166,18 @@ CONFLICTING as a loud failure.
 of one session.** PR/issue bodies and anything else to-be-published go
 to LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`), never the
 scratchpad; orchestrator briefs state this.
+
+**Reclaiming a finished lane is the ORCHESTRATOR's job, not a lane's.** A
+lane cannot judge whether a sibling directory is live and should not try —
+it should free its own and *report* the rest. Only the orchestrator knows
+which agents have reported. **Do it when a review returns, not when a lane
+runs out of disk**: a review lane's `target/` is pure waste the moment its
+report is in hand, and review lanes are the biggest consumers — one
+adversarial reviewer held 12G, more than any implementer lane. On one track
+six finished reviewers and three merged implementers were holding **23G**
+with nothing unpushed; reclaiming took free space from 2.4G to 27G, after
+disk had already hit 100% and killed a live lane's tool output twice.
+`local-scripts/clean-lanes.sh` refuses anything with unpushed commits or
+untracked files, so it is safe to run in bulk — but it needs **absolute
+paths**; a bare lane name is refused with *"does not exist / cannot
+resolve"*, which reads like a missing directory rather than a usage error.

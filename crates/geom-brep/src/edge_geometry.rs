@@ -281,8 +281,11 @@ pub enum EdgeGeometry<T: Real> {
     /// Intrinsic: the connected component of the transverse intersection
     /// S₁ ∩ S₂ selected by `witness`. Transversality (normals linearly
     /// independent along the locus) is the validity precondition,
-    /// enforced at certification; the witness doubles as the marching
-    /// seed when numerical SSI arrives (M3+).
+    /// enforced at certification. The witness SELECTS the component
+    /// and nothing else: the marching rung mints its own
+    /// (`carrier(mid)`, from the fitted cache) and seeds from surviving
+    /// cell centres, so it consumes no witness from here —
+    /// `geom_brep::ssi::certify` states that contract in its own words.
     Intersection {
         /// The first surface (one of the edge's two adjacent faces'
         /// surfaces — coherence checked by the tier-3 validator).
@@ -348,8 +351,7 @@ pub enum EdgeGeometry<T: Real> {
     },
     /// Conventional: the `u = const` **iso-parameter curve** of a
     /// parametric surface — the loft/sweep assembly's wall–wall seam
-    /// class (M6-3; the executed design of `docs/M5-LOG.md` PR 9c
-    /// item 6(iii)).
+    /// class (M6-3).
     ///
     /// Why this is its own variant and not an
     /// [`EdgeGeometry::Intersection`]: a definitional wall junction's

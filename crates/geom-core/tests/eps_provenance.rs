@@ -23,6 +23,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::tolerance::{DEFAULT_EPS, ENV_EPS, EpsilonSource, Tolerance};
 
 /// Prints the run's provenance and ε in one greppable line.
@@ -49,7 +50,7 @@ fn probe_default() {
         None,
         "committed_report must not commit"
     );
-    assert_eq!(Tolerance::get().eps, DEFAULT_EPS);
+    assert_eq!(Tol::witness().get().eps, DEFAULT_EPS);
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Default);
     assert!(Tolerance::committed_report().is_some());
     announce("default");
@@ -59,7 +60,7 @@ fn probe_default() {
 #[test]
 #[ignore]
 fn probe_env() {
-    assert_eq!(Tolerance::get().eps, 1e-6);
+    assert_eq!(Tol::witness().get().eps, 1e-6);
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Env);
     announce("env");
 }
@@ -70,7 +71,7 @@ fn probe_env() {
 #[test]
 #[ignore]
 fn probe_env_rejected() {
-    assert_eq!(Tolerance::get().eps, DEFAULT_EPS);
+    assert_eq!(Tol::witness().get().eps, DEFAULT_EPS);
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Default);
     let report = Tolerance::report();
     assert_eq!(report.env_errors.len(), 1);
@@ -84,7 +85,7 @@ fn probe_env_rejected() {
 #[ignore]
 fn probe_init() {
     Tolerance::init(Tolerance::with_eps(4e-9)).expect("first init");
-    assert_eq!(Tolerance::get().eps, 4e-9);
+    assert_eq!(Tol::witness().get().eps, 4e-9);
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Init);
     assert!(Tolerance::report().env_errors.is_empty());
     announce("init");
@@ -95,7 +96,7 @@ fn probe_init() {
 #[ignore]
 fn probe_document() {
     Tolerance::init_document_eps(3e-9).expect("document commits");
-    assert_eq!(Tolerance::get().eps, 3e-9);
+    assert_eq!(Tol::witness().get().eps, 3e-9);
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Document);
     announce("document");
 }
@@ -109,7 +110,7 @@ fn probe_document() {
 fn probe_document_over_env_bootstrap() {
     Tolerance::init_document_eps(3e-9).expect("document commits first");
     assert_eq!(
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         3e-9,
         "the document's ε outranks an unread {ENV_EPS}"
     );
@@ -124,7 +125,11 @@ fn probe_document_over_env_bootstrap() {
 #[test]
 #[ignore]
 fn probe_env_bootstrap_then_agreeing_document() {
-    assert_eq!(Tolerance::get().eps, 1e-6, "env bootstrap commits first");
+    assert_eq!(
+        Tol::witness().get().eps,
+        1e-6,
+        "env bootstrap commits first"
+    );
     assert_eq!(Tolerance::eps_source(), EpsilonSource::Env);
     // A matching document is a benign reload: `AlreadyInitialized`
     // carrying the equal value, which the persistence layer treats as

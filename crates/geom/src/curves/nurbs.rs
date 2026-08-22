@@ -2,7 +2,7 @@
 //! wired into any enum) and [`NurbsCurve3`] (the [`crate::curves::Curve3::Nurbs`]
 //! payload), M5 PR 3.
 //!
-//! # Data model (binding conventions, `docs/M5-PR3-SPEC.md`)
+//! # Data model (binding conventions)
 //!
 //! Knots, weights, and degree are **f64 structure** (C6); control
 //! points are the only generically-typed data. Construction is
@@ -22,10 +22,14 @@
 //!   every scalar. For `t` outside the span's knot interval the result
 //!   is the span's **polynomial extension** (documented garbage-out —
 //!   detecting it would need the comparison [`Real`] deliberately
-//!   lacks). There is no invalid-span case: a [`Span`] is validated at
-//!   construction, and it carries the control window, so the window
-//!   base is an addition rather than the `span − degree` these
-//!   evaluators used to spell (and guard) at each use site.
+//!   lacks). A [`Span`] is validated against the vector it was drawn
+//!   from and carries its own control window, so the window base is an
+//!   addition rather than a `span − degree` that could underflow — but
+//!   it carries no borrow of that vector, so each evaluator asks
+//!   [`KnotVector::admits`] and answers a span this curve's knots do
+//!   not admit with an **all-poison** point/derivative triple rather
+//!   than an out-of-bounds index (D9: the kernel never panics on any
+//!   input).
 //! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
 //!   the sealed [`SpanLocate`] seam (per-instantiation semantics
 //!   documented in `geom_core::spline::locate`), then the core per
@@ -119,19 +123,26 @@ macro_rules! nurbs_curve {
             /// generic core (module docs: the span contract; the fixed
             /// single-ascending-pass association).
             ///
-            /// A [`Span`] is valid by construction, so there is no
-            /// invalid-index case and no poison-on-bad-span path; `t`
-            /// outside the span's interval still yields the span's
-            /// polynomial extension (documented garbage-out).
+            /// A span this curve's knot vector does not admit
+            /// ([`KnotVector::admits`]) yields the **all-poison**
+            /// point; `t` outside the span's interval still yields the
+            /// span's polynomial extension (documented garbage-out).
             pub fn eval_in_span(&self, span: Span, t: T) -> $Point<T> {
+                // The pairing check, before any indexing: a `Span` of
+                // some other vector is a representable input, and
+                // `admits` is what makes `base + j` below in range for
+                // THIS curve's arrays.
+                if !self.knots.admits(span) {
+                    return net::poison_point::<T, $Point<T>>();
+                }
                 let basis = spline::basis::basis_funs(&self.knots, span, t);
                 // The window's base, subtracted once inside `Span` — so
                 // the underflow-prone `span − p` is gone from here, and
                 // what remains is an addition. Indexing (not `zip`)
-                // deliberately: `basis` is `degree + 1` long for the
-                // same `KnotVector` this `Span` was drawn from, and if
-                // that ever ceased to hold this must PANIC rather than
-                // silently drop control points.
+                // deliberately: `basis` is `degree + 1` long and the
+                // window is `degree + 1` wide, one `degree` by the
+                // check above, and if that ever ceased to hold this
+                // must PANIC rather than silently drop control points.
                 let base = span.first_control();
                 $(let mut $c = T::zero();)+
                 let mut w_acc = T::zero();
@@ -150,8 +161,16 @@ macro_rules! nurbs_curve {
             /// then the rational corrections, exactly as written:
             /// `C = N⁰/w⁰`, `C′ = (N¹ − C·w¹)/w⁰`,
             /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
-            /// Same totality contract as [`Self::eval_in_span`].
+            /// Same totality contract as [`Self::eval_in_span`]: a span
+            /// this curve's knot vector does not admit yields an
+            /// all-poison triple.
             pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                // The pairing check, as in [`Self::eval_in_span`].
+                if !self.knots.admits(span) {
+                    $(let $c = T::from_f64(f64::NAN);)+
+                    let poison = $Vector::new($($c),+);
+                    return (net::poison_point::<T, $Point<T>>(), poison, poison);
+                }
                 let ders = spline::basis::ders_basis_funs(&self.knots, span, t, 2);
                 // Indexed off the window base, exactly as
                 // [`Self::eval_in_span`]. A `zip` against a window slice

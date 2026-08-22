@@ -59,7 +59,7 @@
 //!   degrees, eased hard toward the tip, which is what a real
 //!   *Calochortus* leaf lying along the ground does. Both are pinned
 //!   by measurement, not assertion: see
-//!   [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`].
+//!   `review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
 //!
 //!   What the loft still cannot do is close the tip to a POINT (a
 //!   zero-width section refuses, though as a NON-SIMPLE profile
@@ -69,20 +69,12 @@
 //!   therefore small but real, and left visibly so rather than shrunk
 //!   until the blunt end stops showing.
 //!
-//! **Every blade section here is straight lines, and that is now
-//! OUTSTANDING WORK rather than a constraint.** Until #306 the skin
-//! lane carried integral sections only, so an arc — a rational NURBS —
-//! skinned to a rational wall whose carrier had no
-//! `speed_lower_bound`, and the body refused at assembly. #306 landed
-//! the span meter's rational arm and that refusal RETIRED (the pin
-//! that asserted it, `sweep`'s `m7_skin_integral` Pin 4, has flipped to
-//! the positive statement). The kite and the diamond are what the
-//! blades were given while the arcs were unavailable; they have not
-//! been revisited since the door opened. Giving the blades their
-//! lanceolate arcs back is a real follow-up, not a settled choice —
-//! and it wants checking against the QUADRATURE half of the rational
-//! bank, which #306 did not retire (`QuadratureUnsupported` keeps its
-//! own pins, and this stop prints an exact volume for every body).
+//! **Every blade section here is straight lines, and that is
+//! OUTSTANDING WORK rather than a constraint.** Giving the blades
+//! their lanceolate arcs back is a real follow-up, not a settled
+//! choice — and it wants checking against the QUADRATURE half of the
+//! rational bank, which is not retired (`QuadratureUnsupported` keeps
+//! its own pins, and this stop prints an exact volume for every body).
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -107,7 +99,7 @@
 //! SEPALS' tangency to the globe is not fitted, though: the stand-off
 //! is the section's own keel and the non-entry is a two-line argument
 //! on [`sepals`], checked on the built solids by
-//! [`review_probes::the_sepals_stand_outside_the_globe_they_are_tangent_to`].
+//! `review_probes::the_sepals_stand_outside_the_globe_they_are_tangent_to`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -131,6 +123,7 @@ use profile::RawLoop;
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, validated};
+use pncad::geom_core::Tol;
 
 // ---------------------------------------------------------------
 // The turtle: a G1 chain of circular arcs in the world xz-plane.
@@ -230,7 +223,7 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
 /// COUNTERCLOCKWISE in the xz-plane drawn with +x right and +z up,
 /// which is the turtle's positive sense; with that choice the
 /// traversed window is always `[0, |turn|]` from `u_ref`.
-fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> (Body<S>, WedgeFrames<S>) {
+fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFrames<S>) {
     let sense = if spec.turn >= 0.0 { -1.0 } else { 1.0 };
     let revolved = tube_along_arc(
         pt3(spec.center.0, 0.0, spec.center.1),
@@ -242,6 +235,7 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64) -> (Body<S>, WedgeFrames<S>) {
             t1: S::from_f64(spec.turn.abs()),
         },
         S::from_f64(tube),
+        tol,
     )
     .expect("stem tube arc builds");
     // The joint frames, ASKED of the operation that made them (LIB-U5
@@ -280,31 +274,35 @@ fn meridian<S: Scalar>(
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
+    tol: Tol,
 ) -> ProfileLoop<S> {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
     let t_mouth = top + mouth;
     let t_end = t_mouth + lip_drop;
     Open.at(p2(0.0, 0.0))
-        .line_to(p2(r_top, 0.0))
+        .line_to(p2(r_top, 0.0), tol)
         .expect("lantern attachment disk")
         // The belly: the sphere's own arc about the globe centre,
         // swept the long way round the equator (Ccw in sketch (s, t)).
-        .arc_to(Center {
-            c: p2(0.0, top),
-            winding: ArcSweep::Ccw,
-            p: p2(r_mouth, t_mouth),
-        })
+        .arc_to(
+            Center {
+                c: p2(0.0, top),
+                winding: ArcSweep::Ccw,
+                p: p2(r_mouth, t_mouth),
+            },
+            tol,
+        )
         .expect("lantern belly rides the globe")
-        .line_to(p2(lip_r, t_end))
+        .line_to(p2(lip_r, t_end), tol)
         .expect("lantern pucker cone")
-        .line_to(p2(0.0, t_end))
+        .line_to(p2(0.0, t_end), tol)
         .expect("lantern lip disk")
-        .line_to(Start)
+        .line_to(Start, tol)
         .expect("lantern axis seam")
         .into()
 }
-
+#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
 fn lantern<S: Scalar>(
     attach: (f64, f64),
     dir: (f64, f64),
@@ -313,6 +311,7 @@ fn lantern<S: Scalar>(
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
+    tol: Tol,
 ) -> Body<S> {
     // Sketch frame: origin at the attachment point, v along the
     // flower axis (into the flower), u the in-plane radial.
@@ -322,10 +321,15 @@ fn lantern<S: Scalar>(
         v3(dir.0, 0.0, dir.1),
     );
     revolve(
-        &validated(plane, vec![meridian(globe, top, mouth, lip_r, lip_drop)])
-            .expect("lily profile validates"),
+        &validated(
+            plane,
+            vec![meridian(globe, top, mouth, lip_r, lip_drop, tol)],
+            tol,
+        )
+        .expect("lily profile validates"),
         sketch_axis(),
         Revolution::Full,
+        tol,
     )
     .expect("lantern revolves")
     .body
@@ -368,6 +372,13 @@ fn lantern<S: Scalar>(
 /// other on purpose and are not joined — gluing them is the same
 /// curved-boolean wall the rest of the plant is stopped by (probes 2
 /// and 7).
+///
+/// **Three, in the return type.** `plant` names the segments with a
+/// `.zip(["lily_bud_a", …])`, which truncates silently against a
+/// shorter `Vec` — a fourth segment would vanish from the manifest and
+/// only show up as a smaller printed piece count. The arity is
+/// therefore stated once, here, where a change to it is a compile
+/// error at the call site.
 #[allow(clippy::too_many_arguments)]
 fn bud<S: Scalar>(
     attach: (f64, f64),
@@ -380,7 +391,8 @@ fn bud<S: Scalar>(
     tilt: f64,
     lean: f64,
     span: f64,
-) -> Vec<Body<S>> {
+    tol: Tol,
+) -> [Body<S>; 3] {
     let ax = (dir.0, 0.0, dir.1);
     let e1 = (-dir.1, 0.0, dir.0);
     let e2 = (0.0, 1.0, 0.0);
@@ -396,56 +408,59 @@ fn bud<S: Scalar>(
         let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
         (x / l, y / l, z / l)
     };
-    (0..3)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let phi = 2.0 * PI * (i as f64) / 3.0;
-            // The segment's own axis: the bud axis leaned `tilt` toward
-            // the direction `lean` radians round from its own place.
-            let l = rad(phi + lean);
-            let (st, ct) = (tilt.sin(), tilt.cos());
-            let a = nrm((
-                ct * ax.0 + st * l.0,
-                ct * ax.1 + st * l.1,
-                ct * ax.2 + st * l.2,
-            ));
-            // The wedge STARTS half a span before the segment's
-            // place — and then sweeps AWAY from it, not across it:
-            // `revolve` turns right-handed about the sketch axis,
-            // which in this frame (`e1 x e2` is MINUS the bud axis)
-            // is the direction of decreasing `phi`. So the wedge
-            // actually lands centred a full `span` short of `phi`,
-            // measured and pinned in
-            // `review_probes::the_buds_three_axes_form_the_authored_tripod`.
-            // Nothing above depends on where it lands — the three
-            // stay 120 degrees apart and the overlap is still
-            // 3*span - 360 — but the CHIRALITY does: the lean read
-            // off the realized centre is `lean + span`, still nowhere
-            // near the achiral star, and still a pinwheel.
-            //
-            // Gram-Schmidt against the tilted axis, since that radial
-            // is only perpendicular to the BUD's axis, not to this
-            // segment's.
-            let start = rad(phi - 0.5 * span);
-            let d = start.0 * a.0 + start.1 * a.1 + start.2 * a.2;
-            let u = nrm((start.0 - d * a.0, start.1 - d * a.1, start.2 - d * a.2));
-            // All three share the ATTACHMENT: the tilt splays their
-            // tips, not their bellies.
-            let plane = SketchPlane::from_frame(
-                pt3(attach.0, 0.0, attach.1),
-                v3(u.0, u.1, u.2),
-                v3(a.0, a.1, a.2),
-            );
-            revolve(
-                &validated(plane, vec![meridian(globe, top, mouth, lip_r, lip_drop)])
-                    .expect("bud profile validates"),
-                sketch_axis(),
-                Revolution::Partial(S::from_f64(span)),
+    core::array::from_fn(|i| {
+        #[allow(clippy::cast_precision_loss)]
+        let phi = 2.0 * PI * (i as f64) / 3.0;
+        // The segment's own axis: the bud axis leaned `tilt` toward
+        // the direction `lean` radians round from its own place.
+        let l = rad(phi + lean);
+        let (st, ct) = (tilt.sin(), tilt.cos());
+        let a = nrm((
+            ct * ax.0 + st * l.0,
+            ct * ax.1 + st * l.1,
+            ct * ax.2 + st * l.2,
+        ));
+        // The wedge STARTS half a span before the segment's
+        // place — and then sweeps AWAY from it, not across it:
+        // `revolve` turns right-handed about the sketch axis,
+        // which in this frame (`e1 x e2` is MINUS the bud axis)
+        // is the direction of decreasing `phi`. So the wedge
+        // actually lands centred a full `span` short of `phi`,
+        // measured and pinned in
+        // `review_probes::the_buds_three_axes_form_the_authored_tripod`.
+        // Nothing above depends on where it lands — the three
+        // stay 120 degrees apart and the overlap is still
+        // 3*span - 360 — but the CHIRALITY does: the lean read
+        // off the realized centre is `lean + span`, still nowhere
+        // near the achiral star, and still a pinwheel.
+        //
+        // Gram-Schmidt against the tilted axis, since that radial
+        // is only perpendicular to the BUD's axis, not to this
+        // segment's.
+        let start = rad(phi - 0.5 * span);
+        let d = start.0 * a.0 + start.1 * a.1 + start.2 * a.2;
+        let u = nrm((start.0 - d * a.0, start.1 - d * a.1, start.2 - d * a.2));
+        // All three share the ATTACHMENT: the tilt splays their
+        // tips, not their bellies.
+        let plane = SketchPlane::from_frame(
+            pt3(attach.0, 0.0, attach.1),
+            v3(u.0, u.1, u.2),
+            v3(a.0, a.1, a.2),
+        );
+        revolve(
+            &validated(
+                plane,
+                vec![meridian(globe, top, mouth, lip_r, lip_drop, tol)],
+                tol,
             )
-            .expect("bud segment revolves")
-            .body
-        })
-        .collect()
+            .expect("bud profile validates"),
+            sketch_axis(),
+            Revolution::Partial(S::from_f64(span)),
+            tol,
+        )
+        .expect("bud segment revolves")
+        .body
+    })
 }
 
 /// A leaf blade's cross-section: a KITE, i.e. the two sharp margins
@@ -464,7 +479,7 @@ struct Kite {
 
 /// The long basal leaf's placement and spine, named rather than
 /// inlined because
-/// [`review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`]
+/// `review_probes::the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`
 /// builds a SECOND blade from the very same numbers with the twist set
 /// to zero, and measures the roll as the angle between the two. A
 /// re-typed copy of these numbers would let the two drift and the
@@ -534,27 +549,13 @@ const SEPAL_STATIONS: usize = 13;
 /// The section is a [`Kite`] of four straight lines, and the spine
 /// runs through its chord's midpoint, i.e. through the midrib.
 ///
-/// **Why straight lines and not the crescent's arcs — a reason that
-/// has since EXPIRED.** The skin lane used to carry INTEGRAL sections
-/// only. An arc is a rational NURBS, a rational section skins to a
-/// rational wall, and a rational carrier had no `speed_lower_bound` —
-/// `nurbs_span_meter` came back `Invalid` and the body refused at
-/// assembly (`geom-brep`'s rung-3 span meter; the same poison #207
-/// removed for INTEGRAL inputs it never claimed to remove for
-/// rational ones). That is why this blade is a kite.
-///
-/// **#306 landed the meter's rational arm and the refusal retired.**
-/// A rational section skinned along a curved path now builds and its
-/// seam carriers meter positively — `sweep`'s `m7_skin_integral`
-/// Pin 4 was written to flip when this happened, and it has flipped.
-/// So the kite is no longer the honest limit of the vocabulary; it is
-/// simply what the blade was given before the door opened, and it has
-/// not been revisited since. **Restoring the lanceolate arcs is
-/// outstanding work on this stop**, with one thing to check first:
-/// #306 retired the span meter's half of the rational bank and not
-/// the QUADRATURE half, and every body in this stop prints an exact
-/// volume, so an arc-walled blade may meet `QuadratureUnsupported`
-/// where the kite does not.
+/// **Restoring the lanceolate arcs is outstanding work on this
+/// stop** — the kite is what the blade was given, not a limit of the
+/// vocabulary — with one thing to check first: the span meter's half
+/// of the rational bank is retired and the QUADRATURE half is not,
+/// and every body in this stop prints an exact volume, so an
+/// arc-walled blade may meet `QuadratureUnsupported` where the kite
+/// does not.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.
@@ -574,6 +575,7 @@ fn leaf<S: Scalar>(
     len: f64,
     section: Kite,
     curl: f64,
+    tol: Tol,
 ) -> Body<S> {
     let (d, v, u) = blade_frame(dir, up);
     // The spine: a circular arc of length `len` turning through `curl`
@@ -600,13 +602,16 @@ fn leaf<S: Scalar>(
     .placement;
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(&[
-        (-0.5 * section.width, 0.0),
-        (0.0, -section.keel),
-        (0.5 * section.width, 0.0),
-        (0.0, section.ridge),
-    ])];
-    sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE)
+    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(
+        &[
+            (-0.5 * section.width, 0.0),
+            (0.0, -section.keel),
+            (0.5 * section.width, 0.0),
+            (0.0, section.ridge),
+        ],
+        tol,
+    )];
+    sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
 }
@@ -782,12 +787,10 @@ impl Plan {
 /// segment), and the spine may not turn past π — the loft's stacking
 /// trilean is an END-TO-END statement, `cos(curl/2)` for a planar arc
 /// spine, so past a half turn of total position stacking it refuses
-/// `ReversedStacking` (its own filed frontier, #368). The OLD second wall —
-/// "not much past 2.5 radians", PR #316's measured `nurbs_span_meter`
-/// collapse at curl 3.0 — RETIRED with M8-14 (#222): the integral
-/// speed meter scans per span now, and
+/// `ReversedStacking` (its own filed frontier, #368).
+#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
 /// `review_probes::the_spine_curl_wall_re_measured` pins both sides
-/// of the re-measured truth (3.0 builds, 3.5 refuses typed).
+/// of the curl wall (3.0 builds, 3.5 refuses typed).
 fn lofted_blade<S: Scalar>(
     base: (f64, f64, f64),
     dir: (f64, f64, f64),
@@ -796,13 +799,15 @@ fn lofted_blade<S: Scalar>(
     curl: f64,
     plan: Plan,
     stations: usize,
+    tol: Tol,
 ) -> Body<S> {
-    try_lofted_blade(base, dir, up, len, curl, plan, stations)
+    try_lofted_blade(base, dir, up, len, curl, plan, stations, tol)
         .expect("the lofted blade skins its own sections")
         .body
 }
 
 /// [`lofted_blade`] with the refusal surfaced instead of expected, so
+#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
 /// the curl-wall probe (M8-14, #222 — `review_probes::
 /// the_spine_curl_wall_re_measured`) can sweep the parameter and
 /// state the measured frontier rather than a remembered one.
@@ -814,6 +819,7 @@ fn try_lofted_blade<S: Scalar>(
     curl: f64,
     plan: Plan,
     stations: usize,
+    tol: Tol,
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up);
     let r = len / curl;
@@ -860,7 +866,7 @@ fn try_lofted_blade<S: Scalar>(
             .placement,
         );
     }
-    loft_body::<S>(&sections, &places, LEAF_V_DEGREE)
+    loft_body::<S>(&sections, &places, LEAF_V_DEGREE, tol)
 }
 
 /// The three **sepals**, the feature that reads as *pulchellus*
@@ -906,6 +912,10 @@ fn try_lofted_blade<S: Scalar>(
 /// then rolls the face outward toward the tip. That is a real
 /// *Calochortus* habit and, not by accident, the one motion a swept
 /// blade could not have been given.
+///
+/// **Three, in the return type**, for the reason [`bud`] states: the
+/// naming `.zip` at the call site truncates silently against a shorter
+/// `Vec`, so the arity is stated once and checked by the compiler.
 #[allow(clippy::too_many_arguments)]
 fn sepals<S: Scalar>(
     globe_center: (f64, f64, f64),
@@ -916,7 +926,8 @@ fn sepals<S: Scalar>(
     len: f64,
     curl: f64,
     plan: Plan,
-) -> Vec<Body<S>> {
+    tol: Tol,
+) -> [Body<S>; 3] {
     // The two radials spanning the plane perpendicular to the flower
     // axis: the in-xz-plane one and ŷ.
     let e1 = (-axis.2, 0.0, axis.0);
@@ -924,37 +935,35 @@ fn sepals<S: Scalar>(
     let (st, ct) = (theta.sin(), theta.cos());
     // The offset that makes the keel graze rather than pierce.
     let stand = globe + plan.base.keel;
-    (0..3)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let phi = phase + 2.0 * PI * (i as f64) / 3.0;
-            let (sp, cp) = (phi.sin(), phi.cos());
-            let rad = (
-                cp * e1.0 + sp * e2.0,
-                cp * e1.1 + sp * e2.1,
-                cp * e1.2 + sp * e2.2,
-            );
-            // n: the outward normal at (theta, phi). `-axis` is the
-            // flower's upper pole, the axis pointing INTO the flower.
-            let n = (
-                ct * -axis.0 + st * rad.0,
-                ct * -axis.1 + st * rad.1,
-                ct * -axis.2 + st * rad.2,
-            );
-            // tau: the tangent there, running outward and down.
-            let tau = (
-                st * axis.0 + ct * rad.0,
-                st * axis.1 + ct * rad.1,
-                st * axis.2 + ct * rad.2,
-            );
-            let base = (
-                globe_center.0 + stand * n.0,
-                globe_center.1 + stand * n.1,
-                globe_center.2 + stand * n.2,
-            );
-            lofted_blade::<S>(base, tau, n, len, curl, plan, SEPAL_STATIONS)
-        })
-        .collect()
+    core::array::from_fn(|i| {
+        #[allow(clippy::cast_precision_loss)]
+        let phi = phase + 2.0 * PI * (i as f64) / 3.0;
+        let (sp, cp) = (phi.sin(), phi.cos());
+        let rad = (
+            cp * e1.0 + sp * e2.0,
+            cp * e1.1 + sp * e2.1,
+            cp * e1.2 + sp * e2.2,
+        );
+        // n: the outward normal at (theta, phi). `-axis` is the
+        // flower's upper pole, the axis pointing INTO the flower.
+        let n = (
+            ct * -axis.0 + st * rad.0,
+            ct * -axis.1 + st * rad.1,
+            ct * -axis.2 + st * rad.2,
+        );
+        // tau: the tangent there, running outward and down.
+        let tau = (
+            st * axis.0 + ct * rad.0,
+            st * axis.1 + ct * rad.1,
+            st * axis.2 + ct * rad.2,
+        );
+        let base = (
+            globe_center.0 + stand * n.0,
+            globe_center.1 + stand * n.1,
+            globe_center.2 + stand * n.2,
+        );
+        lofted_blade::<S>(base, tau, n, len, curl, plan, SEPAL_STATIONS, tol)
+    })
 }
 
 /// A blade's local frame as three world vectors: the spine's start
@@ -1043,7 +1052,7 @@ const GREEN_SEPAL: [f64; 3] = [0.72, 0.76, 0.36];
 /// arc's end tangent, and the lantern's axis IS the last tangent, so
 /// the flower hangs along the stem's own direction rather than along
 /// a hand-chosen vector.
-pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
+pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     let root = Turtle {
         p: (0.0, 0.0),
         t: (0.0, 1.0),
@@ -1061,9 +1070,9 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
     };
     let (pedicel, at_bud) = fork.arc(0.42, deg(130.0));
 
-    let (stem, stem_caps) = tube_arc(lower, 0.060);
-    let (arch, arch_caps) = tube_arc(upper, 0.052);
-    let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032);
+    let (stem, stem_caps) = tube_arc(lower, 0.060, tol);
+    let (arch, arch_caps) = tube_arc(upper, 0.052, tol);
+    let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032, tol);
 
     // The main flower's attachment point and axis — the same two the
     // lantern below is built on, named once so the sepals hang on the
@@ -1118,7 +1127,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         at_bud.p.0 - 0.06 * at_bud.t.0,
         at_bud.p.1 - 0.06 * at_bud.t.1,
     );
-    let bud_bodies: Vec<Body<S>> = bud(
+    let bud_bodies: [Body<S>; 3] = bud(
         bud_attach,
         at_bud.t,
         BUD_GLOBE,
@@ -1126,16 +1135,13 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         0.095,
         0.014,
         0.22,
-        // 5 degrees of splay, leaning a quarter turn round from each
-        // segment's own place (the chiral choice — see `bud`), and a
-        // 156-degree span so the three overlap by 108 degrees in total
-        // and genuinely nest rather than merely abut.
         deg(5.0),
         deg(90.0),
         deg(156.0),
+        tol,
     );
 
-    let sepal_bodies: Vec<Body<S>> = sepals(
+    let sepal_bodies: [Body<S>; 3] = sepals(
         (
             flower_attach.0 + FLOWER_TOP * at_flower.t.0,
             0.0,
@@ -1143,27 +1149,12 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
         ),
         (at_flower.t.0, 0.0, at_flower.t.1),
         FLOWER_GLOBE,
-        // Stand them as high on the globe as a tangency can go: the
-        // attachment disk TRUNCATES the sphere at
-        // acos(FLOWER_TOP / FLOWER_GLOBE) = 24.6 degrees, and above
-        // that there is no sphere to be tangent to. Four degrees below
-        // the truncation puts the sepal bases on the shoulder right
-        // beside the rim the pedicel enters through — as close to
-        // meeting the stem as a blade standing on this sphere can be.
         (FLOWER_TOP / FLOWER_GLOBE).acos() + deg(4.0),
-        // Half a turn of phase. Without it sepal 0's radial is `e1`,
-        // which for this flower's axis points almost straight at the
-        // second lantern 1.44 m away — and a 1.05 m sepal reaches it,
-        // ending up 0.027 m INSIDE that globe with 7530 mesh points
-        // to spare. Nothing in the kernel objects: these are separate
-        // bodies and this scene joins none of them, so a body passing
-        // through another is not an error the kernel could raise —
-        // which is exactly why the scene has to check. Turning the
-        // triple by pi sends sepal 0 the other way.
         deg(180.0),
         1.05,
         0.40,
         sepal_plan,
+        tol,
     );
 
     let mut pieces = vec![
@@ -1199,6 +1190,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 0.36,
                 0.09,
                 0.16,
+                tol,
             ),
             caps: None,
         },
@@ -1220,6 +1212,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                 LEAF_A_CURL,
                 leaf_a_plan(),
                 LOFT_STATIONS,
+                tol,
             ),
             caps: None,
         },
@@ -1237,6 +1230,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                     keel: 0.007,
                 },
                 -0.40,
+                tol,
             ),
             caps: None,
         },
@@ -1254,6 +1248,7 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
                     keel: 0.006,
                 },
                 -0.35,
+                tol,
             ),
             caps: None,
         },
@@ -1289,8 +1284,8 @@ pub fn plant<S: Scalar>() -> Vec<Piece<S>> {
 }
 
 /// The tour stop.
-pub fn stops() -> Vec<Stop> {
-    let pieces = plant::<f64>();
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let pieces = plant::<f64>(tol);
     let note = format!(
         "{} closed solids: 3 torus-segment stem tubes said in WORLD \
          coordinates (centre/axis/u_ref/radii stored exactly as \
@@ -1353,25 +1348,29 @@ pub fn stops() -> Vec<Stop> {
 /// A full sphere of radius `r` about `c` (in the world xz-plane at
 /// y = 0), as a revolve of a half-disc whose diameter lies on the
 /// axis — the shape a tepal seam would be carved with.
-fn ball<S: Scalar>(c: (f64, f64), r: f64) -> Body<S> {
+fn ball<S: Scalar>(c: (f64, f64), r: f64, tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(pt3(c.0, 0.0, c.1), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, 1.0));
     // Algebra-authored (LIB-G1): centre-first, with the sphere's own
     // centre authored and the bulge derived at lowering.
     let lp = Open
         .at(p2(0.0, -r))
-        .arc_to(Center {
-            c: p2(0.0, 0.0),
-            winding: ArcSweep::Ccw,
-            p: p2(0.0, r),
-        })
+        .arc_to(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, r),
+            },
+            tol,
+        )
         .expect("ball meridian rides its centre")
-        .line_to(Start)
+        .line_to(Start, tol)
         .expect("ball axis seam")
         .into();
     revolve(
-        &validated(plane, vec![lp]).expect("lily profile validates"),
+        &validated(plane, vec![lp], tol).expect("lily profile validates"),
         sketch_axis(),
         Revolution::Full,
+        tol,
     )
     .expect("probe ball revolves")
     .body
@@ -1405,9 +1404,9 @@ fn wall<T, E: core::fmt::Debug>(
 /// The lily's frontier, run live: every shape the plant WANTED and the
 /// kernel would not state, attempted for real and pinned by its own
 /// typed refusal.
-pub fn wall_probes<S: Scalar>() {
+pub fn wall_probes<S: Scalar>(tol: Tol) {
     println!("\n-- the lily's walls: what a plant asks for that the kernel will not say --");
-    let pieces = plant::<S>();
+    let pieces = plant::<S>(tol);
     let by = |name: &str| -> &Body<S> {
         &pieces
             .iter()
@@ -1423,7 +1422,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
-        crate::booleans::try_union_declared(stem, arch),
+        crate::booleans::try_union_declared(stem, arch, tol),
         // The KIND is the claim: the refusal names a TORUS face, i.e.
         // the tangent tube walls, not the coincident planar discs.
         |e| {
@@ -1445,7 +1444,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         2,
         "weld the lantern onto the arch (torus tube x sphere zone)",
-        pncad::topo::union(lant, arch),
+        pncad::topo::union(lant, arch, tol),
         |e| {
             matches!(
                 e,
@@ -1471,23 +1470,29 @@ pub fn wall_probes<S: Scalar>() {
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
-            .arc_to(Via {
-                q: p2(0.5, 0.12),
-                p: p2(1.0, 0.0),
-            })
+            .arc_to(
+                Via {
+                    q: p2(0.5, 0.12),
+                    p: p2(1.0, 0.0),
+                },
+                tol,
+            )
             .expect("probe leaf outer arc")
-            .arc_to(Via {
-                q: p2(0.5, 0.02),
-                p: Start,
-            })
+            .arc_to(
+                Via {
+                    q: p2(0.5, 0.02),
+                    p: Start,
+                },
+                tol,
+            )
             .expect("probe leaf inner arc")
             .into();
-        validated(plane, vec![lp]).expect("lily profile validates")
+        validated(plane, vec![lp], tol).expect("lily profile validates")
     };
     wall(
         3,
         "tilt a leaf out of its own plane the cheap way (oblique extrusion)",
-        extrude(&leafp, Extrusion::Vector(v3::<S>(0.0, 0.3, 0.04))),
+        extrude(&leafp, Extrusion::Vector(v3::<S>(0.0, 0.3, 0.04)), tol),
         |e| matches!(e, ExtrudeError::ObliqueExtrusion),
         "let a sketch profile lean out of its plane in one step",
     );
@@ -1503,7 +1508,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        pncad::topo::transform_rigid(lant, &stretch),
+        pncad::topo::transform_rigid(lant, &stretch, tol),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
         |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
@@ -1524,7 +1529,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         5,
         "mirror a leaf across the plant's plane (improper isometry)",
-        pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror),
+        pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol),
         // A reflection's columns ARE unit and orthogonal; only the
         // determinant catches it, and that is the whole point.
         |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
@@ -1543,7 +1548,8 @@ pub fn wall_probes<S: Scalar>() {
             lant,
             &rim,
             S::from_f64(0.02),
-            pncad::geom_core::Band::linear().expect("band"),
+            pncad::geom_core::Band::linear(tol).expect("band"),
+            tol,
         ),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
@@ -1557,7 +1563,7 @@ pub fn wall_probes<S: Scalar>() {
     wall(
         7,
         "carve a tepal seam into the lantern (sphere x sphere subtract)",
-        pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16)),
+        pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
         |e| {
             matches!(
                 e,
@@ -1608,12 +1614,13 @@ pub fn wall_probes<S: Scalar>() {
                 twist_ease: 1.0,
             },
             9,
+            tol,
         )
     };
     wall(
         8,
         "graft the leaf's sheath onto its blade at their shared, DECLARED rectangle",
-        crate::booleans::try_union_declared(by("lily_leaf_a"), &sheath),
+        crate::booleans::try_union_declared(by("lily_leaf_a"), &sheath, tol),
         // The KIND is the claim, as in wall 1: a curved EDGE stops
         // this, not a curved face and not the planar contact. If this
         // ever starts refusing on the contact instead, the sentence
@@ -1656,8 +1663,7 @@ pub fn wall_probes<S: Scalar>() {
 // construction code, plus the finding-13 tessellation table
 // re-measured. Kept as tests so a silent placement regression
 // (finding 11: sign/handedness errors produce a valid solid in the
-// wrong place) fails loud here — verified to catch a flipped
-// `-spec.turn` in `tube_arc` during the review.
+// wrong place) fails loud here.
 // ---------------------------------------------------------------
 
 #[cfg(test)]
@@ -1666,7 +1672,7 @@ mod review_probes {
     use pncad::topo::Surface;
 
     fn pieces() -> Vec<Piece<f64>> {
-        plant::<f64>()
+        plant::<f64>(Tol::witness())
     }
 
     fn body<'a>(ps: &'a [Piece<f64>], name: &str) -> &'a Body<f64> {
@@ -1746,10 +1752,9 @@ mod review_probes {
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
     /// end tangent THERE is `t`.
     ///
-    /// The frames come from `sweep::revolved_caps` (LIB-U5):
-    /// this used to scan every face of the body for a planar carrier
-    /// and hope the right one turned up. Which of the two ends
-    /// answers is the revolve's business, so both are offered — that
+    /// The frames come from `sweep::revolved_caps` (LIB-U5). Which of
+    /// the two ends answers is the revolve's business, so both are
+    /// offered — that
     /// is a two-element check against NAMED caps, not a search of the
     /// whole boundary.
     fn assert_cap(caps: &WedgeFrames<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
@@ -1826,9 +1831,8 @@ mod review_probes {
     #[test]
     fn lantern_axes_are_the_stored_stem_tangents() {
         let ps = pieces();
-        // The bud is no longer a small lantern on one axis — it is
-        // three partial revolves on three tilted ones, so its claim is
-        // a different one and lives in
+        // The bud is three partial revolves on three tilted axes, so
+        // its claim is a different one and lives in
         // `the_buds_three_axes_form_the_authored_tripod`.
         for (name, t, cen, rad) in [("lily_lantern", T2, SPHERE1_C, FLOWER_GLOBE)] {
             let b = body(&ps, name);
@@ -1903,13 +1907,15 @@ mod review_probes {
             ("lily_leaf_c", 2e-3, 826),
         ];
         for (name, delta, want) in table {
-            let m = pncad::mesh::tessellate(body(&ps, name), delta).expect("tessellate");
+            let m = pncad::mesh::tessellate(body(&ps, name), delta, Tol::witness())
+                .expect("tessellate");
             assert_eq!(triangle_count(&m), want, "{name} @ {delta:e}");
         }
         // Lantern volume error at both deltas (1.25% / 0.53% claimed).
         let exact = 0.36225803729804673;
         for (delta, lo, hi) in [(5e-3, 0.0120, 0.0130), (2e-3, 0.0050, 0.0056)] {
-            let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta).expect("tessellate");
+            let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta, Tol::witness())
+                .expect("tessellate");
             let rel = ((signed_volume(&m) - exact) / exact).abs();
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
@@ -1938,7 +1944,8 @@ mod review_probes {
         for (name, w, ridge, keel, len, curl) in blades {
             let area = 0.5 * w * (ridge + keel);
             let pappus = area * curl.mul_add((ridge - keel) / 3.0, len);
-            let m = pncad::mesh::tessellate(body(&ps, name), 2e-3).expect("tessellate");
+            let m =
+                pncad::mesh::tessellate(body(&ps, name), 2e-3, Tol::witness()).expect("tessellate");
             let rel = ((signed_volume(&m) - pappus) / pappus).abs();
             assert!(rel > 1e-5 && rel < 5e-5, "{name}: rel {rel}");
         }
@@ -2013,6 +2020,7 @@ mod review_probes {
                 ..leaf_a_plan()
             },
             LOFT_STATIONS,
+            Tol::witness(),
         );
         let flat = cap_frames(&untwisted);
         let flat_tip = if flat[0].width > flat[1].width {
@@ -2384,27 +2392,17 @@ mod review_probes {
         s.atan2(c)
     }
 
-    /// **The spine curl wall, RE-MEASURED (M8-14, #222).** PR #316's
-    /// probe table measured leaf-geometry lofts building through
-    /// curl 2.5 rad and refusing at 3.0 (`nurbs_span_meter`
-    /// `ParamSpan` escalation — the integral speed meter's single
-    /// global chord collapsing once a seam carrier turns far enough
-    /// from its own chord), and the demo prose stated "not much past
-    /// 2.5 radians" as a live wall. The per-span meter RETIRED that
-    /// wall — 2.8 and 3.0 build now — and the re-measurement found
-    /// the NEXT one, which this probe pins from both sides: past
-    /// spine turn π the loft refuses `ReversedStacking`, because the
-    /// stacking trilean is an END-TO-END statement (mean last-section
-    /// displacement against the first section's normal — for a planar
-    /// arc spine that is `cos(curl/2)`, negative past π), not a
-    /// per-slab one. That wall is GEOMETRY-INDEPENDENT of the meter
-    /// fix and is filed as its own frontier (#368); if either side
-    /// of this pin moves, re-derive the
+    /// **The spine curl wall, pinned from both sides.** Through π the
+    /// loft builds; past spine turn π it refuses `ReversedStacking`,
+    /// because the stacking trilean is an END-TO-END statement (mean
+    /// last-section displacement against the first section's normal —
+    /// for a planar arc spine that is `cos(curl/2)`, negative past π),
+    /// not a per-slab one. That wall is filed as its own frontier
+    /// (#368); if either side of this pin moves, re-derive the
     /// `lofted_blade` prose with it.
     #[test]
     fn the_spine_curl_wall_re_measured() {
-        // The retired wall: through π the blade builds — including
-        // PR #316's measured refusals at 2.8 and 3.0.
+        // Through π the blade builds.
         for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0] {
             let out = try_lofted_blade::<f64>(
                 LEAF_A_BASE,
@@ -2414,6 +2412,7 @@ mod review_probes {
                 -curl,
                 leaf_a_plan(),
                 LOFT_STATIONS,
+                Tol::witness(),
             );
             assert!(
                 out.is_ok(),
@@ -2434,6 +2433,7 @@ mod review_probes {
                 -curl,
                 leaf_a_plan(),
                 LOFT_STATIONS,
+                Tol::witness(),
             );
             assert!(
                 matches!(out, Err(pncad::sweep::LoftError::ReversedStacking)),

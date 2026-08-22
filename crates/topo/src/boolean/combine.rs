@@ -44,6 +44,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::CurveGeom;
+use geom_core::Tol;
 
 /// The source→result key bridge (module docs). Only the maps the
 /// pipeline consumes are exposed; the rest are internal to the graft.
@@ -68,8 +69,9 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     src: &Body<T>,
+    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solid_with(dst, dst_solid, src, Bridge::Recertify)
+    graft_solid_with(dst, dst_solid, src, Bridge::Recertify, tol)
 }
 
 /// How a transplanted edge DESCRIPTION crosses into the destination's
@@ -105,8 +107,9 @@ pub(crate) fn graft_solid_with<T: geom_core::Decide>(
     dst_solid: SolidKey,
     src: &Body<T>,
     bridge: Bridge,
+    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solids_with(dst, &[dst_solid], src, bridge)
+    graft_solids_with(dst, &[dst_solid], src, bridge, tol)
 }
 
 /// [`graft_solid_with`] for a source holding N solids: `dst_solids`
@@ -124,6 +127,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     dst_solids: &[SolidKey],
     src: &Body<T>,
     bridge: Bridge,
+    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body",
@@ -359,9 +363,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             let remapped = curve
                 .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
                 .ok_or_else(corrupt)?;
-            if let Some(slot) = dst.curves.get_mut(dk) {
-                *slot = CurveGeom::Certified(remapped);
-            }
+            let Some(slot) = dst.curves.get_mut(dk) else {
+                unreachable!(
+                    "graft (handle remap): `dk` was minted into `dst.curves` by this \
+                     call's curve pass"
+                )
+            };
+            *slot = CurveGeom::Certified(remapped);
             continue;
         }
         let description = match *curve.description() {
@@ -417,7 +425,7 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             param_start: curve.params().0,
             param_end: curve.params().1,
         };
-        let band = geom_core::Band::linear().map_err(|_| corrupt())?;
+        let band = geom_core::Band::linear(tol).map_err(|_| corrupt())?;
         let recert = geom_brep::EdgeCurve::certify(
             spec,
             point(start_v)?,
@@ -426,9 +434,13 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             band,
         )
         .map_err(BooleanError::GraftRecertify)?;
-        if let Some(slot) = dst.curves.get_mut(dk) {
-            *slot = CurveGeom::Certified(recert);
-        }
+        let Some(slot) = dst.curves.get_mut(dk) else {
+            unreachable!(
+                "graft (recertify): `dk` was minted into `dst.curves` by this call's \
+                 curve pass"
+            )
+        };
+        *slot = CurveGeom::Certified(recert);
     }
 
     // ---- Attach the shells to the destination solids (source order,

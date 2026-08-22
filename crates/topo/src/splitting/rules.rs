@@ -349,6 +349,7 @@ mod tests {
     use super::*;
     use crate::entity::HalfEdgeKey;
     use crate::splitting::SectorEntryKind;
+    use geom_core::Tol;
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
         classes
@@ -453,7 +454,7 @@ mod tests {
     /// vacuous, and it asserts that gap rather than just the maximum.
     #[test]
     fn an_isolated_ring_vertex_contributes_its_distance() {
-        let mut cube = crate::fixtures::ops_cube();
+        let mut cube = crate::fixtures::ops_cube(Tol::witness());
         // The BOTTOM face, whose own cycle stops at the far bottom
         // corner; the seed (top) face already reaches the body's
         // farthest vertex, which would make the row vacuous.

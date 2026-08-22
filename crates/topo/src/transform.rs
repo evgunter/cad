@@ -55,6 +55,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
 
@@ -115,6 +116,47 @@ pub enum TransformError {
         what: &'static str,
     },
 }
+
+impl core::fmt::Display for TransformError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Pcurve { source } => write!(f, "transform pcurve pass: {source}"),
+            Self::Band(e) => write!(f, "transform could not form a band: {e}"),
+            Self::Certify { edge, source } => write!(
+                f,
+                "transform: mapped edge {edge:?} failed re-certification: {source}"
+            ),
+            Self::NotRigid { check } => write!(
+                f,
+                "transform: the map's linear part is not an isometry at tolerance — \
+                 predicate {check} refused, definitely or in-band"
+            ),
+            Self::NonFiniteMap { check } => write!(
+                f,
+                "transform: the map has a non-finite component — predicate {check} refused"
+            ),
+            Self::NullScaffold { edge } => write!(
+                f,
+                "transform: edge {edge:?} carries a transient null-scaffold curve; bodies at \
+                 rest never do"
+            ),
+            Self::NurbsPlaceholder => f.write_str(
+                "transform: a Nurbs placeholder surface or carrier evaluates to poison, so \
+                 mapping it is refused",
+            ),
+            Self::Corrupt { what } => write!(
+                f,
+                "transform: the body's topology references a missing {what} — a corrupt body"
+            ),
+        }
+    }
+}
+
+// No `source()`, matching every error type in this crate: each arm's
+// `Display` renders its nested payload's own `Display` in full, so the
+// chain is already in the message and a walker would re-read what it
+// just printed.
+impl std::error::Error for TransformError {}
 
 fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
     map.linear * v
@@ -306,8 +348,9 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 pub fn transform_rigid<T: Decide>(
     body: &Body<T>,
     map: &Affine3<T>,
+    tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let band = Band::linear().map_err(TransformError::Band)?;
+    let band = Band::linear(tol).map_err(TransformError::Band)?;
     check_rigid(map, band)?;
     let mut out = body.clone();
 
@@ -425,7 +468,7 @@ pub fn transform_rigid<T: Decide>(
     // runs when the operand actually carried caches, so transform never
     // MINTS caches a body did not have.
     if out.pcurves().next().is_some() {
-        crate::pcurves::mint_pcurves(&mut out)
+        crate::pcurves::mint_pcurves(&mut out, tol)
             .map_err(|source| TransformError::Pcurve { source })?;
     }
     Ok(out)

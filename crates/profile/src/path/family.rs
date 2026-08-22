@@ -30,15 +30,17 @@
 //! because an arc and the fillet that trims it are one decision.
 //!
 //! ```
-//! use geom_core::Point2;
+//! use geom_core::{Point2, Tol};
 //! use profile::{ArcSweep, Center, Open, Start};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let tip = 0.75_f64.sqrt();
 //! let lens = Open.arc_fillet_arc(
 //!     Center { c: p(-0.5, 0.0), winding: ArcSweep::Ccw, p: p(0.0, -tip) },
 //!     0.25,
 //!     Center { c: p(0.5, 0.0), winding: ArcSweep::Ccw, p: Start },
+//!     tol,
 //! )?;
 //! assert_eq!(lens.program.len(), 1);
 //! # Ok(())
@@ -50,14 +52,16 @@
 //! resolves at the verb, so `p: Start` closes there and then.
 //!
 //! ```
+//! use geom_core::Tol;
 //! use geom_core::Point2;
 //! use profile::{ArcSweep, Center, Open, Start};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let quarter = Open.at(p(0.0, 2.0))
-//!     .line_to(p(0.0, 0.0))?
-//!     .toward(1.0_f64, 0.0)?
-//!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start })?;
+//!     .line_to(p(0.0, 0.0), tol)?
+//!     .toward(1.0_f64, 0.0, tol)?
+//!     .fillet_arc(0.5, Center { c: p(0.0, 0.0), winding: ArcSweep::Ccw, p: Start }, tol)?;
 //! assert_eq!(quarter.loop_.vertices().len(), 4);
 //! # Ok(())
 //! # }
@@ -73,20 +77,22 @@
 //!
 //! ```
 //! use geom_core::Point2;
+//! use geom_core::Tol;
 //! use profile::{ArcSide, ArcSweep, Center, Open, Radius, Start};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let boss = Open.at(p(5.05, -1.6))
-//!     .toward(2.1_f64, 0.8)?
+//!     .toward(2.1_f64, 0.8, tol)?
 //!     // Onto the boss circle, blended.
-//!     .fillet_arc(0.5, Center { c: p(7.0, 0.0), winding: ArcSweep::Ccw, p: p(8.5, 0.0) })?
+//!     .fillet_arc(0.5, Center { c: p(7.0, 0.0), winding: ArcSweep::Ccw, p: p(8.5, 0.0) }, tol)?
 //!     // Off it again: r = 1.5 and Left re-derive the centre (7, 0)
 //!     // from the tip's own position and tangent, exactly.
-//!     .arc_fillet(Radius { r: 1.5, side: ArcSide::Left }, 0.5)?
-//!     .at(p(4.05, 1.35))?
-//!     .toward(-4.1, 0.3)?
-//!     .line(1.0)?
-//!     .line_to(Start)?;
+//!     .arc_fillet(Radius { r: 1.5, side: ArcSide::Left }, 0.5, tol)?
+//!     .at(p(4.05, 1.35), tol)?
+//!     .toward(-4.1, 0.3, tol)?
+//!     .line(1.0, tol)?
+//!     .line_to(Start, tol)?;
 //! assert!(boss.loop_.tangent_joints().len() >= 4);
 //! # Ok(())
 //! # }
@@ -98,19 +104,21 @@
 //! leg, whose endpoint the spec DERIVES rather than authors.
 //!
 //! ```
+//! use geom_core::Tol;
 //! use core::f64::consts::FRAC_PI_2;
 //! use geom_core::Point2;
 //! use profile::{ArcSide, Open, Start, Sweep};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let tol = Tol::witness();
 //! let p = Point2::new;
 //! let hook = Open.at(p(0.0, 0.0))
-//!     .toward(1.0_f64, 0.0)?
-//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: FRAC_PI_2 })?
-//!     .fillet(0.25)?
-//!     .at(p(0.0, 3.0))?
-//!     .toward(-1.0, 0.0)?
-//!     .line(1.0)?
-//!     .line_to(Start)?;
+//!     .toward(1.0_f64, 0.0, tol)?
+//!     .arc_to(Sweep { r: 1.0, side: ArcSide::Left, angle: FRAC_PI_2 }, tol)?
+//!     .fillet(0.25, tol)?
+//!     .at(p(0.0, 3.0), tol)?
+//!     .toward(-1.0, 0.0, tol)?
+//!     .line(1.0, tol)?
+//!     .line_to(Start, tol)?;
 //! assert_eq!(hook.loop_.vertices().len(), 5);
 //! # Ok(())
 //! # }
@@ -120,9 +128,9 @@
 //! the sharp arc leg from both the Point tip (`Bulge`/`Via`/`Center`,
 //! [`PointLeg`]) and the Directed tip (`Sweep`/`ArcLen`,
 //! [`TangentIncoming`]); the fused verbs take their incoming mode the
-//! same way. There are no retired-name doors left.
+//! same way.
 
-use geom_core::{Point2, Real, Sign, Tolerance};
+use geom_core::{Point2, Real, Sign, Tol};
 
 use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
@@ -147,8 +155,9 @@ pub(super) fn open_ray<T: geom_core::Decide>(
     radius: T,
     by_tangent: bool,
     origin_incoming: Option<Incoming<T>>,
+    tol: Tol,
 ) -> Result<(), PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     verbs::gate_positive("path_fillet_radius", radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
@@ -169,8 +178,9 @@ pub(super) fn open_ray<T: geom_core::Decide>(
 pub(super) fn open_arc<T: ArcCarrierScalar>(
     core: &mut Core<T>,
     arc: PendingArc<T>,
+    tol: Tol,
 ) -> Result<(), PathError<T>> {
-    open_arc_from_tip(core, arc, false, None)
+    open_arc_from_tip(core, arc, false, None, tol)
 }
 
 /// [`open_arc`] with the DIRECTED-POINT bookkeeping: `extends_carrier`
@@ -182,8 +192,9 @@ pub(super) fn open_arc_from_tip<T: ArcCarrierScalar>(
     arc: PendingArc<T>,
     extends_carrier: bool,
     origin_incoming: Option<Incoming<T>>,
+    tol: Tol,
 ) -> Result<(), PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     verbs::gate_positive("path_fillet_radius", arc.radius, band, |r| {
         PathError::NonpositiveFilletRadius { radius: r }
     })?;
@@ -226,8 +237,9 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     anchor: Point2<T>,
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
+    tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
@@ -239,9 +251,9 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
             carrier: arc_fillet::SideCarrier::Circle { centre, winding },
         },
         pending.radius(),
-        Tolerance::get(),
+        tol,
     )?;
-    core.emit_fillet_in(&trims, merge)?;
+    core.emit_fillet_in(&trims, merge, tol)?;
     // The carrier run to the anchor follows the fillet arc tangentially
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
@@ -287,6 +299,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     resolver: verbs::ArcResolver<T>,
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
+    tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
@@ -294,7 +307,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     let start_ang = core.start_ang.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry direction is bound",
     })?;
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     // The arrival's END tangent is the carrier's tangent at the entry
     // point — the incoming half of the seam junction.
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
@@ -307,9 +320,9 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             carrier: arc_fillet::SideCarrier::Circle { centre, winding },
         },
         pending.radius(),
-        Tolerance::get(),
+        tol,
     )?;
-    core.emit_fillet_in(&trims, merge)?;
+    core.emit_fillet_in(&trims, merge, tol)?;
     let radius = (start_pos - centre).norm_squared().sqrt();
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
@@ -330,6 +343,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             },
             start_ang,
             true,
+            tol,
         )?;
     } else {
         // Exact fit: the FILLET ARC is the whole arrival side and
@@ -344,6 +358,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             },
             start_ang,
             true,
+            tol,
         )?;
     }
     Ok(core.clone().build())
@@ -362,7 +377,7 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
     /// The state the arrival leaves the chain in.
     type Out;
     #[doc(hidden)]
-    fn apply(core: Core<T>, spec: Self) -> Self::Out;
+    fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out;
     #[doc(hidden)]
     fn fail(err: PathError<T>) -> Self::Out;
     #[doc(hidden)]
@@ -375,8 +390,15 @@ pub trait ArrivalSpec<T: ArcCarrierScalar> {
 /// land on an ordinary directed point at `p`.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self) -> Self::Out {
-        resolve_arc_arrival(core, arc_fillet::resolve::<T>, spec.p, spec.c, spec.winding)
+    fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
+        resolve_arc_arrival(
+            core,
+            arc_fillet::resolve::<T>,
+            spec.p,
+            spec.c,
+            spec.winding,
+            tol,
+        )
     }
     fn fail(err: PathError<T>) -> Self::Out {
         Err(err)
@@ -395,9 +417,15 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
 /// two-carrier junction and the seam junction check runs there.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn apply(mut core: Core<T>, spec: Self) -> Self::Out {
+    fn apply(mut core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
         let Start = spec.p;
-        resolve_arc_close(&mut core, arc_fillet::resolve::<T>, spec.c, spec.winding)
+        resolve_arc_close(
+            &mut core,
+            arc_fillet::resolve::<T>,
+            spec.c,
+            spec.winding,
+            tol,
+        )
     }
     fn fail(err: PathError<T>) -> Self::Out {
         Err(err)
@@ -416,7 +444,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
 /// awaits `.at(p)` and a director, in either order.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Radius<T> {
     type Out = Result<RadiusArrival<T>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self) -> Self::Out {
+    fn apply(core: Core<T>, spec: Self, _tol: Tol) -> Self::Out {
         Ok(RadiusArrival {
             core,
             spec,
@@ -439,7 +467,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Radius<T> {
 /// director is left free.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Point2<T>> {
     type Out = Result<ViaArrival<T>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self) -> Self::Out {
+    fn apply(core: Core<T>, spec: Self, _tol: Tol) -> Self::Out {
         Ok(ViaArrival {
             core,
             q: spec.q,
@@ -462,7 +490,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Point2<T>> {
 /// entry, director pending, `q` picks the carrier.
 impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
     type Out = Result<ViaArrivalStart<T>, PathError<T>>;
-    fn apply(core: Core<T>, spec: Self) -> Self::Out {
+    fn apply(core: Core<T>, spec: Self, _tol: Tol) -> Self::Out {
         Ok(ViaArrivalStart {
             core,
             q: spec.q,
@@ -518,10 +546,11 @@ fn radius_complete<T: geom_core::Decide>(
     at: Point2<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
+    tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     let (centre, winding) = verbs::radius_carrier(DirectedPoint { at, dir }, spec, band)?;
-    resolve_arc_arrival(core, resolver, at, centre, winding)
+    resolve_arc_arrival(core, resolver, at, centre, winding, tol)
 }
 
 impl<T: geom_core::Decide> RadiusArrival<T> {
@@ -556,9 +585,10 @@ impl<T: geom_core::Decide> RadiusArrival<T> {
         step: Step<T>,
         dx: T,
         dy: T,
+        tol: Tol,
     ) -> Result<RadiusArrivalDir<T>, PathError<T>> {
         self.core.record(step);
-        let dir = verbs::director(dx, dy)?;
+        let dir = verbs::director(dx, dy, tol)?;
         Ok(RadiusArrivalDir {
             core: self.core,
             spec: self.spec,
@@ -575,6 +605,7 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
         mut self,
         step: Step<T>,
         theta: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(step);
         radius_complete(
@@ -583,6 +614,7 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
             self.at,
             Dir::from_angle(theta),
             self.resolver,
+            tol,
         )
     }
 
@@ -593,10 +625,11 @@ impl<T: geom_core::Decide> RadiusArrivalAt<T> {
         step: Step<T>,
         dx: T,
         dy: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(step);
-        let dir = verbs::director(dx, dy)?;
-        radius_complete(self.core, self.spec, self.at, dir, self.resolver)
+        let dir = verbs::director(dx, dy, tol)?;
+        radius_complete(self.core, self.spec, self.at, dir, self.resolver, tol)
     }
 }
 
@@ -607,9 +640,10 @@ impl<T: geom_core::Decide> RadiusArrivalDir<T> {
         mut self,
         step: Step<T>,
         p: Point2<T>,
+        tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(step);
-        radius_complete(self.core, self.spec, p, self.dir, self.resolver)
+        radius_complete(self.core, self.spec, p, self.dir, self.resolver, tol)
     }
 }
 
@@ -629,6 +663,7 @@ impl<T: geom_core::Decide> ViaArrival<T> {
         mut self,
         step: Step<T>,
         theta: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(step);
         via_complete(
@@ -637,6 +672,7 @@ impl<T: geom_core::Decide> ViaArrival<T> {
             self.p,
             Dir::from_angle(theta),
             self.resolver,
+            tol,
         )
     }
 
@@ -647,10 +683,11 @@ impl<T: geom_core::Decide> ViaArrival<T> {
         step: Step<T>,
         dx: T,
         dy: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         self.core.record(step);
-        let dir = verbs::director(dx, dy)?;
-        via_complete(self.core, self.q, self.p, dir, self.resolver)
+        let dir = verbs::director(dx, dy, tol)?;
+        via_complete(self.core, self.q, self.p, dir, self.resolver, tol)
     }
 }
 
@@ -662,10 +699,11 @@ fn via_complete<T: geom_core::Decide>(
     p: Point2<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
+    tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: p, dir }, q, band)?;
-    resolve_arc_arrival(core, resolver, p, centre, winding)
+    resolve_arc_arrival(core, resolver, p, centre, winding, tol)
 }
 
 /// A `Via` CLOSE: anchor at the entry, director pending.
@@ -683,9 +721,16 @@ impl<T: geom_core::Decide> ViaArrivalStart<T> {
         mut self,
         step: Step<T>,
         theta: T,
+        tol: Tol,
     ) -> Result<ClosedLoop<T>, PathError<T>> {
         self.core.record(step);
-        via_close(self.core, self.q, Dir::from_angle(theta), self.resolver)
+        via_close(
+            self.core,
+            self.q,
+            Dir::from_angle(theta),
+            self.resolver,
+            tol,
+        )
     }
 
     /// The kernel behind the table's Via-close row (recording is the
@@ -695,10 +740,11 @@ impl<T: geom_core::Decide> ViaArrivalStart<T> {
         step: Step<T>,
         dx: T,
         dy: T,
+        tol: Tol,
     ) -> Result<ClosedLoop<T>, PathError<T>> {
         self.core.record(step);
-        let dir = verbs::director(dx, dy)?;
-        via_close(self.core, self.q, dir, self.resolver)
+        let dir = verbs::director(dx, dy, tol)?;
+        via_close(self.core, self.q, dir, self.resolver, tol)
     }
 }
 
@@ -707,13 +753,14 @@ fn via_close<T: geom_core::Decide>(
     q: Point2<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
+    tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
     })?;
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: start_pos, dir }, q, band)?;
-    resolve_arc_close(&mut core, resolver, centre, winding)
+    resolve_arc_close(&mut core, resolver, centre, winding, tol)
 }
 
 // ------------------------------------------------------------------
@@ -725,14 +772,14 @@ fn via_close<T: geom_core::Decide>(
 /// `line(len)`).
 pub trait TangentIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
-    fn leg(&self, dp: DirectedPoint<T>) -> Result<verbs::TangentArcLeg<T>, PathError<T>>;
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>>;
     #[doc(hidden)]
     fn to_wire(&self) -> ArcData<T>;
 }
 
 impl<T: ArcCarrierScalar> TangentIncoming<T> for Sweep<T> {
-    fn leg(&self, dp: DirectedPoint<T>) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
-        verbs::tangent_arc_leg(dp, self.r, self.side, self.angle, linear_band()?)
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        verbs::tangent_arc_leg(dp, self.r, self.side, self.angle, linear_band(tol)?)
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Sweep {
@@ -744,8 +791,8 @@ impl<T: ArcCarrierScalar> TangentIncoming<T> for Sweep<T> {
 }
 
 impl<T: ArcCarrierScalar> TangentIncoming<T> for ArcLen<T> {
-    fn leg(&self, dp: DirectedPoint<T>) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
-        verbs::tangent_arc_leg(dp, self.r, self.side, self.len / self.r, linear_band()?)
+    fn leg(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<verbs::TangentArcLeg<T>, PathError<T>> {
+        verbs::tangent_arc_leg(dp, self.r, self.side, self.len / self.r, linear_band(tol)?)
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::ArcLen {
@@ -762,7 +809,7 @@ impl<T: ArcCarrierScalar> TangentIncoming<T> for ArcLen<T> {
 /// tip exactly as the sharp arc legs check theirs.
 pub trait PointIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
-    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>>;
+    fn carrier(&self, at: Point2<T>, tol: Tol) -> Result<PointCarrier<T>, PathError<T>>;
     #[doc(hidden)]
     fn to_wire(&self) -> ArcData<T>;
 }
@@ -778,11 +825,13 @@ fn bulge_carrier<T: geom_core::Decide>(
     at: Point2<T>,
     p: Point2<T>,
     b: T,
+    tol: Tol,
 ) -> Result<(Point2<T>, crate::sugar::ArcSweep, Dir<T>), PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     // The bulge's sign IS the travel sense, so the classification that
     // gates it degenerate also decides the winding — one funnel row.
-    let winding = match crate::k_stats::decide("path_arc_bulge", geom_core::Margin::of(b), band) {
+    let winding = match geom_core::k_stats::decide("path_arc_bulge", geom_core::Margin::of(b), band)
+    {
         Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Ccw,
         Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Cw,
         Ok(geom_core::Sign::Zero) => return Err(PathError::DegenerateArcSpec { value: b }),
@@ -797,13 +846,13 @@ fn bulge_carrier<T: geom_core::Decide>(
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
-    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
-        let band = linear_band()?;
+    fn carrier(&self, at: Point2<T>, tol: Tol) -> Result<PointCarrier<T>, PathError<T>> {
+        let band = linear_band(tol)?;
         let chord = (self.p - at).norm_squared().sqrt();
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
-        let (c, w, start) = bulge_carrier(at, self.p, self.b)?;
+        let (c, w, start) = bulge_carrier(at, self.p, self.b, tol)?;
         Ok((c, w, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
@@ -815,8 +864,8 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for verbs::Bulge<T, Point2<T>> {
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
-    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
-        let band = linear_band()?;
+    fn carrier(&self, at: Point2<T>, tol: Tol) -> Result<PointCarrier<T>, PathError<T>> {
+        let band = linear_band(tol)?;
         let chord_v = self.p - at;
         let chord = chord_v.norm_squared().sqrt();
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
@@ -825,13 +874,14 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
-        match crate::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band) {
+        match geom_core::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band)
+        {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
             Ok(_) => {}
             Err(source) => return Err(PathError::Escalated { source }),
         }
         let b = crate::sugar::bulge_from_via(at, self.q, self.p);
-        let (c, w, start) = bulge_carrier(at, self.p, b)?;
+        let (c, w, start) = bulge_carrier(at, self.p, b, tol)?;
         Ok((c, w, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
@@ -843,8 +893,8 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
 }
 
 impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
-    fn carrier(&self, at: Point2<T>) -> Result<PointCarrier<T>, PathError<T>> {
-        let band = linear_band()?;
+    fn carrier(&self, at: Point2<T>, tol: Tol) -> Result<PointCarrier<T>, PathError<T>> {
+        let band = linear_band(tol)?;
         // The sharp `Center` leg mode's gates: both radii definitely
         // positive, equidistance definitely zero, chord non-degenerate.
         let r_tip = (at - self.c).norm_squared().sqrt();
@@ -854,7 +904,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
                 PathError::DegenerateArcCenter { radius: r }
             })?;
         }
-        match crate::k_stats::decide(
+        match geom_core::k_stats::decide(
             "path_arc_center_equidistant",
             geom_core::Margin::of(r_tip - r_end),
             band,
@@ -909,9 +959,9 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
 /// (`Radius`), never value-matched (§2c round 6).
 pub trait LegEndIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
-    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>>;
+    fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>>;
     #[doc(hidden)]
-    fn to_wire(&self) -> ArcData<T>;
+    fn to_wire(&self, tol: Tol) -> ArcData<T>;
 }
 
 /// What a directed-point fused incoming resolves to (see
@@ -927,44 +977,44 @@ pub enum FusedIncoming<T: Real> {
 }
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for verbs::Bulge<T, Point2<T>> {
-    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
+    fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         Ok(FusedIncoming::Anchored(PointIncoming::carrier(
-            self, dp.at,
+            self, dp.at, tol,
         )?))
     }
-    fn to_wire(&self) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
     }
 }
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Via<T, Point2<T>> {
-    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
+    fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         Ok(FusedIncoming::Anchored(PointIncoming::carrier(
-            self, dp.at,
+            self, dp.at, tol,
         )?))
     }
-    fn to_wire(&self) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
     }
 }
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
-    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
+    fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         Ok(FusedIncoming::Anchored(PointIncoming::carrier(
-            self, dp.at,
+            self, dp.at, tol,
         )?))
     }
-    fn to_wire(&self) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         PointIncoming::to_wire(self)
     }
 }
 
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
-    fn incoming(&self, dp: DirectedPoint<T>) -> Result<FusedIncoming<T>, PathError<T>> {
-        let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band()?)?;
+    fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
+        let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band(tol)?)?;
         Ok(FusedIncoming::FromTip(centre, winding))
     }
-    fn to_wire(&self) -> ArcData<T> {
+    fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         ArcData::Radius {
             r: self.r,
             side: self.side,
@@ -984,10 +1034,11 @@ impl Open {
         step: Step<T>,
         spec: Center<T, Point2<T>>,
         radius: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
         let mut core = Core::empty();
         core.record(step);
-        entry_arc_open(&mut core, &spec, radius)?;
+        entry_arc_open(&mut core, &spec, radius, tol)?;
         Ok(in_state(
             core,
             Tip {
@@ -1006,13 +1057,14 @@ impl Open {
         spec: Center<T, Point2<T>>,
         radius: T,
         spec2: S2,
+        tol: Tol,
     ) -> S2::Out {
         let mut core = Core::empty();
         core.record(step);
-        if let Err(e) = entry_arc_open(&mut core, &spec, radius) {
+        if let Err(e) = entry_arc_open(&mut core, &spec, radius, tol) {
             return S2::fail(e);
         }
-        S2::apply(core, spec2)
+        S2::apply(core, spec2, tol)
     }
 }
 
@@ -1023,8 +1075,9 @@ fn entry_arc_open<T: ArcCarrierScalar>(
     core: &mut Core<T>,
     spec: &Center<T, Point2<T>>,
     radius: T,
+    tol: Tol,
 ) -> Result<(), PathError<T>> {
-    let band = linear_band()?;
+    let band = linear_band(tol)?;
     let dir = carrier_tangent(spec.p, spec.c, spec.winding, band)?;
     core.seed(spec.p);
     core.start_ang = Some(dir);
@@ -1037,13 +1090,19 @@ fn entry_arc_open<T: ArcCarrierScalar>(
             radius,
             resolver: arc_fillet::resolve::<T>,
         },
+        tol,
     )
 }
 
 impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// The kernel behind the table's line-incoming/arc-arrival row
     /// (recording is the row's, not the kernel's).
-    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
+    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(
+        mut self,
+        radius: T,
+        spec: S,
+        tol: Tol,
+    ) -> S::Out {
         let (at, ang) = match self.dep() {
             Ok(v) => v,
             Err(e) => return S::fail(e),
@@ -1055,10 +1114,11 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             radius,
             self.tip.ang_by_tangent,
             self.tip.pos.as_ref().and_then(|p| p.incoming),
+            tol,
         ) {
             return S::fail(e);
         }
-        S::apply(self.core, spec)
+        S::apply(self.core, spec, tol)
     }
 
     /// The kernel behind the table's tangent-departing fused row
@@ -1067,8 +1127,9 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         mut self,
         spec: S,
         radius: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.tangent_arc_open(&spec, radius)?;
+        self.tangent_arc_open(&spec, radius, tol)?;
         Ok(in_state(
             self.core,
             Tip {
@@ -1086,11 +1147,12 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         spec: Si,
         radius: T,
         spec2: S2,
+        tol: Tol,
     ) -> S2::Out {
-        if let Err(e) = self.tangent_arc_open(&spec, radius) {
+        if let Err(e) = self.tangent_arc_open(&spec, radius, tol) {
             return S2::fail(e);
         }
-        S2::apply(self.core, spec2)
+        S2::apply(self.core, spec2, tol)
     }
 
     /// The tangent-departing fused incoming: derive the leg, run the §4
@@ -1101,9 +1163,10 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         &mut self,
         spec: &S,
         radius: T,
+        tol: Tol,
     ) -> Result<(), PathError<T>> {
         let (at, ang) = self.dep()?;
-        let leg = spec.leg(DirectedPoint { at, dir: ang })?;
+        let leg = spec.leg(DirectedPoint { at, dir: ang }, tol)?;
         if self.tip.ang_by_tangent
             && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
             && let Some(prev) = &inc.carrier
@@ -1114,6 +1177,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                     center: leg.centre,
                     radius: (at - leg.centre).norm_squared().sqrt(),
                 },
+                tol,
             )?;
         }
         open_arc(
@@ -1125,6 +1189,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 radius,
                 resolver: arc_fillet::resolve::<T>,
             },
+            tol,
         )
     }
 
@@ -1133,9 +1198,10 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     pub(super) fn arc_to_kernel<S: TangentIncoming<T>>(
         mut self,
         spec: S,
+        tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (at, ang) = self.dep()?;
-        let leg = spec.leg(DirectedPoint { at, dir: ang })?;
+        let leg = spec.leg(DirectedPoint { at, dir: ang }, tol)?;
         let carrier = SegArc {
             center: leg.centre,
             radius: (at - leg.centre).norm_squared().sqrt(),
@@ -1144,7 +1210,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
             && let Some(prev) = &inc.carrier
         {
-            super::refuse_identical_carriers(prev, &carrier)?;
+            super::refuse_identical_carriers(prev, &carrier, tol)?;
         }
         self.core.push_arc(leg.end, leg.bulge, carrier)?;
         let arm = carrier.radius.min(leg.chord);
@@ -1162,8 +1228,9 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
         mut self,
         spec: S,
         radius: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.point_arc_open(&spec, radius)?;
+        self.point_arc_open(&spec, radius, tol)?;
         Ok(in_state(
             self.core,
             Tip {
@@ -1181,23 +1248,25 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
         spec: Si,
         radius: T,
         spec2: S2,
+        tol: Tol,
     ) -> S2::Out {
-        if let Err(e) = self.point_arc_open(&spec, radius) {
+        if let Err(e) = self.point_arc_open(&spec, radius, tol) {
             return S2::fail(e);
         }
-        S2::apply(self.core, spec2)
+        S2::apply(self.core, spec2, tol)
     }
 
     fn point_arc_open<S: PointIncoming<T>>(
         &mut self,
         spec: &S,
         radius: T,
+        tol: Tol,
     ) -> Result<(), PathError<T>> {
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "fused arc incoming on a tip without a position",
         })?;
         let at = pos.at;
-        let (centre, winding, start, anchor) = spec.carrier(at)?;
+        let (centre, winding, start, anchor) = spec.carrier(at, tol)?;
         // A Plain point carries no incoming tangent, so there is no
         // junction to check here — the directed-point flavor runs it in
         // `leg_end_arc_open`. What a Plain tip CAN be is the entry
@@ -1214,6 +1283,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
                 radius,
                 resolver: arc_fillet::resolve::<T>,
             },
+            tol,
         )
     }
 }
@@ -1224,8 +1294,9 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     pub(super) fn fillet_kernel(
         mut self,
         radius: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.ray_extend(radius)?;
+        self.ray_extend(radius, tol)?;
         Ok(in_state(
             self.core,
             Tip {
@@ -1238,18 +1309,23 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 
     /// The kernel behind the table's leg-end ray-extension/arrival row
     /// (recording is the row's, not the kernel's).
-    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(mut self, radius: T, spec: S) -> S::Out {
-        if let Err(e) = self.ray_extend(radius) {
+    pub(super) fn fillet_arc_kernel<S: ArrivalSpec<T>>(
+        mut self,
+        radius: T,
+        spec: S,
+        tol: Tol,
+    ) -> S::Out {
+        if let Err(e) = self.ray_extend(radius, tol) {
             return S::fail(e);
         }
-        S::apply(self.core, spec)
+        S::apply(self.core, spec, tol)
     }
 
     /// The shared ray-extension opening: inherit the incoming end
     /// tangent, declare the (constructed) tangency at the leg end, and
     /// open the ray-incoming fillet there — `.tangent().fillet(r)`'s
     /// exact emissions, in one verb.
-    fn ray_extend(&mut self, radius: T) -> Result<(), PathError<T>> {
+    fn ray_extend(&mut self, radius: T, tol: Tol) -> Result<(), PathError<T>> {
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "ray extension on a tip without a position",
         })?;
@@ -1258,7 +1334,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             site: "ray extension on a tip without incoming data",
         })?;
         self.core.declare_last();
-        open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc))
+        open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc), tol)
     }
 
     /// The kernel behind the table's leg-end fused row (recording is
@@ -1267,8 +1343,9 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         mut self,
         spec: S,
         radius: T,
+        tol: Tol,
     ) -> Result<PartialPath<T, NoPos, NoAng>, PathError<T>> {
-        self.leg_end_arc_open(&spec, radius)?;
+        self.leg_end_arc_open(&spec, radius, tol)?;
         Ok(in_state(
             self.core,
             Tip {
@@ -1286,11 +1363,12 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         spec: Si,
         radius: T,
         spec2: S2,
+        tol: Tol,
     ) -> S2::Out {
-        if let Err(e) = self.leg_end_arc_open(&spec, radius) {
+        if let Err(e) = self.leg_end_arc_open(&spec, radius, tol) {
             return S2::fail(e);
         }
-        S2::apply(self.core, spec2)
+        S2::apply(self.core, spec2, tol)
     }
 
     /// The directed-point fused opening: an anchored mode is
@@ -1305,6 +1383,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         &mut self,
         spec: &S,
         radius: T,
+        tol: Tol,
     ) -> Result<(), PathError<T>> {
         let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
             site: "fused arc incoming on a tip without a position",
@@ -1317,9 +1396,9 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // exists only downstream of a leg, and every leg's chain bound
         // its entry direction before emitting — the Plain entry path
         // (`point_arc_open`) is where seeding lives.
-        match spec.incoming(DirectedPoint { at, dir: inc.ang })? {
+        match spec.incoming(DirectedPoint { at, dir: inc.ang }, tol)? {
             FusedIncoming::Anchored((centre, winding, start, anchor)) => {
-                junction_check(&inc, start, false)?;
+                junction_check(&inc, start, false, tol)?;
                 open_arc(
                     &mut self.core,
                     PendingArc {
@@ -1329,6 +1408,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         radius,
                         resolver: arc_fillet::resolve::<T>,
                     },
+                    tol,
                 )
             }
             FusedIncoming::FromTip(centre, winding) => {
@@ -1337,7 +1417,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                     radius: (at - centre).norm_squared().sqrt(),
                 };
                 let extends = match &inc.carrier {
-                    Some(prev) => carriers_are_identical(prev, &derived)?,
+                    Some(prev) => carriers_are_identical(prev, &derived, tol)?,
                     None => false,
                 };
                 if !extends {
@@ -1357,6 +1437,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                     },
                     extends,
                     Some(inc),
+                    tol,
                 )
             }
         }
@@ -1387,7 +1468,7 @@ pub trait PointLeg<T: geom_core::Decide, F: Flavor>: super::sealed::Sealed {
     /// The state the leg leaves the chain in.
     type Out;
     #[doc(hidden)]
-    fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out;
+    fn leg_from(path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out;
 }
 
 impl<T, Tgt> super::sealed::Sealed for verbs::Bulge<T, Tgt> {}
@@ -1396,73 +1477,73 @@ impl<T: Real, Tgt> super::sealed::Sealed for Center<T, Tgt> {}
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Bulge {
             target: Target::Point(spec.p),
             b: spec.b,
         }));
-        path.arc_to_point(spec.p, spec.b)
+        path.arc_to_point(spec.p, spec.b, tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Bulge {
             target: Target::Start,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b)
+        path.arc_to_start(spec.b, tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Via {
             q: spec.q,
             target: Target::Point(spec.p),
         }));
-        let bulge = path.arc_via_bulge(spec.q, spec.p)?;
-        path.arc_to_point(spec.p, bulge)
+        let bulge = path.arc_via_bulge(spec.q, spec.p, tol)?;
+        path.arc_to_point(spec.p, bulge, tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Via {
             q: spec.q,
             target: Target::Start,
         }));
-        let bulge = path.arc_via_bulge(spec.q, path.start_target()?)?;
-        path.arc_to_start(bulge)
+        let bulge = path.arc_via_bulge(spec.q, path.start_target()?, tol)?;
+        path.arc_to_start(bulge, tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Point2<T>> {
     type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Center {
             c: spec.c,
             winding: spec.winding,
             target: Target::Point(spec.p),
         }));
-        let bulge = path.arc_center_bulge(spec.c, spec.p, spec.winding)?;
-        path.arc_to_point(spec.p, bulge)
+        let bulge = path.arc_center_bulge(spec.c, spec.p, spec.winding, tol)?;
+        path.arc_to_point(spec.p, bulge, tol)
     }
 }
 
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self) -> Self::Out {
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Center {
             c: spec.c,
             winding: spec.winding,
             target: Target::Start,
         }));
-        let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding)?;
-        path.arc_to_start(bulge)
+        let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding, tol)?;
+        path.arc_to_start(bulge, tol)
     }
 }
 

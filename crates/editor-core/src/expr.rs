@@ -247,7 +247,9 @@ impl UnitSym {
         // rather than `index out of bounds: the len is 6 ...`.
         let Some(row) = quantity::UNITS.get(usize::from(self.0)) else {
             unreachable!(
-                "display-unit code {} is not a row of quantity::UNITS ({} rows)",
+                "display-unit code {} is not a row of quantity::UNITS ({} rows), yet the \
+                 code is minted only by `from_def`, as a position in this very table, and \
+                 `UnitSym`'s field is private to this module",
                 self.0,
                 quantity::UNITS.len()
             )
@@ -361,6 +363,44 @@ impl PartialEq for Lit {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
     }
+}
+
+/// The two-operand [`ExprKind`] variants, as a PATTERN taking the two
+/// operand sub-patterns.
+///
+/// Four matches partition `ExprKind` by arity — `Expr::child`'s two
+/// arms, `param_refs` and `literal_bits` — and each wrote the same
+/// seven names out. Sharing them as patterns keeps every one of those
+/// matches exhaustive: a new variant absent from this macro breaks all
+/// four builds, and its arity is one decision at one site.
+macro_rules! binary_kind {
+    ($a:pat, $b:pat) => {
+        ExprKind::Add($a, $b)
+            | ExprKind::Sub($a, $b)
+            | ExprKind::Mul($a, $b)
+            | ExprKind::Div($a, $b)
+            | ExprKind::Atan2($a, $b)
+            | ExprKind::Min($a, $b)
+            | ExprKind::Max($a, $b)
+    };
+}
+
+/// The one-operand [`ExprKind`] variants — see [`binary_kind`].
+macro_rules! unary_kind {
+    ($a:pat) => {
+        ExprKind::Neg($a)
+            | ExprKind::Sin($a)
+            | ExprKind::Cos($a)
+            | ExprKind::Tan($a)
+            | ExprKind::CountToScalar($a)
+    };
+}
+
+/// The zero-operand (leaf) [`ExprKind`] variants — see [`binary_kind`].
+macro_rules! leaf_kind {
+    () => {
+        ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Param(_)
+    };
 }
 
 /// The node vocabulary of the AST (private: constructors check dims).
@@ -680,30 +720,15 @@ impl Expr {
     /// The child at ExprPath index `i` (spec D5: operands in argument
     /// order), or `None` past the arity.
     pub fn child(&self, i: u8) -> Option<&Expr> {
-        use ExprKind as K;
         match (&self.kind, i) {
-            (
-                K::Add(a, _)
-                | K::Sub(a, _)
-                | K::Mul(a, _)
-                | K::Div(a, _)
-                | K::Atan2(a, _)
-                | K::Min(a, _)
-                | K::Max(a, _),
-                0,
-            ) => Some(a),
-            (
-                K::Add(_, b)
-                | K::Sub(_, b)
-                | K::Mul(_, b)
-                | K::Div(_, b)
-                | K::Atan2(_, b)
-                | K::Min(_, b)
-                | K::Max(_, b),
-                1,
-            ) => Some(b),
-            (K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a), 0) => Some(a),
-            _ => None,
+            (binary_kind!(a, _), 0) | (unary_kind!(a), 0) => Some(a),
+            (binary_kind!(_, b), 1) => Some(b),
+            // EXHAUSTIVE on the KIND axis, open on the index axis: a
+            // new variant must be given an arity here or the compile
+            // breaks. A wildcard would give it arity ZERO silently, and
+            // `descend`/`ExprPath` would then walk off the tree at a
+            // node that does have children.
+            (binary_kind!(_, _) | unary_kind!(_) | leaf_kind!(), _) => None,
         }
     }
 
@@ -716,20 +741,11 @@ impl Expr {
     /// The parameter names this expression references, with their
     /// recorded dimensions (used by `apply`'s re-check, spec D6).
     pub fn param_refs(&self, out: &mut Vec<(ParamName, Dimension)>) {
-        use ExprKind as K;
         match &self.kind {
-            K::Param(name) => out.push((name.clone(), self.dim)),
-            K::Literal(_) | K::CountLiteral(_) => {}
-            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
-                a.param_refs(out);
-            }
-            K::Add(a, b)
-            | K::Sub(a, b)
-            | K::Mul(a, b)
-            | K::Div(a, b)
-            | K::Atan2(a, b)
-            | K::Min(a, b)
-            | K::Max(a, b) => {
+            ExprKind::Param(name) => out.push((name.clone(), self.dim)),
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) => {}
+            unary_kind!(a) => a.param_refs(out),
+            binary_kind!(a, b) => {
                 a.param_refs(out);
                 b.param_refs(out);
             }
@@ -741,20 +757,11 @@ impl Expr {
     /// — the bit-semantic comparison substrate (spec D7: replay is
     /// bit-identical, so the comparators must not be bit-blind).
     pub fn literal_bits(&self, out: &mut Vec<u64>) {
-        use ExprKind as K;
         match &self.kind {
-            K::Literal(lit) => out.push(lit.value.to_bits()),
-            K::CountLiteral(_) | K::Param(_) => {}
-            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
-                a.literal_bits(out);
-            }
-            K::Add(a, b)
-            | K::Sub(a, b)
-            | K::Mul(a, b)
-            | K::Div(a, b)
-            | K::Atan2(a, b)
-            | K::Min(a, b)
-            | K::Max(a, b) => {
+            ExprKind::Literal(lit) => out.push(lit.value.to_bits()),
+            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
+            unary_kind!(a) => a.literal_bits(out),
+            binary_kind!(a, b) => {
                 a.literal_bits(out);
                 b.literal_bits(out);
             }
@@ -816,7 +823,11 @@ impl Expr {
             (K::Cos(_), 0) => Self::cos(rebuilt),
             (K::Tan(_), 0) => Self::tan(rebuilt),
             (K::CountToScalar(_), 0) => Self::count_to_scalar(rebuilt),
-            _ => return None,
+            // EXHAUSTIVE on the KIND axis (the `child` rule): a new
+            // variant must be given a rebuild here or the compile
+            // breaks. A wildcard would refuse to rebuild it — an edit
+            // to a valid path silently reported as off-tree.
+            (binary_kind!(_, _) | unary_kind!(_) | leaf_kind!(), _) => return None,
         };
         Some(res)
     }

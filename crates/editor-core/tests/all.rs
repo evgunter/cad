@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `editor-core`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 51 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -206,6 +211,8 @@ mod switch_naming;
 mod switch_plate_param;
 #[path = "switch_program_key.rs"]
 mod switch_program_key;
+#[path = "switch_program_vocabulary.rs"]
+mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
 #[path = "u8a_parse.rs"]

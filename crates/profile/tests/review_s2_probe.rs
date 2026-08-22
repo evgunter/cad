@@ -12,10 +12,19 @@
 //! contributes both roots' gate blocks. The invariance claim is
 //! unaffected — it is about the sequence being the same for the same
 //! corner CLASS, not about its length.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p profile --features probe --test all -- review_s2_probe::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point2;
+use geom_core::Tol;
 use profile::{ArcSweep, Center, Open};
 
 /// F3: the recorded predicate-name sequence must be data-independent
@@ -28,7 +37,7 @@ use profile::{ArcSweep, Center, Open};
 #[test]
 fn gate_sequence_is_data_independent_within_a_class() {
     use geom_core::Real;
-    use profile::k_stats::{self, Probe};
+    use geom_core::k_stats::{self, Probe};
 
     let pp = |x: f64, y: f64| Point2::new(Probe::from_f64(x), Probe::from_f64(y));
     let pr = Probe::from_f64;
@@ -38,7 +47,7 @@ fn gate_sequence_is_data_independent_within_a_class() {
     let seq_line_arc = |cx: f64, r: f64| {
         k_stats::start_recording();
         Open.at(pp(0.0, 0.0))
-            .toward(pr(1.0), pr(0.0))
+            .toward(pr(1.0), pr(0.0), Tol::witness())
             .expect("the incoming ray runs +x")
             .fillet_arc(
                 pr(r),
@@ -47,6 +56,7 @@ fn gate_sequence_is_data_independent_within_a_class() {
                     winding: ArcSweep::Ccw,
                     p: pp(cx, -(cx - 2.0).abs()),
                 },
+                Tol::witness(),
             )
             .expect("constructs");
         k_stats::take_samples()
@@ -71,6 +81,7 @@ fn gate_sequence_is_data_independent_within_a_class() {
                 winding: ArcSweep::Ccw,
                 p: pp(-1.0, 0.0),
             },
+            Tol::witness(),
         )
         .expect("constructs");
         k_stats::take_samples()

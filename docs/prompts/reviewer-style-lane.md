@@ -32,6 +32,12 @@ deliberate:
 - **Your taste is evidence.** "This just isn't how I'd do it" is a legitimate
   finding, even unaccompanied by an argument. Say it plainly and let the fix
   pass adjudicate.
+- **The dispatch is a hypothesis.** The claims you were handed, and the
+  framing that came with them, are the dispatcher's belief about the tree —
+  not a finding. Check them against the tree before you build on them, and
+  report any correction as a finding in its own right. A brief whose premise
+  is wrong will otherwise produce a detailed and plausible report about
+  something that is not there.
 - **Nothing here blocks the merge** unless it independently rises to a MAJOR
   on the correctness lane. Style findings are recorded, not gating — so
   raising one costs the author nothing but attention, and you should raise
@@ -58,6 +64,12 @@ this project has accumulated is *self-declared in prose at the copy site* —
 `the twin of` — and nothing in CI, review, or the logs has ever read that
 prose. `rg -n 'verbatim|re-derived|ported from|mirror of' crates/*/src` over
 the touched area costs seconds.
+
+**A clean prose sweep is evidence about the prose, not about the copies.**
+That grep finds only the **disclosed** copies; the undisclosed ones are the
+majority, and only their *data* can find them — the same constant, the same
+literal ladder, the same magic number written twice with no sentence admitting
+it. Run the constants grep beside the prose sweep.
 
 **And when the PR body reports a sweep, ask what its pattern could not match.**
 Do not accept "swept clean" unless the sweep says what it was blind to; run your
@@ -180,6 +192,12 @@ largest file you touched and read it end to end.
 **Output**: a `## Style` section in the review, separate from MAJOR/MINOR/NOTE.
 Each finding: one or more `file:line`, two-to-five sentences, and an explicit
 confidence (`sure` / `likely` / `unsure`). No proposed fixes.
+
+**A long tail is the expected output, not a failure of selectivity.** The
+coordinator rolls related findings into classes; do not pre-trim toward a
+small number of well-defended ones. A finding suppressed because it felt minor
+beside the others is the same miss as one suppressed because you could not
+prove it.
 
 **Severity**: style findings do **not** affect the mergeable verdict. If
 something also breaks a claim, it belongs on the correctness lane and keeps its

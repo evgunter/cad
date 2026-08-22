@@ -167,16 +167,17 @@ pub fn classify_dihedral<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::{Point3, Tolerance, Vec3};
+    use geom_core::Tol;
+    use geom_core::{Point3, Vec3};
 
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {

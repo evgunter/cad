@@ -116,7 +116,7 @@
 //! leave the bound orders above the truth — the product terms lose
 //! the sign correlation a steep ramp lives in. The cost is only grid
 //! density, and a δ fine enough to overflow the 2²⁴ cap refuses
-//! typed ([`crate::chords::ceil_count`]) — never a wrong mesh.
+//! typed ([`crate::sizing::ceil_count`]) — never a wrong mesh.
 //!
 //! # Grid sizing (heuristic; the certificate is the guarantee)
 //!
@@ -204,7 +204,7 @@ pub(crate) struct NurbsFaceBound {
 impl NurbsFaceBound {
     /// The per-triangle deviation certificate `Q/4` (module docs) for
     /// a triangle whose UV corners are `uv`.
-    pub fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
+    pub(crate) fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
         let au = max3(uv[0][0], uv[1][0], uv[2][0]) - min3(uv[0][0], uv[1][0], uv[2][0]);
         let av = max3(uv[0][1], uv[1][1], uv[2][1]) - min3(uv[0][1], uv[1][1], uv[2][1]);
         0.25 * (self.muu * au.powi(2) + 2.0 * self.muv * au * av + self.mvv * av.powi(2))
@@ -212,8 +212,8 @@ impl NurbsFaceBound {
 
     /// The `(h_u, h_v)` UV grid steps for sizing target `delta_s`
     /// (module docs) — `f64::INFINITY` for an unconstrained direction
-    /// ([`crate::chords::ceil_count`] turns that into one cell).
-    pub fn grid_steps(&self, delta_s: f64) -> (f64, f64) {
+    /// ([`crate::sizing::ceil_count`] turns that into one cell).
+    pub(crate) fn grid_steps(&self, delta_s: f64) -> (f64, f64) {
         let step = |group: f64| {
             if group > 0.0 {
                 (delta_s / (2.0 * group)).sqrt()
@@ -420,14 +420,14 @@ pub(crate) const SAFE_ASPECT: f64 = 5.0;
 
 /// One v-band of the shipped schedule ([`NurbsCellGrid::band_schedule`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BandDivisions {
+pub(crate) struct BandCounts {
     /// The band's clipped v-extent, low end.
     pub va: f64,
     /// The band's clipped v-extent, high end.
     pub vb: f64,
-    /// Column divisions.
+    /// Column count (`u` divisions of the band).
     pub nuc: usize,
-    /// Row divisions.
+    /// Row count (`v` divisions of the band).
     pub nvc: usize,
 }
 
@@ -540,7 +540,7 @@ impl NurbsCellGrid {
     /// back to the whole-patch schedule (module docs), only the tests
     /// read this; the certificate lookup uses the field directly.
     #[cfg(test)]
-    pub fn u_cuts(&self) -> &[f64] {
+    fn u_cuts(&self) -> &[f64] {
         &self.u_cuts
     }
 
@@ -548,12 +548,12 @@ impl NurbsCellGrid {
     /// consumers go through [`Self::band_schedule`] now, so only the
     /// tests read this.
     #[cfg(test)]
-    pub fn v_cuts(&self) -> &[f64] {
+    fn v_cuts(&self) -> &[f64] {
         &self.v_cuts
     }
 
     /// The certified bound of cell `(ci, ri)`.
-    pub fn bound(&self, ci: usize, ri: usize) -> NurbsFaceBound {
+    pub(crate) fn bound(&self, ci: usize, ri: usize) -> NurbsFaceBound {
         self.bounds[ci * (self.v_cuts.len() - 1) + ri]
     }
 
@@ -565,7 +565,7 @@ impl NurbsCellGrid {
     /// The budget meter is that consumer and it is opt-in, so in a
     /// default build nothing calls this.
     #[cfg_attr(not(feature = "budget"), allow(dead_code))]
-    pub fn cells(&self) -> impl Iterator<Item = CellBound> + '_ {
+    pub(crate) fn cells(&self) -> impl Iterator<Item = CellBound> + '_ {
         let rows = self.v_cuts.len() - 1;
         let cols = self.u_cuts.len() - 1;
         (0..cols).flat_map(move |ci| {
@@ -589,7 +589,7 @@ impl NurbsCellGrid {
     /// the per-triangle certificate, taken from the raw per-cell
     /// bounds of every covered cell, still refuses loudly if a
     /// triangle reaches further.
-    pub fn row_bound(&self, ri: usize) -> NurbsFaceBound {
+    fn row_bound(&self, ri: usize) -> NurbsFaceBound {
         let cols = self.u_cuts.len() - 1;
         let mut m = NurbsFaceBound {
             muu: 0.0,
@@ -606,12 +606,12 @@ impl NurbsCellGrid {
     }
 
     /// The v-band index containing `v` (clamped as [`Self::cell_lo`]).
-    pub fn row_of(&self, v: f64) -> usize {
+    fn row_of(&self, v: f64) -> usize {
         Self::cell_lo(&self.v_cuts, v)
     }
 
     /// **The shipped band schedule** (TESS-SPAN): the trim box cut at
-    /// interior band boundaries, each band's `(nuc, nvc)` divisions —
+    /// interior band boundaries, each band's `(nuc, nvc)` counts —
     /// one derivation consumed by BOTH the trimmed lane's candidate
     /// generation and the budget meter's prediction, so the two
     /// cannot drift.
@@ -620,10 +620,10 @@ impl NurbsCellGrid {
     /// the band bound's own `h_u` — EXCEPT that a MALIGN band
     /// (subdividing in `u`, realized aspect `s_u/h_v` beyond
     /// [`SAFE_ASPECT`]) and its immediate neighbours take the
-    /// whole-patch column count instead. The point selection inside
-    /// `grid_steps` is untouched either way (TESS-SPAN's binding
-    /// constraint); only WHICH bound feeds it changes, and the patch
-    /// count only ever adds columns.
+    /// whole-patch column count instead. The step derivation
+    /// [`NurbsFaceBound::grid_steps`] is untouched either way
+    /// (TESS-SPAN's binding constraint); only WHICH bound feeds it
+    /// changes, and the patch count only ever adds columns.
     ///
     /// **Why (measured, three times over)**: any point of an
     /// anisotropic lattice strip that is not ON a column admits an
@@ -650,20 +650,20 @@ impl NurbsCellGrid {
     /// # Errors
     ///
     /// [`TessellateError::ResolutionOverflow`] via
-    /// [`crate::chords::ceil_count`], as the uniform schedule.
-    pub fn band_schedule(
+    /// [`crate::sizing::ceil_count`], as the uniform schedule.
+    pub(crate) fn band_schedule(
         &self,
         patch: NurbsFaceBound,
         u: (f64, f64),
         v: (f64, f64),
         delta_s: f64,
-    ) -> Result<Vec<BandDivisions>, TessellateError> {
+    ) -> Result<Vec<BandCounts>, TessellateError> {
         let du = u.1 - u.0;
         let mut edges = vec![v.0];
         edges.extend(self.v_cuts.iter().copied().filter(|c| *c > v.0 && *c < v.1));
         edges.push(v.1);
         let (phu, _) = patch.grid_steps(delta_s);
-        let patch_nuc = crate::chords::ceil_count(du, phu)?;
+        let patch_nuc = crate::sizing::ceil_count(du, phu)?;
         let mut bands = Vec::with_capacity(edges.len().saturating_sub(1));
         let mut malign = Vec::with_capacity(edges.len().saturating_sub(1));
         for w in edges.windows(2) {
@@ -673,8 +673,8 @@ impl NurbsCellGrid {
             let (hu, hv) = self
                 .row_bound(self.row_of(0.5 * (va + vb)))
                 .grid_steps(delta_s);
-            let nuc = crate::chords::ceil_count(du, hu)?;
-            let nvc = crate::chords::ceil_count(vb - va, hv)?;
+            let nuc = crate::sizing::ceil_count(du, hu)?;
+            let nvc = crate::sizing::ceil_count(vb - va, hv)?;
             // Malignity is judged on the REALIZED spacings `s_u/s_v`,
             // not the pre-`ceil` ideal steps: the lattice a sliver
             // lives in has rows every `s_v = (vb−va)/nvc ≤ h_v`, so
@@ -686,7 +686,7 @@ impl NurbsCellGrid {
             #[allow(clippy::cast_precision_loss)]
             let sv = (vb - va) / nvc as f64;
             malign.push(nuc >= 2 && sv.is_finite() && sv > 0.0 && su > SAFE_ASPECT * sv);
-            bands.push(BandDivisions { va, vb, nuc, nvc });
+            bands.push(BandCounts { va, vb, nuc, nvc });
         }
         for (i, b) in bands.iter_mut().enumerate() {
             let near_malign = malign[i]
@@ -750,7 +750,7 @@ impl NurbsCellGrid {
     /// For the common case — the trimmed lane places its grid lines on
     /// the cell boundaries, so a grid triangle's box lies inside ONE
     /// cell — this is exactly that cell's own certificate.
-    pub fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
+    pub(crate) fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
         let u_lo = min3(uv[0][0], uv[1][0], uv[2][0]);
         let u_hi = max3(uv[0][0], uv[1][0], uv[2][0]);
         let v_lo = min3(uv[0][1], uv[1][1], uv[2][1]);
@@ -1231,18 +1231,18 @@ fn rational_cell_bounds(
     let mut cells: Vec<CellRaw> = Vec::new();
     let two = RingInterval::point(2.0);
     for su in kv_u.first_span()..=kv_u.last_span() {
-        // Emptiness skip and window validation in one operation. The
-        // `checked_sub` pair this replaces — and its
-        // `MissingEntity { what: "NURBS span below its degree" }`
-        // return — are unrepresentable now: `iu0`/`jv0` ARE
-        // `first_control()`, subtracted once inside `Span`'s invariant.
-        let Some(span_u) = kv_u.span(su) else {
-            continue;
-        };
         for sv in kv_v.first_span()..=kv_v.last_span() {
-            let Some(span_v) = kv_v.span(sv) else {
+            // Emptiness skip, span validation and window construction
+            // in one operation, both directions. The `checked_sub`
+            // pair this replaces — and its
+            // `MissingEntity { what: "NURBS span below its degree" }`
+            // return — are unrepresentable now: `iu0`/`jv0` ARE
+            // `first_control()`, subtracted once inside `Span`'s
+            // invariant.
+            let Some(win) = r.window(su, sv) else {
                 continue;
             };
+            let (span_u, span_v) = (win.span_u(), win.span_v());
             // Active windows on span (su, sv): value indices
             // [su−p, su]; each u/v differencing drops the top index —
             // which is `derived_window`, so `su − 1` and `su − 2` are
@@ -1250,7 +1250,6 @@ fn rational_cell_bounds(
             // order-2 windows are `None` exactly when their derived
             // NETS are (degree < 2), so the two `Option`s are zipped
             // rather than independently discharged.
-            let win = r.window_of(span_u, span_v);
             let wu_val = span_u.window();
             let wv_val = span_v.window();
             let wu_d1 = span_u.first_derived_window();
@@ -1511,6 +1510,7 @@ fn derived_knots(kv: &KnotVector, fk: FaceKey) -> Result<KnotVector, TessellateE
 mod tests {
     use super::*;
     use geom_core::Point3;
+    use geom_core::Tol;
     use profile::RawLoop;
     use test_utils::fuzz;
 
@@ -2056,7 +2056,7 @@ mod tests {
             .iter()
             .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
             .collect();
-        let body = sweep::loft_body::<f64>(&sections, &places, 1)
+        let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")
             .body;
         for (_, face) in body.faces() {
@@ -2164,6 +2164,10 @@ mod tests {
                 println!(
                     "{name} delta={delta:.0e}: grid {nu}x{nv} tris={tris} max d/cert={worst_ratio:.4}"
                 );
+                // Monotone the easy way — `worst_ratio` only shrinks
+                // as the certificate grows, so a LOOSE bound passes
+                // this by a wider margin than a tight one. One of the
+                // class's three open instances; S237.
                 assert!(
                     worst_ratio <= 1.0,
                     "{name}: a triangle's samples exceeded its certificate"
@@ -2551,7 +2555,12 @@ mod tests {
                 }
             }
             println!("r1_extreme delta={delta:.0e}: tris={tris} max d/cert={worst_ratio:.4}");
-            assert!(worst_ratio <= 1.0);
+            // As above: one-sided, and a loose bound passes it more
+            // easily than a tight one (S237).
+            assert!(
+                worst_ratio <= 1.0,
+                "r1_extreme: a sample exceeded its own certificate ({worst_ratio})"
+            );
         }
     }
 

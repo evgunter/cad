@@ -34,6 +34,7 @@ use crate::document::{
     ContentPin, DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, ResolveFailure,
     ResolveFault, content_pin, header_document_id, load, save,
 };
+use geom_core::Tol;
 
 /// Mints a fresh random [`DocumentId`] from OS randomness — the
 /// interactive-authoring constructor. It lives HERE, in
@@ -297,8 +298,8 @@ impl Workspace {
     /// recomputing the pin itself refuses, and
     /// [`WorkspaceError::PinMismatch`] carrying both pins and the
     /// recourse ([`PIN_MISMATCH_RECOURSE`]).
-    pub fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, WorkspaceError> {
-        let (path, doc, found) = self.load_pinned(doc_ref.id)?;
+    pub fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, WorkspaceError> {
+        let (path, doc, found) = self.load_pinned(doc_ref.id, tol)?;
         if found != doc_ref.pin {
             return Err(WorkspaceError::PinMismatch {
                 id: doc_ref.id,
@@ -320,8 +321,8 @@ impl Workspace {
     /// [`WorkspaceError::UnknownId`], [`WorkspaceError::Io`],
     /// [`WorkspaceError::Load`], [`WorkspaceError::Pin`] — the read
     /// side's own vocabulary, unchanged.
-    pub fn current_pin(&self, id: DocumentId) -> Result<ContentPin, WorkspaceError> {
-        let (_, _, pin) = self.load_pinned(id)?;
+    pub fn current_pin(&self, id: DocumentId, tol: Tol) -> Result<ContentPin, WorkspaceError> {
+        let (_, _, pin) = self.load_pinned(id, tol)?;
         Ok(pin)
     }
 
@@ -333,6 +334,7 @@ impl Workspace {
     fn load_pinned(
         &self,
         id: DocumentId,
+        tol: Tol,
     ) -> Result<(&PathBuf, ProfileDoc, ContentPin), WorkspaceError> {
         let path = self
             .by_id
@@ -342,11 +344,11 @@ impl Workspace {
             path: path.clone(),
             message: e.to_string(),
         })?;
-        let loaded = load(&text).map_err(|error| WorkspaceError::Load {
+        let loaded = load(&text, tol).map_err(|error| WorkspaceError::Load {
             path: path.clone(),
             error: Box::new(error),
         })?;
-        let pin = content_pin(&loaded.doc).map_err(|error| WorkspaceError::Pin {
+        let pin = content_pin(&loaded.doc, tol).map_err(|error| WorkspaceError::Pin {
             path: path.clone(),
             error: Box::new(error),
         })?;
@@ -366,7 +368,7 @@ impl Workspace {
     /// invariant — `second` names the path this create would have
     /// written), [`WorkspaceError::Save`] for a document the shared
     /// validator refuses, [`WorkspaceError::Io`] naming the file.
-    pub fn create(&mut self, doc: &ProfileDoc) -> Result<PathBuf, WorkspaceError> {
+    pub fn create(&mut self, doc: &ProfileDoc, tol: Tol) -> Result<PathBuf, WorkspaceError> {
         let id = doc.id();
         let path = self.root.join(format!("{id}.pncad"));
         if let Some(first) = self.by_id.get(&id) {
@@ -376,7 +378,7 @@ impl Workspace {
                 second: path,
             });
         }
-        let text = save(doc, &[]).map_err(|error| WorkspaceError::Save {
+        let text = save(doc, &[], tol).map_err(|error| WorkspaceError::Save {
             id,
             error: Box::new(error),
         })?;
@@ -398,12 +400,12 @@ impl Workspace {
     ///
     /// [`WorkspaceError::UnknownId`] for an id the scan never saw,
     /// [`WorkspaceError::Save`], [`WorkspaceError::Io`].
-    pub fn resave(&mut self, doc: &ProfileDoc) -> Result<PathBuf, WorkspaceError> {
+    pub fn resave(&mut self, doc: &ProfileDoc, tol: Tol) -> Result<PathBuf, WorkspaceError> {
         let id = doc.id();
         let Some(path) = self.by_id.get(&id).cloned() else {
             return Err(WorkspaceError::UnknownId { id });
         };
-        let text = save(doc, &[]).map_err(|error| WorkspaceError::Save {
+        let text = save(doc, &[], tol).map_err(|error| WorkspaceError::Save {
             id,
             error: Box::new(error),
         })?;
@@ -424,9 +426,14 @@ impl Workspace {
 /// refusal is `Unresolved` — honestly wide, since the kernel's recourse
 /// for all of them is the same.
 impl PartResolver for Workspace {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
-        Workspace::resolve(self, doc_ref).map_err(|e| ResolveFailure {
+    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        Workspace::resolve(self, doc_ref, tol).map_err(|e| ResolveFailure {
             fault: resolve_fault(&e),
+            // Not an exception to [`resolve_fault`]'s paragraph
+            // below: this match RENDERS rather than classifies, and
+            // the wildcard's answer is the enum's own `Display`. A
+            // variant added later answers for itself here, and misses
+            // only a recourse sentence it does not have.
             message: match &e {
                 WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
                 _ => e.to_string(),
@@ -514,8 +521,9 @@ pub fn update_to_store(
     doc: &ProfileDoc,
     id: DocumentId,
     workspace: &Workspace,
+    tol: Tol,
 ) -> Result<Vec<crate::document::DocEdit<crate::document::ProfileProgram>>, WorkspaceError> {
-    let new_pin = workspace.current_pin(id)?;
+    let new_pin = workspace.current_pin(id, tol)?;
     crate::document::update_references(doc, id, new_pin)
         .map_err(|error| WorkspaceError::Update { error })
 }

@@ -27,19 +27,27 @@ still works, for hand runs.
 Both selectors are BARE keywords, not --flags: freecadcmd's own option
 parser rejects unknown dashed tokens and its --pass passthrough drops
 them too (probed on 1.1.2), while bare positionals arrive in sys.argv
-untouched. Camera = the manifest's (elev, azim, up) — matplotlib
-`view_init` semantics, so all renderers frame scenes identically.
+untouched. Camera = the manifest's (elev, azim, up), in matplotlib
+`view_init` semantics: this renderer and the matplotlib one frame a
+scene from one definition of that spec (`manifest`), one of them using
+it forwards and this one using the inverse derived from it.
 
 Usage: QT_QPA_PLATFORM=offscreen freecadcmd render_freecad.py [mesh|step] [scene=NAME] <outdir> <renderdir>
 """
 
-import json
 import math
 import os
 import sys
 from pathlib import Path
 
+# freecadcmd runs this script with the render staging tree as its cwd,
+# so the sibling module it shares with the other readers has to be
+# found by this file's own location.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import FreeCAD as App
+
+import manifest
 
 # THE WEDGE, AND WHY THIS IS THE FIRST THING THIS FILE DOES.
 #
@@ -87,10 +95,11 @@ _notify = App.ParamGet("User parameter:BaseApp/Preferences/NotificationArea")
 _notify.SetBool("NotificationAreaEnabled", False)
 _notify.SetBool("NonIntrusiveNotificationsEnabled", False)
 
-import FreeCADGui as Gui  # noqa: E402
+import FreeCADGui as Gui  # noqa: E402 — after the wedge above, which must run before Gui loads
 
 Gui.showMainWindow()
 
+# The E402 markers on all three: the GUI must exist before they import.
 import Mesh  # noqa: E402
 import Part  # noqa: E402
 from pivy import coin  # noqa: E402
@@ -102,24 +111,40 @@ App.ParamGet("User parameter:BaseApp/Preferences/View").SetBool(
 WIDTH, HEIGHT = 1200, 900
 
 
-def camera_rotation(elev, azim, up):
-    """FreeCAD Rotation for matplotlib view_init(elev, azim) + up axis.
+def camera_rotation(scene):
+    """FreeCAD Rotation for a scene's matplotlib-style (elev, azim, up).
 
-    Display frame: z vertical. up='y' bodies were authored y-up, so
-    display (a, b, c) maps to world (a, c, -b); up='z' is identity.
+    The camera is placed in the z-up DISPLAY frame and mapped back to
+    world through the scene's own axis spec, so this file states no
+    part of the up convention itself — `manifest` defines it in the
+    forward direction and derives this one.
     """
-    el, az = math.radians(elev), math.radians(azim)
+    el, az = math.radians(scene.elev), math.radians(scene.azim)
     # Camera position direction (scene -> camera) and up, display frame.
     pos_d = (math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el))
     up_d = (0.0, 0.0, 1.0)
-    if up == "y":
-        to_world = lambda v: App.Vector(v[0], v[2], -v[1])  # noqa: E731
-    else:
-        to_world = lambda v: App.Vector(v[0], v[1], v[2])  # noqa: E731
+    axes = scene.display_to_world()
+    # The E731 marker below: a one-expression rebasing of a triple into the
+    # scene's world axes, used three lines down and nowhere else; a `def`
+    # would separate it from the `axes` it closes over.
+    to_world = lambda v: App.Vector(*manifest.apply_axes(axes, v))  # noqa: E731
     z_cam = to_world(pos_d)  # camera looks along -z_cam
     z_cam.normalize()
     up_w = to_world(up_d)
-    if abs(up_w.dot(z_cam)) > 0.9999:  # straight-down views: fall back
+    # Straight-down views (elev = +-90): the display up vector and the
+    # camera direction are parallel, so `up_w.cross(z_cam)` has no
+    # length and any x_cam would do; pick the display y axis.
+    #
+    # The threshold is written in WORLD coordinates and names no `up`.
+    # That is sound because the axis specs are isometries, so the
+    # quantity here is the display-frame sin(elev) whatever the axis --
+    # `manifest`'s selftest pins that property, which is as close as
+    # anything gets to guarding this branch: NOTHING EXECUTES IT
+    # without FreeCAD, and no lane in CI runs this file outside a full
+    # render. The two committed scenes at elev 90
+    # (`twisted_duct_shadow_z`, `silhouette3_shadow_z`) are what
+    # exercise it, and they only do so in a render pass.
+    if abs(up_w.dot(z_cam)) > 0.9999:
         up_w = to_world((0.0, 1.0, 0.0))
     x_cam = up_w.cross(z_cam)
     x_cam.normalize()
@@ -147,30 +172,34 @@ def import_bodies(doc, scenes, outdir, use_step):
     by_scene = {}
     for scene in scenes:
         objs = []
-        for body in scene["bodies"]:
+        for body in scene.bodies:
             before = set(o.Name for o in doc.Objects)
             if use_step:
-                if not body.get("step"):
-                    raise SystemExit(
-                        f"scene {scene['name']}: no STEP export for {body['stl']}"
-                    )
-                Part.insert(str(outdir / body["step"]), doc.Name)
+                # No `step is None` guard, deliberately. `step` is
+                # nullable in the format and `manifest` says so, but
+                # this file's producer is the TOUR (the docstring
+                # above says so, and `render.sh` is the only thing
+                # that drives it), and the tour fails rather than emit
+                # a body without a STEP export. The wild generator's
+                # null-STEP manifests are drawn by `render.py`, which
+                # never reads the field at all. Guarding here would be
+                # a guard against a state this reader's producer
+                # cannot emit.
+                Part.insert(str(outdir / body.step), doc.Name)
             else:
-                Mesh.insert(str(outdir / body["stl"]), doc.Name)
+                Mesh.insert(str(outdir / body.stl), doc.Name)
             new = [o for o in doc.Objects if o.Name not in before]
             for obj in new:
                 if hasattr(obj.ViewObject, "ShapeColor"):
-                    obj.ViewObject.ShapeColor = tuple(body["color"])
+                    obj.ViewObject.ShapeColor = body.color
                 # Scene-carried transparency (0 = opaque). Set only
                 # when asked, so every pre-existing cell's view
                 # properties are untouched.
-                if body.get("transparency") and hasattr(
-                    obj.ViewObject, "Transparency"
-                ):
-                    obj.ViewObject.Transparency = int(body["transparency"])
+                if body.transparency and hasattr(obj.ViewObject, "Transparency"):
+                    obj.ViewObject.Transparency = int(body.transparency)
                 obj.ViewObject.Visibility = False
             objs.extend(new)
-        by_scene[scene["name"]] = objs
+        by_scene[scene.name] = objs
     doc.recompute()
     Gui.updateGui()
     return by_scene
@@ -180,8 +209,7 @@ def render_scene(scene, objs, view, renderdir):
     for obj in objs:
         obj.ViewObject.Visibility = True
     Gui.updateGui()
-    v = scene["view"]
-    rot = camera_rotation(v["elev"], v["azim"], v["up"])
+    rot = camera_rotation(scene)
     # Set the camera node's orientation FIELD directly (pivy):
     # `view.setCameraOrientation` runs the navigation style's ANIMATED
     # transition, and offscreen `saveImage` can capture mid-flight --
@@ -191,7 +219,7 @@ def render_scene(scene, objs, view, renderdir):
     Gui.updateGui()
     view.fitAll()
     Gui.updateGui()
-    target = renderdir / f"{scene['name']}.png"
+    target = renderdir / f"{scene.name}.png"
     view.saveImage(str(target), WIDTH, HEIGHT, "White")
     for obj in objs:
         obj.ViewObject.Visibility = False
@@ -209,9 +237,9 @@ def main():
     ]
     outdir, renderdir = Path(pos[-2]), Path(pos[-1])
     renderdir.mkdir(parents=True, exist_ok=True)
-    scenes = json.loads((outdir / "scenes.json").read_text())
+    scenes = manifest.read_scenes(outdir)
     if only is not None:
-        scenes = [s for s in scenes if s["name"] == only]
+        scenes = [s for s in scenes if s.name == only]
         if not scenes:
             raise SystemExit(f"unknown scene: {only}")
     doc = App.newDocument("scenes")
@@ -220,7 +248,7 @@ def main():
     view.setCameraType("Orthographic")
     done = []
     for scene in scenes:
-        done.append(render_scene(scene, by_scene[scene["name"]], view, renderdir))
+        done.append(render_scene(scene, by_scene[scene.name], view, renderdir))
     missing = [str(p) for p in done if not p.exists()]
     if missing:
         raise SystemExit(f"missing renders: {missing}")

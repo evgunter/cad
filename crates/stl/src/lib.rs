@@ -6,13 +6,18 @@
 //! The writers consume `Mesh::positions` and each patch's triangles —
 //! outward winding is guaranteed by the tessellator — and
 //! drop the back-reference keys (faces/edges/vertices mean nothing to
-//! STL). Triangles are emitted in patch order, then triangle order,
-//! exactly as stored: **no snapping, no deduplication, no reordering**
-//! — the writer adds zero nondeterminism on top of the mesh (no hash
-//! iteration anywhere on the write path), so the mesh's bitwise
-//! determinism (verified across debug/release and the ε rows)
-//! carries through to **byte-identical STL output for
-//! identical inputs** (D9).
+//! STL). Everything a file carries that is *not* triangles — the ASCII
+//! solid name, the binary 80-byte header — comes from the caller,
+//! through [`AsciiOptions`] and [`BinaryOptions`]: one options type per
+//! writer, each carrying only what its own format reads, and each
+//! field a validated newtype so an unwritable value cannot be built
+//! (see [`options`]). Triangles are emitted in patch order, then
+//! triangle order, exactly as stored: **no snapping, no deduplication,
+//! no reordering** — the writer adds zero nondeterminism on top of the
+//! mesh (no hash iteration anywhere on the write path), so the mesh's
+//! bitwise determinism (verified across debug/release and the ε rows)
+//! carries through: **same mesh value + same options ⇒ byte-identical
+//! STL output** (D9).
 //!
 //! # The f32 narrowing is an honest display-layer loss
 //!
@@ -59,11 +64,20 @@
 
 mod ascii;
 mod binary;
+pub mod options;
 
 pub use ascii::write_ascii;
 pub use binary::write_binary;
+pub use options::{
+    AsciiOptions, BinaryHeader, BinaryHeaderError, BinaryOptions, SolidName, SolidNameError,
+};
 
-/// Typed export failure (closed enum, D4 ¶3).
+/// Typed export failure from the writers (closed enum, D4 ¶3).
+///
+/// **The mesh and the sink only.** Everything an option could get
+/// wrong is refused at construction by [`SolidName::new`] and
+/// [`BinaryHeader::new`], each with its own error type, so no arm here
+/// is about a value the caller supplied through options.
 #[derive(Debug)]
 pub enum StlError {
     /// A triangle's winding cross product is exactly zero — the mesh
@@ -149,9 +163,8 @@ pub(crate) fn facets(mesh: &mesh::Mesh) -> Result<Vec<Facet>, StlError> {
             // ORIENTATION comes from the triangle order and nothing
             // else: outwardness is the mesh's guarantee, already
             // sense-correct (module docs).
-            // (Computing
-            // it from the f32-narrowed vertices instead was tried and
-            // rejected: apex-fan slivers become EXACTLY collinear
+            // (Not computed from the f32-narrowed vertices:
+            // apex-fan slivers become EXACTLY collinear
             // under f32 rounding at every practical δ, so an
             // "as-written" normal doesn't exist for them; external
             // checkers recomputing normals from the file's f32

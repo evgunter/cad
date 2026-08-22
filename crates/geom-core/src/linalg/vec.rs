@@ -298,9 +298,30 @@ impl<T: Real> Vec3<T> {
     ///
     /// Evaluation order (fixed, D9): `s = 1.copysign(n.z)`,
     /// `a = −1/(s + n.z)`, `b = (n.x·n.y)·a`, then
-    /// `b1 = (1 + ((s·n.x)·n.x)·a, s·b, −(s·n.x))` and
-    /// `b2 = (b, s + (n.y·n.y)·a, −n.y)`, each component exactly as
-    /// parenthesized.
+    /// `b1 = (1 + (s·(n.x²))·a, s·b, −(s·n.x))` and
+    /// `b2 = (b, s + (n.y²)·a, −n.y)`, each component exactly as
+    /// parenthesized. Both squares are the tight square (`powi(2)`), not
+    /// the product `n·n`: at `Interval` the product treats the two
+    /// factors as independent, so an enclosure straddling zero — every
+    /// direction near an equator — acquires a spurious negative lower
+    /// bound. `b1`'s square carries a `±1` scale, so writing it as
+    /// `s·(n.x²)` is a reassociation of `(s·n.x)·n.x` rather than a
+    /// square substitution. It is exact at `f64` — the scale is a sign
+    /// bit and round-to-nearest-even is sign-symmetric.
+    ///
+    /// **Where the reassociation narrows, stated precisely.** It
+    /// narrows when `s` is a *definite* `±1` (a sign-definite `n.z`
+    /// enclosure) and the `n.x` enclosure straddles zero: then
+    /// `(s·n.x)·n.x` spans `[−M², M²]` where `s·(n.x²)` gives one
+    /// sign's half. It does **not** narrow when `n.z` straddles zero —
+    /// `s` is then `[−1, 1]` and both spellings give the same symmetric
+    /// interval — and that case is academic anyway, since
+    /// `a = −1/(s + n.z)` is unbounded there. Nor is `powi(2)`
+    /// unconditionally narrower: on this backend it is 1 ulp wider on
+    /// each side once the square falls below `2^-960`, i.e.
+    /// `|n.x| < 2^-480`, which no unit direction reaches
+    /// (`scripts/gates/interval-square-allowlist.sh` carries the
+    /// measurement).
     ///
     /// **Discontinuity, documented honestly:** the frame flips across
     /// the equator `n.z = 0` (`s` jumps) — the construction is
@@ -322,8 +343,8 @@ impl<T: Real> Vec3<T> {
         let s = T::one().copysign(self.z);
         let a = -T::one() / (s + self.z);
         let b = (self.x * self.y) * a;
-        let b1 = Self::new(T::one() + ((s * self.x) * self.x) * a, s * b, -(s * self.x));
-        let b2 = Self::new(b, s + (self.y * self.y) * a, -self.y);
+        let b1 = Self::new(T::one() + (s * self.x.powi(2)) * a, s * b, -(s * self.x));
+        let b2 = Self::new(b, s + self.y.powi(2) * a, -self.y);
         (b1, b2)
     }
 }
@@ -660,6 +681,15 @@ mod tests {
         /// construction is a fixed formula over `Real` ops, so this
         /// holds by composition; the test guards the claim against
         /// future edits introducing a scalar-specific path).
+        ///
+        /// **The VALUE channel only, and the name says so on purpose.**
+        /// `f64` has no tangent to be identical to, so this test cannot
+        /// reach the derivative channel at all — that is
+        /// [`orthonormal_basis_dual_tangent_matches_closed_form`]'s job,
+        /// and the two together are what covers the construction. A
+        /// fixture built with `Dual::variable` also cannot distinguish
+        /// spellings of a square: its tangent is `1.0`, and `y + y` and
+        /// `2·y` are equal exactly there.
         #[test]
         fn orthonormal_basis_dual_value_channel_bit_identical(v in vec3()) {
             use crate::dual::Dual;
@@ -676,6 +706,130 @@ mod tests {
                 (b2.x, d2.x), (b2.y, d2.y), (b2.z, d2.z),
             ] {
                 prop_assert_eq!(ours.to_bits(), dual.value.to_bits());
+            }
+        }
+
+        /// The TANGENT channel of BOTH squared components — `b1.x` and
+        /// `b2.y` — against their closed-form derivatives, the channel
+        /// the test above cannot reach.
+        ///
+        /// With `a = −1/(s + n.z)` and `s` locally constant
+        /// (`copysign`'s kink convention; the seam at `n.z = 0` is
+        /// documented at the constructor), `b1.x = 1 + (s·n.x²)·a` and
+        /// `b2.y = s + n.y²·a`, so
+        ///
+        /// ```text
+        /// d(b1.x) = 2·s·n.x·a·tx + s·n.x²·tz/(s + n.z)²
+        /// d(b2.y) = 2·n.y·a·ty   +   n.y²·tz/(s + n.z)²
+        /// ```
+        ///
+        /// Well conditioned everywhere on the sphere: `|s + n.z|` is
+        /// `1 + |n.z| ≥ 1` by construction, which is the whole reason
+        /// the two-hemisphere form exists.
+        ///
+        /// **`b1.x` is covered here because it is the component both
+        /// production callers consume** (`newell.rs` and `recognize.rs`
+        /// discard `b2`), and because a closed form is the only way to
+        /// check a derivative at all: `f64` has no tangent to compare
+        /// against, so the value-channel test above cannot reach this.
+        ///
+        /// **What this test is NOT: a guard on the square's spelling.**
+        /// With `s` exactly `±1`, `Dual::mul`'s `x'·x + x·x'` and
+        /// `Dual::powi`'s `(2·x)·x'` both collapse to `±2·fl(x·x')` —
+        /// 0 bit differences over 300,000 samples in the live regime —
+        /// so writing `b1.x`'s square either way leaves this green. It
+        /// is a **correctness guard against a wrong closed form**: it
+        /// reds on a wrong power, a dropped `s`, or a swapped factor.
+        /// Worth having, and worth not mistaking for the other thing
+        /// given where it sits.
+        ///
+        /// **The tangents are NOT 1.** `Dual::variable` gives every
+        /// input a tangent of `1.0`, and at `ty = 1` the product rule
+        /// and the power rule agree bit-for-bit (`y + y` is `2·y`) — so
+        /// a fixture built that way exercises the one input at which
+        /// every spelling of a square is identical. Independent random
+        /// tangents are what make this a test of the rule rather than of
+        /// that coincidence.
+        #[test]
+        fn orthonormal_basis_dual_tangent_matches_closed_form(
+            v in vec3(),
+            tx in -4.0f64..4.0,
+            ty in -4.0f64..4.0,
+            tz in -4.0f64..4.0,
+        ) {
+            use crate::dual::Dual;
+            let n = v.normalize();
+            prop_assume!(n.x.is_finite() && n.y.is_finite() && n.z.is_finite());
+            let nd = Vec3::new(
+                Dual::new(n.x, tx),
+                Dual::new(n.y, ty),
+                Dual::new(n.z, tz),
+            );
+            let (d1, d2) = nd.orthonormal_basis();
+            let s = 1.0f64.copysign(n.z);
+            let a = -1.0 / (s + n.z);
+            let dsq = tz / ((s + n.z) * (s + n.z));
+            let want1 = 2.0 * s * n.x * a * tx + s * n.x * n.x * dsq;
+            let want2 = 2.0 * n.y * a * ty + n.y * n.y * dsq;
+            for (got, want, which) in
+                [(d1.x.deriv, want1, "b1.x"), (d2.y.deriv, want2, "b2.y")]
+            {
+                let scale = want.abs().max(1.0);
+                prop_assert!(
+                    (got - want).abs() <= 1e-12 * scale,
+                    "{} tangent {} vs closed form {} \
+                     (n = {:?}, tx = {}, ty = {}, tz = {})",
+                    which, got, want, (n.x, n.y, n.z), tx, ty, tz
+                );
+            }
+        }
+
+        /// The one thing `b1.x`'s spelling adds over the already-pinned
+        /// `powi(2) == x * x`: the **±1 scale may cross the square**.
+        /// `s·x` is a sign-bit flip, exact, and round-to-nearest-even is
+        /// symmetric under negation, so the same rounding survives in
+        /// both associations.
+        ///
+        /// **`powi(2) == x * x` at `f64` is NOT re-derived here** — it
+        /// is pinned over the full edge set (subnormals, `±0`, `±∞`,
+        /// `MAX`, NaN) by
+        /// `sweep/tests/review_m2_pr4.rs::survives_powi2_bitwise_equals_mul_at_f64`.
+        /// This test is only the scale half, and it is a property of the
+        /// `±1` scale alone: `mat.rs::rotation_about`'s diagonal carries
+        /// an arbitrary `t = 1 − cos θ`, does NOT have it, and is
+        /// guarded separately by
+        /// `mat.rs::tests::rotation_diagonal_takes_the_square_before_the_scale`.
+        #[test]
+        fn unit_scale_square_reassociates_exactly(x in -1e6f64..1e6) {
+            // The generator reaches none of the interesting magnitudes —
+            // it will essentially never draw a subnormal or a signed
+            // zero and cannot draw a non-finite — so the edge set is
+            // enumerated rather than sampled.
+            let edges = [
+                0.0f64,
+                -0.0,
+                f64::MIN_POSITIVE,
+                f64::MIN_POSITIVE / 4.0,
+                5.0e-324,
+                1.0e160,
+                f64::MAX,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for v in core::iter::once(x).chain(edges) {
+                for s in [1.0f64, -1.0] {
+                    prop_assert_eq!(
+                        ((s * v) * v).to_bits(),
+                        (s * <f64 as Real>::powi(v, 2)).to_bits(),
+                        "s = {}, x = {:e}",
+                        s,
+                        v
+                    );
+                }
+            }
+            for s in [1.0f64, -1.0] {
+                prop_assert!(((s * f64::NAN) * f64::NAN).is_nan());
+                prop_assert!((s * <f64 as Real>::powi(f64::NAN, 2)).is_nan());
             }
         }
     }

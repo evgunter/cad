@@ -43,6 +43,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::{CurveKey, SurfaceKey};
+use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
     /// Replaces `face`'s surface per the [`FaceSurface`] spec,
@@ -78,9 +79,13 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
         if new != old {
-            if let Some(f) = self.get_face_mut(face) {
-                f.surface = new;
-            }
+            let Some(f) = self.get_face_mut(face) else {
+                unreachable!(
+                    "set_face_surface: `face` resolved in the plan phase and minting a \
+                     surface kills no face"
+                )
+            };
+            f.surface = new;
             self.remove_surface_if_orphaned(old);
         }
 
@@ -164,8 +169,9 @@ impl<T: Decide> Body<T> {
         &mut self,
         edge: EdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<CurveKey, EulerOpError> {
-        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec)
+        self.set_edge_curve_via(edge, curve, Self::certify_edge_spec, tol)
     }
 
     /// [`Body::set_edge_curve`] with the certification door supplied by
@@ -182,7 +188,9 @@ impl<T: Decide> Body<T> {
             EdgeCurveSpec<T>,
             geom_core::Point3<T>,
             geom_core::Point3<T>,
+            Tol,
         ) -> Result<geom_brep::EdgeCurve<T>, EulerOpError>,
+        tol: Tol,
     ) -> Result<CurveKey, EulerOpError> {
         let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
@@ -245,13 +253,17 @@ impl<T: Decide> Body<T> {
             geom_brep::EdgeGeometry::MappedCurve(_) => {}
         }
 
-        let certified = certify(self, curve, p_start, p_end)?;
+        let certified = certify(self, curve, p_start, p_end, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.add_curve(certified);
-        if let Some(e) = self.get_edge_mut(edge) {
-            e.curve = new;
-        }
+        let Some(e) = self.get_edge_mut(edge) else {
+            unreachable!(
+                "set_edge_curve: `edge` resolved in the plan phase and adding a curve \
+                 kills no edge"
+            )
+        };
+        e.curve = new;
         self.remove_curve_if_orphaned(old);
 
         #[cfg(debug_assertions)]

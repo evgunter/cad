@@ -2659,7 +2659,7 @@ pub fn nurbs_patch_face<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::Tolerance;
+    use geom_core::Tol;
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary
@@ -2710,7 +2710,7 @@ mod tests {
         truth_area: f64,
         slack: f64,
     ) -> EpsPosture {
-        let target = QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         match out {
             Ok(b) => {
                 for (what, encl, truth) in
@@ -2851,8 +2851,8 @@ mod tests {
             env: pt(0.0),
         };
         let edges = [rim, seam_up, top, seam_down];
-        let band = geom_core::Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         let out = cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band)
             .expect("the band face converges");
         let exact = 2.0 * tau; // ∮ u dv = 4π
@@ -2917,8 +2917,8 @@ mod tests {
             trig0: (wide, wide),
             env: pt(0.0),
         };
-        let band = geom_core::Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         match cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &[e], eps, band) {
             Err(PropsError::QuadratureBudget { .. }) => {}
             other => panic!("expected the typed budget refusal, got {other:?}"),
@@ -2931,8 +2931,8 @@ mod tests {
     /// against a dense midpoint oracle (containment + tightness).
     #[test]
     fn nurbs_patch_flux_matches_flat_and_warped_oracles() {
-        let band = Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         let kv = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         // Row-major iu·nv+iv, nu = nv = 2: [(u0v0), (u0v1), (u1v0), (u1v1)].
@@ -3033,7 +3033,7 @@ mod tests {
     /// exactly what the weight-1 patch gives.
     #[test]
     fn rational_patch_encloses_the_reparameterized_square() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let flat = [
@@ -3050,13 +3050,13 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band,
         );
         let posture = eps_posture("reparameterized square", &out, 1.0, 1.0, 0.0);
         eprintln!(
             "EPS-ROW reparameterized square @ eps={:e}: {posture:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 
@@ -3065,7 +3065,7 @@ mod tests {
     /// than `MAX_SUB_ARC` actually has.
     #[test]
     fn rational_two_span_quarter_cylinder() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let kv_v = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
@@ -3097,14 +3097,14 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band,
         );
         let truth = core::f64::consts::PI;
         let posture = eps_posture("two-span quarter cylinder", &out, truth, truth, 0.0);
         eprintln!(
             "EPS-ROW two-span quarter cylinder @ eps={:e}: {posture:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 
@@ -3127,7 +3127,7 @@ mod tests {
     #[allow(clippy::too_many_lines)] // the ladder plus its own oracle
     fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
         use geom_core::spline::basis::ders_basis_funs;
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv_v = KnotVector::unit_segment(1);
         // `pv` is gone: the oracle's v-window base is the `Span`'s own
         // `first_control()`, not a re-derived `span − degree`.
@@ -3258,7 +3258,7 @@ mod tests {
                     (0.0, 1.0, 0.0, 1.0),
                     10.0,
                     0.0,
-                    Tolerance::get().eps,
+                    Tol::witness().get().eps,
                     band,
                 );
                 // The slack is the ORACLE's discretization error, not
@@ -3273,7 +3273,7 @@ mod tests {
         }
         eprintln!(
             "EPS-ROW multiplicity ladder @ eps={:e}: {postures:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
         // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
         // ride the exact per-span Newton–Cotes lane, whose width is
@@ -3288,7 +3288,7 @@ mod tests {
             .filter(|(_, p)| *p == EpsPosture::Certified)
             .map(|(r, _)| r.as_str())
             .collect();
-        let expected = if Tolerance::get().eps >= CORPUS_EPS {
+        let expected = if Tol::witness().get().eps >= CORPUS_EPS {
             2 * pu
         } else {
             pu
@@ -3297,7 +3297,7 @@ mod tests {
             certified.len(),
             expected,
             "the ladder's ε posture MOVED at eps={:e}: certified {certified:?}, all {postures:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
         assert!(
             certified.iter().all(|r| r.ends_with("integral")) || certified.len() == 2 * pu,
@@ -3313,7 +3313,7 @@ mod tests {
     /// `r·(π/2)·2 = π` — both independent of the parameterization.
     #[test]
     fn rational_quarter_cylinder_brackets_the_closed_form() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv_v = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
@@ -3336,14 +3336,14 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band,
         );
         let truth = core::f64::consts::PI;
         let posture = eps_posture("quarter cylinder", &out, truth, truth, 0.0);
         eprintln!(
             "EPS-ROW quarter cylinder @ eps={:e}: {posture:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 
@@ -3437,8 +3437,8 @@ mod tests {
     #[test]
     fn adversarial_faces_contain_their_dense_oracles() {
         let tau = core::f64::consts::TAU;
-        let band = geom_core::Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         let seam = |u_at: f64, v_hi: f64, forward: bool| TrimEdgeQ {
             u: chan(u_at, 0.0, 0.0, 0.0),
             v: chan(0.0, 0.0, 0.0, 1.0),

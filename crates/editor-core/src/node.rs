@@ -9,6 +9,33 @@ use crate::expr::{Dimension, Expr};
 // owns the single upward re-export.
 use topo::ContactClass;
 
+/// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
+/// a PATTERN.
+///
+/// [`Node::payload_names`] and [`Node::rebind_payload_names`] must name
+/// the same variants — the read and the rewrite are one answer read two
+/// ways, and a variant one of them treats as nameless while the other
+/// rewrites it is a name that survives a `Rebind`.
+/// Both matches stay exhaustive: a new [`Node`] variant absent
+/// from this list breaks both builds, and adding it to this list is one
+/// decision at one site.
+macro_rules! name_free_node {
+    () => {
+        $crate::node::Node::Datum(_)
+            | $crate::node::Node::Profile(_)
+            | $crate::node::Node::Extrude { .. }
+            | $crate::node::Node::Revolve { .. }
+            | $crate::node::Node::Loft { .. }
+            | $crate::node::Node::Sweep { .. }
+            | $crate::node::Node::Split { .. }
+            | $crate::node::Node::Boolean { .. }
+            | $crate::node::Node::Transform { .. }
+            | $crate::node::Node::Pattern { .. }
+            | $crate::node::Node::PlacedUnion { .. }
+            | $crate::node::Node::InstantiatePart { .. }
+    };
+}
+
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from `Doc`'s monotone counter at insertion,
 /// never reused (deletion does not free it), never positional. Its
@@ -897,7 +924,28 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
-            _ => None,
+            // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
+            // node kind must be classified here or the compile breaks,
+            // while "this node does not carry that slot" stays the
+            // honest answer for a slot the listed arms did not claim.
+            // `Pattern` and `PlacedUnion` are absent because their arms
+            // above already bind every slot.
+            (
+                Node::Datum(..)
+                | Node::Profile(..)
+                | Node::Extrude { .. }
+                | Node::Revolve { .. }
+                | Node::Loft { .. }
+                | Node::Sweep { .. }
+                | Node::Fillet { .. }
+                | Node::Split { .. }
+                | Node::Boolean { .. }
+                | Node::Transform { .. }
+                | Node::Declare { .. }
+                | Node::InstantiatePart { .. }
+                | Node::Mate { .. },
+                _,
+            ) => None,
         }
     }
 
@@ -934,7 +982,24 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
-            _ => None,
+            // EXHAUSTIVE on the NODE axis, open on the slot axis (the
+            // `expr` rule).
+            (
+                Node::Datum(..)
+                | Node::Profile(..)
+                | Node::Extrude { .. }
+                | Node::Revolve { .. }
+                | Node::Loft { .. }
+                | Node::Sweep { .. }
+                | Node::Fillet { .. }
+                | Node::Split { .. }
+                | Node::Boolean { .. }
+                | Node::Transform { .. }
+                | Node::Declare { .. }
+                | Node::InstantiatePart { .. }
+                | Node::Mate { .. },
+                _,
+            ) => None,
         }
     }
 
@@ -946,7 +1011,8 @@ impl<P> Node<P> {
     /// semantics with `Rebind` as the one repair.
     ///
     /// The single answer to "which payloads carry a name": every reader
-    /// reads this rather than its own copy of the list.
+    /// reads this rather than its own copy of the list. The negative
+    /// half is [`name_free_node`], shared with the rewriting twin.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
             Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
@@ -954,18 +1020,7 @@ impl<P> Node<P> {
             // A12: a mate's two heads are the instance-qualified
             // references its reading edges are recomputed from.
             Node::Mate { a, b, .. } => vec![a, b],
-            Node::Datum(_)
-            | Node::Profile(_)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::PlacedUnion { .. }
-            | Node::InstantiatePart { .. } => Vec::new(),
+            name_free_node!() => Vec::new(),
         }
     }
 
@@ -976,8 +1031,8 @@ impl<P> Node<P> {
     /// already-selected edge SHRINKS the set by one rather than
     /// duplicating it.
     ///
-    /// The two must name the same variants, which is why neither
-    /// wildcards.
+    /// The two must name the same variants; [`name_free_node`] is where
+    /// that agreement is held.
     pub(crate) fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
         fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
             if name == from {
@@ -1007,18 +1062,7 @@ impl<P> Node<P> {
                 hits += rewrite(a, from, to);
                 hits += rewrite(b, from, to);
             }
-            Node::Datum(_)
-            | Node::Profile(_)
-            | Node::Extrude { .. }
-            | Node::Revolve { .. }
-            | Node::Loft { .. }
-            | Node::Sweep { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::PlacedUnion { .. }
-            | Node::InstantiatePart { .. } => {}
+            name_free_node!() => {}
         }
         hits
     }
@@ -1089,7 +1133,24 @@ impl<P> Node<P> {
             // always a second answer to the same question.
             Node::Pattern { kind, .. } => (true, kind),
             Node::PlacedUnion { count, kind, .. } => (count.is_some(), kind),
-            _ => return None,
+            // EXHAUSTIVE on purpose: a future node kind carrying a
+            // placement rule must be classified here or the compile
+            // breaks, rather than defaulting to "has no rule" and
+            // slipping past all three doors this function is the one
+            // answer for.
+            Node::Datum(..)
+            | Node::Profile(..)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. } => return None,
         };
         let Some(frames) = kind.placements() else {
             // A stepped rule needs its count slot and nothing else.

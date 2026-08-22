@@ -6,7 +6,7 @@
 //! undiscriminated siblings get the N2 tie mark at the table.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 use topo::{Body, FaceKey};
 
 use super::emit::{NamingError, face_half_edges};
@@ -14,8 +14,8 @@ use super::role::SideVerdict;
 
 /// The classification band (kernel-ambient tolerance) for the
 /// `name_frag_*` family.
-pub(crate) fn band() -> Result<Band, NamingError> {
-    Band::linear().map_err(|_| NamingError::Emission {
+pub(crate) fn band(tol: Tol) -> Result<Band, NamingError> {
+    Band::linear(tol).map_err(|_| NamingError::Emission {
         what: "name_frag band construction failed",
     })
 }

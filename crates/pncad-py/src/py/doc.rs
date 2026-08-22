@@ -10,8 +10,11 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{edit_error_tag, expr_dimension_error_tag, persist_error_tag};
+use crate::tags::{
+    edit_error_tag, expr_dimension_error_tag, persist_error_tag, workspace_error_tag,
+};
 use pncad::document as d;
+use pncad::tolerance::Tol;
 
 /// Raise `EditError` carrying the refusal's stable tag.
 fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
@@ -167,6 +170,7 @@ impl NodeId {
     }
 
     fn __hash__(&self) -> u64 {
+        let _tol = Tol::witness();
         self.0.0
     }
 }
@@ -201,16 +205,26 @@ impl Doc {
     #[new]
     #[pyo3(signature = (label = None))]
     fn new(py: Python<'_>, label: Option<&str>) -> PyResult<Self> {
+        let tol = Tol::witness();
         let inner = match label {
-            Some(label) => crate::identity::derived(label),
-            None => crate::identity::interactive().map_err(|err| {
+            Some(label) => crate::identity::derived(label, tol),
+            // The tag is the store's own, through `crate::tags`, not a
+            // literal chosen here: `interactive` refuses with the whole
+            // `WorkspaceError` vocabulary, and which of its arms a
+            // caller sees is that enum's fact to state, not this raise
+            // site's to assume. Only `randomness_unavailable` is
+            // reachable through this door today — `random_document_id`
+            // has one failure arm — but that is a fact about ANOTHER
+            // crate, and a literal here would go on being written
+            // confidently over a second arm the day one appears.
+            None => crate::identity::interactive(tol).map_err(|err| {
                 typed_err(
                     py,
                     ErrorClass::Identity,
                     err.to_string(),
                     &[(
                         "variant",
-                        PyString::new(py, "randomness_unavailable")
+                        PyString::new(py, workspace_error_tag(&err))
                             .unbind()
                             .into_any(),
                     )],
@@ -235,7 +249,8 @@ impl Doc {
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
-        let applied = d::apply(&self.inner, &edit.inner).map_err(|err| edit_err(py, &err))?;
+        let tol = Tol::witness();
+        let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         self.inner = applied.doc;
         Ok(applied.record.minted.map(NodeId))
     }
@@ -243,10 +258,11 @@ impl Doc {
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
     fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
+        let tol = Tol::witness();
         let edit = d::DocEdit::InsertNode {
             node: node.inner.clone(),
         };
-        let applied = d::apply(&self.inner, &edit).map_err(|err| edit_err(py, &err))?;
+        let applied = d::apply(&self.inner, &edit, tol).map_err(|err| edit_err(py, &err))?;
         self.inner = applied.doc;
         applied.record.minted.map(NodeId).ok_or_else(|| {
             typed_err(
@@ -273,8 +289,9 @@ impl Doc {
         py: Python<'_>,
         finding: &super::flush::FlushFinding,
     ) -> PyResult<NodeId> {
-        let (doc, id) =
-            pncad::select::declare(&self.inner, &finding.0).map_err(|err| declare_err(py, &err))?;
+        let tol = Tol::witness();
+        let (doc, id) = pncad::select::declare(&self.inner, &finding.0, tol)
+            .map_err(|err| declare_err(py, &err))?;
         self.inner = doc;
         Ok(NodeId(id))
     }
@@ -288,8 +305,9 @@ impl Doc {
         py: Python<'_>,
         findings: Vec<super::flush::FlushFinding>,
     ) -> PyResult<NodeId> {
+        let tol = Tol::witness();
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel)
+        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel, tol)
             .map_err(|err| declare_err(py, &err))?;
         self.inner = doc;
         Ok(NodeId(id))
@@ -326,7 +344,8 @@ impl Doc {
     /// document; the GUI's edit-log-bearing files load through the
     /// same `load` door.
     fn save(&self, py: Python<'_>) -> PyResult<String> {
-        d::save(&self.inner, &[]).map_err(|err| persist_err(py, &err))
+        let tol = Tol::witness();
+        d::save(&self.inner, &[], tol).map_err(|err| persist_err(py, &err))
     }
 
     fn __len__(&self) -> usize {
@@ -1294,7 +1313,8 @@ impl Loaded {
 /// snapshot or edit log the shared validator rejects, an ε conflict.
 #[pyfunction]
 pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
-    let loaded = d::load(text).map_err(|err| persist_err(py, &err))?;
+    let tol = Tol::witness();
+    let loaded = d::load(text, tol).map_err(|err| persist_err(py, &err))?;
     Ok(Loaded {
         snapshot: loaded.snapshot,
         doc: loaded.doc,

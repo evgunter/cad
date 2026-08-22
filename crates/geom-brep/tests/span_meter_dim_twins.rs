@@ -28,6 +28,13 @@
 //! rate is decisively positive. The old comparand certified it; the
 //! length escalates it, and the row is sized in units of the run's own
 //! ε so its posture is the same at every ε in the hosted matrix.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p geom-brep --features probe --test all -- span_meter_dim_twins::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -36,13 +43,14 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, Point3, Sign, Tolerance, Vec3};
+use geom_core::{Band, MarginDiag, Point3, Sign, Vec3};
 use slotmap::SlotMap;
 
 fn band() -> Band {
-    Band::linear().expect("the run's linear band")
+    Band::linear(Tol::witness()).expect("the run's linear band")
 }
 
 fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
@@ -189,7 +197,7 @@ fn the_span_meter_margin_is_reparametrization_invariant() {
 /// the fixture is sized in units of the run's own ε.
 #[test]
 fn a_sub_band_carrier_escalates_on_its_meter_not_its_span() {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     let (length, domain) = (3.0 * eps, 1e-6);
     let ((outcome, margin), got) = span_meter_sample(length, domain);
     let b = band();

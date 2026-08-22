@@ -33,9 +33,16 @@ use editor_core::{
     SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, desc, insert, len, scl, step};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn block(
@@ -74,7 +81,7 @@ struct BandCut {
 /// A − band(tx): the band's horizontal tail pierces the west face,
 /// its descending diagonal exits the east face (module docs).
 fn band_cut() -> BandCut {
-    let doc = ProfileDoc::empty_derived("m4_pr4_banked");
+    let doc = ProfileDoc::empty_derived("m4_pr4_banked", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
     // The band profile on z = -0.5, extruded 2.0 (full pierce).
     // Lower boundary: (-2.5,1.0) → (2.0,1.0) → (4.5,0.8);
@@ -286,7 +293,7 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // survives under its wrap); overlapping at tx = 0.5 (kept-key
     // fusion drops the losing coincident-corner identities with no
     // retirement row).
-    let doc = ProfileDoc::empty_derived("m4_pr4_banked");
+    let doc = ProfileDoc::empty_derived("m4_pr4_banked", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
@@ -347,8 +354,8 @@ fn fused_vertex_scenario(
         boolean_sweep: strategy,
         ..EvalOptions::default()
     };
-    let ev1 = evaluate::<f64>(doc, None, &CancelToken::new(), &opts);
-    let ev2 = evaluate::<f64>(doc2, Some(&ev1), &CancelToken::new(), &opts);
+    let ev1 = evaluate::<f64>(doc, None, &CancelToken::new(), &opts, Tol::witness());
+    let ev2 = evaluate::<f64>(doc2, Some(&ev1), &CancelToken::new(), &opts, Tol::witness());
     let (r1, r2) = (rows(&ev1, u), rows(&ev2, u));
     // The dropped identities: operand-corner vertex names present in
     // the disjoint union, absent from the overlapping one.

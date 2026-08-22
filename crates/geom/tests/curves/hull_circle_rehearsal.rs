@@ -1,5 +1,5 @@
-//! **The C2.2 shape rehearsal** (M5 PR 2, `docs/M5-PR2-SPEC.md` family
-//! 4): the acceptance the whole PR exists for — since M5 PR 4 running
+//! **The C2.2 shape rehearsal** (M5 PR 2, acceptance family 4): the
+//! acceptance the whole PR exists for — since M5 PR 4 running
 //! ON the promoted substrate (`geom_core::spline::compose`) instead of
 //! test-local Bernstein plumbing. The numbers this test publishes must
 //! reproduce the PR 2 rehearsal's bit-for-bit (the refactor pins that

@@ -14,11 +14,18 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len, scl};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -41,7 +48,7 @@ fn pole(node: RecipeNodeId, v: u32) -> StableName {
 /// A revolve doc for one authored chain on the xz-authoring plane of
 /// [`m4_pr3_names`]'s ball fixture (axis = sketch y).
 fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m9_d1_r1_probes");
+    let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -86,7 +93,7 @@ fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
 #[test]
 fn subdivided_axis_run_is_refused_upstream_of_the_emitter() {
     use editor_core::DocEdit;
-    let doc = ProfileDoc::empty_derived("m9_d1_r1_probes");
+    let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
     let node = Node::Profile(ProfileProgram {
         plane: SketchPlane::from_frame(
             Point3::new(0.0, 0.0, 0.0),
@@ -104,7 +111,9 @@ fn subdivided_axis_run_is_refused_upstream_of_the_emitter() {
             }),
         ])],
     });
-    let err = doc.apply(&DocEdit::InsertNode { node }).unwrap_err();
+    let err = doc
+        .apply(&DocEdit::InsertNode { node }, Tol::witness())
+        .unwrap_err();
     let msg = format!("{err:?}");
     assert!(
         msg.contains("carrier identity is not tangency"),

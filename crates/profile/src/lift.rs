@@ -67,6 +67,7 @@ use geom_core::{Point2, Vec2};
 use crate::ProfileLoop;
 use crate::path::PathError;
 use crate::path::program::{ReplayError, ReplayErrorKind, Step, Target, replay};
+use geom_core::Tol;
 
 /// How faithfully a lifted program reproduces its source loop, up to
 /// the reported seam rotation.
@@ -261,8 +262,8 @@ const VALUE_EQUAL_ABS: f64 = 1e-12;
 /// # Errors
 ///
 /// [`LiftRefusal`], naming the structural wall.
-pub fn lift(loop_: &ProfileLoop<f64>) -> Result<Vec<Step<f64>>, LiftRefusal> {
-    lift_seamed(loop_).map(|(program, _)| program)
+pub fn lift(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<Vec<Step<f64>>, LiftRefusal> {
+    lift_seamed(loop_, tol).map(|(program, _)| program)
 }
 
 /// **The differential harness**: lift, replay, and compare against the
@@ -270,12 +271,12 @@ pub fn lift(loop_: &ProfileLoop<f64>) -> Result<Vec<Step<f64>>, LiftRefusal> {
 ///
 /// Total by construction — every path produces a census row rather than
 /// an error the caller must interpret.
-pub fn lift_checked(loop_: &ProfileLoop<f64>) -> LiftOutcome {
-    let (program, rotation) = match lift_seamed(loop_) {
+pub fn lift_checked(loop_: &ProfileLoop<f64>, tol: Tol) -> LiftOutcome {
+    let (program, rotation) = match lift_seamed(loop_, tol) {
         Ok(pair) => pair,
         Err(refusal) => return LiftOutcome::Refused(refusal),
     };
-    let replayed = match replay(&program) {
+    let replayed = match replay(&program, tol) {
         Ok(l) => l,
         Err(error) => {
             return LiftOutcome::ReplayRefused {
@@ -314,7 +315,7 @@ pub fn lift_checked(loop_: &ProfileLoop<f64>) -> LiftOutcome {
 // ------------------------------------------------------------------
 
 /// The lift proper: the program AND the seam rotation it authored at.
-fn lift_seamed(loop_: &ProfileLoop<f64>) -> Result<(Vec<Step<f64>>, usize), LiftRefusal> {
+fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, usize), LiftRefusal> {
     let n = loop_.vertices.len();
     if n < 2 {
         return Err(LiftRefusal::TooFewVertices { vertices: n });
@@ -340,7 +341,7 @@ fn lift_seamed(loop_: &ProfileLoop<f64>) -> Result<(Vec<Step<f64>>, usize), Lift
     // The closed-carrier forms first: a loop that IS a carrier has no
     // seam to author, and `circle`/`circle_split` say so in one step.
     if !declared.iter().any(|d| *d)
-        && let Some(found) = carrier_form(loop_)
+        && let Some(found) = carrier_form(loop_, tol)
     {
         return Ok(found);
     }
@@ -349,7 +350,7 @@ fn lift_seamed(loop_: &ProfileLoop<f64>) -> Result<(Vec<Step<f64>>, usize), Lift
         Some(r) => r,
         None => return Err(LiftRefusal::AllJointsDeclared { joints: n }),
     };
-    chain_form(loop_, &declared, rotation).map(|program| (program, rotation))
+    chain_form(loop_, &declared, rotation, tol).map(|program| (program, rotation))
 }
 
 /// Try the one-step carrier spellings, VERIFYING each by replay rather
@@ -359,7 +360,7 @@ fn lift_seamed(loop_: &ProfileLoop<f64>) -> Result<(Vec<Step<f64>>, usize), Lift
 /// the +x pole and `circle_split` at `phase`, so a hand-authored carrier
 /// loop generally corresponds to one of them ROTATED. Returns the
 /// program and the rotation it matched at, preferring an exact match.
-fn carrier_form(loop_: &ProfileLoop<f64>) -> Option<(Vec<Step<f64>>, usize)> {
+fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, usize)> {
     let n = loop_.vertices.len();
     // Only a loop that is arcs all the way round can be one carrier;
     // this guard keeps the search off every polygon.
@@ -386,7 +387,7 @@ fn carrier_form(loop_: &ProfileLoop<f64>) -> Option<(Vec<Step<f64>>, usize)> {
             phase,
         }]);
         for program in candidates {
-            let Ok(replayed) = replay(&program) else {
+            let Ok(replayed) = replay(&program, tol) else {
                 continue;
             };
             let verdict = compare(&want, &replayed);
@@ -413,6 +414,7 @@ fn chain_form(
     loop_: &ProfileLoop<f64>,
     declared: &[bool],
     rotation: usize,
+    tol: Tol,
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
     let n = loop_.vertices.len();
     let at = |k: usize| loop_.vertices[(rotation + k) % n];
@@ -454,7 +456,7 @@ fn chain_form(
         }
     }
 
-    repair_same_carrier(program, &origin)
+    repair_same_carrier(program, &origin, tol)
 }
 
 /// Turn `arc_to` into `arc_continue` wherever the DRIVER says the
@@ -471,11 +473,12 @@ fn chain_form(
 fn repair_same_carrier(
     mut program: Vec<Step<f64>>,
     origin: &[usize],
+    tol: Tol,
 ) -> Result<Vec<Step<f64>>, LiftRefusal> {
     // Each accepted substitution moves the refusal strictly later, so
     // the program's length bounds the number of passes.
     for _ in 0..=program.len() {
-        let error = match replay(&program) {
+        let error = match replay(&program, tol) {
             Ok(_) => return Ok(program),
             Err(e) => e,
         };
@@ -494,7 +497,7 @@ fn repair_same_carrier(
                 if let Some(slot) = program.get_mut(error.step) {
                     *slot = Step::ArcContinue(p);
                 }
-                match replay(&program) {
+                match replay(&program, tol) {
                     Ok(_) => return Ok(program),
                     Err(next) if next.step > error.step => {}
                     Err(_) => return Ok(saved),

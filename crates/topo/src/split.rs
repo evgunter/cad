@@ -24,7 +24,7 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -142,7 +142,12 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn split_edge(&mut self, edge: EdgeKey, t: T) -> Result<SplitEdgeCreated, EulerOpError> {
+    pub fn split_edge(
+        &mut self,
+        edge: EdgeKey,
+        t: T,
+        tol: Tol,
+    ) -> Result<SplitEdgeCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -151,21 +156,16 @@ impl<T: Decide> Body<T> {
             key: EntityId::Edge(edge),
         })?;
         let (hp, hm) = (edge_data.he_plus, edge_data.he_minus);
-        let hp_data = self.resolve_half_edge(hp)?;
-        let hm_data = self.resolve_half_edge(hm)?;
-        // The two splices write through `next(hp)` and `prev(hm)`;
-        // validate both now so the mutation below cannot fail midway
-        // (atomicity). `prev(hm)` is re-read after splice 1 — see the
-        // splice for why the value read there is covered by this check.
-        let hp_next = hp_data.next;
-        let hm_prev = hm_data.prev;
-        for link in [hp_next, hm_prev] {
-            if !self.half_edges.contains_key(link) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(link),
-                });
-            }
-        }
+        let (hp, hp_data) = self.resolve_half_edge_live(hp)?;
+        let (hm, hm_data) = self.resolve_half_edge_live(hm)?;
+        // The two splices write through `next(hp)` and `prev(hm)` as
+        // well as the parent's own halves, whose proofs came out of the
+        // resolves above; prove these two now so the mutation below
+        // cannot fail midway (atomicity). `prev(hm)` changes
+        // under splice 1 — see the splice for the case that moves it,
+        // and for why the new value is proven too.
+        let hp_next = self.require_live(hp_data.next)?;
+        let hm_prev = self.require_live(hm_data.prev)?;
         let entry = self
             .get_curve_geom(edge_data.curve)
             .ok_or(EulerOpError::StaleGeometry {
@@ -202,7 +202,7 @@ impl<T: Decide> Body<T> {
             // in meters.
             geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         };
-        let band = Band::linear().map_err(|e| EulerOpError::Certification {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
         for margin in [
@@ -226,8 +226,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let cert1 = self.certify_edge_spec(spec1, p_u, p_new)?;
-        let cert2 = self.certify_edge_spec(spec2, p_new, p_v)?;
+        let cert1 = self.certify_edge_spec(spec1, p_u, p_new, tol)?;
+        let cert2 = self.certify_edge_spec(spec2, p_new, p_v, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
@@ -255,28 +255,23 @@ impl<T: Decide> Body<T> {
         // Splice 1: hp → n⁺ → old next(hp), in hp's loop.
         self.link_half_edges(hp, n_plus);
         self.link_half_edges(n_plus, hp_next);
-        // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. The
-        // prev is re-read AFTER splice 1 so the strut case
-        // (next(hp) == hm ⇒ prev(hm) is now n⁺) chains correctly.
-        // Splice 1 writes two `prev` fields: `n_plus`'s and
-        // `hp_next`'s. `hm != n_plus` — `n_plus` is minted in this
-        // call and `hm` came out of the arena — so the only one that
-        // can be `hm`'s is `hp_next`'s, which splice 1 set to the
-        // minted `n_plus`. The value read here is therefore `n_plus`
-        // when `hm == hp_next` and the plan phase's `hm_prev`
-        // otherwise. Both are live: the first is minted above, the
-        // second is proven by the plan phase's link check.
-        let Some(hm_data_spliced) = self.get_half_edge(hm) else {
-            unreachable!(
-                "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
-            )
-        };
-        self.link_half_edges(hm_data_spliced.prev, n_minus);
+        // Splice 2: current prev(hm) → n⁻ → hm, in hm's loop. Splice 1
+        // moved that prev in the strut case (next(hp) == hm ⇒ prev(hm)
+        // is now n⁺), and the two cases are exhaustive: splice 1 writes
+        // exactly two `prev` fields, `n_plus`'s and `hp_next`'s, and
+        // `hm != n_plus` because `n_plus` was minted in this call while
+        // `hm` came out of the arena — so the only one that can be
+        // `hm`'s is `hp_next`'s. Deriving the value rather than
+        // re-reading it keeps both branches proven: the mint above, and
+        // the plan phase.
+        let hm_prev = if hm == hp_next { n_plus } else { hm_prev };
+        self.link_half_edges(hm_prev, n_minus);
         self.link_half_edges(n_minus, hm);
+        // The splice is done; past it the new halves are ordinary keys.
+        let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
         // The parent's minus half now starts at w (the parent derives
-        // its new end w through n⁺/n⁻'s starts). Same key, same proof
-        // as the re-read above.
-        let Some(he) = self.get_half_edge_mut(hm) else {
+        // its new end w through n⁺/n⁻'s starts).
+        let Some(he) = self.get_half_edge_mut(hm.key()) else {
             unreachable!(
                 "split_edge: `hm` resolved in the plan phase and this op kills no half-edge"
             )
@@ -284,20 +279,28 @@ impl<T: Decide> Body<T> {
         he.start = w;
         // Parent edge → first-child curve; old curve killed iff
         // orphaned.
-        if let Some(e) = self.get_edge_mut(edge) {
-            e.curve = first_curve;
-        }
+        let Some(e) = self.get_edge_mut(edge) else {
+            unreachable!("split_edge: `edge` resolved in the plan phase and this op kills no edge")
+        };
+        e.curve = first_curve;
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        // Emanating rules (documented above).
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = Some(n_plus);
-        }
-        let v_emanating = self.get_vertex(v).and_then(|vd| vd.emanating);
-        if v_emanating == Some(hm)
-            && let Some(vertex) = self.get_vertex_mut(v)
-        {
+        // Emanating rules (documented above). `v` is read and written
+        // through ONE lookup: the condition is a field of the borrow
+        // that performs the write, so no path reaches the write with
+        // `v` unproven.
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("split_edge: `w` is minted by this function, above")
+        };
+        vertex.emanating = Some(n_plus);
+        let Some(vertex) = self.get_vertex_mut(v) else {
+            unreachable!(
+                "split_edge: `v` proven live by the plan phase (resolve_vertex_point) and \
+                 this op kills no vertex"
+            )
+        };
+        if vertex.emanating == Some(hm.key()) {
             vertex.emanating = Some(n_minus);
         }
 
@@ -329,6 +332,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+    use geom_core::Tol;
 
     use geom::Curve3;
     use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
@@ -344,10 +348,10 @@ mod tests {
     /// the cube stays a tier-2 closed solid.
     #[test]
     fn split_line_edge_mid() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let edge = cube.mevs[0].edge; // A → B, chord length 1, params [0,1]
-        let created = body.split_edge(edge, 0.5).unwrap();
+        let created = body.split_edge(edge, 0.5, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(validate_closed(&body), Ok(()));
         // The new vertex sits at the chord midpoint.
@@ -419,9 +423,12 @@ mod tests {
                 },
                 Point3::new(0.0, 1.0, 0.0),
                 spec,
+                Tol::witness(),
             )
             .unwrap();
-        let created = body.split_edge(arc.edge, FRAC_PI_4).unwrap();
+        let created = body
+            .split_edge(arc.edge, FRAC_PI_4, Tol::witness())
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
         let p = body.get_point(created.point).unwrap();
         let r = FRAC_PI_4.cos();
@@ -460,17 +467,21 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 Point3::new(1.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         // One-edge circular face at the far vertex (self-loop edge with
         // the canonical scaffolding circle).
         let circ = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_minus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
-        let created = body.split_edge(circ.edge, PI).unwrap();
+        let created = body.split_edge(circ.edge, PI, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
         // The split vertex sits diametrically across the unit
         // scaffolding circle (center p + x̂, u_ref = −x̂).
@@ -489,7 +500,7 @@ mod tests {
     /// reads prev(hm) after the first).
     #[test]
     fn split_strut_edge() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let anchor = cube.mevs[0].he_plus;
         let strut = body
@@ -499,9 +510,10 @@ mod tests {
                     he2: anchor,
                 },
                 Point3::new(2.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
-        let created = body.split_edge(strut.edge, 0.5).unwrap();
+        let created = body.split_edge(strut.edge, 0.5, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
         let hp = body.get_edge(strut.edge).unwrap().he_plus;
         let chain1 = body.get_half_edge(hp).unwrap().next;
@@ -518,10 +530,10 @@ mod tests {
     /// Band so the test holds at every ε row.
     #[test]
     fn split_param_refusals_are_typed_and_atomic() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let edge = cube.mevs[0].edge;
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let before = deep_snapshot(&body);
         for (t, expect_escalated) in [
             (0.0, false),
@@ -530,7 +542,7 @@ mod tests {
             (-0.25, false),
             ((band.zero() + band.escalate()) * 0.5, true),
         ] {
-            let err = body.split_edge(edge, t).unwrap_err();
+            let err = body.split_edge(edge, t, Tol::witness()).unwrap_err();
             match (expect_escalated, &err) {
                 (false, EulerOpError::SplitParamNotInterior { edge: e }) => {
                     assert_eq!(*e, edge);
@@ -547,7 +559,7 @@ mod tests {
     /// Splitting a null-scaffold edge is refused by type.
     #[test]
     fn split_null_edge_is_refused() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let he = body
             .get_vertex(cube.seed.vertex)
@@ -560,7 +572,7 @@ mod tests {
                 crate::null::NewVertexSide::Above,
             )
             .unwrap();
-        let err = body.split_edge(null.edge, 0.5).unwrap_err();
+        let err = body.split_edge(null.edge, 0.5, Tol::witness()).unwrap_err();
         assert_eq!(err, EulerOpError::NullScaffoldCurve { curve: null.curve });
     }
 
@@ -569,10 +581,12 @@ mod tests {
     #[test]
     fn split_replay_is_byte_identical() {
         let build = || {
-            let cube = ops_cube();
+            let cube = ops_cube(Tol::witness());
             let mut body = cube.body;
-            body.split_edge(cube.mevs[0].edge, 0.25).unwrap();
-            body.split_edge(cube.mevs[3].edge, 0.75).unwrap();
+            body.split_edge(cube.mevs[0].edge, 0.25, Tol::witness())
+                .unwrap();
+            body.split_edge(cube.mevs[3].edge, 0.75, Tol::witness())
+                .unwrap();
             body
         };
         assert_eq!(deep_snapshot(&build()), deep_snapshot(&build()));

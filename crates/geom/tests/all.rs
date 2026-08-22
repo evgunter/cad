@@ -4,9 +4,12 @@
 //! so this one binary stands in for one test target per suite. The
 //! files themselves are untouched: each keeps its own `//!` docs and its
 //! inner attributes (`#![cfg(feature = "interval")]` and friends work as
-//! module-level attributes). The suite count is deliberately not stated
-//! in prose here — `every_suite_file_is_aggregated` computes it, and a
-//! restated number is exactly what went stale three times.
+//! module-level attributes).
+//!
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
 //!
 //! The suites are grouped in `tests/curves/` and `tests/surfaces/`,
 //! mirroring the crate's two modules — the two halves were separate
@@ -81,6 +84,8 @@ mod curves_review_m5_pr4_adversarial;
 mod curves_span_window_pairing;
 #[path = "curves/split_at.rs"]
 mod curves_split_at;
+#[path = "dual_foot_tangent.rs"]
+mod dual_foot_tangent;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]
@@ -103,6 +108,8 @@ mod surfaces_review_m2_pr1_interval;
 mod surfaces_review_m5_pr3_attack;
 #[path = "surfaces/review_m5_pr3_attack_interval.rs"]
 mod surfaces_review_m5_pr3_attack_interval;
+#[path = "surfaces/s32_jet_projection.rs"]
+mod surfaces_s32_jet_projection;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
 

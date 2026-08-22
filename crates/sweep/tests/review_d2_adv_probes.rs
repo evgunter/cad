@@ -18,38 +18,51 @@
 //!   varies, is logged unconditionally, and the count rides
 //!   `CAD_FUZZ_EFFORT` through [`test_utils::fuzz`]. Cutting the count
 //!   loses detection power, never correctness.
-//! - `d2_the_battery_never_hands_the_surgery_an_empty_chain` is a
-//!   **witness-free property** over the same corpus: it pins the
-//!   reason `FilletError::EmptyChain` has no input witness, which is
-//!   what the PR's row-1 classification of those two sites asserts.
 //! - `d2_reached_variants` asserts nothing about coverage and is
 //!   therefore **evidence, not a gate** — it prints which refusal
 //!   classes the corpus actually reaches, which is the number a
 //!   future reader of the partition wants.
 //!
+//! **Anti-vacuity floors** ([`test_utils::vacuity`]). Every interesting
+//! body in the corpus is minted behind a fallible door, so the gates
+//! state how much they actually exercised and assert it:
+//! [`census_corpus`] floors the corpus and the rim/circle/multi-solid
+//! coverage the claims rest on, and `d2_no_input_reaches_a_panic` floors
+//! its request count and the number of requests that came back **with a
+//! band face** — the receipt `rim_phase` leaves, and the only evidence
+//! from outside the door that the phase holding 6 of the 18
+//! `unreachable!` sites ran at all. Without these a run in which
+//! `boolean_op_with` or `revolve` began refusing would shrink to a bare
+//! cube and stay green.
+//!
+//! **A floor on a request SHAPE would not have done.** The request
+//! builder pushes the rim set unconditionally for any rim-carrying body,
+//! so counting all-rim requests floors something `census_corpus` already
+//! implies, and every one of those calls could refuse above `rim_phase`
+//! with the count unmoved. The floor has to be on an outcome.
+//!
 //! Gating: these are written against `crates/sweep/src/fillet`; run
 //! them when that directory changes.
 //!
-//! **The dial is `test_utils::fuzz`, not one of this suite's own.** As
-//! promoted, this file read `D2_ADV_EFFORT` and `D2_ADV_SEED` and
-//! carried its own splitmix64 — a second spelling of a mechanism the
-//! repo already has one home for, which is the finding the PR that
-//! promoted it exists to close. `scripts/gates/no-ambient-env.sh`
-//! greps `crates/*/src` and would not have caught it here; the reason
-//! to use the ratified dial is not the gate's reach but that
-//! `CAD_FUZZ_EFFORT` scales this row with every other randomized sweep
-//! in the workspace from one place.
+//! **The dial is `test_utils::fuzz`, not one of this suite's own.**
+//! `scripts/gates/no-ambient-env.sh` greps `crates/*/src` and would
+//! not have caught a suite-local dial here; the reason to use the
+//! ratified one is not the gate's reach but that `CAD_FUZZ_EFFORT`
+//! scales this row with every other randomized sweep in the workspace
+//! from one place.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::{FilletError, FilletRequest, fillet_edges, run_battery};
+use sweep::fillet::{FilletError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
+use test_utils::vacuity::Exposure;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
@@ -60,7 +73,7 @@ fn effort() -> usize {
 }
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -74,14 +87,16 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
@@ -93,9 +108,10 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             PI / 2.0,
         ),
+        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(&rot, &Affine3::translation(c)).unwrap()
+    topo::transform_rigid(&rot, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
@@ -105,6 +121,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .ok()?;
     Some(out.body()?.body.clone())
@@ -117,6 +134,7 @@ fn union(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .ok()?;
     Some(out.body()?.body.clone())
@@ -130,7 +148,7 @@ fn union(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
 /// rather than primitives.
 fn corpus() -> Vec<(&'static str, Body<f64>)> {
     let mut out: Vec<(&'static str, Body<f64>)> = Vec::new();
-    let c = cube(1.0);
+    let c = cube(1.0, Tol::witness());
     out.push(("cube", c.clone()));
 
     // A rigidly rotated cube — the same topology on a different frame,
@@ -142,6 +160,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             Vec3::new(1.0, 1.0, 1.0).normalize(),
             0.7,
         ),
+        Tol::witness(),
     ) {
         out.push(("cube_rotated", t));
     }
@@ -158,12 +177,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
         out.push(("die_one_pip", b.clone()));
         // A body the SURGERY itself minted, filleted again: its faces
         // and carriers are the surgery's own output, not a primitive's.
-        let box_edges: Vec<EdgeKey> = cube(1.0)
+        let box_edges: Vec<EdgeKey> = cube(1.0, Tol::witness())
             .edges()
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
-        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, band()) {
+        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, band(), Tol::witness()) {
             out.push(("die_one_pip_blended", f.body));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
@@ -172,6 +191,14 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     }
     // A pip straddling an edge: its rim crosses two support faces, so
     // the closed chain is not a ring of one plane.
+    // ABSENT AT THE DEFAULT ε, AND THAT IS WHY THE FLOORS BELOW DO NOT
+    // NAME THESE THREE. Measured on an intact tree: `die_two_pips`
+    // refuses `Containment(PartialSphereFace)` and the straddling and
+    // corner pips refuse `CurvedPierceUnsupported` — declared-unsupported
+    // variants from `boolean_op_with`, not defects. So the corpus mints
+    // 8 of the 11 bodies written here, and `census_corpus` prints which,
+    // every run. A reader asking "does this ever fire?" reads the
+    // evidence line, not a comment that would go stale.
     if let Some(b) = subtract(&c, &pip(0.5, 0.0, 0.12, 0.06)) {
         out.push(("die_edge_straddling_pip", b));
     }
@@ -188,16 +215,112 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     // door's own destination after it has been written into twice —
     // the shape the PR's row-1 refutation is about.
     let mut dst = c.clone();
-    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5)).is_ok() {
+    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness())
+        .is_ok()
+    {
         out.push(("grafted_two_solid", dst.clone()));
         let mut again = dst.clone();
-        if topo::instance::graft_disjoint_all(&mut again, &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)))
-            .is_ok()
+        if topo::instance::graft_disjoint_all(
+            &mut again,
+            &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)),
+            Tol::witness(),
+        )
+        .is_ok()
         {
             out.push(("grafted_three_solid", again));
         }
     }
     out
+}
+
+/// The plane-sphere edges of `body` — the **rim** requests' own door.
+/// Named as its own function because it is the thing the sweep's
+/// anti-vacuity floor counts: without a body that has one, the sample
+/// never reaches `rim_phase`, which holds 6 of the 18 `unreachable!`
+/// sites this file exists to attack.
+fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    let kind_of = |f: topo::FaceKey| -> Option<u8> {
+        match body.get_surface(body.get_face(f)?.surface)? {
+            geom::Surface::Plane { .. } => Some(0),
+            geom::Surface::Sphere { .. } => Some(1),
+            _ => Some(2),
+        }
+    };
+    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
+        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
+    };
+    body.edges()
+        .filter(|(_, e)| {
+            let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
+                return false;
+            };
+            let mut kinds = [kind_of(fa), kind_of(fb)];
+            kinds.sort_unstable();
+            kinds == [Some(0), Some(1)]
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// The circle-carried edges of `body`, likewise counted by the floor:
+/// a corpus of straight-edged boxes reaches none of the curved-spine
+/// arms.
+fn circle_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    body.edges()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            body.get_edge(k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+        })
+        .collect()
+}
+
+/// **The corpus's anti-vacuity floor.** Every interesting body above is
+/// minted behind a fallible door — `revolve`, `transform_rigid`,
+/// `boolean_op_with`, `graft_disjoint_all` — and a refusal from any of
+/// them silently removes a body rather than failing. Left unasserted,
+/// this file degrades to a bare cube and stays green while covering
+/// none of what it was written for.
+///
+/// What is floored is what the file's own claims rest on, not the
+/// literal roster: the three doors that mint bodies with no boolean in
+/// them (so the floor cannot red on a boolean's honest refusal), the
+/// **rim** coverage the `rim_phase` sentence above depends on, and the
+/// **circle** coverage the curved-spine arms depend on. A run that
+/// loses any of those loses the file's reason to exist.
+fn census_corpus(bodies: &[(&'static str, Body<f64>)]) {
+    let mut c = Exposure::new("d2 corpus");
+    for (name, b) in bodies {
+        c.note("bodies");
+        c.note(name);
+        if !rim_edges(b).is_empty() {
+            c.note("bodies with a plane-sphere rim");
+        }
+        if !circle_edges(b).is_empty() {
+            c.note("bodies with a circle-carried edge");
+        }
+        if b.solids().count() > 1 {
+            c.note("multi-solid bodies");
+        }
+    }
+    c.report();
+    let why = "the corpus has degraded — a door that mints one of these bodies now refuses, \
+               and the sweep below would cover none of what this file was written for";
+    // Measured on an intact tree: 8 bodies, 3 with a rim, 5 with a
+    // circle, 2 multi-solid. The floors sit below those, not at them —
+    // a boolean is allowed to start refusing one pip without reddening
+    // a row that still has the coverage its claims rest on.
+    c.require("bodies", 6, why);
+    c.require_each(
+        &["cube", "cube_rotated", "ball", "grafted_two_solid"],
+        1,
+        why,
+    );
+    c.require("bodies with a plane-sphere rim", 1, why);
+    c.require("bodies with a circle-carried edge", 1, why);
+    c.require("multi-solid bodies", 1, why);
 }
 
 /// Every request shape worth firing at one body: the empty set, each
@@ -223,28 +346,7 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
     // on their own, and the circle-carried edges. Without these the
     // sample never reaches `rim_phase`, which holds 6 of the 18
     // `unreachable!` sites.
-    let kind_of = |f: topo::FaceKey| -> Option<u8> {
-        match body.get_surface(body.get_face(f)?.surface)? {
-            geom::Surface::Plane { .. } => Some(0),
-            geom::Surface::Sphere { .. } => Some(1),
-            _ => Some(2),
-        }
-    };
-    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
-    };
-    let rims: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(_, e)| {
-            let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
-                return false;
-            };
-            let mut kinds = [kind_of(fa), kind_of(fb)];
-            kinds.sort_unstable();
-            kinds == [Some(0), Some(1)]
-        })
-        .map(|(k, _)| k)
-        .collect();
+    let rims = rim_edges(body);
     if !rims.is_empty() {
         out.push(rims.clone());
         if rims.len() > 1 {
@@ -252,16 +354,7 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
             out.push(rims[1..].to_vec());
         }
     }
-    let circles: Vec<EdgeKey> = all
-        .iter()
-        .copied()
-        .filter(|&k| {
-            body.get_edge(k)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
-        })
-        .collect();
+    let circles = circle_edges(body);
     if !circles.is_empty() {
         out.push(circles.clone());
         let straights: Vec<EdgeKey> = all
@@ -313,13 +406,15 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         FilletError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
-        FilletError::EmptyChain => "EmptyChain(row 1)",
         FilletError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         FilletError::RingClearance { .. } => "RingClearance",
         FilletError::Certify { .. } => "Certify",
         FilletError::Op { .. } => "Op",
     }
 }
+
+/// A completed rim blend, counted as the receipt `rim_phase` leaves.
+const RIM_PHASE: &str = "requests that came back with a band face";
 
 /// Radii spanning the scale: below, at, and above the features.
 const RADII: [f64; 6] = [1e-6, 1e-3, 0.02, 0.05, 0.12, 0.9];
@@ -331,30 +426,44 @@ const RADII: [f64; 6] = [1e-6, 1e-3, 0.02, 0.05, 0.12, 0.9];
 #[test]
 fn d2_no_input_reaches_a_panic() {
     let mut rng = fuzz::start("d2_no_input_reaches_a_panic");
-    for (n, b) in corpus() {
-        println!(
-            "    corpus: {n} — {} edges, {} solids",
-            b.edges().count(),
-            b.solids().count()
-        );
-    }
+    // ONE corpus, not two: minting it runs several booleans and a
+    // revolve.
+    let bodies = corpus();
+    census_corpus(&bodies);
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let mut fired: Vec<String> = Vec::new();
-    let mut calls = 0usize;
-    for (name, body) in corpus() {
-        for req in requests(&body, &mut rng, effort()) {
+    let mut census = Exposure::new("d2_no_input_reaches_a_panic");
+    census.add(RIM_PHASE, 0);
+    for (name, body) in &bodies {
+        let rims = rim_edges(body);
+        for req in requests(body, &mut rng, effort()) {
+            let all_rim =
+                !rims.is_empty() && !req.is_empty() && req.iter().all(|k| rims.contains(k));
             for r in RADII {
-                calls += 1;
+                census.note("requests");
+                if all_rim {
+                    census.note("all-rim requests");
+                }
+                // The closure yields the BAND-FACE COUNT, not the body:
+                // `Filleted::band_faces` is *"one per CLOSED chain (the
+                // rim blends)"* and is written by `rim_phase` itself, so
+                // a nonzero count is a receipt that the phase ran. That
+                // is the only outcome-level proof available from outside
+                // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let _ = fillet_edges(&body, &req, r, band());
+                    fillet_edges(body, &req, r, band(), Tol::witness())
+                        .map(|f| f.band_faces.len())
+                        .unwrap_or(0)
                 }));
-                if outcome.is_err() {
-                    fired.push(format!(
+                match outcome {
+                    Err(_) => fired.push(format!(
                         "{name}: {} edge(s), radius {r} — {}",
                         req.len(),
                         fuzz::replay()
-                    ));
+                    )),
+                    Ok(bands) if bands > 0 => census.note(RIM_PHASE),
+                    Ok(_) => {}
                 }
             }
         }
@@ -362,60 +471,47 @@ fn d2_no_input_reaches_a_panic() {
     std::panic::set_hook(hook);
     assert!(
         fired.is_empty(),
-        "the fillet door panicked on {} of {calls} requests ({}): {fired:#?}",
+        "the fillet door panicked on {} of {} requests ({}): {fired:#?}",
         fired.len(),
+        census.count("requests"),
         fuzz::replay()
     );
-    println!("d2_no_input_reaches_a_panic: {calls} requests, every one a value");
-}
-
-/// **The row-1 premise for `EmptyChain`.** Both of its two sites read
-/// `chain.links` off a verdict the SAME public call produced one frame
-/// up. If `run_battery` can never hand out a chain with no links, the
-/// variant has no input witness — which is what the PR's split turns
-/// on, and what a future reader of the partition needs pinned.
-#[test]
-fn d2_the_battery_never_hands_the_surgery_an_empty_chain() {
-    let mut rng = fuzz::start("d2_the_battery_never_hands_the_surgery_an_empty_chain");
-    let mut verdicts = 0usize;
-    for (name, body) in corpus() {
-        for edges in requests(&body, &mut rng, effort()) {
-            if edges.is_empty() {
-                continue;
-            }
-            for r in RADII {
-                let req = FilletRequest {
-                    body: &body,
-                    edges: edges.clone(),
-                    radius: r,
-                };
-                let Ok(v) = run_battery(&req, band()) else {
-                    continue;
-                };
-                verdicts += 1;
-                for (i, chain) in v.chains.iter().enumerate() {
-                    assert!(
-                        !chain.links.is_empty(),
-                        "{name}: the battery emitted chain {i} with no links \
-                         (radius {r}, {}) — `FilletError::EmptyChain` would then \
-                         have an input witness",
-                        fuzz::replay()
-                    );
-                }
-            }
-        }
-    }
-    println!(
-        "d2_the_battery_never_hands_the_surgery_an_empty_chain: {verdicts} verdicts, \
-         no empty chain"
+    census.report();
+    // Measured on an intact tree at `CAD_FUZZ_EFFORT=1`: 1842 requests.
+    // The floor is 300, which the enumerated shapes alone (empty, whole,
+    // reversed, two singletons, the repeat, six windows — 11 per body,
+    // six radii) clear from the floored body count of 6.
+    census.require(
+        "requests",
+        300,
+        &format!(
+            "the request builder has collapsed, so `fired.is_empty()` is a claim about \
+             almost nothing — {}",
+            fuzz::replay()
+        ),
+    );
+    // THE FLOOR THAT HAD TO BE AN OUTCOME. Counting all-rim REQUESTS
+    // floors a shape the request builder produces unconditionally for
+    // any rim-carrying body — it is implied by `census_corpus`'s own rim
+    // floor twenty lines up, so it can never red first, and all of its
+    // calls could refuse above `rim_phase` with the count unmoved.
+    // `rim_phase` sits below five `?` returns; only a band face proves
+    // it ran. Measured on an intact tree: 12 all-rim requests reach `Ok`.
+    census.require(
+        RIM_PHASE,
+        1,
+        &format!(
+            "no request came back with a band face, so nothing this run did reached \
+             `rim_phase`, which holds 6 of the 18 `unreachable!` sites — {}",
+            fuzz::replay()
+        ),
     );
 }
 
 /// EVIDENCE, not a gate (it asserts nothing about coverage): which
 /// refusal classes the corpus reaches. A reader checking the
 /// partition wants to know that the row-2 names and the row-1 names
-/// are not equally reachable — and, in particular, whether
-/// `EmptyChain` ever appears.
+/// are not equally reachable.
 #[test]
 fn d2_reached_variants() {
     let mut rng = fuzz::start("d2_reached_variants");
@@ -424,7 +520,7 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, band()) {
+                match fillet_edges(&body, &req, r, band(), Tol::witness()) {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -472,18 +568,19 @@ fn d2_reached_variants() {
 /// that is a fact about today's `combine`, not a fact this row pins.
 #[test]
 fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
-    let base = cube(1.0);
+    let base = cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = base.edges().map(|(k, _)| k).collect();
     // The whole-body fillet succeeds before the graft: the request is
     // inside the front door, so any refusal below is the graft's doing
     // and not the request's.
     assert!(
-        fillet_edges(&base, &edges, 0.12, band()).is_ok(),
+        fillet_edges(&base, &edges, 0.12, band(), Tol::witness()).is_ok(),
         "the control request must pass, or this row proves nothing"
     );
 
     let mut dst = base.clone();
-    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5)).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness())
+        .expect("a disjoint graft");
     assert!(
         dst.solids().count() > 1 || dst.shells().count() > 1,
         "a graft that added nothing countable cannot be the witness the \
@@ -494,7 +591,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, band()) {
+    match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()) {
         Err(FilletError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \

@@ -471,6 +471,7 @@ fn mint_run<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     /// The survivor-validation invariants: odd counts and dirty codes
     /// refuse loudly (unit-level; the geometric paths are pinned by the
@@ -484,8 +485,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut a = crate::fixtures::ops_cube().body;
-        let mut b = crate::fixtures::ops_cube().body;
+        let mut a = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut b = crate::fixtures::ops_cube(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -499,7 +500,7 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
@@ -511,7 +512,7 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
@@ -532,8 +533,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube().body;
-        let mut bbody = crate::fixtures::ops_cube().body;
+        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -553,7 +554,7 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(
@@ -579,8 +580,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube().body;
-        let mut bbody = crate::fixtures::ops_cube().body;
+        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).
@@ -635,7 +636,7 @@ mod tests {
             &a_sectors,
             &b_sectors,
             &recs,
-            geom_core::Band::linear().unwrap(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap();
         assert_eq!(out.pairs.len(), 2);

@@ -28,17 +28,6 @@
 //! become an edge's geometry, and giving it a door that produces
 //! carriers would make the evaluator layer aware of the B-rep above
 //! it.
-//!
-//! This was previously recorded, obliquely, as a crate-graph fact —
-//! `geom-surfaces` declaring that it deliberately did not depend on
-//! `geom-curves`, "iso-curve extraction, which would create the
-//! dependency, belongs to the EdgeGeometry layer". Merging the two
-//! evaluator crates deleted that sentence and with it the only record
-//! of the rule, while removing the structural obstacle that had been
-//! enforcing it: both payload types are now one crate, so nothing
-//! stops this module moving down except the rule itself. It is
-//! therefore stated here, on its subject, where a reader deciding
-//! where to put the next extractor will find it.
 
 use geom::NurbsCurve3;
 use geom::NurbsSurface;

@@ -127,9 +127,19 @@ fn a_ruled_wall_pays_for_its_flat_direction() {
         "expected the ruled wall's split slack to be several-fold, got {:.2}x",
         lane / best
     );
+    // Asserted on the DIVISIONS, not on `h_u` itself. The objective is
+    // a step function of the aspect ratio, so which sample wins is a
+    // property of the scan's lattice: refining the scan moves the
+    // winning `h_u` between 1.02 and 0.34 while the answer improves,
+    // and an `h_u >= 1.0` line therefore reds on scans that are
+    // strictly better. What is stable — and what the finding is about
+    // — is that the cheapest split spends an order of magnitude fewer
+    // divisions on the flat direction than the lane does.
+    let (best_u, lane_u) = (divisions(1.0, hu), divisions(1.0, b.steps.0));
     assert!(
-        hu >= 1.0,
-        "the cheapest split should stop dividing the FLAT direction, got h_u = {hu:e}"
+        best_u * 10.0 <= lane_u,
+        "the cheapest split should barely divide the FLAT direction: \
+         {best_u} divisions against the lane's {lane_u}"
     );
 }
 
@@ -187,8 +197,7 @@ fn both_row_shapes_have_the_headers_width() {
 ///
 /// It is a real pin and it is ugly: it parses Rust string
 /// continuations out of a sibling crate's `lib.rs`, and it breaks if
-/// that declaration is reformatted rather than changed. It replaces a
-/// comment asking a human to check, which could not break at all.
+/// that declaration is reformatted rather than changed.
 #[test]
 fn the_lints_expected_header_is_this_one() {
     let lint = include_str!("../../tess-lint/src/lib.rs");
