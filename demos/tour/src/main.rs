@@ -39,6 +39,7 @@ mod bossplate;
 mod crosslap;
 mod curvedcut;
 mod cutaway;
+mod diechamfer;
 mod diefillet;
 mod heatsink;
 mod klein;
@@ -428,6 +429,11 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), tol: Tol) {
 
     println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
     for stop in diefillet::stops(tol) {
+        visit(&stop);
+    }
+
+    println!("\n-- the same die, one verb over (VERBS: chamfer_edges at d == r) --");
+    for stop in diechamfer::stops(tol) {
         visit(&stop);
     }
 
