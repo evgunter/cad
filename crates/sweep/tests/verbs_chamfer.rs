@@ -82,7 +82,11 @@ fn the_chamfered_cube() {
 
     assert_eq!(out.blend_faces.len(), 12, "one strip per edge");
     assert_eq!(out.corner_faces.len(), 8, "one patch per corner");
-    assert_eq!(out.band_faces.len(), 0, "a chamfer has no closed-chain band");
+    assert_eq!(
+        out.band_faces.len(),
+        0,
+        "a chamfer has no closed-chain band"
+    );
 
     let (v, e, f) = (
         out_body.vertices().count(),
@@ -214,10 +218,17 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
         let near = got
             .iter()
             .filter(|g| {
-                (g.0 - w.0).abs().max((g.1 - w.1).abs()).max((g.2 - w.2).abs()) <= 1e-15
+                (g.0 - w.0)
+                    .abs()
+                    .max((g.1 - w.1).abs())
+                    .max((g.2 - w.2).abs())
+                    <= 1e-15
             })
             .count();
-        assert_eq!(near, 1, "exactly one chamfer foot sits at {w:?}, found {near}");
+        assert_eq!(
+            near, 1,
+            "exactly one chamfer foot sits at {w:?}, found {near}"
+        );
     }
 }
 
