@@ -177,6 +177,30 @@ def select(gate, nightly):
 
 
 def main(argv):
+    # CHEAP MODE, and the reason it exists is a BILLING one rather than a
+    # tidiness one. The two listings this script normally consumes each cost
+    # a full workspace build (~11 billed minutes together), and they are
+    # pure waste on a tree that carries no marker at all — which is the
+    # tree's state whenever no demotion is currently in force. So the job
+    # asks this question FIRST, with a text scan that compiles nothing, and
+    # skips both builds when the answer is no.
+    #
+    # It reuses `markers_in_tree` rather than grepping in YAML on purpose:
+    # `MARKER_RE` and the direction of its errors are stated once, here, and
+    # a second copy in a workflow would be the one that goes stale. Prints
+    # `yes`/`no` and exits 0 either way — ABSENCE IS NOT AN ERROR in this
+    # mode, which is exactly the distinction the full path draws differently
+    # (there, markers present with an empty difference IS fatal).
+    if len(argv) == 2 and argv[1] == "--markers-present":
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        hits = markers_in_tree(root)
+        print("yes" if hits else "no")
+        if hits:
+            sys.stderr.write(
+                "{} file(s) carry {}:\n".format(len(hits), MARKER)
+                + "".join("  {}\n".format(h) for h in hits)
+            )
+        return 0
     if len(argv) != 3:
         raise SystemExit(__doc__)
     gate = load(argv[1])

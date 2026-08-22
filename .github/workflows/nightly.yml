@@ -693,6 +693,32 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ steps.nextest.outputs.version }}
+      # ASK THE CHEAP QUESTION FIRST. Both listings below are full workspace
+      # builds -- together about 11 billed minutes -- and on a tree carrying
+      # no marker they compute, at that price, an empty set that a text scan
+      # settles for free. So this step decides whether the rest of the job
+      # has anything to do, and the answer is no whenever no demotion is
+      # currently in force.
+      #
+      # NOT A SECOND IMPLEMENTATION: it calls the same script, which owns
+      # `MARKER_RE` and the direction of its errors. A grep written here
+      # would be the copy that goes stale when the marker's spelling moves.
+      #
+      # `no` is a normal outcome and NOT a silent hole -- the tests are
+      # running at the gate in that state, which is the whole meaning of
+      # carrying no marker. The hole this lane must never have is the
+      # opposite one (markers present, selection empty), and that stays
+      # fatal in the script's full path.
+      - name: are any tests demoted at all?
+        id: markers
+        run: |
+          set -euo pipefail
+          present="$(python3 scripts/nightly-only-selection.py --markers-present)"
+          echo "present=$present" >> "$GITHUB_OUTPUT"
+          if [ "$present" = no ]; then
+            echo "no demoted tests in this tree -- skipping two workspace builds" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
       # THE GATE-SIDE LISTING, AT opt-0 ON PURPOSE. Nothing is executed from
       # this build: the selection reads test NAMES and their `ignored` flags,
       # and no optimisation level can move either. So this pays the cheap
@@ -701,15 +727,18 @@ jobs:
       # tests the gate skips. The build below, which actually RUNS things,
       # keeps the job's opt-2 environment.
       - name: list the suite as the GATE builds it (names and ignore flags)
+        if: steps.markers.outputs.present == 'yes'
         env:
           CARGO_PROFILE_DEV_OPT_LEVEL: "0"
           CARGO_PROFILE_TEST_OPT_LEVEL: "0"
         run: cargo nextest list --workspace --message-format json > "$RUNNER_TEMP/list-gate.json"
       - name: list the suite with --cfg nightly_suite
+        if: steps.markers.outputs.present == 'yes'
         env:
           RUSTFLAGS: --cfg nightly_suite
         run: cargo nextest list --workspace --message-format json > "$RUNNER_TEMP/list-nightly.json"
       - name: derive the demoted set (the difference between the two listings)
+        if: steps.markers.outputs.present == 'yes'
         run: |
           set -euo pipefail
           scripts/nightly-only-selection.py \
@@ -728,6 +757,7 @@ jobs:
       # exits 1 in the step above. And the count is echoed below, so "the
       # nightly ran N demoted tests" is read off the run rather than assumed.
       - name: run the demoted tests (and nothing else)
+        if: steps.markers.outputs.present == 'yes'
         env:
           RUSTFLAGS: --cfg nightly_suite
         run: |
