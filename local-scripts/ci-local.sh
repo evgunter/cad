@@ -342,11 +342,14 @@ manifest_selftest() {
 # `git diff --exit-code` un-does the question of drift by failing on it.
 #
 # The two markers below are the LANES this row reproduces, in render.yml
-# rather than in ci.yml: the same `cargo run --release -- ../out` the `tour`
-# lane runs, and the same `demos/render-uv.sh` the `uv` lane runs. What it
-# does not reproduce is their re-baseline, which is the sentence above.
-# HOSTED MIRROR: tour / demo tour (STL + STEP + UV SVGs + scenes.json)
-# HOSTED MIRROR: uv / compose (demos/render-uv.sh)
+# rather than in ci.yml: the same `cargo run --release -- ../out` and the same
+# `demos/render-uv.sh`. Both now live in render.yml's `scene-inputs` job — the
+# separate `tour` and `uv` jobs were merged 2026-08-22, and the uv sheet is
+# composed from the tour output already on that runner's disk rather than from
+# an artifact round trip. What this row does not reproduce is their
+# re-baseline, which is the sentence above.
+# HOSTED MIRROR: scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)
+# HOSTED MIRROR: scene-inputs / compose (demos/render-uv.sh)
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
