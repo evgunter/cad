@@ -287,3 +287,17 @@ the moldability checker rides kind-general. The draft VERB
 implementation queues behind Wave 1's remaining units per DR6's
 own sequencing; its register row now points at the ratified doc.
 Remaining conversation: #909 (one 👍 pending).
+
+## ALL THREE CONVERSATIONS RATIFIED + MERGED (2026-08-22)
+
+#909 (MIRROR-DESIGN) 👍'd and merged after the P1 user-invisibility
+round; its register-row conflict with #908 resolved in the merge,
+and the draft row's stale "re-opens R1" clause corrected to DR1's
+ratified form in the same resolution. **The program's design
+backlog with Evan is CLEAR**: Q8/offset-shell, draft, and
+patterns/mirror all ratified same-day. Implementable-when-scheduled
+design now exists for: Wave 3 entire (offset → shell → teapot),
+RING (ungated), draft v1 + the kind-general moldability checker,
+mirror (own door, u↦−u, audit-checklist scope), the SegPat
+instance-index predicate, and hole-feature sugar (behind P4's
+lowering ruling).
