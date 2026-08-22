@@ -41,8 +41,8 @@ use geom_core::{
 };
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::blend::{BlendArm, EdgeBlend, plane_plane_blend, plane_sphere_blend};
-use super::{CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+use super::blend::{BlendArm, EdgeBlend, chamfer_strip, plane_plane_blend, plane_sphere_blend};
+use super::{BlendKind, CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
 
 /// The number of interior samples the chain predicates take along
 /// each link. Nine, matching the certification schedule's
@@ -89,7 +89,9 @@ pub struct FilletRequest<'a, T: Real> {
     pub body: &'a Body<T>,
     /// The edges, in any order — the battery walks them into chains.
     pub edges: Vec<EdgeKey>,
-    /// The constant rolling-ball radius, meters.
+    /// The band's size, meters: the constant rolling-ball radius under
+    /// [`BlendKind::Fillet`], the equal setback under
+    /// [`BlendKind::Chamfer`].
     pub radius: T,
 }
 
@@ -212,8 +214,11 @@ impl<T: Real> Chain<T> {
 pub struct BatteryVerdict<T: Real> {
     /// The resolved chains.
     pub chains: Vec<Chain<T>>,
-    /// The radius that was judged.
+    /// The band size that was judged (radius, or chamfer setback).
     pub radius: T,
+    /// Which band the request grafts — carried so the assembly reads
+    /// it off the verdict instead of being told a second time.
+    pub kind: BlendKind,
 }
 
 /// Escalate at a site (the shared shape, so the two-tolerance text
@@ -666,6 +671,7 @@ fn resolve_link<T: Decide + Bounds>(
     edge: EdgeKey,
     radius: T,
     band: Band,
+    kind: BlendKind,
 ) -> Result<Link<T>, FilletError> {
     let broken = || FilletError::ChainNotConnected { edge };
     let e = body.get_edge(edge).ok_or_else(broken)?;
@@ -692,7 +698,7 @@ fn resolve_link<T: Decide + Bounds>(
         .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
         .clone();
-    let (arm, blend) = classify_arm(&sa, n_a, &sb, n_b, p, tau, radius, convexity, edge)?;
+    let (arm, blend) = classify_arm(&sa, n_a, &sb, n_b, p, tau, radius, convexity, edge, kind)?;
     Ok(Link {
         edge,
         face_a,
@@ -719,6 +725,11 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
 
 /// The support-pair → analytic-arm table (C8's list, restricted to
 /// the arms this unit implements). Anything else refuses typed.
+///
+/// The chamfer's table is one row wide and refuses everything else,
+/// with the same shape and the same honesty: a curved support is a
+/// real chamfer whose arm is not built (VERBS-ARMS' machinery), not a
+/// geometry this kernel will approximate.
 #[allow(clippy::too_many_arguments)]
 fn classify_arm<T: Bounds>(
     sa: &Surface<T>,
@@ -730,8 +741,21 @@ fn classify_arm<T: Bounds>(
     radius: T,
     convexity: Convexity,
     edge: EdgeKey,
+    kind: BlendKind,
 ) -> Result<(BlendArm, EdgeBlend<T>), FilletError> {
     let convex = matches!(convexity, Convexity::Convex);
+    if matches!(kind, BlendKind::Chamfer) {
+        return match (sa, sb) {
+            (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
+                BlendArm::PlanePlaneStrip,
+                chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
+            )),
+            _ => Err(FilletError::ChamferArmUnsupported {
+                edge,
+                supports: "non-(plane–plane)",
+            }),
+        };
+    }
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
@@ -897,40 +921,74 @@ pub fn run_battery<T: Decide + Bounds>(
     req: &FilletRequest<'_, T>,
     band: Band,
 ) -> Result<BatteryVerdict<T>, FilletError> {
+    run_battery_for(req, band, BlendKind::Fillet)
+}
+
+/// **Run the battery for one band kind** — the same predicates in the
+/// same order, over the predicates that are FACTS ABOUT THE REQUEST.
+///
+/// Two of C8's six are rolling-ball facts and a chamfer has no ball:
+/// predicate 1 asks whether the ball is small enough for the supports'
+/// normal curvature, and predicate 3 whether the ball's own centre
+/// locus folds. A ruled strip has neither quantity, so a chamfer run
+/// does not meter them — a vacuous predicate reaching the funnel would
+/// be a saturated row in the K corpus asserting a check that was never
+/// a question. The four that DO transfer (clearance, chain G1,
+/// convexity sign, corner configuration) are metered under their
+/// existing `fillet3_*` names: they measure the same quantities over
+/// the same inputs, with the ball radius replaced by the setback, and
+/// a second name for the same margin would split one corpus in two.
+///
+/// # Errors
+///
+/// Any of [`FilletError`]'s predicate arms, or
+/// [`FilletError::Escalated`] with the offending margin as payload.
+pub fn run_battery_for<T: Decide + Bounds>(
+    req: &FilletRequest<'_, T>,
+    band: Band,
+    kind: BlendKind,
+) -> Result<BatteryVerdict<T>, FilletError> {
     let body = req.body;
     let r = req.radius;
+    let rolling_ball = matches!(kind, BlendKind::Fillet);
     // Resolve first: this is where the support pairs are enumerated,
     // so an out-of-scope pair refuses before any margin is taken.
     let mut links = Vec::with_capacity(req.edges.len());
     for edge in &req.edges {
-        links.push(resolve_link(body, *edge, r, band)?);
+        links.push(resolve_link(body, *edge, r, band, kind)?);
     }
     let chains = walk_chains(links);
 
     // --- 1. radius vs curvature headroom, at every sample of every
-    // link, on BOTH supports.
-    for chain in &chains {
-        for link in chain.links() {
-            let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
-                return Err(FilletError::ChainNotConnected { edge: link.edge });
-            };
-            for i in 0..CHAIN_SAMPLES {
-                let p = carrier.eval(chain_sample_at(t0, t1, i));
-                radius_headroom(body, link.face_a, p, r, band)?;
-                radius_headroom(body, link.face_b, p, r, band)?;
+    // link, on BOTH supports. A ball fact: not metered for a chamfer.
+    if rolling_ball {
+        for chain in &chains {
+            for link in chain.links() {
+                let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
+                    return Err(FilletError::ChainNotConnected { edge: link.edge });
+                };
+                for i in 0..CHAIN_SAMPLES {
+                    let p = carrier.eval(chain_sample_at(t0, t1, i));
+                    radius_headroom(body, link.face_a, p, r, band)?;
+                    radius_headroom(body, link.face_b, p, r, band)?;
+                }
             }
         }
     }
 
     // --- 2. face clearance (the conservative screen — see
     // `face_clearance`), over every pair of boundary edges of every
-    // support face the request touches.
+    // support face the request touches. The setbacks are the ARM's, so
+    // the chamfer's screen runs on the chamfer's own setbacks.
     consumption_sweep(body, &chains, band)?;
 
-    // --- 3. spine regularity, per link.
-    for chain in &chains {
-        for link in chain.links() {
-            spine_regularity(link.blend.spine_curvature, r, band)?;
+    // --- 3. spine regularity, per link. A ball fact: not metered for
+    // a chamfer.
+    if rolling_ball {
+        for chain in &chains {
+            for link in chain.links() {
+                spine_regularity(link.blend.spine_curvature, r, band)?;
+            }
         }
     }
 
@@ -1013,7 +1071,7 @@ pub fn run_battery<T: Decide + Bounds>(
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
             for v in [head, tail] {
-                corner_at(body, v, r, band)?;
+                corner_at(body, v, r, band, kind)?;
             }
         }
     }
@@ -1021,6 +1079,7 @@ pub fn run_battery<T: Decide + Bounds>(
     Ok(BatteryVerdict {
         chains,
         radius: req.radius,
+        kind,
     })
 }
 
@@ -1031,6 +1090,7 @@ fn corner_at<T: Decide + Bounds>(
     vertex: VertexKey,
     radius: T,
     band: Band,
+    kind: BlendKind,
 ) -> Result<(), FilletError> {
     let edges = vertex_edges(body, vertex).ok_or(FilletError::FilletCornerUnsupported {
         vertex,
@@ -1052,7 +1112,7 @@ fn corner_at<T: Decide + Bounds>(
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     let mut faces: Vec<FaceKey> = Vec::new();
     for (i, e) in edges.iter().enumerate() {
-        let link = resolve_link(body, *e, radius, band);
+        let link = resolve_link(body, *e, radius, band, kind);
         match link {
             Ok(l) => {
                 if matches!(l.convexity, Convexity::Convex) {

@@ -151,7 +151,7 @@ pub fn fillet_edges<T: Decide + Bounds>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    super::surgery::fillet_surgery(body, &verdict, band, tol)
+    super::surgery::blend_surgery(body, &verdict, band, tol)
 }
 
 /// A face's boundary cycle (outer loop, cycle order).

@@ -35,7 +35,6 @@ use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::battery::{Chain, Convexity, Link};
-use super::blend::BlendArm;
 use super::build::{face_cycle, outward_of, vertex_faces};
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
@@ -81,11 +80,11 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
                  carry-through, which is not implemented",
             ));
         }
-        if !matches!(link.arm, BlendArm::PlanePlaneCylinder) {
+        if !link.arm.is_plane_plane() {
             return Err(unbuilt_chain(
                 link.edge,
-                "an open chain's supports are not plane–plane (the octant \
-                 corner is the only termination built)",
+                "an open chain's supports are not plane–plane (the trivalent \
+                 corner patch is the only termination built)",
             ));
         }
         if !matches!(link.convexity, Convexity::Convex) {
@@ -275,6 +274,13 @@ impl CornerFaces {
         self.faces.contains(&face)
     }
 
+    /// Where `face` sits in orbit order — the index a corner's
+    /// per-support rows (normals, feet) are keyed by, so a lookup
+    /// cannot silently take another support's row.
+    pub(super) fn slot_of(&self, face: FaceKey) -> Option<usize> {
+        self.faces.iter().position(|f| *f == face)
+    }
+
     /// The corner's remaining support once `a` and `b` are excluded —
     /// **total**, because three distinct faces cannot all be excluded
     /// by two keys. When `a` and `b` are not both among the three the
@@ -327,24 +333,31 @@ pub(super) struct RequestedBoundary<T: Real> {
 impl<T: Decide> RequestedBoundary<T> {
     /// Admit one support face of the plan.
     ///
-    /// `corners` is `(vertex, its three faces, its ball centre)` for
-    /// every planned corner.
+    /// `corners` is `(vertex, its three faces, its three FEET in those
+    /// faces' orbit order)` for every planned corner. The feet are the
+    /// plan's, not this door's: where a band's trimlines meet on a
+    /// support is the one thing the two verbs derive differently (the
+    /// ball's foot; the two trimlines' crossing), and deriving it here
+    /// would put that difference in the door instead of in the plan
+    /// that owns it.
     ///
     /// # Errors
     ///
     /// [`FilletError::BodyNotIntact`] when the face has no outer cycle
-    /// that walks; [`FilletError::UnsupportedGeometry`] when the face
-    /// is not a plane; [`FilletError::UnsupportedRunOut`] when a
-    /// boundary edge is not requested, or a boundary vertex is not a
-    /// planned corner of this face.
+    /// that walks, or a planned corner does not carry a foot on this
+    /// face; [`FilletError::UnsupportedGeometry`] when the face is not
+    /// a plane; [`FilletError::UnsupportedRunOut`] when a boundary edge
+    /// is not requested, or a boundary vertex is not a planned corner
+    /// of this face.
     pub(super) fn admit(
         body: &Body<T>,
         face: FaceKey,
         opens: &[ConvexOpen<'_, T>],
-        corners: &[(VertexKey, &CornerFaces, Point3<T>)],
-        radius: T,
+        corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
     ) -> Result<Self, FilletError> {
-        let normal = outward_of(body, face)
+        // Read once so a face that is not a plane refuses at this door
+        // rather than deeper in the carve.
+        outward_of(body, face)
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(face), CORNER_SUPPORT_NOT_PLANAR))?;
         let cycle = face_cycle(body, face).ok_or_else(|| {
             not_intact(
@@ -374,7 +387,7 @@ impl<T: Decide> RequestedBoundary<T> {
                      cover; run-outs at such corners are not implemented",
                 ));
             }
-            let Some(&(_, _, center)) = corners
+            let Some((_, faces, feet)) = corners
                 .iter()
                 .find(|(v, faces, _)| *v == h.start && faces.contains(face))
             else {
@@ -384,11 +397,20 @@ impl<T: Decide> RequestedBoundary<T> {
                      this face; run-outs at such corners are not implemented",
                 ));
             };
+            // `contains` above passed, so the slot is present; keyed
+            // rather than positional so the row cannot be another
+            // support's.
+            let Some(slot) = faces.slot_of(face) else {
+                return Err(not_intact(
+                    EntityId::Face(face),
+                    "a planned corner carries this face but has no foot on it",
+                ));
+            };
             stations.push(BoundaryStation {
                 half_edge: he,
                 vertex: h.start,
                 edge: h.edge,
-                foot: center + normal * radius,
+                foot: feet[slot],
             });
         }
         Ok(Self { face, stations })

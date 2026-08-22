@@ -193,6 +193,8 @@ mod revolve_washer;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_chamfer.rs"]
+mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]

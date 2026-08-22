@@ -70,10 +70,44 @@ use core::fmt;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Sign};
 use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
-pub use battery::{BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery};
+pub use battery::{
+    BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery, run_battery_for,
+};
 pub use blend::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use build::{Filleted, fillet_edges};
 pub use naming::{FilletNaming, RimSide};
+
+/// **Which band a request grafts onto its edges.** The battery, the
+/// admission doors and the composition surgery are shared by both
+/// verbs; this is the one bit that says which one is running, and it
+/// rides on the [`BatteryVerdict`] so no assembly step has to be told
+/// twice.
+///
+/// The two differ in exactly three places, each named on the arm that
+/// takes it: the analytic arm a link resolves to
+/// ([`battery::run_battery_for`]), which of C8's predicates are facts
+/// about the request at all (the rolling ball's radius-vs-curvature
+/// headroom and spine regularity are ball facts, and a chamfer meters
+/// neither), and the corner geometry the surgery grafts
+/// ([`surgery`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlendKind {
+    /// The constant-radius rolling ball: cylinder/torus bands and
+    /// sphere-octant corners. `radius` is the ball's.
+    Fillet,
+    /// The flat strip at equal setback along both supports, with a
+    /// planar corner patch. `radius` is the SETBACK.
+    Chamfer,
+}
+
+impl fmt::Display for BlendKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Fillet => write!(f, "fillet"),
+            Self::Chamfer => write!(f, "chamfer"),
+        }
+    }
+}
 
 /// The one classification funnel of this module (the crate pattern):
 /// delegates to [`geom_core::k_stats::decide`], which names the
@@ -240,6 +274,13 @@ pub const FILLET3_RING_RECOURSE: &str =
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
      plane–sphere); other pairs need the canal-surface approximating blend, which is \
      not implemented";
+/// The recourse for a CHAMFER over a support pair its one arm does not
+/// cover. Its own sentence rather than the fillet's: the chamfer's
+/// missing door is the curved-support strip, not the canal surface,
+/// and the plane–sphere pair the fillet offers is not an alternative
+/// here.
+pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes; the chamfer over a curved \
+     support is not implemented";
 
 /// A fillet refusal. Closed enum, D3 style. Every variant is one of
 /// three things, and the D2 addendum row it belongs to is stated on
@@ -374,6 +415,20 @@ pub enum FilletError {
     /// as its own reviewed unit.
     SpineUnsupported {
         /// The link whose support pair has no analytic arm.
+        edge: EdgeKey,
+        /// The support pair, as text (the honest blocker).
+        supports: &'static str,
+    },
+    /// **The CHAMFER's arm table**: the link's support pair is not
+    /// plane–plane, which is the one pair the ruled strip is built
+    /// over. Its own variant rather than
+    /// [`FilletError::SpineUnsupported`] because the two name
+    /// different missing doors — a chamfer over a curved support is
+    /// VERBS-ARMS' machinery, not the canal-surface approximating
+    /// blend — and one recourse per user situation is the rule
+    /// (D4 ¶1 addendum).
+    ChamferArmUnsupported {
+        /// The link whose support pair the strip does not cover.
         edge: EdgeKey,
         /// The support pair, as text (the honest blocker).
         supports: &'static str,
@@ -579,6 +634,11 @@ impl fmt::Display for FilletError {
                 "fillet: the {supports} support pair at edge {edge:?} has no analytic \
                  blend arm — {FILLET3_SPINE_KIND_RECOURSE}"
             ),
+            Self::ChamferArmUnsupported { edge, supports } => write!(
+                f,
+                "chamfer: the {supports} support pair at edge {edge:?} has no ruled \
+                 strip — {CHAMFER_ARM_RECOURSE}"
+            ),
             Self::Escalated { site, source } => {
                 let recourse = match source.predicate {
                     Some("fillet3_radius_headroom") => FILLET3_RADIUS_RECOURSE,
@@ -660,7 +720,8 @@ mod recourse_tests {
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
     use super::{
-        FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+        CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
+        FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
         FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
         FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
@@ -668,7 +729,8 @@ mod recourse_tests {
     };
 
     /// Every recourse sentence this module can append.
-    const ALL: [&str; 12] = [
+    const ALL: [&str; 13] = [
+        CHAMFER_ARM_RECOURSE,
         FILLET3_RADIUS_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE,
         FILLET3_TANGENTIAL_RECOURSE,
@@ -744,6 +806,9 @@ mod recourse_tests {
             FilletError::SpineUnsupported { .. } => {
                 (err.clone(), Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE))
             }
+            FilletError::ChamferArmUnsupported { .. } => {
+                (err.clone(), Recourse::Exactly(CHAMFER_ARM_RECOURSE))
+            }
             FilletError::Escalated { .. } => (err.clone(), Recourse::RoutedByPredicate),
             // The surgery's own frontiers (D2 addendum row 2).
             FilletError::UnsupportedBody { .. } => {
@@ -793,6 +858,10 @@ mod recourse_tests {
             },
             FilletError::RepeatedEdge {
                 edge: EdgeKey::default(),
+            },
+            FilletError::ChamferArmUnsupported {
+                edge: EdgeKey::default(),
+                supports: "non-(plane–plane)",
             },
             FilletError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),

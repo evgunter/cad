@@ -400,6 +400,7 @@ fn class(e: &FilletError) -> &'static str {
         FilletError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
         FilletError::FilletCornerUnsupported { .. } => "FilletCornerUnsupported",
         FilletError::SpineUnsupported { .. } => "SpineUnsupported",
+        FilletError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
         FilletError::Escalated { .. } => "Escalated",
         FilletError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
         FilletError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",

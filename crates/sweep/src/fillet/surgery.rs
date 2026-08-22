@@ -111,10 +111,10 @@ use topo::{
 
 use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::blend::{BlendArm, EdgeBlend, corner_ball};
+use super::blend::{BlendArm, EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::build::{Filleted, face_cycle, outward_of};
 use super::naming::{FilletNaming, RimSide};
-use super::{CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+use super::{BlendKind, CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -194,10 +194,20 @@ struct Corner<'a, T: Real> {
     links: CornerLinks<'a, T>,
     /// The three incident support faces, in orbit order.
     faces: CornerFaces,
-    /// The corner ball's centre.
-    center: Point3<T>,
-    /// The octant's chart (the order-free pick,
-    /// [`super::build::octant_chart`]).
+    /// The corner patch's foot on each of [`Corner::faces`], in that
+    /// same orbit order — where this corner's two trimlines cross on
+    /// each support. The strut every support face is carved with runs
+    /// out to its own foot, so this array is the whole geometric
+    /// difference between the two verbs' carves.
+    feet: [Point3<T>; 3],
+    /// The corner ball's centre — the rolling ball's rest position,
+    /// which the octant's bounding arcs turn about. `None` for a
+    /// chamfer, whose patch is bounded by straight chords and has no
+    /// centre to turn about.
+    center: Option<Point3<T>>,
+    /// The corner patch's surface: the sphere octant's chart (the
+    /// order-free pick, [`super::build::octant_chart`]), or the
+    /// chamfer's plane through the three feet.
     surface: Surface<T>,
     /// The octant's orientation bit, read exactly as a blend reads its
     /// own — off the stored convexity verdict
@@ -241,7 +251,7 @@ struct RimCarrier<T: Real> {
 /// [`super::build::fillet_edges`] AFTER the battery, for every
 /// request. The verdict's chains are the input; nothing re-derives
 /// what the battery already resolved.
-pub(super) fn fillet_surgery<T: Decide + Bounds>(
+pub(crate) fn blend_surgery<T: Decide + Bounds>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
     band: Band,
@@ -252,6 +262,7 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         return Err(FilletError::UnsupportedBody { solids, shells });
     }
     let radius = verdict.radius;
+    let kind = verdict.kind;
 
     // ---- Classify the verdict's chains (structural only). The open
     // chains go through the door as [`ConvexOpen`], which IS the
@@ -261,7 +272,22 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     for chain in &verdict.chains {
         match chain.closure {
             ChainClosure::Open { .. } => opens.push(ConvexOpen::admit(chain)?),
-            ChainClosure::Closed => rims.push(resolve_rim(source, chain)?),
+            // The band replacement is the rolling ball's torus over a
+            // plane–sphere rim. A chamfer has no closed-chain band at
+            // all — its one arm is plane–plane, whose closed chains
+            // would need a ruled ring the surgery does not carve — so
+            // it refuses here rather than entering the rim phase with
+            // a strip.
+            ChainClosure::Closed => match kind {
+                BlendKind::Fillet => rims.push(resolve_rim(source, chain)?),
+                BlendKind::Chamfer => {
+                    return Err(unbuilt_chain(
+                        chain.first().edge,
+                        "a closed chamfer chain has no band; only open chains between \
+                         trivalent corners are implemented",
+                    ));
+                }
+            },
         }
     }
     opens.sort_by_key(ConvexOpen::edge);
@@ -313,7 +339,7 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
                  requested; run-outs at such corners are not implemented",
             ));
         }
-        corners.push(corner_plan(source, links, radius)?);
+        corners.push(corner_plan(source, links, radius, kind)?);
     }
 
     // ---- The support faces, admitted before anything is carved: each
@@ -328,19 +354,13 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
         }
     }
     support_keys.sort_unstable();
-    let corner_rows: Vec<(VertexKey, &CornerFaces, Point3<T>)> = corners
+    let corner_rows: Vec<(VertexKey, &CornerFaces, [Point3<T>; 3])> = corners
         .iter()
-        .map(|c| (c.links.vertex(), &c.faces, c.center))
+        .map(|c| (c.links.vertex(), &c.faces, c.feet))
         .collect();
     let mut supports: Vec<RequestedBoundary<T>> = Vec::with_capacity(support_keys.len());
     for f in support_keys {
-        supports.push(RequestedBoundary::admit(
-            source,
-            f,
-            &opens,
-            &corner_rows,
-            radius,
-        )?);
+        supports.push(RequestedBoundary::admit(source, f, &opens, &corner_rows)?);
     }
 
     // ---- The ring carry-through honesty check (the one decision this
@@ -359,7 +379,7 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
 
     let mut rec = FilletNaming::default();
     let (blend_faces, corner_faces, mut described) = blank_phase(
-        &mut body, &opens, &corners, &supports, radius, &mut rec, tol,
+        &mut body, &opens, &corners, &supports, radius, &mut rec, tol, kind,
     )?;
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
@@ -374,19 +394,31 @@ pub(super) fn fillet_surgery<T: Decide + Bounds>(
     // before upgrading edge descriptions), then every new edge's
     // intrinsic description, then the pcurve re-mint (the input's
     // caches are stale the moment the first strut lands). ----
+    // **The sense bit is the band's, not the verb's.** A rolling-ball
+    // band's chart normal is the radial one, which is outward exactly
+    // on a convex chain — so it folds the stored convexity verdict. A
+    // chamfer's chart normal is minted as an explicit positive
+    // combination of the supports' own OUTWARD normals
+    // (`blend::chamfer_strip`, `blend::chamfer_corner_patch`), so it is
+    // outward whatever the convexity is, and reading the verdict here
+    // would flip a face that was already right.
+    let band_sense = |convexity: Convexity| match kind {
+        BlendKind::Fillet => convexity.blend_sense(),
+        BlendKind::Chamfer => true,
+    };
     for (i, o) in opens.iter().enumerate() {
         let fk = blend_faces[i];
         body.set_face_surface(fk, FaceSurface::New(o.link().blend.surface.clone()))
             .map_err(|e| op("blend face surface", e))?;
-        body.set_face_sense(fk, o.convexity().blend_sense())
+        body.set_face_sense(fk, band_sense(o.convexity()))
             .map_err(|e| op("blend face sense", e))?;
     }
     for (i, c) in corners.iter().enumerate() {
         let fk = corner_faces[i];
         body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
-            .map_err(|e| op("octant face surface", e))?;
-        body.set_face_sense(fk, c.convexity.blend_sense())
-            .map_err(|e| op("octant face sense", e))?;
+            .map_err(|e| op("corner patch surface", e))?;
+        body.set_face_sense(fk, band_sense(c.convexity))
+            .map_err(|e| op("corner patch sense", e))?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
@@ -442,12 +474,33 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
     Some(edges)
 }
 
-/// The corner ball and octant chart at one fully-requested trivalent
-/// vertex ([`super::build::octant_chart`] picks the chart).
+/// The corner patch at one fully-requested trivalent vertex: its
+/// surface, and its foot on each of the three supports.
+///
+/// The two verbs differ here and only here at a corner.
+///
+/// - **Fillet**: the ball at rest touches all three supports, so its
+///   foot on each is the ball centre projected onto it, and that point
+///   lies on both of that support's trimlines because the centre is on
+///   both incident spines ([`super::build::octant_chart`] picks the
+///   octant's chart).
+/// - **Chamfer**: there is no ball, so each foot is derived from the
+///   trimlines directly — the two incident strips' trimlines on that
+///   support, crossed in closed form ([`line_meet`]) — and the patch
+///   is the plane through the three feet ([`chamfer_corner_patch`]).
+///
+/// **Convexity does not appear in the chamfer's arm.** The feet come
+/// from trimlines whose in-plane direction is read off the traversal,
+/// and the patch's chart normal is folded outward against the supports'
+/// own normal sum; both are stated in [`super::blend`]. So there is no
+/// convex-only argument here to derive one of and leave the rest
+/// stale (#644's shape): the concave widening moves the ADMISSION
+/// doors and nothing in this derivation.
 fn corner_plan<'a, T: Decide + Bounds>(
     body: &Body<T>,
     links: CornerLinks<'a, T>,
     radius: T,
+    kind: BlendKind,
 ) -> Result<Corner<'a, T>, FilletError> {
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
@@ -466,23 +519,97 @@ fn corner_plan<'a, T: Decide + Bounds>(
         *slot = outward_of(body, f)
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?;
     }
-    let ball = corner_ball([p; 3], normals, radius, true);
     // Any one incident link answers for all of them (`Corner`'s field
     // doc): the door admits convex links only.
     let convexity = links.first().convexity();
-    let (u_ref, axis) = super::build::octant_chart(body, &faces, &links)?;
+    let (center, feet, surface) = match kind {
+        BlendKind::Fillet => {
+            let ball = corner_ball([p; 3], normals, radius, true);
+            // The ball at rest is at distance `radius` inside every
+            // support, so its foot on each is the centre displaced
+            // back along that support's outward normal — and that
+            // point is on both of the support's trimlines, because the
+            // centre is on both incident spines.
+            let mut feet = [ball.center; 3];
+            for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
+                *foot = ball.center + n * radius;
+            }
+            let (u_ref, axis) = super::build::octant_chart(body, &faces, &links)?;
+            (
+                Some(ball.center),
+                feet,
+                Surface::Sphere {
+                    center: ball.center,
+                    radius,
+                    axis,
+                    u_ref,
+                },
+            )
+        }
+        BlendKind::Chamfer => {
+            let feet = chamfer_feet(&faces, &links, p)?;
+            (None, feet, chamfer_corner_patch(feet, normals))
+        }
+    };
     Ok(Corner {
         links,
         faces,
-        center: ball.center,
-        surface: Surface::Sphere {
-            center: ball.center,
-            radius,
-            axis,
-            u_ref,
-        },
+        feet,
+        center,
+        surface,
         convexity,
     })
+}
+
+/// The chamfer's three feet at one corner: on each support, where the
+/// two incident strips' trimlines on that support cross.
+///
+/// Exactly two of the corner's admitted links touch each support (the
+/// corner is trivalent and fully requested), and each link's trimline
+/// on that support is the one keyed to it by
+/// `Link::face_a`/`Link::face_b` — read by support key, never by slot
+/// order.
+fn chamfer_feet<T: Decide + Bounds>(
+    faces: &CornerFaces,
+    links: &CornerLinks<'_, T>,
+    vertex_point: Point3<T>,
+) -> Result<[Point3<T>; 3], FilletError> {
+    let here = links.sorted();
+    let mut feet = [vertex_point; 3];
+    for (slot, &face) in faces.as_slice().iter().enumerate() {
+        let mut on_face = here.iter().filter_map(|o| {
+            let l = o.link();
+            let trim = if l.face_a == face {
+                &l.blend.trim_a.0
+            } else if l.face_b == face {
+                &l.blend.trim_b.0
+            } else {
+                return None;
+            };
+            match *trim {
+                Curve3::Line { origin, dir } => Some(Ok((origin, dir))),
+                _ => Some(Err(unbuilt_geometry(
+                    EntityId::Edge(l.edge),
+                    "a chamfer strip's trimline is not a line",
+                ))),
+            }
+        });
+        let (Some(first), Some(second)) = (on_face.next(), on_face.next()) else {
+            return Err(unbuilt_run_out(
+                EntityId::Face(face),
+                "a corner's support does not carry two requested edges; run-outs at such \
+                 corners are not implemented",
+            ));
+        };
+        let (o1, d1) = first?;
+        let (o2, d2) = second?;
+        // Both trimlines lie in this support, so their cross product
+        // is the support's own normal up to a nonzero scale — and
+        // `line_meet`'s ratio is invariant under that scale, so no
+        // second reading of the face's stored plane is needed.
+        feet[slot] = line_meet(o1, d1, o2, d2, d1.cross(d2));
+    }
+    Ok(feet)
 }
 
 /// Resolve one closed chain onto its plane and sphere supports, with
@@ -941,8 +1068,15 @@ fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> 
 
 /// A recorded new edge awaiting its intrinsic description.
 enum ContactCarrier<T: Real> {
-    /// A straight trimline (carrier rebuilt from the edge's vertices).
+    /// A straight trimline where the band meets its support
+    /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt
+    /// from the edge's vertices).
     TrimLine,
+    /// A straight edge where two surfaces meet TRANSVERSALLY: every
+    /// edge a chamfer mints, since a strip meets its supports and its
+    /// corner patches at a definite angle, and two planes crossing at
+    /// an angle intersect exactly in the line between the endpoints.
+    Chord,
     /// A corner arc about the corner ball's centre (sweep < π).
     CornerArc { center: Point3<T>, radius: T },
     /// An exact stored arc (the rim trim circles — π-safe).
@@ -964,7 +1098,18 @@ fn blank_phase<T: Decide + Bounds>(
     radius: T,
     rec: &mut FilletNaming,
     tol: Tol,
+    kind: BlendKind,
 ) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), FilletError> {
+    // The carve is one shape for both verbs — struts to the feet,
+    // trimline chords between them, a kef per link, three corner
+    // chords and the fusion. What differs is what each new edge IS:
+    // the fillet's band touches its supports tangentially and turns
+    // its corner on an arc; the chamfer's meets them at an angle and
+    // closes its corner on a chord.
+    let trim_carrier = || match kind {
+        BlendKind::Fillet => ContactCarrier::TrimLine,
+        BlendKind::Chamfer => ContactCarrier::Chord,
+    };
     let mut described: Described<T> = Vec::new();
     if opens.is_empty() {
         return Ok((Vec::new(), Vec::new(), described));
@@ -1030,7 +1175,7 @@ fn blank_phase<T: Decide + Bounds>(
                 )
                 .map_err(|e| op("trimline mef", e))?;
             first_trim.get_or_insert(created.he_plus);
-            described.push((created.edge, ContactCarrier::TrimLine));
+            described.push((created.edge, trim_carrier()));
             // The chord runs foot(start of walk[i]) → foot(start of
             // walk[i+1]): it parallels walk[i]'s own source edge, in
             // this support face. Birth data, straight off the plan.
@@ -1116,9 +1261,9 @@ fn blank_phase<T: Decide + Bounds>(
                 .map_err(|e| op("corner-arc mef", e))?;
             described.push((
                 created.edge,
-                ContactCarrier::CornerArc {
-                    center: c.center,
-                    radius,
+                match c.center {
+                    Some(center) => ContactCarrier::CornerArc { center, radius },
+                    None => ContactCarrier::Chord,
                 },
             ));
             rec.arcs.push((created.edge, vertex, l.edge));
@@ -1778,8 +1923,9 @@ fn attach_contact<T: Decide + Bounds>(
         }
     };
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
+    let transverse = matches!(carrier, ContactCarrier::Chord);
     let (curve, t0, t1) = match carrier {
-        ContactCarrier::TrimLine => {
+        ContactCarrier::TrimLine | ContactCarrier::Chord => {
             let len = p0.distance(p1);
             (
                 Curve3::Line {
@@ -1831,6 +1977,14 @@ fn attach_contact<T: Decide + Bounds>(
             ));
         }
         EdgeGeometry::Seam { surface: s1 }
+    } else if transverse {
+        // The chamfer's edges: two surfaces crossing at a definite
+        // angle, so the intrinsic description is the plain
+        // intersection locus. Calling it a TANGENT intersection would
+        // claim normal-parallelism along the locus that the geometry
+        // does not have, and certification measures exactly that.
+        let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
+        EdgeGeometry::Intersection { s1, s2, witness }
     } else {
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeGeometry::TangentIntersection { s1, s2, witness }
