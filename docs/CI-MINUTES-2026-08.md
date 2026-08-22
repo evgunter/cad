@@ -137,7 +137,7 @@ last run and its merge — frequent at this repo's merge rate — that
 exact combination went untested.
 
 **The scheduled full run on main that would have paired with this is
-DECLINED** (Evan, 2026-08-21). The next PR's merge-ref is main plus
+DECLINED** (Evan, 2026-08-22). The next PR's merge-ref is main plus
 that branch, so it tests the landed tree anyway; a scheduled run buys
 a second discovery of the same fact and costs a full gate per period
 whether or not anything landed. The residue is accepted, not
@@ -285,7 +285,7 @@ F4 measures.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — DECLINED (Evan, 2026-08-21), not
+* **a scheduled full run on main** — DECLINED (Evan, 2026-08-22), not
   owed. The next PR's merge-ref is main plus that branch and tests the
   landed tree anyway. See F3 for the residue that is accepted with it.
 * **draft-PR skip** — F5. Policy decision.

@@ -44,7 +44,7 @@ concurrency:
 # than at the merge that caused it.
 #
 # A scheduled full run on main was the obvious pairing and Evan DECLINED
-# it (2026-08-21): the next PR's merge-ref is main plus that branch, so
+# it (2026-08-22): the next PR's merge-ref is main plus that branch, so
 # it tests the landed tree anyway — a scheduled run buys a second
 # discovery of the same fact, at the price of a full gate per period
 # whether or not anything landed.
