@@ -46,7 +46,10 @@ it is deliberately coarse — one citation per hosted job, not per row inside it
 because a hosted job's steps and a local row's function body are not the same
 partition of the work and pretending they are would be a checker of a
 coincidence. What it proves is that no hosted JOB is unaccounted for locally.
-It does not prove the two run the same commands. Claim 6 reads
+It does NOT prove the two run the same commands, and it does not prove the
+local row a citation sits above still exists — a marker is a comment, and
+deleting the row under it leaves the citation resolving perfectly well against
+the hosted step it names. Claim 6 reads
 `.github/workflows/*.yml` and nothing else that can trigger a checkout, so a
 composite action under `.github/actions/` is outside it. And, as everywhere,
 wiring is not execution: a step disabled by an `if:` on the STEP still satisfies

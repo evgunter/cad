@@ -134,9 +134,17 @@ test, clippy and k-lint. Preserves both write paths; drops ~65 of the
 **What it gives up:** the landed main commit is then never itself
 tested. PR runs test the merge-ref, so when main moves between a PR's
 last run and its merge — frequent at this repo's merge rate — that
-exact combination went untested. Pair the retirement with a
-**scheduled full run on main** so integration failures surface in one
-cheap run rather than one per merge.
+exact combination went untested.
+
+**The scheduled full run on main that would have paired with this is
+DECLINED** (Evan, 2026-08-21). The next PR's merge-ref is main plus
+that branch, so it tests the landed tree anyway; a scheduled run buys
+a second discovery of the same fact and costs a full gate per period
+whether or not anything landed. The residue is accepted, not
+outstanding: **a semantic conflict between two independently-green PRs
+surfaces on the next, innocent PR** rather than at the merge that
+caused it, and the person who gets the red did not write the code that
+caused it. The reading that goes with that is in ci.yml's header.
 
 ### F4 — sccache: the local revert does not transfer to CI — ON TRIAL
 
@@ -264,8 +272,8 @@ The PR-side figure is deliberately modest. The three biggest line
 items — the two build jobs at 12 each and `k-lint` at 10 — are the
 critical path and were not touched; `renders` at 12 is F1, and is a
 feature rather than waste. What remains, in rough order of size, is
-F3's missing scheduled main run (owed), F5 (policy), F1's paired
-change to `render-hosted.sh`, and whatever F4 measures.
+F5 (policy), F1's paired change to `render-hosted.sh`, and whatever
+F4 measures.
 
 ## What did not land, and why
 
@@ -277,6 +285,7 @@ change to `render-hosted.sh`, and whatever F4 measures.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — the mitigation F3's trim pairs
-  with; the next PR adds it.
+* **a scheduled full run on main** — DECLINED (Evan, 2026-08-21), not
+  owed. The next PR's merge-ref is main plus that branch and tests the
+  landed tree anyway. See F3 for the residue that is accepted with it.
 * **draft-PR skip** — F5. Policy decision.

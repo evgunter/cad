@@ -36,15 +36,26 @@ concurrency:
 # test-interval) skip on a push, which skips it too — one mechanism
 # rather than two saying the same thing.
 #
-# WHAT THIS GIVES UP, AND THE MITIGATION IT WANTS. The commit that
+# WHAT THIS GIVES UP, AND WHY NOTHING PAIRS WITH IT. The commit that
 # actually lands on main is now never itself built or tested. When main
 # moves between a PR's last run and its merge — frequent here — that
 # exact combination went untested, and a semantic conflict between two
-# independently-green PRs would now surface at the NEXT PR's merge-ref
-# rather than at the merge that caused it. The intended pairing is a
-# SCHEDULED full run on main (one cheap run, not one per merge), which
-# the NEXT PR adds. Anything that must fail-fast on the landed tree
-# belongs on the PR side of this line, not restored to the push side.
+# independently-green PRs surfaces at the NEXT PR's merge-ref rather
+# than at the merge that caused it.
+#
+# A scheduled full run on main was the obvious pairing and Evan DECLINED
+# it (2026-08-21): the next PR's merge-ref is main plus that branch, so
+# it tests the landed tree anyway — a scheduled run buys a second
+# discovery of the same fact, at the price of a full gate per period
+# whether or not anything landed.
+#
+# THE COST THAT REMAINS, stated rather than mitigated: the conflict
+# surfaces on an INNOCENT PR. Whoever opens the next PR gets the red,
+# and the tree they broke is not the tree they wrote — so read a
+# failure that has nothing to do with your diff as a landed conflict,
+# and look at what merged since your branch point. Anything that must
+# fail-fast on the landed tree belongs on the PR side of this line, not
+# restored to the push side.
 
 # BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
@@ -305,7 +316,7 @@ jobs:
   # between the hosted half and local-scripts/ci-local.sh, so it has to
   # see both. Nothing here can be moved by a developer's machine — the
   # tree is read, never sourced or executed.
-  # `ci-mirror-parity.sh` checks that this stays exactly one job.
+  # `scripts/check-ci-mirror-parity.py` checks that this stays exactly one job.
   mirror:
     name: CI half parity + gate wiring (every tier)
     runs-on: ubuntu-latest

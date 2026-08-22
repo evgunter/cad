@@ -28,7 +28,7 @@
 # is the agreement between the two halves, so it is the one thing that
 # has to see both — and it is sited in the `mirror` job, which is the
 # single declared exception to the prune and the single job that runs on
-# every tier. `ci-mirror-parity.sh` checks that the exception stays
+# every tier. `scripts/check-ci-mirror-parity.py` checks that the exception stays
 # exactly one job. An earlier version of this header argued the opposite
 # — that the check needed nothing from `local-scripts/` because a
 # deletion touching only `local-scripts/ci-local.sh` classifies
