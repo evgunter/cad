@@ -144,7 +144,7 @@ pub(crate) struct ProfilePre {
 /// has ±0.0 bulges either way, but needs n ≥ 3 to close, where
 /// positions already decide.) Declared joints ride the same maps and
 /// are checked as sets.
-pub fn derive_naming(
+pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ProfileLoop<f64>],
 ) -> Option<ProfileNaming> {
@@ -357,7 +357,7 @@ fn remap_name(naming: &ProfileNaming, name: StableName) -> StableName {
 /// mint profile refs). The rewrite is a bijection per loop, so
 /// injectivity is preserved; a collision is therefore an internal bug
 /// and surfaces as `None` (the caller refuses typed).
-pub fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<NameTable> {
+pub(crate) fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<NameTable> {
     let mut out = NameTable::new();
     for (name, entry) in table.iter() {
         let new_name = remap_name(naming, name.clone());

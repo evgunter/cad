@@ -104,7 +104,7 @@ pub(crate) enum Pending<T: Real> {
 
 impl<T: Real> Pending<T> {
     /// The fillet radius (mode-independent).
-    pub fn radius(&self) -> T {
+    pub(crate) fn radius(&self) -> T {
         match self {
             Pending::Ray(p) => p.radius,
             Pending::Arc(p) => p.radius,
@@ -112,7 +112,7 @@ impl<T: Real> Pending<T> {
     }
 
     /// The incoming side as the resolution machinery's value.
-    pub fn side(&self) -> FilletSide<T> {
+    pub(crate) fn side(&self) -> FilletSide<T> {
         match self {
             Pending::Ray(p) => FilletSide {
                 anchor: p.origin,

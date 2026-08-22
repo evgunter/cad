@@ -38,7 +38,8 @@
 //! `EdgeCurve::certify`'s rung-3 gate and the cache through
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
-#![allow(dead_code)]
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;
 
