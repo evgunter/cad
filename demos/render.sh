@@ -220,10 +220,14 @@ batch_attempt() {
                 echo $$ >"$RT_PGID"
                 # The scene process runs with the STAGING ROOT as its
                 # cwd, so the render directory it is handed is the bare
-                # lane name — FreeCAD stamps the saveImage PATH into
-                # the PNG (a tEXt "Title" chunk), so a staged frame is
-                # byte-identical to a published one only if that path
-                # string is identical too. The staging root sits one
+                # lane name, matching the published one. That WAS a
+                # byte-identity requirement — FreeCAD stamps the
+                # saveImage path into the PNG as a tEXt "Title" chunk —
+                # and is now only tidiness: strip_png_stamps.py drops
+                # Title as of 2026-08-22, so the bytes of a frame no
+                # longer record where it was written. NOTE: this comment
+                # sits inside a single-quoted bash -c body, so it must
+                # not contain an apostrophe. The staging root sits one
                 # level under demos/out, so the tour output dir is "..".
                 cd "$RT_ROOT"
                 # RT_SCENES unquoted: it is one `scene=NAME` keyword
@@ -582,9 +586,10 @@ if [ "${1:-}" = "--freecad" ]; then
     if [ "$fails" -gt 0 ]; then
         echo "$fails scene(s) fell back to placeholder cells" >&2
     fi
-    # FreeCAD stamps the wall clock into every PNG it writes, so an
-    # unchanged re-render still shows up dirty in `git status`. Drop
-    # those two ancillary chunks (see strip_png_stamps.py) BEFORE the
+    # FreeCAD stamps the wall clock and the output path into every PNG
+    # it writes, so an unchanged re-render still shows up dirty in
+    # `git status` and the same pixels at two paths are two files. Drop
+    # those three ancillary chunks (see strip_png_stamps.py) BEFORE the
     # frames are published, so the sheet is composed from — and the
     # lane directory holds — the same bytes that get committed.
     "$VENV/bin/python" strip_png_stamps.py "$STAGE"
