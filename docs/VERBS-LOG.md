@@ -264,3 +264,16 @@ implementer — full context, arm-consistent), branch verbs/arceval.
   (pinned interval lane, default ε drawn) — ordinal-62 single
   review dispatched with the 1e-12 repro as the reviewer's
   unique-signal run.
+
+## OFFSET-DESIGN RATIFIED + MERGED (#907, 2026-08-22 👍)
+
+Q8's elaboration is on main: O1-O6 incl. both of Evan's rounds
+(self-intersection doors; O4 definition-vs-execution with the
+degenerate no-crossing arm; sweep-born cavities as the third
+producer) and the DESIGN.md M2-bullet revision ("every cavity is
+born through the shared void-insertion door"). **Wave 3 is
+design-ungated**, and **VERBS-RING's gate lifted** — it dispatches
+next after the ARCEVAL fix pass lands (block VERBS-1 slot 4, the
+block's last slot; spec = the ratified O4/RING definition, the
+door factoring, and the retirement of FullRevolveHoles).
+#908/#909 still await 👍 (one open question each, answered).
