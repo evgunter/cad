@@ -628,6 +628,20 @@ jobs:
   #
   # NO LOCAL MIRROR is NOT claimed: `local-scripts/ci-local.sh` carries this
   # row, behind its `--nightly` flag, and cites the run step below.
+  #
+  # VERIFIED END-TO-END ON THIS TREE, 2026-08-22, before the job was written —
+  # two full `cargo nextest list --workspace` runs, one under the cfg and one
+  # not, put through the selection script:
+  #
+  #     7 selected of 3391 tests in the gate listing
+  #     16 plain `#[ignore]` tests ignored under BOTH builds -> not selected
+  #     `cargo nextest run -E <selection>` -> 7 tests run: 7 passed
+  #
+  # Seven is exactly the seven `nightly-only:` markers in the tree, and the 16
+  # is Evan's constraint holding on the real population rather than on a
+  # three-test probe. (Those timings were taken at this tree's opt-0 dev
+  # profile — 191 s, against the ~64 s the markers' own reasons quote at CI's
+  # opt-2 settings — which is the measurement behind the `env:` block below.)
   demoted:
     name: nightly-only tests (demoted)
     runs-on: ubuntu-latest
