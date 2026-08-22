@@ -59,10 +59,17 @@ fn meridian() -> SketchSegment<Interval> {
 /// ≈ 1.1 mm against a 90 mm radius, so a reconstructed center carries
 /// roughly `R/chord ≈ 80` times the chord's relative width and the
 /// center-anchored form pays it twice. The bound here is 8× the
-/// endpoint width, two orders below what that form produces and eight
-/// times looser than what the anchored form actually delivers (it is
-/// exact at s = 0, where `R − I` vanishes identically) — a bound with
-/// room on both sides, not a knife edge.
+/// endpoint width: two orders below what that form produces, and
+/// several times looser than what the anchored form delivers — a bound
+/// with room on both sides, not a knife edge.
+///
+/// Sampled at both ends and mid-arc. The form is not symmetric in
+/// `a`/`b` — `a` is the anchor — so s = 1 is the direction a
+/// regression would take, and it is a certification schedule sample.
+/// At s = 0 the result is `a` up to the interval `sin`'s outward
+/// rounding at the exact point 0 (ulp-scale, decades under the
+/// endpoint width); it is NOT bitwise `a`, so this row bounds the
+/// width rather than pinning equality.
 #[test]
 fn a_short_restricted_sub_arc_evaluates_at_its_endpoints_scale() {
     let sub = meridian().restrict(iv(0.4), iv(0.404));
@@ -88,14 +95,17 @@ fn a_short_restricted_sub_arc_evaluates_at_its_endpoints_scale() {
         endpoint_width
     );
 
-    // And the claim is about the whole short arc, not just its ends:
+    // And the claim is about the whole short arc, not just its start:
     // mid-arc the rotation is real, but |R − I| = 2·|sin(sθ/2)| is
-    // small on a short arc and scales the center's width DOWN.
-    let at_mid = sub.eval(iv(0.5));
-    assert!(
-        point_width(at_mid) <= 8.0 * endpoint_width,
-        "the sub-arc's mid enclosure is {:e} wide against endpoint width {:e}",
-        point_width(at_mid),
-        endpoint_width
-    );
+    // small on a short arc and scales the center's width DOWN. s = 1 is
+    // the far end, away from the anchor, and a schedule sample.
+    for s in [0.5, 1.0] {
+        let at = sub.eval(iv(s));
+        assert!(
+            point_width(at) <= 8.0 * endpoint_width,
+            "the sub-arc's enclosure at s = {s} is {:e} wide against endpoint width {:e}",
+            point_width(at),
+            endpoint_width
+        );
+    }
 }

@@ -245,17 +245,23 @@ mod certified {
         );
     }
 
-    /// The widest `carrier_matches_mapped_source` enclosure this row's
-    /// chain produces (metres), measured at sample 6 of the crossing
-    /// insertion's second child. It is ε-INDEPENDENT — the same bits at
-    /// every ε — because it is the interval lane's enclosure width, a
-    /// property of the arithmetic that built the two points, not of the
+    /// The `carrier_matches_mapped_source` enclosure this row's chain
+    /// escalates on (metres), measured at the FIRST escalating sample
+    /// of the crossing insertion's second child — certification aborts
+    /// there, so later samples of that edge never run and this is not a
+    /// claim about them. It is ε-INDEPENDENT — the same bits at every ε
+    /// — because it is the interval lane's enclosure width, a property
+    /// of the arithmetic that built the two points, not of the
     /// tolerance they are judged against. The row therefore certifies
     /// exactly when ε is at or above it.
     ///
-    /// A change that tightens the arc chain further will make this
-    /// number stale and the escalation arm below will fail loudly,
-    /// which is the intent: re-measure and re-state, never widen.
+    /// The escalation arm below pins `hi` to this value BIT-EXACTLY, in
+    /// both directions. A regression that widens the arc chain is loud,
+    /// and so is a tightening that narrows it — including a partial one
+    /// that lands between the band and this constant, which an
+    /// upper-bound-only guard would admit in silence. Either way the
+    /// answer is the same: re-measure and re-state the constant, never
+    /// loosen the guard around it.
     const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.1414768974413613e-12;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
@@ -336,9 +342,14 @@ mod certified {
                 hi > cause.band.zero(),
                 "the enclosure must exceed the coincidence threshold, else it would classify"
             );
+            // Pinned bit-exactly, both directions (D9: same build, same
+            // inputs, same bits). A ceiling alone would admit the very
+            // width this unit retired, and would let a partial
+            // tightening leave the constant stale in silence.
             assert!(
-                hi <= 2.0 * RECUT_MAPPED_ENCLOSURE_HI,
-                "the mapped-source enclosure widened past its measured value: {hi:e}"
+                hi == RECUT_MAPPED_ENCLOSURE_HI,
+                "the mapped-source enclosure is {hi:e}, not its measured value \
+                 {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
             );
             // The cylinder class is unaffected by the arc-chain width
             // and still decides at this scalar.
