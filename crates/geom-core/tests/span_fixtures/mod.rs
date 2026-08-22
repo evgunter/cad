@@ -11,6 +11,7 @@
 //! an entry shifts every row after it. Append, or regenerate that table
 //! (its own docs say how).
 #![allow(dead_code)] // each suite uses a subset
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 use geom_core::spline::KnotVector;
 

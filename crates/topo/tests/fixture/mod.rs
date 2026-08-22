@@ -39,6 +39,7 @@
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
 #![allow(dead_code)]
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 use std::sync::Arc;
 

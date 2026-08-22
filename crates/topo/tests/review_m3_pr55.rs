@@ -1055,7 +1055,7 @@ fn g_stacked_full_on_edge_germ_dump() {
 /// Pip pillar bricks for a standard die on the [0,2]^3 cube: face
 /// normal axis + pip centers on a {0.5, 1.0, 1.5} grid; pips 0.25
 /// square, 0.125 deep. Opposite faces sum to 7.
-pub fn die_pips() -> Vec<Body<f64>> {
+fn die_pips() -> Vec<Body<f64>> {
     let g = [0.5, 1.0, 1.5];
     let layouts: [(usize, bool, Vec<(f64, f64)>); 6] = [
         (2, true, vec![(g[1], g[1])]), // +z: 1

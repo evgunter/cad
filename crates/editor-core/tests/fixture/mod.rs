@@ -14,6 +14,7 @@
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
 #![allow(dead_code)] // shared across test binaries; not all use all of it
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,

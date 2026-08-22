@@ -2,6 +2,7 @@
 //! Each `revolve_*.rs` integration binary includes this via
 //! `mod revolve_common;`.
 #![allow(dead_code)] // each test binary uses a subset
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 use geom_brep::EdgeGeometry;
 use geom_core::Tol;

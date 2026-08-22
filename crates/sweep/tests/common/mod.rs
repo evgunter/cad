@@ -21,6 +21,7 @@
 //! deliberately not built here.
 
 #![allow(dead_code)]
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 /// Orientation checking: the face-facing probe and the two level-set
 /// indexes it decides against. Split out because it is a different kind

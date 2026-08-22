@@ -130,6 +130,17 @@ truck-stepio = "0.3.0"
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+# A `pub` item that no path from the crate root reaches is invisible to
+# `dead_code`, which exempts anything `pub` on the assumption an external
+# crate may call it. That assumption is false here: this workspace's only
+# consumers are its own members plus `pncad`/`pncad-py`, so nothing outside
+# the tree can be the caller such an item is being kept for. This lint is
+# what sees them: a `pub` that is a lie about reachability is caught at
+# compile time, in every crate at once, rather than by whoever opens the
+# file next. Where a narrower keyword would be wrong — a facade whose door
+# opens under a `cfg` the current build does not have — the item carries an
+# `allow` that says which arm the `pub` is for.
+unreachable_pub = "warn"
 
 # D9: the kernel never panics on any INPUT — every input-reachable failure
 # is a typed error. The panic family is linted from line one (L5); CI's
@@ -151,8 +162,19 @@ missing_docs = "warn"
 # Mirrored by hand in `crates/pncad-py/Cargo.toml` and enforced by its
 # `crate_lints_match_the_workspace_minus_unsafe_code` test — edit both.
 #
-# `indexing_slicing` (also a panic source) is deliberately deferred until
-# real evaluation code exists to judge the noise against (L5).
+# `indexing_slicing` is absent for the same reason `unreachable` is, and
+# the two paragraphs are one position rather than two: an index panic is
+# not an input-reachable failure, it is a kernel bug the code trips over.
+# The family above is about input-reachable failure, so the shape does not
+# belong in it and the lint stays off.
+#
+# It remains a useful instrument to RUN. `cargo clippy --workspace --lib
+# -- -W clippy::indexing_slicing` prints the tree's index expressions, and
+# some of them read better rewritten — that output is something to browse
+# while doing style work, not a queue anyone owes. Its own limits: `--lib`
+# only, so no tests, benches, or `tools/` binaries, and clippy is blind
+# inside `macro_rules!` bodies. It shows a sample of the shape, not all
+# of it.
 [workspace.lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"

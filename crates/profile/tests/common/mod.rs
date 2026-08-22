@@ -7,6 +7,7 @@
 //! per test process (each integration binary is its own process, so the
 //! geom-core global-state discipline is satisfied).
 #![allow(dead_code)]
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

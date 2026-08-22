@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)] // each integration test uses the subset it needs
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};

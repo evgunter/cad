@@ -88,6 +88,15 @@ use crate::body::Body;
 /// alongside the three geometry-arena lengths rather than restating
 /// the seven.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// `pub` is load-bearing under the `test`/`test-support` arms — the
+// `crate::test_support` door re-exports this type across the crate
+// boundary, and a `pub use` cannot widen a `pub(crate)` item. Under the
+// `debug_assertions` arm alone the door does not exist, so the same
+// declaration is genuinely unreachable from outside and the lint fires.
+// The two gates differ on purpose (this module's header states why), so
+// the reachable spelling of this type differs with them; `pub` is the
+// one that satisfies the widest arm.
+#[allow(unreachable_pub)]
 pub struct ArenaCounts {
     /// Solids in the body.
     pub solids: usize,

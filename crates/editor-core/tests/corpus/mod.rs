@@ -29,6 +29,7 @@
 //! pinned on validity + counts instead.
 
 #![allow(dead_code)] // shared across test binaries; not all use all of it
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 
 use std::collections::{BTreeMap, BTreeSet};
 

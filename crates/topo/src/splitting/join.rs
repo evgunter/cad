@@ -55,7 +55,7 @@ use geom_core::Tol;
 /// (mirrors the body's [`NullFacePair`] record; carried separately so
 /// the finish step consumes explicit keys in completion order).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CompletedSection {
+pub(crate) struct CompletedSection {
     /// The null face (two coincident loops).
     pub face: FaceKey,
     /// The loop through the minted above copies.

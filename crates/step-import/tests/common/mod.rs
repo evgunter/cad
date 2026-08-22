@@ -8,6 +8,7 @@
 //! walk order — the known trap (`memories/step-curved-subset.md`): the
 //! two coincide on simple extrusions and diverge on boolean results.
 #![allow(dead_code)] // each consumer uses a subset
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::PathBuf;

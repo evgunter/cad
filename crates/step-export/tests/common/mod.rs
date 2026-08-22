@@ -3,6 +3,7 @@
 //! STL review suites: bricks, the pocketed die, the corner-kiss
 //! assembly, the voided subtract).
 #![allow(dead_code)] // each consumer uses a subset
+#![allow(unreachable_pub)] // `mod`-included by several test binaries; `pub` is how each names it
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
