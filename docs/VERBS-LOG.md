@@ -277,3 +277,13 @@ next after the ARCEVAL fix pass lands (block VERBS-1 slot 4, the
 block's last slot; spec = the ratified O4/RING definition, the
 door factoring, and the retirement of FullRevolveHoles).
 #908/#909 still await 👍 (one open question each, answered).
+
+## DRAFT-DESIGN RATIFIED + MERGED (#908, 2026-08-22 👍)
+
+DR1-DR6 on main with Evan's corrections: plane-only v1; the
+cylinder arm re-costed as a plane×cone fitted-SSI lane (R1
+untouched — its refusal bars only exact conic special-casing);
+the moldability checker rides kind-general. The draft VERB
+implementation queues behind Wave 1's remaining units per DR6's
+own sequencing; its register row now points at the ratified doc.
+Remaining conversation: #909 (one 👍 pending).
