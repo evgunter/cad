@@ -57,8 +57,8 @@ usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
   is bigger than it needs to be; the anisotropic-sliver lesson; and
   WHERE instrument belongs (gating does not answer volume)
 - [FreeCAD render lane](freecad-render-lane.md) — CI renders and
-  re-baselines all four lanes; PRs REPORT (neutral, not a failure), main
-  COMMITS; the FreeCAD self-deadlock and its fix
+  re-baselines the lanes; PRs REPORT (neutral, not a failure), main
+  COMMITS; FreeCAD's two failure modes; the per-process budget
 
 ## Kernel rules
 
