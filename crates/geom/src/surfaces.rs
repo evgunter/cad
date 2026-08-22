@@ -214,8 +214,12 @@ pub enum Surface<T: Real> {
     ///   (radially farthest from the axis), `v = π/2` on the top circle
     ///   (toward `+axis`).
     /// - Convention `R > r > 0` (a ring torus — no self-intersection);
-    ///   spindle/horn configurations are degenerate data rejected
-    ///   upstream.
+    ///   spindle/horn configurations are degenerate data. `sweep::revolve`
+    ///   refuses them at construction, but the other door that can mint a
+    ///   torus (`step-import`'s `TOROIDAL_SURFACE`) reads both radii
+    ///   verbatim — so the net covering BOTH is `topo::validate`'s tier-3
+    ///   check 1, which reports `DegenerateTorus` on any face carrying one
+    ///   at rest.
     /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the tube
     ///   — since `∂u × ∂v = (that)·(r·(R + r·cos v))` and
     ///   `R + r·cos v > 0` for a ring torus. No chart singularities on

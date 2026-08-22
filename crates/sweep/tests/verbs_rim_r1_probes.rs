@@ -18,15 +18,13 @@
 //!   refuses `TangentialEdge` at margin exactly 0.0 — red if the fix
 //!   removed the detector rather than the false positive.
 //! - **A closed one-edge chain has no junctions**: the structural fact
-//!   under the PR's "chain_g1 never folds a closed rim's arm" claim —
-//!   red if the walk starts minting junctions for self-closed links.
-//! - **The newly reachable frontier is typed**: a convex plane–sphere
-//!   closed rim now PASSES the battery (it used to refuse
-//!   `TangentialEdge` before any construction), so `fillet_edges`
-//!   reaches the surgery's one-edge-rim door and must refuse
-//!   `UnsupportedChain`, loudly, not panic. This row pins the state
-//!   the lever fix made reachable for the first time; it flips when a
-//!   one-edge torus band lands (VERBS-ARMS territory) — flip it then.
+//!   the explicit wrap-around G1 site rests on — red if the walk
+//!   starts minting junctions for self-closed links.
+//! - **The newly reachable frontier builds**: a convex plane–sphere
+//!   closed rim PASSES the battery (it used to refuse `TangentialEdge`
+//!   before any construction) and `fillet_edges` mints its annulus
+//!   band — red if a one-edge rim stops reaching, or stops building
+//!   at, the surgery's closed-chain door.
 //! - **An open arc just under a full period decides at an honest
 //!   lever**: sweep 2π − 0.0032 leaves an endpoint chord of ~0.003·r
 //!   (the old lever) while the max pairwise chord meters ~2r; a
@@ -365,10 +363,12 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 }
 
 /// **A closed one-edge chain mints no junctions** — the structural
-/// fact under the claim that `chain_g1` (predicate 4) never folds a
-/// closed rim's `arm_len` today: with no junction vertices there is
-/// no fold to take. Red if the walk starts recording a wrap-around
-/// junction for a self-closed single link.
+/// fact the wrap-around G1 check rests on: `walk_chains` registers a
+/// self-closed link's one vertex once, so the junction loop has
+/// nothing to walk and predicate 4 reaches that chain only through the
+/// explicit wrap-around site on the link's own carrier endpoints. Red
+/// if the walk starts recording a wrap-around junction for a
+/// self-closed single link, which would meter it twice.
 #[test]
 fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     let body = dome(1.0);
@@ -393,28 +393,24 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     );
 }
 
-/// **The newly reachable frontier refuses typed.** Before the lever
-/// fix, EVERY closed edge refused `TangentialEdge` inside the battery,
-/// so the surgery's closed-chain door had never seen a one-link
-/// closed chain (its own comment calls that state "likely dead in
-/// practice"). The fix makes it live: a convex plane–sphere closed
-/// rim passes the battery and `fillet_edges` must now land on the
-/// one-edge-rim `UnsupportedChain` refusal — typed, loud, no panic,
-/// no silent geometry. Flip this row when a one-edge torus band is
-/// actually built.
+/// **The newly reachable frontier BUILDS.** Before the lever fix, every
+/// closed edge refused `TangentialEdge` inside the battery, so the
+/// surgery's closed-chain door had never seen a one-link closed chain;
+/// the fix made it live and this row pinned the typed refusal that met
+/// it. The annulus band is the construction that door now reaches: a
+/// convex plane–sphere closed rim of a full solid of revolution fillets
+/// end to end, minting exactly one band face.
 #[test]
-fn a_passing_closed_rim_reaches_the_surgery_and_refuses_unsupported_chain() {
+fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
     let body = dome(1.0);
     let rims = [closed_rim_of_radius(&body, 1.0)];
-    match fillet_edges(&body, &rims[..1], 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("closed chain of fewer than two links"),
-                "the one-edge-rim door names itself, got {detail:?}"
-            );
-        }
-        other => panic!("expected the one-edge-rim UnsupportedChain, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &rims[..1], 0.05, band(), tol())
+        .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one closed rim mints one band");
+    assert!(
+        out.blend_faces.is_empty() && out.corner_faces.is_empty(),
+        "a lone closed rim mints no open blend and no corner patch"
+    );
 }
 
 /// **An open arc just under a full period decides at an honest

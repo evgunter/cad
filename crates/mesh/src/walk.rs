@@ -791,17 +791,19 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
 /// empty for `Torus`, so `loop_polygon`'s `pole_v` returns `None` at a
 /// toroidal axis point and the walk emits one ordinary entry instead
 /// of the two-entry fan. Dormant — `revolve` refuses horn and spindle
-/// at construction — but it is a different question from this one and
-/// this function does not answer it.
+/// at construction, and `topo::validate`'s tier-3 `DegenerateTorus`
+/// covers the import door that reads both radii verbatim — but it is a
+/// different question from this one and this function does not answer
+/// it.
 ///
 /// **Not consulting `poles()` is deliberate but is NOT tested, because
 /// this build cannot construct the case that would separate them.**
 /// The one chart singularity `poles()` does not list is the axis point
-/// of a horn or spindle torus (`major + minor·cos v` vanishing), and
-/// `revolve` refuses both at construction
-/// (`sweep::revolve`'s profile check — the sweep's own skip lines show
-/// it). So a `poles()`-based test would behave identically on every
-/// body this build can mint. The radial test is chosen because it is
+/// of a horn or spindle torus (`major + minor·cos v` vanishing), which
+/// `revolve` refuses at construction (`sweep::revolve`'s profile check —
+/// the sweep's own skip lines show it) and `topo::validate` reports at
+/// rest whatever door minted it. So a `poles()`-based test would behave
+/// identically on every body this build can mint. The radial test is chosen because it is
 /// the smaller thing to state, not because a live case demands it; if
 /// horn tori ever become constructible, this line already covers them
 /// and that is a bonus, not evidence. The unit row below exercises a

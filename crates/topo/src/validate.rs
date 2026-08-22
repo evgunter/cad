@@ -349,6 +349,30 @@ pub enum ValidationError {
         /// The face whose surface is the placeholder.
         face: FaceKey,
     },
+    /// Tier 3: a face's torus violates D3's ring convention `R > r > 0`
+    /// — a horn (`R == r`) or spindle (`R < r`) torus, whose axis
+    /// carries a singular point the chart machinery has no
+    /// representation for (`geom::Surface::Torus`'s own contract: the
+    /// chart normal derivation assumes `R + r·cos v > 0`, and
+    /// `mesh::walk::Chart::poles` is empty for a torus because a ring
+    /// torus has none).
+    ///
+    /// This is the net BOTH doors that can mint a torus pass through:
+    /// `sweep::revolve` refuses the configuration at construction, and
+    /// `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim.
+    DegenerateTorus {
+        /// The face whose torus is a horn or spindle.
+        face: FaceKey,
+    },
+    /// Tier 3: the ring-torus convention margin `R − r` landed in the
+    /// ambiguity band (or was poison) — the classification is not
+    /// available at this tolerance.
+    DegenerateTorusEscalated {
+        /// The face whose torus could not be classified.
+        face: FaceKey,
+        /// The predicate-layer escalation.
+        cause: Indeterminate,
+    },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
     /// stored cache no longer satisfies D4 ¶2's `residual ≤ ε` against
     /// its description and endpoints (or its certification is not
@@ -1136,6 +1160,15 @@ impl fmt::Display for ValidationError {
                  'no description yet' state) — uncertifiable at rest; attach the real \
                  surface. A described NURBS surface passes this check"
             ),
+            Self::DegenerateTorus { face } => write!(
+                f,
+                "face {face:?}'s torus violates D3's ring convention R > r > 0 (a horn or \
+                 spindle torus, whose axis carries a chart singularity)"
+            ),
+            Self::DegenerateTorusEscalated { face, cause } => write!(
+                f,
+                "face {face:?}'s ring-torus margin R - r escalated: {cause}"
+            ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
             }
@@ -1632,7 +1665,10 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// 1. **Surface implementedness** (faces, arena order): no face's
 ///    surface is the `Nurbs` representable-unimplemented placeholder
 ///    ([`ValidationError::UncertifiableSurface`]) — nothing can be
-///    certified against it at M2.
+///    certified against it at M2 — and every torus honours D3's ring
+///    convention `R > r > 0`
+///    ([`ValidationError::DegenerateTorus`] /
+///    [`ValidationError::DegenerateTorusEscalated`]).
 /// 2. **Carrier re-certification** (edges, arena order): every edge's
 ///    stored [`geom_brep::EdgeCurve`] re-runs its full D4 ¶2
 ///    certification — endpoint pinning against the edge's own vertices'
@@ -1819,12 +1855,40 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // which is a mid-surgery "no description yet" fact, never a
     // certifiable surface. One discriminator, shared:
     // `NurbsSurface::is_placeholder`.
+    //
+    // A torus is implemented only under D3's ring convention
+    // `R > r > 0`: a horn or spindle torus puts a singular point on the
+    // axis that no chart in the tree represents. The check lives HERE,
+    // at rest, because that is the one place BOTH doors that can mint a
+    // torus pass through — `sweep::revolve` refuses the configuration at
+    // construction, `step-import` reads the two radii verbatim.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        if let Some(Surface::Nurbs(payload)) = body.surfaces.get(face.surface)
-            && payload.is_placeholder()
-        {
-            errors.push(ValidationError::UncertifiableSurface { face: face_key });
+        match body.surfaces.get(face.surface) {
+            Some(Surface::Nurbs(payload)) if payload.is_placeholder() => {
+                errors.push(ValidationError::UncertifiableSurface { face: face_key });
+            }
+            Some(Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            }) => match decide(
+                "ring_torus_convention",
+                Margin::of(*major_radius - *minor_radius),
+                band,
+            ) {
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Zero | Sign::Negative) => {
+                    errors.push(ValidationError::DegenerateTorus { face: face_key });
+                }
+                Err(cause) => {
+                    errors.push(ValidationError::DegenerateTorusEscalated {
+                        face: face_key,
+                        cause,
+                    });
+                }
+            },
+            _ => {}
         }
     }
 
@@ -4138,7 +4202,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 59;
+        const VARIANTS: usize = 61;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4200,6 +4264,8 @@ mod tests {
                 ValidationError::StaleNullFaceLoop { .. } => 56,
                 ValidationError::NullEdgeAtRest { .. } => 57,
                 ValidationError::NullFaceAtRest { .. } => 58,
+                ValidationError::DegenerateTorus { .. } => 59,
+                ValidationError::DegenerateTorusEscalated { .. } => 60,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4398,6 +4464,11 @@ mod tests {
             },
             ValidationError::NullEdgeAtRest { edge: e },
             ValidationError::NullFaceAtRest { face: t.face_a },
+            ValidationError::DegenerateTorus { face: t.face_a },
+            ValidationError::DegenerateTorusEscalated {
+                face: t.face_a,
+                cause: indeterminate(),
+            },
         ];
         let mut covered = [false; VARIANTS];
         for err in &all {
