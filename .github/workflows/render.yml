@@ -433,6 +433,10 @@ jobs:
   # differ only in render.sh's flag and the directory it publishes to
   # (#159 — same scenes.json cameras/captions/grid, same pipeline, one
   # showing the kernel's own facets and one showing OCC's).
+  # NO LOCAL MIRROR: the pinned FreeCAD AppImage, software GL and Xvfb, none of
+  # which a developer box is asked to install, and a re-baseline that commits
+  # the drawn cells from a bot token. local-scripts/render-hosted.sh DISPATCHES
+  # this lane rather than reproducing it.
   montage:
     name: ${{ matrix.lane }} montage
     runs-on: ubuntu-latest
@@ -682,6 +686,14 @@ jobs:
   # — which is what lets local-scripts/render-hosted.sh use it as the
   # round-trip proof that the artifact path preserves the provenance
   # stamp chunks byte for byte.
+  # NO LOCAL MIRROR: a pinned numpy/matplotlib venv built at run time, and a
+  # re-baseline that commits the drawn cells from a bot token. That second half
+  # is the one no developer box performs: locally, being TOLD about drift is
+  # the whole point, and writing a new baseline would destroy the telling.
+  # What IS mirrored is the
+  # committed output of this lane, not the drawing of it: ci-local.sh's
+  # `render provenance (demos)` row reads demos/renders-wild/ and holds its
+  # stamps to this lane's declared author.
   wild:
     name: wild-corpus montage
     runs-on: ubuntu-latest
