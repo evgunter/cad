@@ -242,6 +242,26 @@ boundary has an unstable billed cost**, and a single measurement of one
 will read as a flat number when it is not. Both of the merges above
 that land "inside one billed minute" are worth re-reading with that in
 mind.)
+
+**2026-08-22, and it settles that instability the expensive way.** The
+rustdoc gate stopped being `cargo doc --workspace` and now also
+documents the five cargo roots the workspace excludes, plus a
+`--selftest` in front of it (D40/D41). Measured on two code-tier runs,
+warm cache both: `rustdoc (gate)` **34 s → 87 s**, and the `fmt` job
+**87 s → 135 s**, which is **2 → 3 billed minutes**. It does not
+straddle any more; it bills 3. The two `cargo doc` steps this deleted
+from the `k-lint` job gave back nothing measurable (that job builds
+those crates for its own clippy and test rows, so their doc pass was
+reusing warm artifacts at ~1 s), so the change is **+1 billed minute
+per code-tier PR run**, not a transfer. The reason it costs what it
+costs is that the `fmt` job builds `demos/tour`, `demos/wild` and the
+three `tools/` crates from cold — `Swatinem/rust-cache` in that job
+caches the kernel workspace's `target/` and not the excluded roots'.
+Declaring those roots to that action (its `workspaces:` input), or
+pointing the whole gate at one `CARGO_TARGET_DIR`, is the lever if this
+minute is ever worth collecting; neither was measured here. Still off
+the critical path: 2.3 min against a 12 min `build + archive
+(interval)`.)
 | persistence | 80 s | ~85 s | no |
 | band 4 corpus | 78 s | ~82 s | no |
 
