@@ -25,7 +25,7 @@
 mod revolve_common;
 
 use geom_core::Tol;
-use profile::ProfileLoop;
+use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 

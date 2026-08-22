@@ -1481,6 +1481,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     let sphere_key = wall_key(&t.body, t.walls[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),

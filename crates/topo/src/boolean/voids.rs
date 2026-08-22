@@ -253,7 +253,27 @@ pub fn insert_void<T: Decide>(
     }
 
     // ---- The insertion itself: revert + graft (bit-for-bit the
-    // boolean containment fallback's cavity step, factored here). ----
+    // boolean containment fallback's cavity step, factored here). The
+    // declared arena delta is the whole cavity transplanted — every
+    // entity re-created under fresh keys, its shells landing under
+    // `dst_solid` (no new solid).
+    #[cfg(debug_assertions)]
+    let (before, transplant) = {
+        let c = cavity.arena_counts();
+        // Casts are lossless in every reachable regime: an arena
+        // length that overflows isize is unrepresentable long before.
+        #[allow(clippy::cast_possible_wrap)]
+        let transplant = crate::euler::ArenaDelta {
+            solids: 0,
+            shells: c.shells as isize,
+            faces: c.faces as isize,
+            loops: c.loops as isize,
+            half_edges: c.half_edges as isize,
+            edges: c.edges as isize,
+            vertices: c.vertices as isize,
+        };
+        (dst.arena_counts(), transplant)
+    };
     let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
     let graft = graft_solid(dst, dst_solid, &reversed, tol).map_err(|e| match e {
         BooleanError::JoinDesync { what } => VoidInsertError::Corrupt { what },
@@ -265,5 +285,7 @@ pub fn insert_void<T: Decide>(
             what: "graft refused outside its own error surface (kernel bug)",
         },
     })?;
+    #[cfg(debug_assertions)]
+    dst.assert_euler_postcondition(before, transplant, "insert_void");
     Ok(VoidInserted { graft })
 }
