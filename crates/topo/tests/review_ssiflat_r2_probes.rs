@@ -183,25 +183,53 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     );
 }
 
-/// PROBE 3 (claim C3, the terminal-sliver argument): the PR says of
-/// this escalation that "there is nothing to tighten and nothing to
-/// subdivide". `ssi_hull_sup` bounds the CARRIER's incidence with the
-/// sphere — a quantity whose true value is exactly zero, since the
-/// circle lies on the sphere — and its bound is a control-hull bound
-/// over `SSI_CERT_SPANS` spans of the arc, whose own doc says "more
-/// spans ⇒ tighter hulls". So the bound is span-dependent, and this
-/// probe shows it: the SAME route over a SHORTER arc certifies at the
-/// same 1e-12 band the quarter-turn escalates at. The escalation is
-/// honest, but it is a conditioning artifact of the hull bound, not a
-/// terminal D4 ¶3 sliver of the operand pair.
+/// The `ssi_hull_sup` bound this route certifies at the interval
+/// scalar, for an arc of `1/div` of a quarter turn — `None` when the
+/// route certifies instead.
+#[cfg(feature = "interval")]
+fn hull_sup_at_interval(div: f64) -> Option<f64> {
+    use geom_core::interval::Interval;
+    let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
+    match certify_at::<Interval>(1.0, arc, tight_band()) {
+        Ok(_) => None,
+        Err(geom_brep::PcurveCertifyError::FittedCertificate {
+            what: "ssi_hull_sup",
+            margin: Some(geom_core::MarginDiag::Enclosure { hi, .. }),
+            ..
+        }) => Some(hi),
+        Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
+    }
+}
+
+/// PROBE 3 (claim C3, the terminal-sliver argument): the PR and the
+/// re-scoped row both say of this escalation that "there is nothing to
+/// tighten and nothing to subdivide". `ssi_hull_sup` bounds the
+/// CARRIER's incidence with the sphere — a quantity whose true value is
+/// exactly zero, since the circle lies on the sphere — and the bound is
+/// a control-hull bound over `SSI_CERT_SPANS` spans of the arc, whose
+/// own doc (`ssi/certify.rs:164-167`) reads "More spans ⇒ tighter hulls
+/// and a tighter tube".
+///
+/// This probe MEASURES that. It reports the bound at four span lengths
+/// and asserts it is strictly span-dependent — i.e. that something IS
+/// tightenable. The measurement also shows how weakly: the bound falls
+/// far slower than the span, because at `T = Interval` it is dominated
+/// by the width the ring data carries rather than by the span, which is
+/// the honest version of the PR's claim.
 #[cfg(feature = "interval")]
 #[test]
-fn the_interval_hull_bound_tightens_with_the_span() {
-    use geom_core::interval::Interval;
-    let short = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / 8.0);
-    certify_at::<Interval>(1.0, short, tight_band()).expect(
-        "an eighth of the quarter-turn certifies at the same band the quarter-turn escalates \
-         at — the hull bound is refinable by span, so 'nothing to tighten' overstates",
+fn the_interval_hull_bound_is_span_dependent() {
+    let bounds: Vec<(f64, Option<f64>)> = [1.0, 2.0, 8.0, 64.0]
+        .into_iter()
+        .map(|d| (d, hull_sup_at_interval(d)))
+        .collect();
+    println!("ssi_hull_sup vs span divisor: {bounds:?}");
+    let full = bounds[0].1.expect("the quarter turn escalates");
+    let eighth = bounds[2].1.expect("an eighth of it still escalates");
+    assert!(
+        eighth < full,
+        "the bound must move with the span — 'nothing to tighten' claims it cannot: \
+         {bounds:?}"
     );
 }
 
@@ -220,10 +248,12 @@ fn the_interval_hull_bound_tightens_with_the_span() {
 #[test]
 fn a_structural_tube_refusal_still_reports_a_manufactured_nan_margin() {
     // extent ≈ the arc's control-net diameter; the ladder is empty once
-    // `extent/8 < 8·ε`, i.e. extent < 64·ε.
-    let err = certify_at::<f64>(1.0e-8, ARC, loose_band())
+    // `extent/8 < 8·ε`, i.e. extent < 64·ε = 6.4e-5 m here. The radius
+    // also has to keep the arc's METRE span above ε, or the earlier
+    // `pcurve_interval_meter` check answers first — 1e-5 m clears both.
+    let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
         .err()
-        .expect("a sub-micron arc has no certifiable uniqueness tube at a 1e-6 band");
+        .expect("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
     let geom_brep::PcurveCertifyError::FittedCertificate { what, margin, .. } = err else {
         panic!("expected the certificate arm: {err:?}");
     };
@@ -325,5 +355,36 @@ fn the_margin_is_legible_through_the_public_topo_door() {
     assert!(
         !shown.iter().any(|s| s.contains("NaN")),
         "no layer may re-manufacture the NaN: {shown:?}"
+    );
+}
+
+/// PROBE 6 (claim C3, the re-scope's SCOPE): the row under review gates
+/// its escalation arm on `Tol::witness().eps() < HULL_SUP_AT_INTERVAL`
+/// — one-sided. The escalation is only the outcome while the bound is
+/// INSIDE the band, i.e. `band.zero() < HULL_SUP < band.escalate()`.
+/// Below `HULL_SUP / K` the bound is ABOVE the band and the door
+/// refuses definitely instead, which the row's arm does not admit. This
+/// probe names what the door actually does there, at an explicit band
+/// so it does not depend on the run's ε.
+#[cfg(feature = "interval")]
+#[test]
+fn below_the_band_the_route_refuses_definitely_not_by_escalation() {
+    use geom_core::interval::Interval;
+    let below = Band::new(1e-13, 1e-12).unwrap();
+    let err = certify_at::<Interval>(1.0, ARC, below)
+        .err()
+        .expect("the route cannot certify at a band under the hull bound");
+    println!("below-band refusal: {err:?} / {err}");
+    assert!(
+        !matches!(
+            err,
+            geom_brep::PcurveCertifyError::FittedCertificate {
+                limb: None,
+                what: "ssi_hull_sup",
+                ..
+            }
+        ),
+        "the reviewed row's escalation arm assumes this shape at every eps below the \
+         constant; it is not what the door produces here: {err:?}"
     );
 }
