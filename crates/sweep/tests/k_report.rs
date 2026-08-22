@@ -38,8 +38,10 @@
 //! `probe-suite-census.sh`'s default mode against `CENSUS_FLOOR`,
 //! sited in the `discipline` job — unconditional, on every run,
 //! structurally ineligible for sampling. The census greps for the
-//! `k-lint` step named *"compile and list every probe-gated test
-//! target"*, so the step cannot be deleted quietly either.
+//! `k-lint` step named
+//! *"compile and list every probe-gated test target"* — a FIXED-STRING
+//! per-line grep, so that quotation must not be re-wrapped — and the
+//! step therefore cannot be deleted quietly either.
 //!
 //! When the row IS drawn, `scripts/k_probe_sweep.sh` executes exactly
 //! the invocation above at all three ε, dumping to `<outdir>/m2/`. That
