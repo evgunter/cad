@@ -41,7 +41,9 @@ use geom_core::{
 };
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::blend::{BlendArm, EdgeBlend, chamfer_strip, plane_plane_blend, plane_sphere_blend};
+use super::blend::{
+    BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
+};
 use super::{BlendKind, CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
 
 /// The number of interior samples the chain predicates take along
@@ -706,7 +708,7 @@ fn resolve_link<T: Decide + Bounds>(
     let sense = |f: FaceKey| body.get_face(f).map(|d| d.sense).ok_or_else(broken);
     let senses = (sense(face_a)?, sense(face_b)?);
     let (arm, blend) = classify_arm(
-        &sa, n_a, &sb, n_b, senses, p, tau, radius, convexity, edge, kind,
+        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
     )?;
     Ok(Link {
         edge,
@@ -732,27 +734,82 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
     }
 }
 
+/// The roster [`FilletError::SpineUnsupported`] advertises — every
+/// [`BlendArm`] the fillet table carries, hand-formatted because the
+/// payload is a `&'static str`. `arms::the_refusal_roster_names_every_arm`
+/// checks it against [`BlendArm::name`], so an arm that grows without
+/// its roster row goes red rather than shipping a stale refusal.
+pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / sphere–cone / cone–plane / \
+     cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–cylinder)";
+
+/// The refusal a pair takes when its supports ARE an arm's kinds but do
+/// not share the axis (or the ruling) that arm's spine is derived from.
+pub(super) const NOT_COAXIAL: &str =
+    "a curved support pair whose two supports do not share one axis of revolution (nor one \
+     ruling); its spine is neither a line nor a circle";
+
+/// **`fillet3_support_coaxiality`** — do a curved pair's two supports
+/// really share the axis (or the ruling) its arm's spine is derived
+/// from?
+///
+/// Margin: the configuration's **departure** from that hypothesis in
+/// METERS, at the link's own lever arm — the rim radius for a coaxial
+/// pair, the link extent for a ruled one. An angular misalignment
+/// enters as `|n̂ × k̂|` times that arm; a sphere's centre enters as its
+/// own distance off the axis. `Sign::Zero` is the hypothesis holding.
+///
+/// This is the one metric fact a curved arm needs and cannot read
+/// structurally: the surface KINDS are matched on stored variants, the
+/// nappe on a sign, the material side on a stored bit — but "these two
+/// stored axes are the same axis" is a comparison of placed geometry,
+/// and placement round-off makes exact equality the wrong question.
+/// Deciding it here is what keeps a NON-coaxial pair — whose spine is
+/// neither line nor circle, i.e. the canal family — from being minted
+/// as an exact torus that is not one.
+fn support_coaxiality<T: Decide + Bounds>(
+    edge: EdgeKey,
+    departure: T,
+    band: Band,
+    supports: &'static str,
+) -> Result<(), FilletError> {
+    match decide("fillet3_support_coaxiality", Margin::of(departure), band)
+        .map_err(|e| esc(FilletSite::Chain, e))?
+    {
+        Sign::Zero => Ok(()),
+        _ => Err(FilletError::SpineUnsupported { edge, supports }),
+    }
+}
+
 /// The support-pair → analytic-arm table (C8's list, restricted to
 /// the arms this unit implements). Anything else refuses typed.
+///
+/// The two plane-support rows keep their own closed forms; every curved
+/// pair goes through the shared sheet reduction
+/// ([`super::blend::Meridian`] / [`super::blend::Ruling`]), whose family
+/// is chosen by the RIM CARRIER's own stored shape — a coaxial pair
+/// meets in a circle, a ruled pair in a line.
 ///
 /// The chamfer's table is one row wide and refuses everything else,
 /// with the same shape and the same honesty: a curved support is a
 /// real chamfer whose arm is not built (VERBS-ARMS' machinery), not a
 /// geometry this kernel will approximate.
 #[allow(clippy::too_many_arguments)]
-fn classify_arm<T: Bounds>(
+fn classify_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
     n_a: Vec3<T>,
     sb: &Surface<T>,
     n_b: Vec3<T>,
     // The two supports' stored sense bits, in `(sa, sb)` order.
     senses: (bool, bool),
+    carrier: &Curve3<T>,
     p: Point3<T>,
     tau: Vec3<T>,
+    extent: T,
     radius: T,
     convexity: Convexity,
     edge: EdgeKey,
     kind: BlendKind,
+    band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>), FilletError> {
     let convex = matches!(convexity, Convexity::Convex);
     if matches!(kind, BlendKind::Chamfer) {
@@ -792,10 +849,101 @@ fn classify_arm<T: Bounds>(
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
             Ok((BlendArm::PlaneSphereTorus, b))
         }
-        _ => Err(FilletError::SpineUnsupported {
-            edge,
-            supports: "non-(plane–plane / plane–sphere)",
-        }),
+        _ => curved_arm(sa, sb, senses, carrier, p, extent, radius, edge, band),
+    }
+}
+
+/// Which curved arm a support pair takes in each family, by stored
+/// surface KIND alone — the classification half of the table, keyed so
+/// `trim_a` stays the FIRST support's trimline in every row (the pair
+/// is reduced in the caller's own order, so nothing is swapped).
+fn coaxial_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
+    use Surface::{Cone, Cylinder, Plane, Sphere};
+    match (sa, sb) {
+        (Sphere { .. }, Cone { .. }) | (Cone { .. }, Sphere { .. }) => {
+            Some(BlendArm::SphereConeTorus)
+        }
+        (Cone { .. }, Plane { .. }) | (Plane { .. }, Cone { .. }) => Some(BlendArm::ConePlaneTorus),
+        (Cone { .. }, Cone { .. }) => Some(BlendArm::ConeConeTorus),
+        (Cylinder { .. }, Cone { .. }) | (Cone { .. }, Cylinder { .. }) => {
+            Some(BlendArm::CylinderConeTorus)
+        }
+        (Cylinder { .. }, Sphere { .. }) | (Sphere { .. }, Cylinder { .. }) => {
+            Some(BlendArm::CylinderSphereTorus)
+        }
+        (Cylinder { .. }, Plane { .. }) | (Plane { .. }, Cylinder { .. }) => {
+            Some(BlendArm::CylinderPlaneTorus)
+        }
+        _ => None,
+    }
+}
+
+/// The ruled family's two rows, likewise.
+fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
+    use Surface::{Cylinder, Plane};
+    match (sa, sb) {
+        (Cylinder { .. }, Cylinder { .. }) => Some(BlendArm::CylinderCylinderCylinder),
+        (Cylinder { .. }, Plane { .. }) | (Plane { .. }, Cylinder { .. }) => {
+            Some(BlendArm::CylinderPlaneCylinder)
+        }
+        _ => None,
+    }
+}
+
+/// **The curved-support rows**, all of them: reduce both supports to
+/// their traces in the pair's own sheet, decide the shared-axis
+/// hypothesis, and mint the torus or the cylinder the crossing implies.
+///
+/// The family is read off the rim's stored carrier — a circle puts the
+/// pair in a meridian, a line in a cross-section — so a
+/// `(Cylinder, Plane)` pair takes the torus row when it meets in a
+/// latitude circle and the cylinder row when it meets along a ruling,
+/// with no orientation guessed anywhere.
+#[allow(clippy::too_many_arguments)]
+fn curved_arm<T: Decide + Bounds>(
+    sa: &Surface<T>,
+    sb: &Surface<T>,
+    senses: (bool, bool),
+    carrier: &Curve3<T>,
+    p: Point3<T>,
+    extent: T,
+    radius: T,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<(BlendArm, EdgeBlend<T>), FilletError> {
+    let unsupported = |supports| FilletError::SpineUnsupported { edge, supports };
+    match *carrier {
+        Curve3::Circle { center, axis, .. } => {
+            let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
+            let sheet = Meridian {
+                origin: center,
+                axis,
+                rim: p,
+            };
+            let (Some((ta, da)), Some((tb, db))) =
+                (sheet.trace(sa, senses.0), sheet.trace(sb, senses.1))
+            else {
+                return Err(unsupported(ARM_ROSTER));
+            };
+            support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            Ok((arm, sheet.blend(ta, tb, radius)))
+        }
+        Curve3::Line { dir, .. } => {
+            let arm = ruling_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
+            let sheet = Ruling {
+                tau: dir.normalize(),
+                rim: p,
+                lever: extent,
+            };
+            let (Some((ta, da)), Some((tb, db))) =
+                (sheet.trace(sa, senses.0), sheet.trace(sb, senses.1))
+            else {
+                return Err(unsupported(ARM_ROSTER));
+            };
+            support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
+            Ok((arm, sheet.blend(ta, tb, radius)))
+        }
+        _ => Err(unsupported(ARM_ROSTER)),
     }
 }
 
