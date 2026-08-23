@@ -136,6 +136,22 @@ pub use editor_core::{
     relative_freedom_components, solve_document,
 };
 
+// **The assembly at-rest gate** (A5): `assemble` gathers a document's
+// product, mints every solved mate's declaration into its contact
+// record set, and runs the kernel's own tier-3′ door over the two
+// together — the answer to "is this assembly valid at rest", which the
+// authoring vocabulary above can otherwise construct and not check.
+// `Assembly` is the validated result (body, names, certified records,
+// and one `MintedDeclaration` per mate); `AssemblyError` is the typed
+// refusal, and its arms are not interchangeable — a caller must tell a
+// verdict AGAINST the document (`AtRest`) from the declared
+// direction's frontier (`Uncertified`), which is what `AtRestFinding`
+// and `Attribution` carry per finding. `RefusedRef` says why a mate
+// reference named no product face.
+pub use editor_core::{
+    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+};
+
 // Split and inline: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or

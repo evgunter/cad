@@ -14,8 +14,10 @@ when scheduled; the register never schedules anything itself.
 loft, sweep (straight + curved single-arc path), booleans (planar
 complete; curved per wired germ classes plane×cyl / plane×sphere),
 split, constant-radius edge fillets (**plane–plane and plane–sphere
-supports only, and only on OPEN rims** — see the row below, and the
-lever-arm entry in the defects section) + in-place composition surgery,
+supports only**; closed rims covered on both shapes since VERBS-ARMS-1
+— the N-link ladder rim and the one-edge ANNULUS rim of a full solid of
+revolution, the latter for ANNULAR profiles only, see the row below)
++ in-place composition surgery,
 **symmetric-setback edge chamfers** (`chamfer_edges`, **plane–plane
 supports only, convex chains, open chains between fully-requested
 trivalent corners** — see the row below),
@@ -71,17 +73,27 @@ the table.
   and the false `TangentialEdge` ("the supports share a tangent
   plane", on supports meeting at 30°) is gone — a co-surface seam's
   refusal is now distinguishable from a closed transverse rim's.
-  What REMAINS: no full solid of revolution can be filleted at the
-  verb level. A closed rim is a one-link closed chain, and the
-  surgery's rim door refuses it typed (`UnsupportedChain`, "a closed
-  chain of fewer than two links") because the one-edge torus band is
-  not built; curved support pairs (cone×cylinder etc.) refuse
-  `SpineUnsupported` earlier, at the analytic-arm table. Both
-  remainders are VERBS-ARMS's territory. `klein::wall_probes` walls
-  1 and 2 now agree (`SpineUnsupported` on the full and the partial
-  revolve alike), and
-  `verbs_rim_r1_probes::a_passing_closed_rim_reaches_the_surgery_and_refuses_unsupported_chain`
-  pins the rim door live.
+  What REMAINED at the time, and what VERBS-ARMS-1 then closed: a
+  closed rim is a one-link closed chain, and the surgery's rim door
+  refused it typed because the one-edge torus band was not built.
+  **It is built now** — the ANNULUS band, `rim_phase_annulus` — so a
+  full solid of revolution's plane–sphere latitude rim fillets end to
+  end, tier-3 valid, with mass properties against the closed form
+  (`verbs_rim_r1_probes::a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band`,
+  `crates/sweep/tests/verbs_arms1_annulus.rs`).
+
+  **The bound on that unlock, stated:** it covers profiles that are
+  ANNULAR (off the axis). A profile that touches the axis mints
+  HALF-walls — two seam azimuths — so its equator is not a closed edge
+  at all but two open arcs over two half-disc supports, and it still
+  refuses typed
+  (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_refuses_typed`).
+  Two closed rims sharing one wall in ONE call also refuse typed, at an
+  upfront gate naming the sequential-call recourse, which composes
+  exactly (#935 is the one-call widening). Curved support pairs
+  (cone×cylinder etc.) still refuse `SpineUnsupported` earlier, at the
+  analytic-arm table — VERBS-ARMS-2's territory — and
+  `klein::wall_probes` walls 1 and 2 still agree there.
 - **`mesh::planar`'s banked sub-floor case is no longer synthetic.**
   That module's docs bank exactly one uncovered class — a planar
   face whose boundary points carry off-plane noise, where the chart

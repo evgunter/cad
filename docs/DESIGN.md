@@ -256,7 +256,30 @@ component-aware E–P form found and corrected in M1 PR 4).**
    residual certification, plus the **material wedge-angle
    predicate** — at every edge the material wedge ∈ (0, 2π), bounded
    away from the ends by the derived threshold θ = ε/r; wedge = π is
-   the legal smooth-seam case (ratified in PR #15's conversation).
+   the legal smooth-seam case (ratified in PR #15's conversation);
+   and the ends carry a **declared second-order arm** (ratified with
+   Evan 2026-08-23, closing #131): wedge = 0 (a cusp — two kissing
+   cylinders with one side cut away) and wedge = 2π (a knife slit,
+   the cusp's `revert` image — revert is an involution, so the two
+   are legal together or not at all) are legal iff the tangency is
+   **declared** (the C7 `Tangent` contact vocabulary — never
+   inferred from values, per the coincidence ladder) and
+   **jet-determinate**: quadratic transverse separation with κ_rel
+   bounded away from zero — `TangentIntersection`'s own margin, so
+   the declaration verifies against the same second-order schedule
+   and the cusp edge's honest description IS `TangentIntersection`.
+   In-band κ_rel (osculation) escalates; an undeclared cusp refuses.
+   The arm admits no laminae — conformal contact over a patch fails
+   the curve-locus condition, so zero-volume bodies stay geometric
+   defects and the PR #15 rationale for the bound is untouched. A
+   doubled cusp (two material wedges on one tangent line — the
+   kissing union, a slit interior to material) is not one 4-face
+   edge but F2's coincident-distinct-edges class, each edge
+   classifying separately under this rule. Consumers with no
+   wedge-0/2π answer (fillet, offset, mesh sizing, sector
+   classification, …) refuse typed at the consumer. Implementation
+   is banked at #941; the deferred material-side check adopts this
+   verdict table when built.
    M2 classifies the tangent-plane wedge; the 0-vs-2π lamina side
    distinction needs pcurves (M3+). Also at tier 3 (M2 additions):
    **prefer-intrinsic enforcement** (definitely-transverse edges must

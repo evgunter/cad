@@ -4,8 +4,10 @@ A visual tour of what the kernel can do today, from a pure outside
 consumer's seat: sweep bodies through the public `profile` / `sweep`
 APIs, a boolean leg through the M3 `union` / `subtract` / `intersect`
 ops (boolean-of-boolean chains included), the first `topo::split`
-cutaway, and the M4 recipe layer (editor-core document, structural
-edit, downstream-only recompute, stable names) — narrated (operations
+cutaway, the M4 recipe layer (editor-core document, structural
+edit, downstream-only recompute, stable names), and the assembly layer
+(a workspace of pinned part documents, instances, patterns, mates
+solved constructively, split/inline, the pin-update door) — narrated (operations
 used, topology census + genus, validation tiers passed, exact-vs-meshed
 mass properties), exported as binary STL + AP214 STEP, and rendered to
 PNG.

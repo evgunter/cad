@@ -372,3 +372,63 @@ owns the guard, ASM's two mesh features already covered).
 PROTOCOL: claims through 56 (LIB-PYPU); next third = 57 (dual,
 cross-model per #572 until 12 pairs — 5 done). Schema at v14
 (ASM-R2b); the by-eye read is the only guard.
+
+## Seam: new orchestrator; TESS-SPLIT spec reconciled (2026-08-23)
+
+Session resumed off #611 after the five-day gap. Main's motion in
+between was SMELL-SCAN, VERBS, and LIB — no ASM state moved, but
+three of its neighbors did: protocol is now v5 (style lane, seam
+2026-08-18 — review figures not comparable across it), claims run
+through 62 (ARCEVAL; 63 is the next third — dual, cross-model per
+#572, 7 pairs done), and `crates/mesh` took the smell-scan style
+passes, the #884 Tol-witness threading, and VERBS-ARMS — so
+TESS-SPLIT's implementer merges a moved substrate. #735 deleted
+ASM-R2a's never-constructed `PairSolve` (provenance + recovery
+SHA on #611's comments; re-mint against a real caller if
+ASM-XSPLIT wants one, don't restore). The queue's step 1
+discharged: TESS-SPLIT-SPEC reconciled with the sliver lesson —
+new D-1a states the two aspect quantities (A=16 FFF cell cap,
+ratified #568, vs realized lattice `s_u/s_v` against
+`SAFE_ASPECT`) and binds both, with the snap machinery kept in
+force, alignment named as the safety where the cap exceeds the
+sliver line, and constraint-active metering split by WHICH bound
+was active; rows 9 (executed sliver safety) and 10 (#782's
+swept-blade finding-13 drift — diagnose then re-pin) added; the
+dangling deleted-spec references (TESS-SPAN-SPEC, ASM-4-SPEC)
+re-anchored to the living code sites and
+docs/prompts/implementer-discipline.md. Next: land the spec on
+main, dispatch TESS-SPLIT (fable, block ASM-4 slot 1, standing
+draw); then the R2 exit walk + assembly demo; ASM-XSPLIT spec
+after.
+
+## Seam addendum: both lanes dispatched (2026-08-23)
+
+Spec landed (#936, merge 7e39b2ed). TESS-SPLIT dispatched (lane
+asm/tess-split, fable, slot 1's standing claim). In parallel,
+**ASM-DEMO** dispatched (lane asm/demo, block ASM-4 slot 3 =
+opus, M / STRUCTURAL pre-logged): the R2 exit demo, brief-as-spec
+— author a real assembly through the public API per the
+demo-purpose rule (two+ part docs by pin, a Pattern, a
+constructively-solving mate chain, materialization with
+instance-qualified names + the A5 at-rest gate, three+ typed
+v1-boundary refusals with recourse naming rungs, split/inline
+acceptance at demo scale, an A13 update-edit with
+re-verification, schema round-trip), NO kernel changes (a needed
+one is a STOP-and-report exit-walk finding), awkwardness
+gap-commented and reported never absorbed, Python-reachability
+surveyed and recorded (bindings gaps filed to LIB, not
+implemented), CI-armed-vs-unarmed assertions stated per #782.
+The exit-walk document (criteria-vs-evidence per the M8
+convention, ASM-PLAN's exit-shape paragraph verbatim) is
+orchestrator work once the demo lands; the walk PR is a design
+conversation — Evan's sign-off closes the program, no self-merge.
+Reviews queue behind both PRs (ordinals claimed from main at each
+review dispatch; 63 = the next third, dual cross-model).
+
+### Seam correction (2026-08-23): ordinals renumbered 63→66, 64→67
+
+The VERBS collision (#952 comment; SSIFLAT/ARMS1/RING recorded
+late via #940, dispatched earlier). ASM-DEMO's dual = ordinal 66,
+sample #21, ninth cross-model pair; TESS-SPLIT's single = 67.
+Dispatches unchanged; the correction entry in MODEL-AB-LOG is
+normative.

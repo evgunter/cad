@@ -379,6 +379,115 @@ is isolated into ARMS-3 as a design conversation. ARMS-1
 difficulty L logged pre-draw; consumes block VERBS-2 slot 3; lane
 verbs-arms1 next.
 
+## SSIFLAT up (#931); ordinal-63 cross-model dual out (2026-08-22)
+
+SSIFLAT complete at 2041b083: the diagnostic payload reuses
+MarginDiag itself (None / Some(Enclosure{lo,hi}) / Some(Invalid) —
+poison finally distinguishable from width), pcurve_cache.rs proven
+the only lossy projection (blind spot honestly stated), the #925
+row re-scoped as a TERMINAL sliver (degenerate enclosure wholly
+inside the open band — not refinable, D4 ¶3), try_build split
+keeps f64 rows untouched, plant-verified. The lane self-reported a
+process error (checkout -- destroyed its own uncommitted fix
+mid-plant; caught via diff --stat, re-applied, and the later plant
+done commit-first) — the right order is now in its report for the
+record. Hosted draw missed 1e-12 for the third consecutive unit
+(interval lane pinned, ε drew default each time — an observation
+for the sampling regime's owner if it persists). **Ordinal 63
+claimed → a third → DUAL, CROSS-MODEL** (R1 fable + R2 opus,
+frozen 2041b083, lanes verbs-ssiflat-r1/-r2); the 1e-12
+unique-signal run is in both charters. Six agents live (4 impl/
+review + RING + DEMO + ARMS-1 pending reports).
+
+## Ordinal-63 dual returned; SSIFLAT fix pass out (2026-08-22)
+
+R1 fable APPROVE 0/2/1; R2 opus AWF 3/4/3 — the pair's label
+divergence comes with a direct judgment contradiction worth the
+variance record: R1 rated idiom 5/5 for "reusing the classifier's
+vocabulary" while R2 proved the enum already held a LOSSLESS
+sibling variant (Escalated{cause: Indeterminate}) and a
+zero-consumer purpose-built renderer (IndeterminatePayload) that
+the PR bypassed for a third hand-rolled form dropping the band.
+Both converged on the definite-refusal arms' Value-projection
+dishonesty; R2's probe reached a surviving manufactured-NaN
+instance (the empty tube ladder's structural CertificateLimb) from
+a public door; both found the row's ε-regime fragility by
+different mechanisms (1e-13 red via MapResidual; ≤1.8e-13 definite
+via CertificateLimb). R1's full-suite 1e-12 runs established
+(interval, 1e-12) CLEAN pending this unit's merge. Fix pass
+dispatched with the 8-item union incl. one class issue for the
+bare-f64 margin-field family both reviewers enumerated. ARMS-1
+landed as PR #932 meanwhile (CI running, report pending).
+
+## ARMS-1 report in; ordinal-64 review out (2026-08-22)
+
+PR #932 green (second run — the first tripped clippy/rustdoc on an
+exhaustive-match consumer, fixed at cause). The report's headlines:
+the annulus band mints via six Euler moves at the seam azimuth
+(census 4/8/4 → 5/10/5, χ = 0, volume_pad exactly 0.0 because a
+SEAM split keeps both supports iso-rectangles); open/N-link paths
+bit-identical via structural RimShape dispatch + verbatim lifts;
+the wrap-around G1 reuses the existing predicate names; the torus
+net landed in tier-3 check 1 with a planted horn red. Four
+disclosed deviations, the substantive one being deviation 3:
+plane_sphere_blend silently assumed the POCKET configuration and
+the dome exposed it — fixed by reading the material side from the
+sphere face's stored sense bit (R ∓ r fold, pocket branch
+bit-identical). Banked: every full-revolve wall is a 4-half-edge
+cycle with empty face.rings (ARMS-2's consumers will all be this
+shape); the same silent-side question must be asked of every arm
+ARMS-2 adds. **Ordinal 64 claimed** — not a third — single fable
+review at frozen f8f97d8e, lane verbs-arms1-r1, probe branch
+verbs/arms1-r1-probes. RING's PR #933 opened meanwhile (CI
+running, report pending); SSIFLAT fix pass still working.
+
+## RING report in; ordinal-65 review out (2026-08-22/23 boundary)
+
+PR #933 green at b4f5c264. Headlines: the door's evidence-typed
+contract (Probed | Carried{sign}; the door never derives
+containment — #750 fenced out by design); the WINDING INVERSION
+discovery (holes traverse forward while classify_loop keeps
+reverse=true — the seam-surgery docs never mentioned winding, and
+feeding holes through unmodified would mint every cavity wall
+inside-out); the imagined same-body zip is IMPOSSIBLE (the hole's
+revolved band is a disconnected component — landing it as an
+interior shell IS the door's job, vindicating the ratified
+architecture); its first CI draw hit (interval,1e-12) and was
+handled per the enumerated-red process. DESIGN doc-syncs called
+out for Evan in the PR. **Ordinal 65 claimed** — not a third —
+single fable review at frozen b4f5c264, lane verbs-ring-r1.
+Three reviews/fix-passes now in flight (64 ARMS-1, 65 RING,
+SSIFLAT fix pass); DEMO part 2 unlocks at RING's merge.
+
+## SSIFLAT MERGED (#931, 2026-08-23) — #925 CLOSED; (interval, 1e-12) CLEAN
+
+Row SSIFLAT (ordinal 63, sample #20, the EIGHTH cross-model pair)
+in MODEL-AB-LOG. The fix pass's rework made IndeterminatePayload's
+first consumer real; both structural NaN mints fixed at source;
+#934 carries the class. R1's full-suite runs establish the
+(interval, 1e-12) point CLEAN on main after this merge — the #921
+saga that began with the chamfer's unlucky draw is fully resolved.
+Process findings recorded: adopted reviewer probes import their
+own gate debt; and the FOURTH consecutive default-ε draw on
+1e-12-subject units is a sampling-regime gap (reported to #915's
+thread with the suggested ε-pin analog of _forces_interval).
+Seam sweep: i921 lane. In flight: RING review (65), ARMS-1 fix
+pass (#935 filed as its scheduled follow-up).
+
+## ARMS-1 MERGED (#932, 2026-08-23) — the #554 verb-level unlock LANDS
+
+**fillet_edges works on full solids of revolution** (annular
+profiles — the bound stated everywhere it matters). #889 closed.
+Row ARMS1 (ordinal 64) in MODEL-AB-LOG. The review proved
+bit-identity with a byte-faithful dumper and confirmed the
+sense-bit configuration fix as the PR's strongest part; the one
+MAJOR (shared-wall double-rim staleness) closed as an honest
+upfront gate with the capability scheduled as #935. Seam sweep:
+verbs-arms1 + verbs-arms1-r1 lanes. Remaining in flight: RING
+review (ordinal 65) — DEMO part 2 unlocks at its merge; then
+ARMS-2 (the coaxial arms, now with their consumer shape known:
+every full-revolve wall is a 4-half-edge cycle with empty rings).
+
 ## VERBS-RING implemented (2026-08-22, lane verbs-ring)
 
 The door: `topo::boolean::voids::insert_void` — evidence check
