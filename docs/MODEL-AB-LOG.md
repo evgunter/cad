@@ -1296,3 +1296,23 @@ retiring would move geometry while changing no observable; the
 Q3 region-unconfined strength exhibited via a zero-overlap-area
 line-contact pair, the sharpest honest answer to the ratified
 falsification question). Row at merge.
+
+M9-3 unit review ordinal fixed at dispatch (2026-08-23, PR #971
+open — the unit's PR-B head, reviewing the WHOLE unit per the
+spec's unit-level review ruling; frozen head 206436ee): main
+claimed through 71 (CENSUS-REST) with 69 (TUBEWALL dual) + 70
+(ARMS-2) in flight, so this claim = **72 → DUAL (the next third
+after 69), CROSS-MODEL per the v4-item-1(c) suspension — R1
+fable + R2 opus, concurrent same-head; sample number by ordinal
+position = #23, the 11th cross-model pair** (the 12-pair target
+is ONE pair away after TUBEWALL@69 completes — whoever records
+the twelfth notifies Evan explicitly). v5 instrument, both
+briefs identical. Pre-draw fields logged at the spec seam:
+unit L (PR-A M-L), STRUCTURAL, FABLE (block M9-16 slot 1).
+Implementer reports: PR-A seven deviations (all reported; fix
+rounds none — orchestrator meta-review accepted), PR-B five (all
+loud; headline: fixture (ii) realized on DEV-1 carriers with the
+coaxial cyl×sphere witness-lane widening STOP-reported as the
+named follow-up; one moved baseline — the m5_s1 annular row
+retired-to-green with an exact-volume + tier-3 oracle). Row at
+merge.
