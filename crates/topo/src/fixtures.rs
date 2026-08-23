@@ -83,6 +83,22 @@ pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom::Surface<f64> {
     geom::Surface::nurbs_placeholder()
 }
 
+/// A raw plane SURFACE fixture (an operation input, not a face datum —
+/// it belongs to no body, so there is no sense bit to fold and no
+/// outward normal to mint; suites that need a material side for it
+/// state one explicitly at the call site).
+pub(crate) fn plane_surface(
+    origin: Point3<f64>,
+    normal: geom_core::Vec3<f64>,
+    u_ref: geom_core::Vec3<f64>,
+) -> geom::Surface<f64> {
+    geom::Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    }
+}
+
 /// All ten arena lengths of a body: the seven topology arenas, held as
 /// the crate's one [`ArenaCounts`], plus the three geometry arenas.
 /// The "body unchanged" snapshot of the atomicity tests, and the delta
