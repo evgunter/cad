@@ -261,5 +261,8 @@ mod m9_2_chart_region_loft;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "m9_3_zip.rs"]
+mod m9_3_zip;
+
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

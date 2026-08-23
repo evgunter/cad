@@ -161,16 +161,34 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         return Ok(None); // no opposite-oriented contact declared
     }
 
-    // Vertex correspondence across the mate, operand keys.
+    // Vertex correspondence across the mate, operand keys — record
+    // data end to end (F9): the segment end sites, EXTENDED by the
+    // reduction's own v-v contact records. A coincident vertex pair
+    // INTERIOR to the contact region (e.g. a peg-root rim vertex on
+    // the mating plane) has a v-v record but no crossing at its site,
+    // so no null pair and no segment names it — and the glue still
+    // fuses it when the interior curve network zips. Never geometric
+    // point matching.
     let mut vcorr: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
+    let mut correspond = |a: VertexKey, b: VertexKey| -> Option<()> {
+        match vcorr.get(a) {
+            Some(&prev) if prev != b => None, // mis-paired: not ours
+            _ => {
+                vcorr.insert(a, b);
+                Some(())
+            }
+        }
+    };
     for s in &segments {
         for (a, b) in [(s.a_u, s.b_u), (s.a_v, s.b_v)] {
-            match vcorr.get(a) {
-                Some(&prev) if prev != b => return Ok(None), // mis-paired: not ours
-                _ => {
-                    vcorr.insert(a, b);
-                }
+            if correspond(a, b).is_none() {
+                return Ok(None);
             }
+        }
+    }
+    for c in &red.contacts.vv {
+        if correspond(c.a, c.b).is_none() {
+            return Ok(None);
         }
     }
 
@@ -260,12 +278,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
-        let shared = shared_run(&body, fa, fb)?;
-        let rep = if shared.is_empty() {
-            zip_seam(&mut body, fa, fb, &vmap, tol)?
-        } else {
-            slit_zip(&mut body, fa, fb, &shared, &vmap, tol)?
-        };
+        let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
         for &e in &rep.interior_edges {
@@ -1282,15 +1295,6 @@ fn patch_faces<T: Decide>(
     if !found {
         return Ok(None);
     }
-    // Patch faces must be plain disks for the glue (outer cycle only).
-    for &f in &patch {
-        let fd = body
-            .get_face(f)
-            .ok_or_else(|| desync("REST lane: patch face vanished"))?;
-        if !fd.rings.is_empty() {
-            return Err(unsupported("contact patch face carries rings"));
-        }
-    }
     Ok(Some(patch))
 }
 
@@ -1474,6 +1478,112 @@ fn shared_run<T: Decide>(
     let eb = cycle_edges(fb)?;
     let eb_set: SecondaryMap<EdgeKey, ()> = eb.iter().map(|&e| (e, ())).collect();
     Ok(ea.into_iter().filter(|e| eb_set.contains_key(*e)).collect())
+}
+
+/// Glues one patch pair, rings included. A multiply-connected patch
+/// face's interior boundaries (rings — e.g. the peg-root rims inside
+/// a mating plane) are each their own antiparallel-congruent cycle
+/// pair across the mate: every ring on both sides is PROMOTED to a
+/// transient face first (`mfkrh`), the outer pair glues through the
+/// seam zip or the slit zip (as the already-fused runs dictate), and
+/// the promoted pairs then glue the same way — the same-shell
+/// `kfmrh` inside those glues is where the mate's genus bookkeeping
+/// lives (a filled through-peg's handle).
+fn glue_pair<T: Decide>(
+    body: &mut Body<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    vmap: &SecondaryMap<VertexKey, VertexKey>,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    let rings_of = |body: &Body<T>, f: FaceKey| -> Result<Vec<LoopKey>, BooleanError> {
+        Ok(body
+            .get_face(f)
+            .ok_or_else(|| desync("REST lane: glue face vanished"))?
+            .rings
+            .clone())
+    };
+    let mut ga: Vec<FaceKey> = Vec::new();
+    let mut gb: Vec<FaceKey> = Vec::new();
+    for r in rings_of(body, fa)? {
+        ga.push(
+            body.mfkrh(r, FaceSurface::Inherit)
+                .map_err(|_| desync("REST lane: ring promotion refused"))?
+                .face,
+        );
+    }
+    for r in rings_of(body, fb)? {
+        gb.push(
+            body.mfkrh(r, FaceSurface::Inherit)
+                .map_err(|_| desync("REST lane: ring promotion refused"))?
+                .face,
+        );
+    }
+    if ga.len() != gb.len() {
+        return Err(unsupported(
+            "patch pair carries differing interior-boundary counts",
+        ));
+    }
+    let shared = shared_run(body, fa, fb)?;
+    let mut report = if shared.is_empty() {
+        zip_seam(body, fa, fb, vmap, tol)?
+    } else {
+        slit_zip(body, fa, fb, &shared, vmap, tol)?
+    };
+    // Pair the promoted transients by exact antiparallel vertex-cycle
+    // congruence through the seam correspondence (the same test the
+    // patch pairing ran on the outers) and glue each pair.
+    let mut used: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    for &da in &ga {
+        let starts = cycle_starts(body, da)?;
+        let mapped: Vec<VertexKey> = starts
+            .iter()
+            .map(|&v| {
+                vmap.get(v)
+                    .copied()
+                    .ok_or_else(|| unsupported("ring boundary vertex without a seam correspondent"))
+            })
+            .collect::<Result<_, _>>()?;
+        let n = mapped.len();
+        let mut matched = None;
+        'cand: for &db in &gb {
+            if used.contains_key(db) {
+                continue;
+            }
+            let bs = cycle_starts(body, db)?;
+            if bs.len() != n {
+                continue;
+            }
+            let Some(idx) = bs.iter().position(|&w| w == mapped[0]) else {
+                continue;
+            };
+            for (t, m) in mapped.iter().enumerate() {
+                if bs[(idx + n - (t % n)) % n] != *m {
+                    continue 'cand;
+                }
+            }
+            matched = Some(db);
+            break;
+        }
+        let Some(db) = matched else {
+            return Err(unsupported("ring cycles not congruent across the mate"));
+        };
+        used.insert(db, ());
+        let shared = shared_run(body, da, db)?;
+        let rep = if shared.is_empty() {
+            zip_seam(body, da, db, vmap, tol)?
+        } else {
+            slit_zip(body, da, db, &shared, vmap, tol)?
+        };
+        report
+            .vertex_merges
+            .extend(rep.vertex_merges.iter().copied());
+        report.seam_edges.extend(rep.seam_edges.iter().copied());
+        report
+            .interior_edges
+            .extend(rep.interior_edges.iter().copied());
+    }
+    Ok(report)
 }
 
 /// Glues one patch pair adjacent along ALREADY-FUSED seam runs: the
