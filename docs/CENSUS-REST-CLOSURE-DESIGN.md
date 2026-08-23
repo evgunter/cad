@@ -81,6 +81,32 @@ residue.
   boolean/{mod,reduce,vtxfac,recl,rest,zip,ops}.rs and only READS
   the census doors. Parallel dispatch is safe.
 
+## Evan's latitude notes (in-chat, 2026-08-23) — folded as constraints
+
+Two steers given before the questions were answered, held as
+binding latitude by everything below:
+
+1. **Refactoring the contact machinery is sanctioned** where it
+   makes contacts easier to SHARE between glued pieces (the
+   boolean lane) and assemblies (the at-rest lane). The records
+   are already one currency (A3); the latitude is about the
+   CERTIFICATION path — a shared verification home is in-scope if
+   it simplifies, though neither gap's minimal fix requires it.
+2. **For conformal contact, an approximation is acceptable when
+   it is everywhere within ε of correct.** Read as: Door 1 (the
+   carrier ladder — IS this one carrier?) stays exact/certified;
+   Door 2 (does the trim overlap have positive area?) may run a
+   CERTIFIED approximation with an everywhere-ε error bound.
+   Consequence, and it narrows option B's rejection below: what
+   C3 rejected by name is the UNCERTIFIED "margined pseudo-exact
+   test in whichever chart we happened to pick"; a certified
+   everywhere-within-ε overlap enclosure is a different shape and
+   is now sanctioned in principle. That makes the cross-instance
+   CURVED residue CLOSABLE (a future certified-ε rung), not
+   permanently refused — Q2 is reframed accordingly. The planar
+   arm (option A) stays preferred where it applies because it
+   needs no approximation at all.
+
 ## Proposed ruling U-R1 (gap 1) — the forced closure, dominant argument
 
 Extend the existing face rung to the two places it visibly stops
@@ -156,25 +182,33 @@ adjacents without touching the join lane's critical path. Gap 1
 dispatches on U-R1's pushback window opening; gap 2 dispatches
 only on U-R2's ratification.
 
-## Questions for Evan
+## Questions for Evan (restated concretely, 2026-08-23, after the latitude notes)
 
-1. **U-R2's load-bearing claim**: for a declared+Door-1-verified
-   PLANAR pair, the shared world carrier is a chart free of
-   parameter ambiguity, so region overlap on it is the same
-   exactness class as the one-body planar lane (F5 `contfp`
-   parity — no margined transfer). Accept or refute — this is the
-   C3/C4 revision's whole content.
-2. **The curved boundary**: cross-instance CURVED declared Rest
-   stays refused under U-R2. Permanent posture, or named residue
-   for a future rung (the seam-normalization / inf-bounds era)?
-   Proposed: named residue, stated in C3's revision.
-3. **Gap 1's rung strength**: the new rung is structural-incidence
-   (like the existing two), NOT confined to the declared
-   interface region. Consistent with today's rungs — but it
-   should be a stated sentence in the census docs, not an
-   accident. Confirm.
-4. **Where the revised D4 derivation lives**: today it is
-   census-module-doc-pinned only. Keep it there (module docs stay
-   the derivation of record), or lift the at-rest sentence into
-   CONTACT-DESIGN alongside C3? Proposed: keep module-doc, add
-   one C3 cross-reference line.
+1. **May Door 2 test planar overlap in WORLD space?** Today two
+   mated faces must live in one chart (shared surface key, or the
+   same recipe source) before their trims are even compared; two
+   instances of one part never satisfy that, so the pair refuses.
+   For PLANES, the proposal is: once Door 1 has certified "one
+   carrier," compare the two trims directly on that shared plane
+   in world coordinates — the same F5 parity walk the one-body
+   planar lane runs, no approximation involved. C3/C4's wording
+   changes from "chart-space overlap" to "overlap on the verified
+   shared carrier." Yes/no.
+2. **The curved residue's status**: cross-instance CURVED
+   declared Rest (a cylinder seated in a bore across two
+   instances) stays refused in this unit. Under your ε-note it is
+   CLOSABLE later by a certified everywhere-within-ε overlap
+   enclosure on the shared curved carrier. Proposed: named
+   residue with that closing shape recorded as sanctioned —
+   confirm, or ask for the ε-rung now (it would grow this from M
+   to L and add the enclosure design).
+3. **Gap 1's rung strength**: the new backing rung fires when a
+   declared face pair holds the vertex on one boundary and the
+   edge on the other, WITHOUT checking where on the face the
+   event lies — the same strength as the two existing face rungs.
+   OK as a stated sentence? (Strengthening it to region-confined
+   would be new machinery the existing rungs don't have.)
+4. **Bookkeeping**: the corrected D4 derivation stays in the
+   census module docs with a one-line C3 cross-reference
+   (proposed), or gets lifted into CONTACT-DESIGN. 👍 on the PR
+   comment = the proposal.
