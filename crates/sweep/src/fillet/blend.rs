@@ -525,8 +525,22 @@ pub fn sheet_center<T: Real>(
             let d = n_a.dot(n_b);
             rim - (n_a * (s_a - s_b * d) + n_b * (s_b - s_a * d)) * (radius / (one - d * d))
         }
-        (Straight { normal, side }, Round { center, radius: rr, side: sr })
-        | (Round { center, radius: rr, side: sr }, Straight { normal, side }) => {
+        (
+            Straight { normal, side },
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+        )
+        | (
+            Round {
+                center,
+                radius: rr,
+                side: sr,
+            },
+            Straight { normal, side },
+        ) => {
             // The circle's outward unit at the rim, and the line's own
             // direction in the sheet (orientation-free: `lambda` flips
             // with `t`, so `t * lambda` does not).

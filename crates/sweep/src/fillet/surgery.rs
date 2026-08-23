@@ -742,8 +742,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // resolves against the wall shape rather than the ring one — and it
     // asks nothing about either support's kind.
     if chain.link_count() == 1 {
-        let a_planar = is_plane(link0.face_a)
-            .ok_or_else(|| not_intact(EntityId::Face(link0.face_a), "a rim link's first support"))?;
+        let a_planar = is_plane(link0.face_a).ok_or_else(|| {
+            not_intact(EntityId::Face(link0.face_a), "a rim link's first support")
+        })?;
         let b_planar = is_plane(link0.face_b).ok_or_else(|| {
             not_intact(EntityId::Face(link0.face_b), "a rim link's second support")
         })?;
@@ -975,9 +976,8 @@ fn resolve_annulus<T: Decide + Bounds>(
     } else {
         ed.he_plus
     };
-    let mate_loop = loop_of_half(body, mate_half).ok_or_else(|| {
-        not_intact(EntityId::HalfEdge(mate_half), "a rim edge's mate-side half")
-    })?;
+    let mate_loop = loop_of_half(body, mate_half)
+        .ok_or_else(|| not_intact(EntityId::HalfEdge(mate_half), "a rim edge's mate-side half"))?;
     let host_seam = wall_seam(body, host_loop, link0.edge, vertex)?;
     let mate_seam = wall_seam(body, mate_loop, link0.edge, vertex)?;
     // The rim vertex carries the rim and the two seams and nothing else:
@@ -1039,11 +1039,7 @@ fn wall_seam<T: Decide>(
 }
 
 /// The half-edge of `link.edge` lying on face `host`'s side.
-fn host_side_half<T: Decide>(
-    body: &Body<T>,
-    link: &Link<T>,
-    host: FaceKey,
-) -> Option<HalfEdgeKey> {
+fn host_side_half<T: Decide>(body: &Body<T>, link: &Link<T>, host: FaceKey) -> Option<HalfEdgeKey> {
     if link.face_a == host {
         Some(link.he_plus)
     } else {
@@ -2264,12 +2260,8 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         };
         Ok((created.vertex, rim_side, far_side))
     };
-    let (vs, mate_rim_side, mate_far_side) = split(
-        body,
-        ann.mate_seam,
-        mate_foot,
-        "annulus mate seam split",
-    )?;
+    let (vs, mate_rim_side, mate_far_side) =
+        split(body, ann.mate_seam, mate_foot, "annulus mate seam split")?;
     let (vp, host_rim_side, host_far_side) =
         split(body, ann.host_seam, host_foot, "annulus host seam split")?;
 
@@ -2333,12 +2325,8 @@ fn rim_phase_annulus<T: Decide + Bounds>(
             ed.he_plus
         }
     };
-    let mate_loop = loop_of_half(body, mate_half).ok_or_else(|| {
-        not_intact(
-            EntityId::HalfEdge(mate_half),
-            "a rim edge's mate-side loop",
-        )
-    })?;
+    let mate_loop = loop_of_half(body, mate_half)
+        .ok_or_else(|| not_intact(EntityId::HalfEdge(mate_half), "a rim edge's mate-side loop"))?;
     let ts = trim_circle(
         body,
         mate_loop,
@@ -2414,8 +2402,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // not a death.
     rec.rim_feet.push((vp, ann.vertex));
     rec.meridian_splits.push((vs, ann.mate_seam));
-    rec.meridian_remnants
-        .push((mate_far_side, ann.mate_seam));
+    rec.meridian_remnants.push((mate_far_side, ann.mate_seam));
     rec.meridian_remnants.push((host_far_side, ann.host_seam));
     rec.rim_trims.push((tp.edge, l0.edge, RimSide::Plane));
     rec.rim_trims.push((ts.edge, l0.edge, RimSide::Sphere));
