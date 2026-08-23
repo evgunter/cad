@@ -200,7 +200,8 @@ fn corner_cut(big_r: f64, r: f64, y_p: f64, sign: f64) -> f64 {
 /// The unfilleted washer volume between `y_lo` and `y_hi` against a
 /// bore of radius `bore`, sphere radius `big_r` about the origin.
 fn washer(big_r: f64, bore: f64, y_lo: f64, y_hi: f64) -> f64 {
-    PI * (big_r * big_r * (y_hi - y_lo) - (y_hi.powi(3) - y_lo.powi(3)) / 3.0
+    PI * (big_r * big_r * (y_hi - y_lo)
+        - (y_hi.powi(3) - y_lo.powi(3)) / 3.0
         - bore * bore * (y_hi - y_lo))
 }
 
@@ -268,9 +269,8 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
     );
     let props = mass_properties(&second.body, tol()).expect("mass properties");
     assert_eq!(props.volume_pad, 0.0);
-    let expect = washer(2.0, 0.6, -0.5, 1.0)
-        - corner_cut(2.0, r, -0.5, 1.0)
-        - corner_cut(2.0, r, 1.0, -1.0);
+    let expect =
+        washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
     assert!(
         (props.volume - expect).abs() <= 1e-12 * expect,
         "zone: got {}, closed form {expect}",
@@ -364,9 +364,7 @@ fn near_limit_radii_refuse_typed() {
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
     match fillet_edges(&body, &[rim], 0.45, band(), tol()) {
-        Err(
-            FilletError::SpineIrregular { .. } | FilletError::FaceClearanceUncertified { .. },
-        ) => {}
+        Err(FilletError::SpineIrregular { .. } | FilletError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
@@ -424,9 +422,8 @@ fn the_partial_zone_refuses_through_its_own_gates() {
         })
         .expect("an open plane–sphere arc");
     match fillet_edges(&body, &[open_arc], 0.08, band(), tol()) {
-        Err(
-            FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. },
-        ) => {}
+        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
+        }
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
 }
