@@ -130,6 +130,18 @@ pub struct Nurbs {
     /// type rather than in a float, so no arithmetic can read it as a
     /// small number.
     pub worst_dev: Option<f64>,
+    /// Bands the shipped schedule emitted.
+    pub bands: f64,
+    /// The constraint-activity indicator (TESS-SPLIT): bands whose
+    /// step selection the 3-D aspect cap clamped.
+    pub cap_bands: f64,
+    /// Bands whose column count the malign-band snap raised.
+    pub snap_bands: f64,
+    /// Max over bands of the emitted lattice's post-`ceil` spacing
+    /// ratio `s_u/s_v`. Reported, not judged here: the sliver-safe
+    /// line lives at `mesh::nurbs_cert::SAFE_ASPECT` and is read
+    /// there, never from a copy in this crate.
+    pub realized_aspect: f64,
 }
 
 impl Row {
@@ -209,6 +221,12 @@ enum Admissible {
     /// A sampled deviation: finite and non-negative, or `NaN` for "the
     /// sweep did not resample".
     OptionalDeviation,
+    /// A constraint-activity count: finite, non-negative (zero is an
+    /// inactive constraint, which is a reading).
+    Count,
+    /// A realized lattice aspect: finite and above zero (every band
+    /// has nonempty extents over counts floored at one).
+    Aspect,
 }
 
 impl Admissible {
@@ -219,6 +237,8 @@ impl Admissible {
             Self::Target => v.is_finite() && v > 0.0,
             Self::Certificate => v.is_finite() && v >= 0.0,
             Self::OptionalDeviation => v.is_nan() || (v.is_finite() && v >= 0.0),
+            Self::Count => v.is_finite() && v >= 0.0,
+            Self::Aspect => v.is_finite() && v > 0.0,
         }
     }
 
@@ -231,12 +251,14 @@ impl Admissible {
             Self::OptionalDeviation => {
                 "a deviation, finite and non-negative, or NaN for an unresampled sweep"
             }
+            Self::Count => "a constraint-activity count, finite and non-negative",
+            Self::Aspect => "a realized aspect, finite and above zero",
         }
     }
 }
 
 /// Where the sizing block starts in [`EXPECTED_HEADER`].
-const SIZING_FIRST: usize = 15;
+const SIZING_FIRST: usize = 17;
 
 /// The sizing block — every column [`Nurbs`] is parsed from, in
 /// [`EXPECTED_HEADER`]'s order, with what each may say. One table
@@ -251,6 +273,19 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
     ("span_opt_cells", Admissible::CellCount),
     ("worst_cert", Admissible::Certificate),
     ("worst_dev", Admissible::OptionalDeviation),
+];
+
+/// Where the constraint-activity indicator block starts in
+/// [`EXPECTED_HEADER`] (TESS-SPLIT D-3), after `dev_samples`.
+const INDICATOR_FIRST: usize = 24;
+
+/// The indicator block, policed exactly as [`SIZING_COLUMNS`] is —
+/// NURBS-only, all present or all absent with the sizing block.
+const INDICATOR_COLUMNS: [(&str, Admissible); 4] = [
+    ("bands", Admissible::CellCount),
+    ("cap_bands", Admissible::Count),
+    ("snap_bands", Admissible::Count),
+    ("realized_aspect", Admissible::Aspect),
 ];
 
 /// A malformed input row: the lint could not run, which is not a
@@ -269,8 +304,9 @@ pub struct ParseError {
 /// there is no shared constant to import, and a drifting sweep must
 /// fail as harness breakage rather than parse into wrong columns.
 pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
-                                   muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
-                                   span_opt_cells,worst_cert,worst_dev,dev_samples";
+                                   muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
+                                   opt_cells,span_opt_cells,worst_cert,worst_dev,\
+                                   dev_samples,bands,cap_bands,snap_bands,realized_aspect";
 
 /// Parses a budget CSV.
 ///
@@ -332,22 +368,28 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 text: format!("{name}: {e} ({:?})", f[col]),
             })
         };
-        // The sizing columns are empty on every non-NURBS chart. All
-        // present or all absent — a half-filled row is drift.
-        let sizing: Vec<&str> = (0..SIZING_COLUMNS.len())
+        // The sizing and indicator columns are empty on every
+        // non-NURBS chart. All present or all absent, across BOTH
+        // blocks — a half-filled row is drift.
+        let measured: Vec<&str> = (0..SIZING_COLUMNS.len())
             .map(|k| f[SIZING_FIRST + k])
+            .chain((0..INDICATOR_COLUMNS.len()).map(|k| f[INDICATOR_FIRST + k]))
             .collect();
-        let nurbs = if sizing.iter().all(|s| s.is_empty()) {
+        let nurbs = if measured.iter().all(|s| s.is_empty()) {
             None
-        } else if sizing.iter().any(|s| s.is_empty()) {
+        } else if measured.iter().any(|s| s.is_empty()) {
             return Err(ParseError {
                 line: n,
-                text: "partially filled sizing columns".into(),
+                text: "partially filled sizing/indicator columns".into(),
             });
         } else {
             let mut read = [0.0f64; SIZING_COLUMNS.len()];
             for (k, (name, kind)) in SIZING_COLUMNS.iter().enumerate() {
                 read[k] = admit(SIZING_FIRST + k, name, *kind)?;
+            }
+            let mut ind = [0.0f64; INDICATOR_COLUMNS.len()];
+            for (k, (name, kind)) in INDICATOR_COLUMNS.iter().enumerate() {
+                ind[k] = admit(INDICATOR_FIRST + k, name, *kind)?;
             }
             let [
                 grid_cells,
@@ -357,6 +399,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 worst_cert,
                 worst_dev,
             ] = read;
+            let [bands, cap_bands, snap_bands, realized_aspect] = ind;
             Some(Nurbs {
                 grid_cells,
                 patch_cells,
@@ -364,6 +407,10 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 span_opt_cells,
                 worst_cert,
                 worst_dev: worst_dev.is_finite().then_some(worst_dev),
+                bands,
+                cap_bands,
+                snap_bands,
+                realized_aspect,
             })
         };
         rows.push(Row {
@@ -622,9 +669,9 @@ mod tests {
     fn csv(tris: usize, span_opt: f64) -> String {
         format!(
             "{EXPECTED_HEADER}\n\
-             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
-             s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,\
-             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99\n"
+             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n\
+             s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
+             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n"
         )
     }
 
@@ -717,8 +764,8 @@ mod tests {
     fn a_half_filled_sizing_row_is_harness_breakage() {
         let bad = format!(
             "{EXPECTED_HEADER}\n\
-             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,1e2,,5e1,2.5e1,\
-             1e-4,5e-5,99\n"
+             s/b,1,nurbs,2e-3,9,0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,1e2,,5e1,2.5e1,\
+             1e-4,5e-5,99,2,1,0,3e0\n"
         );
         let e = parse(&bad).unwrap_err();
         assert!(e.text.contains("partially filled"), "{}", e.text);
@@ -810,6 +857,44 @@ mod tests {
             "dev_samples",
             "the block ends too early"
         );
+        // …and the indicator block is bracketed the same way: after
+        // `dev_samples`, through to the end of the header.
+        assert_eq!(
+            cols[INDICATOR_FIRST - 1],
+            "dev_samples",
+            "the indicator block starts too late"
+        );
+        for (k, (name, _)) in INDICATOR_COLUMNS.iter().enumerate() {
+            assert_eq!(cols[INDICATOR_FIRST + k], *name, "indicator column {k}");
+        }
+        assert_eq!(
+            cols.len(),
+            INDICATOR_FIRST + INDICATOR_COLUMNS.len(),
+            "the indicator block ends before the header does"
+        );
+    }
+
+    /// The indicator block's policing, in the same shape as the sizing
+    /// block's: written out, not derived from the table it checks.
+    #[test]
+    fn every_indicator_column_refuses_the_values_that_would_hide_a_broken_reading() {
+        const BAD: [&str; 5] = ["0e0", "-1e0", "inf", "NaN", "5e-1"];
+        const ADMITTED: [(&str, [bool; 5]); INDICATOR_COLUMNS.len()] = [
+            // A schedule always has at least one band.
+            ("bands", [false, false, false, false, false]),
+            // Zero is "constraint inactive", a reading.
+            ("cap_bands", [true, false, false, false, true]),
+            ("snap_bands", [true, false, false, false, true]),
+            // An aspect is a positive finite ratio.
+            ("realized_aspect", [false, false, false, false, true]),
+        ];
+        for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
+            assert_eq!(*name, INDICATOR_COLUMNS[k].0, "column {k} of the table");
+            for (b, bad) in BAD.iter().enumerate() {
+                let got = parse(&with_field(&csv(100, 2.5e1), INDICATOR_FIRST + k, bad)).is_ok();
+                assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
+            }
+        }
     }
 
     /// A denominator that could not be read is harness breakage, and
@@ -868,7 +953,7 @@ mod tests {
     #[test]
     fn a_scene_with_no_sized_face_reports_no_factor() {
         let planes = parse(&format!(
-            "{EXPECTED_HEADER}\ns/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n"
+            "{EXPECTED_HEADER}\ns/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n"
         ))
         .unwrap();
         let t = &totals(&planes)[0].1;

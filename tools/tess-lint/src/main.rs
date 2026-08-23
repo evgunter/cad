@@ -146,6 +146,31 @@ fn main() {
              shipped lane checks — this is sizing slack, not tolerance slack"
         );
     }
+    // The constraint-activity indicator (TESS-SPLIT): which constraint
+    // bound the schedule where the split ratio sits above 1.0, and the
+    // worst realized lattice aspect (reported; the sliver-safe line is
+    // read at mesh::nurbs_cert::SAFE_ASPECT, never from a copy here).
+    {
+        let (mut bands, mut cap, mut snap) = (0.0f64, 0.0f64, 0.0f64);
+        let mut worst: Option<(f64, &Row)> = None;
+        for r in &nurbs {
+            if let Some(n) = r.nurbs {
+                bands += n.bands;
+                cap += n.cap_bands;
+                snap += n.snap_bands;
+                if worst.is_none_or(|(a, _)| n.realized_aspect > a) {
+                    worst = Some((n.realized_aspect, r));
+                }
+            }
+        }
+        if let Some((aspect, r)) = worst {
+            println!(
+                "  constraint activity: {cap:.0} A-cap-bound band(s), {snap:.0} snap-raised \
+                 band(s) of {bands:.0}; worst realized s_u/s_v {aspect:.2} ({} face {})",
+                r.scene, r.face
+            );
+        }
+    }
     let scenes = totals(&rows);
     let mut ranked: Vec<_> = scenes
         .iter()
