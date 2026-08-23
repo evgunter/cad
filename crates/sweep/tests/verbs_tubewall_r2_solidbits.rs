@@ -40,8 +40,7 @@ fn r2_solid_door_bits_dump() {
             Tol::witness(),
         )
         .expect("the solid tube builds");
-        let props =
-            topo::props::mass_properties(&t.body, Tol::witness()).expect("mass properties");
+        let props = topo::props::mass_properties(&t.body, Tol::witness()).expect("mass properties");
         println!(
             "R2SOLIDBITS\t{major:?}\t{minor:?}\t{arc:?}\tV={:?}\tA={:?}\tcav={}\t{:?}",
             props.volume,
