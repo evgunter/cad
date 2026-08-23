@@ -443,3 +443,31 @@ fable, v5, frozen dccb0eab — the brief's headline attack is the
 Q3 strength per the ratified reduced-confidence binding. Board:
 M9-3 PR-B implementing; CENSUS-REST under review; M9-5 queued on
 PR-B; gap-2 queued on this unit's merge.
+
+## M9-3 PR-B delivered (#971); unit dual review dispatched at ordinal 72 (2026-08-23)
+
+The milestone's headline is built end-to-end on the lane: the
+two-peg kernel path unions with BITWISE exactly-additive volume
+(PR-A's staged oracle flipped), the tube-chain rim unions
+carrying the minted TangentIntersection + Tangent mark through
+tier-3, the zip closes cosurface bands by kernel-form Euler
+surgery (kemr ring promotion + the folded-loop zipper; ring-
+capable glue), and the D6 smooth ladder mints on jet-determinate
+seams through existing rows only. PR-A's deviations 1/2/4 came
+due at the rim fixture and were opened within the rung's terms;
+the ONE stop-report: fixture (ii) realized on DEV-1 carriers
+because the coaxial cyl×sphere circle arm is outside the ratified
+witness lane — named follow-up, not improvised. One moved
+baseline argued (m5_s1 annular row retired-to-green with an
+exact-volume + tier-3 oracle). Hosted 21/21 with the INTERVAL
+lane drawn. Unit review = ordinal 72 (#972, merged 457d7259):
+DUAL CROSS-MODEL (next third after 69; sample #23, the 11th pair
+— ONE short of the 12-pair target once TUBEWALL@69 lands), R1
+fable + R2 opus concurrent on frozen 206436ee, briefs identical,
+style lane v5; headline attacks = C8 non-widening, the Euler
+genus bookkeeping, the bitwise-additivity degradation question,
+and the annular baseline adjudication. Disk seam: both finished
+implementer lanes' targets reclaimed (94% → 41%) ahead of the
+reviewer builds. Board: TWO reviews running (ord 71 census-rest,
+ord 72 M9-3 dual); fix passes then merges follow; M9-5 + gap-2
+queued.
