@@ -99,6 +99,11 @@ pub struct CellMeasure {
     pub muv: f64,
     /// `sup ‖S_vv‖` over the cell.
     pub mvv: f64,
+    /// `sup ‖S_u‖` over the cell — the first-fundamental-form sample
+    /// the split selection's aspect cap reads (TESS-SPLIT).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` over the cell.
+    pub mv1: f64,
     /// The `(h_u, h_v)` the cell's own bound admits at the face's
     /// sizing target — the schedule's input, reported rather than
     /// re-derived.
@@ -122,12 +127,28 @@ pub struct FaceMeasure {
     /// Grid cells the per-cell schedule actually built (`Σ nuc·nvc`
     /// over the clipped bands).
     pub grid_cells: usize,
+    /// Bands the schedule emitted.
+    pub bands: usize,
+    /// Bands whose step selection the 3-D aspect cap clamped — the
+    /// constraint-activity indicator's A-cap kind (TESS-SPLIT D-3).
+    pub cap_bands: usize,
+    /// Bands whose column count the malign-band snap raised — the
+    /// indicator's sliver/snap kind.
+    pub snap_bands: usize,
+    /// Max over bands of the emitted lattice's post-`ceil` spacing
+    /// ratio `s_u/s_v` — the quantity `SAFE_ASPECT` judges.
+    pub realized_aspect: f64,
     /// `sup ‖S_uu‖` of the whole-patch bound.
     pub muu: f64,
     /// `sup ‖S_uv‖` of the whole-patch bound.
     pub muv: f64,
     /// `sup ‖S_vv‖` of the whole-patch bound.
     pub mvv: f64,
+    /// `sup ‖S_u‖` of the whole-patch bound (the aspect cap's
+    /// first-fundamental-form sample).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` of the whole-patch bound.
+    pub mv1: f64,
     /// The whole-patch bound's `(h_u, h_v)` at `delta_s`.
     pub patch_steps: (f64, f64),
     /// The analysis cells the per-cell bound reported (knot spans for

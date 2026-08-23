@@ -237,7 +237,7 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (mut candidates, nurbs_grid_cells) = match lane {
+    let (mut candidates, nurbs_stats) = match lane {
         Lane::Cylinder { radius, .. } => {
             let hu = sagitta_step(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
@@ -273,8 +273,8 @@ pub(crate) fn tessellate_trimmed(
             ref grid,
             ref patch,
         } => {
-            let (cand, cells) = per_cell_candidates(grid, patch, (u0, u1), (v0, v1), tol.delta_s)?;
-            (cand, Some(cells))
+            let (cand, stats) = per_cell_candidates(grid, patch, (u0, u1), (v0, v1), tol.delta_s)?;
+            (cand, Some(stats))
         }
     };
     // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
@@ -657,17 +657,23 @@ pub(crate) fn tessellate_trimmed(
     // columns describe the attempt the face exited on — for a refusal
     // that is the attempt that lost, which is the only mesh there was.
     if crate::budget::armed()
-        && let (Some(grid_cells), Lane::Nurbs { grid, patch }) = (nurbs_grid_cells, &lane)
+        && let (Some(stats), Lane::Nurbs { grid, patch }) = (nurbs_stats, &lane)
     {
         crate::budget::note_face(crate::budget::FaceMeasure {
             face: fk,
             u: (u0, u1),
             v: (v0, v1),
             delta_s: tol.delta_s,
-            grid_cells,
+            grid_cells: stats.grid_cells,
+            bands: stats.bands,
+            cap_bands: stats.cap_bands,
+            snap_bands: stats.snap_bands,
+            realized_aspect: stats.realized_aspect,
             muu: patch.muu,
             muv: patch.muv,
             mvv: patch.mvv,
+            mu1: patch.mu1,
+            mv1: patch.mv1,
             patch_steps: patch.grid_steps(tol.delta_s),
             cells: grid
                 .cells()
@@ -677,6 +683,8 @@ pub(crate) fn tessellate_trimmed(
                     muu: c.bound.muu,
                     muv: c.bound.muv,
                     mvv: c.bound.mvv,
+                    mu1: c.bound.mu1,
+                    mv1: c.bound.mv1,
                     steps: c.bound.grid_steps(tol.delta_s),
                 })
                 .collect(),
@@ -765,11 +773,33 @@ fn per_cell_candidates(
     u: (f64, f64),
     v: (f64, f64),
     delta_s: f64,
-) -> Result<(Vec<(f64, f64)>, usize), TessellateError> {
+) -> Result<(Vec<(f64, f64)>, ScheduleStats), TessellateError> {
     let mut cand: Vec<(f64, f64)> = Vec::new();
-    let mut grid_cells = 0usize;
+    let mut stats = ScheduleStats {
+        grid_cells: 0,
+        bands: 0,
+        cap_bands: 0,
+        snap_bands: 0,
+        realized_aspect: f64::NAN,
+    };
+    let du = u.1 - u.0;
     for b in grid.band_schedule(*patch, u, v, delta_s)? {
-        grid_cells += b.nuc * b.nvc;
+        stats.grid_cells += b.nuc * b.nvc;
+        stats.bands += 1;
+        stats.cap_bands += usize::from(b.cap);
+        stats.snap_bands += usize::from(b.snapped);
+        // The emitted lattice's post-`ceil` parameter aspect `s_u/s_v`
+        // — the quantity SAFE_ASPECT judges — max over bands. The NaN
+        // seed means "no bands yet" and the first band overwrites it;
+        // every band's aspect is a finite positive ratio (nonempty
+        // extents over counts floored at one).
+        #[allow(clippy::cast_precision_loss)]
+        let aspect = (du / b.nuc as f64) / ((b.vb - b.va) / b.nvc as f64);
+        stats.realized_aspect = if stats.realized_aspect.is_nan() {
+            aspect
+        } else {
+            stats.realized_aspect.max(aspect)
+        };
         // Band-boundary indices reproduce the cut values EXACTLY.
         let at = |lo: f64, hi: f64, i: usize, n: usize| -> f64 {
             if i == 0 {
@@ -797,7 +827,28 @@ fn per_cell_candidates(
     }
     sort_candidates(&mut cand);
     cand.dedup();
-    Ok((cand, grid_cells))
+    Ok((cand, stats))
+}
+
+/// What one face's band schedule did, summarized for the budget meter
+/// (`crate::budget`): the cell count the lane sized, and the
+/// constraint-activity indicator TESS-SPLIT's spec demands — which
+/// bands the aspect cap clamped, which the malign snap raised, and the
+/// worst realized lattice aspect the emitted schedule carries. Nothing
+/// downstream can recover any of these (bands are not in the CSV, and
+/// the selection rule lives only in `nurbs_cert`).
+#[derive(Clone, Copy, Debug)]
+struct ScheduleStats {
+    /// `Σ nuc·nvc` over the clipped bands.
+    grid_cells: usize,
+    /// Bands in the schedule.
+    bands: usize,
+    /// Bands whose step selection the A cap clamped.
+    cap_bands: usize,
+    /// Bands whose column count the malign snap raised.
+    snap_bands: usize,
+    /// Max over bands of the post-`ceil` spacing ratio `s_u/s_v`.
+    realized_aspect: f64,
 }
 
 /// Row-major candidate order: by `v`, then `u` (total order — the
