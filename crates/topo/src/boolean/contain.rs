@@ -152,6 +152,91 @@ pub fn contfp<T: Decide>(
     Ok(FaceContainment::In)
 }
 
+/// **Boundary-only containment** for an on-carrier point against a
+/// CURVED face: [`contfp`]'s boundary pre-pass, and nothing after it —
+/// vertex coincidence first (`bool_contact_vertex`, a 3D distance,
+/// carrier-agnostic), then boundary-edge interiors for **`Line`
+/// carriers only** (`bool_contact_edge{,_span}` — a line's chord IS
+/// the edge, so the rows decide exactly; a curved boundary edge is
+/// not its chord and gets no verdict here). `None` is the honest
+/// remainder: interior/exterior classification on a curved chart does
+/// not exist at boolean classification, and the caller's typed
+/// frontier door says so.
+///
+/// # Errors
+///
+/// [`ContainError`] — sliver escalations or unwalkable topology.
+pub(super) fn curved_boundary_containment<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<FaceContainment>, ContainError> {
+    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
+    let loops: Vec<_> = core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect();
+    // Vertex pass over ALL loops first, exactly as `contfp`: an
+    // edge-interior verdict must never shadow an endpoint coincidence.
+    for &lk in &loops {
+        let cycle = loop_cycle_points(body, lk)?;
+        for (v, _, p) in &cycle {
+            let margin = Margin::norm3(q - *p);
+            match decide("bool_contact_vertex", margin, band) {
+                Ok(Sign::Zero) => return Ok(Some(FaceContainment::OnVertex(*v))),
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Negative) => {
+                    return Err(ContainError::Escalated(invalid(
+                        band,
+                        "bool_contact_vertex",
+                    )));
+                }
+                Err(diag) => return Err(ContainError::Escalated(diag)),
+            }
+        }
+    }
+    for &lk in &loops {
+        let cycle = loop_cycle_points(body, lk)?;
+        for (i, (_, he, a)) in cycle.iter().enumerate() {
+            let edge_key = body.get_half_edge(*he).ok_or(ContainError::Corrupt)?.edge;
+            let is_line = body
+                .get_edge(edge_key)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(crate::null::CurveGeom::certified)
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+            if !is_line {
+                continue;
+            }
+            let b = cycle[(i + 1) % cycle.len()].2;
+            let e = b - *a;
+            let len = e.norm();
+            let ehat = e.normalize();
+            let s0 = (q - *a).dot(ehat);
+            let s1 = len - s0;
+            let interior = matches!(
+                decide("bool_contact_edge_span", Margin::of(s0), band),
+                Ok(Sign::Positive)
+            ) && matches!(
+                decide("bool_contact_edge_span", Margin::of(s1), band),
+                Ok(Sign::Positive)
+            );
+            if !interior {
+                continue;
+            }
+            let perp = Margin::norm3((q - *a).cross(ehat));
+            match decide("bool_contact_edge", perp, band) {
+                Ok(Sign::Zero) => return Ok(Some(FaceContainment::OnEdge(edge_key))),
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Negative) => {
+                    return Err(ContainError::Escalated(invalid(band, "bool_contact_edge")));
+                }
+                Err(diag) => return Err(ContainError::Escalated(diag)),
+            }
+        }
+    }
+    Ok(None)
+}
+
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
     Indeterminate {
         margin: geom_core::MarginDiag::Invalid,

@@ -152,11 +152,13 @@ fn an_authored_class_is_what_the_node_holds() {
 /// **The wrong class, end to end from a recipe.**
 ///
 /// A genuine flush cap declared as `Tangent` reaches the kernel door
-/// carrying the class the author wrote, and the op refuses it typed
-/// rather than treating it as the class it can act on. The refusal is
-/// the whole point of threading the class: before this change the
-/// recipe could not express the mistake, so the kernel could not
-/// refuse it.
+/// carrying the class the author wrote, and the op CONTRADICTS it —
+/// a flush pair is conformal contact (`Rest`), and the Tangent
+/// door's conformal screen refuses the claim with the geometry's own
+/// margins rather than treating it as the class it can act on. The
+/// refusal is the whole point of threading the class: before this
+/// change the recipe could not express the mistake, so the kernel
+/// could not refuse it.
 #[test]
 fn a_wrong_class_declaration_refuses_at_the_op() {
     let (doc, a, b) = stacked();
@@ -210,12 +212,12 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     let (ok, why) = run(ContactClass::Rest);
     assert!(ok, "a correctly-classed declaration still unions: {why}");
 
-    // The WRONG class: typed refusal naming the class that was asked
-    // for, never a silent re-interpretation.
+    // The WRONG class: typed contradiction naming the class that was
+    // asked for, never a silent re-interpretation.
     let (ok, msg) = run(ContactClass::Tangent);
     assert!(!ok, "a Tangent declaration on a conformal pair must refuse");
     assert!(
-        msg.contains("UnsupportedDeclarationClass") && msg.contains("Tangent"),
+        msg.contains("ContactContradicted") && msg.contains("Tangent"),
         "the refusal names the class that was asked for: {msg}"
     );
 }
