@@ -193,6 +193,8 @@ mod revolve_interval;
 mod revolve_partial;
 #[path = "revolve_ring.rs"]
 mod revolve_ring;
+#[path = "ring_r1_probes.rs"]
+mod ring_r1_probes;
 #[path = "revolve_washer.rs"]
 mod revolve_washer;
 #[path = "s16_box_soundness.rs"]
