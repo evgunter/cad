@@ -1247,3 +1247,18 @@ flagged as a judgement call; the A5 clause evidenced by the
 disjoint arm because F2 — the census structural-chart-identity
 gap, the KNOWN #591-thread steer — blocks the mated one), plus
 11 library findings gap-commented at sites. Row at merge.
+TESS-SPLIT review ordinal fixed at dispatch (2026-08-23, PR #951
+open, frozen head 8dbbb542): claimed through 63 (ASM-DEMO's dual)
++ 1 = **64 → SINGLE** (66 is the next third — cross-model per
+#572; 8th pair pending at 63). Reviewer fable, v5 instrument.
+Pre-draw fields were logged at spec time: M / NUMERIC
+(docs/TESS-SPLIT-SPEC.md). Implementer report: 9 deviations ALL
+reported (headline: the two D-1a-executed sliver refusals —
+lily_leaf_a 41·δ and s_duct 25·δ at the new selection — fixed by
+generalizing the shipped snap: every band judged, snap = exact
+patch-count projection run to a dilation fixpoint; both claimed
+improvement-by-execution, adjudication at the review); #950
+filed for the residual rim-bound off-lattice class; #782
+diagnosed (TESS-SPAN's snap EXONERATED by the SAFE_ASPECT=1e30
+experiment — the drift is per-band ceil cost) and re-pinned.
+Row at merge.
