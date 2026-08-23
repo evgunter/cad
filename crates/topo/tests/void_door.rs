@@ -144,10 +144,16 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
                 .map(|(s, _)| (s, VoidContainment::Probed(verdict)))
                 .collect(),
         };
+        let pristine = format!("{dst:?}");
         let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
         assert!(
             matches!(e, VoidInsertError::NotStrictlyContained { .. }),
             "{verdict:?}: {e:?}"
+        );
+        assert_eq!(
+            format!("{dst:?}"),
+            pristine,
+            "refusal mutated the destination"
         );
     }
 
@@ -162,10 +168,16 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
                 .map(|(s, _)| (s, VoidContainment::Carried { sign }))
                 .collect(),
         };
+        let pristine = format!("{dst:?}");
         let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
         assert!(
             matches!(e, VoidInsertError::NotStrictlyContained { .. }),
             "{sign:?}: {e:?}"
+        );
+        assert_eq!(
+            format!("{dst:?}"),
+            pristine,
+            "refusal mutated the destination"
         );
     }
 
@@ -184,6 +196,33 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
     evidence
         .shells
         .push((foreign, VoidContainment::Probed(SolidContainment::In)));
+    let pristine = format!("{dst:?}");
     let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
     assert!(matches!(e, VoidInsertError::ForeignShell { .. }), "{e:?}");
+    assert_eq!(
+        format!("{dst:?}"),
+        pristine,
+        "refusal mutated the destination"
+    );
+
+    // Duplicate: two certificates for one shell is a caller desync,
+    // refused typed (never first-match-wins), and mutates nothing.
+    let (mut dst, cavity) = outer_and_cavity();
+    let (solid, _) = dst.solids().next().unwrap();
+    let mut evidence = probed_in(&cavity);
+    let dup = evidence.shells[0].0;
+    evidence
+        .shells
+        .push((dup, VoidContainment::Carried { sign: Sign::Zero }));
+    let pristine = format!("{dst:?}");
+    let e = insert_void(&mut dst, solid, cavity, &evidence, tol).unwrap_err();
+    assert!(
+        matches!(e, VoidInsertError::DuplicateEvidence { .. }),
+        "{e:?}"
+    );
+    assert_eq!(
+        format!("{dst:?}"),
+        pristine,
+        "refusal mutated the destination"
+    );
 }

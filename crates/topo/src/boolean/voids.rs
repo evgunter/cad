@@ -132,6 +132,13 @@ pub enum VoidInsertError {
         /// The unresolvable shell key.
         shell: ShellKey,
     },
+    /// The evidence carries two certificates for one shell — a caller
+    /// desync, refused rather than resolved by list order (the door
+    /// never picks between conflicting claims).
+    DuplicateEvidence {
+        /// The doubly-certified shell.
+        shell: ShellKey,
+    },
     /// The cavity body's orientation reversal failed (tier-1-invalid
     /// cavity).
     Revert(RevertError),
@@ -165,6 +172,11 @@ impl core::fmt::Display for VoidInsertError {
                 f,
                 "void insertion: evidence names shell {shell:?}, which the \
                  cavity body does not hold (caller desync)"
+            ),
+            Self::DuplicateEvidence { shell } => write!(
+                f,
+                "void insertion: evidence certifies shell {shell:?} twice — the door \
+                 never resolves conflicting certificates by list order (caller desync)"
             ),
             Self::Revert(e) => write!(f, "void insertion: cavity revert failed: {e:?}"),
             Self::Corrupt { what } => write!(f, "void insertion: {what}"),
@@ -235,9 +247,12 @@ pub fn insert_void<T: Decide>(
 ) -> Result<VoidInserted, VoidInsertError> {
     // ---- Evidence check (pure reads, first — no mutation happens
     // unless every cavity shell is certified strictly inside). ----
-    for &(shell, _) in &evidence.shells {
+    for (i, &(shell, _)) in evidence.shells.iter().enumerate() {
         if cavity.get_shell(shell).is_none() {
             return Err(VoidInsertError::ForeignShell { shell });
+        }
+        if evidence.shells[..i].iter().any(|(s, _)| *s == shell) {
+            return Err(VoidInsertError::DuplicateEvidence { shell });
         }
     }
     for (shell, _) in cavity.shells() {

@@ -909,7 +909,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "the hollow ring is tier-3 valid"
     );
     println!(
-        "   wall 6 — RETIRED as a refusal: the annulus revolves to a two-shell          hollow ring in one call (VERBS-RING); the shape's remaining wall is its          STEP export, probed next"
+        "   wall 6 — RETIRED as a refusal: the annulus revolves to a two-shell \
+         hollow ring in one call (VERBS-RING); the shape's remaining wall is \
+         its STEP export, probed next"
     );
     // f64: `step_export` is a rendering/interchange-side door and
     // takes the run's own numbers (the wall-7 posture).

@@ -1924,7 +1924,8 @@ fn fallback<T: Decide>(
                         voids::VoidInsertError::Recertify(c) => BooleanError::GraftRecertify(c),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
-                        | voids::VoidInsertError::ForeignShell { .. } => {
+                        | voids::VoidInsertError::ForeignShell { .. }
+                        | voids::VoidInsertError::DuplicateEvidence { .. } => {
                             desync("void evidence desynced from the kept B shells")
                         }
                     })?
