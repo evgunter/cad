@@ -1296,3 +1296,25 @@ retiring would move geometry while changing no observable; the
 Q3 region-unconfined strength exhibited via a zero-overlap-area
 line-contact pair, the sharpest honest answer to the ratified
 falsification question). Row at merge.
+
+M9-3 unit review ordinal fixed at dispatch (2026-08-23, PR #971
+open — the unit's PR-B head, reviewing the WHOLE unit per the
+spec's unit-level review ruling; frozen head 206436ee): main
+claimed through 71 (CENSUS-REST) with 69 (TUBEWALL dual) + 70
+(ARMS-2) in flight, so this claim = **72 → DUAL (the next third
+after 69), CROSS-MODEL per the v4-item-1(c) suspension — R1
+fable + R2 opus, concurrent same-head; sample number by ordinal
+position = #23, the 11th cross-model pair** (the 12-pair target
+is ONE pair away after TUBEWALL@69 completes — whoever records
+the twelfth notifies Evan explicitly). v5 instrument, both
+briefs identical. Pre-draw fields logged at the spec seam:
+unit L (PR-A M-L), STRUCTURAL, FABLE (block M9-16 slot 1).
+Implementer reports: PR-A seven deviations (all reported; fix
+rounds none — orchestrator meta-review accepted), PR-B five (all
+loud; headline: fixture (ii) realized on DEV-1 carriers with the
+coaxial cyl×sphere witness-lane widening STOP-reported as the
+named follow-up; one moved baseline — the m5_s1 annular row
+retired-to-green with an exact-volume + tier-3 oracle). Row at
+merge.
+
+| CREST | 2026-08-23 | CENSUS-REST (PR #969; ratified U-R1, gap 1 of CENSUS-REST-CLOSURE): all seven census sweeps receive `declared` (`ve_face_backed` = the existing vf rung against the edge's adjacent faces); `ee_bound_backed`'s interior arm closed BOTH directions via the which-edges-resolve match; D3/D4 rewritten (the boolean-lane fact separated from the at-rest consequence; the Q3 region-unconfined strength an explicit sentence at docs AND rung, per the ratified reduced-confidence answer); #943's flush seat MEASURED hard-AtRest → Uncertified with the residual pinned by kind+count (exactly one CensusUnsupported{Face}, Declined — gap 2's re-bless hook); SEAT inset kept with its comment renamed (flush ≡ inset until gap 2, executed independently by implementer AND reviewer) | S / STRUCTURAL (pre-logged at the M9-16 slot-2 claim) | OPUS (block M9-16 slot 2) | single (ordinal 71, frozen dccb0eab, v5, reviewer fable) — APPROVE-WITH-FIXES 0/4/2 + style, rubric 5/4/3 (all 8 brief claims EXECUTED: the flip verified by reverting census.rs to base; the implementer's confinement lemma REFUTED by a built non-convex counterexample while the ratified strength HELD — the Q3 attack Evan's "less sure but ok" bought, sharpest possible outcome; "both arms fire" measured FALSE — only (Some,None) fired, reviewer authored the (None,Some) swapped-graft probe; ef_bound_backed's blind-spot disposition shown REACHABLE at rest by a declared overhang seat; two doc-rot citations of the retired D4 premise found by a sentence-shaped sweep the implementer's symbol-shaped sweep could not match) | 0 silent (5 reported, all verified honest; at fix pass the implementer independently re-measured and corrected two of its own claims) | 5 | 4 | 3 | moderate, IMPLEMENTER-INHERITED (all 4 reviewer probes adopted authorship-preserving, topo 356→360; #973 filed covering BOTH executed residues — the ef backing consult and the EdgeEdgeCross/EdgeFacePierce "categorically undeclarable" premise class, cited at sites; the design doc's inset-retirement consequence corrected in place as a marked post-ratification annotation; seat constants cross-referenced not homed, argued from demo-purpose layering) | MERGED #969 at 35a966c1 (merge 0062baaa; both heads drew {default, 1e-12}, 17 success / 4 draw-skips each) — #943's GAP 1 CLOSED: the at-rest census consults the mate's own PatchContact for the events its seat induces | impl ~276k + fix ~335k / review ~152k | impl ~1.1h / fix ~0.5h / review ~0.5h (reviews and fix ran concurrent with the M9-3 lanes; slot-serialized) |
