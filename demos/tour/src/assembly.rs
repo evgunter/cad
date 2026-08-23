@@ -927,14 +927,18 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         back.edits.len()
     );
 
-    // The refactoring pair is not total, and the demo says where it
-    // stops rather than only exercising the case that works. Cutting
-    // the PATTERNED posts out is a legal split — but the cut carries
-    // the post cluster's frame onto the remainder's instance, and a
-    // part whose roots are not themselves instances has no local
-    // recipe that can express a placed frame, so the inverse refuses.
-    // GAP: a subtree a user can split out is not always one they can
-    // put back.
+    // THE SECOND CUT, probed rather than assumed: the patterned posts.
+    //
+    // The invariant under test is that split and inline are INVERSES
+    // for every legal cut, and the shape most likely to break it is
+    // this one — the cut hoists the post cluster's authored frame onto
+    // the remainder's instance, and `inline` refuses a non-identity
+    // frame whose part's roots are not themselves instances
+    // (`UnplaceableFrame`), which a Pattern root is not. It does NOT
+    // refuse here, because the hoist leaves the pattern's own recipe
+    // able to express the placement; the arms below say which answer
+    // this tree gave rather than asserting one, so a change in either
+    // direction is reported at the scene instead of passing silently.
     let posts_id = DocumentId::derive("pncad-demo-posts-cell");
     let post_i = *layout
         .order()
@@ -951,15 +955,21 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             ws.create(&posts.part, tol)
                 .expect("the posts cell is stored");
             match inline(&posts.remainder, posts.instance, ws, tol) {
-                Ok(_) => println!("   note: the patterned-post cell also inlines back"),
+                Ok(_) => println!(
+                    "   second cut: the patterned-post cell splits out AND inlines back \
+                     (the hoisted cluster frame is expressible in the part's own recipe)"
+                ),
                 Err(e @ InlineError::UnplaceableFrame { .. }) => println!(
-                    "   note (gap): the patterned-post cell splits out but does NOT inline \
-                 back — {e:?}"
+                    "   second cut (gap): the patterned-post cell splits out but does NOT \
+                     inline back — a subtree a user can cut is then not one they can put \
+                     back: {e:?}"
                 ),
                 Err(other) => panic!("unexpected inline refusal: {other:?}"),
             }
         }
-        Err(e) => println!("   note (gap): the patterned-post cell does not split — {e:?}"),
+        Err(e) => {
+            println!("   second cut (gap): the patterned-post cell does not split at all — {e:?}")
+        }
     }
 }
 
