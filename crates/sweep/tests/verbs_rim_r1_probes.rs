@@ -18,15 +18,13 @@
 //!   refuses `TangentialEdge` at margin exactly 0.0 — red if the fix
 //!   removed the detector rather than the false positive.
 //! - **A closed one-edge chain has no junctions**: the structural fact
-//!   under the PR's "chain_g1 never folds a closed rim's arm" claim —
-//!   red if the walk starts minting junctions for self-closed links.
-//! - **The newly reachable frontier is typed**: a convex plane–sphere
-//!   closed rim now PASSES the battery (it used to refuse
-//!   `TangentialEdge` before any construction), so `fillet_edges`
-//!   reaches the surgery's one-edge-rim door and must refuse
-//!   `UnsupportedChain`, loudly, not panic. This row pins the state
-//!   the lever fix made reachable for the first time; it flips when a
-//!   one-edge torus band lands (VERBS-ARMS territory) — flip it then.
+//!   the explicit wrap-around G1 site rests on — red if the walk
+//!   starts minting junctions for self-closed links.
+//! - **The newly reachable frontier builds**: a convex plane–sphere
+//!   closed rim PASSES the battery (it used to refuse `TangentialEdge`
+//!   before any construction) and `fillet_edges` mints its annulus
+//!   band — red if a one-edge rim stops reaching, or stops building
+//!   at, the surgery's closed-chain door.
 //! - **An open arc just under a full period decides at an honest
 //!   lever**: sweep 2π − 0.0032 leaves an endpoint chord of ~0.003·r
 //!   (the old lever) while the max pairwise chord meters ~2r; a
@@ -38,14 +36,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Band, Point2, Tol};
+use profile::ProfileVertex;
+use sweep::Revolution;
 use sweep::fillet::battery::{FilletRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{ChainClosure, Convexity, FilletError};
-use sweep::test_support::cube;
-use sweep::{Revolution, RevolveAxis, revolve};
+use sweep::test_support::{cube, revolved_about_y};
 use test_utils::fuzz;
 use topo::{Body, EdgeKey};
 
@@ -63,14 +60,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 /// Revolve a closed sketch loop about the sketch y-axis.
 fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
-        .validate(tol())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&profile, axis, rev, tol()).unwrap().body
+    revolved_about_y(verts, rev, tol())
 }
 
 /// The surface kind on each side of an edge, plus whether the edge is
@@ -140,17 +130,7 @@ fn neck_flare(a: f64, rev: Revolution<f64>) -> Body<f64> {
 /// `r`, and the battery PASSES it (Convex) — the fixture that reads
 /// `Link::arm_len` back out of a verdict.
 fn dome(r: f64) -> Body<f64> {
-    let a45 = core::f64::consts::FRAC_1_SQRT_2;
-    let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
-    revolved(
-        vec![
-            ProfileVertex::new(p2(0.5 * r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge),
-            ProfileVertex::new(p2(r * a45, r * a45), 0.0),
-            ProfileVertex::new(p2(0.5 * r, r * a45), 0.0),
-        ],
-        Revolution::Full,
-    )
+    sweep::test_support::dome(r, tol())
 }
 
 /// A spherical boss of radius `r` rising out of a plate's top face —
@@ -175,30 +155,12 @@ fn boss(r: f64) -> Body<f64> {
     )
 }
 
-fn is_plane_sphere(a: &Surface<f64>, b: &Surface<f64>) -> bool {
-    matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
-}
-
 /// The closed plane–sphere rim whose circle carrier has radius
 /// `rim_r` (to 1e-6) — the dome ring carries TWO closed plane–sphere
 /// rims (equator and top edge), so selection is by the analytically
 /// known radius, not by uniqueness.
 fn closed_rim_of_radius(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = find_edges(body, true, is_plane_sphere)
-        .into_iter()
-        .filter(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*c.carrier(), geom::Curve3::Circle { radius, .. } if (radius - rim_r).abs() < 1e-6)
-        })
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "exactly one closed plane–sphere rim of radius {rim_r}; {}",
-        fuzz::replay()
-    );
-    hits[0]
+    sweep::test_support::closed_plane_sphere_rim(body, rim_r)
 }
 
 fn is_cone_cylinder(a: &Surface<f64>, b: &Surface<f64>) -> bool {
@@ -365,10 +327,12 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 }
 
 /// **A closed one-edge chain mints no junctions** — the structural
-/// fact under the claim that `chain_g1` (predicate 4) never folds a
-/// closed rim's `arm_len` today: with no junction vertices there is
-/// no fold to take. Red if the walk starts recording a wrap-around
-/// junction for a self-closed single link.
+/// fact the wrap-around G1 check rests on: `walk_chains` registers a
+/// self-closed link's one vertex once, so the junction loop has
+/// nothing to walk and predicate 4 reaches that chain only through the
+/// explicit wrap-around site on the link's own carrier endpoints. Red
+/// if the walk starts recording a wrap-around junction for a
+/// self-closed single link, which would meter it twice.
 #[test]
 fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     let body = dome(1.0);
@@ -393,28 +357,24 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     );
 }
 
-/// **The newly reachable frontier refuses typed.** Before the lever
-/// fix, EVERY closed edge refused `TangentialEdge` inside the battery,
-/// so the surgery's closed-chain door had never seen a one-link
-/// closed chain (its own comment calls that state "likely dead in
-/// practice"). The fix makes it live: a convex plane–sphere closed
-/// rim passes the battery and `fillet_edges` must now land on the
-/// one-edge-rim `UnsupportedChain` refusal — typed, loud, no panic,
-/// no silent geometry. Flip this row when a one-edge torus band is
-/// actually built.
+/// **The newly reachable frontier BUILDS.** Before the lever fix, every
+/// closed edge refused `TangentialEdge` inside the battery, so the
+/// surgery's closed-chain door had never seen a one-link closed chain;
+/// the fix made it live and this row pinned the typed refusal that met
+/// it. The annulus band is the construction that door now reaches: a
+/// convex plane–sphere closed rim of a full solid of revolution fillets
+/// end to end, minting exactly one band face.
 #[test]
-fn a_passing_closed_rim_reaches_the_surgery_and_refuses_unsupported_chain() {
+fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
     let body = dome(1.0);
     let rims = [closed_rim_of_radius(&body, 1.0)];
-    match fillet_edges(&body, &rims[..1], 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("closed chain of fewer than two links"),
-                "the one-edge-rim door names itself, got {detail:?}"
-            );
-        }
-        other => panic!("expected the one-edge-rim UnsupportedChain, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &rims[..1], 0.05, band(), tol())
+        .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one closed rim mints one band");
+    assert!(
+        out.blend_faces.is_empty() && out.corner_faces.is_empty(),
+        "a lone closed rim mints no open blend and no corner patch"
+    );
 }
 
 /// **An open arc just under a full period decides at an honest

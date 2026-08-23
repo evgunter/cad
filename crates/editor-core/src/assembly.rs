@@ -635,6 +635,9 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         ValidationError::Band { .. }
         | ValidationError::DanglingDescription { .. }
         | ValidationError::UncertifiableSurface { .. }
+        | ValidationError::DegenerateTorus { .. }
+        | ValidationError::DegenerateTorusEscalated { .. }
+        | ValidationError::NonpositiveTorusTube { .. }
         | ValidationError::EdgeCertification { .. }
         | ValidationError::DescriptionNotAdjacent { .. }
         | ValidationError::PlanarFaceResidual { .. }

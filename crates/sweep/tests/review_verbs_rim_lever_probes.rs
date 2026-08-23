@@ -48,13 +48,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Band, Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{FilletRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{Convexity, FilletError};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::revolved_about_y;
+use sweep::{Extrusion, Revolution, extrude};
 use test_utils::fuzz;
 use topo::{Body, EdgeKey};
 
@@ -72,14 +73,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 /// Revolve a closed sketch loop about the sketch y-axis.
 fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
-        .validate(tol())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&profile, axis, rev, tol()).unwrap().body
+    revolved_about_y(verts, rev, tol())
 }
 
 /// The two support surfaces of an edge and whether it is CLOSED
