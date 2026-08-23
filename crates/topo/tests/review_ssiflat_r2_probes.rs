@@ -158,9 +158,19 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     let err = certify_at::<Interval>(1.0, ARC, tight_band())
         .err()
         .expect("the interval lane escalates at a 1e-12 band");
-    let geom_brep::PcurveCertifyError::FittedCertificate { limb, what, margin } = err else {
-        panic!("the fitted door must refuse through its certificate arm: {err:?}");
+    // AMENDED (fix pass): escalations now leave by their own door,
+    // `FittedEscalated`, carrying the classifier's `Indeterminate`
+    // whole — margin, band and predicate together. The probe's claim is
+    // unchanged (a legible enclosure at any process ε); only the door
+    // it reads it from moved.
+    let geom_brep::PcurveCertifyError::FittedEscalated { cause } = err else {
+        panic!("the fitted door must refuse through its escalation arm: {err:?}");
     };
+    let (limb, what, margin) = (
+        Option::<geom_brep::SsiLimb>::None,
+        cause.predicate.unwrap_or("<unnamed>"),
+        Some(cause.margin),
+    );
     assert_eq!(
         limb, None,
         "an escalation names no limb, only its predicate"
@@ -176,9 +186,17 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     // END-TO-END LEGIBILITY: the numbers must survive into the text a
     // consumer actually reads, not merely into the payload.
     let shown = err.to_string();
+    // AMENDED (fix pass): the escalation renders through the
+    // classifier's own `IndeterminatePayload`, which words it
+    // "enclosure [lo, hi] cannot be classified against the band" and
+    // adds the band itself. The claim is unchanged.
     assert!(
-        shown.contains("offending enclosure"),
+        shown.contains("enclosure"),
         "the consumer-visible text must name the enclosure: {shown}"
+    );
+    assert!(
+        shown.contains("zero = ") && shown.contains("escalate = "),
+        "and the band it was judged against: {shown}"
     );
     assert!(
         !shown.contains("NaN"),
@@ -195,11 +213,15 @@ fn hull_sup_at_interval(div: f64) -> Option<f64> {
     let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
     match certify_at::<Interval>(1.0, arc, tight_band()) {
         Ok(_) => None,
-        Err(geom_brep::PcurveCertifyError::FittedCertificate {
-            what: "ssi_hull_sup",
-            margin: Some(geom_core::MarginDiag::Enclosure { hi, .. }),
-            ..
-        }) => Some(hi),
+        // AMENDED (fix pass): the escalation's own door.
+        Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
+            if cause.predicate == Some("ssi_hull_sup") =>
+        {
+            match cause.margin {
+                geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
+                other => panic!("unexpected margin shape at div={div}: {other:?}"),
+            }
+        }
         Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
     }
 }
@@ -249,24 +271,42 @@ fn the_interval_hull_bound_is_span_dependent() {
 /// This row goes RED when that site is swept (it should be `None`, or a
 /// distinct structural variant), which is the point: it pins the hole.
 #[test]
-fn a_structural_tube_refusal_still_reports_a_manufactured_nan_margin() {
+fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // extent ≈ the arc's control-net diameter; the ladder is empty once
     // `extent/8 < 8·ε`, i.e. extent < 64·ε = 6.4e-5 m here. The radius
     // also has to keep the arc's METRE span above ε, or the earlier
     // `pcurve_interval_meter` check answers first — 1e-5 m clears both.
+    //
+    // AMENDED (fix pass): this probe was written RED-by-design, pinning
+    // that the structural empty-ladder case still minted
+    // `CertificateLimb { limb: Tube, value: NaN }` — a structural
+    // refusal wearing a limb-exceeded costume. That is fixed at the
+    // SOURCE (`SsiError::TubeLadderEmpty`), so the probe now pins the
+    // honest shape instead: a refusal that names the ladder, carries NO
+    // magnitude because it measured nothing, and shows no NaN to a
+    // consumer.
     let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
         .err()
         .expect("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
-    let geom_brep::PcurveCertifyError::FittedCertificate { what, margin, .. } = err else {
+    let geom_brep::PcurveCertifyError::FittedCertificate {
+        what, magnitude, ..
+    } = err
+    else {
         panic!("expected the certificate arm: {err:?}");
     };
     assert!(
-        matches!(margin, Some(geom_core::MarginDiag::Value(v)) if v.is_nan()),
-        "PROBE 4 pins the un-swept sibling: got what={what:?} margin={margin:?}"
+        magnitude.is_none(),
+        "a structural refusal measured nothing and must carry no magnitude: \
+         what={what:?} magnitude={magnitude:?}"
+    );
+    let rendered = err.to_string();
+    assert!(
+        !rendered.contains("NaN"),
+        "no manufactured NaN may reach a consumer: {rendered}"
     );
     assert!(
-        err.to_string().contains("NaN"),
-        "the manufactured NaN is still consumer-visible: {err}"
+        rendered.contains("ladder"),
+        "the refusal must name the empty ladder as its cause: {rendered}"
     );
 }
 
@@ -353,10 +393,16 @@ fn the_margin_is_legible_through_the_public_topo_door() {
         "re-deriving at a tighter band must refuse"
     );
     let shown: Vec<String> = findings.iter().map(ToString::to_string).collect();
+    // AMENDED (fix pass): same rewording, same claim — and the band now
+    // survives the public door too.
     assert!(
-        shown.iter().any(|s| s.contains("offending enclosure")),
+        shown.iter().any(|s| s.contains("enclosure")),
         "a consumer reading the public door must see the enclosure, not a flattened \
          value: {shown:?}"
+    );
+    assert!(
+        shown.iter().any(|s| s.contains("zero = ")),
+        "the band must survive the public door with the margin: {shown:?}"
     );
     assert!(
         !shown.iter().any(|s| s.contains("NaN")),

@@ -150,22 +150,36 @@ where
 /// Display rewrite.
 #[test]
 fn the_four_margin_shapes_render_pairwise_distinguishably() {
-    use geom_core::MarginDiag;
-    let render = |margin: Option<MarginDiag>| {
-        PcurveCertifyError::FittedCertificate {
-            limb: None,
-            what: "probe",
-            margin,
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    // AMENDED (fix pass): the shapes now live behind two doors rather
+    // than one `Option<MarginDiag>` field — escalations carry the
+    // classifier's whole `Indeterminate` (margin AND band AND
+    // predicate), definite/structural refusals carry a named
+    // `FittedMagnitude` or nothing. The probe's claim is unchanged and
+    // is if anything sharper: no two of these may render alike.
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let escalated = |margin: MarginDiag| {
+        PcurveCertifyError::FittedEscalated {
+            cause: Indeterminate {
+                margin,
+                band,
+                predicate: Some("probe"),
+            },
         }
         .to_string()
     };
-    let value = render(Some(MarginDiag::Value(1.5e-12)));
-    let enclosure = render(Some(MarginDiag::Enclosure {
+    let value = escalated(MarginDiag::Value(1.5e-12));
+    let enclosure = escalated(MarginDiag::Enclosure {
         lo: 1.5e-12,
         hi: 2.5e-12,
-    }));
-    let poison = render(Some(MarginDiag::Invalid));
-    let hole = render(None);
+    });
+    let poison = escalated(MarginDiag::Invalid);
+    let hole = PcurveCertifyError::FittedCertificate {
+        limb: None,
+        what: "probe",
+        magnitude: None,
+    }
+    .to_string();
 
     // The enclosure renders BOTH endpoints (a reader needs the width).
     assert!(
@@ -173,11 +187,22 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
         "the enclosure must surface both endpoints: {enclosure}"
     );
     // Poison says so in words, and no honest shape claims poison.
-    assert!(poison.contains("poison"), "{poison}");
+    assert!(
+        poison.contains("poison") || poison.contains("invalid"),
+        "{poison}"
+    );
     for honest in [&value, &enclosure, &hole] {
         assert!(
             !honest.contains("poison") && !honest.contains("NaN"),
             "an honest margin must not read as poison: {honest}"
+        );
+    }
+    // Every escalation renders its BAND too — a margin without the band
+    // it was judged against cannot be read.
+    for e in [&value, &enclosure, &poison] {
+        assert!(
+            e.contains("1e-12") && e.contains("1e-11"),
+            "an escalation must render the band it was judged against: {e}"
         );
     }
     // All four renderings are pairwise distinct.
@@ -245,9 +270,21 @@ mod interval_lane {
                 text.contains("ssi_hull_sup"),
                 "the escalating predicate's name is the actionable part: {text}"
             );
+            // AMENDED (fix pass): escalations now render through
+            // `IndeterminatePayload`, the classifier's own renderer, so
+            // the wording is "enclosure [lo, hi] cannot be classified
+            // against the band" rather than this lane's former
+            // "offending enclosure [". The probe's claim — the margin
+            // renders as an ENCLOSURE with both endpoints, never as a
+            // value or a hole — is unchanged, and the payload
+            // additionally carries the band.
             assert!(
-                text.contains("offending enclosure ["),
+                text.contains("enclosure ["),
                 "the margin must render as an enclosure, not a value or a hole: {text}"
+            );
+            assert!(
+                text.contains("zero = ") && text.contains("escalate = "),
+                "an escalation must render the band it was judged against: {text}"
             );
             // Both endpoints of the degenerate enclosure — rendered
             // twice, since lo == hi.
