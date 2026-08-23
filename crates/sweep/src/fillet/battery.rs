@@ -772,6 +772,14 @@ pub(super) const NOT_COAXIAL: &str = "a curved support pair whose two supports d
 /// Deciding it here is what keeps a NON-coaxial pair — whose spine is
 /// neither line nor circle, i.e. the canal family — from being minted
 /// as an exact torus that is not one.
+///
+/// On a body whose edge carriers are certified the margin is Zero by
+/// implication and not by luck: a circle lying wholly on a sphere has
+/// its own axis through that sphere's centre, and a circle lying wholly
+/// on a coaxial cylinder or cone is a latitude of it, so the carrier
+/// already witnesses the shared axis. This predicate is what makes that
+/// implication a CHECKED premise rather than an unstated chain through
+/// somebody else's certificate.
 fn support_coaxiality<T: Decide + Bounds>(
     edge: EdgeKey,
     departure: T,
