@@ -78,6 +78,7 @@ mod rest;
 pub(crate) mod sectors;
 pub mod solid_contain;
 pub mod tables;
+pub mod voids;
 pub(crate) mod vtxfac;
 mod zip;
 
@@ -115,6 +116,7 @@ pub use rest::{
     flush_pair_relation, tangent_locus,
 };
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
+pub use voids::{VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.

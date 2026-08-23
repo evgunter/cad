@@ -118,11 +118,17 @@
 //!    bit-exactly (`tube` scene); a thin tube gives that up. NOT a
 //!    probe: the parameter does not exist, so there is nothing to
 //!    refuse.
-//! 7. **A full revolve of a holed profile refuses `FullRevolveHoles`**
-//!    (wall 6) — so the one-call hollow RING is unavailable and only
-//!    partial elbows are. The revolve's own docs name this as M2
-//!    scope ("the per-hole seam surgery is mechanical but
-//!    unexercised").
+//! 7. **The one-call hollow ring BUILDS; its STEP export is the wall**
+//!    (wall 6 — re-baselined by VERBS-RING). A full revolve of a
+//!    holed profile no longer refuses: the annulus revolves into a
+//!    two-shell solid (torus + toroidal cavity) through the shared
+//!    void-insertion door, tier-valid, and the probe asserts that
+//!    build every run. What the shape still cannot do is leave as a
+//!    STEP file: the writer's outward/void shell classifier has
+//!    closed forms for planar faces only, so a multi-shell CURVED
+//!    solid refuses `CurvedShellClassification` — the KNOWN standing
+//!    gate of OFFSET-DESIGN O6's demo-gates list, recorded here and
+//!    never worked around.
 //! 8. **Edge selection by adjacent surface kinds is document-layer
 //!    only.** `select_where` + `GeomPred::AdjacentKinds` is the
 //!    ratified way to say "the cone×cylinder corners" (the die scene
@@ -850,8 +856,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "build the loop as ONE body and drop the two-elbow split",
     );
 
-    // Wall 6: the one-call hollow ring — what the loop would be if it
-    // closed on itself instead of entering the bulb.
+    // Wall 6 (RE-BASELINED by VERBS-RING): the one-call hollow ring —
+    // what the loop would be if it closed on itself instead of
+    // entering the bulb — now BUILDS: the holed full revolve executes
+    // as revolve(outer) − revolve(hole-as-outer) through the shared
+    // void-insertion door (the degenerate no-crossing arm), so the
+    // probe asserts the two-shell tier-valid build it used to pin as
+    // a refusal. The wall that REMAINS for this shape is its STEP
+    // export: the writer's outward/void shell classifier has closed
+    // forms for planar faces only, so a multi-shell CURVED solid
+    // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
+    // recorded here and never worked around.
     let ring_plane = SketchPlane::from_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
@@ -870,21 +885,83 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         tol,
     )
     .expect("the annulus validates");
+    let hollow = revolve::<S>(
+        &ring,
+        RevolveAxis {
+            origin: p2::<S>(0.0, 0.0),
+            dir: v2::<S>(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol,
+    )
+    .expect("the hollow ring builds in one call (VERBS-RING)");
+    assert_eq!(
+        hollow.body.shells().count(),
+        2,
+        "the ring is a two-shell solid: outer torus + toroidal cavity"
+    );
+    assert_eq!(hollow.cavities.len(), 1);
+    assert_eq!(pncad::topo::validate(&hollow.body), Ok(()));
+    assert_eq!(pncad::topo::validate_closed(&hollow.body), Ok(()));
+    assert_eq!(
+        pncad::topo::validate_geometric(&hollow.body, tol),
+        Ok(()),
+        "the hollow ring is tier-3 valid"
+    );
+    println!(
+        "   wall 6 — RETIRED as a refusal: the annulus revolves to a two-shell \
+         hollow ring in one call (VERBS-RING); the shape's remaining wall is \
+         its STEP export, probed next"
+    );
+    // f64: `step_export` is a rendering/interchange-side door and
+    // takes the run's own numbers (the wall-7 posture).
+    let ring_f64 = validated(
+        SketchPlane::from_frame(
+            p3::<f64>(0.0, 0.0, 0.0),
+            v3::<f64>(1.0, 0.0, 0.0),
+            v3::<f64>(0.0, 0.0, 1.0),
+        ),
+        vec![
+            circle(p2::<f64>(RLOOP, 0.0), R + WALL / 2.0, tol)
+                .expect("outer")
+                .into(),
+            circle(p2::<f64>(RLOOP, 0.0), R - WALL / 2.0, tol)
+                .expect("inner")
+                .into(),
+        ],
+        tol,
+    )
+    .expect("the annulus validates at f64");
+    let hollow64 = revolve::<f64>(
+        &ring_f64,
+        RevolveAxis {
+            origin: p2::<f64>(0.0, 0.0),
+            dir: v2::<f64>(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol,
+    )
+    .expect("the hollow ring builds at f64");
     crate::walls::wall(
         "bottle",
         6,
-        "revolve the annulus a FULL turn (a hollow ring in one call)",
-        revolve::<S>(
-            &ring,
-            RevolveAxis {
-                origin: p2::<S>(0.0, 0.0),
-                dir: v2::<S>(0.0, 1.0),
+        "export the hollow ring as STEP (a multi-shell curved solid)",
+        pncad::step_export::step_string(
+            &hollow64.body,
+            &pncad::step_export::StepOptions {
+                product_name: "hollow_ring".into(),
+                ..Default::default()
             },
-            Revolution::Full,
             tol,
         ),
-        |e| matches!(e, pncad::sweep::RevolveError::FullRevolveHoles),
-        "say hollow rings in one revolve",
+        |e| {
+            matches!(
+                e,
+                pncad::step_export::StepExportError::CurvedShellClassification { .. }
+            )
+        },
+        "record that the writer's outward/void classifier grew a curved arm and \
+         update findings entry 7 (the O6 demo-gates list row)",
     );
 
     // Wall 7: a valid body the tessellator refuses. The ONLY change

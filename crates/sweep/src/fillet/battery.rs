@@ -556,7 +556,7 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// before any margin and reported with their own
 /// [`CornerConfig`] tag; each tag names the run-out policy that would
 /// handle it ([`RunOutPolicy`]) and nothing more — zero constructor
-/// surface, the `FullRevolveHoles` precedent.
+/// surface, refusal-payload vocabulary only.
 ///
 /// # Errors
 ///
@@ -698,7 +698,16 @@ fn resolve_link<T: Decide + Bounds>(
         .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
         .clone();
-    let (arm, blend) = classify_arm(&sa, n_a, &sb, n_b, p, tau, radius, convexity, edge, kind)?;
+    // A face's stored sense bit read STRUCTURALLY, never re-derived
+    // from a normal: for a sphere the chart normal is the outward
+    // radial, so `sense` says on which side of that sphere the material
+    // lies, which is which offset sphere the rolling ball's centre
+    // rides (`plane_sphere_blend`).
+    let sense = |f: FaceKey| body.get_face(f).map(|d| d.sense).ok_or_else(broken);
+    let senses = (sense(face_a)?, sense(face_b)?);
+    let (arm, blend) = classify_arm(
+        &sa, n_a, &sb, n_b, senses, p, tau, radius, convexity, edge, kind,
+    )?;
     Ok(Link {
         edge,
         face_a,
@@ -736,6 +745,8 @@ fn classify_arm<T: Bounds>(
     n_a: Vec3<T>,
     sb: &Surface<T>,
     n_b: Vec3<T>,
+    // The two supports' stored sense bits, in `(sa, sb)` order.
+    senses: (bool, bool),
     p: Point3<T>,
     tau: Vec3<T>,
     radius: T,
@@ -768,7 +779,7 @@ fn classify_arm<T: Bounds>(
             },
         ) => Ok((
             BlendArm::PlaneSphereTorus,
-            plane_sphere_blend(*origin, n_a, plane_u(sa), *center, *r, radius),
+            plane_sphere_blend(*origin, n_a, plane_u(sa), *center, *r, radius, senses.1),
         )),
         (
             Surface::Sphere {
@@ -776,7 +787,8 @@ fn classify_arm<T: Bounds>(
             },
             Surface::Plane { origin, .. },
         ) => {
-            let mut b = plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius);
+            let mut b =
+                plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius, senses.0);
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
             Ok((BlendArm::PlaneSphereTorus, b))
         }
@@ -1037,6 +1049,26 @@ pub fn run_battery_for<T: Decide + Bounds>(
                 *v,
                 band,
             )?;
+        }
+        // A SELF-CLOSED single link registers no junction: `walk_chains`
+        // counts its one vertex once, so the loop above has nothing to
+        // walk and the chain's own closure would go unmetered. The
+        // wrap-around is still a junction of the spine — the link's
+        // carrier arrives at its start vertex and leaves it again — so
+        // it is metered here, on the one link's own carrier endpoints:
+        // the tangent arriving at `t1` against the tangent leaving at
+        // `t0`, under the SAME predicate as every other junction. It is
+        // vacuously satisfied by a `Curve3::Circle` (the closed carrier
+        // this kernel mints today), and is the live check the day a
+        // closed NURBS carrier arrives with a kink at its seam.
+        if matches!(chain.closure, ChainClosure::Closed) && chain.junctions.is_empty() {
+            let l = chain.first();
+            if l.start == l.end {
+                let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
+                    return Err(FilletError::ChainNotConnected { edge: l.edge });
+                };
+                chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
+            }
         }
     }
 

@@ -4,8 +4,10 @@ A visual tour of what the kernel can do today, from a pure outside
 consumer's seat: sweep bodies through the public `profile` / `sweep`
 APIs, a boolean leg through the M3 `union` / `subtract` / `intersect`
 ops (boolean-of-boolean chains included), the first `topo::split`
-cutaway, and the M4 recipe layer (editor-core document, structural
-edit, downstream-only recompute, stable names) — narrated (operations
+cutaway, the M4 recipe layer (editor-core document, structural
+edit, downstream-only recompute, stable names), and the assembly layer
+(a workspace of pinned part documents, instances, patterns, mates
+solved constructively, split/inline, the pin-update door) — narrated (operations
 used, topology census + genus, validation tiers passed, exact-vs-meshed
 mass properties), exported as binary STL + AP214 STEP, and rendered to
 PNG.
@@ -129,19 +131,23 @@ and — only when the kernel lane falls back to matplotlib —
 `demos/renders-preview/renders/*.png` (gitignored; see below).
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
-published to the lane directory only once it is complete. FreeCAD
-stamps each PNG with the path it was written to, so the staging tree
-mirrors the lane directory's *name* and each scene process runs with
-the staging root as its working directory — a staged frame is
-byte-identical to the published one.
+published to the lane directory only once it is complete. The staging
+tree mirrors the lane directory's *name* and each scene process runs
+with the staging root as its working directory, so a staged frame's
+path reads the same as its published one — which used to be a
+byte-identity requirement (FreeCAD stamps the output path into the PNG)
+and is now only tidiness, since the stamp is stripped.
 
 Both `render.sh` lanes run `strip_png_stamps.py` over the per-scene
 PNGs before composing the montage: FreeCAD's `saveImage` stamps the
 wall clock into every file it writes (a `tEXt` "Creation Time" chunk
 and a `zTXt` "Description" chunk carrying its MIBA XML), which would
-make an unchanged re-render show up dirty in `git status`. Both are
-ancillary chunks — dropping them is lossless, and it makes a dirty
-`git status` after a re-render mean the *pixels* changed.
+make an unchanged re-render show up dirty in `git status`, and the
+OUTPUT PATH (a `tEXt` "Title" chunk), which made the same pixels
+written to two paths two different files. All three are ancillary
+chunks — dropping them is lossless, it makes a dirty `git status` after
+a re-render mean the *pixels* changed, and it makes two frames of the
+same pixels comparable however they were routed.
 
 ## The UV trim-loop lane (`render-uv.sh`)
 
@@ -299,8 +305,9 @@ the filesystem level, and one silently reached a committed montage cell
 * **Guard.** `check_render_provenance.py` asserts that every committed
   per-scene PNG under `renders/` and `renders-freecad/` carries
   FreeCAD's signature `tEXt` chunks (`Author: FreeCAD (…)`, `Software:
-  FreeCAD` — deterministic, so `strip_png_stamps.py` keeps them, unlike
-  the two wall-clock chunks it drops). A matplotlib-authored frame
+  FreeCAD` — deterministic and provenance, so `strip_png_stamps.py`
+  keeps them, unlike the two wall-clock chunks and the output-path
+  chunk it drops). A matplotlib-authored frame
   (`Software: Matplotlib …`) in a committed path fails loud, naming the
   file. Both `render.sh` lanes run it after the stamp strip and
   **before** composing the montage, so a sheet is never composed from an
@@ -538,7 +545,7 @@ verbatim.
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
 | `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's first ORGANIC subject and a deliberate stress test: thirteen closed solids (three torus-segment stem tubes from `tube_along_arc`; one sphere-zone lantern with a conical mouth from `revolve(Full)`; the BUD, which is that same meridian said three times PARTIALLY — three 156° pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally like a pinwheel; two keeled leaf blades from `sweep_body`; and four from `loft_body` — the long basal leaf and the three sepals), walked by a turtle so consecutive stem arcs are **G1 by construction**. The analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The six blades are the fitted pieces — a skin is a B-spline wall through exact spine points. The two SWEPT ones hold ONE width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the four LOFTED ones do both, because `loft_body` takes the sections and the placements as separate lists, so the long leaf runs rectangle-at-the-stem to wide diamond to small diamond while turning 160° about its own spine (eased toward the tip), and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Every blade section is straight lines and not the old crescent's arcs — a limit that has since EXPIRED: the skin lane refused a rational wall until #306 landed the span meter's rational arm (`m7_skin_integral`'s Pin 4 was written to flip when that happened, and has). Restoring the lanceolate arcs is outstanding work on this stop, gated on checking the QUADRATURE half of the rational bank, which #306 did not retire. Nothing is JOINED either — the stop is followed by **eight live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam, graft the leaf's sheath onto its blade at a declared identical rectangle) and assert each typed refusal, panicking if one ever retires |
-| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder + two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards (which is the better construction for coaxial supports, and the one `fillet_edges` cannot make). The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry, not a kernel limit. The three bodies MEET on coincident annular faces (elbow↔elbow to 5e-16 m, loop↔neck bit-exactly — declared-REST numbers) and NONE of them can be joined: the boolean operand gate is per-face-kind and rejects any body carrying a cone or a torus, so the self-intersection an immersed Klein bottle must have is left un-trimmed too. Rendered SEE-THROUGH (the manifest's per-body `transparency`), from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **seven live wall probes**, one of which pins a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, "synthetic today" until this bulb's annular cap hit it (#555). Walls 1–2 once split over #554's false `TangentialEdge` on closed rims; since VERBS-RIM fixed the lever they pin the same honest `SpineUnsupported` on the full and the partial revolve alike — the missing cone×cylinder arm, probed back to back |
+| `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder + two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards (which is the better construction for coaxial supports, and the one `fillet_edges` cannot make). The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry, not a kernel limit. The three bodies MEET on coincident annular faces (elbow↔elbow to 5e-16 m, loop↔neck bit-exactly — declared-REST numbers) and NONE of them can be joined: the boolean operand gate is per-face-kind and rejects any body carrying a cone or a torus, so the self-intersection an immersed Klein bottle must have is left un-trimmed too. Rendered SEE-THROUGH (the manifest's per-body `transparency`), from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **seven live wall probes**, one of which pins a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, "synthetic today" until this bulb's annular cap hit it (#555). Walls 1–2 once split over #554's false `TangentialEdge` on closed rims; since VERBS-RIM fixed the lever they pin the same honest `SpineUnsupported` on the full and the partial revolve alike — the missing cone×cylinder arm, probed back to back. Wall 6 re-baselined at VERBS-RING: the one-call hollow ring it used to pin as `FullRevolveHoles` now BUILDS (two shells, tier-valid, asserted every run), and the probe pins the shape's remaining refusal instead — a multi-shell curved solid cannot leave as STEP (`CurvedShellClassification`, OFFSET-DESIGN O6's known standing demo gate) |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 
 Five committed **shadow proofs** ride beside the montage panels
@@ -739,13 +746,32 @@ byte-identical path it always did.
 
 ### One process per scene, on a budget
 
-**Both** lanes run one `freecadcmd` process per scene, each under a
-per-scene wall-clock budget (`FREECAD_SCENE_TIMEOUT`, default 300 s;
-`render.sh` documents how that number was measured). A warm session
-that renders many scenes deadlocks partway through on some hosts — at a
+**Both** lanes run one `freecadcmd` process per scene by default, each
+under a per-scene wall-clock budget (`FREECAD_SCENE_TIMEOUT`, default
+300 s; `render.sh` documents how that number was measured). A warm
+session that rendered many scenes deadlocked partway through — at a
 different scene each time, on an idle box as well as a loaded one — so
-it is the session that wedges, not any one scene, and no session is
-reused across scenes.
+it was the session that wedged, not any one scene. That deadlock was
+root-caused in 2026-08 (FreeCAD's notification area re-entering its own
+mutex under the offscreen QPA plugin) and `render_freecad.py` disables
+it, so the process boundary is no longer a workaround for a live bug;
+it is kept because it is what BOUNDS a future hang.
+
+`CAD_RENDER_BATCH=B` renders B consecutive scenes (scenes.json order) in
+ONE process, which pays FreeCAD's startup once per B scenes instead of
+once per scene — and startup is most of a typical scene, which is why
+scenes of wildly different geometric complexity all cost about the same.
+**Default 1: exactly the behaviour above, down to the log filenames.**
+The trade it makes is blast radius, and it is linear: a wedge costs its
+whole batch, and the pass takes up to `2 x B x FREECAD_SCENE_TIMEOUT` to
+give up on it rather than `2 x FREECAD_SCENE_TIMEOUT`. A failure that is
+NOT a wedge is split — each frameless scene of the batch is re-run
+alone, one process each — so one scene FreeCAD cannot draw still costs
+one cell and not its whole batch, exactly as at B=1.
+
+Scenes sharing a process share a FreeCAD document and view, so the knob
+is only admissible if it does not change the pixels; see
+"[Batching is byte-checked](#batching-is-byte-checked)".
 
 By default the scenes go one at a time. `CAD_RENDER_JOBS=K` renders K
 of them concurrently — still one fresh session per scene, so it does
@@ -770,6 +796,28 @@ never mistaken for a good pass.
 
 Because frames are staged and published only on a complete pass (see
 above), a wedge leaves the committed lane directory exactly as it was.
+
+<a id="batching-is-byte-checked"></a>
+#### Batching is byte-checked
+
+`CAD_RENDER_BATCH` is admissible only because a batched frame is
+BYTE-IDENTICAL to an unbatched one — the same bar `CAD_RENDER_JOBS` had
+to clear. Verified on one box, one GL stack, `CAD_RENDER_JOBS=1`, all 55
+committed cells of both lanes plus both montage sheets, at B=1 (twice,
+as the control), B=5 and B=35 (the whole kernel lane in ONE process):
+every cell and both sheets identical across all of them. PNG bytes are
+not comparable ACROSS GL stacks, so that is a statement about a repeat
+render on one box; the canonical hosted producer has to make it again
+for itself before the default moves off 1.
+
+What makes it safe is that `render_freecad.py` keeps ONE warm document
+and toggles per-scene visibility rather than cycling documents — the
+document accumulates the batch's bodies, but a hidden body contributes
+nothing to a render or to `fitAll`, and the camera is set outright from
+the scene's own spec before every frame. (Per-scene
+`newDocument`/`closeDocument` was tried and is worse: it races the
+event-loop-deferred view-provider setup offscreen, which shows up as
+blank frames and hangs.)
 
 ### Off-box: the hosted lanes
 

@@ -72,7 +72,13 @@ plan's existence — the register itself never schedules.
    links"), and a closed single-link chain never receives a
    wrap-around G1 check — so the verb-level unlock for full solids
    of revolution (the #554 consequence that remains) is THIS unit's
-   acceptance, not RIM's.
+   acceptance, not RIM's. **Cut into three sub-units at the
+   2026-08-22 survey (docs/VERBS-ARMS-SPEC.md): ARMS-1 closed-rim
+   surgery + #889's torus net (the #554 unlock, no new arms);
+   ARMS-2 the coaxial arms (one shared torus derivation — and the
+   C8 "cone" prose corrected: constant-radius rolls mint only
+   torus/cylinder); ARMS-3 general sphere×sphere + the OQ6
+   valence-4 run-out door (a design conversation, Evan-gated).**
 4. **VERBS-TUBEWALL (S)** — `tube_along_arc` grows a wall/inner-
    radius parameter so hollow tubes keep the door's exact-intent
    storage. No design record yet: the unit PR carries the (small)

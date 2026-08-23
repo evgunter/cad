@@ -387,6 +387,28 @@ pub trait PropsQuadLane:
     /// The certified flux/area enclosures of a conic-trimmed cylinder
     /// face, or `None` when this scalar has no certified lane.
     ///
+    /// **The low end of a STORED DATUM's bracket** — not a margin, and
+    /// deliberately not an `Enclosure` bound on this trait.
+    ///
+    /// Tier 3 sometimes has to answer whether a number the body carries
+    /// is a number at all: a torus tube radius that is zero, negative
+    /// or poison does not describe a small torus, it fails to describe
+    /// one, and there is no band to meter that against (the chamfer's
+    /// `NonpositiveSize` precedent — a fact about the DATUM takes no
+    /// `k_stats` name). This is the one accessor that answers it.
+    ///
+    /// **Why a method and not `PropsQuadLane: Enclosure`.**
+    /// `geom-core`'s `real.rs` says in as many words that a new
+    /// `T: Enclosure` bound *on anything that certifies* would be an
+    /// ungated hole (issue #701), and `PropsQuadLane` is exactly "this
+    /// scalar can certify a body at rest". So the bracket arrives
+    /// through one named accessor whose four implementations live in
+    /// this file — the one already ratified for the compound `Bounds`
+    /// seam — instead of through a blanket bound that would let any
+    /// certifying signature read brackets silently. The distinct name
+    /// also keeps `lo`/`hi` unshadowed at every concrete call site.
+    fn datum_lo(self) -> f64;
+
     /// # Errors
     ///
     /// [`PropsError`] from the quadrature lane (budget, unsupported
@@ -402,6 +424,10 @@ pub trait PropsQuadLane:
 }
 
 impl PropsQuadLane for f64 {
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -416,6 +442,10 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -430,6 +460,10 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -446,8 +480,12 @@ impl PropsQuadLane for geom_core::interval::Interval {
 /// none of the certified machinery (trait docs).
 impl<T> PropsQuadLane for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: Decide,
+    geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
     fn quad_cut_face(
         _body: &Body<Self>,
         _surface: &Surface<Self>,

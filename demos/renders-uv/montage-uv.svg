@@ -2,7 +2,7 @@
 <rect x="0" y="0" width="1556" height="4174" fill="#ffffff"/>
 <text x="18" y="40" font-family="sans-serif" font-size="19" font-weight="bold" fill="#111">UV trim loops — a face is a bounded patch of an UNBOUNDED surface; this is that boundary, drawn in the surface’s own chart</text>
 <text x="18" y="59" font-family="sans-serif" font-size="12" fill="#555">Kernel-only lane: no camera, no projection, no silhouettes, no external renderer. Compare renders/montage.png (our tessellation) and renders-freecad/montage-freecad.png (OCC’s).</text>
-<text x="18" y="76" font-family="monospace" font-size="11" fill="#555">48 cell(s) = one representative per (body, chart) + every failed walk; 237 further curved and 764 planar face(s) not shown (all 1049 are in out/uv/)</text>
+<text x="18" y="76" font-family="monospace" font-size="11" fill="#555">48 cell(s) = one representative per (body, chart) + every failed walk; 237 further curved and 838 planar face(s) not shown (all 1123 are in out/uv/)</text>
 <line x1="18" y1="92" x2="40" y2="92" stroke="#1f4e79" stroke-width="2.4"/><text x="46" y="96" font-family="monospace" font-size="10.5" fill="#444">harmonic — the closed-form chart image</text>
 <line x1="418" y1="92" x2="440" y2="92" stroke="#b03060" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="96" font-family="monospace" font-size="10.5" fill="#444">the chart’s periodic seam (u = k·2π)</text>
 <line x1="18" y1="107" x2="40" y2="107" stroke="#1b7a3d" stroke-width="2.4"/><text x="46" y="111" font-family="monospace" font-size="10.5" fill="#444">isoline — the exact u/v-const image (NURBS walls)</text>

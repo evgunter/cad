@@ -110,11 +110,30 @@ const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 /// **GATED**: `mesh::budget`'s instrument is compiled only under
 /// `mesh`'s `budget` feature, so this row rides that build — with the
 /// feature off there is no `arm`/`take` to call, which is the point of
-/// the gate rather than a limitation of it. M8-5 MIN-1's intent is
-/// intact: the hosted gate still runs this UNCONDITIONALLY, in
+/// the gate rather than a limitation of it. The hosted gate runs it in
 /// ci.yml's "mesh budget meter + certificate falsifier
-/// (feature = budget)" row (mirrored by local-scripts/ci-local.sh). What moved is which build the row rides
-/// in, not whether the row runs.
+/// (feature = budget)" row (mirrored by local-scripts/ci-local.sh).
+///
+/// **FREQUENCY, corrected 2026-08-22 — this row is no longer
+/// unconditional.** That step rides `k-lint`'s `dev-budget` feature
+/// row, and `k-lint` now SAMPLES one of its five feature unifications
+/// per run, so the falsifier runs on an expected 1 run in 5 rather than
+/// on every build-triggering change. The draw is seeded from the head
+/// SHA under its own salt, so a re-run of one commit draws the same row
+/// and the draw is recoverable from the SHA without the logs;
+/// repetition covers the matrix at this repository's ~60 runs/hour of
+/// active work.
+///
+/// M8-5 MIN-1's intent survives the change, and the reason is specific
+/// rather than reassuring: this row is a PERSISTENCE detector. A
+/// certificate that stopped dominating its own samples stays broken in
+/// the tree, so a later draw still finds it — the red is deferred, not
+/// lost. Sampling would NOT be sound for a detector of absence (a row
+/// deleted, or a gate sited where it cannot fire), because an absence
+/// merges silently once and leaves no future red; that class stays
+/// unconditional elsewhere in CI. What has moved, twice now, is which
+/// build the row rides in and how often it is drawn — never whether
+/// the claim is checked.
 ///
 /// The ASSERTION is here and not in the tessellation lane, which is
 /// what keeps `mesh::tessellate`'s typed-error contract out of reach

@@ -60,6 +60,9 @@ pub(crate) struct GraftMap {
     /// equivalences ride surfaces — fragments inherit surface keys,
     /// so the surface bridge survives fragment-key churn).
     pub surfaces: SecondaryMap<SurfaceKey, SurfaceKey>,
+    /// Source shell → result shell (the void-insertion door's
+    /// consumers address the transplanted cavity shells by this).
+    pub shells: SecondaryMap<ShellKey, ShellKey>,
 }
 
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
@@ -462,5 +465,6 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         faces,
         edges,
         surfaces,
+        shells,
     })
 }

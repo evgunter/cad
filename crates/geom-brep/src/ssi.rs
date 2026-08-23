@@ -310,6 +310,34 @@ pub enum SsiError {
         /// The offending value, in meters.
         value: f64,
     },
+    /// Limb 3 never ran: the tube ladder is EMPTY. Every rung radius
+    /// `SSI_TUBE_RADIUS_MAX·extent / 2^k` sits below the ladder floor
+    /// `SSI_TUBE_RADIUS·ε`, which happens when the carrier's extent is
+    /// small against the run's tolerance — a structural fact about the
+    /// pairing of geometry and ε, decided before any box is probed.
+    ///
+    /// It is NOT a limb exceedance, and it does not carry a margin:
+    /// nothing was measured. This variant exists because the case used
+    /// to be reported as `CertificateLimb { limb: Tube, value: NaN }`
+    /// — a structural refusal wearing a limb-exceeded costume, whose
+    /// NaN payload then had to be laundered by every consumer that
+    /// tried to render it.
+    TubeLadderEmpty {
+        /// The carrier extent the ladder was scaled from (meters).
+        extent: f64,
+        /// The floor every rung fell below (meters).
+        floor: f64,
+    },
+    /// Limb 3 ran and never got an answer: the ladder had rungs, but
+    /// no rung's tube probe produced an enclosure at all (each
+    /// returned nothing rather than a margin). Structural, like
+    /// [`SsiError::TubeLadderEmpty`], and likewise carrying no margin
+    /// — the distinction between them is exactly whether any radius
+    /// was ever tried.
+    TubeProbeSilent {
+        /// How many rungs were offered and answered with nothing.
+        rungs: u32,
+    },
     /// Limb 3's transversality enclosure straddles zero over a tube
     /// box: two branches pass within the band of each other. A genuine
     /// sliver (F6), not a resolution failure to retry.
@@ -447,6 +475,19 @@ impl core::fmt::Display for SsiError {
                 "ssi: the fitted carrier failed {} at {value:e} m — the cache is not \
                  within tolerance of the locus it claims",
                 limb.name()
+            ),
+            Self::TubeLadderEmpty { extent, floor } => write!(
+                f,
+                "ssi: the uniqueness tube's radius ladder is empty — every rung scaled \
+                 from the carrier's {extent:e} m extent falls below the {floor:e} m \
+                 ladder floor, so limb 3 never ran. The carrier is too short against \
+                 this run's tolerance to carry a certified tube; nothing was measured"
+            ),
+            Self::TubeProbeSilent { rungs } => write!(
+                f,
+                "ssi: none of the uniqueness tube's {rungs} ladder rungs produced an \
+                 enclosure, so limb 3 has nothing to decide — a structural refusal, \
+                 with no margin behind it"
             ),
             Self::TubeStraddles { margin, boxes } => write!(
                 f,
