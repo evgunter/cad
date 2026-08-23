@@ -90,6 +90,8 @@ mod m9_1_contact_vocabulary;
 mod m9_2_census_door;
 #[path = "m9_2b_r2_probes.rs"]
 mod m9_2b_r2_probes;
+#[path = "m9_c1_r1_probes.rs"]
+mod m9_c1_r1_probes;
 #[path = "m9_c1_rest_face_rung.rs"]
 mod m9_c1_rest_face_rung;
 #[path = "merge_skip.rs"]
