@@ -348,6 +348,33 @@ impl NurbsFaceBound {
             cap,
         }
     }
+
+    /// The largest `h_v` this bound's ellipse admits at a FIXED `h_u`
+    /// — the alignment projection [`NurbsCellGrid::band_schedule`]
+    /// uses to put a band on the patch column schedule: solve
+    /// `mvv·h_v² + 2·muv·h_u·h_v + muu·h_u² = δ_s` for the positive
+    /// root. Exact arms on the decided zero predicates, as
+    /// [`Self::split_steps`].
+    ///
+    /// The caller guarantees `muu·h_u² ≤ δ_s` (the projection is only
+    /// ever taken at `h_u ≤` the whole-patch selection's own `h_u`,
+    /// whose saturated budget already carries the `muu` term); the
+    /// remainder is clamped at zero so floating-point at that boundary
+    /// answers a zero step — which [`crate::sizing::ceil_count`]
+    /// refuses typed — rather than a NaN certificate.
+    pub(crate) fn step_v_at(&self, hu: f64, delta_s: f64) -> f64 {
+        let rem = (-self.muu).mul_add(hu * hu, delta_s).max(0.0);
+        if self.mvv == 0.0 {
+            if self.muv == 0.0 {
+                f64::INFINITY
+            } else {
+                rem / (2.0 * self.muv * hu)
+            }
+        } else {
+            let b = self.muv * hu;
+            (b.mul_add(b, self.mvv * rem).sqrt() - b) / self.mvv
+        }
+    }
 }
 
 /// One chosen point of the split selection
@@ -814,13 +841,15 @@ impl NurbsCellGrid {
     ///
     /// Per band: `nvc` from the band bound's own `h_v`; `nuc` from
     /// the band bound's own `h_u` — EXCEPT that a MALIGN band
-    /// (subdividing in `u`, realized aspect `s_u/s_v` beyond
-    /// [`SAFE_ASPECT`]) and its immediate neighbours take the
-    /// whole-patch column count instead. The steps come from the
-    /// split selection [`NurbsFaceBound::split_steps`] (TESS-SPLIT:
-    /// the aspect-capped cell minimizer; the snap target `patch_nuc`
-    /// derives from the whole-patch bound through the SAME selection,
-    /// one derivation), and the patch count only ever adds columns.
+    /// (realized aspect `s_u/s_v` beyond [`SAFE_ASPECT`]) and its
+    /// immediate neighbours take ONE shared column count: the max of
+    /// the whole-patch count `patch_nuc` and every such band's own
+    /// (the derivation at the snap site says why the max is needed).
+    /// The steps come from the split selection
+    /// [`NurbsFaceBound::split_steps`] (TESS-SPLIT: the aspect-capped
+    /// cell minimizer; `patch_nuc` derives from the whole-patch bound
+    /// through the SAME selection, one derivation with the chord
+    /// pass), and the snap only ever adds columns.
     /// The two aspect bounds are DIFFERENT quantities and both bind:
     /// the selection caps the chosen cell's 3-D shape at
     /// [`ASPECT_CAP`]; this snap judges the emitted lattice's
@@ -869,27 +898,15 @@ impl NurbsCellGrid {
         let (phu, _) = patch.grid_steps(delta_s);
         let patch_nuc = crate::sizing::ceil_count(du, phu)?;
         let mut bands = Vec::with_capacity(edges.len().saturating_sub(1));
-        let mut malign = Vec::with_capacity(edges.len().saturating_sub(1));
+        let mut row_bounds = Vec::with_capacity(edges.len().saturating_sub(1));
         for w in edges.windows(2) {
             let (va, vb) = (w[0], w[1]);
             // The band is found by the slab midpoint — strictly inside
             // one band, since no interior cut crosses a slab.
-            let steps = self
-                .row_bound(self.row_of(0.5 * (va + vb)))
-                .split_steps(delta_s);
+            let bound = self.row_bound(self.row_of(0.5 * (va + vb)));
+            let steps = bound.split_steps(delta_s);
             let nuc = crate::sizing::ceil_count(du, steps.hu)?;
             let nvc = crate::sizing::ceil_count(vb - va, steps.hv)?;
-            // Malignity is judged on the REALIZED spacings `s_u/s_v`,
-            // not the pre-`ceil` ideal steps: the lattice a sliver
-            // lives in has rows every `s_v = (vb−va)/nvc ≤ h_v`, so
-            // testing against `h_v` under-estimates the aspect by up
-            // to ~2x whenever a band's extent barely exceeds one step
-            // (R2's review fixture, pinned in the tests below).
-            #[allow(clippy::cast_precision_loss)]
-            let su = du / nuc as f64;
-            #[allow(clippy::cast_precision_loss)]
-            let sv = (vb - va) / nvc as f64;
-            malign.push(nuc >= 2 && sv.is_finite() && sv > 0.0 && su > SAFE_ASPECT * sv);
             bands.push(BandCounts {
                 va,
                 vb,
@@ -898,14 +915,84 @@ impl NurbsCellGrid {
                 cap: steps.cap,
                 snapped: false,
             });
+            row_bounds.push(bound);
         }
-        for (i, b) in bands.iter_mut().enumerate() {
-            let near_malign = malign[i]
-                || (i > 0 && malign[i - 1])
-                || malign.get(i + 1).copied().unwrap_or(false);
-            if near_malign {
-                b.snapped = patch_nuc > b.nuc;
-                b.nuc = b.nuc.max(patch_nuc);
+        // Malignity is judged on the REALIZED spacings `s_u/s_v`, not
+        // the pre-`ceil` ideal steps: the lattice a sliver lives in
+        // has rows every `s_v = (vb−va)/nvc ≤ h_v`, so testing against
+        // `h_v` under-estimates the aspect by up to ~2x whenever a
+        // band's extent barely exceeds one step (R2's review fixture,
+        // pinned in the tests below).
+        //
+        // EVERY band is judged, `nuc = 1` included (TESS-SPLIT): a
+        // band that does not subdivide `u` still meets its neighbours'
+        // columns on the shared cut lines, and beside a full-width
+        // `s_u = du` lattice those foreign points admit the same
+        // `(aspect²+1)/8·δ_s` sliver — executed on the #320 leaf under
+        // the aspect-capped selection, whose `nuc = 1` bands beside
+        // snapped `nuc = 3` bands certified a 41·δ sliver and refused
+        // the face. The retired selection never realized an
+        // anisotropic `nuc = 1` band, which is the only reason a
+        // `nuc >= 2` exemption survived here.
+        #[allow(clippy::cast_precision_loss)]
+        let is_malign = |b: &BandCounts| {
+            let su = du / b.nuc as f64;
+            let sv = (b.vb - b.va) / b.nvc as f64;
+            sv.is_finite() && sv > 0.0 && su > SAFE_ASPECT * sv
+        };
+        // The snap: every near-malign band takes the patch column
+        // count EXACTLY — `patch_nuc` is the chord pass's schedule
+        // (one derivation), so equality is what puts every band of the
+        // group AND the boundary chord points on one column family.
+        // Under the retired selection every band's own count was `<=
+        // patch_nuc` by componentwise bound dominance and a
+        // max-with-patch was the same thing; the aspect-capped
+        // selection loses that monotonicity (each band optimizes
+        // inside its OWN first-fundamental-form window, so a band can
+        // honestly want MORE columns than the patch point — executed
+        // on the #320 s_duct: a band's own `nuc = 4` snapped-by-max
+        // beside rim chords at `patch_nuc = 3` certified a 25·δ rim
+        // sliver and refused the face). A band whose columns are
+        // WIDENED to the patch spacing pays rows for it: its `h_v` is
+        // re-projected onto its own ellipse at `h_u = du/patch_nuc`
+        // ([`NurbsFaceBound::step_v_at`]), so every emitted cell is
+        // still a point of that band's certified region.
+        //
+        // Membership runs to a FIXPOINT: projection changes realized
+        // spacings, so malignity is re-judged and the ±1-neighbour
+        // dilation re-applied until the group is closed — at exit,
+        // every neighbour of a malign band is in the group, so every
+        // high-aspect interface is column-aligned and every interface
+        // with a band outside the group is benign on both sides
+        // (foreign points beside a benign lattice certify under δ —
+        // the SAFE_ASPECT argument).
+        let n = bands.len();
+        let mut member = vec![false; n];
+        loop {
+            let malign: Vec<bool> = bands.iter().map(is_malign).collect();
+            let mut grew = false;
+            for i in 0..n {
+                if member[i] {
+                    continue;
+                }
+                if malign[i]
+                    || (i > 0 && malign[i - 1])
+                    || malign.get(i + 1).copied().unwrap_or(false)
+                {
+                    member[i] = true;
+                    grew = true;
+                    #[allow(clippy::cast_precision_loss)]
+                    let s_u = du / patch_nuc as f64;
+                    let hv = row_bounds[i].step_v_at(s_u, delta_s);
+                    let nvc = crate::sizing::ceil_count(bands[i].vb - bands[i].va, hv)?;
+                    let b = &mut bands[i];
+                    b.snapped = b.nuc != patch_nuc || b.nvc != nvc;
+                    b.nuc = patch_nuc;
+                    b.nvc = nvc;
+                }
+            }
+            if !grew {
+                break;
             }
         }
         Ok(bands)
@@ -2217,7 +2304,6 @@ mod tests {
         // with extent 0.02 → nvc 2, s_v = 0.01, s_u = 1/11 ≈ 0.0909:
         // realized aspect 9.09 > SAFE_ASPECT while 5·h_v = 0.095 >
         // s_u would have read it benign. Patch h_u ≈ 0.02236 → 45.
-        assert_eq!(bands[0].nvc, 2, "the fixture's nvc must be 2: {bands:?}");
         assert_eq!(
             bands[0].nuc, 45,
             "the malign band snaps to the patch column count: {bands:?}"
@@ -2226,7 +2312,12 @@ mod tests {
             bands[1].nuc, 45,
             "the malign band's neighbour snaps too: {bands:?}"
         );
-        // The snap only ever ADDS columns: both own counts were below.
+        // A snapped band's rows are RE-PROJECTED onto its own ellipse
+        // at the patch column spacing (band 0's h_v relaxes from
+        // ~0.0190 to ~0.0265 at s_u = 1/45, so its nvc falls to 1) —
+        // and the post-snap lattice is benign, which is the fixpoint's
+        // exit condition.
+        assert_eq!(bands[0].nvc, 1, "rows re-projected at the snapped columns: {bands:?}");
         assert!(bands[1].nvc >= 1);
         // The constraint-activity flags: the snap raised both bands
         // (sliver/snap kind), and the A cap clamped neither (the
