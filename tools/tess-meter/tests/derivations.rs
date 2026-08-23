@@ -17,8 +17,9 @@ use test_utils::fuzz;
 /// its running minimum — it never asks where the pair came from — so
 /// the properties asserted below (the answer certifies; the reported
 /// count matches the reported steps; a ruled wall improves) hold for
-/// any seed, and this one is chosen only because it is the shape the
-/// kernel actually reports. The KERNEL-supplied steps are exercised
+/// any seed; this one keeps the RETIRED AM-GM shape as an arbitrary
+/// plausible seed (the kernel now reports the aspect-capped
+/// selection). The KERNEL-supplied steps are exercised
 /// end to end in `rows.rs`, which tessellates a real body and reads
 /// `mesh::budget`'s own `patch_steps` / `CellMeasure::steps`.
 fn bound(muu: f64, muv: f64, mvv: f64, delta_s: f64) -> Bound {
@@ -167,6 +168,8 @@ fn both_row_shapes_have_the_headers_width() {
             muu: 1.0,
             muv: 2.0,
             mvv: 3.0,
+            mu1: 1.5,
+            mv1: 2.5,
             cells: 6,
             grid_cells: 12.0,
             patch_cells: 20.0,
@@ -175,6 +178,10 @@ fn both_row_shapes_have_the_headers_width() {
             worst_cert: 1e-4,
             worst_dev: 5e-5,
             dev_samples: 7,
+            bands: 3,
+            cap_bands: 1,
+            snap_bands: 0,
+            realized_aspect: 4.2,
         }),
         ..plane
     };
