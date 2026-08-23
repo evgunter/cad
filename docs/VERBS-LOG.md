@@ -549,3 +549,21 @@ if the elaboration turns out to be a genuine fork), and DEMO part 2
 (the translucent hollow ring, triggered at RING's merge). After
 these: ARMS-3's design conversation (Evan-gated), then Wave 1 is
 CLOSED and Wave 2 (curved booleans) opens.
+
+## DEMO complete (#958); ordinal-68 review out (2026-08-23)
+
+Both montage scenes landed: the chamfered die beside its filleted
+twin (deficit-volume assertion proves the chamfer never reaches a
+pip; the r==d bit-equality recorded as observation, not contract)
+and the one-call hollow ring rendered translucent per the
+loop-tube precedent (hollowness pinned structurally AND
+numerically). The STEP frontier became a self-retiring tour door
+(step_at_frontier: a different refusal OR a success fails the
+tour); the freecad lane skips-and-names rather than substituting
+kernel STL as false OCC evidence — the blank cell flagged for
+adjudication. Six friction findings recorded, two load-bearing for
+future units: the recipe-node gap measured from BOTH sides (no
+Node::chamfer; Node::Revolve's ProfileProgram cannot carry a
+hole), and Revolved::cavities returns a ShellKey no door can
+spend. **Ordinal 68 claimed** (66/67 are ASM's per the corrected
+sequence) — not a third — single fable review at frozen 43a3bd58.
