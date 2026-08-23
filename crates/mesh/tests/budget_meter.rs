@@ -97,8 +97,13 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
             "the analysis cells are reported: {m:?}"
         );
         assert!(
-            m.muu.is_finite() && m.muv.is_finite() && m.mvv.is_finite(),
-            "the whole-patch bound is certified and finite: {m:?}"
+            m.muu.is_finite()
+                && m.muv.is_finite()
+                && m.mvv.is_finite()
+                && m.mu1.is_finite()
+                && m.mv1.is_finite(),
+            "the whole-patch bound is certified and finite, first-derivative sups \
+             included: {m:?}"
         );
         assert!(
             m.worst_cert.is_finite() && m.worst_cert > 0.0,

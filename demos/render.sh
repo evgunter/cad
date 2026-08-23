@@ -560,6 +560,9 @@ publish() {
     for f in "$stage"/*.png; do
         name=$(basename "$f" .png)
         rm -f "$rd/$name.fail.txt"
+        # A stale note goes with the stale frame: this pass republishes
+        # the note below if it still applies.
+        rm -f "$rd/$name.note.txt"
         mv -f "$f" "$rd/$name.png"
     done
     for f in "$stage"/*.fail.txt; do
@@ -569,6 +572,15 @@ publish() {
         # an earlier one goes: the sheet must show the labeled failure,
         # not a stale cell that no longer corresponds to anything.
         rm -f "$rd/$name.png"
+        mv -f "$f" "$rd/"
+    done
+    # `.note.txt` — a frame that rendered EMPTY on purpose (the lane had
+    # nothing to import for it). Unlike a `.fail.txt` it does not
+    # displace the frame; it travels BESIDE it, so the sheet can stamp
+    # the cell as declared rather than as a wedge. The stale copy was
+    # already cleared with its frame above.
+    for f in "$stage"/*.note.txt; do
+        [ -e "$f" ] || continue
         mv -f "$f" "$rd/"
     done
 }

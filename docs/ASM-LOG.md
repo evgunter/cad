@@ -478,3 +478,35 @@ under this program's flag: **TESS-SPLIT** (PR #951 — review at
 ordinal 67 + fix pass + merge; the orchestrator drives it to
 green before resting) and the banked follow-ons (**ASM-XSPLIT**,
 the #945 rider unit) for whoever picks the flag up next.
+
+## TESS-SPLIT MERGED (#951, 2026-08-23) — #320 closed; session rest
+
+The split half landed through the full designed path: the
+closed-form aspect-capped selection (A=16 through the FFF,
+ratified #568), D-1a executed and biting twice — the reconciled
+spec's own reconciliation obligation caught for real: the new
+selection's tour run refused at 41·δ and 25·δ exactly where the
+retired snap's invariants were AM-GM artifacts, and the
+generalized snap (every band judged; exact patch-count projection
+to a dilation fixpoint) is the minimal closure, reviewer-executed
+both ways. Tour NURBS cells 163,182 → 46,102; with TESS-SPAN,
+#320's leaf_a is 261,780 → 43,798 triangles, a 6.0x total. Row
+67. #950 is the scheduled residual; M9-5's fresh-state pointer
+(row-8 else-arm): the shipped selection is `split_steps` + the
+fixpoint snap, baseline re-cut at 31f052d2.
+
+### RESTING STATE (the program is CLOSED; this is the archive tail)
+
+ASM's v1 scope closed at the ratified exit walk
+(docs/ASM-EXIT-WALK.md — the done-state of record). Everything
+this session moved: TESS-SPLIT-SPEC reconciled (#936) →
+dispatched → MERGED (#951, row 67); ASM-DEMO brief → MERGED
+(#938, row 66, dual sample #21) with the A5 gate joining the
+pncad façade; the exit walk RATIFIED (#955) with the A11
+member-vocabulary rider ratified in ASSEMBLY-DESIGN; issues
+#943–#948 + #950 filed and scheduled; the LIB deposit
+(LIB-LOG tail); the #952 ordinal collision resolved (claims
+discipline adopted). BANKED for a successor: **ASM-XSPLIT**
+(the AQ8 conversion door, spec unwritten) and **#945** (the A11
+rider's implementation unit). All lanes swept; nothing in
+flight. Resume affordance: #611 carries the close-out pointer.

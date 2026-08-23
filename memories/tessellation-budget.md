@@ -82,7 +82,14 @@ committed baseline's, not this file's. Meter columns re-derived
 report prints held/split/total. (It also added an `agree`
 column, retired by #738 — `docs/TESS-BUDGET.md`, "Why there is no
 realisation column".)
-The SPLIT half (aspect policy) stays open — docs/TESS-SPLIT-SPEC.md.
+The SPLIT half landed too (TESS-SPLIT): the shipped selection is the
+cell minimizer under the ratified A = 16 FFF aspect cap
+(`mesh::nurbs_cert::ASPECT_CAP` / `split_steps`), with the sliver
+snap generalized to an exact patch-count projection run to a
+fixpoint — the two aspect bounds are DIFFERENT quantities and both
+bind; on ruled walls alignment, not spacing, is what keeps
+off-lattice slivers out. Split ratio reads ~1.0; `cap_bands` /
+`snap_bands` columns say which constraint bound the rest.
 
 ## The findings
 
