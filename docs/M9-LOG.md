@@ -471,3 +471,25 @@ implementer lanes' targets reclaimed (94% → 41%) ahead of the
 reviewer builds. Board: TWO reviews running (ord 71 census-rest,
 ord 72 M9-3 dual); fix passes then merges follow; M9-5 + gap-2
 queued.
+
+## Ordinal-72 dual returned (2026-08-23) — converged AWF; fix pass running
+
+R1 fable AWF 0/1/6 rubric 4/5/4; R2 opus AWF 1/11/6 + 8 style,
+rubric 4/3/3. Labels CONVERGED; the calibration jewel: BOTH
+examined the covered (Zero,Positive) reduce branch — R1 stated
+the true separation invariant as its safety reason, R2 proved the
+WRITTEN convexity justification mathematically false and the true
+guard unstated (and broken by the named cyl×sphere follow-up) —
+converged substance, divergent severity, the one MAJOR. C8 held
+under every adversarial configuration both reviewers built; both
+reproduced the JoinDesync red; two-peg oracle independently
+re-derived (bitwise 48.0). R2's degradation sweep: three headline
+assertions couldn't go red on degrade (closed-form unasserted;
+1e-12 with 281x slack over 0.5 ulp; body-wide mark count) — all
+free fixes, taken. Union adjudicated, fix pass dispatched to the
+implementer lane (M1 invariant stated+guarded; two residue issues
+owed; R1's 12-probe branch adopted; contfp's latent cross-loop
+shadowing attempted with fallback-to-issue; m5_s1 baseline move
+orchestrator-adjudicated CORRECT with the spec's list amended by
+adjudication). Census fix pass also running (its #973 filed).
+Row records at merge with both rubrics per the dual convention.
