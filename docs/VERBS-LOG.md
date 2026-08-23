@@ -458,3 +458,18 @@ out for Evan in the PR. **Ordinal 65 claimed** — not a third —
 single fable review at frozen b4f5c264, lane verbs-ring-r1.
 Three reviews/fix-passes now in flight (64 ARMS-1, 65 RING,
 SSIFLAT fix pass); DEMO part 2 unlocks at RING's merge.
+
+## SSIFLAT MERGED (#931, 2026-08-23) — #925 CLOSED; (interval, 1e-12) CLEAN
+
+Row SSIFLAT (ordinal 63, sample #20, the EIGHTH cross-model pair)
+in MODEL-AB-LOG. The fix pass's rework made IndeterminatePayload's
+first consumer real; both structural NaN mints fixed at source;
+#934 carries the class. R1's full-suite runs establish the
+(interval, 1e-12) point CLEAN on main after this merge — the #921
+saga that began with the chamfer's unlucky draw is fully resolved.
+Process findings recorded: adopted reviewer probes import their
+own gate debt; and the FOURTH consecutive default-ε draw on
+1e-12-subject units is a sampling-regime gap (reported to #915's
+thread with the suggested ε-pin analog of _forces_interval).
+Seam sweep: i921 lane. In flight: RING review (65), ARMS-1 fix
+pass (#935 filed as its scheduled follow-up).
