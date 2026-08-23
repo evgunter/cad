@@ -54,7 +54,6 @@ pub(super) struct InsertOut<T: geom_core::Real> {
 /// Validates codes, pairs survivors, mints the null edges in both
 /// solids (module docs).
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 pub(super) fn insert_null_pairs<T: Decide>(
     a_body: &mut Body<T>,
     b_body: &mut Body<T>,
