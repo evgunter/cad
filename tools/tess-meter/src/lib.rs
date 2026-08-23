@@ -562,10 +562,11 @@ const SPLIT_SCAN_SAMPLES: usize = 321;
 /// That constraint is the per-triangle bound `Q/4` at the lane's own
 /// two-cells-per-axis budgeting (`a_u ≤ 2h_u`), so a grid found here
 /// certifies EXACTLY as the shipped one does — the difference is only
-/// which `(h_u, h_v)` on the constraint ellipse gets picked. The
-/// shipped schedule picks the point the decoupling `2·a_u·a_v ≤
-/// a_u² + a_v²` leaves it at, which is not the cheapest point when the
-/// two directions are anisotropic.
+/// which `(h_u, h_v)` on the constraint ellipse gets picked. Since
+/// TESS-SPLIT the shipped selection is the cell minimizer under the
+/// A = 16 first-fundamental-form aspect cap, so this UNCONSTRAINED
+/// optimum differs from it exactly where the cap (or the sliver snap)
+/// binds — which is what the split column now measures.
 ///
 /// The lane's own steps are evaluated too, so the answer can never
 /// come out worse than what the lane already does.

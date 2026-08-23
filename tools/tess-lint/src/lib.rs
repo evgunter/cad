@@ -27,10 +27,10 @@
 //! * **split** = `grid_cells / span_opt_cells` — what is still
 //!   recoverable by picking a cheaper point on each cell's
 //!   constraint ellipse `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`;
-//!   the shipped schedule still reaches it through the decoupling
-//!   `2·a_u·a_v ≤ a_u² + a_v²` (the split unit's open question).
-//!   Anisotropic walls (a ruled direction: `muu ≈ 0` with `muv > 0`)
-//!   pay the most.
+//!   since TESS-SPLIT the shipped schedule IS the cell minimizer
+//!   under the ratified A = 16 aspect cap, so this reads ~1.0 where
+//!   no constraint is active and the residue is the indicated price
+//!   of the cap and the sliver snap (`cap_bands` / `snap_bands`).
 //! * **total** = `delta / worst_dev` — the deviation budget that went
 //!   unspent, when the sweep ran with `--deviation`. A softer number
 //!   than the ones above: `worst_dev` is sampled (so it under-reports

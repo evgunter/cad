@@ -17,8 +17,9 @@ use test_utils::fuzz;
 /// its running minimum — it never asks where the pair came from — so
 /// the properties asserted below (the answer certifies; the reported
 /// count matches the reported steps; a ruled wall improves) hold for
-/// any seed, and this one is chosen only because it is the shape the
-/// kernel actually reports. The KERNEL-supplied steps are exercised
+/// any seed; this one keeps the RETIRED AM-GM shape as an arbitrary
+/// plausible seed (the kernel now reports the aspect-capped
+/// selection). The KERNEL-supplied steps are exercised
 /// end to end in `rows.rs`, which tessellates a real body and reads
 /// `mesh::budget`'s own `patch_steps` / `CellMeasure::steps`.
 fn bound(muu: f64, muv: f64, mvv: f64, delta_s: f64) -> Bound {
