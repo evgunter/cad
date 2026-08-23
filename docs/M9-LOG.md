@@ -372,3 +372,24 @@ verbatim, pinned as measured). Hosted 22/22 at {default, 1e-12}
 with local 1e-6/1e-12/interval on touched suites. Unit ledger row
 records at PR-B per the two-PR pattern. Board: PR-B (the zip and
 the marks) dispatching now to the same lane; #965/#966 with Evan.
+
+## CENSUS-REST-CLOSURE RATIFIED + MERGED (#965 at 3b6cc0c4, 2026-08-23); gap-1 dispatched
+
+Evan ratified same-day, in-chat + 👍: Q1 YES sure (world-space
+planar Door 2 on the verified shared carrier), Q2 YES sure (curved
+cross-instance = named residue; certified everywhere-within-ε
+enclosure recorded as the sanctioned closing shape, per his
+latitude note), Q3 accepted "less sure but ok" (rung strength
+stays structural-incidence, region-unconfined — the reduced
+confidence is recorded in the doc and BINDS the gap-1 review's
+claims-to-falsify), Q4 as proposed. Two latitude notes folded as
+binding: contact-machinery refactors sanctioned where they ease
+boolean/assembly sharing (recorded, unspent); certified
+ε-approximation acceptable for conformal Door 2 (what C3 rejected
+was the UNCERTIFIED chart-pick test). Gap-1 (the at-rest face-rung
+closure, census.rs only) DISPATCHED: block M9-16 slot 2 = OPUS,
+S / STRUCTURAL pre-logged, branch m9/census-rest, lane m9-c1 —
+running in parallel with M9-3 PR-B (file-disjoint; build slots
+shared). Gap-2 (world-carrier Door 2, M) serializes after gap-1's
+merge (both write census.rs). Board: PR-B implementing; gap-1
+implementing; #966 (M9-5 K-seams) the one item still with Evan.
