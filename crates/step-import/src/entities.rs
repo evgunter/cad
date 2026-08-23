@@ -671,6 +671,12 @@ impl<'a> Resolver<'a> {
                     u_ref,
                 })
             }
+            // Both radii are read VERBATIM: D3's ring convention
+            // `R > r > 0` is not enforced here. It is enforced at rest,
+            // by `topo::validate`'s tier-3 check 1 (`DegenerateTorus`) —
+            // the one net that covers this door and `sweep::revolve`
+            // alike, so a horn or spindle cannot reach a body's rest
+            // state through either.
             "TOROIDAL_SURFACE" => {
                 let expected = "TOROIDAL_SURFACE(name, #placement, major, minor)";
                 let [_, placement, major, minor] = args.as_slice() else {

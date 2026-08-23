@@ -397,8 +397,10 @@ pub(crate) fn tessellate_curved(
 /// `(false, false)` arms below are argued and not measured. The route
 /// that would exercise them — a torus whose `R < r` gives a horn or
 /// spindle axis point — is refused by `sweep::revolve` at construction
-/// and NOT checked by `step-import`; that asymmetry is **issue #889**,
-/// and this guard REFUSES such a face rather than meshing it.
+/// and, on the import door which reads both radii verbatim, by
+/// `topo::validate`'s tier-3 `DegenerateTorus`; so no body reaching a
+/// mesh at rest carries one, and this guard REFUSES such a face rather
+/// than meshing it in any case.
 fn entries_off_bbox(
     poly: &[UvPoint],
     levers: &[(f64, f64)],

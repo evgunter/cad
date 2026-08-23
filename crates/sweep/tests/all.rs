@@ -35,6 +35,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "bitdump.rs"]
+mod bitdump;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -197,6 +199,10 @@ mod revolve_washer;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_arms1_annulus.rs"]
+mod verbs_arms1_annulus;
+#[path = "verbs_arms1_r1_probes.rs"]
+mod verbs_arms1_r1_probes;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]

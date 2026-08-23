@@ -178,22 +178,46 @@ pub fn plane_plane_blend<T: Real>(
     }
 }
 
-/// **The plane–sphere rim blend** (the pip rims): a plane with
-/// outward normal `n` through `origin`, meeting a sphere of radius
-/// `sphere_r` centred at `sphere_c` along a circle.
+/// **The plane–sphere rim blend**: a plane with outward normal `n`
+/// through `origin`, meeting a sphere of radius `sphere_r` centred at
+/// `sphere_c` along a circle.
 ///
-/// The ball centre sits at depth `r` below the plane and at distance
-/// `sphere_r + r` from the sphere centre (the material is outside the
-/// pip ball), so the spine is the CIRCLE of radius
-/// `s = √((R + r)² − h²)`, `h = (c_s − o)·n + r`, in the offset plane
-/// — and the blend is the torus about it. Both trimlines are circles
-/// coaxial with the spine: radius `s` on the plane (a genuine
-/// widening, `s > a` for the rim radius `a`, which is what makes the
-/// blend eat into the flat face rather than into the pocket), and
-/// radius `R·s/(R + r)` on the sphere. A configuration with no ring
-/// torus (`s ≤ r`) is NOT gated here: it yields a poisoned spine
-/// curvature, which predicate 3 escalates with an `Invalid` margin —
-/// refused before the surface is ever used.
+/// The ball centre sits at depth `r` below the plane and on the OFFSET
+/// SPHERE — the locus at distance `r` from the sphere on the material
+/// side. Which offset sphere that is, is the pair's own second
+/// configuration and is read from the sphere face's stored sense bit,
+/// never from a normal: a sphere's chart normal is the outward radial
+/// (`geom::Surface::Sphere`), so `sphere_convex` (the stored `sense`)
+/// says the material is INSIDE the sphere and the centre rides at
+/// `R − r`, while a POCKET (a pip's dimple: material outside the ball)
+/// puts it at `R + r`. Everything else is one derivation:
+///
+/// - the spine is the CIRCLE of radius `s = √(offset² − h²)`,
+///   `h = (c_s − o)·n + r`, in the offset plane, and the blend is the
+///   torus about it;
+/// - both trimlines are circles coaxial with the spine: radius `s` on
+///   the plane and `R·s/offset` on the sphere;
+/// - the plane's setback is `|s − a|` for the rim radius `a`, and its
+///   SIGN is that same configuration bit: a pocket's blend widens the
+///   hole (`s > a` — what makes it eat into the flat face rather than
+///   into the pocket), a convex sphere's shrinks the plane's boundary.
+///
+/// **Neither degenerate case is gated here**, and they are two
+/// different cases, not one:
+///
+/// - `s² < 0` — no spine circle exists at all (the offsets do not
+///   meet). `s` is then POISON, `spine_curvature` is poison, and
+///   predicate 3 escalates with an `Invalid` margin.
+/// - `0 < s ≤ r` — a spine circle exists but the tube swallows it: `s`
+///   and `1/s` are ordinary finite numbers, and predicate 3 refuses
+///   `SpineIrregular` on the FINITE curvature, not on poison.
+///
+/// Both are refused before the surface is ever used, and at the verb
+/// level predicate 2's conservative consumption screen usually fires
+/// first on the setbacks such a radius implies (the battery's own
+/// stated ordering) — either refusal is honest and typed. Total
+/// arithmetic in, classification at the caller: the crate's standing
+/// posture.
 #[must_use]
 pub fn plane_sphere_blend<T: Real>(
     origin: Point3<T>,
@@ -202,14 +226,21 @@ pub fn plane_sphere_blend<T: Real>(
     sphere_c: Point3<T>,
     sphere_r: T,
     radius: T,
+    sphere_convex: bool,
 ) -> EdgeBlend<T> {
     let depth = (sphere_c - origin).dot(n);
     let h = depth + radius;
-    let s2 = (sphere_r + radius).powi(2) - h.powi(2);
-    // No gate here: a configuration with no spine circle yields a
-    // POISONED `s`, which flows into `spine_curvature` and escalates
-    // at predicate 3 with an `Invalid` margin. Total arithmetic in,
-    // classification at the caller — the crate's standing posture.
+    // The offset sphere the ball centre rides, selected STRUCTURALLY.
+    let offset = if sphere_convex {
+        sphere_r - radius
+    } else {
+        sphere_r + radius
+    };
+    let s2 = offset.powi(2) - h.powi(2);
+    // No gate here (see the two degenerate cases in the doc above):
+    // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
+    // yields a finite curvature predicate 3 refuses `SpineIrregular`
+    // on. Total arithmetic in, classification at the caller.
     let s = s2.sqrt();
     let spine_center = sphere_c - n * h;
     let u_ref = perp_unit(plane_u_ref, n);
@@ -218,7 +249,7 @@ pub fn plane_sphere_blend<T: Real>(
     let rim = rim2.max(T::zero()).sqrt();
     // The contact circle on the sphere: the sphere point along the
     // line from its centre to the spine, scaled to radius R.
-    let scale = sphere_r / (sphere_r + radius);
+    let scale = sphere_r / offset;
     let sphere_trim_c = sphere_c - n * (h * scale);
     let sphere_trim_r = s * scale;
     // Setback on the sphere: the EUCLIDEAN displacement of the
@@ -244,7 +275,7 @@ pub fn plane_sphere_blend<T: Real>(
                 radius: s,
                 u_ref,
             },
-            s - rim,
+            if sphere_convex { rim - s } else { s - rim },
         ),
         trim_b: (
             Curve3::Circle {
