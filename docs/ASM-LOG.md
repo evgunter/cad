@@ -463,3 +463,18 @@ LIB-LOG as a dispatchable bindings series. Next: the exit-walk
 document (criteria vs evidence, M8 convention) — a design
 conversation for Evan's sign-off. Seam sweep: asm-demo + both
 review worktrees.
+
+## ASM CLOSED at v1 scope (2026-08-23) — the exit walk is ratified
+
+Evan approved the walk directly in-session after his one concern
+— the A11 rule-4 question — resolved into the ratified
+**member-vocabulary rider** (ASSEMBLY-DESIGN, A11: mate heads
+are live InstantiatePart OR pattern-placed instances at their
+derived poses; rules 3–4 bind as written; no algebra change;
+parameters never solved; Instance(i) heads canonical). #945
+converts to the banked implementation unit for it.
+docs/ASM-EXIT-WALK.md is the done-state of record. Still moving
+under this program's flag: **TESS-SPLIT** (PR #951 — review at
+ordinal 67 + fix pass + merge; the orchestrator drives it to
+green before resting) and the banked follow-ons (**ASM-XSPLIT**,
+the #945 rider unit) for whoever picks the flag up next.
