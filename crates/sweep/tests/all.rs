@@ -207,6 +207,10 @@ mod s49_census_jurisdiction;
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]
 mod verbs_arms1_r1_probes;
+#[path = "verbs_arms2_arms.rs"]
+mod verbs_arms2_arms;
+#[path = "verbs_arms2_bud.rs"]
+mod verbs_arms2_bud;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]

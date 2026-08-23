@@ -740,7 +740,14 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
 /// checks it against [`BlendArm::name`], so an arm that grows without
 /// its roster row goes red rather than shipping a stale refusal.
 pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / sphere–cone / cone–plane / \
-     cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–cylinder)";
+     cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–plane(∥) / \
+     cylinder–cylinder)";
+
+/// The roster as data, for the arm-coverage row that keeps it honest.
+#[must_use]
+pub fn arm_roster() -> &'static str {
+    ARM_ROSTER
+}
 
 /// The refusal a pair takes when its supports ARE an arm's kinds but do
 /// not share the axis (or the ruling) that arm's spine is derived from.

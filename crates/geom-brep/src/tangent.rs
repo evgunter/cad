@@ -109,14 +109,15 @@ pub struct TangentSpanBounds<T: Real> {
 /// Two arms, both closed-form:
 /// - **`Line` carriers on `Plane`/`Cylinder`/`Sphere` pairs** — the
 ///   class the C5 table's tangent arms mint (M5 PR 9), unchanged.
-/// - **`Circle` carriers on `Plane`/`Cylinder`/`Sphere`/`Torus`
-///   pairs** — the class M5 PR 12's fillet trimlines mint: the
-///   corner ball's contact circles with its edge cylinders, and the
-///   pip-rim torus blend's contact circles with the flat face and
-///   the pip sphere. `Torus` enters the lane HERE and only here: a
-///   torus tangency along a *line* is not a configuration this
-///   kernel constructs, and the line arm's bounds are left byte-for
-///   -byte unchanged so PR 9's certificates do not move.
+/// - **`Circle` carriers on `Plane`/`Cylinder`/`Sphere`/`Torus`/`Cone`
+///   pairs** — the class the fillet trimlines mint: the corner ball's
+///   contact circles with its edge cylinders, and every rim blend's
+///   contact circles with its two supports, which are the elementary
+///   surfaces of revolution in full. `Torus` and `Cone` enter the lane
+///   HERE and only here: neither a torus nor a cone tangency along a
+///   *line* is a configuration this kernel constructs, and the line
+///   arm's bounds are left byte-for-byte unchanged so PR 9's
+///   certificates do not move.
 ///
 /// **Why a circle admits `Torus` when a line does not**: the
 /// configurations this kernel MINTS on a circle carrier — a fillet
@@ -165,7 +166,8 @@ pub fn tangent_certificate_lane<T: Real>(
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
         )
     };
-    let round = |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. });
+    let round =
+        |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. } | Surface::Cone { .. });
     match carrier {
         Curve3::Line { .. } => straight(s1) && straight(s2),
         Curve3::Circle { .. } => round(s1) && round(s2),
@@ -401,7 +403,58 @@ fn circle_span_bounds<T: Real>(
                 let drift = eight * dev_rot(a, tc, false) / r_eff.powi(2);
                 Some((f2, drift))
             }
-            Surface::Nurbs(_) | Surface::Cone { .. } => None,
+            // `F = |w|·cos α − |h|·sin α`. The radial half is the
+            // torus's `√g` treatment verbatim, with the tube floor
+            // replaced by the carrier's OWN radial floor
+            // `√(g₀ − A₁ − A₂)` — the harmonic decomposition's exact
+            // minimum bound, which on a coaxial carrier is `R_c`. The
+            // axial half is linear in the point away from the apex
+            // plane, so its second derivative is `|h″| ≤ A_h`, the
+            // first harmonic's amplitude — EXACTLY zero when the
+            // carrier's plane is normal to the cone's axis, which is
+            // what coaxial means here.
+            //
+            // **The presumption, stated:** `|h|` has a kink where the
+            // carrier crosses the apex plane, and the sag argument
+            // above needs `F` twice differentiable across each step.
+            // A coaxial carrier makes `h` CONSTANT (`A_h = 0`), so no
+            // crossing is possible in any configuration this kernel
+            // mints; a non-coaxial one that does cross is bounded
+            // optimistically here, which is the same narrow, named
+            // residual risk this module's header records for the
+            // meridian-circle class rather than papering over.
+            Surface::Cone {
+                apex,
+                axis: a,
+                half_angle,
+                ..
+            } => {
+                let (s_a, c_a) = half_angle.sin_cos();
+                let (g1, g2) = radial_harmonics(a, apex);
+                let e = perp(center - apex, a);
+                let up = perp(u, a);
+                let vp = perp(v, a);
+                let g0 =
+                    e.norm_squared() + rc.powi(2) * (up.norm_squared() + vp.norm_squared()) / two;
+                // Clamped at zero so a carrier that can reach the cone's
+                // AXIS yields an infinite bound the caller's residual
+                // check refuses loudly, never a negative one that would
+                // silently under-bound.
+                let g_lo = (g0 - g1 - g2).max(T::zero()).sqrt();
+                let dg = g1 + two * g2;
+                let ddg = g1 + four * g2;
+                let sqrt_part = ddg / (two * g_lo) + dg.powi(2) / (four * g_lo.powi(3));
+                let h_amp = rc * amp(u.dot(a), v.dot(a));
+                let f2 = c_a * sqrt_part + s_a * h_amp;
+                // A cone is invariant under rotation about its axis
+                // through its APEX and under nothing else — no free
+                // translation, so the slide quotient is off. Its
+                // curvature lever arm is the distance from the axis,
+                // floored by the same `g_lo`.
+                let drift = eight * dev_rot(a, apex, false) / g_lo.powi(2);
+                Some((f2, drift))
+            }
+            Surface::Nurbs(_) => None,
         }
     };
     let (f2a, da) = bounds_of(s1)?;
