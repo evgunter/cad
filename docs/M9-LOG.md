@@ -342,3 +342,33 @@ by #910; wall 6's pin survived), the baseline pointer consumed
 (31f052d2 / re-cut 00cbdc5a), demos/README anchor drift corrected.
 Board: M9-3 PR-A implementing; #965 and #966 with Evan; nothing
 else in flight.
+
+## M9-3 PR-A MERGED (#967 at aca6d4e7, merge 3057f806, 2026-08-23) — the wall and the door exist
+
+The join lane's first half landed same-day: the front door admits
+by carrier inventory with per-class verification (Rest = the
+carrier ladder verbatim; Tangent = conformal screen → DEV-1
+witness → the C4 table along the minted locus), the reduction rung
+takes the coplanar posture for covered on-carrier incidences
+through EXISTING rows only (a boundary-only containment pre-pass +
+the face-free vertex fallback, argued from vertices-live-on-
+boundaries), the carrier swap landed at BOTH wall sites (recl's
+untyped death is gone; one `require_same` serves all three call
+sites), and the Tangent descent drives `enters_material_order2`
+with zero new metered predicate names. C8 pinned both directions:
+undeclared touching keeps `CurvedPierceUnsupported` byte-for-byte;
+wrong-radius declared Rest CONTRADICTS; the M9-1 Tangent class-
+refusal pin executed its retirement (flush-declared-Tangent now
+CONTRADICTS) plus its recipe-layer sibling found by sweep. The
+PR-boundary demonstration is committed: the declared two-peg union
+runs ALL of classification and refuses typed inside
+`try_rest_union` (`RestZipUnsupported`, non-contiguous seam run) —
+PR-B's work order verbatim, with the exactly-additive 16.0 oracle
+staged in the test's Ok arm. Seven deviations enumerated in the PR
+(none silent); notable: the Tangent descent is wired but
+end-to-end unreachable until PR-B's rim fixture (the pre-existing
+tangential-graze frontier is NOT the rung's incidence — left
+verbatim, pinned as measured). Hosted 22/22 at {default, 1e-12}
+with local 1e-6/1e-12/interval on touched suites. Unit ledger row
+records at PR-B per the two-PR pattern. Board: PR-B (the zip and
+the marks) dispatching now to the same lane; #965/#966 with Evan.
