@@ -605,3 +605,16 @@ interval-lane — the f64 lane never gated this PR**; the ordinal-70
 reviewer's charter makes the default-features matrix its explicit
 unique-signal run. Frozen fe20d633, lane verbs-arms2-r1
 (local-cloned; network still flaky).
+
+## DEMO MERGED (#958, 2026-08-23) — the montage shows the new verbs
+
+Row DEMO (ordinal 68) in MODEL-AB-LOG. The chamfered die pairs with
+the filleted one; the hollow ring reads translucent with its bore
+silhouette; the STEP frontier is a self-retiring declared gate with
+a stamped montage cell; and the strongest outcome is
+epistemological — the review EXECUTED a recorded finding, refuted
+it, and the fix pass inverted it into a standing cross-door
+assertion (the recipe ring and the direct ring agree bit-exactly,
+checked every pass). Renders re-baseline on this merge. Seam
+sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
+TUBEWALL dual (69), ARMS-2 review (70).
