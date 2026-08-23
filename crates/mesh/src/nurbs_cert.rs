@@ -306,14 +306,12 @@ impl NurbsFaceBound {
         }
         // The aspect window in t = h_u/h_v, when the face has 3-D
         // extent in both directions to measure an aspect against.
-        let window = (self.mu1 > 0.0
-            && self.mv1 > 0.0
-            && self.mu1.is_finite()
-            && self.mv1.is_finite())
-        .then(|| {
-            let rho = self.mv1 / self.mu1;
-            (rho / ASPECT_CAP, rho * ASPECT_CAP)
-        });
+        let window =
+            (self.mu1 > 0.0 && self.mv1 > 0.0 && self.mu1.is_finite() && self.mv1.is_finite())
+                .then(|| {
+                    let rho = self.mv1 / self.mu1;
+                    (rho / ASPECT_CAP, rho * ASPECT_CAP)
+                });
         // The chosen parameter aspect and whether the cap chose it.
         let (t, cap) = if muu > 0.0 && mvv > 0.0 {
             let t_star = (mvv / muu).sqrt();
@@ -2317,7 +2315,10 @@ mod tests {
         // ~0.0190 to ~0.0265 at s_u = 1/45, so its nvc falls to 1) —
         // and the post-snap lattice is benign, which is the fixpoint's
         // exit condition.
-        assert_eq!(bands[0].nvc, 1, "rows re-projected at the snapped columns: {bands:?}");
+        assert_eq!(
+            bands[0].nvc, 1,
+            "rows re-projected at the snapped columns: {bands:?}"
+        );
         assert!(bands[1].nvc >= 1);
         // The constraint-activity flags: the snap raised both bands
         // (sliver/snap kind), and the A cap clamped neither (the
@@ -2373,7 +2374,7 @@ mod tests {
             if b.mu1 > 0.0 && b.mv1 > 0.0 && s.hu.is_finite() && s.hv.is_finite() {
                 let aspect = (s.hu * b.mu1) / (s.hv * b.mv1);
                 assert!(
-                    aspect <= ASPECT_CAP * (1.0 + 1e-9) && aspect >= (1.0 - 1e-9) / ASPECT_CAP,
+                    ((1.0 - 1e-9) / ASPECT_CAP..=ASPECT_CAP * (1.0 + 1e-9)).contains(&aspect),
                     "3-D aspect {aspect:e} escapes the cap for {b:?} — {}",
                     fuzz::replay()
                 );
