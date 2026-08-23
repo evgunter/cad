@@ -2157,6 +2157,52 @@ mod tests {
         }
     }
 
+    /// REVIEW PROBE (r1, adoptable): the first-derivative sups the
+    /// aspect cap reads (`mu1`/`mv1`, TESS-SPLIT) get the SAME
+    /// falsification rows their Hessian siblings have — sampled
+    /// dominance per cell and whole-patch, and cell ≤ patch
+    /// componentwise. Without this, a subtle `first_derivative_hull` /
+    /// `s1u` window bug would misplace the aspect window with nothing
+    /// going red (the cap is policy, so no certificate catches it).
+    #[test]
+    fn first_derivative_sups_dominate_samples_and_refine_upward() {
+        for (name, s) in [
+            ("wavy", wavy()),
+            ("quarter_cylinder", quarter_cylinder()),
+            ("wavy_rational", wavy_rational()),
+        ] {
+            let whole = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+            let cells = nurbs_cell_bounds(&s, FaceKey::default()).expect("covered");
+            let n = 12;
+            for (k, c) in cells.iter().enumerate() {
+                assert!(
+                    c.bound.mu1 <= whole.mu1 && c.bound.mv1 <= whole.mv1,
+                    "{name} cell {k}: first-derivative sup exceeds the patch's"
+                );
+                let inside = |lo: f64, hi: f64, k: u32| {
+                    lo + (hi - lo) * f64::from(k) / f64::from(n) * (1.0 - 1e-9)
+                };
+                let (mut wu, mut wv) = (0.0f64, 0.0f64);
+                for i in 0..=n {
+                    for j in 0..=n {
+                        let jet = s.ders(inside(c.u.0, c.u.1, i), inside(c.v.0, c.v.1, j));
+                        wu = wu.max(jet.du.norm());
+                        wv = wv.max(jet.dv.norm());
+                    }
+                }
+                assert!(
+                    wu <= c.bound.mu1 && wv <= c.bound.mv1,
+                    "{name} cell {k} u{:?} v{:?}: sampled speeds ({wu:e},{wv:e}) escape \
+                     the certified ({:e},{:e})",
+                    c.u,
+                    c.v,
+                    c.bound.mu1,
+                    c.bound.mv1
+                );
+            }
+        }
+    }
+
     /// The per-cell bounds refine the whole-patch one, never exceed it
     /// — the whole-patch hull is taken over a superset of every cell's
     /// window, so a cell reporting MORE than the patch would mean the
