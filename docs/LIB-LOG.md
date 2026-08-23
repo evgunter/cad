@@ -989,3 +989,41 @@ pickup map for a cold successor: this log's tail + the residual
 register (category B self-enforcing via the audit test) +
 memories/MEMORY.md. Correction recorded rather than edited in
 place — the log is append-only by convention.
+
+**Cross-program deposit from ASM (2026-08-23, ASM orchestrator,
+recorded here at Evan's direction — LIB inactive)**: ASM-DEMO
+(#938, the R2 exit demo) surfaced two LIB-owned items.
+(1) **The façade omitted the assembly VALIDATION surface** (the
+PR's F1): `pncad::document` exposed the whole assembly authoring
+vocabulary (InstantiatePart/Pattern/Mate + payloads, split/
+inline, update_references, mixed_pins, solve_document, product)
+and not the gate that validates the result — assemble, Assembly,
+AssemblyError, AtRestFinding, Attribution, MintedDeclaration,
+RefusedRef. A façade-only consumer could author an assembly and
+never run its validity gate. The minimal re-export block LANDS
+in #938's fix pass (adjudication on the PR: the `profile`
+manifest entry documents a DELIBERATE omission, this one was an
+accident, and the tour's own LIB-U1 invariant had made the
+flagship assembly scene its standing exception). What LIB owes
+is only a retroactive curation review of that block at next
+activation — if the façade rules want a different shape, say so
+on #938's thread.
+(2) **The assembly surface is entirely absent from `pncad-py`**
+(the demo's Python survey, independently spot-checked by both of
+#938's reviewers): no instantiate_part / mate (+ Alignment,
+MateFrame, MatePrimitive, AxisSense, ContactClass) / plain
+N-bodies pattern / Workspace-DocRef-ContentPin family /
+set_placement / set_roots / update_reference / mixed_pins /
+solve_document / product / assemble / split / inline — and
+structurally FIRST, `evaluate(doc)` takes no resolver, so an
+InstantiatePart node cannot evaluate from Python at all. Neither
+of the demo's two assembly documents is authorable through the
+bindings; the standing demo-purpose goal ("every demo authorable
+through the Python bindings") fails for the assembly layer. This
+joins the dispatchable column as a PYG-family series with a
+stated order: the resolver/workspace door first (small, possibly
+wanting a short design conversation on the workspace-from-Python
+shape), then the node/edit/refactoring bindings, which are
+mechanical once evaluation can resolve. The demo
+(`demos/tour/src/assembly.rs`) is the ready-made coverage oracle
+for the whole series, per the standing tour-corpus rule.

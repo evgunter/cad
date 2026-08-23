@@ -2626,7 +2626,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary.
-/// - **Resolution plumbing** (`Resolution`, `Resolved`, `RefusedRef`,
+/// - **Resolution plumbing** (`Resolution`, `Resolved`,
 ///   `ResolveError`, `ResolveIndeterminate`, `ResolutionFailure`,
 ///   `Qualifier`, `Coset`, `HitTestError`, `resolve*`): the interior
 ///   of name→entity resolution, whose curated face is
@@ -2637,28 +2637,35 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   machinery behind `evaluate`.
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
-///   `Product`, `product_recorded`, `Assembly`, `AssemblyError`,
-///   `assemble`, `AtRestFinding`, `Attribution`, `MintedDeclaration`,
-///   `ClassAdmission`, `class_admission`,
-///   `BifurcationKind`, `NamingError`, `MetaValue`, `MetaError`,
-///   `MetaVersionError`, `from_value`, `to_value`): each has a
-///   curated door of its own or is machinery behind one.
+///   `Product`, `product_recorded`, `ClassAdmission`,
+///   `class_admission`, `BifurcationKind`, `NamingError`,
+///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
+///   `to_value`): each has a curated door of its own or is machinery
+///   behind one.
+///
+///   **The A5 gate used to be in this family and was wrong to be.**
+///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
+///   `AtRestFinding`, `Attribution`, `MintedDeclaration`,
+///   `RefusedRef`) had no curated door of their own and were not
+///   machinery behind one: they ARE the door that answers whether an
+///   assembly is valid at rest, and the façade carried the whole
+///   authoring vocabulary that constructs one. A consumer could build
+///   an assembly and not check it. `crate::document` carries them
+///   now; `product_recorded` stays out because `product`/
+///   `product_named` are the curated gather and `assemble` is what
+///   needs the recorded one.
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 90] = [
+const NOT_CARRIED: [&str; 83] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
-    "Assembly",
-    "AssemblyError",
-    "AtRestFinding",
     "Attr",
     "AttrKind",
     "AttrSet",
-    "Attribution",
     "BifurcationKind",
     "BranchCertification",
     "BranchMarginEvidence",
@@ -2682,7 +2689,6 @@ const NOT_CARRIED: [&str; 90] = [
     "MetaValue",
     "MetaVersionError",
     "MigrationStep",
-    "MintedDeclaration",
     "NamingError",
     "NamingKey",
     "NodeChange",
@@ -2695,7 +2701,6 @@ const NOT_CARRIED: [&str; 90] = [
     "ProgramRefusal",
     "Qualifier",
     "RecipeEditRef",
-    "RefusedRef",
     "Resolution",
     "ResolutionFailure",
     "ResolveError",
@@ -2718,7 +2723,6 @@ const NOT_CARRIED: [&str; 90] = [
     "WitnessDatum",
     "appearance_rebind_suggestions",
     "apply_with_names",
-    "assemble",
     "body_name",
     "class_admission",
     "derivation_nodes",

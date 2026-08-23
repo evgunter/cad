@@ -424,3 +424,57 @@ orchestrator work once the demo lands; the walk PR is a design
 conversation — Evan's sign-off closes the program, no self-merge.
 Reviews queue behind both PRs (ordinals claimed from main at each
 review dispatch; 63 = the next third, dual cross-model).
+
+### Seam correction (2026-08-23): ordinals renumbered 63→66, 64→67
+
+The VERBS collision (#952 comment; SSIFLAT/ARMS1/RING recorded
+late via #940, dispatched earlier). ASM-DEMO's dual = ordinal 66,
+sample #21, ninth cross-model pair; TESS-SPLIT's single = 67.
+Dispatches unchanged; the correction entry in MODEL-AB-LOG is
+normative.
+
+## ASM-DEMO MERGED (#938, 2026-08-23) — the exit demo exists
+
+The R2 exit demo is a rendered, CI-gated tour stop: two part
+documents and two assembly documents in a real on-disk workspace
+walk every door v1 shipped — authoring by pin, a pattern, a
+constructively-solving mate chain, minted declarations, the A5
+gate (Ok on the disjoint layout; the declared frontier on the
+mated stand — F2, the known census gap), a four-refusal typed
+walk, split/inline with the composed-node-map name identity
+(the fix pass EXPOSED that inline mints fresh host ids — A4's
+name-resolution identity is the right claim and now the tested
+one), the A13 update door, and a v14-unchanged round trip. The
+dual (ordinal 66, sample #21, the ninth cross-model pair)
+diverged on labels and converged on substance; the fix pass also
+landed the A5 gate on the pncad façade (adjudicated: the
+omission was an accident, not curation — the export guard's
+roster corrected honestly; LIB notified on-thread and in
+LIB-LOG). Eleven library findings: #943 (F3, REFRAMED per Evan —
+the at-rest census wants the boolean lane's existing face-backed
+closure extended, never a mate-side re-implementation of the
+table-with-legs machinery), #944 (alignment-frame-from-face
+door), #945 (mates × patterns non-composition + the A11 rule-4
+drift, EVAN'S RULING NEEDED), #946 (sub-assembly declarations
+lost at the seam), #947 (doubled recourse + missing recourse
+sentences), #948 (parametric loop constructor); F2 stays on the
+#591→M9 steer; F5 on AQ1; the Python assembly gap deposited in
+LIB-LOG as a dispatchable bindings series. Next: the exit-walk
+document (criteria vs evidence, M8 convention) — a design
+conversation for Evan's sign-off. Seam sweep: asm-demo + both
+review worktrees.
+
+## ASM CLOSED at v1 scope (2026-08-23) — the exit walk is ratified
+
+Evan approved the walk directly in-session after his one concern
+— the A11 rule-4 question — resolved into the ratified
+**member-vocabulary rider** (ASSEMBLY-DESIGN, A11: mate heads
+are live InstantiatePart OR pattern-placed instances at their
+derived poses; rules 3–4 bind as written; no algebra change;
+parameters never solved; Instance(i) heads canonical). #945
+converts to the banked implementation unit for it.
+docs/ASM-EXIT-WALK.md is the done-state of record. Still moving
+under this program's flag: **TESS-SPLIT** (PR #951 — review at
+ordinal 67 + fix pass + merge; the orchestrator drives it to
+green before resting) and the banked follow-ons (**ASM-XSPLIT**,
+the #945 rider unit) for whoever picks the flag up next.
