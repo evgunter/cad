@@ -527,3 +527,14 @@ VERBS keeps 63/64/65; ASM-DEMO → 66 (still a dual third — sample
 state-sync; the sync-at-merge discipline (adopted at #939) closes
 the window. RING review returned APPROVE 0-MAJOR meanwhile; light
 fix pass (probe adoption + 3 polish items) in flight.
+
+## RING MERGED (#933, 2026-08-23) — WAVE 1'S VERB ROWS COMPLETE
+
+Row RING (ordinal 65) in MODEL-AB-LOG (synced at merge per the new
+discipline). The one-call hollow ring exists; the void-insertion
+door is factored and waiting for Wave 3's shell; its fix-pass CI
+draw delivered the first hosted green at (interval, 1e-12).
+Wave 1 state: RIM ✓ CHAMFER ✓ ARMS-1 ✓ RING ✓ — remaining:
+TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Evan-gated
+conversation), plus the DEMO unit (part 2 now UNBLOCKED). Seam
+sweep: verbs-ring + verbs-ring-r1 lanes.
