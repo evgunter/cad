@@ -79,7 +79,43 @@ Fences: no new arms (ARMS-2), no corner-door changes (ARMS-3, and
 closed rims register no corners at all — surgery.rs:300-308), #883
 still parked, no MappedCurve reach.
 
-## ARMS-2 — the coaxial revolution arms (next; addendum at dispatch)
+## ARMS-2 — the coaxial revolution arms (DISPATCHED 2026-08-23; addendum below)
+
+**Dispatch addendum (binding, post-ARMS-1/RING facts):**
+
+- **The surgery half is real scope, not a rider.** ARMS-1's annulus
+  door is plane×sphere-specific by its retained gates (one shared
+  PLANE support; the plane trim circle; the sphere-side seam
+  handling). ARMS-2 widens `resolve_rim`/`rim_phase_annulus` to
+  per-kind supports (a sphere×cone rim's band replaces material on
+  a sphere wall AND a cone wall — trimlines are latitude circles on
+  each, minted per kind). Every gate ARMS-1 kept is a deliberate
+  widening decision here — widen each explicitly or keep it with
+  the refusal naming what ARMS-2 does not cover. The
+  `shared_support_gate` applies as-is (it is kind-agnostic).
+- **Ask the material-side question structurally for EVERY arm** —
+  the ARMS-1 lesson: `plane_sphere_blend` silently assumed the
+  pocket configuration and only the dome exposed it. Each new arm
+  derives its offset signs from the support faces' STORED sense
+  bits (R ∓ r-style folds), with both configurations unit-rowed at
+  closed forms. Every full-revolve wall is a 4-half-edge cycle with
+  EMPTY `face.rings` (banked at ARMS-1) — the consumer shape all
+  these rims share.
+- **Acceptance consumer**: the calochortus bud's sphere×cone seam
+  (#319), requested as the MOUTH RIM ALONE (lily wall 6 requests
+  every lantern edge and refuses at the co-surface seam meridian
+  first — it cannot distinguish; the register's own note). Closed
+  rims register no corners, so ARMS-3's valence-4 door is not in
+  the path.
+- Re-mint `BlendArm::name` from 60941420 as the enum grows;
+  `SpineUnsupported`'s hand-formatted supports string is the
+  consumer. The C8 prose correction (constant-radius rolls mint
+  only torus/cylinder; cone belongs to the variable-radius family)
+  lands in CURVED-DESIGN as the scoped parenthetical flagged on
+  #930.
+- Difficulty logged pre-dispatch: **L**. Branch `verbs/arms2`.
+
+**The ratified cut (from the survey):**
 
 The one shared coaxial-spine derivation with per-pair s: sphere×cone,
 cone×plane(⊥ axis), cone×cone, cylinder×cone, cylinder×sphere,
