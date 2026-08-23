@@ -338,7 +338,7 @@ impl NurbsFaceBound {
         // at least one of muu·t², 2·muv·t, mvv is a positive product
         // of finite positives (t is positive and finite by
         // construction of every arm above).
-        let q = muv.mul_add(2.0 * t, muu.mul_add(t * t, mvv));
+        let q = muv.mul_add(2.0 * t, muu.mul_add(t.powi(2), mvv));
         let hv = (delta_s / q).sqrt();
         SplitSteps {
             hu: t * hv,
@@ -361,7 +361,7 @@ impl NurbsFaceBound {
     /// answers a zero step — which [`crate::sizing::ceil_count`]
     /// refuses typed — rather than a NaN certificate.
     pub(crate) fn step_v_at(&self, hu: f64, delta_s: f64) -> f64 {
-        let rem = (-self.muu).mul_add(hu * hu, delta_s).max(0.0);
+        let rem = (-self.muu).mul_add(hu.powi(2), delta_s).max(0.0);
         if self.mvv == 0.0 {
             if self.muv == 0.0 {
                 f64::INFINITY
@@ -2441,7 +2441,7 @@ mod tests {
         let tm = (mu1 / mv1) / ASPECT_CAP;
         // q spelled exactly as the selection spells it (mul_add order),
         // so the pin is bitwise: mirror.muu = 51.3, mirror.mvv = 0.
-        let qm = muv.mul_add(2.0 * tm, mvv.mul_add(tm * tm, 0.0));
+        let qm = muv.mul_add(2.0 * tm, mvv.mul_add(tm.powi(2), 0.0));
         let hvm = (delta_s / qm).sqrt();
         assert_eq!(m.hv.to_bits(), hvm.to_bits(), "mirror arm hv");
         assert_eq!(m.hu.to_bits(), (tm * hvm).to_bits(), "mirror arm hu");
