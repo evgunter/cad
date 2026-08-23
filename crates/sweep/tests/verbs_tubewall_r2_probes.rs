@@ -110,10 +110,7 @@ fn r2_inner_radius_is_the_callers_own_rounding() {
             (minor - wall + 0.0_f64).to_bits().wrapping_add(1),
             "sanity: the probe's own arithmetic"
         );
-        for window in [
-            TubeWindow::Full,
-            TubeWindow::Arc { t0: 0.25, t1: 1.75 },
-        ] {
+        for window in [TubeWindow::Full, TubeWindow::Arc { t0: 0.25, t1: 1.75 }] {
             let t = build(major, window, minor, wall).expect("builds");
             let got = minors(&t.body);
             let mut want = vec![
@@ -153,7 +150,10 @@ fn r2_the_probe_radii_actually_round() {
 fn r2_u_ref_caveat_is_exact_in_both_directions() {
     let full = build(2.0, TubeWindow::Full, 0.3, 0.1).expect("full builds");
     for u in u_refs(&full.body) {
-        assert_eq!((u.x.to_bits(), u.y.to_bits(), u.z.to_bits()), (1.0_f64.to_bits(), 0.0_f64.to_bits(), 0.0_f64.to_bits()));
+        assert_eq!(
+            (u.x.to_bits(), u.y.to_bits(), u.z.to_bits()),
+            (1.0_f64.to_bits(), 0.0_f64.to_bits(), 0.0_f64.to_bits())
+        );
     }
     // A window that starts at t0 = 0 also stores u_ref verbatim: the
     // rotation is by an exact zero angle. The unit's PR body says
@@ -346,7 +346,11 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
             None => {
                 assert_eq!(t.body.shells().count(), 2, "{what}");
                 assert_eq!(t.cavities.len(), 1, "{what}");
-                assert_eq!(t.body.faces().count(), 4, "{what}: two walls, two faces each");
+                assert_eq!(
+                    t.body.faces().count(),
+                    4,
+                    "{what}: two walls, two faces each"
+                );
             }
             Some(_) => {
                 assert_eq!(t.body.shells().count(), 1, "{what}");
@@ -613,7 +617,9 @@ fn r2_collapsed_bore_never_builds_but_never_names_the_wall() {
                             .collect::<std::collections::BTreeSet<_>>()
                             .len()
                     )),
-                    Err(TubeError::NonpositiveWall) => rows.push(format!("{what}: NonpositiveWall")),
+                    Err(TubeError::NonpositiveWall) => {
+                        rows.push(format!("{what}: NonpositiveWall"))
+                    }
                     Err(TubeError::WallExceedsRadius) => {
                         rows.push(format!("{what}: WallExceedsRadius"));
                     }
@@ -718,7 +724,10 @@ mod certified {
     fn encloses(v: Interval, pad: f64, exact: f64, what: &str) {
         let lo = geom_core::Bounds::lo(v) - pad;
         let hi = geom_core::Bounds::hi(v) + pad;
-        assert!(lo <= exact && exact <= hi, "{what}: {exact} not in [{lo}, {hi}]");
+        assert!(
+            lo <= exact && exact <= hi,
+            "{what}: {exact} not in [{lo}, {hi}]"
+        );
     }
 
     /// The interval rows at radii the shipped interval rows do not
