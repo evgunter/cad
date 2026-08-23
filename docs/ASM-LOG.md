@@ -372,3 +372,31 @@ owns the guard, ASM's two mesh features already covered).
 PROTOCOL: claims through 56 (LIB-PYPU); next third = 57 (dual,
 cross-model per #572 until 12 pairs — 5 done). Schema at v14
 (ASM-R2b); the by-eye read is the only guard.
+
+## Seam: new orchestrator; TESS-SPLIT spec reconciled (2026-08-23)
+
+Session resumed off #611 after the five-day gap. Main's motion in
+between was SMELL-SCAN, VERBS, and LIB — no ASM state moved, but
+three of its neighbors did: protocol is now v5 (style lane, seam
+2026-08-18 — review figures not comparable across it), claims run
+through 62 (ARCEVAL; 63 is the next third — dual, cross-model per
+#572, 7 pairs done), and `crates/mesh` took the smell-scan style
+passes, the #884 Tol-witness threading, and VERBS-ARMS — so
+TESS-SPLIT's implementer merges a moved substrate. #735 deleted
+ASM-R2a's never-constructed `PairSolve` (provenance + recovery
+SHA on #611's comments; re-mint against a real caller if
+ASM-XSPLIT wants one, don't restore). The queue's step 1
+discharged: TESS-SPLIT-SPEC reconciled with the sliver lesson —
+new D-1a states the two aspect quantities (A=16 FFF cell cap,
+ratified #568, vs realized lattice `s_u/s_v` against
+`SAFE_ASPECT`) and binds both, with the snap machinery kept in
+force, alignment named as the safety where the cap exceeds the
+sliver line, and constraint-active metering split by WHICH bound
+was active; rows 9 (executed sliver safety) and 10 (#782's
+swept-blade finding-13 drift — diagnose then re-pin) added; the
+dangling deleted-spec references (TESS-SPAN-SPEC, ASM-4-SPEC)
+re-anchored to the living code sites and
+docs/prompts/implementer-discipline.md. Next: land the spec on
+main, dispatch TESS-SPLIT (fable, block ASM-4 slot 1, standing
+draw); then the R2 exit walk + assembly demo; ASM-XSPLIT spec
+after.
