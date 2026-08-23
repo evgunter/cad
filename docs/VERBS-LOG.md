@@ -538,3 +538,39 @@ Wave 1 state: RIM ✓ CHAMFER ✓ ARMS-1 ✓ RING ✓ — remaining:
 TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Evan-gated
 conversation), plus the DEMO unit (part 2 now UNBLOCKED). Seam
 sweep: verbs-ring + verbs-ring-r1 lanes.
+
+## ARMS-2 — the coaxial revolution arms (2026-08-23, `verbs/arms2`)
+
+**#319's coaxial half closes.** Eight new arms land as ONE derivation
+plus eight reductions. Whenever a support pair carries a symmetry the
+rolling ball inherits — a common axis of revolution, or a common
+ruling — the ball centre is confined to a SHEET (the meridian
+half-plane through the rim; the cross-section normal to the ruling).
+Both supports cut that sheet in a line or a circle, and the centre is
+the crossing of the two OFFSET traces: three closed forms
+(line×line, line×circle, circle×circle), each written so the branch it
+takes is the one that returns the RIM as `r → 0` — the structural
+answer to "which of the two circles the offsets meet in is my edge",
+and branch-free (the `√` carries the sign of a stored quantity, and
+poisons exactly at a tangential pair).
+
+Coaxial six (circular spine → TORUS): sphere×cone, cone×plane(⊥),
+cone×cone, cylinder×cone, cylinder×sphere, cylinder×plane(⊥). Ruled
+two (straight spine → CYLINDER): cylinder×cylinder(∥),
+cylinder×plane(∥). No arm mints a cone — the C8 prose correction
+(`docs/CURVED-DESIGN.md`, flagged on #930) lands with them.
+
+The surgery half was real scope: `resolve_rim`'s gates are now split
+by SHAPE rather than by KIND — the annulus asks only that both
+supports be revolution walls, the ladder keeps every ring-and-half-cap
+gate it had. One new routing decision, `fillet3_support_coaxiality`
+(the departure from the shared-axis hypothesis, meters at the rim's
+own lever arm), refuses `SpineUnsupported` on a definite miss. The
+tangent certificate's circle arm grew a CONE row in `geom-brep`
+(without it a sphere×cone band cannot be described at rest).
+
+Acceptance: the calochortus bud's MOUTH RIM alone — a sphere zone
+meeting a conical pucker along a closed latitude circle — fillets to a
+tier-3-valid solid with a pinned census and closed-form trim circles;
+its lip (cone×plane) and its bore's base (cylinder×plane) fillet too.
+ARMS-3 keeps sphere×sphere and the valence-4 corner run-out.
