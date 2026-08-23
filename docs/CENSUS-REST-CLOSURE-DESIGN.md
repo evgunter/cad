@@ -1,8 +1,26 @@
 # At-rest census structural identity (#943 + #591 Door-2) — design conversation
 
-STATUS: **OPEN — awaiting Evan's ruling.** Two proposed rulings
-below (U-R1 dominant-argument with pushback window; U-R2 a genuine
-C3/C4 revision that WAITS for sign-off), four questions. This is
+STATUS: **RATIFIED (Evan, in-chat + 👍 on PR #965 comment
+5387912750, 2026-08-23).** Answers, as given: **Q1 YES, sure**
+(Door 2 compares planar trims in world space on the verified
+shared carrier — U-R2 adopted with the C3/C4 wording change);
+**Q2 YES, sure** (cross-instance CURVED declared Rest = NAMED
+RESIDUE in this unit, with the certified everywhere-within-ε
+overlap enclosure recorded as the sanctioned closing shape);
+**Q3 accepted with stated lower confidence** ("less sure but ok")
+— the backing rung keeps the existing rungs'
+structural-incidence strength, region-unconfined; the reduced
+confidence is RECORDED, the strength sentence lands explicitly in
+the census docs, and the gap-1 review's claims-to-falsify must
+attack exactly this (can a declared face pair back an event that
+plainly does not belong to its interface?); **Q4 adopted as
+proposed** (derivation stays module-doc-pinned + one C3
+cross-reference). The latitude notes above are part of the
+ratified record. Implementation: TWO units as scoped below —
+gap 1 (S) dispatches now; gap 2 (M) serialized after gap 1's
+merge (both write census.rs). Originally proposed as: two rulings
+(U-R1 dominant-argument with pushback window; U-R2 a C3/C4
+revision waiting for sign-off), four questions. This is
 the census-owned design pass both steers asked for: #943 (the
 at-rest face-pair-backed closure) and the F1/Door-2 item on #591's
 thread (cross-instance chart identity), inherited by M9 because
