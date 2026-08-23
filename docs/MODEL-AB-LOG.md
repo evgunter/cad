@@ -1232,3 +1232,16 @@ shape) = OPUS. Pre-draw fields logged at dispatch: **M /
 STRUCTURAL** (demo authoring through existing doors; no kernel
 change permitted by the brief, no new numeric decision). Lane
 asm/demo. Slot 4 stays banked. Row at merge.
+ASM-DEMO review ordinal fixed at dispatch (2026-08-23, PR #938
+open, frozen head ded405c9): claimed through 62 (ARCEVAL) + 1 =
+**63 → a third → DUAL, CROSS-MODEL per #572** (R1 fable + R2
+opus, concurrent same-head, blinded to each other; the EIGHTH
+pair toward the 12). v5 instrument. Pre-draw fields were logged
+at the slot-3 claim: M / STRUCTURAL (brief-as-spec in ASM-LOG).
+Implementer report: 6 deviations ALL reported (headline: F1's
+façade-gap manifest route — assemble reached via an editor-core
+path dep on the tour manifest, the profile-entry precedent,
+flagged as a judgement call; the A5 clause evidenced by the
+disjoint arm because F2 — the census structural-chart-identity
+gap, the KNOWN #591-thread steer — blocks the mated one), plus
+11 library findings gap-commented at sites. Row at merge.
