@@ -960,8 +960,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 pncad::step_export::StepExportError::CurvedShellClassification { .. }
             )
         },
-        "record that the writer's outward/void classifier grew a curved arm and \
-         update findings entry 7 (the O6 demo-gates list row)",
+        "record that the writer's outward/void classifier grew a curved arm, update \
+         findings entry 7 (the O6 demo-gates list row), and retire the `ring` scene's \
+         `step_at_frontier` declaration, which pins this same refusal on the rendered \
+         ring — the two are one gate with two probes and retire together",
     );
 
     // Wall 7: a valid body the tessellator refuses. The ONLY change

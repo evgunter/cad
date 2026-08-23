@@ -84,10 +84,10 @@ struct SceneBody {
     /// shape whose point is what happens INSIDE it (a neck entering a
     /// body wall) cannot be read from an opaque render at any camera.
     transparency: u8,
-    /// `Some(retire)` when the SCENE declares this body to be past the
+    /// `Some(pin)` when the SCENE declares this body to be past the
     /// STEP writer's named subset frontier. See
     /// [`SceneBody::step_at_frontier`].
-    step_frontier: Option<&'static str>,
+    step_frontier: Option<StepFrontierPin>,
 }
 
 impl SceneBody {
@@ -122,11 +122,14 @@ impl SceneBody {
     /// a frontier refusal, on the grounds that a scene which
     /// legitimately enters that class has to say so where it is built.
     /// This is that door, and it is a PROBE in the `walls` sense, not
-    /// a suppression: the export still runs on every pass, the pinned
-    /// refusal is the only outcome that passes quietly, a DIFFERENT
-    /// refusal fails the tour (the frontier moved under the
-    /// declaration), and SUCCESS fails it too — `retire` then says
-    /// what to do with the scene, exactly as a wall probe's does.
+    /// a suppression: the export still runs on every pass, and
+    /// `pinned` — an EXACT variant test the scene supplies, exactly as
+    /// a wall probe supplies one — is the only outcome that passes
+    /// quietly. A different refusal fails the tour even when it is a
+    /// neighbouring variant of the same frontier CLASS, because a
+    /// probe that accepts the class cannot notice the frontier moving
+    /// inside it. SUCCESS fails it too, and `retire` then says what to
+    /// do with the scene.
     ///
     /// Its manifest entry carries a null `step`. That is a legitimate
     /// value of the format (`demos/manifest.py`), and the readers that
@@ -135,8 +138,12 @@ impl SceneBody {
     /// OUR STEP — has nothing to import for such a body and says so
     /// rather than drawing it from the mesh, because a cell drawn from
     /// the STL in that lane would look like OCC evidence and be none.
-    fn step_at_frontier(mut self, retire: &'static str) -> Self {
-        self.step_frontier = Some(retire);
+    fn step_at_frontier(
+        mut self,
+        pinned: fn(&pncad::step_export::StepExportError) -> bool,
+        retire: &'static str,
+    ) -> Self {
+        self.step_frontier = Some(StepFrontierPin { pinned, retire });
         self
     }
 
@@ -260,6 +267,32 @@ struct ManifestBody {
     transparency: u8,
 }
 
+/// A scene's declaration that one of its bodies is past the STEP
+/// writer's named subset frontier: the EXACT refusal it pins, and what
+/// to do when that stops being true.
+struct StepFrontierPin {
+    /// An exact-variant test, supplied by the scene. `walls::wall`'s
+    /// `pinned` argument is the same idea in the same words: a probe
+    /// that accepts a whole refusal CLASS cannot notice the frontier
+    /// moving inside it.
+    pinned: fn(&pncad::step_export::StepExportError) -> bool,
+    /// What to do with the scene when the export stops refusing.
+    retire: &'static str,
+}
+
+/// The writer's named subset frontier, as one list. Refusals in this
+/// class say a tour SCENE grew past the writer; everything else says
+/// the writer broke. Only the UNDECLARED arm asks this question — a
+/// declaring scene pins its own variant, which is narrower.
+fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
+    matches!(
+        e,
+        pncad::step_export::StepExportError::UnsupportedSurface { .. }
+            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
+            | pncad::step_export::StepExportError::CurvedShellClassification { .. }
+    )
+}
+
 fn run_body(
     sb: &SceneBody,
     delta: f64,
@@ -360,9 +393,13 @@ fn run_body(
     // PR 13 the writer's analytic subset is the whole elementary-
     // surface vocabulary (plane/cylinder/cone/sphere/torus) with
     // line/circle/ellipse/NURBS carriers, all as EXACT native AP214
-    // entities — so every tour body exports, curved ones included, and
-    // a refusal anywhere here is now a regression rather than a
-    // narrated frontier.
+    // entities, so a refusal on an ORDINARY body is a regression. It
+    // is not the only outcome any more: the writer's shell classifier
+    // has closed forms for planar faces only, and a scene carrying a
+    // body past that frontier declares it
+    // ([`SceneBody::step_at_frontier`]), which turns the refusal into
+    // a pinned probe rather than a failure. Undeclared, it still fails
+    // the tour.
     let step_name = format!("{label}.step");
     let step_result = pncad::step_export::step_string(
         &sb.body,
@@ -372,15 +409,7 @@ fn run_body(
         },
         tol,
     );
-    let frontier = |e: &pncad::step_export::StepExportError| {
-        matches!(
-            e,
-            pncad::step_export::StepExportError::UnsupportedSurface { .. }
-                | pncad::step_export::StepExportError::UnsupportedCurve { .. }
-                | pncad::step_export::StepExportError::CurvedShellClassification { .. }
-        )
-    };
-    let step = match (step_result, sb.step_frontier) {
+    let step = match (step_result, &sb.step_frontier) {
         // The ordinary body: exported, and its stem goes in the
         // manifest.
         (Ok(doc), None) => {
@@ -392,26 +421,30 @@ fn run_body(
         // grew the arm this declaration was waiting on, so the
         // declaration is now a lie about the kernel. Same posture as a
         // wall probe that stops refusing.
-        (Ok(_), Some(retire)) => panic!(
+        (Ok(_), Some(d)) => panic!(
             "{label}: STEP export NO LONGER REFUSES — the writer covers this body \
-             now. Retire the scene's `step_at_frontier` declaration and {retire}"
+             now. Retire the scene's `step_at_frontier` declaration and {}",
+            d.retire
         ),
-        // The declared frontier, reached: narrate it and carry a null
+        // The declared refusal, reached: narrate it and carry a null
         // `step`. The refusal is the evidence, so it is printed like
-        // an export rather than swallowed.
-        (Err(e), Some(_)) if frontier(&e) => {
+        // an export rather than swallowed. `pinned` is an EXACT
+        // variant test supplied by the scene (klein's wall probes are
+        // the template), so this arm cannot absorb a neighbouring
+        // frontier variant the declaration did not mean.
+        (Err(e), Some(d)) if (d.pinned)(&e) => {
             println!(
-                "   [{label}] exported {stl}; STEP REFUSED TYPED at the writer's named \
-                 subset frontier ({e:?}) — declared by the scene, manifest step = null"
+                "   [{label}] exported {stl}; STEP REFUSED TYPED, exactly as the scene \
+                 pinned it ({e:?}) — manifest step = null"
             );
             None
         }
-        // A declared body refusing for a DIFFERENT reason: the
-        // declaration describes the wrong frontier.
+        // A declared body refusing for a DIFFERENT reason — including
+        // a different variant of the frontier class itself.
         (Err(other), Some(_)) => panic!(
-            "{label}: the scene declared the STEP writer's named subset frontier, but \
-             the export refused OUTSIDE that class ({other:?}) — the frontier moved \
-             under the declaration"
+            "{label}: the scene pinned a STEP refusal, but the export refused with a \
+             DIFFERENT one ({other:?}) — the frontier moved under the declaration. \
+             Re-derive the scene's `step_at_frontier` pin before trusting either."
         ),
         // Every OTHER tour body is inside the writer's analytic
         // subset, so any refusal here fails the tour. The named subset
@@ -420,7 +453,7 @@ fn run_body(
         // SCENE grew past the writer, not that the writer broke.
         // Either way the body does not go silently into the manifest
         // without its STEP.
-        (Err(e), None) if frontier(&e) => panic!(
+        (Err(e), None) if named_subset_frontier(&e) => panic!(
             "{label}: STEP refused typed at the writer's named subset \
              frontier ({e:?}). A scene that legitimately enters that class says so \
              where it is built — `SceneBody::step_at_frontier` — rather than having \

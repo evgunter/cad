@@ -63,22 +63,33 @@
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
-//! 1. **The one-call ring has no recipe node either.** `revolve` takes
-//!    a holed `Profile` and answers a two-shell body, but
-//!    `Node::Revolve` takes a `ProfileProgram`, and a program's loop
-//!    list is where a hole would have to be said. The scene is
-//!    authored on the plain sweep door for that reason — the same
-//!    shape of gap `diechamfer` records for the chamfer, hit from the
-//!    other side: there the verb is missing from the recipe, here the
-//!    verb is in the recipe and what is missing is the hole reaching
-//!    it. Both cost a real model its document.
-//! 2. **`Revolved::cavities` is the only handle on the cavity**, and
-//!    it is a `ShellKey` — so a consumer that wants to ask anything
-//!    ABOUT the bore (its area, its own mass contribution, a selector
-//!    over its faces) has a key and no door to spend it at. This scene
-//!    can state the cavity exists and can state the whole body's mass
-//!    properties; it cannot state the cavity's, and closed forms are
-//!    doing that work below instead.
+//! 1. **The ring KEEPS its document, and this scene proves it rather
+//!    than assuming it.** The obvious guess — that a hole cannot reach
+//!    `Node::Revolve`, the way a chamfer cannot reach any node at all
+//!    (`diechamfer` finding 1) — is FALSE, and it is false in a way
+//!    only execution settles: `ProfileProgram::loops` is a list read
+//!    outer-then-holes, `LoopProgram::Circle` is a loop form, and the
+//!    revolve wires the holed profile through and names the cavity
+//!    shells. So [`through_the_document`] builds this same ring as a
+//!    three-node recipe and the scene ASSERTS the two doors agree —
+//!    same shell count, same census, same volume. The rendered body
+//!    comes off the plain sweep door because that is where the tour's
+//!    other revolves are authored and where the verb lives; the
+//!    document path is not a workaround for anything.
+//!
+//!    What this leaves standing is `diechamfer`'s finding on its own
+//!    scene: the chamfer has no node, so THAT die has no document.
+//!    The two verbs are not in the same position, and saying they were
+//!    would have been a finding invented from symmetry.
+//! 2. **The cavity has a key and no PROPS door.**
+//!    [`pncad::topo::Body::get_shell`] spends a `ShellKey` perfectly
+//!    well — the scene uses it below to check the cavity's solid — so
+//!    the cavity is reachable as topology. What has no door is its
+//!    MASS: `mass_properties` takes a whole body, and there is no
+//!    per-shell form of it, so a consumer wanting the bore's own
+//!    volume or area (a coolant capacity, a fill weight) cannot ask.
+//!    The closed forms below are doing that work instead, which is
+//!    fine for a torus and no help at all on a shape without one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,8 +97,13 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom_core::{Tol, Vec2};
+use pncad::prelude::{
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, Node,
+    ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
+};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
 
@@ -103,6 +119,69 @@ fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
     pncad::profile::circle(p2(R, 0.0), radius, tol)
         .expect("a positive section radius")
         .into()
+}
+
+/// **The same ring, through the DOCUMENT** — the three-node recipe a
+/// consumer modelling in a `Doc` would write: one profile node whose
+/// loop list is `[Circle(rₒ), Circle(rᵢ)]` (outer first, then holes),
+/// an axis datum, and `Node::Revolve` at a full turn.
+///
+/// It exists to settle finding 1 by execution rather than by reading
+/// signatures, so `stops` asserts its answer against the plain door's
+/// body. If the recipe layer ever stops carrying a hole through to the
+/// verb, this stops agreeing and the finding is rewritten from what
+/// the assertion says — not the other way round.
+fn through_the_document(tol: Tol) -> Body<f64> {
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
+    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+        *doc = applied.doc;
+        applied.record.minted.expect("insert mints an id")
+    };
+    let circle = |r: f64| LoopProgram::Circle {
+        centre: [len(R), len(0.0)],
+        radius: len(r),
+    };
+    let profile = insert(
+        &mut doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::xy(),
+            // Outer first, then the holes: the list IS the hole
+            // vocabulary, and nothing else here mentions one.
+            loops: vec![circle(RO), circle(RI)],
+        }),
+    );
+    let axis = insert(
+        &mut doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [
+                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
+                Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
+                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
+            ],
+        }),
+    );
+    let revolved = insert(
+        &mut doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("an angle"),
+        },
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    match &ev.value(revolved).expect("the revolve evaluated").payload {
+        ValuePayload::Body(b) => (**b).clone(),
+        other => panic!("expected a body, got {other:?}"),
+    }
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
@@ -170,6 +249,25 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ring.body.faces().count(),
     );
 
+    // Finding 1, settled by execution: the same ring through the
+    // recipe layer, and the two doors agree entity for entity.
+    let doc_ring = through_the_document(tol);
+    assert_eq!(
+        (
+            doc_ring.shells().count(),
+            doc_ring.vertices().count(),
+            doc_ring.edges().count(),
+            doc_ring.faces().count(),
+        ),
+        (2, v, e, f),
+        "the recipe layer carries the hole through to the same verb"
+    );
+    let doc_props = pncad::topo::mass_properties(&doc_ring, tol).expect("recipe mass properties");
+    assert_eq!(
+        doc_props.volume, props.volume,
+        "the two doors build the same solid, not merely the same census"
+    );
+
     vec![Stop {
         name: "hollowring",
         caption: "THE ONE-CALL HOLLOW RING (a holed profile, fully revolved)".to_string(),
@@ -192,7 +290,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              render at any camera. The shape's remaining wall is its STEP export — the \
              writer's outward/void classifier has closed forms for planar faces only, so \
              this multi-shell CURVED solid refuses CurvedShellClassification, declared at \
-             the scene and probed every pass",
+             the scene and probed every pass. The SAME ring built as a three-node recipe \
+             — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], an axis datum, \
+             Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
+             bit-equal volume, so the hole reaches the verb through the document too",
             props.volume,
             100.0 * bore / v_solid,
             props.surface_area
@@ -206,8 +307,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             SceneBody::plain("hollowring", [0.42, 0.66, 0.74], ring.body)
                 .transparent(45)
                 .step_at_frontier(
-                    "say so in klein's findings entry 7 and retire its wall-6 probe, \
-                     which pins the same refusal",
+                    |e| {
+                        matches!(
+                            e,
+                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                        )
+                    },
+                    "say so in klein's findings entry 7 and retire klein's WALL 6 probe \
+                     (`klein::wall_probes`), which pins this exact refusal on this exact \
+                     shape — the two are one gate with two probes and retire together",
                 ),
         ],
     }]

@@ -51,17 +51,24 @@
 //!    and no rebuild — `bodies::spacer` recorded the same gap on a
 //!    part with no recipe behind it; this is the same gap costing a
 //!    real model its document.
-//! 2. **A selection cannot cross from the document to the verb.**
-//!    `diecomposed` says "the twelve box edges" as one call —
-//!    `select_where(CurveKind = Line)` — and hands the answer to
-//!    `Node::fillet`. That answer is a `Vec<StableName>`, and
-//!    `chamfer_edges` takes `EdgeKey`s, which are body-lineage-scoped
-//!    and (by the naming layer's own contract) do not leave
-//!    `editor-core`. There is no door between them, so the same
-//!    selection has to be re-said here as a hand-rolled loop over the
-//!    arena — [`line_edges`], four key hops deep — which is precisely
-//!    the "hand-rolled loop over a kernel body" the selector
-//!    vocabulary exists to retire.
+//! 2. **There is no CURATED selection→verb door.** `diecomposed` says
+//!    "the twelve box edges" as one call —
+//!    `select_where(CurveKind = Line)` — and hands the answer straight
+//!    to `Node::fillet`. Nothing that short exists for a kernel verb.
+//!    A crossing is possible: `NameTable::lookup` is on the pncad
+//!    surface, it answers an `Entry::Unique(EntityRef)`, and the key
+//!    inside is valid against the very evaluation the names came from
+//!    — which is this scene's situation exactly. What is missing is
+//!    the door, not the reach: the consumer supplies the per-name
+//!    table walk, the `Entry`/`EntityRef` unwrap, the kind check, and
+//!    the discipline that the keys are scoped to THAT body. The shared
+//!    source door here hands back bodies rather than the evaluation
+//!    those names are scoped to, so taking that path would mean
+//!    carrying an `Evaluation` through it for the sake of a crossing
+//!    the library should be making. [`line_edges`] says the same
+//!    selection as a carrier-kind scan instead — which is the
+//!    "hand-rolled loop over a kernel body" the selector vocabulary
+//!    exists to retire, arrived at from the other end.
 //! 3. **`CurveGeom` is not in the prelude**, so that loop names
 //!    `pncad::topo` for the one type it needs to read a carrier's
 //!    kind, while `Curve3` beside it comes from the prelude.
@@ -120,6 +127,13 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// Every vertex point of a body in one deterministic order, so two
 /// bodies' vertex sets can be compared point for point.
+///
+/// `crates/sweep/tests/verbs_chamfer.rs` carries the same helper and
+/// the same proximity match. The copy is deliberate: the only shared
+/// home available is `sweep::test_support`, which is gated behind a
+/// test-support feature — a demo that linked test scaffolding to save
+/// twenty lines would stop being an outside consumer, which is the
+/// one property these scenes exist to have.
 fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut pts: Vec<(f64, f64, f64)> = body
         .vertices()

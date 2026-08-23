@@ -179,6 +179,7 @@ def import_bodies(doc, scenes, outdir, use_step):
     Returns {scene name: [objects]}.
     """
     by_scene = {}
+    skipped = {}
     for scene in scenes:
         objs = []
         for body in scene.bodies:
@@ -201,6 +202,8 @@ def import_bodies(doc, scenes, outdir, use_step):
                         f"skipped {body.stl} in scene {scene.name!r}: "
                         "no STEP (the writer's named subset frontier)"
                     )
+                    skipped.setdefault(scene.name, 0)
+                    skipped[scene.name] += 1
                     continue
                 Part.insert(str(outdir / body.step), doc.Name)
             else:
@@ -219,7 +222,7 @@ def import_bodies(doc, scenes, outdir, use_step):
         by_scene[scene.name] = objs
     doc.recompute()
     Gui.updateGui()
-    return by_scene
+    return by_scene, skipped
 
 
 def render_scene(scene, objs, view, renderdir):
@@ -266,7 +269,19 @@ def main():
         if unknown:
             raise SystemExit(f"unknown scene(s): {', '.join(unknown)}")
     doc = App.newDocument("scenes")
-    by_scene = import_bodies(doc, scenes, outdir, use_step)
+    by_scene, skipped = import_bodies(doc, scenes, outdir, use_step)
+    # A scene every one of whose bodies was skipped renders BLANK, and a
+    # blank cell is this lane's known crash signature. So it gets a
+    # sidecar note, the same way a missing render gets a `.fail.txt`,
+    # and `compose_montage` stamps the cell neutrally: a declared gate
+    # must not be indistinguishable from a wedge.
+    for name, n in skipped.items():
+        if not by_scene[name]:
+            (renderdir / f"{name}.note.txt").write_text(
+                "no STEP — declared writer frontier\n"
+                if n == 1
+                else f"no STEP for any of {n} bodies — declared writer frontier\n"
+            )
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")
     done = []
