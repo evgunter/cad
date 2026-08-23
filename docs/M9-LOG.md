@@ -415,3 +415,31 @@ opened today are now RATIFIED AND MERGED same-day (#965, #966).
 Board: M9-3 PR-B implementing (fable, m9/3-zip-marks); census
 gap-1 implementing (opus, m9/census-rest); M9-5 queued on PR-B;
 gap-2 queued on gap-1; nothing with Evan.
+
+## CENSUS-REST implemented (PR #969) + review dispatched at ordinal 71 (2026-08-23)
+
+Gap-1 landed fast on the opus lane: all seven census sweeps now
+receive `declared` (the new `ve_face_backed` = the existing vf
+rung against the edge's adjacent faces), `ee_bound_backed`'s
+interior arm closed BOTH directions via a which-edges-resolve
+match, D3/D4 rewritten with the boolean-lane fact separated from
+the at-rest consequence, and the Q3 strength an explicit sentence
+at both the docs and the rung site. Six rows; the #943 flush seat
+MEASURED moving hard-AtRest → Uncertified with the residual
+pinned by kind and count (exactly one CensusUnsupported{Face},
+Declined) so gap 2's flip re-blesses deliberately. No new metered
+predicate. Notable deviations (all reported): the SEAT inset NOT
+retired — flush and inset provably reach the identical verdict
+until gap 2, so the design doc's retirement prediction was wrong
+by one gap (comment renamed instead); a third rung instance
+(ef_bound_backed:687) found by sweep and dispositioned
+not-this-unit; the strength row's geometric finding — a
+positive-overlap coplanar pair CANNOT exhibit region-
+unconfinement (events provably lie in the overlap closure), so
+the exhibit is a zero-overlap line-contact pair, the sharpest
+honest answer to Evan's Q3 falsification question. Review
+dispatched: ordinal 71 claimed (#970, merged 64456be1), SINGLE,
+fable, v5, frozen dccb0eab — the brief's headline attack is the
+Q3 strength per the ratified reduced-confidence binding. Board:
+M9-3 PR-B implementing; CENSUS-REST under review; M9-5 queued on
+PR-B; gap-2 queued on this unit's merge.
