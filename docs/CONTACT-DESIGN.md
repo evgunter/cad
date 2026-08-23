@@ -485,7 +485,14 @@ the refusal migration in C8 has a stated target):
    ratified posture — and the conventional `MappedCurve` (the shared
    profile circle both sweeps carry) remains its honest description.
    The wedge predicate already admits wedge = π as the legal smooth
-   seam; no tier change is needed for tube chains.
+   seam; no tier change is needed for tube chains. A declared-`Tangent`
+   join whose result carries material on one side of the locus emits a
+   wedge-0/2π edge instead — governed by D1 tier 3's declared
+   second-order wedge arm (#131 ruling: legal iff declared and
+   jet-determinate, osculation escalates; implementation #941) — and
+   the doubled form (material both sides) is F2's
+   coincident-distinct-edges class; the join-lane spec grows that arm
+   before `Tangent` joins ship.
 
 What stays refused even after this lane ships: undeclared touching
 (by law, forever), osculating/in-band pairs (escalate), and any
