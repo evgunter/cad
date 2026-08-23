@@ -487,3 +487,30 @@ verbs-arms1 + verbs-arms1-r1 lanes. Remaining in flight: RING
 review (ordinal 65) — DEMO part 2 unlocks at its merge; then
 ARMS-2 (the coaxial arms, now with their consumer shape known:
 every full-revolve wall is a 4-half-edge cycle with empty rings).
+
+## VERBS-RING implemented (2026-08-22, lane verbs-ring)
+
+The door: `topo::boolean::voids::insert_void` — evidence check
+(typed refusals: absent / non-strict / foreign, before any
+mutation), revert, graft; the subtract fallback's cavity arm now
+routes through it with its own probe verdicts as evidence
+(move-and-expose; same call order, bit-identical results — no
+boolean test edited, all green). The retirement: a holed full
+revolve builds `revolve(outer) − revolve(hole-as-outer)` — holes
+traverse FORWARD (the stored CW chain IS the reversed hole-as-outer
+chain) and classify under the reversal flag so material lands on
+the cavity side; evidence carried from the profile's hole role
+(`Carried { Positive }`), no 3-D test. Degenerate-arm pin: the ring
+build's verdict log contains no `bool_`-prefixed predicate
+(RED-able), and the annulus fixture's torus walls could not enter
+the crossing pipeline at all. Door guards: the tier-1 postcondition
+declared with the whole-cavity transplant delta; pcurve posture
+`Transfers`. First-exerciser findings on the "mechanical" seam
+surgery claim: (1) the winding inversion (hole-as-outer needs the
+sense derivation pointed at the OTHER side) is nowhere in the docs;
+(2) the imagined same-body per-hole zip cannot exist — the hole's
+band is a disconnected component, and landing it is cavity
+bookkeeping, i.e. the door itself. klein wall 6 re-baselined (ring
+builds; probe pins the O6 STEP standing gate
+`CurvedShellClassification`); KERNEL-VERBS row, README, DESIGN F8
+bullet synced. PR: verbs/ring.

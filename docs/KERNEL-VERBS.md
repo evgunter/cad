@@ -125,12 +125,17 @@ the table.
   giving up the door's whole point (the caller's intent parameters
   stored bit-exactly). A `wall`/inner-radius parameter is the obvious
   shape and has no design record yet.
-- **A full revolve of a holed profile refuses `FullRevolveHoles`**, so
-  the one-call hollow RING is unavailable while partial elbows are
-  fine. The revolve's own docs name this as M2 scope ("the per-hole
-  seam surgery is mechanical but unexercised by the plan's acceptance
-  set") — recorded here because it is now a consumer's refusal and
-  not only a deviation note. (Wall 6.)
+- **A hollow ring cannot leave as STEP.** The one-call hollow ring
+  itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
+  revolve of a holed profile builds the multi-shell solid through the
+  shared void-insertion door — the register's old defect row here),
+  but the STEP writer's outward/void shell classifier has closed
+  forms for planar faces only, so a multi-shell CURVED solid refuses
+  `CurvedShellClassification` — the known standing gate of
+  OFFSET-DESIGN O6's demo-gates list, which every hollow curved part
+  (this ring today, the shelled teapot when Wave 3 lands) hits at
+  export. (Wall 6, re-baselined: it now pins THIS refusal on the
+  ring it builds.)
 - **The PATHS lattice has no tangent straight leg to an anchor.**
   After a declared-tangent joint off an arc, the only straight
   continuation is `.line(len)` — `.to(anchor)` belongs to a fillet's

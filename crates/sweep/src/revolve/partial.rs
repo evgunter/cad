@@ -244,6 +244,7 @@ pub(super) fn build_partial<T: Decide>(
         body,
         solid: seed.solid,
         shell: seed.shell,
+        cavities: Vec::new(),
         walls: walls_c,
         rims: rims_c,
         poles: poles_c,

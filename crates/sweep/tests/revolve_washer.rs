@@ -67,6 +67,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     // Lamina case: one full-period band, no π-band entities.
     assert!(pi_walls.iter().all(Option::is_none));
     assert!(pi_meridians.iter().all(Option::is_none));
@@ -124,6 +125,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     for m in meridians {
         assert!(matches!(
             description(&t.body, m.unwrap()),

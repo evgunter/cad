@@ -377,9 +377,10 @@ component-aware E–P form found and corrected in M1 PR 4).**
   the degenerate no-crossing arm); and the full revolve of a holed
   profile, DEFINED as `revolve(outer) − revolve(hole-as-outer)` and
   executed through the same degenerate arm — the hole's swept
-  boundary provably touches nothing. `FullRevolveHoles` retires when
-  that unit lands (VERBS-PLAN's RING row); until then its error text
-  points at the explicit composition. Recipe-layer sugar may wrap any
+  boundary provably touches nothing. `FullRevolveHoles` retired when
+  that unit landed (VERBS-PLAN's RING row, 2026-08-22): the door is
+  `topo::insert_void`, the boolean fallback and the holed full
+  revolve are its two live producers. Recipe-layer sugar may wrap any
   of these — sugar above the kernel; the door stays the one
   birthplace. (`UnsupportedToroid` is likewise permanent: a D3
   ring-torus boundary — spindle tori have no representation — not a
@@ -479,14 +480,18 @@ component-aware E–P form found and corrected in M1 PR 4).**
   result DAG (GQ2) wants a value; disjoint unions and voids are
   tier-2-legal multi-shell bodies (the M2 single-shell *sweep*
   invariant is untouched). A∖B with B strictly inside A births the
-  first legitimate voids, exactly as the voids-only-from-booleans
-  ratification anticipated. **The sweeps-vs-voids invariant
-  (ratified): sweeps produce genus, never voids; voids are
-  boolean-born; the extrude/full-revolve hole asymmetry is an
-  instance of the invariant, not an inconsistency** — extruded holes
-  are cap-to-cap tunnels (one shell, genus); full-revolve holes would
-  be closed inner shells (voids); partial revolve is extrude-shaped
-  and already supports holes. A void's inner shell carries zero
+  first legitimate voids. **The cavity invariant, as refined at #907
+  (see the M2 bullet above): every cavity is born through the shared
+  void-insertion door, with caller-certified containment** — the
+  boolean fallback supplies its probe verdicts, the holed full
+  revolve carries the profile's validated 2-D margins (its holes ARE
+  closed inner shells, inserted through the door since VERBS-RING),
+  and `shell`'s sealed hollow will carry its offset margin. The
+  extrude/full-revolve hole asymmetry is structural, not an
+  inconsistency: extruded holes are cap-to-cap tunnels (one shell,
+  genus); full-revolve holes are cavities (a second shell, through
+  the door); partial revolve is extrude-shaped and carries holes in
+  its one shell. A void's inner shell carries zero
   coincidences and is census-invisible at tier 3′ — a valid void, not
   an undetected contact.
 - **The envelope (typed refusals on record, never silent gaps;

@@ -226,6 +226,7 @@ fn full_pappus_y(t: &Revolved<f64>) -> f64 {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve")
     };
+    let meridians = &meridians[0];
     let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
     meridian_pappus_volume(
         &t.body,
@@ -277,6 +278,7 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     else {
         panic!("full");
     };
+    let meridians = &meridians[0];
     for (j, pw) in pi_walls.iter().enumerate().take(4) {
         let b1 = t.walls[0][j].expect("band-1 wall");
         let b2 = pw.expect("band-2 wall");
@@ -475,6 +477,7 @@ fn survives_ball_pole_valence_and_volume() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     let e = t.body.get_edge(meridians[0].unwrap()).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (t0, t1) = c.params();
@@ -531,6 +534,7 @@ fn survives_washer_zip_lineage_and_seam_state() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     // Lineage: the surviving edge set is EXACTLY the 4 original chain
     // edges (the meridians) plus the 4 full-period rims — every copied
     // chain edge, every zip null edge, and both seam discs are dead.
@@ -629,6 +633,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     for m in meridians {
         assert!(matches!(
             description(&t.body, m.unwrap()),
@@ -751,6 +756,7 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     let chain: Vec<EdgeKey> = meridians.iter().filter_map(|m| *m).collect();
     let axis_o3 = plane.to_world(axis.origin);
     let axis_d3 = plane.to_world(axis.origin + d) - axis_o3;
@@ -1314,6 +1320,7 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     // Canonical segment 1 ((2,0)->(2,1)) is a cylinder; segment 0
     // ((1,0)->(2,0)) sweeps the bottom plane annulus.
     let plane_meridian = meridians[0].unwrap();
@@ -1474,6 +1481,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     else {
         panic!("full")
     };
+    let meridians = &meridians[0];
     let sphere_key = wall_key(&t.body, t.walls[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
