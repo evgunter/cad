@@ -291,7 +291,8 @@ pub(super) fn side_code<T: Decide>(
 /// material?
 ///
 /// The margin is the existing second-order sector trilean's
-/// (`tangent_sector_order2{,_arm}`, [`enters_material_order2`]): the
+/// (`tangent_sector_order2{,_arm}`,
+/// [`geom_brep::enters_material_order2`]): the
 /// relative transverse curvature of the two carriers — the departing
 /// transverse curve's acceleration on the sector's carrier measured
 /// RELATIVE to the other carrier's own curving, signed against the

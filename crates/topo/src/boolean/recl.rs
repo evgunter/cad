@@ -32,7 +32,8 @@ use super::{BooleanError, BooleanOp, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
 
-/// The sector face's ORIENTED carrier description ([`face_carrier`] —
+/// The sector face's ORIENTED carrier description
+/// ([`super::rest::face_carrier`] —
 /// the face's material side with S10's sense bit already folded in,
 /// which is what the Same±-orientation verdict below has to mean: the
 /// whole point of the verdict is which way the two materials face).
