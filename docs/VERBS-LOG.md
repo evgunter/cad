@@ -538,3 +538,14 @@ Wave 1 state: RIM ✓ CHAMFER ✓ ARMS-1 ✓ RING ✓ — remaining:
 TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Evan-gated
 conversation), plus the DEMO unit (part 2 now UNBLOCKED). Seam
 sweep: verbs-ring + verbs-ring-r1 lanes.
+
+## ARMS-2 + TUBEWALL dispatched; DEMO part 2 running (2026-08-23)
+
+Three lanes live: ARMS-2 (block VERBS-2 slot 4; the coaxial arms +
+the surgery widening + the C8 prose correction, addendum on main
+via #957), TUBEWALL (block VERBS-3 slot 1 drawn, difficulty S
+pre-draw; brief-as-spec — the hollow tube door with a STOP clause
+if the elaboration turns out to be a genuine fork), and DEMO part 2
+(the translucent hollow ring, triggered at RING's merge). After
+these: ARMS-3's design conversation (Evan-gated), then Wave 1 is
+CLOSED and Wave 2 (curved booleans) opens.
