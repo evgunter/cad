@@ -145,6 +145,17 @@ is satisfied by construction: the rung consults `Declared::faces`
 machinery, no mate-side vocabulary. The tour's `SEAT_A`/`SEAT_B`
 inset workaround (demos/tour/src/assembly.rs:104-113) retires.
 
+> **Post-ratification correction of that last consequence** (gap 1's
+> implementation and its blinded review, both executing it,
+> 2026-08-23). The inset does NOT retire on gap 1. Gap 1 leaves a
+> flush seat and an inset seat OBSERVATIONALLY IDENTICAL — both reach
+> `Uncertified` through the cross-instance chart-identity door, which
+> the tour's `at_rest` accepts for either — so retiring the inset
+> would move the scene's geometry and its render baselines while
+> changing nothing the demo observes. The retirement is a consequence
+> of **gap 2** and moves there. This corrects a stated consequence
+> that measurement did not bear out; the ruling itself is unchanged.
+
 Proposed as **dominant argument with the standard pushback
 window**: it is the unique candidate the code offers and an
 instance of the already-derived pattern. Its implementation unit

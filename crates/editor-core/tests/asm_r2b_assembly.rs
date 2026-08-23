@@ -1400,6 +1400,13 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> ProfileDoc {
 /// underside, with the shelf's END plane and the post's cap sharing the
 /// line x = 0. The post is inset in y, so the flush end is the whole
 /// of the shared boundary.
+///
+/// One physical scene, stated independently at three layers: here at
+/// the assembly gate, at census granularity (`flush_seat` in
+/// `topo/tests/m9_c1_rest_face_rung.rs`), and as a user's document
+/// (the bench-stand dimensions in `demos/tour/src/assembly.rs`). The
+/// numbers agree by construction and are deliberately not shared —
+/// each layer's fixture reads as the thing that layer is about.
 fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
     let mut store = StubStore::default();
     let post = store.insert(

@@ -685,7 +685,11 @@ fn ef_bound_backed<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> bool {
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
-        return false; // interior bound: the v-on-e lane already fired
+        // The bound is a vertex-on-edge event, which has a backing
+        // path of its own — so this lane declining is a LOUDNESS the
+        // overlap keeps, not a proof the configuration is undeclared
+        // (D3's bullet states the same looseness; #973 schedules it).
+        return false;
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)

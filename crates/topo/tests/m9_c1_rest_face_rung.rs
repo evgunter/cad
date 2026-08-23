@@ -44,6 +44,15 @@ fn seat(post: &[(f64, f64)], shelf: &[(f64, f64)]) -> (Body<f64>, FaceKey, FaceK
 /// end, so the cap's end edge lies inside the shelf underside's own
 /// boundary edge. The post is inset in y (it is only the x = 0 end
 /// that is flush).
+///
+/// One physical scene, stated independently at three layers: here at
+/// census granularity, at the assembly gate (`flush_seat` in
+/// `editor-core/tests/asm_r2b_assembly.rs`), and as a user's document
+/// (the bench-stand dimensions in `demos/tour/src/assembly.rs`). The
+/// numbers agree by construction and are deliberately NOT shared — a
+/// kernel row reading a demo's dimensions would make the demo
+/// load-bearing for the kernel, and each layer's fixture has to be
+/// readable as the thing that layer is about.
 fn flush_seat() -> (Body<f64>, FaceKey, FaceKey) {
     seat(
         &[(0.0, 0.09), (0.12, 0.09), (0.12, 0.21), (0.0, 0.21)],

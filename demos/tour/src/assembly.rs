@@ -36,8 +36,11 @@
 //! using the library is actually like. Each of these is commented at
 //! the site that meets it and filed where it can be fixed:
 //!
-//! - **#943** — a mate declares a FACE PAIR, so a flush seat's
-//!   induced edge contacts are undeclarable and refuse (`SEAT_A`).
+//! - **#943** — a mate declares a FACE PAIR, and the census backs the
+//!   vertex-on-edge and edge-edge events a flush seat induces from
+//!   that one declaration; what a declared CROSS-INSTANCE seat still
+//!   stops at is the chart-identity door, flush or inset alike
+//!   (`SEAT_A`).
 //! - **#944** — nothing mints a mate's alignment frame from a
 //!   selected face, so the frame and the geometry drift apart
 //!   silently (`stops`, `update_door`).
@@ -82,6 +85,12 @@ use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_
 use crate::{SceneBody, Stop, View};
 
 // ---- The model's dimensions, in metres ----
+//
+// The kernel's own seat fixtures restate these numbers rather than
+// importing them (`topo/tests/m9_c1_rest_face_rung.rs` and
+// `editor-core/tests/asm_r2b_assembly.rs`, both `flush_seat`): a demo
+// is evidence about the library, so nothing in the library may depend
+// on what this scene happens to measure.
 
 /// The post's square section and its length.
 const POST_SECTION: f64 = 0.12;
