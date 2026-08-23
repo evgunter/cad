@@ -781,7 +781,19 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // ---- limb 3: pick the widest certifiable tube, then decide ONCE.
     let mut chosen: Option<(f64, f64, u32)> = None; // (radius, margin, boxes)
     let chain = box_chain(carrier);
-    for radius in tube_ladder(extent, band) {
+    // The ladder is materialised so its EMPTINESS is a distinguishable
+    // outcome. An empty ladder means every rung fell below the floor —
+    // a structural fact about extent against ε, decided before any box
+    // is probed — and it must refuse as itself rather than fall through
+    // to the no-rung-answered path below with a manufactured margin.
+    let ladder: Vec<f64> = tube_ladder(extent, band).collect();
+    if ladder.is_empty() {
+        return Err(SsiError::TubeLadderEmpty {
+            extent,
+            floor: SSI_TUBE_RADIUS * band.zero(),
+        });
+    }
+    for radius in ladder.iter().copied() {
         let probe = match (a, b) {
             (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
                 probe_tube_analytic(&chain, s1, s2, radius)
@@ -839,9 +851,12 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         chosen = Some((radius, margin, boxes));
     }
     let Some((radius, margin, boxes)) = chosen else {
-        return Err(SsiError::CertificateLimb {
-            limb: SsiLimb::Tube,
-            value: f64::NAN,
+        // Rungs were offered and none answered. Structural, and it
+        // carries no margin: nothing was ever measured, so there is no
+        // honest number to report.
+        #[allow(clippy::cast_possible_truncation)]
+        return Err(SsiError::TubeProbeSilent {
+            rungs: ladder.len() as u32,
         });
     };
     // The margin is the ring's zero-free lower bound (`f64`, C9); the
