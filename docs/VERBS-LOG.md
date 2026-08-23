@@ -538,3 +538,83 @@ Wave 1 state: RIM ✓ CHAMFER ✓ ARMS-1 ✓ RING ✓ — remaining:
 TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Evan-gated
 conversation), plus the DEMO unit (part 2 now UNBLOCKED). Seam
 sweep: verbs-ring + verbs-ring-r1 lanes.
+
+## ARMS-2 + TUBEWALL dispatched; DEMO part 2 running (2026-08-23)
+
+Three lanes live: ARMS-2 (block VERBS-2 slot 4; the coaxial arms +
+the surgery widening + the C8 prose correction, addendum on main
+via #957), TUBEWALL (block VERBS-3 slot 1 drawn, difficulty S
+pre-draw; brief-as-spec — the hollow tube door with a STOP clause
+if the elaboration turns out to be a genuine fork), and DEMO part 2
+(the translucent hollow ring, triggered at RING's merge). After
+these: ARMS-3's design conversation (Evan-gated), then Wave 1 is
+CLOSED and Wave 2 (curved booleans) opens.
+
+## DEMO complete (#958); ordinal-68 review out (2026-08-23)
+
+Both montage scenes landed: the chamfered die beside its filleted
+twin (deficit-volume assertion proves the chamfer never reaches a
+pip; the r==d bit-equality recorded as observation, not contract)
+and the one-call hollow ring rendered translucent per the
+loop-tube precedent (hollowness pinned structurally AND
+numerically). The STEP frontier became a self-retiring tour door
+(step_at_frontier: a different refusal OR a success fails the
+tour); the freecad lane skips-and-names rather than substituting
+kernel STL as false OCC evidence — the blank cell flagged for
+adjudication. Six friction findings recorded, two load-bearing for
+future units: the recipe-node gap measured from BOTH sides (no
+Node::chamfer; Node::Revolve's ProfileProgram cannot carry a
+hole), and Revolved::cavities returns a ShellKey no door can
+spend. **Ordinal 68 claimed** (66/67 are ASM's per the corrected
+sequence) — not a third — single fable review at frozen 43a3bd58.
+
+## TUBEWALL report in; ordinal-69 dual out (2026-08-23)
+
+PR #960 green at (interval, 1e-6). The flagged deviation
+ADJUDICATED ACCEPTED: the wall-validity check is metered
+(tube_wall / tube_wall_bore, linear margins pre-mint) rather than
+the briefed bracket read — the compound-Bounds seam rule genuinely
+blocks the plain spelling outside allowlisted seams (the
+discipline gate proved it on the first push), and the metered form
+refuses slivers and escalates in-band where the read would build
+them. Banked finding worth a house ruling: NO non-metered
+request-validity spelling exists for new doors outside the seams —
+filed at the merge seam. **Ordinal 69 claimed → a third → DUAL
+CROSS-MODEL** (sample #22, the TENTH pair; R1 fable + R2 opus,
+frozen 4de92637; the r2 lane was local-cloned from r1 after two
+network clone timeouts — hooks + origin repointed by hand).
+ARMS-2's PR #962 opened meanwhile, green at a drawn
+(interval, 1e-12); its report pending, review (ordinal 70) queues
+on it. DEMO review (68) still running.
+
+## ARMS-2 report in; ordinal-70 review out (2026-08-23)
+
+The coaxial arms landed as ONE closed-form family: the ball's
+centre confined to a symmetry sheet, three sheet-crossing closed
+forms (line×line, line×circle, circle×circle), eight per-pair
+reductions — no arm mints a cone, the C8 correction landed as
+flagged. The material-side lesson institutionalized (defining-
+equation tests over all 8 arms × 4 sense combinations; the fold
+checked live). #319's coaxial half CLOSES on the bud's actual
+mouth rim; klein walls 1/2 re-pin to RadiusHeadroom (the arm now
+exists; the bulb's RF meets predicate 1 — sharpening the
+meridian-authoring reading). One new metered predicate
+(fillet3_support_coaxiality) and one new tangent-certificate cone
+row. Deviations scheduled incl. #961. **Both hosted draws were
+interval-lane — the f64 lane never gated this PR**; the ordinal-70
+reviewer's charter makes the default-features matrix its explicit
+unique-signal run. Frozen fe20d633, lane verbs-arms2-r1
+(local-cloned; network still flaky).
+
+## DEMO MERGED (#958, 2026-08-23) — the montage shows the new verbs
+
+Row DEMO (ordinal 68) in MODEL-AB-LOG. The chamfered die pairs with
+the filleted one; the hollow ring reads translucent with its bore
+silhouette; the STEP frontier is a self-retiring declared gate with
+a stamped montage cell; and the strongest outcome is
+epistemological — the review EXECUTED a recorded finding, refuted
+it, and the fix pass inverted it into a standing cross-door
+assertion (the recipe ring and the direct ring agree bit-exactly,
+checked every pass). Renders re-baseline on this merge. Seam
+sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
+TUBEWALL dual (69), ARMS-2 review (70).
