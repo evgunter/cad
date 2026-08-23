@@ -177,8 +177,17 @@ fn hollow_torus_carries_its_cavity() {
     );
 }
 
-/// Both walls' stored tori, keyed by minor radius.
-fn tori(body: &Body<f64>) -> Vec<(f64, f64, Point3<f64>, Vec3<f64>, Vec3<f64>)> {
+/// One stored torus wall, as the body holds it.
+struct TorusWall {
+    minor: f64,
+    major: f64,
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+}
+
+/// Every torus wall the body stores.
+fn tori(body: &Body<f64>) -> Vec<TorusWall> {
     let mut out = Vec::new();
     for (_, face) in body.faces() {
         if let Some(Surface::Torus {
@@ -189,7 +198,13 @@ fn tori(body: &Body<f64>) -> Vec<(f64, f64, Point3<f64>, Vec3<f64>, Vec3<f64>)> 
             u_ref,
         }) = body.get_surface(face.surface)
         {
-            out.push((*minor_radius, *major_radius, *center, *axis, *u_ref));
+            out.push(TorusWall {
+                minor: *minor_radius,
+                major: *major_radius,
+                center: *center,
+                axis: *axis,
+                u_ref: *u_ref,
+            });
         }
     }
     out
@@ -211,20 +226,22 @@ fn hollow_intent_parameters_are_stored_bit_exact() {
         let t = hollow(window);
         let walls = tori(&t.body);
         assert_eq!(walls.len(), 4, "two half-circle torus faces per circle");
-        for (minor, major, center, axis, u_ref) in &walls {
-            assert!(major.to_bits() == R.to_bits(), "major bit-exact");
-            assert_eq!((center.x, center.y, center.z), (0.0, 0.0, 0.0));
-            assert_eq!((axis.x, axis.y, axis.z), (0.0, 1.0, 0.0));
+        for w in &walls {
+            assert!(w.major.to_bits() == R.to_bits(), "major bit-exact");
+            assert_eq!((w.center.x, w.center.y, w.center.z), (0.0, 0.0, 0.0));
+            assert_eq!((w.axis.x, w.axis.y, w.axis.z), (0.0, 1.0, 0.0));
             if full {
-                assert_eq!((u_ref.x, u_ref.y, u_ref.z), (1.0, 0.0, 0.0));
+                assert_eq!((w.u_ref.x, w.u_ref.y, w.u_ref.z), (1.0, 0.0, 0.0));
             }
             assert!(
-                minor.to_bits() == OUTER.to_bits() || minor.to_bits() == (OUTER - WALL).to_bits(),
-                "minor radius {minor} is neither the given outer radius nor \
-                 minor_radius - wall, bit for bit"
+                w.minor.to_bits() == OUTER.to_bits()
+                    || w.minor.to_bits() == (OUTER - WALL).to_bits(),
+                "minor radius {} is neither the given outer radius nor \
+                 minor_radius - wall, bit for bit",
+                w.minor
             );
         }
-        let mut minors: Vec<u64> = walls.iter().map(|w| w.0.to_bits()).collect();
+        let mut minors: Vec<u64> = walls.iter().map(|w| w.minor.to_bits()).collect();
         minors.sort_unstable();
         let mut want = vec![
             (OUTER - WALL).to_bits(),

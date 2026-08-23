@@ -259,6 +259,10 @@ pub fn tube_along_arc<T: Decide>(
 /// [`TubeError::WallBelowResolution`]) are plain input-validity
 /// checks on the request, decided before anything is minted and
 /// metered by nothing.
+// The solid door's seven intent parameters plus the wall — the list
+// IS the door, and bundling any subset of it into a struct would hide
+// which numbers the body stores verbatim.
+#[allow(clippy::too_many_arguments)]
 pub fn tube_along_arc_hollow<T: Decide + Bounds>(
     center: Point3<T>,
     axis: Vec3<T>,

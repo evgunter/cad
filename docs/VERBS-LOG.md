@@ -538,3 +538,48 @@ Wave 1 state: RIM ✓ CHAMFER ✓ ARMS-1 ✓ RING ✓ — remaining:
 TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Evan-gated
 conversation), plus the DEMO unit (part 2 now UNBLOCKED). Seam
 sweep: verbs-ring + verbs-ring-r1 lanes.
+
+## VERBS-TUBEWALL implemented (2026-08-23, lane verbs/tubewall)
+
+The door: `tube_along_arc_hollow(center, axis, u_ref, major_radius,
+window, minor_radius, wall, tol)` — a SIBLING, not a widened
+signature, so the solid door keeps its `T: Decide` bound (the wall's
+bracket reads live only in the hollow entry point, which takes
+`Decide + Bounds`) and its suite is untouched. Both doors are now one
+private `build` with `inner_radius: Option<T>`; the hand-written
+`swept_segments` involution came out as `circle_traversal(center,
+radius, turn, reversed)` with the three combinations the doors use
+named in its docs. That is the whole elaboration: the hollow form is
+one MORE loop through the same revolve machinery — the outer circle
+as before, the inner circle as the revolve's hole loop, in the
+traversal each construction expects (forward/clockwise for a full
+period, where the hole builds as its own hole-as-outer solid;
+reversed/counterclockwise for a window, where it is an ordinary ring
+in the start cap). No new geometry code and no second construction.
+
+Full-period policy, mirrored from the solid door honestly: the solid
+door supports `TubeWindow::Full`, so the hollow one does, and its
+inner wall closes into a CAVITY — `build_full`'s existing holed path
+inserts it through `topo::insert_void` with `Carried { Positive }`,
+the VERBS-RING route unchanged. The evidence that carries: the two
+circles are concentric and the door has already decided
+`0 < minor_radius - wall < minor_radius`, so the inner circle is
+strictly inside the outer in the sketch and revolution about the
+shared axis maps that to 3-D verbatim. A window is an ordinary open
+elbow of annular section — one shell, two annular wedge caps.
+
+Wall validation is three plain request-facts (chamfer
+`NonpositiveSize` posture, no `k_stats` name, no band):
+`NonpositiveWall`, `WallExceedsRadius`, and `WallBelowResolution` —
+the third because `wall > 0` alone does NOT give a separated inner
+radius: a thickness far under the outer radius's ulp rounds
+`minor_radius - wall` back to `minor_radius` and the two circles
+would be stored as one. That check is on the DERIVED radius, which is
+also what makes the carried containment evidence true. Exactness
+posture: outer wall bit-identical to the solid door's; inner wall
+stores `minor_radius - wall`, one IEEE subtraction of the caller's
+own numbers, pinned with `==` on the bits. KERNEL-VERBS register row
+retired to the present (with its bound stated: one concentric
+constant wall, nothing eccentric or varying) and the hollow tube
+added to the STEP row's list of curved multi-shell parts. PR:
+verbs/tubewall.
