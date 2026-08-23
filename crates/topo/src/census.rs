@@ -63,25 +63,38 @@
 //! (`VvContact`, `VfContact`). Since M9-2 `ContactRecords` also carries
 //! face-granularity records (`curves`, `patches`), and each bullet
 //! below has a corresponding face rung — `Declared::vv_face_backed` /
-//! `vf_face_backed`, which back a subordinate vertex event from a
-//! declared FACE pair holding it on both boundaries. Those rungs are
-//! named in the bullets rather than left out of the derivation that
-//! licenses them.
+//! `vf_face_backed` / `ve_face_backed`, which back a subordinate
+//! vertex event from a declared FACE pair holding the entities it
+//! relates on the pair's two sides. Those rungs are named in the
+//! bullets rather than left out of the derivation that licenses them.
+//!
+//! **All three rungs are structural-incidence and region-unconfined,
+//! by one deliberate decision.** A rung asks whether a declared face
+//! pair HOLDS the entities of the event — one on each side, through
+//! boundary membership and an edge's incidence to the faces it bounds
+//! — and never where on those faces the event lies. So a declared pair
+//! backs an event on the entities it holds even where that event lies
+//! outside the pair's own overlap region. Confining a rung to that
+//! region is not a tightening of one rung, it is a second standard the
+//! other two do not meet; the region question belongs to the confirm
+//! pass, which verifies the declared pair itself in both directions.
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are certified by
 //! **reconstruction from their bounding vertex events**:
 //!
-//! - An **edge-edge collinear overlap** is certified iff at each of
-//!   its two bounds both edges hold a vertex there and the pair is
-//!   v-v-declared, or backed by a declared face pair holding the two
-//!   vertices on its two boundaries (`vv_face_backed`), or is one
-//!   shared vertex — structural. Derivation:
+//! - An **edge-edge collinear overlap** is certified iff each of its
+//!   two bounds is backed. Where both edges hold a vertex at the
+//!   bound, that means the pair is v-v-declared, or backed by a
+//!   declared face pair holding the two vertices on its two boundaries
+//!   (`vv_face_backed`), or is one shared vertex — structural. Where
+//!   only one edge holds a vertex there — the endpoint rests on the
+//!   other edge's INTERIOR — the bound is a vertex-on-edge event and
+//!   is backed by exactly that lane's rung: a declared face pair
+//!   holding the vertex on one boundary and naming a face the other
+//!   edge bounds (`ve_face_backed`). Derivation:
 //!   the overlap of two collinear spans is an interval whose each
-//!   bound is an endpoint of at least one span; if the *other* edge
-//!   has no vertex there, that endpoint rests on the other edge's
-//!   interior — the vertex-on-edge lane already reports it (reduction
-//!   refines every such event by splitting, so a certified result
-//!   always carries the vertex). Between two backed bounds the
+//!   bound is an endpoint of at least one span, so one of the two arms
+//!   applies at every bound. Between two backed bounds the
 //!   carriers coincide identically (two lines sharing two points are
 //!   one line), so the interior overlap is exactly the convex closure
 //!   of the bounded events on both carriers — no interior record can
@@ -92,9 +105,13 @@
 //!   vertex of the face's boundary, backed by a declared face pair
 //!   naming this face and one holding the vertex (`vf_face_backed`),
 //!   or itself a vertex of the face's boundary (structural). Same
-//!   argument: an uncertified bound
-//!   configuration implies a vertex-on-edge / edge-edge-cross finding
-//!   that hard-errors independently.
+//!   argument, with its remaining looseness stated: a bound at which
+//!   the edge holds NO vertex is a vertex-on-edge or edge-edge-cross
+//!   configuration the sweeps report in their own lane, so this lane
+//!   declines to reconstruct it rather than inferring one. Where that
+//!   subordinate event is itself face-backed, the decline is a
+//!   LOUDNESS the pair keeps — reported, never blessed — and closing
+//!   it needs the same rung read at this bound, not a new one.
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -107,11 +124,36 @@
 //! Reduction's sweep splits the *other* edge at every on-edge event
 //! (`split_other_at_point`) in **both** lanes that can discover one —
 //! the proper-crossing lane (`FaceContainment::OnEdge`) and the
-//! vertex-on-plane lane (`dovertexonface` → `OnEdge`) — so every
-//! vertex-on-edge(-interior) contact is refined into a v-v record
-//! before records are emitted. At rest, a vertex on an edge interior
-//! is therefore always an undeclarable defect: the census reports it
-//! as [`CensusContact::VertexOnEdge`] with no backing path, by design.
+//! vertex-on-plane lane (`dovertexonface` → `OnEdge`) — so in the
+//! BOOLEAN lane every vertex-on-edge(-interior) contact is refined
+//! into a v-v record before records are emitted. That is why no
+//! vertex-granularity record type names this configuration: in the
+//! lane that mints them, it never survives to be named.
+//!
+//! **That premise is the boolean lane's, and it does not carry to
+//! rest.** At rest nothing refines — no boolean runs, nothing is
+//! zipped, the bodies arrive as they were placed — so the raw induced
+//! configuration reaches the certifier intact. Its status there is:
+//!
+//! - **Certifiable through the face rung, and only through it**: a
+//!   declared face pair holding the vertex on one boundary and naming
+//!   a face the edge bounds (`ve_face_backed`) holds the whole event
+//!   — the vertex on one side of the interface, the edge on the other
+//!   — exactly as `vv_face_backed` holds a coincident vertex pair.
+//!   A seat whose two faces share a boundary induces this event by
+//!   construction, and the declaration that says the faces rest says
+//!   it once for everything the seat induces.
+//! - **Otherwise an undeclarable defect**: with no face pair holding
+//!   it, there is no record that can name the configuration, and the
+//!   census reports [`CensusContact::VertexOnEdge`] as
+//!   `UndeclaredContact`. The rung consults DECLARATIONS, never the
+//!   geometry's own agreement with itself — a configuration nobody
+//!   declared stays the F1 hard error however exactly it coincides.
+//!
+//! Cross-reference: the face rung is CONTACT-DESIGN C3's declared
+//! rung read at the granularity the records already carry, not a new
+//! identity claim about the carriers — what the declared pair itself
+//! must satisfy is the confirm pass's, on C3's ladder.
 
 use std::collections::BTreeSet;
 
@@ -177,7 +219,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLan
     let geo = snapshot(body);
     let declared = Declared::index(contacts);
     sweep_vertex_vertex(&geo, &declared, band, &mut errors);
-    sweep_vertex_edge(&geo, band, &mut errors);
+    sweep_vertex_edge(&geo, &declared, band, &mut errors);
     sweep_vertex_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_edge(&geo, &declared, band, &mut errors);
@@ -246,6 +288,27 @@ impl Declared {
         geo.vertex_faces
             .get(&v)
             .is_some_and(|gs| gs.iter().any(|&g| self.faces.contains(&(g, f))))
+    }
+
+    /// The face rung for a vertex-on-edge event: the v-on-f rung
+    /// against either face the edge bounds. An edge is structurally
+    /// incident to `f_plus` and `f_minus`, so a declared pair holding
+    /// `v` on one boundary and naming a face of `e` on the other holds
+    /// the whole event — the vertex on one side of the interface, the
+    /// edge on the other.
+    ///
+    /// Strength, stated rather than left to be read off the code: this
+    /// rung is STRUCTURAL-INCIDENCE, exactly as strong as the two
+    /// rungs it is built from and no stronger. It asks whether the
+    /// declared pair holds the two entities, never WHERE on the pair
+    /// the event lies, so it backs an event anywhere on the incident
+    /// entities — including outside the declared faces' own overlap
+    /// region. Confining it to that region would be new machinery
+    /// [`Declared::vv_face_backed`] and [`Declared::vf_face_backed`]
+    /// do not have, and the census would then hold three rungs to two
+    /// different standards.
+    fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
+        self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
 }
 
@@ -441,9 +504,16 @@ fn sweep_vertex_vertex<T: Decide>(
     }
 }
 
-/// Census pass 2: vertex on an edge's **interior** — undeclarable by
-/// design (module docs, D4): always a hard finding.
-fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<ValidationError>) {
+/// Census pass 2: vertex on an edge's **interior** — certifiable only
+/// through the face rung (module docs, D4), and otherwise a hard
+/// finding: there is no vertex-granularity record type that can name
+/// this configuration.
+fn sweep_vertex_edge<T: Decide>(
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
     for &(vk, q) in &geo.verts {
         for e in &geo.edges {
             if vk == e.v0 || vk == e.v1 {
@@ -470,7 +540,7 @@ fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<Valid
                     }
                 }
             }
-            if interior {
+            if interior && !declared.ve_face_backed(geo, vk, e) {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::VertexOnEdge {
                         vertex: vk,
@@ -905,7 +975,18 @@ fn ee_collinear_lane<T: Decide>(
 
 /// D3 backing for one bound of a collinear overlap: both edges hold a
 /// vertex at the bound and the pair is declared (or is one shared
-/// vertex — structural).
+/// vertex — structural), or — where only ONE edge has a vertex there,
+/// so the bound rests on the other edge's interior — that vertex is
+/// face-backed onto the other edge.
+///
+/// The two arms are one rule at two granularities: a bound of a
+/// collinear overlap is an endpoint of at least one span, and whether
+/// the other span happens to end there too is a fact about the
+/// configuration, not about what a declaration can hold. Both edges
+/// with a vertex is a v-v event and takes the v-v rungs; one edge with
+/// a vertex is a vertex-on-edge event and takes that lane's rung
+/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
+/// incidence step further out.
 fn ee_bound_backed<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -915,15 +996,20 @@ fn ee_bound_backed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> bool {
-    let Some(va) = edge_vertex_at(ea, s, band, errors) else {
-        return false; // interior on ea: the v-on-e lane already fired
-    };
+    let va = edge_vertex_at(ea, s, band, errors);
     let q = ea.p0 + ea.dir * s;
     let sb = (q - eb.p0).dot(eb.dir);
-    let Some(vb) = edge_vertex_at(eb, sb, band, errors) else {
-        return false;
-    };
-    va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+    let vb = edge_vertex_at(eb, sb, band, errors);
+    match (va, vb) {
+        (Some(va), Some(vb)) => {
+            va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+        }
+        (Some(va), None) => declared.ve_face_backed(geo, va, eb),
+        (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
+        // Neither edge resolves a vertex at the bound: an escalated
+        // span (already pushed), never a backing.
+        (None, None) => false,
+    }
 }
 
 /// **The conformal face-pair arm** (M9-2, C2's structural rung run as
