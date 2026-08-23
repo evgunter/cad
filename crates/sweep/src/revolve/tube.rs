@@ -48,16 +48,15 @@
 //! ([`topo::insert_void`]) by the revolve's own holed-profile path,
 //! never by a second construction here. The containment evidence
 //! that path carries is the annulus's own: the two circles are
-//! concentric and `0 < minor_radius - wall < minor_radius` is
-//! decided at the door below, so the inner circle is strictly inside
-//! the outer in the sketch, and revolution about the shared axis
-//! maps that to 3-D verbatim.
+//! concentric, and the door decides `wall` and `minor_radius - wall`
+//! definitely positive at the run's band before anything is minted,
+//! so the inner circle is strictly inside the outer in the sketch —
+//! and revolution about the shared axis maps that to 3-D verbatim.
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Bounds, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Real, Sign, Tol,
-    Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
 
 use super::axis::AxisFrame;
@@ -101,46 +100,13 @@ pub enum TubeError {
     /// full tube must say [`TubeWindow::Full`].
     FullRangeWindow,
     /// [`tube_along_arc_hollow`] only: the wall thickness is not
-    /// definitely positive.
-    ///
-    /// **Not a metered predicate, deliberately** (the chamfer's
-    /// `NonpositiveSize` precedent): whether the caller handed in a
-    /// positive thickness is a fact about the REQUEST, not a
-    /// geometric quantity of a body, so it takes no `k_stats` name
-    /// and no band. A hollow tube with no wall is the solid door's
-    /// job or nothing at all.
-    NonpositiveWall {
-        /// The thickness as handed in, meters: its bracket's low end,
-        /// so a straddling or poisoned enclosure reports the end that
-        /// fails.
-        wall: f64,
-    },
-    /// [`tube_along_arc_hollow`] only: the wall is not definitely
-    /// thinner than the outer minor radius, so `minor_radius - wall`
-    /// is not a positive inner radius — there is no annulus to
-    /// revolve. Same request-fact posture as
-    /// [`TubeError::NonpositiveWall`].
-    WallExceedsRadius {
-        /// The thickness as handed in, meters (bracket high end).
-        wall: f64,
-        /// The outer minor radius as handed in, meters (bracket low
-        /// end).
-        minor_radius: f64,
-    },
-    /// [`tube_along_arc_hollow`] only: the wall is positive and below
-    /// the outer minor radius, yet `minor_radius - wall` does not
-    /// come out definitely BELOW `minor_radius` — the thickness is
-    /// finer than the outer radius's own representation at this
-    /// magnitude, so the two circles would be stored as one. Refused
-    /// rather than built as a zero-thickness wall; same request-fact
-    /// posture as [`TubeError::NonpositiveWall`].
-    WallBelowResolution {
-        /// The thickness as handed in, meters (bracket high end).
-        wall: f64,
-        /// The outer minor radius as handed in, meters (bracket low
-        /// end).
-        minor_radius: f64,
-    },
+    /// definitely positive at tolerance — a wall thinner than the
+    /// run's ε is not a wall.
+    NonpositiveWall,
+    /// [`tube_along_arc_hollow`] only: `minor_radius - wall` is not a
+    /// definitely positive inner radius, so there is no bore and no
+    /// annulus to revolve.
+    WallExceedsRadius,
     /// A frame/window classification escalated.
     Escalated {
         /// The predicate-layer escalation.
@@ -181,27 +147,18 @@ impl core::fmt::Display for TubeError {
                 "tube_along_arc: the arc window reaches one full period — an exactly \
                  full tube says TubeWindow::Full"
             ),
-            Self::NonpositiveWall { wall } => write!(
+            Self::NonpositiveWall => write!(
                 f,
-                "tube_along_arc_hollow: the wall thickness {wall} m is not definitely \
-                 positive — supply a positive thickness, or call tube_along_arc for the \
-                 solid tube. A nonpositive wall is refused as the invalid input it is \
-                 rather than reported as a fact about the body"
+                "tube_along_arc_hollow: the wall thickness is not definitely positive at \
+                 tolerance (metered at tube_wall) — a wall thinner than the run's ε is \
+                 not a wall. Supply a thicker one, or call tube_along_arc for the solid tube"
             ),
-            Self::WallExceedsRadius { wall, minor_radius } => write!(
+            Self::WallExceedsRadius => write!(
                 f,
-                "tube_along_arc_hollow: the wall thickness {wall} m is not definitely \
-                 thinner than the outer minor radius {minor_radius} m, so \
-                 minor_radius - wall is no inner radius and there is no annulus to \
-                 revolve — supply a thinner wall, or call tube_along_arc for the solid tube"
-            ),
-            Self::WallBelowResolution { wall, minor_radius } => write!(
-                f,
-                "tube_along_arc_hollow: the wall thickness {wall} m is positive but \
-                 minor_radius - wall does not fall below the outer minor radius \
-                 {minor_radius} m — the wall is finer than that radius's own \
-                 representation here, so the two circles would be stored as one. \
-                 Supply a thicker wall or a smaller outer radius"
+                "tube_along_arc_hollow: minor_radius - wall is not a definitely positive \
+                 inner radius at tolerance (metered at tube_wall_bore), so there is no \
+                 bore and no annulus to revolve — supply a thinner wall, or call \
+                 tube_along_arc for the solid tube"
             ),
             Self::Escalated { source } => write!(f, "tube_along_arc escalated: {source}"),
             Self::Revolve(e) => write!(f, "tube_along_arc: {e}"),
@@ -217,8 +174,8 @@ impl std::error::Error for TubeError {}
 ///
 /// # Errors
 ///
-/// [`TubeError`] — every door named on the enum except the three
-/// wall arms, which only [`tube_along_arc_hollow`] can raise; the
+/// [`TubeError`] — every door named on the enum except the two wall
+/// arms, which only [`tube_along_arc_hollow`] can raise; the
 /// ring-torus convention (`R > r > 0`) refuses through the shared
 /// `axis_arc_clearance`/`axis_vertex_radius` decides as
 /// [`TubeError::Revolve`].
@@ -254,16 +211,16 @@ pub fn tube_along_arc<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`TubeError`] — every door named on the enum. The three wall arms
-/// ([`TubeError::NonpositiveWall`], [`TubeError::WallExceedsRadius`],
-/// [`TubeError::WallBelowResolution`]) are plain input-validity
-/// checks on the request, decided before anything is minted and
-/// metered by nothing.
+/// [`TubeError`] — every door named on the enum. The two wall arms
+/// ([`TubeError::NonpositiveWall`], [`TubeError::WallExceedsRadius`])
+/// are decided FIRST, before anything is minted, and their verdicts
+/// are what the full period's cavity insertion carries as its
+/// containment evidence.
 // The solid door's seven intent parameters plus the wall — the list
 // IS the door, and bundling any subset of it into a struct would hide
 // which numbers the body stores verbatim.
 #[allow(clippy::too_many_arguments)]
-pub fn tube_along_arc_hollow<T: Decide + Bounds>(
+pub fn tube_along_arc_hollow<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
@@ -273,34 +230,6 @@ pub fn tube_along_arc_hollow<T: Decide + Bounds>(
     wall: T,
     tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    // The wall's three request facts, read off the brackets rather
-    // than metered (the enum's own notes; the chamfer's
-    // `NonpositiveSize` precedent). Written through `partial_cmp` so
-    // the INCOMPARABLE case is an arm and not an accident: a poisoned
-    // thickness is not definitely positive either, and it refuses
-    // with the other two.
-    let definitely = |x: f64, ord, y: f64| matches!(x.partial_cmp(&y), Some(o) if o == ord);
-    if !definitely(wall.lo(), core::cmp::Ordering::Greater, 0.0) {
-        return Err(TubeError::NonpositiveWall { wall: wall.lo() });
-    }
-    let inner = minor_radius - wall;
-    if !definitely(inner.lo(), core::cmp::Ordering::Greater, 0.0) {
-        return Err(TubeError::WallExceedsRadius {
-            wall: wall.hi(),
-            minor_radius: minor_radius.lo(),
-        });
-    }
-    // The separation the annulus's strict containment rests on: the
-    // subtraction has to have MOVED the radius. `wall > 0` alone does
-    // not give that — a thickness far under the outer radius's ulp
-    // rounds `minor_radius - wall` back to `minor_radius`, and two
-    // coincident circles are not an annulus.
-    if !definitely(inner.hi(), core::cmp::Ordering::Less, minor_radius.lo()) {
-        return Err(TubeError::WallBelowResolution {
-            wall: wall.hi(),
-            minor_radius: minor_radius.lo(),
-        });
-    }
     build(
         center,
         axis,
@@ -308,17 +237,12 @@ pub fn tube_along_arc_hollow<T: Decide + Bounds>(
         major_radius,
         window,
         minor_radius,
-        Some(inner),
+        Some(wall),
         tol,
     )
 }
 
-/// Both doors' body (module docs). `inner_radius` present ⇔ hollow;
-/// it is already decided to lie strictly in `(0, minor_radius)` by
-/// the hollow door, which is the annulus's containment evidence.
-///
-/// The bound stays `Decide` — the wall's bracket reads live in the
-/// hollow door alone, so the solid door keeps its signature.
+/// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
 fn build<T: Decide>(
     center: Point3<T>,
@@ -327,13 +251,45 @@ fn build<T: Decide>(
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
-    inner_radius: Option<T>,
+    wall: Option<T>,
     tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
     let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
     let esc = |source| TubeError::Escalated { source };
+
+    // ---- The wall, decided FIRST: nothing is minted behind it, and
+    // the verdicts here are the annulus's containment evidence (fn
+    // docs of the hollow door). Both margins are LENGTHS in meters,
+    // so they take the plain linear band — no lever arm, unlike this
+    // door's angular window and frame margins.
+    //
+    // Metered rather than bracket-read: the door already meters its
+    // caller-supplied WINDOW the same way (`tube_window_span`), and a
+    // thickness is not a mere request flag — `minor_radius - wall` is
+    // the inner wall's stored radius, a geometric quantity of the
+    // body, and "is the inner circle strictly inside the outer" is
+    // exactly the kind of fact the funnel exists to decide. It also
+    // buys the right answers a raw comparison cannot: a wall of
+    // 1e-20 m is not "positive" at any run tolerance, and an in-band
+    // one escalates with a margin instead of building a sliver. ----
+    let inner_radius = match wall {
+        None => None,
+        Some(wall) => {
+            match decide("tube_wall", Margin::of(wall), band).map_err(esc)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(TubeError::NonpositiveWall),
+            }
+            let inner = minor_radius - wall;
+            match decide("tube_wall_bore", Margin::of(inner), band).map_err(esc)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Err(TubeError::WallExceedsRadius),
+            }
+            Some(inner)
+        }
+    };
+
     let unit = |v: Vec3<T>, err: TubeError| -> Result<(), TubeError> {
         match decide(
             "tube_frame_unit",

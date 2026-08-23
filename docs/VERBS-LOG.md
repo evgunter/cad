@@ -568,14 +568,23 @@ strictly inside the outer in the sketch and revolution about the
 shared axis maps that to 3-D verbatim. A window is an ordinary open
 elbow of annular section — one shell, two annular wedge caps.
 
-Wall validation is three plain request-facts (chamfer
-`NonpositiveSize` posture, no `k_stats` name, no band):
-`NonpositiveWall`, `WallExceedsRadius`, and `WallBelowResolution` —
-the third because `wall > 0` alone does NOT give a separated inner
-radius: a thickness far under the outer radius's ulp rounds
-`minor_radius - wall` back to `minor_radius` and the two circles
-would be stored as one. That check is on the DERIVED radius, which is
-also what makes the carried containment evidence true. Exactness
+Wall validation went the other way from the brief's suggested
+posture, and the reason is worth recording. The brief asked for a
+plain bracket-read check (the chamfer `NonpositiveSize` precedent);
+that spelling needs `T: Decide + Bounds`, which the ratified
+compound-`Bounds` scope rule allows only in named seams
+(`scripts/gates/bounds-allowlist.sh` — the discipline job caught it
+on the first push, correctly). Rather than ratify a new seam for an S
+unit, the checks went through the door's OWN funnel: `tube_wall` and
+`tube_wall_bore`, plain LINEAR margins in meters (unlike this door's
+levered angular window/frame margins). That turned out better on the
+merits, not just cheaper: this door already meters its
+caller-supplied window the same way (`tube_window_span`), and the
+metered form refuses a 1e-20 m wall and escalates an in-band one,
+where a raw bracket comparison would have accepted both and built a
+sliver. The verdicts are also strictly better containment evidence
+for the cavity insertion than a float comparison. Two arms:
+`NonpositiveWall`, `WallExceedsRadius`. Exactness
 posture: outer wall bit-identical to the solid door's; inner wall
 stores `minor_radius - wall`, one IEEE subtraction of the caller's
 own numbers, pinned with `==` on the bits. KERNEL-VERBS register row

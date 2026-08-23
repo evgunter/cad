@@ -16,8 +16,9 @@
 //!   the frame are the caller's numbers bit for bit, exactly as the
 //!   solid door; the inner wall's is `minor_radius - wall`, the one
 //!   subtraction the caller can repeat, also bit for bit;
-//! - the **wall's three request-fact refusals**, and that everything
-//!   the solid door refuses the hollow door refuses identically.
+//! - the **wall's two refusals**, decided through the door's own
+//!   funnel before anything is minted, and that everything the solid
+//!   door refuses the hollow door refuses identically.
 //!
 //! The solid door's own suite (`m6_tube`) is untouched: the hollow
 //! form is one more loop through the same machinery, not a fork.
@@ -254,9 +255,10 @@ fn hollow_intent_parameters_are_stored_bit_exact() {
     }
 }
 
-/// The wall's three refusals — plain facts about the REQUEST, decided
-/// before anything is minted — and the shared refusals the solid door
-/// already owns, raised identically by the hollow door.
+/// The wall's two refusals — decided FIRST, before anything is
+/// minted, through the door's own funnel — and the shared refusals
+/// the solid door already owns, raised identically by the hollow
+/// door.
 #[test]
 fn hollow_wall_and_shared_refusal_doors() {
     let build = |minor: f64, wall: f64| {
@@ -271,47 +273,35 @@ fn hollow_wall_and_shared_refusal_doors() {
             Tol::witness(),
         )
     };
-    assert!(matches!(
-        build(OUTER, 0.0),
-        Err(TubeError::NonpositiveWall { .. })
-    ));
+    assert!(matches!(build(OUTER, 0.0), Err(TubeError::NonpositiveWall)));
     assert!(matches!(
         build(OUTER, -0.1),
-        Err(TubeError::NonpositiveWall { .. })
+        Err(TubeError::NonpositiveWall)
     ));
-    // A poisoned thickness is not definitely positive either.
+    // A poisoned thickness does not decide positive either — it
+    // escalates with the margin diagnostic rather than passing.
     assert!(matches!(
         build(OUTER, f64::NAN),
-        Err(TubeError::NonpositiveWall { .. })
+        Err(TubeError::Escalated { .. })
     ));
     assert!(matches!(
         build(OUTER, OUTER),
-        Err(TubeError::WallExceedsRadius { .. })
+        Err(TubeError::WallExceedsRadius)
     ));
     assert!(matches!(
         build(OUTER, OUTER * 2.0),
-        Err(TubeError::WallExceedsRadius { .. })
+        Err(TubeError::WallExceedsRadius)
     ));
-    // Positive, far below the outer radius, and still no annulus:
-    // `0.5 - 1e-300` rounds back to `0.5`, so the two circles would be
-    // stored as one.
+    // A wall of 1e-300 m is not a wall at any run tolerance: it
+    // refuses at the same door a zero one does, rather than building
+    // an inner circle that rounds onto the outer.
     assert!(matches!(
         build(OUTER, 1e-300),
-        Err(TubeError::WallBelowResolution { .. })
+        Err(TubeError::NonpositiveWall)
     ));
 
-    // Every message names the door and the number that failed.
-    for e in [
-        TubeError::NonpositiveWall { wall: 0.0 },
-        TubeError::WallExceedsRadius {
-            wall: 1.0,
-            minor_radius: 0.5,
-        },
-        TubeError::WallBelowResolution {
-            wall: 1e-300,
-            minor_radius: 0.5,
-        },
-    ] {
+    // Every message names the door it belongs to.
+    for e in [TubeError::NonpositiveWall, TubeError::WallExceedsRadius] {
         let msg = e.to_string();
         assert!(msg.starts_with("tube_along_arc_hollow: "), "{msg}");
     }

@@ -136,10 +136,12 @@ the table.
   period is a torus SHELL whose cavity is born through the shared
   void-insertion door by the revolve's own holed path — the
   VERBS-RING precedent, with the annulus's concentric-circle
-  containment carried as the evidence. The three `wall` refusals are
-  plain request-validity checks (the chamfer's `NonpositiveSize`
-  posture: no `k_stats` name, no band), and everything the solid door
-  refuses the hollow door refuses identically, through the same
+  containment carried as the evidence. The two `wall` refusals are
+  decided FIRST, before anything is minted, through the door's own
+  funnel (`tube_wall`, `tube_wall_bore` — plain linear margins in
+  meters, unlike this door's levered angular ones), which is also
+  where that containment evidence comes from; everything the solid
+  door refuses the hollow door refuses identically, through the same
   shared decides. `crates/sweep/tests/verbs_tubewall.rs`.
 
   **The bound on that, stated:** a hollow tube's cross-section is an
