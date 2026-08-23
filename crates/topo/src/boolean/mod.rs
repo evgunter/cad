@@ -1460,8 +1460,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             &declared,
             band,
         )?;
-        let out =
-            insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records, band)?;
+        let out = insert::insert_null_pairs(
+            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &declared, band,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
     }

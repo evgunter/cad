@@ -158,3 +158,176 @@ fn two_peg_plate_union_is_exactly_additive() {
         panic!("the mated pair must be tier-3 valid: {errs:?}");
     }
 }
+
+// -------------------------------------------------------------------
+// Acceptance (ii): the tube-chain rim on the DEV-1 carriers — two
+// EQUAL-RADIUS quarter-round walls meeting G1 along a shared tangent
+// ruling (the parallel-cylinder witness lane), mated by a declared
+// planar Rest with the wall pairs declared Tangent. The rim survives
+// the zip as the wedge-π smooth seam and carries the INTRINSIC
+// `TangentIntersection` description (the D6 smooth ladder's mint —
+// the jet is determinate: κ_rel = 1/r + 1/r definite).
+// -------------------------------------------------------------------
+
+/// Sketch frame: sketch x → world z, sketch y → world x, extrusion
+/// along +y (the lying frame).
+fn lying_plane() -> SketchPlane<f64> {
+    SketchPlane::new(Affine3::from_parts(
+        geom_core::Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
+        Vec3::new(0.0, 0.0, 0.0),
+    ))
+}
+
+fn lying_extrude(vertices: Vec<ProfileVertex<f64>>, tangent_joints: Vec<usize>) -> Body<f64> {
+    let profile = Profile::new(
+        lying_plane(),
+        vec![ProfileLoop::new(vertices).with_tangent_joints(tangent_joints)],
+    )
+    .validate(Tol::witness())
+    .unwrap();
+    extrude(&profile, Extrusion::Distance(4.0), Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// Body A: slab x ∈ [0,3], z ∈ [0,1], its top-right profile edge
+/// rounded by a radius-1 quarter arc tangent to z = 1 at x = 2
+/// (cylinder axis (2, ·, 0)); y ∈ [0, 4].
+fn quarter_round_below() -> Body<f64> {
+    let b90 = (core::f64::consts::PI / 8.0).tan();
+    lying_extrude(
+        vec![
+            ProfileVertex::new(p2(0.0, 0.0), 0.0),
+            ProfileVertex::new(p2(1.0, 0.0), 0.0),
+            ProfileVertex::new(p2(1.0, 2.0), b90),
+            ProfileVertex::new(p2(0.0, 3.0), 0.0),
+        ],
+        vec![2],
+    )
+}
+
+/// Body B: slab x ∈ [0.5, 3], z ∈ [1, 3], its bottom-right profile
+/// edge rounded by a radius-1 quarter arc tangent to z = 1 at x = 2
+/// (cylinder axis (2, ·, 2)); rests on A's top face; y ∈ [0, 4].
+fn quarter_round_above() -> Body<f64> {
+    let b90 = (core::f64::consts::PI / 8.0).tan();
+    lying_extrude(
+        vec![
+            ProfileVertex::new(p2(1.0, 0.5), 0.0),
+            ProfileVertex::new(p2(1.0, 2.0), -b90),
+            ProfileVertex::new(p2(2.0, 3.0), 0.0),
+            ProfileVertex::new(p2(3.0, 3.0), 0.0),
+            ProfileVertex::new(p2(3.0, 0.5), 0.0),
+        ],
+        vec![1, 2],
+    )
+}
+
+fn cyl_face(body: &Body<f64>) -> topo::FaceKey {
+    let hits: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let [f] = hits[..] else {
+        panic!("expected exactly one wall face, got {hits:?}");
+    };
+    f
+}
+
+#[test]
+fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
+    let a = quarter_round_below();
+    let b = quarter_round_above();
+    let va = mass_properties(&a, Tol::witness()).unwrap().volume;
+    let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
+    let mut decls = BooleanDeclarations::none();
+    // The mate: B rests on A's top face.
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        plane_face(&a, 1.0, true),
+        plane_face(&b, 1.0, false),
+        ContactClass::Rest,
+    ));
+    // The tangencies, all in the DEV-1 witness lane: wall × wall
+    // (parallel cylinders), and each wall against the other body's
+    // mating plane (plane × cylinder along the same ruling).
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        cyl_face(&a),
+        cyl_face(&b),
+        ContactClass::Tangent,
+    ));
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        plane_face(&a, 1.0, true),
+        cyl_face(&b),
+        ContactClass::Tangent,
+    ));
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        cyl_face(&a),
+        plane_face(&b, 1.0, false),
+        ContactClass::Tangent,
+    ));
+    let out =
+        topo::union_with(&a, &b, &decls, Tol::witness()).expect("the tube-chain rim union runs");
+    let body = body_of(out);
+    let v = mass_properties(&body, Tol::witness()).unwrap().volume;
+    // Additive to rounding: the seam chord at x = 0.5 SPLITS A's top
+    // face, re-associating its flux sum, so bitwise equality is not
+    // available here (unlike the two-peg path, whose patches are
+    // whole faces); the closed-form bound is float dust.
+    assert!(
+        (v - (va + vb)).abs() < 1e-12,
+        "additive volume: {v} vs {}",
+        va + vb
+    );
+
+    // The rim: the seam edges between the two cylinder walls — the
+    // wedge-π smooth junction — carry the INTRINSIC tangency
+    // description on their line carrier (D6's smooth ladder; U2's
+    // taxonomy, no new variant).
+    let mut rim_edges = 0;
+    for (_, e) in body.edges() {
+        let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+            continue;
+        };
+        let face_kind = |he| {
+            body.get_half_edge(he)
+                .and_then(|h| body.get_loop(h.parent_loop))
+                .and_then(|l| body.get_face(l.face))
+                .and_then(|f| body.get_surface(f.surface))
+                .map(geom_brep::SurfaceKind::of)
+        };
+        if face_kind(e.he_plus) == Some(geom_brep::SurfaceKind::Cylinder)
+            && face_kind(e.he_minus) == Some(geom_brep::SurfaceKind::Cylinder)
+        {
+            rim_edges += 1;
+            assert!(
+                matches!(
+                    c.description(),
+                    geom_brep::EdgeGeometry::TangentIntersection { .. }
+                ),
+                "the G1 rim is intrinsically described: {:?}",
+                c.description()
+            );
+        }
+    }
+    assert!(rim_edges > 0, "the rim seam survives between the walls");
+    if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
+        panic!("the tube-chain rim body must be tier-3 valid: {errs:?}");
+    }
+    // The tier-3 contact mark agrees: the rim is the must-carry's own
+    // regime (jet-determinate tangency), satisfied by the mint.
+    let marks = topo::contact_marks(&body, Tol::witness()).expect("marks derive at rest");
+    let tangent_marked = marks
+        .iter()
+        .filter(|&(_, m)| *m == topo::ContactMark::Tangent)
+        .count();
+    assert!(
+        tangent_marked >= rim_edges,
+        "the rim edges carry the Tangent contact mark"
+    );
+}

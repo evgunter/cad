@@ -887,7 +887,18 @@ fn verify_declared_pairs<T: Decide>(
 ) -> Result<RestSurfaces, BooleanError> {
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &FacePairDeclaration { a: fa, b: fb, .. } in &decls.coincident_faces {
+    for &FacePairDeclaration {
+        a: fa,
+        b: fb,
+        class,
+    } in &decls.coincident_faces
+    {
+        // Only the CONFORMAL class names REST-contact surfaces; a
+        // `Tangent` pair touches along a locus, was verified by its
+        // own C4 table at the front door, and licenses no patch.
+        if class != ContactClass::Rest {
+            continue;
+        }
         // The one flush-pair door ([`flush_pair_relation`]): oriented
         // sources, sense-folded descriptions, and the verification
         // arm all live inside it — shared with the LIB-SEL2 detector

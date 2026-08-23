@@ -196,13 +196,14 @@ fn false_rest_declaration_contradicts_at_the_lane() {
     );
 }
 
-/// The honest sub-frontier refusal: an ANNULAR contact (two square
-/// tubes stacked — the contact patch is a ring-carrying face) is
-/// outside the lane's no-new-region-algebra scope and refuses the
-/// typed `RestZipUnsupported`, naming the sub-frontier — never a
-/// laundered catch-all, never a wrong body.
+/// An ANNULAR contact (two square tubes stacked — the contact patch
+/// is a ring-carrying face) UNIONS: the glue promotes each interior
+/// boundary to its own congruent cycle pair (M9-3's ring-capable
+/// zip), the patch pair is removed as interior, and the volume is
+/// exactly additive. This row held the lane's old ring sub-frontier
+/// refusal; the generalized zip retired it.
 #[test]
-fn annular_rest_contact_refuses_typed() {
+fn annular_rest_contact_unions_exactly_additively() {
     let tube = |z0: f64, z1: f64| -> Body<f64> {
         let outer = brick::<f64>((0.0, 3.0), (0.0, 3.0), (z0, z1));
         let hole = brick::<f64>((1.0, 2.0), (1.0, 2.0), (z0 - 1.0, z1 + 1.0));
@@ -213,17 +214,18 @@ fn annular_rest_contact_refuses_typed() {
     };
     let bot = tube(0.0, 1.0);
     let top = tube(1.0, 2.0);
-    let err = union_with(&bot, &top, &flush_declarations(&bot, &top), Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::RestZipUnsupported { .. }),
-        "annular REST contact must refuse the typed sub-frontier: {err:?}"
-    );
-    let msg = err.to_string();
-    assert_eq!(
-        msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-        1,
-        "{msg}"
-    );
+    let out = union_with(&bot, &top, &flush_declarations(&bot, &top), Tol::witness())
+        .expect("the annular REST union runs");
+    let BooleanResult::Body(b) = out else {
+        panic!("a stacked-tube union cannot be empty");
+    };
+    let v = topo::mass_properties(&b.body, Tol::witness())
+        .unwrap()
+        .volume;
+    assert_eq!(v, 16.0, "exactly additive: two 8-volume tube rings");
+    if let Err(errs) = topo::validate_geometric(&b.body, Tol::witness()) {
+        panic!("the stacked tube must be tier-3 valid: {errs:?}");
+    }
 }
 
 /// Crosslap ∖/∩ disposition rows (SPEC §1): on THIS fixture (and the

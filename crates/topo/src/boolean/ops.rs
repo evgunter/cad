@@ -500,7 +500,11 @@ fn boolean_op_recut<T: Decide + Bounds>(
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     let connected = match bool_connect(&mut red, a, b, band, tol) {
         Ok(c) => c,
-        Err(err @ (BooleanError::Join(_) | BooleanError::JoinDesync { .. })) => match saved {
+        Err(
+            err @ (BooleanError::Join(_)
+            | BooleanError::JoinDesync { .. }
+            | BooleanError::CurvedBooleanUnsupported { .. }),
+        ) => match saved {
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
@@ -982,18 +986,21 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     geom_brep::EdgeGeometry::MappedCurve(_) => false,
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
-                // CURVED seam descends one order, exactly as the
-                // tier-3 contact mark does — the jet's second-order
-                // margin at the same interior schedule (rows
+                // seam descends one order, exactly as the tier-3
+                // contact mark does — the jet's second-order margin at
+                // the same interior schedule (rows
                 // `tangent_second_order`, reused). Determinate at
                 // every sample ⇒ the surfaces DETERMINE the locus and
                 // the intrinsic `TangentIntersection` is minted (the
-                // must-carry's own regime); a zero-side or in-band
-                // sample keeps the CONVENTIONAL posture (tier 3's
-                // ratified `SmoothUnderdetermined` stance — the weaker
-                // description is never a lie, and ε-tightening never
-                // flips a valid body through this choice).
-                let jet_determinate = if curved {
+                // must-carry's own regime) — a G1 rim's line ruling
+                // included; a zero-side or in-band sample keeps the
+                // CONVENTIONAL posture (tier 3's ratified
+                // `SmoothUnderdetermined` stance — coplanar planes'
+                // exact-zero jet lands here, so every planar split
+                // keeps its chord description bit-identically; the
+                // weaker description is never a lie, and ε-tightening
+                // never flips a valid body through this choice).
+                let jet_determinate = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let mut det = true;
@@ -1017,8 +1024,6 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         }
                     }
                     det
-                } else {
-                    false
                 };
                 if jet_determinate {
                     // Mint the intrinsic tangency on the existing
@@ -1294,14 +1299,26 @@ pub(super) fn declared_surface_pairs<T: Real>(
     decls
         .coincident_faces
         .iter()
-        .filter_map(|&FacePairDeclaration { a: fa, b: fb, .. }| {
-            // A-clone surface keys ARE result keys (carve/clone
-            // preserve them); B bridges through the graft.
-            let ka = a.get_face(fa)?.surface;
-            let kb = graft.surfaces.get(b.get_face(fb)?.surface).copied()?;
-            (result.get_surface(ka).is_some() && result.get_surface(kb).is_some() && ka != kb)
-                .then_some((ka, kb))
-        })
+        .filter_map(
+            |&FacePairDeclaration {
+                 a: fa,
+                 b: fb,
+                 class,
+             }| {
+                // Only the CONFORMAL class declares a merge-stage
+                // coincidence; a `Tangent` pair's carriers are DISTINCT
+                // by its own verification and never merge.
+                if class != crate::contact::ContactClass::Rest {
+                    return None;
+                }
+                // A-clone surface keys ARE result keys (carve/clone
+                // preserve them); B bridges through the graft.
+                let ka = a.get_face(fa)?.surface;
+                let kb = graft.surfaces.get(b.get_face(fb)?.surface).copied()?;
+                (result.get_surface(ka).is_some() && result.get_surface(kb).is_some() && ka != kb)
+                    .then_some((ka, kb))
+            },
+        )
         .collect()
 }
 
