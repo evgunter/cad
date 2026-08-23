@@ -94,8 +94,8 @@
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|
-//! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
-//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. The `2·a_u·a_v ≤ a_u² + a_v²` decoupling is unchanged by TESS-SPAN (the aspect-policy question is the split unit's), and a ruled wall still pays for it — see the anisotropy caveat below. |
+//! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing (both sides through the shipped selection). Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
+//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. Since TESS-SPLIT the shipped selection IS the cell-minimizing point under the ratified A = 16 aspect cap, so this reads ~1.0 where no constraint is active; the residue above 1.0 is the PRICE of the cap and the sliver snap (the denominator is the UNCONSTRAINED optimum — the anisotropy caveat below), attributed per face by `cap_bands` / `snap_bands`. |
 //! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
 //! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
 //!
@@ -113,11 +113,13 @@
 //! a parameter aspect near 5·10³). Nothing in the certificate objects,
 //! and nothing downstream of it has been asked whether it minds.
 //! `opt_cells` is therefore an UPPER BOUND on what a practical
-//! schedule would recover; a schedule that caps aspect would land
-//! between it and the shipped grid, and capping it HONESTLY needs the
-//! surface's first fundamental form, since parameter aspect is not
-//! 3-D aspect. The span factor carries no such caveat — it changes
-//! where divisions go, not how elongated a cell is.
+//! schedule recovers; since TESS-SPLIT the shipped schedule IS the
+//! aspect-capped point (through the first fundamental form, since
+//! parameter aspect is not 3-D aspect), so it lands between the strip
+//! optimum and the retired AM-GM point, and the gap that remains
+//! against `opt_cells`/`span_opt_cells` is the cap's deliberate,
+//! indicated price. The span factor carries no such caveat — it
+//! changes where divisions go, not how elongated a cell is.
 //!
 //! The product of the last two, `delta / worst_dev`, is the **total
 //! slack**: the factor by which the deviation budget went unspent.
@@ -209,9 +211,12 @@ pub struct NurbsColumns {
     pub u: (f64, f64),
     /// The trim box the grid spans: `v` extent.
     pub v: (f64, f64),
-    /// COUNTERFACTUAL since TESS-SPAN: the grid divisions the retired
+    /// COUNTERFACTUAL since TESS-SPAN: the grid divisions a
     /// whole-patch-sup schedule would use over the trim box, `u`
-    /// direction.
+    /// direction — through the SHIPPED point selection
+    /// (`FaceMeasure::patch_steps`, since TESS-SPLIT the aspect-capped
+    /// one), so the column keeps meaning "what per-cell sizing saves"
+    /// as the selection moves.
     pub nu: f64,
     /// The whole-patch counterfactual's `v` divisions.
     pub nv: f64,
@@ -222,6 +227,11 @@ pub struct NurbsColumns {
     pub muv: f64,
     /// `sup ‖S_vv‖` of that bound.
     pub mvv: f64,
+    /// `sup ‖S_u‖` of that bound — the first-fundamental-form sample
+    /// the shipped selection's 3-D aspect cap reads (TESS-SPLIT).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` of that bound.
+    pub mv1: f64,
     /// Analysis cells the per-cell bound reported (knot spans for the
     /// integral arm, refined cells for the rational one).
     pub cells: usize,
@@ -246,6 +256,22 @@ pub struct NurbsColumns {
     /// How many deviation samples that maximum is over (0 when not
     /// armed for deviation).
     pub dev_samples: u64,
+    /// Bands the shipped schedule emitted.
+    pub bands: usize,
+    /// **The constraint-activity indicator (TESS-SPLIT D-3), A-cap
+    /// kind**: bands whose step selection the 3-D aspect cap clamped.
+    /// Reported by the lane, never re-derived — the selection rule is
+    /// not re-spelled outside it.
+    pub cap_bands: usize,
+    /// The indicator's sliver/snap kind: bands the malign-band snap
+    /// projected onto the patch column schedule with changed counts
+    /// (either direction — columns added, or columns traded for rows).
+    pub snap_bands: usize,
+    /// Max over bands of the emitted lattice's post-`ceil` spacing
+    /// ratio `s_u/s_v` — the realized aspect `SAFE_ASPECT` judges,
+    /// reported so "which faces sit above the sliver line, under which
+    /// protection" is read off the CSV.
+    pub realized_aspect: f64,
 }
 
 /// One face's budget row.
@@ -266,8 +292,9 @@ pub struct FaceRow {
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
 pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
-                              muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
-                              span_opt_cells,worst_cert,worst_dev,dev_samples";
+                              muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
+                              opt_cells,span_opt_cells,worst_cert,worst_dev,\
+                              dev_samples,bands,cap_bands,snap_bands,realized_aspect";
 
 /// How many of [`CSV_HEADER`]'s columns are the NURBS lane's — every
 /// column after `triangles`, which is the last one every row fills.
@@ -300,8 +327,8 @@ impl FaceRow {
             // the two arms disagree about the row's width.
             None => format!("{head}{}", ",".repeat(nurbs_column_count())),
             Some(n) => format!(
-                "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
-                 {:e},{:e},{:e},{:e},{:e},{:e},{}",
+                "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
+                 {:e},{:e},{:e},{:e},{:e},{:e},{},{},{},{},{:e}",
                 n.u.0,
                 n.u.1,
                 n.v.0,
@@ -311,6 +338,8 @@ impl FaceRow {
                 n.muu,
                 n.muv,
                 n.mvv,
+                n.mu1,
+                n.mv1,
                 n.cells,
                 n.grid_cells,
                 n.patch_cells,
@@ -318,7 +347,11 @@ impl FaceRow {
                 n.span_opt_cells,
                 n.worst_cert,
                 n.worst_dev,
-                n.dev_samples
+                n.dev_samples,
+                n.bands,
+                n.cap_bands,
+                n.snap_bands,
+                n.realized_aspect
             ),
         }
     }
@@ -406,6 +439,8 @@ fn columns(m: &FaceMeasure) -> NurbsColumns {
         muu: m.muu,
         muv: m.muv,
         mvv: m.mvv,
+        mu1: m.mu1,
+        mv1: m.mv1,
         cells: m.cells.len(),
         grid_cells,
         patch_cells: nu * nv,
@@ -414,6 +449,10 @@ fn columns(m: &FaceMeasure) -> NurbsColumns {
         worst_cert: m.worst_cert,
         worst_dev: m.worst_dev,
         dev_samples: m.dev_samples,
+        bands: m.bands,
+        cap_bands: m.cap_bands,
+        snap_bands: m.snap_bands,
+        realized_aspect: m.realized_aspect,
     }
 }
 
@@ -524,10 +563,11 @@ const SPLIT_SCAN_SAMPLES: usize = 321;
 /// That constraint is the per-triangle bound `Q/4` at the lane's own
 /// two-cells-per-axis budgeting (`a_u ≤ 2h_u`), so a grid found here
 /// certifies EXACTLY as the shipped one does — the difference is only
-/// which `(h_u, h_v)` on the constraint ellipse gets picked. The
-/// shipped schedule picks the point the decoupling `2·a_u·a_v ≤
-/// a_u² + a_v²` leaves it at, which is not the cheapest point when the
-/// two directions are anisotropic.
+/// which `(h_u, h_v)` on the constraint ellipse gets picked. Since
+/// TESS-SPLIT the shipped selection is the cell minimizer under the
+/// A = 16 first-fundamental-form aspect cap, so this UNCONSTRAINED
+/// optimum differs from it exactly where the cap (or the sliver snap)
+/// binds — which is what the split column now measures.
 ///
 /// The lane's own steps are evaluated too, so the answer can never
 /// come out worse than what the lane already does.

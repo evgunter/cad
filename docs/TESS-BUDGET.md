@@ -3,15 +3,24 @@
 **Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
 merged as #594; its binding spec was deleted with the other
 closed-unit artifacts and is recoverable through
-`docs/DOC-LEDGER.md`).** #320 asked whether the NURBS-wall grid
+`docs/DOC-LEDGER.md`), and the SPLIT half is FIXED (TESS-SPLIT):
+the shipped point selection is now the cell minimizer on the same
+certified ellipse under the ratified A = 16 first-fundamental-form
+aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
+`NurbsFaceBound::split_steps` are the statement of record), with
+the realized-lattice sliver machinery in force over it — the
+post-fix split ratio reads ~1.0 at constraint-inactive cells and
+the CSV's `cap_bands`/`snap_bands` columns say which constraint
+bound the rest.** #320 asked whether the NURBS-wall grid
 sizing is "honestly tight … or systematically over-conservative", and
 asked for measurement first. This document is that measurement, the
 instrument that produced it, and what the numbers said a fix would
 have to do — kept as the pre-fix record. Since TESS-SPAN the shipped
 schedule sizes each knot-span cell from its own certified bound, so
 the `span` factor below is REALIZED and the meter's columns were
-re-derived ("The columns after TESS-SPAN", below); the SPLIT factor
-remains open on the aspect-policy question.
+re-derived ("The columns after TESS-SPAN", below); since TESS-SPLIT
+the split factor is realized too, under the ratified aspect policy
+below.
 
 ## The instrument
 
@@ -69,13 +78,13 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1,049 face rows, WITH the resampling pass, **re-cut at TESS-SPAN**).
+(1,075 face rows, WITH the resampling pass, **re-cut at TESS-SPLIT**).
 It is NOT the cut this document's measurement was taken from and its
 numbers are not the ones quoted below: "The finding" reports 1,025
 faces and 390,100 grid cells against the shipped whole-patch schedule
 of the time, where the committed file's own `grid_cells` sum is
-163,182, and the total-slack figures come from that same pre-TESS-SPAN
-cut. Read the committed file as the gate's reference point and the
+46,102 (the TESS-SPAN re-cut's was 163,182), and the total-slack
+figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
 figures below as the pre-fix record they are labelled as. CI runs the
 sweep `--sizing-only` and gates on REGRESSION against it: a scene's
 mesh growing, a face's sizing getting wastefuller, or a scene silently
