@@ -694,7 +694,7 @@ fn chamfer_feet<T: Decide + Bounds>(
 /// **Which gates are per-KIND and which are per-SHAPE.** The band a
 /// closed rim replaces is a torus, and that is the only geometric claim
 /// this resolution rests on — so the arm gate asks for a torus arm
-/// ([`BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
+/// ([`super::blend::BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
 /// it the two shapes part company:
 ///
 /// - the ANNULUS is two revolution WALLS and needs no planar support at

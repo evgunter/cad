@@ -62,8 +62,8 @@
 //! revolution is itself one, so it belongs in the meridian rather
 //! than in a rolling ball afterwards (Evan, 2026-08-16 — the
 //! substitution is an improvement on the sketch, not a workaround for
-//! it). Asking `fillet_edges` for that same torus is wall 1 (which the
-//! coaxial arms RETIRED — it builds now) and wall 2.
+//! it). Asking `fillet_edges` for that same torus is walls 1 and 2 —
+//! which now refuse on the ball's SIZE, not on a missing arm.
 //!
 //! # The findings (each one a wall probe below, except where noted)
 //!
@@ -78,8 +78,8 @@
 //!    `docs/KERNEL-VERBS.md` being paid for by hand, once per wall.
 //!    NOT a probe: there is no verb to call, so there is no refusal
 //!    to pin.
-//! 2. **A closed rim now meters an honest lever arm** (wall 1 — the
-//!    pair with wall 2 is the evidence). A full revolve's latitude
+//! 2. **A closed rim now meters an honest lever arm** (walls 1 and 2 —
+//!    the pair is the evidence). A full revolve's latitude
 //!    rims are CLOSED circles: start vertex == end vertex, so an
 //!    endpoint chord collapses to ~0 there. The battery's lever arm
 //!    is the maximum pairwise chord over the samples
@@ -91,17 +91,16 @@
 //!    dihedral classifier decided Zero — a false `TangentialEdge` on
 //!    a 30° corner, #554. Both forms are still probed back to back
 //!    because agreement between them is exactly what #554 restored.)
-//! 3. **The cone×cylinder fillet arm EXISTS now, and this model still
-//!    does not want it.** Wall 1 is retired: `fillet_edges` builds the
-//!    neck→flare band on the closed rim, and the probe stays as a
-//!    positive one so the alternative it declines stays real. Evan's
-//!    reading (2026-08-16) holds and is now a choice rather than a
-//!    limit: the meridian arc is the better answer for coaxial
-//!    supports, because the blend is then a constructed part of the
-//!    shape instead of a post-hoc roll. What is still refused is the
-//!    OPEN arc (wall 2) — a partial revolve's latitude rim terminates
-//!    on the sweep-end caps, and that corner configuration is
-//!    unimplemented.
+//! 3. **The cone×cylinder fillet arm EXISTS now; what both walls meet
+//!    is the RADIUS** (walls 1, 2). The `constant-radius fillet on
+//!    CURVED support pairs` row shipped its coaxial half, so this
+//!    corner's spine is no longer the obstacle — predicate 1 is. The
+//!    blend the meridian draws has spine radius `RF`, and a ball that
+//!    big does not fit the neck wall's own curvature, on either rim.
+//!    That is not a defect: it is the reason the substitution is an
+//!    improvement rather than a workaround (Evan, 2026-08-16). An arc
+//!    in the profile is a CONSTRUCTED part of the wall and answers to
+//!    no rolling ball; a post-hoc roll of the same size cannot exist.
 //! 4. **No boolean may touch a Cone or a Torus face** (walls 3, 4).
 //!    The operand gate is per-FACE-KIND and it rejects the whole
 //!    body: `union` refuses `CurvedBooleanUnsupported { kind: Torus }`
@@ -229,8 +228,8 @@ const ZTOP: f64 = 3.0;
 /// Height of the spine corner where the neck turns into the flare.
 const ZNECK: f64 = 2.5;
 /// Spine radius of the neck→flare blend (finding: authored in the
-/// meridian by choice — `fillet_edges` can make it on the closed rim
-/// since the coaxial arms landed, wall 1's retirement).
+/// meridian, and a rolling ball this big does not fit the neck wall's
+/// curvature — walls 1, 2).
 const RF: f64 = 0.30;
 /// Spine radius of the wide bottom rim — the "wide torus" the surface
 /// turns back on. Its hole comes out at exactly `R` by construction.
@@ -370,7 +369,7 @@ fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
 
 /// The same band with the two blends taken OUT: a hard corner where
 /// the neck meets the flare. Built only to ask `fillet_edges` for the
-/// blend the band authors for free — wall 1's retirement and wall 2.
+/// blend the band authors for free — walls 1 and 2.
 fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
     // Where the flare's two offsets cross the neck's two walls.
     let corner = |g: (f64, f64), x: f64| {
@@ -676,14 +675,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         montage: true,
         story,
         ops: "revolve(Full) of a filleted meridian band + 2 x revolve(Partial) of an \
-              annulus; NO boolean, NO shell, and fillet_edges declined for the \
-              meridian's own arcs — see klein::wall_probes",
+              annulus; NO boolean, NO fillet_edges, NO shell — see klein::wall_probes",
         delta: 1e-2,
         note: Some(format!(
             "tube diameter {:.2} m, wall {:.2} m; the wide rim's hole comes out at the \
              tube diameter by construction (centre radius R + RRIM = {:.3}, minor radii \
              {:.3}/{:.3}). Every blend in the bulb is an ARC IN THE MERIDIAN, exact and \
-             free — and by CHOICE, not for want of the verb (wall 1). The elbows' \
+             free — and no rolling ball of that size fits the wall (walls 1-2). The elbows' \
              volumes are Pappus-exact: ring area {ring:.6} m^2 times spine length. The \
              two elbows meet with residual {residual:.1e} m and the loop meets the neck \
              bit-exactly — the numbers a declared REST contact would accept",
@@ -755,27 +753,27 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          rim is CLOSED (full revolve), {lever_part:.3e} m when it is open (partial). \
          Same corner, same 30° dihedral, honest levers both."
     );
-    // Wall 1 is RETIRED, and its retirement is the news: the
-    // cone×cylinder arm exists, so the neck→flare corner on the FULL
-    // revolve is a blend `fillet_edges` now makes. The probe stays as a
-    // POSITIVE one — it still runs, every run — because the model's
-    // choice not to use it is a modelling judgement (the meridian arc is
-    // the better answer for coaxial supports) and not a limit, and a
-    // judgement is only worth stating while the alternative is real.
-    let built = fillet_edges(
-        &sharp_full,
-        &[full_edges[0]],
-        band_radius,
-        Band::linear(tol).expect("the run's band"),
-        tol,
-    )
-    .expect("the cone×cylinder arm builds the neck→flare band on a CLOSED rim");
-    println!(
-        "   (wall 1, RETIRED) fillet_edges now BUILDS the neck→flare band on the closed \
-         rim: {} band face(s). The bulb still authors its blends in the MERIDIAN, by \
-         choice — a blend between coaxial surfaces of revolution is itself one, so it \
-         belongs in the profile rather than in a rolling ball afterwards.",
-        built.band_faces.len()
+    // The REASON moved, and the move is the news. The cone×cylinder arm
+    // exists now, so "the analytic arm is missing" is no longer what
+    // stops this: what stops it is the bulb's own blend radius, which is
+    // larger than the neck wall's curvature allows a rolling ball to be.
+    // That is predicate 1, and it is the same fact the meridian
+    // authoring exploits — an arc in the profile is a CONSTRUCTED part
+    // of the wall and answers to no rolling ball.
+    crate::walls::wall(
+        "bottle",
+        1,
+        "fillet the neck→flare corner on the FULL revolve at the radius the band \
+         authors by hand",
+        fillet_edges(
+            &sharp_full,
+            &[full_edges[0]],
+            band_radius,
+            Band::linear(tol).expect("the run's band"),
+            tol,
+        ),
+        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        "roll a ball as big as the blend the meridian draws for free",
     );
     crate::walls::wall(
         "bottle",
@@ -788,13 +786,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        // The dihedral decides on BOTH rims — that is what wall 1's
-        // retirement and this refusal share. What the open arc runs into
-        // instead is its own terminations: a partial revolve's rim ends
-        // on the sweep-end caps, and the corner configuration there is
-        // unimplemented.
-        |e| matches!(e, FilletError::FilletCornerUnsupported { .. }),
-        "blend a partial revolve's open latitude arc, run-outs and all",
+        // The SAME refusal as wall 1, and that is the pair's point: the
+        // lever is honest on both rims, the dihedral decides on both,
+        // and what stops both is the ball's own size against the neck
+        // wall's curvature — not the closedness of the rim, and no
+        // longer a missing arm.
+        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        "roll a ball as big as the blend the meridian draws for free",
     );
 
     // Wall 3: the bottle is ONE surface. Its three bodies meet on

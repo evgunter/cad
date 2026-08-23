@@ -523,7 +523,7 @@ pub fn sheet_center<T: Real>(
             },
         ) => {
             let d = n_a.dot(n_b);
-            rim - (n_a * (s_a - s_b * d) + n_b * (s_b - s_a * d)) * (radius / (one - d * d))
+            rim - (n_a * (s_a - s_b * d) + n_b * (s_b - s_a * d)) * (radius / (one - d.powi(2)))
         }
         (
             Straight { normal, side },
@@ -548,7 +548,7 @@ pub fn sheet_center<T: Real>(
             let t = sheet_normal.cross(normal);
             let b_coef = rr * t.dot(u);
             let d_coef = (rr + rr) * radius * (sr - side * normal.dot(u));
-            let lambda = b_coef * ((one - d_coef / (b_coef * b_coef)).sqrt() - one);
+            let lambda = b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one);
             rim + t * lambda - normal * (radius * side)
         }
         (
@@ -569,9 +569,9 @@ pub fn sheet_center<T: Real>(
             let across = sheet_normal.cross(along);
             let off_a = r_a - radius * s_a;
             let off_b = r_b - radius * s_b;
-            let x = (dist * dist + off_a * off_a - off_b * off_b) / (dist + dist);
+            let x = (dist.powi(2) + off_a.powi(2) - off_b.powi(2)) / (dist + dist);
             let mu = (rim - c_a).dot(across);
-            let y = mu * (((off_a * off_a - x * x) / (mu * mu)).sqrt());
+            let y = mu * (((off_a.powi(2) - x.powi(2)) / mu.powi(2)).sqrt());
             c_a + along * x + across * y
         }
     }
