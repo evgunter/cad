@@ -64,9 +64,10 @@
 //!    contact patches are removed as interior and the seam edges are
 //!    fused to single result edges ([`super::zip::zip_seam`] for
 //!    pairs sharing nothing; the slit zip below for pairs adjacent
-//!    along already-fused seam runs). Glue order is a BFS over the
-//!    patch adjacency so every pair shares at most one contiguous
-//!    run; anything else refuses typed.
+//!    along already-fused seam runs — ONE run or several: a closed
+//!    cosurface band's last panel shares a run on each side, and the
+//!    band closure kills the later runs by the configuration each is
+//!    found in). Glue order is a BFS over the patch adjacency.
 //!
 //! The result passes the same output stages as every seamed boolean:
 //! declared coplanar merge, D6 edge descriptions, contact remapping
@@ -686,6 +687,19 @@ pub enum TangentLocusError {
 ///   (external) falling back to `|r1 − r2|` (internal). Zero ⇒
 ///   tangent (the locus mints); Positive ⇒ definitely apart;
 ///   Negative ⇒ definitely crossing.
+///
+/// **CONTRACT — the separation invariant** (consumed by the reduce
+/// sweep's declared-cover rung): every configuration this lane mints
+/// a locus for has each carrier wholly in ONE closed residual
+/// half-space of the other — a plane tangent to a cylinder has the
+/// whole cylinder on one side; each of two externally (or
+/// internally) tangent parallel cylinders is one-signed against the
+/// other — so an on-carrier edge under a verified declaration never
+/// crosses the partner surface. A new arm may NOT land here without
+/// restating its own residual-sign story: the coaxial
+/// cylinder×sphere circle arm's residuals are one-signed in OPPOSITE
+/// orientations per direction, which is exactly why it is blocked on
+/// that story (issue #974).
 ///
 /// # Errors
 ///
@@ -1396,9 +1410,11 @@ fn pair_patches<T: Decide>(
 }
 
 /// BFS glue order over the A-side patch adjacency (regions rooted in
-/// arena order): every pair glues while sharing at most one contiguous
-/// already-fused run with the glued set for star-shaped patch graphs;
-/// non-star sharing refuses typed at the slit zip.
+/// arena order): a pair sharing one contiguous already-fused run with
+/// the glued set takes the slit zip's fold; a pair sharing several
+/// (the closed cosurface band's last panel — a CYCLIC patch graph)
+/// takes the same zip's band closure, which kills the later runs by
+/// the configuration each is found in.
 fn bfs_order<T: Decide>(
     body: &Body<T>,
     patch: &[FaceKey],
@@ -1832,7 +1848,12 @@ fn slit_zip<T: Decide>(
     // ---- Dispose the rings the band kills left behind: promote each
     // to a transient face and zip it with the same folded-loop zipper
     // that finishes the outer cycle. ----
+    let mut ring_steps = 0usize;
     loop {
+        ring_steps += 1;
+        if ring_steps > shared.len() + 2 {
+            return Err(desync("REST lane: band ring disposal did not terminate"));
+        }
         let ring = body
             .get_face(fa)
             .ok_or_else(|| desync("REST lane: folded face vanished"))?

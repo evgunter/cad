@@ -913,12 +913,22 @@ fn curved_face_arm<T: Decide>(
         // The declared-cover rung: a covered line with endpoint(s) ON
         // the carrier takes the planar sweep's endpoint posture — the
         // `(za, zb)` branch mirrored: each Zero endpoint gets boundary
-        // containment (which must decide, or the frontier stands); a
-        // definitely-clear far endpoint is honestly eventless (the
-        // residual along a line is convex, so an on-carrier endpoint
-        // with a clear partner never hides a crossing). A NEGATIVE
-        // partner is a genuine crossing — never the covered posture.
-        // Uncovered keeps both frontier doors verbatim.
+        // containment (which must decide, or the frontier stands).
+        // What makes the `(Zero, Positive)` branch eventless is NOT
+        // convexity (a convex residual's endpoint bound is its
+        // MAXIMUM, not its minimum — q(0) = 0, q(1) > 0 can dip
+        // negative between): it is the witness lane's SEPARATION
+        // INVARIANT — every pair `tangent_locus` admits has each
+        // carrier wholly in ONE closed residual half-space of the
+        // other (the contract sentence on [`super::rest::tangent_locus`];
+        // a `Rest` cover's shared carrier is residual-zero
+        // identically) — so a covered on-carrier edge's residual is
+        // one-signed and a Zero endpoint is a touch, never an entry.
+        // A configuration without that one-sign story must not be
+        // admitted to the lane (issue #974 names the coaxial
+        // cylinder×sphere circle arm's blocking precondition). A
+        // NEGATIVE partner is a genuine crossing — never the covered
+        // posture. Uncovered keeps both frontier doors verbatim.
         (Sign::Zero, Sign::Zero) if covered => {
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;

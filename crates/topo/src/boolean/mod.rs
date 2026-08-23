@@ -1611,6 +1611,11 @@ fn verify_tangent_declaration<T: Decide>(
                     margin: Indeterminate {
                         margin: MarginDiag::Invalid,
                         band,
+                        // Display-only by design: no `decide` ran here
+                        // (the sameness was STRUCTURAL), so this label
+                        // names the finding for the reader and never
+                        // enters the K funnel — the
+                        // `contact_rest_senses_opposed` precedent.
                         predicate: Some("contact_tangent_conformal"),
                     },
                 });

@@ -142,9 +142,15 @@ fn two_peg_plate_union_is_exactly_additive() {
     let decls = declarations(&p, &q);
     let out =
         topo::union_with(&p, &q, &decls, Tol::witness()).expect("the two-peg kernel path unions");
-    let body = body_of(out);
+    let BooleanResult::Body(bb) = out else {
+        panic!("a two-peg union cannot be empty");
+    };
+    let body = bb.body;
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     assert_eq!(v, vp + vq, "exactly additive (the C7-lane statement)");
+    // And the closed form: the peg and bore π-terms cancel exactly —
+    // vol(P) + vol(Q) = (24 + π/2) + (24 − π/2) = 48, bitwise.
+    assert_eq!(v, 48.0, "the closed-form oracle");
     // The bore walls vanished with full engagement: no cylinder
     // surface survives anywhere in the result.
     assert!(
@@ -156,6 +162,20 @@ fn two_peg_plate_union_is_exactly_additive() {
     );
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the mated pair must be tier-3 valid: {errs:?}");
+    }
+    // Topology pinned: ONE shell, genus 0 (every handle the bores
+    // opened is closed by its peg). Euler–Poincaré with rings:
+    // V − E + F − R = 2(S − H); each peg's circular seam survives as
+    // an inner ring on the surrounding planar face, so R = 2.
+    assert_eq!(body.shells().count(), 1, "one shell");
+    let rings = body.loops().count() as i64 - body.faces().count() as i64;
+    assert_eq!(rings, 2, "one surviving circular ring per peg seam");
+    let chi = body.vertices().count() as i64 - body.edges().count() as i64
+        + body.faces().count() as i64
+        - rings;
+    assert_eq!(chi, 2, "Euler–Poincaré of a genus-0 single shell");
+    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+        panic!("the mated pair must be pseudomanifold-clean: {errs:?}");
     }
 }
 
@@ -273,38 +293,47 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     ));
     let out =
         topo::union_with(&a, &b, &decls, Tol::witness()).expect("the tube-chain rim union runs");
-    let body = body_of(out);
+    let BooleanResult::Body(bb) = out else {
+        panic!("a tube-chain union cannot be empty");
+    };
+    let body = bb.body;
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-    // Additive to rounding: the seam chord at x = 0.5 SPLITS A's top
-    // face, re-associating its flux sum, so bitwise equality is not
-    // available here (unlike the two-peg path, whose patches are
-    // whole faces); the closed-form bound is float dust.
+    // Additive to re-association rounding: the seam chord at x = 0.5
+    // SPLITS A's top face, so the same per-edge flux terms are summed
+    // in a different association — each term is O(V) and one
+    // re-association perturbs the sum by O(ulp(V)); the measured
+    // residual is 0.5 ulp. Bound: 4·ulp(va + vb), headroom included
+    // and still orders under any geometric signal. (The two-peg
+    // path's patches are WHOLE faces, which is why ITS row is
+    // bitwise.)
+    let ulp = (va + vb) * f64::EPSILON;
     assert!(
-        (v - (va + vb)).abs() < 1e-12,
-        "additive volume: {v} vs {}",
-        va + vb
+        (v - (va + vb)).abs() <= 4.0 * ulp,
+        "additive volume: {v} vs {} (allowed {})",
+        va + vb,
+        4.0 * ulp
     );
 
     // The rim: the seam edges between the two cylinder walls — the
     // wedge-π smooth junction — carry the INTRINSIC tangency
     // description on their line carrier (D6's smooth ladder; U2's
     // taxonomy, no new variant).
-    let mut rim_edges = 0;
-    for (_, e) in body.edges() {
+    let face_kind = |he| {
+        body.get_half_edge(he)
+            .and_then(|h| body.get_loop(h.parent_loop))
+            .and_then(|l| body.get_face(l.face))
+            .and_then(|f| body.get_surface(f.surface))
+            .map(geom_brep::SurfaceKind::of)
+    };
+    let mut rim_edges = Vec::new();
+    for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
-        };
-        let face_kind = |he| {
-            body.get_half_edge(he)
-                .and_then(|h| body.get_loop(h.parent_loop))
-                .and_then(|l| body.get_face(l.face))
-                .and_then(|f| body.get_surface(f.surface))
-                .map(geom_brep::SurfaceKind::of)
         };
         if face_kind(e.he_plus) == Some(geom_brep::SurfaceKind::Cylinder)
             && face_kind(e.he_minus) == Some(geom_brep::SurfaceKind::Cylinder)
         {
-            rim_edges += 1;
+            rim_edges.push(k);
             assert!(
                 matches!(
                     c.description(),
@@ -315,19 +344,57 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
             );
         }
     }
-    assert!(rim_edges > 0, "the rim seam survives between the walls");
+    // ONE rim edge: the two fused tangent edges survive as the single
+    // wall–wall ruling.
+    assert_eq!(rim_edges.len(), 1, "the rim seam is one fused ruling");
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the tube-chain rim body must be tier-3 valid: {errs:?}");
     }
-    // The tier-3 contact mark agrees: the rim is the must-carry's own
-    // regime (jet-determinate tangency), satisfied by the mint.
+    // The tier-3 contact mark agrees: the rim EDGE ITSELF is the
+    // must-carry's own regime (jet-determinate tangency), satisfied
+    // by the mint — tied to the rim, not a body-wide census.
     let marks = topo::contact_marks(&body, Tol::witness()).expect("marks derive at rest");
-    let tangent_marked = marks
+    for &k in &rim_edges {
+        assert_eq!(
+            marks.get(k).copied(),
+            Some(topo::ContactMark::Tangent),
+            "the rim edge carries the Tangent contact mark"
+        );
+    }
+    // And the census is pinned: exactly TWO tangent-marked edges —
+    // the rim, plus the upper profile's own authored G1 joint at
+    // (2,3) (its flat top wall meeting its quarter-round wall), which
+    // survives the union untouched. The two profiles' joints AT the
+    // shared ruling fused INTO the rim edge itself.
+    let tangent: Vec<_> = marks
         .iter()
         .filter(|&(_, m)| *m == topo::ContactMark::Tangent)
-        .count();
-    assert!(
-        tangent_marked >= rim_edges,
-        "the rim edges carry the Tangent contact mark"
-    );
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(tangent.len(), 2, "the rim plus one authored joint");
+    for k in tangent {
+        if rim_edges.contains(&k) {
+            continue;
+        }
+        // The non-rim tangent edge is the authored wall-top joint:
+        // one plane flank, one cylinder flank.
+        let e = body.get_edge(k).expect("marked edge exists");
+        let kinds = [face_kind(e.he_plus), face_kind(e.he_minus)];
+        assert!(
+            kinds.contains(&Some(geom_brep::SurfaceKind::Plane))
+                && kinds.contains(&Some(geom_brep::SurfaceKind::Cylinder)),
+            "the surviving authored joint is the plane-wall/round-wall seam: {kinds:?}"
+        );
+    }
+    // Topology pinned: ONE shell, genus 0, no rings:
+    // V − E + F − R = 2(S − H).
+    assert_eq!(body.shells().count(), 1, "one shell");
+    let rings = body.loops().count() as i64 - body.faces().count() as i64;
+    assert_eq!(rings, 0, "no ring loops in the tube chain");
+    let chi =
+        body.vertices().count() as i64 - body.edges().count() as i64 + body.faces().count() as i64;
+    assert_eq!(chi, 2, "Euler–Poincaré of a genus-0 single shell");
+    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+        panic!("the tube chain must be pseudomanifold-clean: {errs:?}");
+    }
 }
