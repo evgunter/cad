@@ -473,3 +473,17 @@ own gate debt; and the FOURTH consecutive default-ε draw on
 thread with the suggested ε-pin analog of _forces_interval).
 Seam sweep: i921 lane. In flight: RING review (65), ARMS-1 fix
 pass (#935 filed as its scheduled follow-up).
+
+## ARMS-1 MERGED (#932, 2026-08-23) — the #554 verb-level unlock LANDS
+
+**fillet_edges works on full solids of revolution** (annular
+profiles — the bound stated everywhere it matters). #889 closed.
+Row ARMS1 (ordinal 64) in MODEL-AB-LOG. The review proved
+bit-identity with a byte-faithful dumper and confirmed the
+sense-bit configuration fix as the PR's strongest part; the one
+MAJOR (shared-wall double-rim staleness) closed as an honest
+upfront gate with the capability scheduled as #935. Seam sweep:
+verbs-arms1 + verbs-arms1-r1 lanes. Remaining in flight: RING
+review (ordinal 65) — DEMO part 2 unlocks at its merge; then
+ARMS-2 (the coaxial arms, now with their consumer shape known:
+every full-revolve wall is a 4-half-edge cycle with empty rings).
