@@ -156,11 +156,15 @@ fn probe_two_peg_oracle_rederivation() {
 }
 
 /// Perturbation: peg 2 offset so the carriers differ by a DEFINITE
-/// margin (1e-9 ≫ the witness band) — the declaration must be
-/// contradicted, never silently zipped.
+/// margin (100× the run's escalation threshold, derived from the
+/// band so the row stays definite at EVERY ε) — the declaration must
+/// be contradicted, never silently zipped.
 #[test]
 fn probe_peg_offset_definite_contradicts() {
-    let p = plate_with_pegs(2.0, 4.0 + 1e-9, 0.5);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 100.0 * band.escalate();
+    assert!(off < 0.25, "the offset stays a small perturbation");
+    let p = plate_with_pegs(2.0, 4.0 + off, 0.5);
     let q = plate_with_bores();
     let decls = declarations(&p, &q, false, false);
     let err = topo::union_with(&p, &q, &decls, Tol::witness())
