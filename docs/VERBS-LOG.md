@@ -567,3 +567,22 @@ Node::chamfer; Node::Revolve's ProfileProgram cannot carry a
 hole), and Revolved::cavities returns a ShellKey no door can
 spend. **Ordinal 68 claimed** (66/67 are ASM's per the corrected
 sequence) — not a third — single fable review at frozen 43a3bd58.
+
+## TUBEWALL report in; ordinal-69 dual out (2026-08-23)
+
+PR #960 green at (interval, 1e-6). The flagged deviation
+ADJUDICATED ACCEPTED: the wall-validity check is metered
+(tube_wall / tube_wall_bore, linear margins pre-mint) rather than
+the briefed bracket read — the compound-Bounds seam rule genuinely
+blocks the plain spelling outside allowlisted seams (the
+discipline gate proved it on the first push), and the metered form
+refuses slivers and escalates in-band where the read would build
+them. Banked finding worth a house ruling: NO non-metered
+request-validity spelling exists for new doors outside the seams —
+filed at the merge seam. **Ordinal 69 claimed → a third → DUAL
+CROSS-MODEL** (sample #22, the TENTH pair; R1 fable + R2 opus,
+frozen 4de92637; the r2 lane was local-cloned from r1 after two
+network clone timeouts — hooks + origin repointed by hand).
+ARMS-2's PR #962 opened meanwhile, green at a drawn
+(interval, 1e-12); its report pending, review (ordinal 70) queues
+on it. DEMO review (68) still running.
