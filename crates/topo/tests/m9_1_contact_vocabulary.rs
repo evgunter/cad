@@ -87,11 +87,13 @@ fn undeclared_kiss_still_refuses() {
 ///
 /// The pair below is a genuine flush cap, so a mutant that reads the
 /// declaration and drops its class unions happily. The op instead
-/// refuses typed: its classification stages act on `Rest`
-/// declarations, and a class they cannot act on is refused at the
-/// door rather than silently treated as the one they can.
+/// CONTRADICTS the claim: a flush pair is conformal contact — `Rest`,
+/// not `Tangent` — and the Tangent door's conformal screen says so
+/// with the geometry's own margins (the carrier ladder detecting one
+/// carrier). The wrong class is refused by verification, never
+/// silently treated as the right one.
 #[test]
-fn a_wrong_class_declaration_refuses_instead_of_being_ignored() {
+fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
     let (a, b) = stacked();
     let rest = flush_declarations(&a, &b);
     let mut tangent = rest.clone();
@@ -103,20 +105,24 @@ fn a_wrong_class_declaration_refuses_instead_of_being_ignored() {
         "the same pair under the right class unions (the green half)"
     );
     let err = union_with(&a, &b, &tangent, Tol::witness())
-        .expect_err("a class the stages cannot act on must refuse at the door");
+        .expect_err("a conformal pair declared Tangent must be contradicted");
     let msg = err.to_string();
     assert!(
         matches!(
             err,
-            BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+            BooleanError::ContactContradicted {
+                declaration: topo::DeclaredContact {
+                    class: ContactClass::Tangent,
+                    ..
+                },
+                ..
             }
         ),
         "{err:?}"
     );
     assert!(
-        msg.contains("Tangent") && msg.contains("Rest"),
-        "the refusal names both the class asked for and the class it acts on: {msg}"
+        msg.contains("Tangent") && msg.contains("contradicted"),
+        "the refusal names the class asked for and the contradiction: {msg}"
     );
 }
 
