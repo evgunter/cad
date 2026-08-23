@@ -135,7 +135,8 @@ pub struct Nurbs {
     /// The constraint-activity indicator (TESS-SPLIT): bands whose
     /// step selection the 3-D aspect cap clamped.
     pub cap_bands: f64,
-    /// Bands whose column count the malign-band snap raised.
+    /// Bands the malign-band snap projected onto the patch column
+    /// schedule with changed counts (either direction).
     pub snap_bands: f64,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
     /// ratio `s_u/s_v`. Reported, not judged here: the sliver-safe

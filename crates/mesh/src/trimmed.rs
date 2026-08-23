@@ -742,12 +742,13 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
     cand
 }
 
-/// The NURBS lane's interior grid candidates (TESS-SPAN): a
-/// **per-v-band tensor** from the ONE shipped schedule derivation,
+/// The NURBS lane's interior grid candidates: a **per-v-band
+/// tensor** from the ONE shipped schedule derivation,
 /// [`crate::nurbs_cert::NurbsCellGrid::band_schedule`] — per-band
-/// `nuc × nvc` through the unchanged point-selection rule, with
-/// malign bands and their neighbours snapped to the whole-patch
-/// column count (the alignment argument lives there).
+/// `nuc × nvc` through the aspect-capped split selection
+/// (TESS-SPLIT), with malign bands and their neighbours projected
+/// onto the whole-patch column schedule (the alignment argument
+/// lives there).
 ///
 /// * Row lines land exactly on the band cuts (never through the lerp,
 ///   whose rounding would put two almost-coincident lines an ulp
@@ -833,7 +834,7 @@ fn per_cell_candidates(
 /// What one face's band schedule did, summarized for the budget meter
 /// (`crate::budget`): the cell count the lane sized, and the
 /// constraint-activity indicator TESS-SPLIT's spec demands — which
-/// bands the aspect cap clamped, which the malign snap raised, and the
+/// bands the aspect cap clamped, which the malign snap projected, and the
 /// worst realized lattice aspect the emitted schedule carries. Nothing
 /// downstream can recover any of these (bands are not in the CSV, and
 /// the selection rule lives only in `nurbs_cert`).
@@ -845,7 +846,7 @@ struct ScheduleStats {
     bands: usize,
     /// Bands whose step selection the A cap clamped.
     cap_bands: usize,
-    /// Bands whose column count the malign snap raised.
+    /// Bands the malign snap projected with changed counts.
     snap_bands: usize,
     /// Max over bands of the post-`ceil` spacing ratio `s_u/s_v`.
     realized_aspect: f64,

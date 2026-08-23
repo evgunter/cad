@@ -132,7 +132,8 @@ pub struct FaceMeasure {
     /// Bands whose step selection the 3-D aspect cap clamped — the
     /// constraint-activity indicator's A-cap kind (TESS-SPLIT D-3).
     pub cap_bands: usize,
-    /// Bands whose column count the malign-band snap raised — the
+    /// Bands the malign-band snap projected onto the patch column
+    /// schedule with changed counts (either direction) — the
     /// indicator's sliver/snap kind.
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing

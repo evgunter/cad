@@ -165,7 +165,7 @@ fn main() {
         }
         if let Some((aspect, r)) = worst {
             println!(
-                "  constraint activity: {cap:.0} A-cap-bound band(s), {snap:.0} snap-raised \
+                "  constraint activity: {cap:.0} A-cap-bound band(s), {snap:.0} snap-projected \
                  band(s) of {bands:.0}; worst realized s_u/s_v {aspect:.2} ({} face {})",
                 r.scene, r.face
             );

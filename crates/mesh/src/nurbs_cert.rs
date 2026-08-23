@@ -239,7 +239,11 @@ impl NurbsFaceBound {
     /// # The closed form
     ///
     /// Parametrize the ellipse boundary by the parameter aspect
-    /// `t = h_u/h_v`; then `h_v = √(δ_s/q(t))` with
+    /// `t = h_u/h_v` (NOTE the convention: `tess-meter`'s
+    /// counterfactual scan parametrizes the same ellipse by the
+    /// RECIPROCAL, `t = h_v/h_u` — the two are separate derivations
+    /// in separate cargo roots by design, and their `t`s must never
+    /// be compared directly); then `h_v = √(δ_s/q(t))` with
     /// `q(t) = muu·t² + 2·muv·t + mvv`, and the cell count over a box
     /// is proportional to `1/(h_u·h_v) = q(t)/(t·δ_s)`. Minimizing
     /// `g(t) = q(t)/t = muu·t + 2·muv + mvv/t` (convex for
@@ -304,14 +308,19 @@ impl NurbsFaceBound {
                 cap: false,
             };
         }
-        // The aspect window in t = h_u/h_v, when the face has 3-D
-        // extent in both directions to measure an aspect against.
-        let window =
+        // The speed ratio ρ and the aspect window in t = h_u/h_v,
+        // when the face has 3-D extent in both directions to measure
+        // an aspect against. The finite/positive filter on ρ ITSELF
+        // covers the overflow/underflow corner (two finite positive
+        // sups whose ratio leaves the finite line — a face degenerate
+        // beyond any real geometry): the window then does not exist
+        // and the arms below take their windowless fallbacks, so the
+        // answer stays finite arithmetic rather than a NaN step.
+        let rho =
             (self.mu1 > 0.0 && self.mv1 > 0.0 && self.mu1.is_finite() && self.mv1.is_finite())
-                .then(|| {
-                    let rho = self.mv1 / self.mu1;
-                    (rho / ASPECT_CAP, rho * ASPECT_CAP)
-                });
+                .then(|| self.mv1 / self.mu1)
+                .filter(|r| r.is_finite() && *r > 0.0);
+        let window = rho.map(|r| (r / ASPECT_CAP, r * ASPECT_CAP));
         // The chosen parameter aspect and whether the cap chose it.
         let (t, cap) = if muu > 0.0 && mvv > 0.0 {
             let t_star = (mvv / muu).sqrt();
@@ -332,7 +341,7 @@ impl NurbsFaceBound {
             }
         } else {
             // muu = mvv = 0 < muv: cost is aspect-invariant.
-            (window.map_or(1.0, |_| self.mv1 / self.mu1), false)
+            (rho.unwrap_or(1.0), false)
         };
         // Saturate the ellipse at the chosen aspect. q(t) > 0 here:
         // at least one of muu·t², 2·muv·t, mvv is a positive product
@@ -408,6 +417,23 @@ pub(crate) struct SplitSteps {
 /// spacing, not 3-D shape) stays in force over this selection and on
 /// ruled walls generally binds first, through the snap alignment
 /// [`NurbsCellGrid::band_schedule`] argues.
+///
+/// **What is guarded, and what is deliberately not** (the
+/// measured-claim rule): the cap is a bound on the SELECTION — the
+/// chosen `(h_u, h_v)`'s sup-mapped edge ratio — and THAT claim has a
+/// mechanical guard, the fuzz row
+/// `split_steps_stay_on_the_ellipse_and_inside_the_cap` (red on any
+/// point outside the window, replayable seed). The EMITTED lattice's
+/// FFF aspect carries no guard and no register on purpose: the snap
+/// projection may legitimately move a band off the chosen point in
+/// either direction when the sliver bound binds first (the
+/// `snapped`/`snap_bands` indicator says where), so an emitted-side
+/// `≤ A` assertion would be asserting a claim the design does not
+/// make. Emitted-side measurements (the TESS-SPLIT PR's per-band
+/// numbers) are evidence about a head, not an invariant; the
+/// re-measured register for the emitted lattice is the budget CSV's
+/// `realized_aspect` column (parameter aspect, the sliver line's own
+/// quantity).
 pub(crate) const ASPECT_CAP: f64 = 16.0;
 
 fn max3(a: f64, b: f64, c: f64) -> f64 {
@@ -499,7 +525,8 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 ///
 /// The max over the returned cells is `≤` the face bound in every arm
 /// (the whole-patch hull is over a superset of every cell's window);
-/// `crate::budget`'s test asserts exactly that.
+/// this module's own `no_cell_exceeds_the_whole_patch_bound` test
+/// asserts exactly that, componentwise.
 ///
 /// # Errors
 ///
@@ -635,9 +662,11 @@ pub(crate) struct BandCounts {
     /// ([`NurbsFaceBound::split_steps`]) — the budget meter's
     /// constraint-activity indicator, A-cap kind.
     pub cap: bool,
-    /// The malign-band snap RAISED this band's `nuc` to the patch
-    /// column count — the indicator's sliver/snap kind. `false` for a
-    /// near-malign band whose own count already met the patch's.
+    /// The malign-band snap PROJECTED this band onto the patch
+    /// column schedule and its counts CHANGED (either direction:
+    /// columns added, or columns traded for rows) — the indicator's
+    /// sliver/snap kind. `false` for a near-malign band whose own
+    /// counts already sat on the patch schedule.
     pub snapped: bool,
 }
 
@@ -753,9 +782,9 @@ impl NurbsCellGrid {
         }
     }
 
-    /// Cell boundary values in `u`. Since the shipped columns went
-    /// back to the whole-patch schedule (module docs), only the tests
-    /// read this; the certificate lookup uses the field directly.
+    /// Cell boundary values in `u`. The schedule consumers go
+    /// through [`Self::band_schedule`], so only the tests read this;
+    /// the certificate lookup uses the field directly.
     #[cfg(test)]
     fn u_cuts(&self) -> &[f64] {
         &self.u_cuts
@@ -840,14 +869,21 @@ impl NurbsCellGrid {
     /// Per band: `nvc` from the band bound's own `h_v`; `nuc` from
     /// the band bound's own `h_u` — EXCEPT that a MALIGN band
     /// (realized aspect `s_u/s_v` beyond [`SAFE_ASPECT`]) and its
-    /// immediate neighbours take ONE shared column count: the max of
-    /// the whole-patch count `patch_nuc` and every such band's own
-    /// (the derivation at the snap site says why the max is needed).
-    /// The steps come from the split selection
-    /// [`NurbsFaceBound::split_steps`] (TESS-SPLIT: the aspect-capped
-    /// cell minimizer; `patch_nuc` derives from the whole-patch bound
-    /// through the SAME selection, one derivation with the chord
-    /// pass), and the snap only ever adds columns.
+    /// immediate neighbours are PROJECTED onto the patch column
+    /// schedule: `nuc := patch_nuc` EXACTLY (equality with the chord
+    /// pass's count is what alignment means — a mere max reintroduces
+    /// the misaligned-interface sliver, executed on the #320 s_duct;
+    /// the snap site carries the derivation), and `nvc` re-derived
+    /// from the band's own ellipse at that column spacing
+    /// ([`NurbsFaceBound::step_v_at`]). The projection can therefore
+    /// move a band's counts in EITHER direction — more columns than
+    /// its own optimum wanted, or fewer columns paid for with rows —
+    /// and every emitted cell remains a point of the band's own
+    /// certified region either way. The steps come from the split
+    /// selection [`NurbsFaceBound::split_steps`] (TESS-SPLIT: the
+    /// aspect-capped cell minimizer; `patch_nuc` derives from the
+    /// whole-patch bound through the SAME selection, one derivation
+    /// with the chord pass).
     /// The two aspect bounds are DIFFERENT quantities and both bind:
     /// the selection caps the chosen cell's 3-D shape at
     /// [`ASPECT_CAP`]; this snap judges the emitted lattice's
@@ -963,7 +999,10 @@ impl NurbsCellGrid {
         // high-aspect interface is column-aligned and every interface
         // with a band outside the group is benign on both sides
         // (foreign points beside a benign lattice certify under δ —
-        // the SAFE_ASPECT argument).
+        // the SAFE_ASPECT argument). TERMINATION: membership only
+        // ever grows and projection is idempotent (a member is never
+        // re-projected), so the loop exits within `bands.len()`
+        // passes — each pass either admits a new member or breaks.
         let n = bands.len();
         let mut member = vec![false; n];
         loop {
@@ -2298,8 +2337,9 @@ mod tests {
     /// `h_v`, so testing `s_u` against `SAFE_ASPECT·h_v` under-detects
     /// by up to ~2x. This fixture measures 4.79 against the ideal step
     /// (benign — the pre-fix test left `nuc = 11`) but 9.09 realized
-    /// (malign): the band and its neighbour must snap to the patch
-    /// column count, and the snap only ever adds columns.
+    /// (malign): the band and its neighbour must be projected onto
+    /// the patch column schedule (columns here; band 0 also trades
+    /// its rows down through the ellipse re-projection).
     #[test]
     fn band_schedule_snaps_on_realized_aspect() {
         let cells = [
@@ -2366,9 +2406,10 @@ mod tests {
             "rows re-projected at the snapped columns: {bands:?}"
         );
         assert!(bands[1].nvc >= 1);
-        // The constraint-activity flags: the snap raised both bands
-        // (sliver/snap kind), and the A cap clamped neither (the
-        // interior optima above sit inside the aspect window).
+        // The constraint-activity flags: the snap projected both
+        // bands onto the patch schedule (sliver/snap kind), and the A
+        // cap clamped neither (the interior optima above sit inside
+        // the aspect window).
         assert!(
             bands[0].snapped && bands[1].snapped,
             "the snap must report itself: {bands:?}"
@@ -2424,6 +2465,36 @@ mod tests {
                     "3-D aspect {aspect:e} escapes the cap for {b:?} — {}",
                     fuzz::replay()
                 );
+            }
+        }
+    }
+
+    /// The speed-ratio overflow/underflow corner: two finite positive
+    /// first-derivative sups whose RATIO leaves the finite line (a
+    /// face degenerate beyond any real geometry). The window filter
+    /// answers "no window" there, so the selection falls back to its
+    /// windowless arms and every returned step is non-NaN — total
+    /// arithmetic, with `ceil_count`'s typed refusals as the only
+    /// exit for an absurd count.
+    #[test]
+    fn rho_off_the_finite_line_drops_the_window_not_the_answer() {
+        for (mu1, mv1) in [(5e-324, 1e300), (1e300, 5e-324)] {
+            for (muu, mvv) in [(2.0, 51.3), (0.0, 51.3), (51.3, 0.0)] {
+                let b = NurbsFaceBound {
+                    muu,
+                    muv: 2.4,
+                    mvv,
+                    mu1,
+                    mv1,
+                };
+                let s = b.split_steps(1e-3);
+                assert!(
+                    !s.hu.is_nan() && !s.hv.is_nan(),
+                    "NaN step at rho overflow: {b:?} -> ({:e}, {:e})",
+                    s.hu,
+                    s.hv
+                );
+                assert!(!s.cap, "no window means no cap activity: {b:?}");
             }
         }
     }

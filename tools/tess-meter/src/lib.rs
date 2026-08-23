@@ -263,8 +263,9 @@ pub struct NurbsColumns {
     /// Reported by the lane, never re-derived — the selection rule is
     /// not re-spelled outside it.
     pub cap_bands: usize,
-    /// The indicator's sliver/snap kind: bands whose column count the
-    /// malign-band snap raised to the patch schedule.
+    /// The indicator's sliver/snap kind: bands the malign-band snap
+    /// projected onto the patch column schedule with changed counts
+    /// (either direction — columns added, or columns traded for rows).
     pub snap_bands: usize,
     /// Max over bands of the emitted lattice's post-`ceil` spacing
     /// ratio `s_u/s_v` — the realized aspect `SAFE_ASPECT` judges,
