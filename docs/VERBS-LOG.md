@@ -487,3 +487,16 @@ verbs-arms1 + verbs-arms1-r1 lanes. Remaining in flight: RING
 review (ordinal 65) — DEMO part 2 unlocks at its merge; then
 ARMS-2 (the coaxial arms, now with their consumer shape known:
 every full-revolve wall is a 4-half-edge cycle with empty rings).
+
+## Ordinal collisions with ASM, resolved on-thread (2026-08-23)
+
+ASM's #939 (ASM-DEMO=63) and #952 (TESS-SPLIT=64) both collided
+with rows already recorded on main (SSIFLAT=63, ARMS1=64 at #940's
+merge da20a031, which landed before either claim was current).
+Resolution posted on #952 per the #398 dispatch-order precedent:
+VERBS keeps 63/64/65; ASM-DEMO → 66 (still a dual third — sample
+#21, the NINTH pair; SSIFLAT stays the eighth), TESS-SPLIT → 67
+(single). Contributing cause on my side was the batched
+state-sync; the sync-at-merge discipline (adopted at #939) closes
+the window. RING review returned APPROVE 0-MAJOR meanwhile; light
+fix pass (probe adoption + 3 polish items) in flight.
