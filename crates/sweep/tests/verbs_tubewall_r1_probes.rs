@@ -252,10 +252,7 @@ fn the_metered_wall_refuses_what_a_bracket_read_would_pass() {
         )
     };
     // Sub-ε: a sliver a comparison would build.
-    assert!(matches!(
-        build(0.5, 1e-20),
-        Err(TubeError::NonpositiveWall)
-    ));
+    assert!(matches!(build(0.5, 1e-20), Err(TubeError::NonpositiveWall)));
     assert!(matches!(
         build(0.5, eps * 0.5),
         Err(TubeError::NonpositiveWall)
@@ -355,7 +352,10 @@ mod certified {
                 None => 2.0 * PI * PI * major * ring,
             };
             let what = format!("R={major} ro={outer} w={wall} win={window:?}");
-            let (lo, hi) = (Bounds::lo(m.volume) - m.volume_pad, Bounds::hi(m.volume) + m.volume_pad);
+            let (lo, hi) = (
+                Bounds::lo(m.volume) - m.volume_pad,
+                Bounds::hi(m.volume) + m.volume_pad,
+            );
             assert!(lo <= v && v <= hi, "{what}: volume {v} ∉ [{lo}, {hi}]");
             // Tightness: the pad and the interval width both small
             // against the quantity — red when certification DEGRADES.

@@ -27,10 +27,7 @@ fn fold3(h: &mut u64, p: (f64, f64, f64)) {
 #[test]
 fn solid_door_fingerprint() {
     let mut h: u64 = 0xCBF2_9CE4_8422_2325;
-    for window in [
-        TubeWindow::Arc { t0: 0.25, t1: 1.75 },
-        TubeWindow::Full,
-    ] {
+    for window in [TubeWindow::Arc { t0: 0.25, t1: 1.75 }, TubeWindow::Full] {
         let t = tube_along_arc::<f64>(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_y(),
@@ -64,8 +61,17 @@ fn solid_door_fingerprint() {
                 }) => {
                     row.push(1u64);
                     for v in [
-                        center.x, center.y, center.z, axis.x, axis.y, axis.z, *major_radius,
-                        *minor_radius, u_ref.x, u_ref.y, u_ref.z,
+                        center.x,
+                        center.y,
+                        center.z,
+                        axis.x,
+                        axis.y,
+                        axis.z,
+                        *major_radius,
+                        *minor_radius,
+                        u_ref.x,
+                        u_ref.y,
+                        u_ref.z,
                     ] {
                         row.push(v.to_bits());
                     }
@@ -102,7 +108,14 @@ fn solid_door_fingerprint() {
             .collect();
         pts.sort_unstable();
         for p in pts {
-            fold3(&mut h, (f64::from_bits(p.0), f64::from_bits(p.1), f64::from_bits(p.2)));
+            fold3(
+                &mut h,
+                (
+                    f64::from_bits(p.0),
+                    f64::from_bits(p.1),
+                    f64::from_bits(p.2),
+                ),
+            );
         }
     }
     println!("SOLID-DOOR-FINGERPRINT {h:#018x}");
