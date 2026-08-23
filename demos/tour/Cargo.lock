@@ -84,7 +84,6 @@ dependencies = [
 name = "demo-tour"
 version = "0.1.0"
 dependencies = [
- "editor-core",
  "pncad",
  "profile",
  "tess-meter",

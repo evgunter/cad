@@ -25,20 +25,36 @@
 //! its at-rest gate passes outright; the stand TOUCHES, and its gate
 //! reaches the declared direction's frontier (see [`stand_scene`]).
 //!
-//! # Gap: the assembly gate is not on the façade
+//! Every door this file uses is `pncad::…`, the tour's standing
+//! invariant: the demos are the façade's acceptance corpus, so a scene
+//! that had to reach past it would be evidence about the reach rather
+//! than about the library.
 //!
-//! Every door this file uses is `pncad::…` except one. `assemble` —
-//! the A5 at-rest gate, with `Assembly`, `AssemblyError`,
-//! `AtRestFinding`, `Attribution` and `MintedDeclaration` — is
-//! `editor_core`'s and is NOT in `pncad::document`'s curated list, so
-//! a façade-only consumer cannot run the gate this program exists to
-//! ship, cannot see what a mate minted, and cannot tell the frontier
-//! from a refusal. `product_recorded` (the gather that carries a
-//! product's contact records) is missing for the same reason. That is
-//! why this crate's manifest grew an `editor-core` entry: the entry IS
-//! the gap, stated in the dependency graph where it cannot be
-//! overlooked, exactly as the `profile` entry beside it states its
-//! own. It goes when the façade re-exports the assembly door.
+//! # The library findings this scene met, and where they live
+//!
+//! Writing an assembly the way a user would is what turns up what
+//! using the library is actually like. Each of these is commented at
+//! the site that meets it and filed where it can be fixed:
+//!
+//! - **#943** — a mate declares a FACE PAIR, so a flush seat's
+//!   induced edge contacts are undeclarable and refuse (`SEAT_A`).
+//! - **#944** — nothing mints a mate's alignment frame from a
+//!   selected face, so the frame and the geometry drift apart
+//!   silently (`stops`, `update_door`).
+//! - **#945** — mates and patterns do not compose at all, which is
+//!   why this file has two assembly documents rather than one; it
+//!   also records the A11 rule-4 drift, and wants Evan's ruling.
+//! - **#946** — a sub-assembly's mate declarations do not cross the
+//!   instantiation seam.
+//! - **#947** — the pin-mismatch recourse is emitted twice
+//!   (ASSERTED here, so it goes red when fixed), and two refusals
+//!   carry no recourse sentence at all (`refusals`).
+//! - **#948** — no parametric loop constructor (`rect`).
+//!
+//! The declared direction's frontier — a mated assembly's gate can
+//! neither certify nor refute — is not new here; it is the census
+//! Door-2 gap steered to M9 on #591, and `at_rest` states what this
+//! scene can and cannot say about it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -48,11 +64,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Dimension, DocEdit, DocParam, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, Node, ParamName, PatternKind, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, apply, content_pin, evaluate, inline, load, mixed_pins,
-    parse_expr, product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Dimension, DocEdit,
+    DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram,
+    MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
+    mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -62,12 +78,6 @@ use pncad::select::{
 };
 use pncad::topo::Body;
 use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_to_store};
-
-// GAP (see the module docs): the A5 at-rest gate and its vocabulary
-// are not reachable through `pncad::document`. This import is the one
-// door in this file that reaches past the façade, and it is what the
-// manifest's `editor-core` entry exists for.
-use editor_core::{Assembly, AssemblyError, Attribution, assemble};
 
 use crate::{SceneBody, Stop, View};
 
@@ -89,9 +99,17 @@ const SHELF_THICKNESS: f64 = 0.04;
 /// also what keeps the seated faces from sharing an edge: a declared
 /// face-pair contact backs the vertex-on-face incidences it induces,
 /// but two flush EDGES are a contact of their own, and the mate
-/// vocabulary declares face pairs only (see the note in `stops`).
+/// vocabulary declares face pairs only — so a flush seat refuses
+/// `UndeclaredContact` with nothing an author can declare instead
+/// (#943).
 const SEAT_A: [f64; 3] = [0.10, 0.15, 0.0];
 const SEAT_B: [f64; 3] = [0.80, 0.15, 0.0];
+
+/// The post's own seating point, in POST coordinates: the centre of
+/// its top cap. Every mate that seats something on a post is authored
+/// against this one value — a second spelling of it is a second place
+/// for the model and the mates to disagree.
+const POST_SEAT: [f64; 3] = [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT];
 
 /// One post's volume, and the shelf's — the arithmetic every census
 /// below is checked against.
@@ -123,7 +141,7 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
 /// parametric spelling of `LoopProgram::polygon`, which only takes
 /// literals.
 ///
-/// GAP: a parametric author writes the five steps by hand. The
+/// GAP (#948): a parametric author writes the five steps by hand. The
 /// document's own doc comment says so ("parametric authors write the
 /// steps with their own Exprs"), and this function is what every
 /// parametric consumer will write until the loop vocabulary grows an
@@ -206,12 +224,24 @@ fn product_of(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> (Body<f64>, N
 /// One extruded prism, parametric in its plan size and its length —
 /// the shape both parts are.
 ///
+/// `params` declares the document's named dimensions; `plan` names the
+/// two that span the sketch rectangle and `length` the one the extrude
+/// consumes. Naming them rather than taking them positionally is what
+/// lets the post declare TWO parameters and spend one of them twice —
+/// a square section is one dimension, not two.
+///
 /// The extrusion runs +z from the sketch plane at z = 0, so the part's
 /// SEATING face is its top cap and its datum face is the origin plane.
-fn prism_part(label: &str, params: [(&str, f64); 3], tol: Tol) -> ProfileDoc {
+fn prism_part(
+    label: &str,
+    params: &[(&str, f64)],
+    plan: (&str, &str),
+    length: &str,
+    tol: Tol,
+) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let mut scope: BTreeMap<ParamName, Dimension> = BTreeMap::new();
-    for (name, value) in params {
+    for &(name, value) in params {
         let name = ParamName::new(name);
         edit(
             &mut doc,
@@ -231,11 +261,7 @@ fn prism_part(label: &str, params: [(&str, f64); 3], tol: Tol) -> ProfileDoc {
         &mut doc,
         Node::Profile(ProfileProgram {
             plane: SketchPlane::xy(),
-            loops: vec![rect(
-                &pe(params[0].0, &scope),
-                &pe(params[1].0, &scope),
-                &zero,
-            )],
+            loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
         }),
         tol,
     );
@@ -243,7 +269,7 @@ fn prism_part(label: &str, params: [(&str, f64); 3], tol: Tol) -> ProfileDoc {
         &mut doc,
         Node::Extrude {
             profile,
-            distance: pe(params[2].0, &scope),
+            distance: pe(length, &scope),
         },
         tol,
     );
@@ -254,11 +280,9 @@ fn prism_part(label: &str, params: [(&str, f64); 3], tol: Tol) -> ProfileDoc {
 fn post_part(tol: Tol) -> ProfileDoc {
     prism_part(
         "pncad-demo-post",
-        [
-            ("section", POST_SECTION),
-            ("section", POST_SECTION),
-            ("height", POST_HEIGHT),
-        ],
+        &[("section", POST_SECTION), ("height", POST_HEIGHT)],
+        ("section", "section"),
+        "height",
         tol,
     )
 }
@@ -267,48 +291,36 @@ fn post_part(tol: Tol) -> ProfileDoc {
 fn shelf_part(tol: Tol) -> ProfileDoc {
     prism_part(
         "pncad-demo-shelf",
-        [
+        &[
             ("length", SHELF_LENGTH),
             ("depth", SHELF_DEPTH),
             ("thickness", SHELF_THICKNESS),
         ],
+        ("length", "depth"),
+        "thickness",
         tol,
     )
 }
 
-/// A part's own top-cap face name, as its PRODUCT answers to it — the
-/// name a mate on that face refers to, before the instance qualifier
-/// wraps it.
+/// A part's own cap-face name at `end`, as its PRODUCT answers to it —
+/// the name a mate on that face refers to, before the instance
+/// qualifier wraps it.
 ///
-/// Selected structurally (`Cap`, side `Top`) rather than hand-built:
+/// Selected structurally (`Cap`, side `end`) rather than hand-built:
 /// the naming vocabulary is what a user reaches for, and a selector
 /// that stops matching is the library telling you the vocabulary
 /// moved.
-fn top_cap_of(doc: &ProfileDoc, tol: Tol) -> StableName {
+fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev = run(doc, &EvalOptions::default(), tol);
     let tip = *doc.roots().first().expect("the part has a product root");
-    let sel = Selector::of(
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
-    );
+    let sel =
+        Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, tip, &sel);
     assert_eq!(
         found.len(),
         1,
-        "an extruded prism has exactly one top cap; got {found:?}"
+        "an extruded prism has exactly one {end:?} cap; got {found:?}"
     );
-    found.into_iter().next().expect("checked non-empty")
-}
-
-/// The part's bottom-cap face name — the shelf's underside, which its
-/// mates rest on.
-fn bottom_cap_of(doc: &ProfileDoc, tol: Tol) -> StableName {
-    let ev = run(doc, &EvalOptions::default(), tol);
-    let tip = *doc.roots().first().expect("the part has a product root");
-    let sel = Selector::of(
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Bottom)),
-    );
-    let found = pncad::select::select(&ev, tip, &sel);
-    assert_eq!(found.len(), 1, "one bottom cap; got {found:?}");
     found.into_iter().next().expect("checked non-empty")
 }
 
@@ -392,10 +404,6 @@ fn stand_doc(
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
 
-    // The post's own seating point, in POST coordinates: the centre of
-    // its top cap.
-    let post_seat = [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT];
-
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
@@ -403,7 +411,7 @@ fn stand_doc(
             b: in_part(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame(post_seat),
+                a: mate_frame(POST_SEAT),
                 b: mate_frame(SEAT_A),
                 primitive,
                 sense: AxisSense::Aligned,
@@ -420,7 +428,7 @@ fn stand_doc(
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
-                b: mate_frame(post_seat),
+                b: mate_frame(POST_SEAT),
                 primitive,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -440,11 +448,27 @@ fn stand_doc(
 
 // ---- The workspace ----
 
+/// The store, and everything about the parts an assembly author needs
+/// after writing them: each part's reference — the `(id, pin)` pair an
+/// assembly carries (A4: the id answers "which part", the pin "which
+/// version of it") — and the cap-face names its mates refer to.
+///
+/// The names are taken HERE, from the documents this function just
+/// built, because that is the only place they exist already: naming a
+/// face means evaluating the part, and re-deriving the part document
+/// somewhere else to do it would be authoring it twice.
+struct Parts {
+    post: DocRef,
+    shelf: DocRef,
+    /// The post's top cap, in the post's own names.
+    post_top: StableName,
+    /// The shelf's underside, in the shelf's own names.
+    shelf_bottom: StableName,
+}
+
 /// Writes the two part documents into a fresh workspace directory and
-/// opens it. Returns the store and each part's reference — the
-/// `(id, pin)` pair an assembly carries (A4: the id answers "which
-/// part", the pin "which version of it").
-fn workspace(dir: &Path, tol: Tol) -> (Workspace, DocRef, DocRef) {
+/// opens it.
+fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
     // A demo re-runs; a store that accumulated yesterday's documents
     // would resolve a pin nobody wrote today.
     if dir.exists() {
@@ -460,7 +484,13 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, DocRef, DocRef) {
         id: d.id(),
         pin: content_pin(d, tol).expect("the pin computes"),
     };
-    (ws, reference(&post), reference(&shelf))
+    let parts = Parts {
+        post: reference(&post),
+        shelf: reference(&shelf),
+        post_top: cap_of(&post, CapEnd::Top, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+    };
+    (ws, parts)
 }
 
 // ---- The scenes ----
@@ -596,13 +626,25 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         (SHELF_DEPTH - POST_SECTION) / 2.0,
         0.0,
     ];
-    for (got, want) in solved.translation.iter().zip(want) {
-        assert!(
-            (got - want).abs() < 1e-12,
-            "the far post's solved pose is {:?}, expected {want:?}",
-            solved.translation
-        );
-    }
+    assert!(
+        solved
+            .translation
+            .iter()
+            .zip(want)
+            .all(|(got, want)| (got - want).abs() < 1e-12),
+        "the far post's solved translation is {:?}, expected {want:?}",
+        solved.translation
+    );
+    // And the ROTATION, which is the half a translation check cannot
+    // see: both mates align +z with +z at zero clocking, so composing
+    // out from the gauge must leave the post's own axes unturned. A
+    // solve that rotated the post and still landed its seating point
+    // would pass the translation check and put the part in sideways.
+    assert_eq!(
+        solved.columns,
+        Frame::IDENTITY.columns,
+        "aligned frame-coincidence mates compose to no net rotation"
+    );
     assert!(
         !stand.doc.placements().contains_key(&stand.post_b),
         "a mated instance carries no frame of its own (A11 rule 2)"
@@ -618,65 +660,112 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         props.volume
     );
 
-    let (body, contacts, minted, verdict) = at_rest(&stand.doc, &ev, tol);
+    let gate = at_rest(&stand.doc, &ev, tol);
     println!(
-        "   [stand] mates minted {minted} declaration(s) into the product's contact \
-         record set ({} face-pair record(s)); A5 at-rest gate: {verdict}",
-        contacts.patches.len()
+        "   [stand] the mates minted {} declaration(s) into the product's contact record \
+         set, at FACE granularity; A5 at-rest gate: {}",
+        gate.minted(),
+        gate.verdict.describe()
     );
-    assert_eq!(minted, 2, "one record per solved mate (A3's minting)");
-    assert_eq!(contacts.patches.len(), 2, "both at FACE granularity");
+    assert_eq!(
+        gate.minted(),
+        2,
+        "one record per solved mate (A3's minting)"
+    );
 
-    SceneBody::at_rest("bench", [0.55, 0.44, 0.30], body, contacts)
+    SceneBody::at_rest("bench", [0.55, 0.44, 0.30], gate.body, gate.contacts)
 }
 
-/// Runs the A5 gate and reports what it decided, in the two arms a
-/// caller must tell apart.
+/// What the A5 gate decided — the two arms a caller must tell apart,
+/// as a value the scenes match on.
 ///
-/// `Ok` and `Uncertified` are BOTH accepted here, and the difference
-/// is printed rather than asserted: today every declared
-/// cross-instance pair lands in `Uncertified` (the census certifies a
-/// declared patch only on structural chart identity, which two
-/// instances of a part satisfy by neither half), and the day the
-/// census grows its cross-instance rung this same call returns `Ok`
-/// and this line says so. What is NOT accepted is `AtRest` — a
-/// finding AGAINST the document — which is the arm that means the
-/// declarations do not hold.
-fn at_rest(
-    doc: &ProfileDoc,
-    ev: &Evaluation<f64>,
-    tol: Tol,
-) -> (Body<f64>, pncad::topo::ContactRecords, usize, String) {
+/// A verdict is NOT a count. The gate's two non-refusing arms carry
+/// different things (`Ok` carries the minted declarations; the
+/// frontier carries findings and no minted list), so a single number
+/// standing for "how many" would mean something different per arm —
+/// and the number a scene wants for MINTING is neither: it is the
+/// record set's own size, which both arms carry.
+enum AtRestVerdict {
+    /// Every declaration certified.
+    Certified,
+    /// Nothing refuted and nothing certified: the census declined
+    /// every declared face. Carries how many it declined.
+    Uncertified { declined: usize },
+}
+
+impl AtRestVerdict {
+    /// The sentence a scene prints.
+    fn describe(&self) -> String {
+        match self {
+            Self::Certified => "PASSED (every declaration certified)".to_string(),
+            Self::Uncertified { declined } => format!(
+                "UNCERTIFIED — {declined} declared face(s) neither certified nor refuted \
+                 (the declared direction's frontier: nothing was decided about this \
+                 geometry either way)"
+            ),
+        }
+    }
+}
+
+/// The gate's product, its record set, and its verdict.
+struct AtRest {
+    body: Body<f64>,
+    contacts: pncad::topo::ContactRecords,
+    verdict: AtRestVerdict,
+}
+
+impl AtRest {
+    /// **How many declarations were minted** — the size of the record
+    /// set the gate was handed, which is what a mate's minting
+    /// produces (A3) and the one quantity both arms carry.
+    fn minted(&self) -> usize {
+        self.contacts.patches.len()
+    }
+}
+
+/// Runs the A5 gate.
+///
+/// `Ok` and `Uncertified` are BOTH accepted, and the difference is
+/// reported rather than asserted: today every declared cross-instance
+/// pair lands in `Uncertified`, and the day the census grows its
+/// cross-instance rung this same call returns `Ok` and the scene's
+/// line says so. What is NOT accepted is `AtRest` — a finding AGAINST
+/// the document — which is the arm that means the declarations do not
+/// hold, and which the update walk deliberately provokes.
+///
+/// # What the frontier's observable does and does not say
+///
+/// The finding this arm carries is `CensusUnsupported` naming a face.
+/// The declared-patch loop emits that from MORE THAN ONE door — the
+/// carrier-identity check and the chart-identity check both decline
+/// through it — so the observable a caller sees does NOT say which of
+/// them declined, and this demo does not claim to know. What holds
+/// either way, and is the whole content of the frontier, is that a
+/// declared cross-instance pair is not certifiable in this tree:
+/// nothing was decided about the geometry, in either direction.
+/// Separating the doors would take a probe against the census, which
+/// is the census's unit to write, not this scene's.
+fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
     match assemble(doc, ev, tol) {
-        Ok(Assembly {
+        Ok(Assembly { body, contacts, .. }) => AtRest {
             body,
             contacts,
-            minted,
-            ..
-        }) => {
-            let n = minted.len();
-            (
-                body,
-                contacts,
-                n,
-                "PASSED (every declaration certified)".to_string(),
-            )
-        }
+            verdict: AtRestVerdict::Certified,
+        },
+        // Every finding here is a `Declined` by the arm's own
+        // construction (`assembly.rs` routes a refusal to `AtRest` the
+        // moment one finding is not), so re-checking that would be
+        // asserting the constructor rather than the geometry. The arm
+        // SPLIT is the check.
         Err(AssemblyError::Uncertified { contacts, findings }) => {
-            for f in &findings {
-                assert!(
-                    matches!(f.attribution, Attribution::Declined(_)),
-                    "the frontier is declines and nothing else: {f:?}"
-                );
-            }
             let (body, _) = product_of(doc, ev, tol);
-            let n = findings.len();
-            let verdict = format!(
-                "UNCERTIFIED — {n} declared face(s) neither certified nor refuted \
-                 (the declared direction's frontier: the census has no cross-instance \
-                 certifier lane, so nothing was decided about this geometry)"
-            );
-            (body, *contacts, n, verdict)
+            AtRest {
+                body,
+                contacts: *contacts,
+                verdict: AtRestVerdict::Uncertified {
+                    declined: findings.len(),
+                },
+            }
         }
         Err(other) => panic!("the stand's declarations must not be refuted: {other}"),
     }
@@ -690,14 +779,9 @@ fn at_rest(
 /// Fail-loud is the design, so each of these is EVIDENCE: a refusal
 /// that stopped being typed, or stopped naming its subject, breaks
 /// this walk.
-fn refusals(
-    ws: &Workspace,
-    post: DocRef,
-    shelf: DocRef,
-    post_top: &StableName,
-    shelf_bottom: &StableName,
-    tol: Tol,
-) {
+fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
+    let (post, shelf) = (parts.post, parts.shelf);
+    let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     println!("\n-- the v1 boundary, walked: four refusals an author actually hits --");
 
     // (1) UNDER-DETERMINED. One planar rest between two parts fixes
@@ -818,6 +902,15 @@ fn refusals(
     // does not retarget it. Asking the store for a version it no
     // longer holds is the typed pin refusal, and its recourse names
     // the edit that legitimately moves a pin.
+    //
+    // THE TRIGGER HERE IS HAND-BUILT, and no user builds one: pairing
+    // one document's id with another's pin is a `DocRef` nobody would
+    // author. It is here because it reaches the refusal in one line
+    // with no store mutation, so the walk can state the refusal's
+    // shape beside the other three. The USER-REACHABLE instance of the
+    // same refusal is in `update_door`, where a part legitimately
+    // changes on disk and the un-updated assembly stops resolving —
+    // that is the one that says what this costs an author.
     let stale = DocRef {
         id: post.id,
         pin: shelf.pin,
@@ -891,7 +984,24 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             "{name:?} must still resolve after the split (as {expected:?})"
         );
     }
-    assert!(crossed > 0, "the probe actually crossed the seam");
+    // The shelf cell is one instance, and every face, edge and vertex
+    // of the shelf's product crossed with it. Pinned as a NUMBER, not
+    // as "> 0": a cut that moved fewer names would still satisfy a
+    // positivity check while quietly having re-anchored less than the
+    // whole seam.
+    assert_eq!(
+        crossed, 26,
+        "every name the shelf instance minted crosses the seam"
+    );
+    // Cardinality BOTH ways. The loop above proves the split's table is
+    // a superset of the original's; this proves it is not a proper one,
+    // so a refactoring that ADDED names fails here rather than passing
+    // a per-name check that never looks for extras.
+    assert_eq!(
+        before_names.iter().count(),
+        after_names.iter().count(),
+        "the split neither loses nor invents a name"
+    );
     println!(
         "   split: {} node(s) moved into a new document; {} recorded edit(s) on the \
          remainder, {} on the part; {crossed} of {} product names re-anchored, all resolve",
@@ -901,7 +1011,16 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         before_names.iter().count()
     );
 
-    // Inline is the inverse, and the same identity is what says so.
+    // Inline is the inverse, and the SAME identity is what says so —
+    // per name, not per count.
+    //
+    // NOT verbatim, and that is the acceptance property rather than a
+    // shortfall: a `StableName` carries the node that minted it, the
+    // splice mints FRESH host ids, so the cut instance comes back as a
+    // different node. A4 asks for name-resolution identity, not
+    // arena-key identity, so the correspondence is the composition of
+    // the two recorded maps — split's, then inline's — and every
+    // pre-split name must resolve through it.
     let back = inline(&out.remainder, out.instance, ws, tol).expect("the instance inlines back");
     let back_ev = run(&back.doc, &with_store(ws), tol);
     let (back_body, back_names) = product_of(&back.doc, &back_ev, tol);
@@ -915,16 +1034,47 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         volume_bits(&back_body, tol),
         "and the volume bits"
     );
+    let restored = back.node_map[&mapped];
+    let mut returned = 0usize;
+    for (name, _) in before_names.iter() {
+        let expected = if name.node == shelf_i {
+            returned += 1;
+            StableName {
+                kind: name.kind,
+                node: restored,
+                path: name.path.clone(),
+            }
+        } else {
+            name.clone()
+        };
+        assert!(
+            back_names.lookup(&expected).is_some(),
+            "{name:?} must resolve again after the round trip (as {expected:?})"
+        );
+    }
+    assert_eq!(returned, crossed, "the same names came back that went out");
     assert_eq!(
         before_names.iter().count(),
         back_names.iter().count(),
-        "and the size of the name table"
+        "and the inline neither loses nor invents a name either"
+    );
+    // The cluster frame the split hoisted onto the instance is put
+    // back on the restored node, bit for bit — placement is document
+    // data, and a round trip that dropped it would still pass every
+    // name check above while moving the part.
+    assert!(
+        back.doc
+            .placement(restored)
+            .bit_eq(&layout.placement(shelf_i)),
+        "the round trip restores the cluster frame exactly"
     );
     println!(
-        "   inline: {} node(s) spliced back, {} recorded edit(s); structural + \
-         name-resolution identity holds in both directions",
+        "   inline: {} node(s) spliced back, {} recorded edit(s); all {} product names \
+         resolve through the two recorded node maps, the table is the same size, and the \
+         hoisted cluster frame comes back bit-exact",
         back.node_map.len(),
-        back.edits.len()
+        back.edits.len(),
+        before_names.iter().count()
     );
 
     // THE SECOND CUT, probed rather than assumed: the patterned posts.
@@ -1017,10 +1167,11 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         pin_fault(refused)
     );
 
-    // GAP, in the message a user reads: the recourse paragraph arrives
-    // TWICE. `WorkspaceError::PinMismatch`'s own Display already ends
-    // on `PIN_MISMATCH_RECOURSE`, and the `PartResolver` impl appends
-    // it again when it classifies the failure for the kernel.
+    // GAP (#947), in the message a user reads: the recourse paragraph
+    // arrives TWICE. `WorkspaceError::PinMismatch`'s own Display
+    // already ends on `PIN_MISMATCH_RECOURSE`, and the `PartResolver`
+    // impl appends it again when it classifies the failure for the
+    // kernel.
     assert_eq!(
         refused
             .kind
@@ -1028,7 +1179,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             .matches(PIN_MISMATCH_RECOURSE)
             .count(),
         2,
-        "the doubled recourse is what this line records; one copy means it was fixed"
+        "the doubled recourse is what this line records (#947); ONE copy means it was \
+         fixed, and this count must be flipped to 1 in that same change"
     );
     println!(
         "   note (gap): that message carries its recourse paragraph twice — the store's \
@@ -1049,7 +1201,12 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     }
 
     let after = run(&updated, &with_store(ws), tol);
-    let (_, _, minted, verdict) = at_rest(&updated, &after, tol);
+    // A13 clause 4: the pin move triggers ordinary re-evaluation, and
+    // the crossing declarations go back through the gate against the
+    // NEW geometry. What the gate then decides is its own business —
+    // saying "re-verified" and reporting the frontier in one breath
+    // would claim a verdict the frontier explicitly does not give.
+    let gate = at_rest(&updated, &after, tol);
     let (after_body, _) = product_of(&updated, &after, tol);
     let after_volume = pncad::topo::mass_properties(&after_body, tol)
         .expect("mass properties")
@@ -1059,11 +1216,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         "the new version carries more material"
     );
     println!(
-        "   after {} recorded UpdateReference edit(s): V {:.6} -> {:.6} m^3, \
-         {minted} declaration(s) re-verified — {verdict}",
+        "   after {} recorded UpdateReference edit(s): V {:.6} -> {:.6} m^3; the {} \
+         declaration(s) were re-minted against the new geometry and put back through \
+         the gate — {}",
         edits.len(),
         before_volume,
-        after_volume
+        after_volume,
+        gate.minted(),
+        gate.verdict.describe()
     );
 
     // A13 clause 3: two pins of one document id in one assembly is
@@ -1118,7 +1278,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     );
 
     // GAP, met here and not worked around: the staged state the lint
-    // exists FOR cannot be evaluated. A13 calls two pins of one id
+    // exists FOR cannot be evaluated. (AQ1, the open document-store
+    // question, is where "which version lives where" is decided.) A13 calls two pins of one id
     // "legal and sometimes intended", but a workspace is one file per
     // document id, so exactly one of the two pins can ever resolve —
     // the site still holding the other refuses typed, naming its node.
@@ -1320,22 +1481,20 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// names its mate. There is no door today that derives an alignment
 /// frame FROM a selected face.
 pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
-    let (mut ws, post_ref, shelf_ref) = workspace(work, tol);
+    let (mut ws, parts) = workspace(work, tol);
     println!(
         "   workspace: {} document(s) in {}",
         ws.documents().len(),
         ws.root().display()
     );
-    let post_top = top_cap_of(&post_part(tol), tol);
-    let shelf_bottom = bottom_cap_of(&shelf_part(tol), tol);
 
-    let (layout, pattern, shelf_i) = layout_doc(post_ref, shelf_ref, tol);
+    let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, tol);
     ws.create(&layout, tol).expect("the layout is stored");
     let stand = stand_doc(
-        post_ref,
-        shelf_ref,
-        &post_top,
-        &shelf_bottom,
+        parts.post,
+        parts.shelf,
+        &parts.post_top,
+        &parts.shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
     );
@@ -1344,7 +1503,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     let layout_body = layout_scene(&ws, &layout, pattern, tol);
     let stand_body = stand_scene(&ws, &stand, tol);
 
-    refusals(&ws, post_ref, shelf_ref, &post_top, &shelf_bottom, tol);
+    refusals(&ws, &parts, tol);
 
     println!("\n-- the round trip: a document is a value on disk --");
     round_trip(&ws, &layout, "layout", tol);
@@ -1356,7 +1515,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     // authored layout back where a reader will look for it.
     ws.resave(&layout, tol).expect("the layout is restored");
 
-    update_door(&mut ws, &stand, shelf_ref, tol);
+    update_door(&mut ws, &stand, parts.shelf, tol);
 
     vec![
         Stop {

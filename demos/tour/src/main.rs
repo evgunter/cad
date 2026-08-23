@@ -133,12 +133,21 @@ impl SceneBody {
     /// contacts are the mates' minted records (A5's at-rest door).
     ///
     /// Its tier-3′ verdict is taken where the declarations can be
-    /// ATTRIBUTED — `editor_core::assemble`, in the scene — because
-    /// attribution is what separates a finding against the document
-    /// from the declared direction's frontier, and the plain
+    /// ATTRIBUTED — `pncad::document::assemble`, in the scene —
+    /// because attribution is what separates a finding against the
+    /// document from the declared direction's frontier, and the plain
     /// `validate_pseudomanifold` call below cannot see it. So this
     /// door REPORTS what the un-attributed gate said and leaves the
     /// verdict to the scene, which asserts it.
+    ///
+    /// **This is a NARROWING of the harness, and it is deliberate.**
+    /// Where `seamed` panics on any tier-3′ refusal, this arm prints,
+    /// so a regression that moved a body from certified into the
+    /// frontier — or added declines to one already there — would pass
+    /// `run_body` unremarked. The gate that catches such a change is
+    /// the scene's own `assemble` match, which refuses the `AtRest`
+    /// arm and pins the minted count; a body taking this door without
+    /// that assertion beside it would be validated by nobody.
     fn at_rest(
         name: impl Into<String>,
         color: [f64; 3],
