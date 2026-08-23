@@ -432,3 +432,34 @@ late via #940, dispatched earlier). ASM-DEMO's dual = ordinal 66,
 sample #21, ninth cross-model pair; TESS-SPLIT's single = 67.
 Dispatches unchanged; the correction entry in MODEL-AB-LOG is
 normative.
+
+## ASM-DEMO MERGED (#938, 2026-08-23) — the exit demo exists
+
+The R2 exit demo is a rendered, CI-gated tour stop: two part
+documents and two assembly documents in a real on-disk workspace
+walk every door v1 shipped — authoring by pin, a pattern, a
+constructively-solving mate chain, minted declarations, the A5
+gate (Ok on the disjoint layout; the declared frontier on the
+mated stand — F2, the known census gap), a four-refusal typed
+walk, split/inline with the composed-node-map name identity
+(the fix pass EXPOSED that inline mints fresh host ids — A4's
+name-resolution identity is the right claim and now the tested
+one), the A13 update door, and a v14-unchanged round trip. The
+dual (ordinal 66, sample #21, the ninth cross-model pair)
+diverged on labels and converged on substance; the fix pass also
+landed the A5 gate on the pncad façade (adjudicated: the
+omission was an accident, not curation — the export guard's
+roster corrected honestly; LIB notified on-thread and in
+LIB-LOG). Eleven library findings: #943 (F3, REFRAMED per Evan —
+the at-rest census wants the boolean lane's existing face-backed
+closure extended, never a mate-side re-implementation of the
+table-with-legs machinery), #944 (alignment-frame-from-face
+door), #945 (mates × patterns non-composition + the A11 rule-4
+drift, EVAN'S RULING NEEDED), #946 (sub-assembly declarations
+lost at the seam), #947 (doubled recourse + missing recourse
+sentences), #948 (parametric loop constructor); F2 stays on the
+#591→M9 steer; F5 on AQ1; the Python assembly gap deposited in
+LIB-LOG as a dispatchable bindings series. Next: the exit-walk
+document (criteria vs evidence, M8 convention) — a design
+conversation for Evan's sign-off. Seam sweep: asm-demo + both
+review worktrees.
