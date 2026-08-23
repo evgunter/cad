@@ -219,6 +219,10 @@ mod verbs_tubewall;
 mod verbs_tubewall_r1_fingerprint;
 #[path = "verbs_tubewall_r1_probes.rs"]
 mod verbs_tubewall_r1_probes;
+#[path = "verbs_tubewall_r2_probes.rs"]
+mod verbs_tubewall_r2_probes;
+#[path = "verbs_tubewall_r2_solidbits.rs"]
+mod verbs_tubewall_r2_solidbits;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
