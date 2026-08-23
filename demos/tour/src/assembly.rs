@@ -96,12 +96,19 @@ const SHELF_THICKNESS: f64 = 0.04;
 ///
 /// Both are INSET from the shelf's edges, by more than half a post
 /// section. That is how legs are set under a top anyway, and it is
-/// also what keeps the seated faces from sharing an edge: a declared
-/// face-pair contact backs the vertex-on-face incidences it induces,
-/// but two flush EDGES are a contact of their own, and the mate
-/// vocabulary declares face pairs only — so a flush seat refuses
-/// `UndeclaredContact` with nothing an author can declare instead
-/// (#943).
+/// also what keeps the seated faces from sharing an edge.
+///
+/// A flush seat refuses (#943), and the mate is not what is missing:
+/// the declaration says the right thing once, and the boolean lane
+/// already has the rule that a declared FACE pair backs the
+/// lower-dimensional events its own seat induces
+/// (`vv_face_backed` / `vf_face_backed`, census D3). What does not
+/// reach rest is that closure — the census's D4 sentence makes a
+/// vertex on an edge interior undeclarable "by design", on the
+/// strength of reduction refining every such event into a v-v record
+/// first, and at rest nothing refines. So the induced events arrive
+/// raw, with no backing path, and the minted face pair is never
+/// consulted. Insetting sidesteps it; #943 is where it gets fixed.
 const SEAT_A: [f64; 3] = [0.10, 0.15, 0.0];
 const SEAT_B: [f64; 3] = [0.80, 0.15, 0.0];
 
