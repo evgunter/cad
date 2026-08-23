@@ -120,9 +120,8 @@ fn full_wire_holed_revolve_names_totally() {
         );
     }
     // And the wire outer keeps its π-band names (loop 0).
-    assert!(
-        (0..4).any(|s| t
-            .lookup(&name1(EntityKind::Face, rev, RoleSeg::BandPi(pe(0, s))))
-            .is_some())
-    );
+    assert!((0..4).any(|s| {
+        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::BandPi(pe(0, s))))
+            .is_some()
+    }));
 }

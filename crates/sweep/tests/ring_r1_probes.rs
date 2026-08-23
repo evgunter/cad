@@ -49,8 +49,7 @@ fn one_call_equals_the_defining_composition() {
     )
     .unwrap();
     let solid_outer = revolve(&validated(vec![outer()]), axis_y(), Revolution::Full, tol).unwrap();
-    let hole_as_outer =
-        revolve(&validated(vec![hole()]), axis_y(), Revolution::Full, tol).unwrap();
+    let hole_as_outer = revolve(&validated(vec![hole()]), axis_y(), Revolution::Full, tol).unwrap();
 
     assert_all_tiers(&holed.body);
     let p = topo::mass_properties(&holed.body, tol).unwrap();
@@ -58,7 +57,9 @@ fn one_call_equals_the_defining_composition() {
     let ph = topo::mass_properties(&hole_as_outer.body, tol).unwrap();
     // Volume: exactly the definition. Area: both boundaries count.
     assert!(((p.volume - (po.volume - ph.volume)) / p.volume).abs() < 1e-12);
-    assert!(((p.surface_area - (po.surface_area + ph.surface_area)) / p.surface_area).abs() < 1e-12);
+    assert!(
+        ((p.surface_area - (po.surface_area + ph.surface_area)) / p.surface_area).abs() < 1e-12
+    );
 }
 
 /// A hole whose boundary hugs the outer boundary at 1000·eps on all
@@ -77,7 +78,13 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
         p2(x1 - g, y1 - g),
         p2(x0 + g, y1 - g),
     ]);
-    let t = revolve(&validated(vec![outer, hole]), axis_y(), Revolution::Full, tol).unwrap();
+    let t = revolve(
+        &validated(vec![outer, hole]),
+        axis_y(),
+        Revolution::Full,
+        tol,
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(t.body.shells().count(), 2);
     assert_eq!(t.cavities.len(), 1);
@@ -89,7 +96,11 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
     // (an inside-out cavity lands near 2·2π·1.5 ≈ 18.8).
     let v_expect = 2.0 * PI * 1.5 * (4.0 * g * (1.0 - g));
     let p = topo::mass_properties(&t.body, tol).unwrap();
-    assert!(((p.volume - v_expect) / v_expect).abs() < 1e-6, "{}", p.volume);
+    assert!(
+        ((p.volume - v_expect) / v_expect).abs() < 1e-6,
+        "{}",
+        p.volume
+    );
 }
 
 /// A hole hugging the AXIS. Below the decidable band the profile
@@ -136,7 +147,11 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     let v_hole = 2.0 * PI * ((g + 0.5) / 2.0) * ((0.5 - g) * 0.5);
     let v_expect = 2.0 * PI * 0.5 - v_hole;
     let p = topo::mass_properties(&t.body, tol).unwrap();
-    assert!(((p.volume - v_expect) / v_expect).abs() < 1e-9, "{}", p.volume);
+    assert!(
+        ((p.volume - v_expect) / v_expect).abs() < 1e-9,
+        "{}",
+        p.volume
+    );
 }
 
 /// The degenerate-arm pin on a fixture the boolean operand gate would
@@ -182,7 +197,11 @@ fn wire_outer_with_circular_hole_torus_cavity() {
     let a_torus = 4.0 * PI * PI * 1.0 * 0.4;
     let a_cyl = 2.0 * PI * 2.0 * 3.0 + 2.0 * PI * 4.0;
     let p = topo::mass_properties(&t.body, tol).unwrap();
-    assert!(((p.volume - v_expect) / v_expect).abs() < 1e-12, "{}", p.volume);
+    assert!(
+        ((p.volume - v_expect) / v_expect).abs() < 1e-12,
+        "{}",
+        p.volume
+    );
     assert!(
         ((p.surface_area - (a_cyl + a_torus)) / p.surface_area).abs() < 1e-12,
         "{}",
