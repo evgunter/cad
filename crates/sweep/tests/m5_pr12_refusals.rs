@@ -54,9 +54,30 @@ fn boxy() -> Body<f64> {
         .body
 }
 
-/// A cylinder: a three-arc circle extruded. Its rim edges are
-/// plane–cylinder, which is a support pair NO analytic arm covers —
-/// the canal-surface lane's front door.
+/// A **toroidal spool**: an annular meridian whose outer wall is an
+/// off-axis quarter ARC, revolved about the sketch y-axis. That wall is
+/// a TORUS, and a torus support is outside every analytic arm's table —
+/// the canal-surface lane's front door, where the rolling ball's spine
+/// is neither a line nor a circle.
+fn spool(rev: sweep::Revolution<f64>) -> Body<f64> {
+    // A 60° arc about (1.5, 0) of radius 0.5, so it meets the base at a
+    // square corner and the top at a 30° one — neither joint tangent,
+    // which is what keeps the profile's own validator out of the way.
+    let bulge = (core::f64::consts::FRAC_PI_6 / 2.0).tan();
+    let (ex, ey) = (1.75, 0.25 * 3.0f64.sqrt());
+    sweep::test_support::revolved_about_y(
+        vec![
+            ProfileVertex::new(p2(0.5, 0.0), 0.0),
+            ProfileVertex::new(p2(2.0, 0.0), bulge),
+            ProfileVertex::new(p2(ex, ey), 0.0),
+            ProfileVertex::new(p2(0.5, ey), 0.0),
+        ],
+        rev,
+        tol(),
+    )
+}
+
+/// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
@@ -67,25 +88,6 @@ fn cylinder() -> Body<f64> {
         ProfileVertex::new(at(0.0), b120),
         ProfileVertex::new(at(120.0), b120),
         ProfileVertex::new(at(240.0), b120),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// A "D" prism: a square with one side replaced by a circular arc,
-/// extruded. Its top cap borders three planar walls and ONE cylinder
-/// wall, so a planar chain on that cap terminates at a vertex whose
-/// third edge is plane–cylinder.
-fn dee() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 1.0), 0.4),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
@@ -240,8 +242,12 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
 /// neighbouring edge, which is the reporting rule under test.
 #[test]
 fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
-    let body = dee();
-    // A top-cap edge whose two supports are both planes.
+    // A PARTIAL revolve of the spool: its sweep-end caps are planar, and
+    // a planar chain on one of them terminates where the TORUS wall's
+    // meridian arrives — an edge no analytic arm resolves, which makes
+    // the CORNER unclassifiable rather than that edge's own refusal.
+    let body = spool(sweep::Revolution::Partial(1.0));
+    // A cap edge whose two supports are both planes.
     let planar = body
         .edges()
         .find(|(_, e)| {
@@ -273,18 +279,17 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
     }
     assert!(
         planar.is_some() && saw,
-        "the D-prism has a planar chain terminating at a curved neighbour"
+        "the partial spool has a planar chain terminating at a torus neighbour"
     );
 }
 
-/// The canal-surface lane's front door: a plane–cylinder support pair
-/// is outside the analytic-arm table (plane–plane / plane–sphere),
-/// so its blend needs the canal surface — the kernel's first
-/// approximating SURFACE, banked as its own reviewed unit. The
-/// refusal NAMES it.
+/// The canal-surface lane's front door: a plane–TORUS support pair is
+/// outside the analytic-arm table, so its blend needs the canal surface
+/// — the kernel's first approximating SURFACE, banked as its own
+/// reviewed unit. The refusal NAMES it.
 #[test]
 fn spine_unsupported_names_the_canal_surface_unit() {
-    let body = cylinder();
+    let body = spool(sweep::Revolution::Full);
     let rim = body
         .edges()
         .find(|(_, e)| {
@@ -295,14 +300,14 @@ fn spine_unsupported_names_the_canal_surface_unit() {
                     let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
                     Some(matches!(
                         body.get_surface(f.surface)?,
-                        geom::Surface::Plane { .. }
+                        geom::Surface::Torus { .. }
                     ))
                 })
                 .collect();
             kinds.len() == 2 && kinds[0] != kinds[1]
         })
         .map(|(k, _)| k)
-        .expect("a plane–cylinder rim edge");
+        .expect("a plane–torus rim edge");
     let req = FilletRequest {
         body: &body,
         edges: vec![rim],

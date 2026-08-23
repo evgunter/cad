@@ -301,15 +301,21 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
     }
 }
 
-/// **Claim 4, #554's pair.** A cylinder×cone latitude rim refuses the
-/// SAME class whether the rim closes or not, across a randomized
-/// dihedral and radius. The pre-fix kernel split this pair —
-/// `TangentialEdge` closed, `SpineUnsupported` open — so a revert
-/// reds the closed leg at every draw.
+/// **Claim 4, #554's pair.** A cylinder×cone latitude rim DECIDES its
+/// dihedral, definitely and honestly, whether the rim closes or not,
+/// across a randomized dihedral and radius. The pre-fix kernel read a
+/// collapsed lever on the closed leg and reported `TangentialEdge` on a
+/// transverse corner; that is what a revert reds here, at every draw.
 ///
-/// The row deliberately asserts the class *agreement* and separately
-/// that neither leg is `TangentialEdge`: agreement alone would be
-/// satisfied by a kernel that broke BOTH legs the same way.
+/// The legs no longer end in one place, and where they part is the
+/// finding: the CLOSED rim is a one-edge band the cylinder×cone arm
+/// builds, and the OPEN arc terminates at the revolve's seam-meridian
+/// vertices, whose corner configuration is unimplemented. Both are
+/// decisions taken after the dihedral was classified — which is the
+/// claim this row exists for, and it is asserted directly rather than
+/// through the class agreement that used to stand in for it (agreement
+/// alone would be satisfied by a kernel that broke both legs the same
+/// way).
 #[test]
 fn the_554_pair_agrees_across_a_randomized_dihedral() {
     let mut rng = fuzz::start("verbs_rim_554_pair");
@@ -333,11 +339,21 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
                 "{which} rim at half-angle {half_angle} rad reports tangency on a \
                  transverse cone×cylinder corner: {v:?}"
             );
-            assert!(
-                matches!(v, Err(FilletError::SpineUnsupported { .. })),
-                "{which} rim: expected the honest SpineUnsupported, got {v:?}"
-            );
         }
+        assert!(
+            closed_verdict.is_ok(),
+            "closed rim at half-angle {half_angle} rad: the cylinder×cone band is built \
+             once the dihedral has decided, got {closed_verdict:?}"
+        );
+        assert!(
+            matches!(
+                open_verdict,
+                Err(FilletError::FilletCornerUnsupported { .. })
+            ),
+            "open rim at half-angle {half_angle} rad: the arc terminates at the revolve's \
+             seam-meridian vertices, whose corner configuration is unimplemented, got \
+             {open_verdict:?}"
+        );
     }
 }
 
