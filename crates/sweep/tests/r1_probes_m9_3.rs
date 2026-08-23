@@ -93,7 +93,10 @@ fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
         .map(|(k, _)| k)
         .collect();
     let [f] = hits[..] else {
-        panic!("expected exactly one z = {z} face (up = {up}), got {}", hits.len());
+        panic!(
+            "expected exactly one z = {z} face (up = {up}), got {}",
+            hits.len()
+        );
     };
     f
 }
@@ -144,7 +147,10 @@ fn probe_two_peg_oracle_rederivation() {
     let decls = declarations(&p, &q, false, false);
     let body = body_of(topo::union_with(&p, &q, &decls, Tol::witness()).unwrap());
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-    eprintln!("vp = {vp:.17e}, vq = {vq:.17e}, vp+vq = {:.17e}, v = {v:.17e}", vp + vq);
+    eprintln!(
+        "vp = {vp:.17e}, vq = {vq:.17e}, vp+vq = {:.17e}, v = {v:.17e}",
+        vp + vq
+    );
     assert_eq!(v, vp + vq, "bitwise additivity");
     assert_eq!(v, 48.0, "the closed form is exactly 48 (PR claim)");
 }
@@ -185,7 +191,10 @@ fn probe_peg_offset_one_ulp_characterized() {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-            eprintln!("1-ulp offset unioned: v = {v:.17e}, vp+vq = {:.17e}", vp + vq);
+            eprintln!(
+                "1-ulp offset unioned: v = {v:.17e}, vp+vq = {:.17e}",
+                vp + vq
+            );
             assert!(
                 (v - (vp + vq)).abs() < 1e-12,
                 "bridged union must stay additive to dust: {v} vs {}",
@@ -255,9 +264,11 @@ fn probe_tangent_on_conformal_walls_contradicts() {
     for cx in [2.0, 4.0] {
         for &fa in &walls_at(&p, cx) {
             for &fb in &walls_at(&q, cx) {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
+                decls.coincident_faces.push(FacePairDeclaration::new(
+                    fa,
+                    fb,
+                    ContactClass::Tangent,
+                ));
             }
         }
     }
@@ -302,7 +313,10 @@ fn probe_partial_engagement_never_silent() {
         Ok(out) => {
             let body = body_of(out);
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
-            eprintln!("partial engagement unioned: v = {v:.17e} vs {:.17e}", vp + vq);
+            eprintln!(
+                "partial engagement unioned: v = {v:.17e} vs {:.17e}",
+                vp + vq
+            );
             assert_eq!(v, vp + vq, "if it unions it must be exactly additive");
             if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
                 panic!("must be tier-3 valid: {errs:?}");
@@ -373,8 +387,13 @@ fn probe_two_ring_patch_unions_exactly() {
     let top = holed_plate(1.0, 2.0, &holes);
     let vb = mass_properties(&bot, Tol::witness()).unwrap().volume;
     let vt = mass_properties(&top, Tol::witness()).unwrap().volume;
-    let out = topo::union_with(&bot, &top, &flush_rest_decls(&bot, &top, 1.0), Tol::witness())
-        .expect("the two-ring patch union runs");
+    let out = topo::union_with(
+        &bot,
+        &top,
+        &flush_rest_decls(&bot, &top, 1.0),
+        Tol::witness(),
+    )
+    .expect("the two-ring patch union runs");
     let body = body_of(out);
     let v = mass_properties(&body, Tol::witness()).unwrap().volume;
     assert_eq!(v, vb + vt, "exactly additive with two rings per patch");
@@ -392,7 +411,12 @@ fn probe_ring_count_mismatch_never_silent() {
     let top = holed_plate(1.0, 2.0, &[(1.0, 1.0)]);
     let vb = mass_properties(&bot, Tol::witness()).unwrap().volume;
     let vt = mass_properties(&top, Tol::witness()).unwrap().volume;
-    match topo::union_with(&bot, &top, &flush_rest_decls(&bot, &top, 1.0), Tol::witness()) {
+    match topo::union_with(
+        &bot,
+        &top,
+        &flush_rest_decls(&bot, &top, 1.0),
+        Tol::witness(),
+    ) {
         Ok(out) => {
             // A legitimate union of this mate exists (the top caps one
             // hole); if the kernel produces it, it must be exact.
@@ -555,7 +579,10 @@ fn probe_rim_wall_pair_undeclared_refuses_typed() {
             let v = mass_properties(&body, Tol::witness()).unwrap().volume;
             let va = mass_properties(&a, Tol::witness()).unwrap().volume;
             let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-            eprintln!("UNDECLARED WALL PAIR UNIONED: v = {v:.17e} vs {:.17e}", va + vb);
+            eprintln!(
+                "UNDECLARED WALL PAIR UNIONED: v = {v:.17e} vs {:.17e}",
+                va + vb
+            );
             panic!("the undeclared wall-pair incidence must keep a typed refusal (C8)");
         }
         Err(err) => {
