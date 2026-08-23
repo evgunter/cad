@@ -586,3 +586,22 @@ network clone timeouts — hooks + origin repointed by hand).
 ARMS-2's PR #962 opened meanwhile, green at a drawn
 (interval, 1e-12); its report pending, review (ordinal 70) queues
 on it. DEMO review (68) still running.
+
+## ARMS-2 report in; ordinal-70 review out (2026-08-23)
+
+The coaxial arms landed as ONE closed-form family: the ball's
+centre confined to a symmetry sheet, three sheet-crossing closed
+forms (line×line, line×circle, circle×circle), eight per-pair
+reductions — no arm mints a cone, the C8 correction landed as
+flagged. The material-side lesson institutionalized (defining-
+equation tests over all 8 arms × 4 sense combinations; the fold
+checked live). #319's coaxial half CLOSES on the bud's actual
+mouth rim; klein walls 1/2 re-pin to RadiusHeadroom (the arm now
+exists; the bulb's RF meets predicate 1 — sharpening the
+meridian-authoring reading). One new metered predicate
+(fillet3_support_coaxiality) and one new tangent-certificate cone
+row. Deviations scheduled incl. #961. **Both hosted draws were
+interval-lane — the f64 lane never gated this PR**; the ordinal-70
+reviewer's charter makes the default-features matrix its explicit
+unique-signal run. Frozen fe20d633, lane verbs-arms2-r1
+(local-cloned; network still flaky).
