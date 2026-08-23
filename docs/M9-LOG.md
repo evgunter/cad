@@ -297,3 +297,26 @@ flush closure, the F1/Door-2 sibling) — both M9-2-machinery
 design work, neither blocking M9-3 (the join lane is the boolean
 lane, where reduction refines). Board: PR-A dispatching on this
 seam's merge.
+
+## Census-closure design conversation OPENED (#965, 2026-08-23)
+
+The two inherited census structural-identity gaps went through
+their substrate (dedicated read-only lane, anchors folded into the
+doc) and out as ONE design conversation:
+docs/CENSUS-REST-CLOSURE-DESIGN.md on PR #965, WAITING for Evan.
+The substrate's headline: #943's closure is essentially FORCED
+(two visible holes in the already-derived face-rung pattern —
+`sweep_vertex_edge` is the only sweep without `declared`;
+`ee_bound_backed` dead-ends on interior bounds — proposed U-R1,
+dominant argument, S unit, census.rs only), while the #591 Door-2
+gap is a genuine C3/C4 REVISION (both fixes floated on that
+thread proven structurally insufficient; the refusal is the
+ratified docs' own consequence — C4 demands chart-space overlap
+where C3 ratifies chart-space exactness unachievable at rung 3).
+Proposed U-R2: a world-carrier Door 2 for declared PLANAR pairs
+(F5 contfp exactness on the shared plane), curved cross-instance
+stays refused as named residue. Four questions on the PR. Both
+follow-on units are file-disjoint from M9-3 and off its critical
+path; gap 1 may dispatch on U-R1's pushback window, gap 2 only on
+ratification. Board: M9-3 PR-A implementing (fable, m9/3-wall-
+door); M9-5 substrate running; #965 with Evan.
