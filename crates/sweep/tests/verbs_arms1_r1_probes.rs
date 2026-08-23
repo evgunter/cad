@@ -15,12 +15,11 @@
 //!   whose sphere wall already carries a band — red if the wall-shape
 //!   gates or the `h = depth + r` arm only hold at the equator, or if
 //!   a filleted body stops being fillet-able.
-//! - **The one-call pair on a shared wall REFUSES today**: both zone
-//!   rims in one request die typed on the shared sphere seam (each
-//!   rim's plan resolves against the SOURCE body; the first band's
-//!   surgery consumes the seam edge the second plan still names). This
-//!   row pins the behavior so it is at least deliberate-looking; the
-//!   finding is the reviewer's, reported in the review.
+//! - **The one-call pair on a shared wall REFUSES**: both zone rims in
+//!   one request refuse at the UPFRONT shared-support gate, naming the
+//!   sharing and the sequential-call recourse — red if it builds, or if
+//!   it goes back to dying mid-carve on a stale seam key (the
+//!   reviewer's finding; AMENDED in the fix pass to pin the fix).
 //! - **The unbored hemisphere refuses typed**: a profile touching the
 //!   axis mints half-walls (two seam azimuths), so its equator is a
 //!   two-arc chain over two half-disc supports — outside the annulus
@@ -40,11 +39,12 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Band, Point2, Tol};
+use profile::ProfileVertex;
+use sweep::Revolution;
 use sweep::fillet::FilletError;
 use sweep::fillet::build::fillet_edges;
-use sweep::{Revolution, RevolveAxis, revolve};
+use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -60,14 +60,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
-        .validate(tol())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&profile, axis, rev, tol()).unwrap().body
+    revolved_about_y(verts, rev, tol())
 }
 
 /// The reviewer's bored dome: unit sphere zone from the equator up to
@@ -278,33 +271,42 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
     );
 }
 
-/// **Both zone rims in ONE call refuse today, on the shared seam.**
-/// Each rim's plan is resolved against the SOURCE body; the first
-/// band's surgery splits the shared sphere wall's seam and hands the
-/// rim-side piece to its slit, so the second plan's stored seam key no
-/// longer spans its trimline crossing and `rim_phase_annulus` refuses
-/// `UnsupportedChain` ("a trimline does not cross its support's seam
-/// meridian inside its span") — a message about geometry, raised by a
-/// staleness the geometry does not have. Pinned as observed behavior;
-/// the review reports the finding (a valid one-call request the F-e
-/// composability contract would be expected to cover, refused with a
-/// misattributed detail, and order-dependent in principle).
+/// **Both zone rims in ONE call refuse, on the shared support.**
+///
+/// AMENDED (fix pass, disclosed): the reviewer wrote this row against
+/// the observed behaviour — each rim's plan resolves against the SOURCE
+/// body, the first band's surgery splits the shared sphere wall's seam,
+/// and the second plan's stale seam key made `rim_phase_annulus` refuse
+/// `UnsupportedChain` with a detail about geometry ("a trimline does not
+/// cross its support's seam meridian inside its span") that the geometry
+/// did not have, order-dependently. The finding is upheld and the fix is
+/// an UPFRONT gate: `shared_support_gate` refuses before any mutation,
+/// naming the sharing and the true recourse. The row now pins the honest
+/// refusal and the recourse's own correctness is pinned by
+/// `both_zone_rims_fillet_sequentially_and_match_the_closed_form`.
+///
+/// Red if the one-call pair starts building (re-examine soundness), or
+/// if it goes back to dying on a stale key mid-carve.
 #[test]
-fn both_zone_rims_in_one_call_refuse_on_the_shared_seam_today() {
+fn both_zone_rims_in_one_call_refuse_on_the_shared_support() {
     let body = zone(0.6, Revolution::Full);
     let rims = [rim_at(&body, -0.5), rim_at(&body, 1.0)];
     match fillet_edges(&body, &rims, 0.08, band(), tol()) {
         Err(FilletError::UnsupportedChain { detail, .. }) => {
             assert!(
-                detail.contains("seam meridian"),
-                "the one-call pair dies on the shared seam, got {detail:?}"
+                detail.contains("share a support face") && detail.contains("SEQUENTIAL"),
+                "the gate names the sharing and the recourse, got {detail:?}"
+            );
+            assert!(
+                !detail.contains("trimline does not cross"),
+                "the refusal must not be the stale-key one, got {detail:?}"
             );
         }
         Ok(_) => panic!(
-            "one-call shared-wall pair BUILT — the pinned staleness refusal is gone; \
-             re-examine whether the build is sound and update the review"
+            "one-call shared-support pair BUILT — the gate is gone; re-examine whether \
+             the build is sound and update the register"
         ),
-        Err(other) => panic!("expected the shared-seam refusal, got {other:?}"),
+        Err(other) => panic!("expected the shared-support refusal, got {other:?}"),
     }
 }
 

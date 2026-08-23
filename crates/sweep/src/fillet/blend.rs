@@ -202,9 +202,22 @@ pub fn plane_plane_blend<T: Real>(
 ///   hole (`s > a` — what makes it eat into the flat face rather than
 ///   into the pocket), a convex sphere's shrinks the plane's boundary.
 ///
-/// A configuration with no ring torus (`s ≤ r`) is NOT gated here: it
-/// yields a poisoned spine curvature, which predicate 3 escalates with
-/// an `Invalid` margin — refused before the surface is ever used.
+/// **Neither degenerate case is gated here**, and they are two
+/// different cases, not one:
+///
+/// - `s² < 0` — no spine circle exists at all (the offsets do not
+///   meet). `s` is then POISON, `spine_curvature` is poison, and
+///   predicate 3 escalates with an `Invalid` margin.
+/// - `0 < s ≤ r` — a spine circle exists but the tube swallows it: `s`
+///   and `1/s` are ordinary finite numbers, and predicate 3 refuses
+///   `SpineIrregular` on the FINITE curvature, not on poison.
+///
+/// Both are refused before the surface is ever used, and at the verb
+/// level predicate 2's conservative consumption screen usually fires
+/// first on the setbacks such a radius implies (the battery's own
+/// stated ordering) — either refusal is honest and typed. Total
+/// arithmetic in, classification at the caller: the crate's standing
+/// posture.
 #[must_use]
 pub fn plane_sphere_blend<T: Real>(
     origin: Point3<T>,
@@ -224,10 +237,10 @@ pub fn plane_sphere_blend<T: Real>(
         sphere_r + radius
     };
     let s2 = offset.powi(2) - h.powi(2);
-    // No gate here: a configuration with no spine circle yields a
-    // POISONED `s`, which flows into `spine_curvature` and escalates
-    // at predicate 3 with an `Invalid` margin. Total arithmetic in,
-    // classification at the caller — the crate's standing posture.
+    // No gate here (see the two degenerate cases in the doc above):
+    // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
+    // yields a finite curvature predicate 3 refuses `SpineIrregular`
+    // on. Total arithmetic in, classification at the caller.
     let s = s2.sqrt();
     let spine_center = sphere_c - n * h;
     let u_ref = perp_unit(plane_u_ref, n);

@@ -22,6 +22,9 @@
 //! - **The differential pair**: the SAME profile revolved partially
 //!   leaves the rim an open plane–sphere arc, which refuses through its
 //!   own gate — red if the annulus path ever widens to open chains.
+//! - **The naming totality** — every output entity of the annulus band
+//!   is a recorded mint or a survivor, and every retirement names a
+//!   SOURCE key (the conditional dead-edge push's only evidence).
 //! - **The wrap-around G1**: a self-closed link registers no junction,
 //!   so predicate 4 reaches a one-edge rim only through the explicit
 //!   wrap-around site — vacuous on a circle, live on a kink.
@@ -34,13 +37,13 @@
 use core::f64::consts::FRAC_1_SQRT_2;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Band, Tol};
+use profile::ProfileVertex;
+use sweep::Revolution;
 use sweep::fillet::FilletError;
 use sweep::fillet::battery::chain_g1;
 use sweep::fillet::build::fillet_edges;
-use sweep::{Revolution, RevolveAxis, revolve};
+use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -51,34 +54,16 @@ fn band() -> Band {
     Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The dome's profile, verbatim from the R1 probe suite: a sphere zone
 /// from the equator up 45°, on a flat base annulus, bored on-axis so the
 /// profile stays annular and the full revolve mints CLOSED latitude
 /// rims.
 fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
-    let a45 = FRAC_1_SQRT_2;
-    let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
-    vec![
-        ProfileVertex::new(p2(0.5 * r, 0.0), 0.0),
-        ProfileVertex::new(p2(r, 0.0), bulge),
-        ProfileVertex::new(p2(r * a45, r * a45), 0.0),
-        ProfileVertex::new(p2(0.5 * r, r * a45), 0.0),
-    ]
+    sweep::test_support::dome_profile(r)
 }
 
 fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
-        .validate(tol())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&profile, axis, rev, tol()).unwrap().body
+    revolved_about_y(verts, rev, tol())
 }
 
 fn dome(r: f64) -> Body<f64> {
@@ -87,35 +72,7 @@ fn dome(r: f64) -> Body<f64> {
 
 /// The closed plane–sphere rim of radius `rim_r` (to 1e-6).
 fn closed_rim_of_radius(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .map(|(k, _)| k)
-        .filter(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let start = body.get_half_edge(e.he_plus).unwrap().start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return false;
-            }
-            let surf = |he| {
-                let l = body.get_half_edge(he).unwrap().parent_loop;
-                let f = body.get_loop(l).unwrap().face;
-                body.get_surface(body.get_face(f).unwrap().surface)
-                    .unwrap()
-                    .clone()
-            };
-            let (a, b) = (surf(e.he_plus), surf(e.he_minus));
-            let plane_sphere = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            if !(plane_sphere(&a, &b) || plane_sphere(&b, &a)) {
-                return false;
-            }
-            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*c.carrier(), geom::Curve3::Circle { radius, .. } if (radius - rim_r).abs() < 1e-6)
-        })
-        .collect();
-    assert_eq!(hits.len(), 1, "exactly one closed rim of radius {rim_r}");
-    hits[0]
+    sweep::test_support::closed_plane_sphere_rim(body, rim_r)
 }
 
 fn census(body: &Body<f64>) -> (usize, usize, usize) {
@@ -170,6 +127,149 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         (major_radius - spine).abs() < 1e-12,
         "the spine radius is {spine}, got {major_radius}"
     );
+}
+
+/// **Every output entity of an annulus band is a recorded mint or a
+/// survivor, both directions.** The ladder rim's totality identity has
+/// had this row since M6-5; the annulus mints a DIFFERENT record block
+/// (a rim foot from a seam split rather than a strut `mev`, two
+/// remnants rather than one, and a dead-edge push that is CONDITIONAL
+/// on which child of the plane-seam split carried the source key), and
+/// none of it had red-when-broken evidence.
+///
+/// Red if a mint goes unrecorded, if a record names a key that already
+/// existed, if a source entity is destroyed without a retirement row,
+/// or if the conditional push starts retiring a key the source never
+/// had.
+#[test]
+fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
+    let source = dome(1.0);
+    let rim = closed_rim_of_radius(&source, 1.0);
+    let out = fillet_edges(&source, &[rim], 0.05, band(), tol()).unwrap();
+    let rec = out.naming.as_ref().expect("the surgery keeps its records");
+
+    // The annulus's own shape, pinned: one band over one source edge,
+    // one foot, one seam split, two remnants (one per support), two
+    // trims (one per side), one slit.
+    assert_eq!(rec.bands.len(), 1);
+    assert_eq!(
+        rec.bands[0].1,
+        vec![rim],
+        "the band names its one source edge"
+    );
+    assert_eq!(rec.rim_feet.len(), 1);
+    assert_eq!(rec.meridian_splits.len(), 1);
+    assert_eq!(rec.meridian_remnants.len(), 2, "one remnant per support");
+    assert_eq!(rec.rim_trims.len(), 2, "one trim circle per side");
+    assert_eq!(rec.slits.len(), 1, "one slit per band");
+    assert!(
+        rec.blends.is_empty() && rec.corners.is_empty() && rec.trims.is_empty(),
+        "a lone closed rim fills no open-chain record"
+    );
+
+    let mut minted_f: Vec<_> = rec.bands.iter().map(|(f, _)| *f).collect();
+    let mut minted_e: Vec<_> = rec
+        .rim_trims
+        .iter()
+        .map(|(e, _, _)| *e)
+        .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
+        .chain(rec.slits.iter().map(|(e, _)| *e))
+        .collect();
+    let mut minted_v: Vec<_> = rec
+        .rim_feet
+        .iter()
+        .map(|(v, _)| *v)
+        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .collect();
+    minted_e.sort_unstable();
+    minted_e.dedup();
+    minted_v.sort_unstable();
+    minted_v.dedup();
+    minted_f.sort_unstable();
+    minted_f.dedup();
+
+    // No mint is a survivor — except the two record kinds that are
+    // documented to name a SURVIVING fragment (a split's remaining
+    // piece keeps the parent's key when the parent is that piece).
+    for f in &minted_f {
+        assert!(source.get_face(*f).is_none(), "a minted face reused a key");
+    }
+    let fragments: Vec<EdgeKey> = rec
+        .meridian_remnants
+        .iter()
+        .chain(rec.slits.iter())
+        .map(|(e, _)| *e)
+        .collect();
+    for e in &minted_e {
+        if !fragments.contains(e) {
+            assert!(source.get_edge(*e).is_none(), "a minted edge reused a key");
+        }
+    }
+    for v in &minted_v {
+        assert!(
+            source.get_vertex(*v).is_none(),
+            "a minted vertex reused a key"
+        );
+    }
+
+    // output ⊆ source ⊎ minted.
+    for (f, _) in out.body.faces() {
+        assert!(
+            minted_f.contains(&f) || source.get_face(f).is_some(),
+            "an output face is neither minted nor a survivor"
+        );
+    }
+    for (e, _) in out.body.edges() {
+        assert!(
+            minted_e.contains(&e) || source.get_edge(e).is_some(),
+            "an output edge is neither minted nor a survivor"
+        );
+    }
+    for (v, _) in out.body.vertices() {
+        assert!(
+            minted_v.contains(&v) || source.get_vertex(v).is_some(),
+            "an output vertex is neither minted nor a survivor"
+        );
+    }
+
+    // (source − retired) ⊆ output, and every retirement names a SOURCE
+    // key — which is exactly what the conditional dead-edge push has to
+    // get right.
+    for e in &rec.dead.edges {
+        assert!(
+            source.get_edge(*e).is_some(),
+            "a retirement names a key the source never had"
+        );
+        assert!(out.body.get_edge(*e).is_none(), "a retired edge survived");
+    }
+    for v in &rec.dead.vertices {
+        assert!(
+            source.get_vertex(*v).is_some(),
+            "a retirement names a non-source vertex"
+        );
+        assert!(
+            out.body.get_vertex(*v).is_none(),
+            "a retired vertex survived"
+        );
+    }
+    for (e, _) in source.edges() {
+        assert!(
+            rec.dead.edges.contains(&e) || out.body.get_edge(e).is_some(),
+            "a source edge vanished without a retirement record"
+        );
+    }
+    for (v, _) in source.vertices() {
+        assert!(
+            rec.dead.vertices.contains(&v) || out.body.get_vertex(v).is_some(),
+            "a source vertex vanished without a retirement record"
+        );
+    }
+    for (f, _) in source.faces() {
+        assert!(
+            out.body.get_face(f).is_some(),
+            "a source face vanished; supports shrink, they do not die"
+        );
+    }
 }
 
 /// **The wrap-around G1 site.** A self-closed link registers no

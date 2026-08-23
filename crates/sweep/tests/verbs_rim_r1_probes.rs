@@ -36,14 +36,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Band, Point2, Tol};
+use profile::ProfileVertex;
+use sweep::Revolution;
 use sweep::fillet::battery::{FilletRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{ChainClosure, Convexity, FilletError};
-use sweep::test_support::cube;
-use sweep::{Revolution, RevolveAxis, revolve};
+use sweep::test_support::{cube, revolved_about_y};
 use test_utils::fuzz;
 use topo::{Body, EdgeKey};
 
@@ -61,14 +60,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 /// Revolve a closed sketch loop about the sketch y-axis.
 fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
-        .validate(tol())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&profile, axis, rev, tol()).unwrap().body
+    revolved_about_y(verts, rev, tol())
 }
 
 /// The surface kind on each side of an edge, plus whether the edge is
@@ -138,17 +130,7 @@ fn neck_flare(a: f64, rev: Revolution<f64>) -> Body<f64> {
 /// `r`, and the battery PASSES it (Convex) — the fixture that reads
 /// `Link::arm_len` back out of a verdict.
 fn dome(r: f64) -> Body<f64> {
-    let a45 = core::f64::consts::FRAC_1_SQRT_2;
-    let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
-    revolved(
-        vec![
-            ProfileVertex::new(p2(0.5 * r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge),
-            ProfileVertex::new(p2(r * a45, r * a45), 0.0),
-            ProfileVertex::new(p2(0.5 * r, r * a45), 0.0),
-        ],
-        Revolution::Full,
-    )
+    sweep::test_support::dome(r, tol())
 }
 
 /// A spherical boss of radius `r` rising out of a plate's top face —
@@ -173,30 +155,12 @@ fn boss(r: f64) -> Body<f64> {
     )
 }
 
-fn is_plane_sphere(a: &Surface<f64>, b: &Surface<f64>) -> bool {
-    matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
-}
-
 /// The closed plane–sphere rim whose circle carrier has radius
 /// `rim_r` (to 1e-6) — the dome ring carries TWO closed plane–sphere
 /// rims (equator and top edge), so selection is by the analytically
 /// known radius, not by uniqueness.
 fn closed_rim_of_radius(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = find_edges(body, true, is_plane_sphere)
-        .into_iter()
-        .filter(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*c.carrier(), geom::Curve3::Circle { radius, .. } if (radius - rim_r).abs() < 1e-6)
-        })
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "exactly one closed plane–sphere rim of radius {rim_r}; {}",
-        fuzz::replay()
-    );
-    hits[0]
+    sweep::test_support::closed_plane_sphere_rim(body, rim_r)
 }
 
 fn is_cone_cylinder(a: &Surface<f64>, b: &Surface<f64>) -> bool {

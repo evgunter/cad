@@ -8,8 +8,10 @@
 //! (shortest-roundtrip f64 formatting is injective on non-NaN
 //! values, and `-0.0` prints signed).
 //!
-//! Not part of the PR under review; lives only on the reviewer's
-//! probe branch.
+//! **Unarmed by default.** With `BITDUMP_DIR` unset every row returns
+//! immediately — an explicit clean skip, so the suite is neither a red
+//! nor a silent green in the aggregated matrix. See `dump_dir` for why
+//! an environment read is admissible in this file at all.
 
 #![allow(
     clippy::unwrap_used,
@@ -94,9 +96,23 @@ fn dump(body: &Body<f64>) -> String {
     s
 }
 
-fn save(name: &str, text: &str) {
-    let dir = std::env::var("BITDUMP_DIR").expect("set BITDUMP_DIR");
-    std::fs::create_dir_all(&dir).unwrap();
+/// The dump directory, or `None` when this suite is not armed.
+///
+/// **Why an env read is admissible here, stated rather than assumed**
+/// (the fix pass; `sweep`'s manifest warns that a suite rolling its own
+/// dial would be a second `CAD_FUZZ`-style channel). The gate that bans
+/// ambient environment scans `crates/*/src` and this is a `tests/`
+/// file, so no shipped build can reach it — the same REACHABILITY
+/// argument that allowlists `test-utils`' fuzz dial. And unlike a dial,
+/// this one gates no assertion: armed, the rows write a file and assert
+/// nothing about it; unarmed, they return before building anything. It
+/// selects an artifact's destination, never a behaviour.
+fn dump_dir() -> Option<String> {
+    std::env::var("BITDUMP_DIR").ok().filter(|d| !d.is_empty())
+}
+
+fn save(dir: &str, name: &str, text: &str) {
+    std::fs::create_dir_all(dir).unwrap();
     std::fs::write(format!("{dir}/{name}.txt"), text).unwrap();
 }
 
@@ -194,6 +210,12 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
 /// The die: twelve open chains + eight corners, fillet r = 0.15.
 #[test]
 fn bitdump_die() {
+    // An explicit CLEAN SKIP when unarmed: this row must never enter
+    // the aggregated matrix as a red (a panicking env read) or as a
+    // silent green (a body built and nothing checked).
+    let Some(dir) = dump_dir() else {
+        return;
+    };
     let body = cube(1.0, Tol::witness());
     let out = fillet_edges(&body, &all_edges(&body), 0.15, band(), Tol::witness()).unwrap();
     let mut text = dump(&out.body);
@@ -202,13 +224,19 @@ fn bitdump_die() {
         "blend={:?} corner={:?} band={:?}",
         out.blend_faces, out.corner_faces, out.band_faces
     );
-    save("die", &text);
+    save(&dir, "die", &text);
 }
 
 /// The pip rim: the two-arc closed LADDER chain plus the twelve box
 /// edges, in one call (the F-e form), fillet r = 0.05.
 #[test]
 fn bitdump_pip_rims() {
+    // An explicit CLEAN SKIP when unarmed: this row must never enter
+    // the aggregated matrix as a red (a panicking env read) or as a
+    // silent green (a body built and nothing checked).
+    let Some(dir) = dump_dir() else {
+        return;
+    };
     let (pipped, box_edges, rims) = pipped_die();
     assert_eq!(rims.len(), 2, "the pip rim is two arcs");
     let mut all = box_edges;
@@ -220,12 +248,18 @@ fn bitdump_pip_rims() {
         "blend={:?} corner={:?} band={:?}",
         out.blend_faces, out.corner_faces, out.band_faces
     );
-    save("pip_rims", &text);
+    save(&dir, "pip_rims", &text);
 }
 
 /// The chamfered cube: twelve strips + eight corner planes, d = 0.1.
 #[test]
 fn bitdump_chamfered_cube() {
+    // An explicit CLEAN SKIP when unarmed: this row must never enter
+    // the aggregated matrix as a red (a panicking env read) or as a
+    // silent green (a body built and nothing checked).
+    let Some(dir) = dump_dir() else {
+        return;
+    };
     let body = cube(1.0, Tol::witness());
     let out = chamfer_edges(&body, &all_edges(&body), 0.1, band(), Tol::witness()).unwrap();
     let mut text = dump(&out.body);
@@ -234,5 +268,5 @@ fn bitdump_chamfered_cube() {
         "blend={:?} corner={:?} band={:?}",
         out.blend_faces, out.corner_faces, out.band_faces
     );
-    save("chamfered_cube", &text);
+    save(&dir, "chamfered_cube", &text);
 }

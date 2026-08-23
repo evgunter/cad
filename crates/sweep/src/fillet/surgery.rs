@@ -27,9 +27,13 @@
 //! `kef`s and one `kev` fuse them into the octant and retire the
 //! struts and the sharp vertex.
 //!
-//! **Closed chains** (plane–sphere links, the pip rims): the chain
-//! must be a ring of its plane support and the entire boundary of its
-//! sphere support (a cap). The rim edges are replaced by a torus BAND:
+//! **Closed chains** (plane–sphere links) come in TWO shapes, which
+//! are different surgeries and not two settings of one — see
+//! [`RimShape`].
+//!
+//! The **LADDER** rim (the pip rims): the chain must be a ring of its
+//! plane support and the entire boundary of its sphere support (a
+//! cap). The rim edges are replaced by a torus BAND:
 //! struts and trim `mef`s on both supports carve the two annular
 //! strips (the plane's hole widens from the rim circle to the trim
 //! circle — the fillet eats into the FLAT face, which is what makes it
@@ -49,6 +53,17 @@
 //! structure exactly — no `atan2` reconstruction, no π-arc
 //! ambiguity.
 //!
+//! The **ANNULUS** rim (a full solid of revolution's latitude rim):
+//! ONE closed edge, so there is no consecutive pair and no ladder to
+//! walk. Both supports are revolution WALLS — a full revolve mints
+//! each profile segment as one face whose single cycle carries two
+//! closed latitude rims and a doubly-traversed seam meridian — and the
+//! band is minted as one more wall of that same shape: two seam splits
+//! (the plane's takes the strut `mev`'s place), one closed-edge `mef`
+//! per support carving its strip, one rim `kef` merging the strips,
+//! and the ladder's own closure `kev` retiring the rim vertex and
+//! fan-merging the sphere seam's remnant into the slit.
+//!
 //! # What decides, and what does not
 //!
 //! The battery already judged every margin (the C8 ordering contract —
@@ -67,8 +82,12 @@
 //!
 //! Multi-link open chains (junction carry-through), concave chains
 //! (material-adding blends), partially-requested corners (run-outs),
-//! rims that are not circle-carried rings of a plane against a
-//! sphere cap — each refuses through the frontier vocabulary
+//! closed rims that are neither a circle-carried ring of a plane
+//! against a sphere cap nor a one-edge rim between two revolution
+//! walls, and two closed rims sharing one support in ONE call (the
+//! second band's plan would name a seam the first consumed —
+//! [`shared_support_gate`], whose recourse is sequential calls) — each
+//! refuses through the frontier vocabulary
 //! ([`FilletError::UnsupportedChain`],
 //! [`FilletError::UnsupportedRunOut`],
 //! [`FilletError::UnsupportedGeometry`],
@@ -339,6 +358,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds>(
     }
     opens.sort_by_key(ConvexOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
+    shared_support_gate(&rims)?;
 
     // ---- Corners: every open-link end must be a fully-requested
     // trivalent vertex. Each end's incidence list is seeded by the link
@@ -804,6 +824,50 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     })
 }
 
+/// **One support face, one band per call.** Every plan in this module
+/// is resolved against the SOURCE body before anything is carved (the
+/// decide-first discipline), but the bands are then carved one after
+/// another into one clone. A LADDER rim's carve is confined to its own
+/// ring and the caps that ring bounds, so two of them never meet. An
+/// ANNULUS rim's carve reaches its supports' SEAM MERIDIANS, which a
+/// revolution wall has exactly one of and therefore SHARES with the
+/// wall's other latitude rim: the first band splits that seam and hands
+/// its rim-side piece to a slit, and the second band's plan — resolved
+/// against the source — still names a seam key that no longer spans its
+/// own trimline crossing.
+///
+/// So the request is refused here, before any mutation, rather than
+/// mid-carve on a stale key with a detail about geometry that is
+/// perfectly fine. The recourse is real and exact: **sequential calls
+/// compose** — filleting one rim, then the other on the result, builds
+/// both bands and matches the closed form (`verbs_arms1_r1_probes`'s
+/// sequential row). Widening this to one call needs per-rim plan
+/// refresh between carves, which is a different shape from
+/// decide-everything-first and is scheduled as its own change (#935).
+fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), FilletError> {
+    for (i, a) in rims.iter().enumerate() {
+        if !matches!(a.shape, RimShape::Annulus(_)) {
+            continue;
+        }
+        for b in rims.iter().skip(i + 1) {
+            let shares = a.plane == b.plane
+                || a.spheres.iter().any(|s| b.spheres.contains(s))
+                || b.spheres.contains(&a.plane)
+                || a.spheres.contains(&b.plane);
+            if shares {
+                return Err(unbuilt_chain(
+                    b.chain.first().edge,
+                    "two closed rims of one request share a support face, and a one-edge \
+                     rim's band consumes that face's seam meridian — fillet them in \
+                     SEQUENTIAL calls (the second on the first's result), which composes \
+                     exactly; one call is not implemented",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Resolve a ONE-LINK closed rim onto the two revolution walls it
 /// separates, with every structural precondition of the annulus band
 /// checked.
@@ -1173,6 +1237,21 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         // pairs at the arm's own setbacks; running the external-
         // separation form here would refuse every such rim on its own
         // rim edge.
+        //
+        // **This is an exactness step-down for the annulus rim, said
+        // plainly:** a ladder rim gets BOTH a sampled screen (predicate
+        // 2) and this closed-form backstop, and an annulus rim gets the
+        // sampled screen alone. What makes that hold today is that the
+        // pairs at issue are the ones the screen is exact on anyway —
+        // an annulus support's boundary is two coaxial latitude circles
+        // and one meridian seam, and `CHAIN_SAMPLES` points on a circle
+        // of a coaxial pair bound the true gap from above by a term
+        // that vanishes with the sample spacing, never from below. It
+        // stops holding the day an annulus support carries a boundary
+        // whose closest approach is BETWEEN samples — a non-coaxial
+        // ring, or a trimmed wall — which is also the day the outer
+        // sweep's own external-separation form becomes applicable
+        // again.
         let RimShape::Ladder { .. } = rim.shape else {
             continue;
         };
@@ -2391,7 +2470,14 @@ fn attach_contact<T: Decide + Bounds>(
                 len,
             )
         }
-        ContactCarrier::CornerArc { center, radius } => {
+        // ONE construction for both arc kinds, deliberately: a corner
+        // arc and a band's slit are the same short arc about a stored
+        // centre (sweep < π, so the `atan2` turn is unambiguous), and
+        // the only thing that differs is the DESCRIPTION they take
+        // below. Two byte-identical copies of the geometry would let
+        // one drift from the other with nothing to say so.
+        ContactCarrier::CornerArc { center, radius }
+        | ContactCarrier::SeamArc { center, radius } => {
             let u = (p0 - center).normalize();
             let w = (p1 - center).normalize();
             let turn = u.cross(w);
@@ -2407,21 +2493,6 @@ fn attach_contact<T: Decide + Bounds>(
             )
         }
         ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
-        ContactCarrier::SeamArc { center, radius } => {
-            let u = (p0 - center).normalize();
-            let w = (p1 - center).normalize();
-            let turn = u.cross(w);
-            (
-                Curve3::Circle {
-                    center,
-                    axis: turn.normalize(),
-                    radius,
-                    u_ref: u,
-                },
-                T::zero(),
-                turn.norm().atan2(u.dot(w)),
-            )
-        }
     };
     let description = if is_seam {
         if s1 != s2 {

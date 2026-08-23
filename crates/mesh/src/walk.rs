@@ -803,9 +803,10 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
 /// `revolve` refuses at construction (`sweep::revolve`'s profile check —
 /// the sweep's own skip lines show it) and `topo::validate` reports at
 /// rest whatever door minted it. So a `poles()`-based test would behave
-/// identically on every body this build can mint. The radial test is chosen because it is
-/// the smaller thing to state, not because a live case demands it; if
-/// horn tori ever become constructible, this line already covers them
+/// identically on every body this build can mint. The radial test is
+/// chosen because it is the smaller thing to state, not because a live
+/// case demands it; if
+/// horn tori ever become constructible, this line already covers them,
 /// and that is a bonus, not evidence. The unit row below exercises a
 /// SPHERE chart, which is the only pole case there is here.
 ///
