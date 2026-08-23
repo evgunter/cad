@@ -156,8 +156,7 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;
     let err = certify_at::<Interval>(1.0, ARC, tight_band())
-        .err()
-        .expect("the interval lane escalates at a 1e-12 band");
+        .expect_err("the interval lane escalates at a 1e-12 band");
     // AMENDED (fix pass): escalations now leave by their own door,
     // `FittedEscalated`, carrying the classifier's `Indeterminate`
     // whole — margin, band and predicate together. The probe's claim is
@@ -204,28 +203,6 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     );
 }
 
-/// The `ssi_hull_sup` bound this route certifies at the interval
-/// scalar, for an arc of `1/div` of a quarter turn — `None` when the
-/// route certifies instead.
-#[cfg(feature = "interval")]
-fn hull_sup_at_interval(div: f64) -> Option<f64> {
-    use geom_core::interval::Interval;
-    let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
-    match certify_at::<Interval>(1.0, arc, tight_band()) {
-        Ok(_) => None,
-        // AMENDED (fix pass): the escalation's own door.
-        Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
-            if cause.predicate == Some("ssi_hull_sup") =>
-        {
-            match cause.margin {
-                geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
-                other => panic!("unexpected margin shape at div={div}: {other:?}"),
-            }
-        }
-        Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
-    }
-}
-
 /// PROBE 3 (claim C3, the terminal-sliver argument): the PR and the
 /// re-scoped row both say of this escalation that "there is nothing to
 /// tighten and nothing to subdivide". `ssi_hull_sup` bounds the
@@ -244,6 +221,32 @@ fn hull_sup_at_interval(div: f64) -> Option<f64> {
 #[cfg(feature = "interval")]
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
+    // AMENDED (fix pass): this helper was a `#[cfg(feature = "interval")]`
+    // bare `fn`, which `check-interval-cfg-additive.py` rejects in
+    // `tests/` — only whole items (`mod`/`use`/`impl`/`type`) and
+    // `#[test]` rows may be gated there, so that a test name cannot
+    // mean two different things in the two builds. Nested inside its
+    // only caller, which is already a gated row, it needs no gate.
+    /// The `ssi_hull_sup` bound this route certifies at the interval
+    /// scalar, for an arc of `1/div` of a quarter turn — `None` when the
+    /// route certifies instead.
+    fn hull_sup_at_interval(div: f64) -> Option<f64> {
+        use geom_core::interval::Interval;
+        let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
+        match certify_at::<Interval>(1.0, arc, tight_band()) {
+            Ok(_) => None,
+            // AMENDED (fix pass): the escalation's own door.
+            Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
+                if cause.predicate == Some("ssi_hull_sup") =>
+            {
+                match cause.margin {
+                    geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
+                    other => panic!("unexpected margin shape at div={div}: {other:?}"),
+                }
+            }
+            Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
+        }
+    }
     let bounds: Vec<(f64, Option<f64>)> = [1.0, 2.0, 8.0, 64.0]
         .into_iter()
         .map(|d| (d, hull_sup_at_interval(d)))
@@ -286,8 +289,7 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // magnitude because it measured nothing, and shows no NaN to a
     // consumer.
     let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
-        .err()
-        .expect("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
+        .expect_err("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
     let geom_brep::PcurveCertifyError::FittedCertificate {
         what, magnitude, ..
     } = err
@@ -424,8 +426,7 @@ fn below_the_band_the_route_refuses_definitely_not_by_escalation() {
     use geom_core::interval::Interval;
     let below = Band::new(1e-13, 1e-12).unwrap();
     let err = certify_at::<Interval>(1.0, ARC, below)
-        .err()
-        .expect("the route cannot certify at a band under the hull bound");
+        .expect_err("the route cannot certify at a band under the hull bound");
     println!("below-band refusal: {err:?} / {err}");
     assert!(
         !matches!(
