@@ -32,13 +32,17 @@ matplotlib stamps exactly one:
 
     Software  Matplotlib version3.10.3, https://matplotlib.org/
 
-`strip_png_stamps.py` drops only the two WALL-CLOCK chunks (`tEXt`
-"Creation Time", `zTXt` "Description") — the three above are
-deterministic and survive the strip, so they are a stable signature of
-which renderer drew the pixels. This guard reads Author + Software.
-(Title is deterministic too, but it records the path passed at render
-time, which is a render-invocation detail, not provenance — so it is
-not asserted.)
+`strip_png_stamps.py` drops the two WALL-CLOCK chunks (`tEXt`
+"Creation Time", `zTXt` "Description") AND `Title` — Author and
+Software are deterministic and survive the strip, so they are a stable
+signature of which renderer drew the pixels. This guard reads exactly
+those two, and always did: Title records the path passed at render
+time, which is a render-invocation detail rather than provenance, so
+it was never asserted here — which is why stripping it (2026-08-22, to
+make a frame's bytes independent of where it was written) costs this
+guard nothing. A frame that still carries Title — one strip_png_stamps
+has not been run over — passes here too, since the guard asserts what
+must be PRESENT and never what must be absent.
 
 SHEETS ARE EXEMPT — AND WHY THAT IS SAFE. The two montage sheets
 (`renders/montage.png`, `renders-freecad/montage-freecad.png`) are
@@ -271,10 +275,19 @@ def _tiny_png(path, texts):
     path.write_bytes(b"".join(blob))
 
 
+# Title is kept in this fixture ON PURPOSE, though render.sh's frames no
+# longer carry it: the guard must pass on a frame that has one (a
+# straight-from-FreeCAD render, before the strip) exactly as on one that
+# does not, because it asserts presence of Author/Software and never the
+# absence of anything else. `selftest` renders the stripped case too.
 FREECAD_TEXTS = [
     ("Author", FREECAD_AUTHOR),
     ("Software", FREECAD_SOFTWARE),
     ("Title", "renders/selftest.png"),
+]
+FREECAD_TEXTS_STRIPPED = [
+    ("Author", FREECAD_AUTHOR),
+    ("Software", FREECAD_SOFTWARE),
 ]
 MATPLOTLIB_TEXTS = [
     ("Software", "Matplotlib version3.10.3, https://matplotlib.org/")
@@ -289,9 +302,11 @@ def selftest():
         d = Path(tmp) / "renders"
         d.mkdir()
         _tiny_png(d / "good_cell.png", FREECAD_TEXTS)
+        # The same cell as render.sh publishes it: Title stripped.
+        _tiny_png(d / "stripped_cell.png", FREECAD_TEXTS_STRIPPED)
         _tiny_png(d / "montage.png", MATPLOTLIB_TEXTS)
         violations, checked = check_dirs([d])
-        assert checked == 2, checked
+        assert checked == 3, checked
         assert violations == [], violations
 
         # A fallback frame in a cell path: refused, and named.

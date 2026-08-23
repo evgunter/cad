@@ -200,10 +200,12 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
 /// * **the reversed-DATA arm is RW2 probe 1's** — the blinded review
 ///   of PR #353 (`rw2_probes.rs`), which re-imported the same export
 ///   from a file whose every DATA statement is REVERSED. The reader's
-///   fixed-point discipline must not depend on entity order, and the
-///   reordered body's volume must land on the SAME BITS. It reuses
-///   the export and the native enclosure computed above rather than
-///   recomputing either;
+///   fixed-point discipline must not depend on entity order, so the
+///   reordered file must import to the SAME BODY. It reuses `text`
+///   rather than re-exporting, and closes on body identity — the
+///   re-exported bytes plus every edge's certified description —
+///   rather than on a third rational quadrature. See the arm itself
+///   for why that is a strengthening and what it measured;
 /// * **the refusal arm's structural match is review F1's positive
 ///   control's** (`review_probes_m7_3::probe_arm_b_true_arc_rim_
 ///   positive_control`, M7-3 review, adopted by merge). It is
@@ -221,10 +223,25 @@ fn arc_loft_natively_computes_its_rational_volume() {
     assert_eq!(topo::validate(&native), Ok(()), "native tier 1");
     assert_eq!(topo::validate_closed(&native), Ok(()), "native tier 2");
     let eps = geom_core::Tol::witness().get().eps;
-    // Computed ONCE: a rational quadrature is the expensive thing in
-    // this row, and the round trip below reuses this enclosure. Tier 3
-    // consumes exactly this number through its +V invariant, and the
-    // sweep suite's
+    // Computed ONCE on the native side. A rational quadrature is the
+    // expensive thing in this row and each one costs ~8.5 s (measured
+    // 2026-08-22, 4-vCPU box, CI's opt-2 env — CI's 2-vCPU runner
+    // differs), so the count is a design constraint here, not a detail.
+    //
+    // WHAT THIS ROW ACTUALLY PAYS, so the next reader does not have to
+    // re-measure it: (1) this native quadrature; (2) the at-rest gate
+    // INSIDE `import_step` below, which runs the same
+    // `topo::validate_geometric` and its +V invariant; (3) the
+    // `mass_properties` call on the imported body, which is what
+    // produces the number the bit-identity assertion needs — the gate
+    // computes the same flux but hands nothing back, so the two cannot
+    // be shared without a kernel API change; (4) the gate inside the
+    // reversed-DATA re-import. Four, not one. The FIFTH — a
+    // `mass_properties` on the reordered body — was removed on
+    // 2026-08-22 in favour of a body-identity comparison; see that arm.
+    //
+    // Tier 3 consumes exactly this number through its +V invariant, and
+    // the sweep suite's
     // `tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion`
     // pins the verdict itself — paying for it twice here would only buy
     // the same quadrature at the same ε.
@@ -305,9 +322,42 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // ---- RW2 probe 1's reversed-DATA arm (adopted). ----
             // INVARIANT: entity ORDER is not information. The reader
             // resolves references, so a file whose DATA statements are
-            // reversed states the same body and must import to the
-            // same bits. Reuses `text` and `got` — the same export,
-            // the same already-paid quadrature.
+            // reversed states the same body — and the whole body, not
+            // just one number off it.
+            //
+            // **It compares BODIES, not volumes, and that is a
+            // deliberate strengthening taken for its cost.** Until
+            // 2026-08-22 this arm closed by calling `mass_properties`
+            // on the reordered body and comparing two f64s against
+            // `got`. MEASURED (4-vCPU box, CI's opt-2 env, solo): that
+            // call was 8.4 s of this row's 42.5 s — a THIRD full
+            // rational quadrature, on top of the native one and the
+            // imported one. The arm's own doc comment said it "reuses
+            // the export and the native enclosure computed above rather
+            // than recomputing either"; the export half was true and
+            // the enclosure half was not.
+            //
+            // What replaces it is finer, not weaker. `mass_properties`
+            // is a deterministic function of the body, so equal bodies
+            // give equal volumes; the two comparisons below pin
+            // everything that function reads, at ~1 ms:
+            //
+            // * **the re-exported STEP text**, byte for byte — every
+            //   surface's control points, weights and knots, every
+            //   face's orientation, every loop, every vertex, and the
+            //   entity numbering the writer derives from the body's own
+            //   traversal. (The writer's timestamp is a fixed string,
+            //   never a wall-clock read, so this is deterministic.)
+            // * **every edge's certified description**, which the
+            //   writer does NOT emit (there are no `PCURVE` records in
+            //   our dialect) and which the face quadrature's trim
+            //   reads. Without this the comparison would have a blind
+            //   spot exactly where this body is interesting — the arc
+            //   rim's `Pcurve::IsoArc` minting.
+            //
+            // A volume comparison could only ever fail on the one f64
+            // these two disagree about; these fail on any disagreement
+            // at all, and name it.
             let reordered = reverse_data_section(&text);
             assert_ne!(reordered, text, "the DATA section really was reordered");
             let again = match import_step(&reordered, &ImportOptions::default(), Tol::witness()) {
@@ -317,25 +367,38 @@ fn arc_loft_natively_computes_its_rational_volume() {
                      order — the as-written file imported first-class, got {other:?}"
                 ),
             };
-            let back = topo::mass_properties(&again, Tol::witness())
-                .expect("reversed-DATA mass properties");
+            let rewrite = |b: &topo::Body<f64>, who: &str| {
+                step_export::step_string(b, &step_export::StepOptions::default(), Tol::witness())
+                    .unwrap_or_else(|e| panic!("re-exporting the {who} body: {e}"))
+            };
             assert_eq!(
-                back.volume.to_bits(),
-                got.volume.to_bits(),
-                "a reordered file must import to the same volume bits: {} vs {}",
-                back.volume,
-                got.volume,
+                rewrite(&again, "reversed-DATA"),
+                rewrite(&body, "as-written"),
+                "a reordered file must import to the SAME BODY, and it re-exports \
+                 differently — entity order became information somewhere in the reader"
             );
+            // Sorted, because a permutation of arena keys is not a
+            // defect: what must agree is the multiset of descriptions
+            // the body carries, and the re-export above already pins
+            // the pairing of geometry to topology.
+            let descriptions = |b: &topo::Body<f64>| {
+                let mut all: Vec<String> = b
+                    .edges()
+                    .map(|(_, e)| format!("{:?}", b.get_curve_geom(e.curve)))
+                    .collect();
+                all.sort();
+                all
+            };
             assert_eq!(
-                back.volume_pad.to_bits(),
-                got.volume_pad.to_bits(),
-                "and the same certified pad: {} vs {}",
-                back.volume_pad,
-                got.volume_pad,
+                descriptions(&again),
+                descriptions(&body),
+                "a reordered file must mint the SAME edge descriptions — this is the \
+                 half the re-export cannot see, and the arc rim's IsoArc lives in it"
             );
             println!(
-                "RW2 probe 1 (adopted): reversed-DATA reimport bit-identical, volume {}",
-                back.volume
+                "RW2 probe 1 (adopted): reversed-DATA reimport is body-identical \
+                 (re-export bytes + edge descriptions), volume {}",
+                got.volume
             );
         }
         // The fixed schedule's honest frontier, reached through the

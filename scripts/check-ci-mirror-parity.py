@@ -114,11 +114,37 @@ MIRROR_EXEMPT = {
         "it always was, so the script keeps exactly one caller; ci-local.sh "
         "says so at the row",
     ),
-    "demos/render-uv.sh": (
-        "local",
-        "the committed UV sheet drift row. Its hosted mirror was retired "
-        "2026-08-17 when render.yml's uv lane started re-baselining itself; "
-        "ci-local.sh says so at the row",
+    # (`demos/render-uv.sh` was declared local-only here until 2026-08-22.
+    # The entry described the ci.yml gate row that was retired 2026-08-17 —
+    # true of ci.yml, and false of the tree: render.yml's `uv` lane composes
+    # with that script on every run. Widening the hosted population above to
+    # every workflow file made both halves name it, which expired the
+    # confession, which is exactly what an expiring confession is for.)
+    "demos/render.sh": (
+        "hosted",
+        "the two FreeCAD-drawn montage lanes. It needs the pinned FreeCAD "
+        "AppImage, software GL and Xvfb, none of which a developer box is "
+        "asked to install; local-scripts/render-hosted.sh DISPATCHES the lane "
+        "rather than reproducing it, and render.yml's `montage` job says the "
+        "same thing at its own key",
+    ),
+    "demos/render-wild.sh": (
+        "hosted",
+        "the wild-corpus montage. Its renderer is a pinned numpy/matplotlib "
+        "venv built at run time, and the lane RE-BASELINES — commits the drawn "
+        "cells from a bot token — which is the half no developer box performs: "
+        "locally, being told about drift is the whole point. What IS mirrored "
+        "is that lane's committed output, through ci-local.sh's `render "
+        "provenance (demos)` row",
+    ),
+    "scripts/opt-level-calibrate.py": (
+        "hosted",
+        "the opt-level calibration lane. Its free arm is READ from this "
+        "repository's own hosted run history through the Actions jobs API, and "
+        "its measured arm is a number about the 2-vCPU runner class — which is "
+        "the entire question. A developer box can run neither half "
+        "meaningfully: its own ratio is the measurement this lane exists to "
+        "distrust",
     ),
 }
 
@@ -132,7 +158,14 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 # population cannot silently SHRINK, and there is nothing to derive it from. A
 # marker is a sentence someone chose to write; no file lists which sentences
 # ought to exist. Lowering it is a decision, and reads as one in a diff.
-MIRROR_MARKER_FLOOR = 38
+# LOWERED 38 -> 36, 2026-08-22, deliberately and in the same diff as the
+# deletion the sentence above asks for: the hosted `persistence` and `band 4
+# corpus` jobs were deleted (ci.yml carries the argument at the tombstone
+# where they stood) and the two local rows that cited them went with them. The
+# rows did not lose a hosted mirror — the pair went away on both sides at
+# once, which is the one shape a floor cannot distinguish from a hollowing and
+# so has to be told about.
+MIRROR_MARKER_FLOOR = 36
 
 # The clean fixture's dimension — HOW MANY mirrored rows the miniature repo
 # has. SEPARATE FROM THE FLOOR ABOVE, and it has to be: one is a claim about
@@ -670,12 +703,28 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                 f"this check tolerate the absence. {NO_TEACH}"
             )
 
-    hosted_lines = non_comment(HOSTED_HALF)
+    # THE HOSTED HALF IS EVERY WORKFLOW FILE, not just ci.yml (widened
+    # 2026-08-22). Claims 6, 8 and 9 already span the directory, for the reason
+    # each of them states: a rule that reads ONE file offers every other file
+    # as the place to put the thing it forbids. Claims 1, 2 and 5 were the last
+    # ones still reading ci.yml alone, and the hole was not hypothetical — the
+    # `watertight` job MOVED to nightly.yml that same day, and with it
+    # `scripts/check_admesh.sh` fell out of the hosted population while
+    # continuing to run hosted every night. Read as a one-file rule, the fix
+    # would have been an exemption declaring the row local-only: a sentence
+    # that is false, inside the gate whose subject is sentences being true.
+    #
+    # HOSTED_HALF stays what it is — claim 7's siting rule is specifically
+    # about ci.yml, where the tier-blind jobs live, and claim 9's placement
+    # rule reads each file's own text.
+    hosted_lines = [ln for wf in sorted(os.listdir(WORKFLOW_DIR))
+                    if wf.endswith((".yml", ".yaml"))
+                    for ln in non_comment(f"{WORKFLOW_DIR}/{wf}")]
     local_lines = non_comment(LOCAL_HALF)
     hosted = invocations(hosted_lines)
     local = invocations(local_lines)
     if not hosted or not local:
-        raise Bail(f"{HOSTED_HALF if not hosted else LOCAL_HALF} names no scripts/ or demos/ path at "
+        raise Bail(f"{WORKFLOW_DIR + '/*' if not hosted else LOCAL_HALF} names no scripts/ or demos/ path at "
                    "all. Every claim below is a comparison between two populations, and a comparison "
                    f"against an empty one passes for the wrong reason." + teach("`SCRIPT_RE`"))
 
@@ -700,11 +749,13 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                     f'The exemption now describes the opposite of the tree — re-read the reason ("{reason}") '
                     "and fix whichever side moved")
             continue
-        other = LOCAL_HALF if in_h else HOSTED_HALF
-        why = ("A check that runs only on a developer's machine gates nothing on merge"
-               if side == "local" else
-               "a row added to one side is invisible on the other until someone reads for it")
-        err(f"{HOSTED_HALF if in_h else LOCAL_HALF} invokes {path} and {other} does not. Every check "
+        if in_h:
+            names, blind = f"a workflow in {WORKFLOW_DIR}/", f"{LOCAL_HALF} does not"
+            why = "a row added to one side is invisible on the other until someone reads for it"
+        else:
+            names, blind = LOCAL_HALF, f"no workflow in {WORKFLOW_DIR}/ does"
+            why = "A check that runs only on a developer's machine gates nothing on merge"
+        err(f"{names} invokes {path} and {blind}. Every check "
             f"outside scripts/gates/ is named by hand in both halves, so {why} — mirror it, or declare it "
             "in MIRROR_EXEMPT with the reason it is one-sided")
 
@@ -1058,6 +1109,13 @@ def plant_clean(t: str) -> None:
         fh.write("  archive:\n    steps:\n      - uses: actions/checkout@v4\n")
         fh.write("      - name: prune\n        run: rm -rf local-scripts .claude\n")
         fh.write("      - name: archived\n        run: echo hi\n")
+        # EVERY hosted-only exemption, DERIVED, for the same reason the
+        # local-only ones are written into the local half below: the orphan
+        # check requires each MIRROR_EXEMPT path to be named by the side it is
+        # exempted into. They ride the confessed job because a hosted-only row
+        # is exactly a row with no local half.
+        for i, path in enumerate(_exempt_side("hosted")):
+            fh.write(f"      - name: hosted only {i}\n        run: {path}\n")
     with open(os.path.join(t, LOCAL_HALF), "w") as fh:
         fh.write("#!/usr/bin/env bash\n")
         fh.write(f"# HOSTED MIRROR: {SITING_JOB} / sited rows\n")
@@ -1071,31 +1129,33 @@ def plant_clean(t: str) -> None:
         # clean fixture that hardcodes one of them reds the whole selftest the
         # next time an entry is added — and reds it as "FAILED on a clean
         # fixture", which points at this builder rather than at the new entry.
-        for path in _local_only_exempt():
+        for path in _exempt_side("local"):
             fh.write(f"{path}\n")
         fh.write("cd tools/toolcrate && cargo test\n")
-    for path in _local_only_exempt():
+    for path in MIRROR_EXEMPT:
         os.makedirs(os.path.join(t, os.path.dirname(path)), exist_ok=True)
         open(os.path.join(t, path), "w").close()
 
 
-def _local_only_exempt() -> list[str]:
-    """MIRROR_EXEMPT paths the LOCAL half is expected to name.
+def _exempt_side(side: str) -> list[str]:
+    """MIRROR_EXEMPT paths the named half is expected to name.
 
     A `want` this does not understand is raised rather than skipped: a
     silently-dropped exemption would leave the fixture unclean in a way whose
     error message names the fixture, which is the confusion this exists to
     prevent.
     """
+    known = ("local", "hosted")
     out = []
     for path, (want, _reason) in sorted(MIRROR_EXEMPT.items()):
-        if want != "local":
+        if want not in known:
             raise Bail(f"{path}: MIRROR_EXEMPT declares want={want!r}, which the selftest's clean "
-                       "fixture does not know how to satisfy — it can only name a path into the LOCAL "
-                       "half. An exemption the fixture cannot satisfy reds the whole selftest as "
-                       '"FAILED on a clean fixture", naming the fixture instead of the entry,'
-                       + teach("`_local_only_exempt`"))
-        out.append(path)
+                       f"fixture does not know how to satisfy — it can name a path into {known}, and "
+                       "nowhere else. An exemption the fixture cannot satisfy reds the whole selftest "
+                       'as "FAILED on a clean fixture", naming the fixture instead of the entry,'
+                       + teach("`_exempt_side`"))
+        if want == side:
+            out.append(path)
     return out
 
 
@@ -1209,11 +1269,21 @@ def selftest() -> None:
     def unknown_step_key(t): _append(HOSTED_HALF, "  odd:\n    steps:\n      - runn: echo hi\n")(t)
     def tabbed(t):           _append(HOSTED_HALF, "  tabbed:\n\tsteps:\n")(t)
     def bad_func_spelling(t): _append(LOCAL_HALF, "weird() (\n  echo hi\n)\n")(t)
+    # BOTH DERIVED from MIRROR_EXEMPT rather than naming an entry. The pair
+    # used to hardcode `demos/render-uv.sh`, and when that entry expired for
+    # real (2026-08-22, the hosted population widening to every workflow file)
+    # these two cases went red against a clean fixture — reporting the fixture
+    # where the finding was the entry. An exemption's own list is the only
+    # honest source for "an exemption".
+    _one_local = _exempt_side("local")[0]
+    _one_hosted = _exempt_side("hosted")[0]
     def exemption_expired(t):
-        _append(HOSTED_HALF, "      - name: uv\n        run: demos/render-uv.sh\n")(t)
+        _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
+    def exemption_expired_hosted(t):
+        _append(LOCAL_HALF, f"{_one_hosted}\n")(t)
     def exemption_orphaned(t):
-        _sub(t, LOCAL_HALF, "demos/render-uv.sh\n", "")
-        os.remove(os.path.join(t, "demos/render-uv.sh"))
+        _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
+        os.remove(os.path.join(t, _one_local))
     def marker_wrong_job(t):   _sub(t, LOCAL_HALF, "# HOSTED MIRROR: discipline / mirrored step 0", "# HOSTED MIRROR: k-lint / mirrored step 0")
     def marker_step_renamed(t): _sub(t, HOSTED_HALF, "- name: mirrored step 0", "- name: mirrored step zero")
     def markers_deleted(t):    _sub(t, LOCAL_HALF, "# HOSTED MIRROR: ", "# was: ")
@@ -1245,11 +1315,11 @@ def selftest() -> None:
                      "      - name: archived\n        run: echo hi\n")
 
     def exemption_inverted(t):
-        _sub(t, LOCAL_HALF, "demos/render-uv.sh\n", "")
-        _append(HOSTED_HALF, "      - name: uv\n        run: demos/render-uv.sh\n")(t)
+        _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
+        _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
 
     _case("and local-scripts/ci-local.sh does not", hosted_only)
-    _case("and .github/workflows/ci.yml does not", local_only)
+    _case("and no workflow in .github/workflows/ does", local_only)
     _case("is invoked by the hosted half only", gate_mode_one_side)
     _case("and no such file exists", ghost_path)
     _case("NEITHER half names", orphan)
@@ -1270,6 +1340,10 @@ def selftest() -> None:
     _case("a TAB character", tabbed)
     _case("looks like a shell function definition", bad_func_spelling)
     _case("BOTH halves now name it", exemption_expired)
+    # The same expiry from the other side: a hosted-only exemption whose row
+    # came back locally. Symmetric because the widening above made
+    # `want=hosted` a live value rather than a hypothetical one.
+    _case("BOTH halves now name it", exemption_expired_hosted)
     _case("NEITHER half names it", exemption_orphaned)
     _case("has a step named", marker_wrong_job)
     _case("has a step named", marker_step_renamed)
