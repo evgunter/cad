@@ -1,20 +1,33 @@
 # M9-5 — the lily FULL rebuild (spec)
 
-**STATUS: SEAM D BINDING; SEAMS K1/K2 OPEN — a design
-conversation with Evan rides this PR.** The substrate (dedicated
-exploration 2026-08-23, against main @ 6cda1dd0; load-bearing
-anchors folded in below) found that M9-PLAN item 7's "walls 1 and
-7 execute their retirement texts" cannot be discharged by the join
-lane at all: **no lily wall flips from M9-3** — its binding spec
-keeps torus outside the carrier scope (wall 1's gate pin is on its
-SURVIVE list), and wall 7 is an UNDECLARED transverse subtract,
-not the declared-contact lane. Each wall needs its own kernel arm
-(K1/K2 below). Whether M9 buys those arms now, defers them
-dependency-stated, or reallocates one to the KERNEL-VERBS breadth
-row is a change to a ratified plan item — Evan's call, questions
-at the end. Nothing here dispatches before M9-3 PR-B lands (the
-kernel seams share its files; the demo cell needs its zip), so the
-conversation costs no critical-path time.
+**STATUS: RATIFIED (Evan, #966 comment 5388118595, 2026-08-23) —
+M9-5 = SEAM D ONLY.** The K-ruling, as answered: **Q1 — wall 1
+DEFERRED as a named residue**, recorded for later pickup as issue
+**#968** (the torus declared-Rest lane: gate admission, the
+carrier_eq torus rung, the torus×torus rim-tangency vocabulary);
+its probe stays, its text truthed to name #968. **Q2 — wall 7
+HANDED to the VERBS breadth program** ("write it into their
+plan"): its needs map exactly onto VERBS-PLAN Wave 2 items 6
+(VERBS-GATE, the per-face-kind gate re-scope) and 9
+(VERBS-SPHSPH, the sphere×sphere germ lane) — annotated there
+with the wall-7 demand signal at this ratification; wall 7's
+disposition is dependency-stated like wall 8's, naming those
+items. **Q3/Q4 — MOOT** (they only applied if a K-seam was
+bought; none is — the operand gates do not open in this unit and
+the klein pins are untouched). **Q5 — seam D carries #782's
+arming** (Evan asked what the stale comment is — answered on the
+PR: ci.yml's klint-row prose still says two finding-13 rows "are
+red on main today", which #782's decision has since falsified,
+and the widening-is-owed obligation it records is now due).
+**Q6 — FULL content latitude** ("go crazy — you can even change
+the geometry"): the rebuild may re-author the lily's geometry
+where the new doors give a more natural spelling; demo-purpose
+discipline still governs (real usage through public doors,
+awkwardness reported). The substrate finding that forced the
+conversation stands recorded: **no lily wall flips from M9-3**
+(dedicated exploration 2026-08-23 against main @ 6cda1dd0;
+anchors below). Dispatch waits on M9-3 PR-B (the demo cell needs
+its zip).
 
 ## Dependencies (all measured, none assumed)
 
@@ -39,13 +52,13 @@ conversation costs no critical-path time.
 
 | # | probe | refuses today | site | disposition |
 |---|-------|---------------|------|-------------|
-| 1 | lily.rs:1422 | CurvedBooleanUnsupported{Torus} | operand gate, reduce.rs:184 | K1 (OPEN — Q1/Q3) |
+| 1 | lily.rs:1422 | CurvedBooleanUnsupported{Torus} | operand gate, reduce.rs:184 | stays — NAMED RESIDUE, banked as #968 (ruled) |
 | 2 | lily.rs:1444 | CurvedBooleanUnsupported{Cone} | same gate | DEFERRED by ruling (germ-chord lane stays banked) |
 | 3 | lily.rs:1492 | ObliqueExtrusion | extrude | stays |
 | 4 | lily.rs:1508 | NotRigid{col2_unit} | transform | stays (#250 triage) |
 | 5 | lily.rs:1529 | NotRigid{det_plus_one} | transform | stays (#250 triage) |
 | 6 | lily.rs:1544 | TangentialEdge{margin==0.0} | fillet battery | stays (post-#910 genuinely the co-surface seam) |
-| 7 | lily.rs:1563 | CurvedOpUnsupported{Subtract} | ops.rs:415-427; no sphere×sphere lane (ops.rs:1560-1568) | K2 (OPEN — Q2/Q3) |
+| 7 | lily.rs:1563 | CurvedOpUnsupported{Subtract} | ops.rs:415-427; no sphere×sphere lane (ops.rs:1560-1568) | stays — dependency-stated on VERBS Wave 2 items 6+9 (ruled) |
 | 8 | lily.rs:1620 | CurvedEdgeUnsupported | reduce.rs:206 | stays — flip rides the post-M9 pcurve migration (ratified) |
 
 The wall harness (demos/tour/src/walls.rs:23-43) panics on ANY
@@ -91,7 +104,7 @@ texts VERBATIM, and every flip re-writes its probe deliberately.
    and the stale ci.yml comment (which still claims two rows red)
    is corrected by the same change.
 
-## Seam K1 — wall 1, the stem glue (OPEN pending Q1/Q3)
+## Seam K1 — wall 1, the stem glue (RULED: deferred → #968)
 
 What the flip needs, measured: torus through the operand gate
 (reduce.rs:171-198 refuses ANY torus face at :184 before sweep or
@@ -108,7 +121,7 @@ treatment, or an honest STOP clause (Q1). Blast radius: klein
 walls 3/4 pin the same gates — opening must be CONDITIONAL on
 covered declarations or those pins panic (Q3).
 
-## Seam K2 — wall 7, the tepal seam (OPEN pending Q2/Q3)
+## Seam K2 — wall 7, the tepal seam (RULED: handed to VERBS)
 
 What the flip needs, measured: per-arm relaxation of the
 non-union kind gate (ops.rs:415-427 — the lantern's cone pucker
@@ -138,17 +151,16 @@ scope at all.
 
 ## Process
 
-Dispatch AFTER M9-3 PR-B merges (hard file serialization). The
-implementer arm comes from **block M9-16** (drawn 2026-08-23,
-byte 80): slot 1 = fable is consumed by M9-3; **M9-5 takes slot 2
-= OPUS**. Difficulty pre-logged at dispatch once the K-ruling
-fixes the scope: seam D alone = M; D+K1 or D+K2 = L (task-class
-recorded per seam: D = STRUCTURAL/demo-class, K1 carries the
-carrier_eq torus rung = NUMERIC if ruled in). Demo-class units
-are orchestrator-reviewed per the plan's process section; any
-K-seam ruled in gets the standard blinded adversarial review at
-unit level, ordinal claimed from the ledger on main at review
-dispatch. Standard brief lines apply as in M9-3's spec.
+Dispatch AFTER M9-3 PR-B merges (the demo cell needs its zip;
+seam D's file overlap with the join lane is the crosslap
+behavioral pins and demos). The implementer arm comes from
+**block M9-16** (drawn 2026-08-23, byte 80; slot 1 = fable,
+consumed by M9-3; slots 2–4 all opus — slot 2 went to the census
+rest-closure unit): **M9-5 takes the next open slot at dispatch =
+OPUS**. Difficulty pre-logged: **seam D = M**, task-class
+STRUCTURAL/demo-class. Demo-class units are orchestrator-reviewed
+per the plan's process section. Standard brief lines apply as in
+M9-3's spec.
 
 ## Questions for Evan (the K-ruling)
 
