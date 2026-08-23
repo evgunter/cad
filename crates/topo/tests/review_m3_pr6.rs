@@ -327,8 +327,9 @@ fn r2_flush_stack_full_overlap() {
 /// Containment with vertices exactly ON the boundary: a diamond prism
 /// balanced on a cube's top face with its 4 base vertices resting on
 /// the top face's EDGE interiors (region containment, no interior
-/// vertex, no boundary crossing). Expect LOUD via the undeclarable
-/// VertexOnEdge lane regardless of any declarations.
+/// vertex, no boundary crossing). Expect LOUD via the VertexOnEdge
+/// lane: nothing here is declared, and that lane's only backing path
+/// is a declared face pair holding the vertex and the edge.
 #[test]
 fn r2_inscribed_diamond_vertices_on_edges() {
     let mut body = mapped_cube(|x, y, z| Point3::new(2.0 * x, 2.0 * y, 2.0 * z));
