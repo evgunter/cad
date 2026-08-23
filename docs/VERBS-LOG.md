@@ -440,3 +440,21 @@ ARMS-2 adds. **Ordinal 64 claimed** — not a third — single fable
 review at frozen f8f97d8e, lane verbs-arms1-r1, probe branch
 verbs/arms1-r1-probes. RING's PR #933 opened meanwhile (CI
 running, report pending); SSIFLAT fix pass still working.
+
+## RING report in; ordinal-65 review out (2026-08-22/23 boundary)
+
+PR #933 green at b4f5c264. Headlines: the door's evidence-typed
+contract (Probed | Carried{sign}; the door never derives
+containment — #750 fenced out by design); the WINDING INVERSION
+discovery (holes traverse forward while classify_loop keeps
+reverse=true — the seam-surgery docs never mentioned winding, and
+feeding holes through unmodified would mint every cavity wall
+inside-out); the imagined same-body zip is IMPOSSIBLE (the hole's
+revolved band is a disconnected component — landing it as an
+interior shell IS the door's job, vindicating the ratified
+architecture); its first CI draw hit (interval,1e-12) and was
+handled per the enumerated-red process. DESIGN doc-syncs called
+out for Evan in the PR. **Ordinal 65 claimed** — not a third —
+single fable review at frozen b4f5c264, lane verbs-ring-r1.
+Three reviews/fix-passes now in flight (64 ARMS-1, 65 RING,
+SSIFLAT fix pass); DEMO part 2 unlocks at RING's merge.
