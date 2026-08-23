@@ -814,7 +814,16 @@ fn curved_face_arm<T: Decide>(
             let margin = Margin::of(lo.max(-hi));
             return match decide("bool_circle_curved_clearance", margin, band) {
                 Ok(Sign::Positive) => Ok(()),
-                Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
+                // SPIKE ONLY (never merge): a zero-clearance circle ON
+                // the carrier passes silently, producing NO records —
+                // measures whether the rest lane discovers structurally.
+                Ok(Sign::Zero) => {
+                    eprintln!(
+                        "SPIKE reduce: circle edge {edge_key:?} ON curved face {face:?} — skipped, no records"
+                    );
+                    Ok(())
+                }
+                Ok(Sign::Negative) => Err(frontier()),
                 Err(diag) => Err(BooleanError::Escalated { diag }),
             };
         }
@@ -830,6 +839,15 @@ fn curved_face_arm<T: Decide>(
     let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
     let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
     match (s1, s2) {
+        // SPIKE ONLY (never merge): BOTH endpoints on the curved
+        // surface (a seam line ON the shared carrier) passes silently,
+        // producing no records — same measurement as the circle arm.
+        (Sign::Zero, Sign::Zero) => {
+            eprintln!(
+                "SPIKE reduce: line edge {edge_key:?} ON curved face {face:?} — skipped, no records"
+            );
+            Ok(())
+        }
         // A vertex ON the curved surface: the v-on-curved-face door.
         (Sign::Zero, _) | (_, Sign::Zero) => Err(frontier()),
         // A definite surface crossing: the pierce door.

@@ -1548,6 +1548,9 @@ fn validate_declarations<T: Decide>(
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         match body.get_surface(face.surface) {
             Some(geom::Surface::Plane { .. }) => Ok(()),
+            // SPIKE ONLY (never merge): step past the front door to
+            // observe where the pipeline stops next.
+            Some(geom::Surface::Cylinder { .. }) => Ok(()),
             Some(_) => Err(bad(operand, "declared face is not a plane")),
             None => Err(bad(operand, "declared face lost its surface")),
         }
