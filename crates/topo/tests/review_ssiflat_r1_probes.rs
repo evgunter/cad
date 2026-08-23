@@ -251,12 +251,29 @@ mod interval_lane {
     #[test]
     fn an_interval_escalation_is_legible_through_the_consumer_display_chain() {
         let outcome = drive_fitted_door::<Interval>();
-        if Tol::witness().eps() >= HULL_SUP_AT_INTERVAL {
+        let eps = Tol::witness().eps();
+        if eps >= HULL_SUP_AT_INTERVAL {
             // DEFINITE arm: the door certifies; nothing to read.
             outcome.expect("at or above the hull bound the route certifies");
             return;
         }
-        let err = outcome.expect_err("below the hull bound the fitted door escalates");
+        // AMENDED (fix pass): the escalation regime is BOUNDED BELOW as
+        // well as above. Under one K-th of the hull bound the margin
+        // clears the escalate threshold and the door refuses
+        // DEFINITELY — and an earlier check may refuse before it (at
+        // ε = 1e-13, `pcurve_map_residual`). This probe is about the
+        // legibility of an ESCALATION's display, so it applies where an
+        // escalation is what happens; the definite regime is the
+        // re-scoped row's third arm.
+        let err = outcome.expect_err("below the hull bound the fitted door refuses");
+        if eps * Tol::witness().k() <= HULL_SUP_AT_INTERVAL {
+            assert!(
+                !matches!(err, PcurveCertifyError::FittedEscalated { .. }),
+                "below the escalate threshold the refusal must be definite, not an \
+                 escalation: {err:?}"
+            );
+            return;
+        }
         // The refusal itself, then the refusal as the tier-3 pass
         // reports it (the consumer's actual seam).
         let direct = err.to_string();
