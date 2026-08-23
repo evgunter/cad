@@ -320,3 +320,25 @@ follow-on units are file-disjoint from M9-3 and off its critical
 path; gap 1 may dispatch on U-R1's pushback window, gap 2 only on
 ratification. Board: M9-3 PR-A implementing (fable, m9/3-wall-
 door); M9-5 substrate running; #965 with Evan.
+
+## M9-5 spec OPENED (#966, 2026-08-23) — seam D binding, K-seams to Evan
+
+The M9-5 substrate came back with the milestone's second
+plan-level correction: **no lily wall flips from M9-3** — wall 1
+(torus) sits behind the operand gate outside the join lane's
+carrier scope and needs a carrier_eq torus rung plus a torus×torus
+rim-tangency disposition DEV-1 does not cover; wall 7 is an
+UNDECLARED transverse sphere×sphere subtract — curved-boolean
+breadth (the KERNEL-VERBS row), not declared contact. Plan item
+7's "walls 1 and 7 execute their retirement texts" therefore needs
+Evan: buy the kernel arms, or disposition honestly. Spec
+docs/M9-5-SPEC.md on PR #966: seam D (rebuild + two-peg cell +
+baselines, #782's arming claimed) BINDING and dispatchable after
+M9-3 PR-B (hard file serialization; block M9-16 slot 2 = opus);
+seams K1/K2 OPEN on six questions (recommendations stated:
+STOP-shape for wall 1 acceptable, wall 7 handed to the breadth
+slate, conditional gate opening). Also settled: #554 MOOT (closed
+by #910; wall 6's pin survived), the baseline pointer consumed
+(31f052d2 / re-cut 00cbdc5a), demos/README anchor drift corrected.
+Board: M9-3 PR-A implementing; #965 and #966 with Evan; nothing
+else in flight.
