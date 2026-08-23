@@ -393,3 +393,25 @@ running in parallel with M9-3 PR-B (file-disjoint; build slots
 shared). Gap-2 (world-carrier Door 2, M) serializes after gap-1's
 merge (both write census.rs). Board: PR-B implementing; gap-1
 implementing; #966 (M9-5 K-seams) the one item still with Evan.
+
+## M9-5 RATIFIED + MERGED (#966 at e47ab278, 2026-08-23) — seam D only
+
+Evan's K-ruling, same-day: wall 1 DEFERRED as named residue,
+durably banked as issue #968 (the torus declared-Rest lane — gate
+admission, carrier_eq torus rung, torus×torus rim-tangency
+vocabulary; the #965 ε-latitude noted as applicable); wall 7
+HANDED to the VERBS breadth program per "write it into their
+plan" — its needs map exactly onto VERBS-PLAN Wave 2 items 6
+(VERBS-GATE) + 9 (VERBS-SPHSPH), both pre-existing, so the plan
+got signed demand-signal annotations rather than a new unit;
+Q3/Q4 moot (no gate opens, klein pins untouched); seam D carries
+the #782 arming with the stale ci.yml "red on main today" prose
+corrected (Evan's what-is-it question answered on the PR); FULL
+content latitude for the rebuild including geometry ("go crazy").
+M9-5 is therefore seam D alone: difficulty M, STRUCTURAL/
+demo-class, orchestrator-reviewed, next open M9-16 slot (opus) at
+dispatch, which waits on M9-3 PR-B. Both design conversations
+opened today are now RATIFIED AND MERGED same-day (#965, #966).
+Board: M9-3 PR-B implementing (fable, m9/3-zip-marks); census
+gap-1 implementing (opus, m9/census-rest); M9-5 queued on PR-B;
+gap-2 queued on gap-1; nothing with Evan.
