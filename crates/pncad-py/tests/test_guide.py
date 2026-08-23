@@ -26,6 +26,12 @@ PAGES = [
     ROOT / "docs" / "GUIDE.md",
     ROOT / "docs" / "guide" / "examples.md",
     ROOT / "docs" / "guide" / "fail-loud.md",
+    # REGISTERED, not covered: `selecting.md` is the Rust half of the
+    # guide and has no ```python blocks today, so its only assertion
+    # here is that the file exists. It is listed so a Python block
+    # added to it is executed from the first commit rather than from
+    # whenever someone remembers this list.
+    ROOT / "docs" / "guide" / "selecting.md",
     ROOT / "docs" / "guide" / "north-star-audit.md",
     # The crate front door: its example is held to the same standard.
     ROOT / "crates" / "pncad-py" / "README.md",
@@ -55,6 +61,9 @@ class TestGuideBlocksExecute(unittest.TestCase):
                     code = compile(source, where, "exec")
                     # A fresh namespace per block: blocks are independent
                     # programs, never a chain that silently shares state.
+                    # The S102 marker below: running the guide's own code
+                    # blocks IS this test — the source is a committed docs
+                    # page, never input.
                     exec(code, {"__name__": "__guide__"})  # noqa: S102
                 ran += 1
         self.assertGreater(ran, 0, "the guide has no python blocks to run")

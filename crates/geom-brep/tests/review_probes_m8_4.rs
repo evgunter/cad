@@ -9,11 +9,12 @@
 //! pick's own probe point included.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{ChartWindow, Pcurve, PcurveCache};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Vec2};
-use geom_curves::Curve3;
-use geom_surfaces::{NurbsSurface, Surface};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -59,7 +60,7 @@ fn imported_wall() -> Surface<f64> {
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn window() -> ChartWindow<f64> {
@@ -88,7 +89,7 @@ fn certify_seam(u: f64, carrier: &Curve3<f64>) -> Result<(), String> {
     .map_err(|e| format!("{e:?}"))
 }
 
-fn start_column() -> geom_curves::NurbsCurve3<f64> {
+fn start_column() -> geom::NurbsCurve3<f64> {
     let Surface::Nurbs(p) = imported_wall() else {
         panic!("the imported wall is a described NURBS chart")
     };
@@ -108,7 +109,7 @@ fn probe_a_pick_point_coincidence_cannot_certify() {
     control[0].z += 1e-3;
     control[1].z -= 3e-3;
     let doctored = Curve3::Nurbs(std::sync::Arc::new(
-        geom_curves::NurbsCurve3::new(b.knots().clone(), control, b.weights().to_vec()).unwrap(),
+        geom::NurbsCurve3::new(b.knots().clone(), control, b.weights().to_vec()).unwrap(),
     ));
     // The coincidence is real: at t = 0.25 the doctored carrier sits
     // on the candidate image exactly.
@@ -134,8 +135,7 @@ fn probe_b_reparameterized_column_refuses_typed() {
     let b = start_column();
     let stretched = KnotVector::clamped(vec![0.0, 0.0, 2.0, 2.0], 1).unwrap();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(
-        geom_curves::NurbsCurve3::new(stretched, b.control().to_vec(), b.weights().to_vec())
-            .unwrap(),
+        geom::NurbsCurve3::new(stretched, b.control().to_vec(), b.weights().to_vec()).unwrap(),
     ));
     let refusal = certify_seam(0.0, &carrier).expect_err("a foreign spline space certifies?!");
     assert!(

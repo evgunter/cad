@@ -38,15 +38,17 @@
 //! `EdgeCurve::certify`'s rung-3 gate and the cache through
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
-#![allow(dead_code)]
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache};
-use geom_core::{Band, Point2, Point3, Real, Tolerance, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::Surface;
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
 
 /// The fixture's cylinder: offset from the sphere's centre so the two
@@ -102,7 +104,7 @@ fn sphere<T: Real>() -> Surface<T> {
 /// typed stand-down, never an ε literal.
 ///
 /// **Memoized per process.** The trace is the expensive part of the
-/// fixture (~4 s), and the module's own opening line already says the
+/// fixture, and the module's own opening line already says the
 /// fixture is "built once, at any scalar": every caller here restricts
 /// the SAME traced locus, so a second trace re-derives a bit-identical
 /// branch (D9) and buys nothing. INVARIANT: no row asserts that two
@@ -132,14 +134,13 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,
         extent: 2.0,
-        eps: Tolerance::get().eps,
         floor_scale: 1.0,
     };
     match ssi::cylinder_sphere_ssi(
         &cylinder::<f64>(),
         &sphere::<f64>(),
         slab,
-        Band::linear().unwrap(),
+        Band::linear(Tol::witness()).unwrap(),
     ) {
         Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
         Err(SsiError::FitSampleBudget { .. }) => None,
@@ -292,7 +293,9 @@ pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
 }
 
 /// The dual lane's refusal, executed: the same fitted image offered at
-/// a scalar with no bracket.
+/// a scalar that may not certify. Since the D1 ruling (2026-08-19) a
+/// dual DOES carry a bracket, so the refusal this exercises is the
+/// lane's own, not a missing `Bounds` impl standing in for it.
 pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
     type D = geom_core::Dual<f64>;
     let carrier = Curve3::Nurbs(Arc::new(lift3::<D>(&built.carrier)));
@@ -307,7 +310,7 @@ pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
         &cylinder::<D>(),
         Some(&sphere::<D>()),
         window,
-        Band::linear().unwrap(),
+        Band::linear(Tol::witness()).unwrap(),
     )
     .expect_err("a dual scalar has no fitted lane")
 }
@@ -319,7 +322,7 @@ fn assemble<T>(s: &Structure) -> Built<T>
 where
     T: geom_brep::PcurveFittedLane + geom_core::Bounds,
 {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let carrier = Arc::new(lift3::<T>(&s.carrier));
     let image = Arc::new(lift2::<T>(&s.image));
     let (f0, f1) = s.carrier.domain();
@@ -352,6 +355,7 @@ where
                 param_start: t0,
                 param_end: t1,
             },
+            Tol::witness(),
         )
         .expect("the rung-3 edge certifies at rest");
 

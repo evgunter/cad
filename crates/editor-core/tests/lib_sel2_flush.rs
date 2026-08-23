@@ -32,9 +32,16 @@ use editor_core::{
 use topo::{PlaneRelation, mass_properties};
 
 use fixture::{desc, insert, len};
+use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// A box extruded from a square footprint sketched at height `z0`.
@@ -68,7 +75,7 @@ fn box_at(
 /// the resting contact at z = 1.
 fn stacked() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, base) = box_at(
-        ProfileDoc::empty_derived("lib_sel2_flush"),
+        ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
         0.0,
         (0.0, 0.0),
         (1.0, 1.0),
@@ -90,7 +97,7 @@ fn stacked() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn resting_contact_is_one_same_opposite_finding() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, base, top).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 1, "{findings:?}");
     let f = &findings[0];
     assert_eq!(f.class, ContactClass::Rest);
@@ -107,7 +114,7 @@ fn resting_contact_is_one_same_opposite_finding() {
 #[test]
 fn flush_walls_are_same_oriented_findings() {
     let (doc, slab) = box_at(
-        ProfileDoc::empty_derived("lib_sel2_flush"),
+        ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
         0.0,
         (0.0, 0.0),
         (2.0, 1.0),
@@ -115,7 +122,7 @@ fn flush_walls_are_same_oriented_findings() {
     );
     let (doc, post) = box_at(doc, 0.0, (0.0, 0.0), (0.5, 1.0), 1.0);
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, slab, post).unwrap();
+    let findings = find_flush_candidates(&ev, slab, post, Tol::witness()).unwrap();
     // x = 0, y = 0, y = 1 walls, and the two z = 0 floors.
     assert_eq!(findings.len(), 4, "{findings:?}");
     for f in &findings {
@@ -133,7 +140,7 @@ fn flush_walls_are_same_oriented_findings() {
 #[test]
 fn separated_and_unevaluated_answer_empty() {
     let (doc, base) = box_at(
-        ProfileDoc::empty_derived("lib_sel2_flush"),
+        ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
         0.0,
         (0.0, 0.0),
         (1.0, 1.0),
@@ -141,11 +148,15 @@ fn separated_and_unevaluated_answer_empty() {
     );
     let (doc, far) = box_at(doc, 3.0, (2.0, 2.0), (3.0, 3.0), 1.0);
     let ev = eval(&doc);
-    assert!(find_flush_candidates(&ev, base, far).unwrap().is_empty());
+    assert!(
+        find_flush_candidates(&ev, base, far, Tol::witness())
+            .unwrap()
+            .is_empty()
+    );
     // A foreign id has no value here.
     let foreign = RecipeNodeId(999);
     assert!(
-        find_flush_candidates(&ev, base, foreign)
+        find_flush_candidates(&ev, base, foreign, Tol::witness())
             .unwrap()
             .is_empty()
     );
@@ -201,7 +212,7 @@ fn detect_declare_boolean_round_trip() {
     // The declare arm: findings (values, inspected above) → sugar →
     // Declare node → the boolean's declare input.
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, base, top).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     // Menu/detector parity: the refusal named a pair the detector
     // also reports, name for name, relation for relation — same
     // doors underneath, so they cannot disagree.
@@ -209,7 +220,7 @@ fn detect_declare_boolean_round_trip() {
         findings.contains(&menu),
         "menu payload {menu:?} not among the detector's findings {findings:?}"
     );
-    let (doc, decl) = declare_all(&doc, &findings).unwrap();
+    let (doc, decl) = declare_all(&doc, &findings, Tol::witness()).unwrap();
     let (doc, union) = insert(
         doc,
         Node::Boolean {
@@ -222,7 +233,7 @@ fn detect_declare_boolean_round_trip() {
     let ev = eval(&doc);
     match &ev.value(union).expect("declared union evaluates").payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            let m = mass_properties(body).expect("mass properties");
+            let m = mass_properties(body, Tol::witness()).expect("mass properties");
             // 1³ + 0.5² · 0.5 (dyadic, exact).
             assert_eq!(m.volume, 1.125);
         }
@@ -240,11 +251,11 @@ fn detect_declare_boolean_round_trip() {
 /// no sites of its own).
 #[test]
 fn in_band_gap_refuses_pair_in_band() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     // The band's midpoint: strictly inside (eps, k·eps) for any k > 1.
     let gap = 0.5 * (tol.eps + tol.k * tol.eps);
     let (doc, base) = box_at(
-        ProfileDoc::empty_derived("lib_sel2_flush"),
+        ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
         0.0,
         (0.0, 0.0),
         (1.0, 1.0),
@@ -252,7 +263,7 @@ fn in_band_gap_refuses_pair_in_band() {
     );
     let (doc, top) = box_at(doc, 1.0 + gap, (0.25, 0.25), (0.75, 0.75), 0.5);
     let ev = eval(&doc);
-    match find_flush_candidates(&ev, base, top) {
+    match find_flush_candidates(&ev, base, top, Tol::witness()) {
         Err(SelectRefusal::PairInBand {
             pair, predicate, ..
         }) => {
@@ -273,9 +284,9 @@ fn in_band_gap_refuses_pair_in_band() {
 /// content.
 #[test]
 fn empty_findings_refuse() {
-    let doc = ProfileDoc::empty_derived("lib_sel2_flush");
+    let doc = ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness());
     assert!(matches!(
-        declare_all(&doc, &[]),
+        declare_all(&doc, &[], Tol::witness()),
         Err(DeclareError::NoFindings)
     ));
 }
@@ -287,8 +298,8 @@ fn empty_findings_refuse() {
 fn declare_inserts_the_pair() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, base, top).unwrap();
-    let (doc, decl) = declare(&doc, &findings[0]).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
+    let (doc, decl) = declare(&doc, &findings[0], Tol::witness()).unwrap();
     match doc.node(decl) {
         Some(Node::Declare { pairs }) => {
             assert_eq!(pairs, &[(findings[0].pair.clone(), findings[0].class)])
@@ -309,11 +320,11 @@ fn declare_inserts_the_pair() {
 /// hand-mirrored (review MINOR-1).
 #[test]
 fn tilted_in_band_pairs_pin_the_verification_arm() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     for theta in [1.01 * tol.eps, 0.99 * tol.k * tol.eps] {
         let (c, s) = (theta.cos(), theta.sin());
         let (doc, base) = box_at(
-            ProfileDoc::empty_derived("lib_sel2_flush"),
+            ProfileDoc::empty_derived("lib_sel2_flush", Tol::witness()),
             0.0,
             (0.0, 0.0),
             (1.0, 1.0),
@@ -338,7 +349,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
             },
         );
         let ev = eval(&doc);
-        match find_flush_candidates(&ev, base, tilted) {
+        match find_flush_candidates(&ev, base, tilted, Tol::witness()) {
             Err(SelectRefusal::PairInBand { predicate, .. }) => {
                 assert_eq!(predicate, "bool_plane_parallel", "theta = {theta:e}");
             }

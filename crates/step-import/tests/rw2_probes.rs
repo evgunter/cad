@@ -36,16 +36,14 @@
 //! onto its own f64-rounding allowance. The lock is the REFUSAL side.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use sweep::{Section, loft_body};
 
 fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     vec![ProfileLoop::new(vec![
         v(-s, -s, 0.0),
         v(s, -s, 0.4142135623730951),
@@ -64,6 +62,7 @@ fn native_arc_loft() -> topo::Body<f64> {
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc loft builds")
     .body
@@ -83,6 +82,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
                 &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
                 &stack([0.0, 1.0, 2.0]),
                 2,
+                Tol::witness(),
             )
             .expect("lofts")
             .body,
@@ -224,10 +224,10 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
             weights.push(*cw);
         }
     }
-    let nurbs = geom_surfaces::NurbsSurface::new(ku, kv, ctrl, weights).unwrap();
-    let surface = geom_surfaces::Surface::Nurbs(std::sync::Arc::new(nurbs));
+    let nurbs = geom::NurbsSurface::new(ku, kv, ctrl, weights).unwrap();
+    let surface = geom::Surface::Nurbs(std::sync::Arc::new(nurbs));
 
-    let carrier = geom_curves::Curve3::Circle {
+    let carrier = geom::Curve3::Circle {
         center,
         axis,
         radius,
@@ -253,7 +253,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         v_min: 0.0,
         v_max: 1.0,
     };
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, window, band)
         .expect("a FOREIGN 4-sub-arc chart certifies through the same door (carrier-keyed)");
     println!(
@@ -282,8 +282,8 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
             weights2.push(if *is_tan { bad_w * (cw / w) } else { *cw });
         }
     }
-    let nurbs2 = geom_surfaces::NurbsSurface::new(ku2, kv2, ctrl2, weights2).unwrap();
-    let surface2 = geom_surfaces::Surface::Nurbs(std::sync::Arc::new(nurbs2));
+    let nurbs2 = geom::NurbsSurface::new(ku2, kv2, ctrl2, weights2).unwrap();
+    let surface2 = geom::Surface::Nurbs(std::sync::Arc::new(nurbs2));
     let mut knots_b2 = vec![0.0, 0.0];
     #[allow(clippy::cast_precision_loss)]
     for k in 1..spans {

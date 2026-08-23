@@ -11,13 +11,16 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec3};
-use geom_curves::NurbsCurve3;
 use sweep::skin::{lift_surface, make_compatible, segment_curve, skin, skin_parameters};
 
 fn ring() -> f64 {
-    Band::linear().expect("the linear band resolves").zero()
+    Band::linear(Tol::witness())
+        .expect("the linear band resolves")
+        .zero()
 }
 
 /// The arc strip of the acceptance loft (three sections, middle

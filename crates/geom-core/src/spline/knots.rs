@@ -158,26 +158,42 @@ pub struct KnotVector {
 ///
 /// Its fields are private and its only constructors are
 /// [`KnotVector::span`] (checked) and [`KnotVector::span_at`] (total),
-/// so "invalid span index" is not a representable state: evaluation
-/// needs no guard and has no poison-on-bad-index path. The window is
-/// computed once, at construction, so `span − degree` never appears at
-/// a use site and cannot underflow there.
+/// so an index invalid **for the vector that minted it** is not a
+/// representable state. That is a fact about one vector, not about the
+/// value: nothing stops the `Span` being carried to a *different*
+/// `KnotVector`, so evaluation does carry a guard and does have a
+/// poison-on-bad-index path — [`KnotVector::admits`], asked at every
+/// door. The window is computed once, at construction, so
+/// `span − degree` never appears at a use site and cannot underflow
+/// there.
 ///
-/// **Not branded to its knot vector.** A `Span` from one `KnotVector`
-/// used with another of the same degree yields an in-range but wrong
-/// window; from a **longer** one it can index past the shorter vector's
-/// arrays entirely, and since the consumers' range guards are gone that
-/// is now a panic rather than the poison D4 asks for. Every consumer
-/// today draws the span from the same vector it evaluates, one
-/// statement apart.
+/// **Not branded to its knot vector — the pairing is checked, not
+/// structural.** A `Span` is a plain value with no borrow of the
+/// vector it came from, so one drawn from a *different* `KnotVector`
+/// can be handed to any door that takes one. Every door that takes a
+/// `Span` therefore asks [`KnotVector::admits`] first and answers a
+/// refused span with poison, never with an out-of-bounds index:
+/// [`super::basis`], [`super::hull`], and the curve evaluators in
+/// `geom`. That is what keeps D9's *"the kernel never panics on any
+/// input"* true of them, and it is true of the doors that take a
+/// `Span` inside a **wrapper** too: `geom`'s `SurfaceWindow` holds two
+/// of them and is unbranded in the same way, so its three evaluators
+/// ask their own surface-level predicate — this one in both
+/// directions, plus the row-major stride, which is the part a `Span`
+/// says nothing about — before indexing anything.
 ///
-/// Making it a type-level fact wants one of two shapes, neither paid
-/// for yet: the `Span` **holding** its vector (`Span<'a>` with a
-/// `&'a KnotVector`), which lets the entry points drop their own `kv`
-/// parameter so the mismatch is unrepresentable — at the cost of a
-/// lifetime on `Span`, [`super::SpanSet`] and `SpanLocate` — or an
-/// invariant-lifetime **brand**, which keeps the values plain but needs
-/// a scoped constructor. Both are design changes, not refactors.
+/// What `admits` does **not** buy is exactness. Two vectors of equal
+/// degree and equal control count, whose index `i` is a nonempty span
+/// in both, admit each other's span `i`, and evaluation against the
+/// wrong one is then a **wrong answer rather than a refusal**. That
+/// residue is deliberate
+/// and it is the same species as the one
+/// [`super::hull::span_hull`] already leaves: its `coeffs` are related
+/// to the vector by length alone, so a same-length coefficient array
+/// from a different curve is silently wrong too. Making either
+/// structural means the `Span` (and the coefficients) carrying their
+/// vector — a borrow, or an invariant-lifetime brand — which is a
+/// design change and not paid for here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Span {
     index: usize,
@@ -276,20 +292,19 @@ impl KnotVector {
         if end_run != degree + 1 {
             return issue(KnotVectorIssue::EndNotClamped);
         }
-        // Interior multiplicity ≤ degree: scan runs strictly between the
-        // clamp runs. (The end runs are exact, so interior values differ
-        // from both end values.)
-        let mut run_start = degree + 1;
-        while run_start < len - degree - 1 {
-            let mut run_end = run_start + 1;
-            // Indexing justified: run_end ≤ len − degree − 1 < len.
-            while run_end < len - degree - 1 && knots[run_end] == knots[run_start] {
-                run_end += 1;
+        // Interior multiplicity ≤ degree: the same run scan
+        // [`KnotVector::interior_knots`] serves, one frame before the
+        // type exists — which is why it goes through [`runs_in`] rather
+        // than through the method. (The end runs are exact, so interior
+        // values differ from both end values.) Slicing justified:
+        // len ≥ 2(degree + 1) gives degree + 1 ≤ len − degree − 1, both
+        // checked above.
+        let mut index = degree + 1;
+        for (_, mult) in runs_in(&knots[degree + 1..len - degree - 1]) {
+            if mult > degree {
+                return issue(KnotVectorIssue::InteriorMultiplicityTooHigh { index });
             }
-            if run_end - run_start > degree {
-                return issue(KnotVectorIssue::InteriorMultiplicityTooHigh { index: run_start });
-            }
-            run_start = run_end;
+            index += mult;
         }
         Ok(Self { knots, degree })
     }
@@ -351,46 +366,13 @@ impl KnotVector {
     /// is what lets [`KnotVector::span_at`] build a [`Span`] with no
     /// `index − degree` subtraction to underflow and no validity check
     /// to discharge: the search starts at 0 and never leaves
-    /// `0..=span_count()`.
+    /// the span count, `len − 2·degree − 2`.
     ///
     /// Semantics are [`KnotVector::find_span`]'s, unchanged: same
-    /// comparisons in the same order against the same knots.
-    // The `!(t > …)` guard is deliberate: the negated form routes NaN
-    // to the first span (fn docs), where `t <= …` would be false for
-    // NaN and fall through into the binary search with a broken
-    // invariant.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    /// comparisons in the same order against the same knots — it is
+    /// [`span_offset_in`], the module's only span search.
     fn span_offset(&self, t: f64) -> usize {
-        let (p, last) = (self.degree, self.span_count());
-        // NaN and below-domain both fail this test → first span.
-        if !(t > self.knots[p]) {
-            return 0;
-        }
-        // Indexing justified: p + last + 1 = len − degree − 1 < len.
-        if t >= self.knots[p + last + 1] {
-            return last;
-        }
-        // Binary search over span offsets [lo, hi] maintaining
-        // knots[p + lo] ≤ t < knots[p + hi + 1]; both bounds were just
-        // established. Terminates: the window shrinks every step.
-        let (mut lo, mut hi) = (0, last);
-        while lo < hi {
-            let mid = lo + (hi - lo).div_ceil(2);
-            // Indexing justified: 0 ≤ lo < mid ≤ hi ≤ last.
-            if t < self.knots[p + mid] {
-                hi = mid - 1;
-            } else {
-                lo = mid;
-            }
-        }
-        lo
-    }
-
-    /// The number of span offsets above the first: `last_span() −
-    /// first_span()`, i.e. `len − 2·degree − 2`. Non-negative by the
-    /// construction invariant `len ≥ 2(degree + 1)`.
-    fn span_count(&self) -> usize {
-        self.knots.len() - 2 * self.degree - 2
+        span_offset_in(&self.knots, self.degree, t)
     }
 
     /// The inclusive span range overlapped by `[lo, hi]`, each end
@@ -438,6 +420,54 @@ impl KnotVector {
         })
     }
 
+    /// Whether `span` may be evaluated against **this** knot vector —
+    /// the three-way agreement every door here asks before it indexes.
+    ///
+    /// - `span.degree() == degree`. Supplies the low end,
+    ///   `index >= first_span()`, because a `Span` always satisfies
+    ///   `index >= degree` (both constructors set
+    ///   `first_control = index − degree`), and makes the basis row and
+    ///   the control window the same length.
+    /// - `span.index() <= last_span()`. `last_span() ==
+    ///   control_count() − 1`, so this puts the whole window
+    ///   `[index − degree, index]` inside the control arrays, and the
+    ///   knot reads centred on it — which reach `index + degree + 1` in
+    ///   the derivative ladder — inside `knots`. That upper bound is
+    ///   **exact**, not slack: one higher reads past the end.
+    /// - `span_is_nonempty(index)`. Not a bounds fact — the other two
+    ///   already close every index. This one is about the answer: an
+    ///   empty span's knot difference is zero, which divides in
+    ///   [`super::basis::basis_funs`] and lets
+    ///   [`super::hull::span_hull`] return a *finite* bound over a
+    ///   window this vector's basis never reads. A wrong number that
+    ///   passes `sup_norm_bound_span(..) <= eps` is worse than a panic,
+    ///   so it is refused.
+    ///
+    /// **It refuses nothing correctly paired.** Every `Span` this
+    /// vector mints satisfies all three against it: [`KnotVector::span`]
+    /// returns `None` on exactly the second and third conditions, and
+    /// [`KnotVector::span_at`] establishes them structurally (its
+    /// `debug_assert` is the teeth on the third). So `kv.admits(s)` is
+    /// true for every `s` drawn from `kv`, and the check is pure
+    /// refusal of foreign spans.
+    ///
+    /// **What it does not decide.** It relates a span to a vector's
+    /// *shape* — degree, length, and whether that one index is a real
+    /// interval — never to its knot **values**. Two vectors of equal
+    /// degree and equal control count whose index `i` is nonempty in
+    /// both admit each other's span `i`, and evaluation against the
+    /// wrong one is a **wrong answer rather than a refusal**. That
+    /// residue is deliberate: it is the same length-only relation
+    /// [`super::hull::span_hull`] holds its `coeffs` to, and closing
+    /// either wants the `Span` (and the coefficients) to carry their
+    /// vector — a borrow or an invariant-lifetime brand — which is a
+    /// design change and not paid for here.
+    pub fn admits(&self, span: Span) -> bool {
+        span.degree() == self.degree
+            && span.index() <= self.last_span()
+            && self.span_is_nonempty(span.index())
+    }
+
     /// [`KnotVector::find_span`] as a validated [`Span`] — total on all
     /// of `f64` for exactly the reasons `find_span` is (see its docs:
     /// out-of-domain clamps to an end span, NaN lands on the first).
@@ -481,6 +511,41 @@ impl KnotVector {
         last.map(|i| (count, i))
     }
 
+    /// The distinct **interior** knot values with their multiplicities,
+    /// ascending — the query [`KnotVector::multiplicity_of`] cannot
+    /// serve, because that one needs the value before it can answer.
+    /// Exact `f64` equality throughout, the same structure-identity
+    /// rule `multiplicity_of` uses: never a tolerance question.
+    ///
+    /// Total, and read-only: a single-span vector yields nothing, and
+    /// the items are values, so no caller reaches a state
+    /// [`KnotVector::clamped`] refuses. Two facts hold of every item by
+    /// the construction invariants, and consumers may rely on them —
+    /// each multiplicity is in `1..=degree`, and each value lies
+    /// **strictly inside** [`KnotVector::domain`] (the end runs are
+    /// exact, so no interior knot equals either end value).
+    pub fn interior_knots(&self) -> impl DoubleEndedIterator<Item = (f64, usize)> + Clone + '_ {
+        let p = self.degree;
+        // Slicing justified: len ≥ 2(degree + 1) gives
+        // degree + 1 ≤ len − degree − 1, so the range is valid for
+        // every knot vector — empty exactly when there is one span.
+        runs_in(&self.knots[p + 1..self.knots.len() - p - 1])
+    }
+
+    /// Every knot run, **including the two clamps**, as
+    /// `(value, multiplicity)` ascending — the whole-vector form of
+    /// [`KnotVector::interior_knots`], which the interior slice cannot
+    /// express. Same exact-`f64` identity, same totality; the first and
+    /// last items always carry multiplicity `degree + 1`.
+    ///
+    /// This is the run-length encoding a serializer needs: STEP's
+    /// `B_SPLINE_CURVE_WITH_KNOTS` takes exactly this pair of lists.
+    /// Both methods are one line over [`runs_in`], so there is no second
+    /// scan here to keep in agreement with the first.
+    pub fn knot_runs(&self) -> impl DoubleEndedIterator<Item = (f64, usize)> + Clone + '_ {
+        runs_in(&self.knots)
+    }
+
     /// The clamped single-segment (Bézier) vector on `[0, 1]`:
     /// `degree + 1` zeros followed by `degree + 1` ones. Infallible —
     /// statically valid for every `degree ≥ 1`.
@@ -522,9 +587,134 @@ impl KnotVector {
     }
 }
 
+/// The **runs of equal values** in a sorted `f64` slice, ascending, as
+/// `(value, multiplicity)`. A caller that needs each run's index into
+/// a parent array accumulates the multiplicities, which is one line and
+/// keeps this signature the one every caller actually wants.
+///
+/// The primitive under [`KnotVector::interior_knots`],
+/// [`KnotVector::knot_runs`] and [`KnotVector::clamped`]'s own
+/// interior-multiplicity check — the last of which runs *before* a
+/// `KnotVector` exists, so it cannot go through either method, exactly
+/// as the pre-`KnotVector` span search cannot go through
+/// [`KnotVector::find_span`] and goes through [`span_offset_in`]
+/// instead.
+///
+/// Runs are cut on **exact `f64` equality**: knots are structure, and
+/// structure identity is bitwise-value identity, never a tolerance
+/// question. `-0.0` and `+0.0` are therefore ONE run (`==` holds), which
+/// is not how `total_cmp` orders them — the two rules meet only here,
+/// and this one is the multiplicity rule.
+///
+/// `sorted` must be non-decreasing, which is what makes equal values
+/// adjacent and a run-length walk equal to "count every equal element".
+/// A violation is not unsound — the walk still terminates and still
+/// yields a partition — it just splits one value into several runs, so
+/// the caller's multiplicity is wrong rather than absent. Total on any
+/// slice, empty included.
+fn runs_in(sorted: &[f64]) -> impl DoubleEndedIterator<Item = (f64, usize)> + Clone + '_ {
+    // Indexing justified: `chunk_by` never yields an empty run.
+    sorted
+        .chunk_by(|a, b| a == b)
+        .map(|run| (run[0], run.len()))
+}
+
+/// The span **offset above `degree`** located for `t` in a clamped knot
+/// list — the one span search for **clamped** vectors, shared by
+/// [`KnotVector::span_at`] and by the knot-algebra paths that hold a
+/// raw list mid-mutation and so have no [`KnotVector`] to ask.
+///
+/// It is not the tree's only span search, and the other one is not a
+/// duplicate: `geom-brep`'s `props::quad::raw_span` locates spans in
+/// knot lists a `KnotVector` **cannot represent** — a derivative
+/// direction whose interior multiplicity exceeds its own degree, which
+/// [`KnotVector::clamped`] refuses. The preconditions below do not hold
+/// there, and the answers genuinely differ: this search maintains a
+/// bracket that may name an empty span, where `raw_span` skips empty
+/// spans by construction and clamps into a coefficient-count-derived
+/// range. Two searches, two domains, one of them outside this type.
+///
+/// **Preconditions, and what a violation costs.** Taking a slice rather
+/// than `&self` moves two facts from *guaranteed by the type* to
+/// *required of the caller*, and they are the facts the indexing rests
+/// on: `knots.len() ≥ 2·degree + 2` (a shorter slice underflows
+/// `last`), and `knots` non-decreasing (otherwise the search's
+/// maintained bracket is meaningless and the answer is arbitrary — in
+/// range, but wrong). Both are strictly weaker than [`KnotVector`]'s
+/// construction invariant, so a `KnotVector`'s own knots always satisfy
+/// them; the raw knot-algebra paths satisfy them because they start
+/// from a `KnotVector`'s knots and only insert interior values.
+///
+/// **A violation of the first one panics**, and it is worth naming what
+/// kind: `knots.len() - 2·degree - 2` is `usize` arithmetic, so a short
+/// slice underflows — a debug panic, and in release (the workspace sets
+/// no `overflow-checks`) it wraps to a huge span count and the very
+/// next index runs off the end. That is neither poison nor a typed
+/// refusal, which is the concrete price of holding by convention what
+/// the type was holding by construction. It is why the two doors below
+/// are crate-internal rather than a matter of documentation. This is
+/// not a public door — [`find_span_in`] is `pub(crate)` and
+/// `span_offset_in` is private — so the obligation cannot escape the
+/// crate. Widening either to `pub` is what would change that, and would
+/// want the `Span`-holds-its-vector shape [`Span`] already documents.
+///
+/// Total on all of `f64` with [`KnotVector::find_span`]'s three
+/// documented behaviours — below-domain and NaN give the first span, at
+/// or above the domain end gives the last — because it *is* that
+/// function's body.
+// The `!(t > …)` guard is deliberate: the negated form routes NaN to
+// the first span, where `t <= …` would be false for NaN and fall
+// through into the binary search with a broken invariant.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn span_offset_in(knots: &[f64], degree: usize, t: f64) -> usize {
+    // `last` is the span count, len − 2·degree − 2: non-negative by
+    // the construction invariant len ≥ 2(degree + 1).
+    let (p, last) = (degree, knots.len() - 2 * degree - 2);
+    // NaN and below-domain both fail this test → first span.
+    if !(t > knots[p]) {
+        return 0;
+    }
+    // Indexing justified: p + last + 1 = len − degree − 1 < len.
+    if t >= knots[p + last + 1] {
+        return last;
+    }
+    // Binary search over span offsets [lo, hi] maintaining
+    // knots[p + lo] ≤ t < knots[p + hi + 1]; both bounds were just
+    // established. Terminates: the window shrinks every step.
+    let (mut lo, mut hi) = (0, last);
+    while lo < hi {
+        let mid = lo + (hi - lo).div_ceil(2);
+        // Indexing justified: 0 ≤ lo < mid ≤ hi ≤ last.
+        if t < knots[p + mid] {
+            hi = mid - 1;
+        } else {
+            lo = mid;
+        }
+    }
+    lo
+}
+
+/// [`KnotVector::find_span`] against a raw clamped knot list: the span
+/// index rather than the offset, same tie-break (at an interior knot
+/// value, the span *starting* there), same totality.
+///
+/// **This is not "the last index `i` with `knots[i] ≤ t`".** The two
+/// coincide on `t ∈ [knots[degree], knots[len − degree − 1])` and
+/// nowhere else: at or above the domain end this returns the last span
+/// while that scan walks on into the trailing clamp, and below the
+/// domain — or at NaN — this returns the first span while that scan
+/// returns whatever it was initialised with. Substituting this for such
+/// a scan is sound only under that half-open precondition, which is the
+/// substituting frame's to state.
+pub(crate) fn find_span_in(knots: &[f64], degree: usize, t: f64) -> usize {
+    span_offset_in(knots, degree, t) + degree
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use test_utils::vacuity::Exposure;
+
     use super::*;
 
     fn kv(knots: &[f64], p: usize) -> KnotVector {
@@ -615,5 +805,135 @@ mod tests {
         assert_eq!(k.multiplicity_of(0.5), Some((1, 3)));
         assert_eq!(k.multiplicity_of(0.0), Some((3, 2)));
         assert_eq!(k.multiplicity_of(0.25), None);
+    }
+
+    /// **The span search against a definitional oracle**, at every exit
+    /// its contract names.
+    ///
+    /// [`find_span_in`] and [`KnotVector::find_span`] are one
+    /// expression: both reduce to `span_offset_in(knots, degree, t) +
+    /// degree`, so no probe can separate them and an assertion that
+    /// they agree is satisfied by construction. What CAN go red is the
+    /// search itself, so that is what this row drives — a linear scan
+    /// written from the documented contract, independent of the binary
+    /// search it checks:
+    ///
+    /// - below the domain, and at NaN, the **first** span;
+    /// - at or above the domain end, the **last** span;
+    /// - inside, the unique `i` with `knots[i] ≤ t < knots[i+1]`, ties
+    ///   broken toward the span *starting* at a repeated knot.
+    ///
+    /// Plus the divergence [`find_span_in`]'s own docs warn about and
+    /// nothing else pinned: at or above the domain end it is **not**
+    /// "the last index `i` with `knots[i] ≤ t`", which walks on into the
+    /// trailing clamp. A refactor that quietly substituted such a scan
+    /// would pass every in-domain probe.
+    ///
+    /// The probe classes are censused and floored, because a builder
+    /// change that emptied one — no interior knot, no out-of-domain
+    /// probe — would leave the row green over a contract it never
+    /// exercised.
+    #[test]
+    fn the_span_search_matches_its_definitional_oracle_at_every_exit() {
+        // The contract, written as a linear scan. `first`/`last` are
+        // the span indices, not offsets. The negated comparison is the
+        // NaN route, exactly as in `span_offset_in`.
+        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+        fn oracle(knots: &[f64], degree: usize, t: f64) -> usize {
+            let (first, last) = (degree, knots.len() - degree - 2);
+            if !(t > knots[first]) {
+                return first;
+            }
+            if t >= knots[last + 1] {
+                return last;
+            }
+            let mut got = first;
+            for i in first..=last {
+                if knots[i] <= t && t < knots[i + 1] {
+                    got = i;
+                }
+            }
+            got
+        }
+        // "The last index `i` with `knots[i] ≤ t`" — the scan the
+        // `find_span_in` docs say this is NOT.
+        fn last_index_at_or_below(knots: &[f64], t: f64) -> Option<usize> {
+            knots.iter().rposition(|&k| k <= t)
+        }
+
+        let cases = [
+            (vec![0.0, 0.0, 1.0, 1.0], 1),
+            (vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2),
+            (vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2),
+            (
+                vec![-2.0, -2.0, -2.0, -2.0, -0.5, 0.0, 0.0, 3.0, 3.0, 3.0, 3.0],
+                3,
+            ),
+        ];
+        let mut census = Exposure::new("knots: the span search against its oracle");
+        for (knots, p) in cases {
+            let k = kv(&knots, p);
+            let (lo, hi) = k.domain();
+            let interior: Vec<f64> = knots[p + 1..knots.len() - p - 1].to_vec();
+            let mut probes = vec![lo, hi, lo - 1.0, hi + 1.0, f64::NAN, f64::INFINITY, -0.0];
+            probes.extend(knots.iter().copied());
+            let mut distinct = knots.clone();
+            distinct.dedup();
+            probes.extend(distinct.windows(2).map(|w| 0.5 * (w[0] + w[1])));
+            for t in probes {
+                census.note(if t.is_nan() {
+                    "NaN"
+                } else if t < lo {
+                    "below the domain"
+                } else if t > hi {
+                    "above the domain end"
+                } else if t == hi {
+                    "at the domain end"
+                } else if interior.contains(&t) {
+                    "at an interior knot"
+                } else {
+                    "strictly inside a span"
+                });
+                let got = find_span_in(&knots, p, t);
+                assert_eq!(
+                    got,
+                    oracle(&knots, p, t),
+                    "p{p} at {t}: the search left its documented contract"
+                );
+                // Equal BY CONSTRUCTION today — both doors are one
+                // expression. Kept as one line so a future edit that
+                // gives them separate bodies reds here; it is not this
+                // row's evidence, which is the oracle above.
+                assert_eq!(got, k.find_span(t), "p{p} at {t}: the two doors diverged");
+                // The documented divergence, where it applies.
+                if t >= hi {
+                    let naive = last_index_at_or_below(&knots, t)
+                        .expect("at or above the domain end some knot is ≤ t");
+                    assert!(
+                        got < naive,
+                        "p{p} at {t}: the span search returned {got}, the same as the \
+                         `knots[i] ≤ t` scan — the trailing-clamp divergence its docs \
+                         warn about has been lost"
+                    );
+                }
+            }
+        }
+        census.report();
+        // Every exit the contract names must have been probed. A floor
+        // of 1 is enough: these are enumerated, not sampled, so a class
+        // that reaches 0 means the probe list stopped covering it.
+        census.require_each(
+            &[
+                "NaN",
+                "below the domain",
+                "above the domain end",
+                "at the domain end",
+                "at an interior knot",
+                "strictly inside a span",
+            ],
+            1,
+            "the probe list no longer reaches this exit, so the contract it states is \
+             unchecked here",
+        );
     }
 }

@@ -88,8 +88,8 @@
 use core::fmt;
 use std::collections::BTreeSet;
 
+use geom::Surface;
 use geom_core::Real;
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -202,21 +202,28 @@ impl<T: Real> Body<T> {
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
+        // The two keyed loops below carry a value the plan phase
+        // derived per key, so they look their key up; `out` is a clone
+        // of `self` and cloning a slotmap preserves its keys, so every
+        // lookup resolves and the map removes nothing. The edge loop
+        // carries no such value and therefore does not look anything
+        // up — it walks the arena directly, like the surface and face
+        // loops below.
         for (he_key, start) in new_starts {
-            if let Some(he) = out.get_half_edge_mut(he_key) {
-                he.start = start;
-                core::mem::swap(&mut he.next, &mut he.prev);
-            }
+            let Some(he) = out.get_half_edge_mut(he_key) else {
+                unreachable!("revert: `he_key` was iterated out of the arena `out` clones")
+            };
+            he.start = start;
+            core::mem::swap(&mut he.next, &mut he.prev);
         }
-        for (edge_key, _) in self.edges.iter() {
-            if let Some(edge) = out.get_edge_mut(edge_key) {
-                core::mem::swap(&mut edge.he_plus, &mut edge.he_minus);
-            }
+        for (_, edge) in out.edges.iter_mut() {
+            core::mem::swap(&mut edge.he_plus, &mut edge.he_minus);
         }
         for (vertex_key, anchor) in new_anchors {
-            if let Some(vertex) = out.get_vertex_mut(vertex_key) {
-                vertex.emanating = Some(anchor);
-            }
+            let Some(vertex) = out.get_vertex_mut(vertex_key) else {
+                unreachable!("revert: `vertex_key` was iterated out of the arena `out` clones")
+            };
+            vertex.emanating = Some(anchor);
         }
         for (_, surface) in out.surfaces.iter_mut() {
             if let Surface::Plane { normal, .. } = surface {
@@ -255,6 +262,7 @@ impl<T: Real> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use crate::fixtures::ops_cube;
+    use geom_core::Tol;
 
     /// **CONSTRUCTION row, flipped from the M3 refusal pin** (S9
     /// pattern; the retired `UnsupportedSurface` record is on
@@ -267,7 +275,7 @@ mod tests {
     /// `crates/sweep/tests/m5_s12_curved_ops.rs`.)
     #[test]
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let before: Vec<bool> = cube.body.faces().map(|(_, f)| f.sense).collect();
         assert!(before.iter().all(|s| *s), "mvfs/mef mint sense: true");
         let reverted = cube.body.revert().expect("S12: curved revert is wired");

@@ -11,12 +11,15 @@ from pncad import (
     Cmp,
     CurveKind,
     Doc,
+    DocEdit,
     EntityKind,
+    Frame,
     GeomPred,
     NamePat,
     Node,
     NodeId,
     Open,
+    PatternKind,
     SegPat,
     SegTag,
     Selector,
@@ -144,3 +147,23 @@ doc.declare_all(["some-name-text", "another"])  # ty: error
 doc.declare("name-text")  # ty: error
 Node.declare([("a", "b")])  # ty: error
 evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
+
+# LIB-PYPU. A spacing is a Length, not a bare number: the typed
+# quantity is the whole point of the boundary.
+PatternKind.linear((1.0, 0.0, 0.0), 0.5)  # ty: error
+
+# A rule is a PatternKind; a Frame is a placement, not a rule.
+Node.placed_union(solid, 5, Frame.translation((0 * m, 0 * m, 0 * m)))  # ty: error
+
+# The explicit door lists FRAMES, never raw coordinate triples.
+Node.placed_union_at(solid, [(0 * m, 0 * m, 0 * m)])  # ty: error
+
+# A frame's translation reads back dimensioned, and it is READ-ONLY:
+# the value is frozen.
+Frame.translation((0 * m, 0 * m, 0 * m)).origin = (1 * m, 0 * m, 0 * m)  # ty: error
+
+# The count is the STRUCTURAL slot's integer, not a Length.
+Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: error
+
+# The narrowed count edit takes a ParamName, never bare text.
+DocEdit.bind_count_param(solid, "fins")  # ty: error

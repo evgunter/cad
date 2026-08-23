@@ -8,7 +8,12 @@
 //! answer. FreeCAD 1.1.2 never writes `FACE_OUTER_BOUND` at all (0
 //! occurrences in the 13 measured files): a face's rings are
 //! syntactically indistinguishable, and which one is outer is
-//! **geometry**, not syntax.
+//! **geometry**, not syntax. That measurement is this lane's whole
+//! reason to exist, so it is re-read from the committed corpus on every
+//! test run rather than kept as a dated observation (issue #667's Q6):
+//! `tests/freecad.rs`'s `the_committed_freecad_corpus_still_says_what_chart_and_units_quote`
+//! reads the committed corpus and goes red if the count moves or the
+//! marker appears.
 //!
 //! # The rule
 //!
@@ -18,7 +23,7 @@
 //! - A face with several bounds: each ring is mapped into the face
 //!   surface's own (u, v) chart by the closed-form inverse of the
 //!   kernel's analytic parameterization ([`uv_of`] — the chart
-//!   conventions are `geom_surfaces::Surface`'s, read off its own
+//!   conventions are `geom::Surface`'s, read off its own
 //!   `eval`), sampled into a chart polygon. The **outer** ring is the
 //!   one whose polygon contains every other ring's; the signed
 //!   (shoelace) area supplies the independent orientation signal, and
@@ -44,8 +49,8 @@
 //! honored AND cross-checked against this inference; disagreement is a
 //! typed error, not a preference (`entities`' face reader).
 
+use geom::Surface;
 use geom_core::{Point2, Point3, Vec3};
-use geom_surfaces::Surface;
 
 /// Why an outerness inference could not answer (module docs). Carries
 /// no entity ids — the caller names the face.
@@ -109,7 +114,7 @@ impl OuternessRefusal {
 }
 
 /// The chart preimage of `p` on `surface` — the closed-form inverse of
-/// `geom_surfaces::Surface::eval`, kind by kind. `None` for a chart
+/// `geom::Surface::eval`, kind by kind. `None` for a chart
 /// with no closed form (NURBS) or a preimage that is not a point (the
 /// cone apex, where every azimuth maps to one place).
 pub(crate) fn uv_of(surface: &Surface<f64>, p: Point3<f64>) -> Option<Point2<f64>> {
@@ -222,8 +227,11 @@ fn periodic(surface: &Surface<f64>) -> (bool, bool) {
 /// meters into one in chart parameters.
 fn metric_floor(surface: &Surface<f64>, samples: &[Point2<f64>]) -> f64 {
     samples.iter().fold(f64::INFINITY, |acc, uv| {
-        acc.min(surface.deriv_u(uv.x, uv.y).norm())
-            .min(surface.deriv_v(uv.x, uv.y).norm())
+        // One jet per sample, two fields off it — the two partials are
+        // wanted at the same `(u, v)`, and asking twice would evaluate
+        // a NURBS chart's whole jet twice to keep one field of each.
+        let j = surface.jet(uv.x, uv.y);
+        acc.min(j.du.norm()).min(j.dv.norm())
     })
 }
 
@@ -393,8 +401,8 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{infer_outer, uv_of};
+    use geom::Surface;
     use geom_core::{Point3, Vec3};
-    use geom_surfaces::Surface;
 
     fn plane() -> Surface<f64> {
         Surface::Plane {
@@ -487,8 +495,8 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_fuzz {
     use super::uv_of;
+    use geom::Surface;
     use geom_core::{Point3, Vec3};
-    use geom_surfaces::Surface;
     use test_utils::fuzz;
 
     fn frame(s: &mut fuzz::Rng) -> (Vec3<f64>, Vec3<f64>) {
@@ -619,8 +627,8 @@ mod review_fuzz {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_outerness {
     use super::{OuternessRefusal, infer_outer};
+    use geom::Surface;
     use geom_core::{Point3, Vec3};
-    use geom_surfaces::Surface;
 
     fn cyl() -> Surface<f64> {
         Surface::Cylinder {

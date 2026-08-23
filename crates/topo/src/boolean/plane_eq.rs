@@ -169,7 +169,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         #[cfg(debug_assertions)]
         debug_assert!(
             crate::source::plane_bits_agree(p1.origin, p1.normal, p2.origin, p2.normal, opposite),
-            "N6 theorem violated: same-source descriptions disagree bitwise (kernel bug: \
+            "same-source theorem violated: same-source descriptions disagree bitwise (kernel bug: \
              a source survived a geometric rewrite)"
         );
         // Rung 1 is syntactic: nothing was measured, so nothing is
@@ -342,9 +342,10 @@ fn declared_rung<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Band;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> PlaneDesc<f64> {
@@ -448,7 +449,7 @@ mod tests {
     #[test]
     fn near_coincidence_is_undeclared() {
         let p1 = plane([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]);
-        let eps = geom_core::Tolerance::get().eps;
+        let eps = geom_core::Tol::witness().get().eps;
         // Same plane to within a fraction of ε, described differently.
         let p2 = plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band()).unwrap_err();
@@ -459,8 +460,8 @@ mod tests {
     #[test]
     fn sliver_offset_escalates() {
         let p1 = plane([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]);
-        let eps = geom_core::Tolerance::get().eps;
-        let k = geom_core::Tolerance::get().k;
+        let eps = geom_core::Tol::witness().get().eps;
+        let k = geom_core::Tol::witness().get().k;
         let p2 = plane([0.0, 0.0, 5.0 + 0.5 * k * eps], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, 1.0, band()).unwrap_err();
         assert!(matches!(

@@ -13,12 +13,12 @@
 //! - **Points**: `geom_core::Point3<T>` (real since M0).
 //! - **Curves**: [`geom_brep::EdgeCurve<T>`] — D2's intensional
 //!   [`geom_brep::EdgeGeometry`] description plus its certified
-//!   `geom_curves::Curve3` carrier cache and certification record
+//!   `geom::Curve3` carrier cache and certification record
 //!   (D4 ¶2). Constructible only through certification
 //!   (`EdgeCurve::certify`), so an uncertified carrier can never enter
 //!   the arena; the Euler operators run that gate at attachment and the
 //!   tier-3 validator re-runs it at rest.
-//! - **Surfaces**: `geom_surfaces::Surface<T>` — D3's closed analytic
+//! - **Surfaces**: `geom::Surface<T>` — D3's closed analytic
 //!   enum. A face's surface arrives from its construction (operator
 //!   surface parameters, [`crate::FaceSurface`]; Newell-certified
 //!   planes via `geom_brep::newell_plane`) or, for `mvfs`'s seed face,

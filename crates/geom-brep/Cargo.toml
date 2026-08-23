@@ -23,8 +23,7 @@ probe = ["geom-core/probe"]
 
 [dependencies]
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 # The geometry-arena key types live here (typed slotmap keys): the
 # intensional descriptions reference surfaces *by arena key* (D2), and
 # `topo`'s Body re-exports these same types for its geometry arenas.

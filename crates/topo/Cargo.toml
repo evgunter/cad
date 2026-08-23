@@ -9,13 +9,26 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-dbg-join = []
 # The differential suite's doors (M5 PR 8 fix pass): `sweep_traces`,
 # `PlantedDegradation`, and the pad-override knob are FAILURE-INJECTION /
 # instrumentation surface — test builds only. Enabled through the
-# self-dev-dependency below (and consumers' dev-dependencies), so no
-# production dependent can reach an injector.
+# self-dev-dependency below and consumers' dev-dependencies, so no
+# production dependent reaches an injector. That was PROSE ONLY until
+# S52, and it was false: `crates/sweep/Cargo.toml` had this feature in
+# its `[dependencies]` topo edge, which cargo unified into every
+# production dependent of `sweep` — a downstream crate compiled
+# `--release` naming `PlantedDegradation`. Fixed there;
+# `scripts/gates/test-features-dev-only.sh` is what keeps the sentence
+# true from here on.
 sweep-testing = []
+# Makes `test_support` — the vocabulary this crate's own `tests/`
+# binaries need — nameable from those binaries. A `tests/` file is a
+# SEPARATE crate, so it can name neither a `#[cfg(test)]` item nor a
+# `pub(crate)` one; without this feature every suite mints its own copy
+# of the vocabulary and the copies drift (S52). Off by default and
+# enabled only through the self-dev-dependency below, so it is on
+# exactly for this crate's own tests and off for every normal build.
+test-support = []
 # Forwards geom-core's certified interval scalar so `Body<Interval>` is
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).
@@ -34,8 +47,7 @@ probe = ["geom-core/probe", "geom-brep/probe"]
 bvh = { path = "../bvh" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
@@ -45,9 +57,15 @@ slotmap = { workspace = true }
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
-# Self dev-dependency: turns `sweep-testing` on for THIS crate's own
-# integration tests without exposing it to production dependents.
-topo = { path = ".", features = ["sweep-testing"] }
+# Self dev-dependency: turns `sweep-testing` and `test-support` on for
+# THIS crate's own integration tests without exposing either to
+# production dependents. A dev-dependency is in no consumer's build
+# graph, and a flagless `cargo build [--release]` does not build test
+# targets, so this is the only edge that ever enables them.
+# (`cargo build --all-targets` DOES build them, and cargo then unifies
+# the feature into the lib artifact of that same invocation — an
+# explicit test-inclusive build, not a production one.)
+topo = { path = ".", features = ["sweep-testing", "test-support"] }
 # Downstream export/tessellation consumers, dev-only (M5 S1): the
 # glued-union acceptance rows pin watertight STL + STEP export of the
 # REST-zip results (dev-dependency cycles are cargo-legal and never

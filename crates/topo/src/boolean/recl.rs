@@ -222,7 +222,7 @@ fn flank_key<T: Decide>(
     own: &[BoolSector<T>],
     idx: usize,
     key_from_start: bool, // true: the noncoplanar bound is the START
-    ref_normal: Vec3<T>,
+    ref_normal: geom_brep::OutwardNormal<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let s = &own[idx];

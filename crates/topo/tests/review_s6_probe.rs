@@ -9,6 +9,7 @@
 mod common;
 
 use common::prism_z;
+use geom_core::Tol;
 use geom_core::{COINCIDENCE_RECOURSE, Decide};
 use topo::{
     Body, BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
@@ -53,8 +54,8 @@ fn probe_boolean_coincidence_pair_e2e() {
     // Exactly-on: b sits flush on a (shared plane z = 1), undeclared.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
     let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0));
-    let err =
-        boolean_reduce(BooleanOp::Union, &a, &b).expect_err("undeclared flush contact must refuse");
+    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
+        .expect_err("undeclared flush contact must refuse");
     let msg = err.to_string();
     eprintln!("[probe] boolean exactly-on:\n  {msg}\n");
     assert!(
@@ -64,11 +65,12 @@ fn probe_boolean_coincidence_pair_e2e() {
     assert_unified(&msg, COINCIDENCE_RECOURSE);
 
     // In-band: corner gap of 3 eps (inside the sliver band).
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let g = 1.0 + 3.0 * eps;
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0));
-    let err = boolean_reduce(BooleanOp::Union, &a, &b).expect_err("in-band gap must escalate");
+    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
+        .expect_err("in-band gap must escalate");
     let msg = err.to_string();
     eprintln!("[probe] boolean in-band:\n  {msg}\n");
     assert_unified(&msg, COINCIDENCE_RECOURSE);
@@ -99,12 +101,12 @@ fn probe_census_pair_e2e() {
             0.0,
             1.0,
         );
-        validate_pseudomanifold(&fx.body, &ContactRecords::default())
+        validate_pseudomanifold(&fx.body, &ContactRecords::default(), Tol::witness())
             .expect_err("touch/near-touch must be loud")
     };
     let mut saw_contact = false;
     let mut saw_escalated = false;
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     for delta in [0.0, 3.0 * eps] {
         for e in scenario(delta) {
             let msg = e.to_string();

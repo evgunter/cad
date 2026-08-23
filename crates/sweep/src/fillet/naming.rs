@@ -9,33 +9,25 @@
 //! never recovered afterwards by matching geometry, which is exactly
 //! what N4 forbids (the `BooleanNaming` / `SplitNaming` discipline).
 //!
-//! # The two doors, and their two provenance channels
+//! # The two provenance channels
 //!
-//! The **composition surgery** mutates a CLONE of the source body in
-//! place, so an output entity's provenance is one of exactly two
-//! things:
+//! The surgery mutates a CLONE of the source body in place, so an
+//! output entity's provenance is one of exactly two things:
 //!
 //! - it was **minted** by the surgery — one of the rows below names
 //!   the source entity it was minted FOR; or
 //! - it is a **survivor**, keeping the arena key it had in the source
 //!   (a shrunk support face, an untouched edge, a far vertex).
 //!
-//! The **whole-body rebuild** (M6-5 PR-2) has no survivors: it mints
-//! every face of the result fresh into a new arena, so nothing carries
-//! a source key. Its shrunk support faces are therefore recorded
-//! explicitly, in [`FilletNaming::supports`] — the ONE row the surgery
-//! never writes, because there the same fact is carried by key
-//! identity. Both doors then name a shrunk support the same way, which
-//! is the point: a name must not depend on which door built the body.
+//! A shrunk support is therefore a survivor and needs no row of its
+//! own: the fact that it is the same face is carried by key identity.
 //!
 //! [`FilletNaming::dead`] closes the loop: it lists the source keys
 //! the fillet RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
-//! directions (`sweep/tests/m6_5_fillet_naming.rs` executes both). On
-//! the surgery door a survivor is therefore a birth fact too — "this
-//! key was not minted and not retired" — not an inference from
-//! geometry. On the whole-body door every source entity is retired,
-//! and `supports` carries what would otherwise be lost.
+//! directions (`sweep/tests/m6_5_fillet_naming.rs` executes both). A
+//! survivor is thus a birth fact too — "this key was not minted and
+//! not retired" — not an inference from geometry.
 //!
 //! # What consumes these rows
 //!
@@ -64,15 +56,12 @@ pub enum RimSide {
 /// The source keys the fillet retired.
 #[derive(Clone, Debug, Default)]
 pub struct Retired {
-    /// Source edges that no longer exist. Surgery: the requested chain
-    /// edges (excised across their strips) and, on the rim path, the
-    /// meridian remnants killed with their rim vertex. Whole-body:
-    /// EVERY source edge — the door admits only the every-edge request
-    /// and rebuilds into a fresh arena.
+    /// Source edges that no longer exist: the requested chain edges
+    /// (excised across their strips) and, on the rim path, the
+    /// meridian remnants killed with their rim vertex.
     pub edges: Vec<EdgeKey>,
-    /// Source vertices that no longer exist. Surgery: the sharp
-    /// corners fused under their octants, and the rim vertices.
-    /// Whole-body: every source vertex, each replaced by its octant.
+    /// Source vertices that no longer exist: the sharp corners fused
+    /// under their octants, and the rim vertices.
     pub vertices: Vec<VertexKey>,
 }
 
@@ -80,18 +69,11 @@ pub struct Retired {
 /// `(minted key, the source entity it was minted for, …)`, in the
 /// deterministic order the constructor visited them (D9).
 ///
-/// The whole-body door fills [`FilletNaming::supports`], `blends`,
-/// `corners`, `trims`, `feet`, `arcs` and `dead`; it admits no closed
-/// chains, so every rim field stays empty. The surgery door fills
-/// everything except `supports`.
+/// A request whose chains are all open fills `blends`, `corners`,
+/// `trims`, `feet`, `arcs` and `dead`, leaving every rim field empty;
+/// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
 pub struct FilletNaming {
-    /// Shrunk support face ← the source face it is the shrunk copy of.
-    /// **Whole-body door only**: the surgery's shrunk supports keep
-    /// their source key and are survivors, so they need no row (module
-    /// docs).
-    pub supports: Vec<(FaceKey, FaceKey)>,
-
     // ---- The blank phase (open plane–plane chains). ----
     /// Blend face ← the source edge it rounds.
     pub blends: Vec<(FaceKey, EdgeKey)>,

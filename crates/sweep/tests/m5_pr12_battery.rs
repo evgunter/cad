@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{ChainClosure, Convexity, FilletRequest, run_battery};
@@ -20,7 +21,7 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -33,16 +34,15 @@ fn boxy(sx: f64, sy: f64, sz: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(0.0, 0.0), (sx, 0.0), (sx, sy), (0.0, sy)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(sz)).unwrap().body
+    extrude(&profile, Extrusion::Distance(sz), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// An L-shaped (notched) prism: the only planar fixture in this file
@@ -59,39 +59,34 @@ fn notched() -> Body<f64> {
     ];
     let lp = ProfileLoop::new(
         pts.into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A radius-`r` ball centred at `c` (the S13 authoring).
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -r),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, r),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -r), 1.0),
+        ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face
@@ -106,6 +101,7 @@ fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
         &ball,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .expect("slab ∖ ball (S13)");
     out.body().expect("a body").body.clone()
@@ -122,8 +118,8 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
                     let h = body.get_half_edge(*he)?;
                     let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
                     Some(match body.get_surface(f.surface)? {
-                        geom_surfaces::Surface::Plane { .. } => "plane",
-                        geom_surfaces::Surface::Sphere { .. } => "sphere",
+                        geom::Surface::Plane { .. } => "plane",
+                        geom::Surface::Sphere { .. } => "sphere",
                         _ => "other",
                     })
                 })
@@ -159,13 +155,13 @@ fn the_battery_passes_on_a_box_at_a_fitting_radius() {
     let verdict = run_battery(&req, band()).expect("the box at r = 0.2 is a valid fillet request");
     assert_eq!(verdict.chains.len(), 12, "twelve one-link chains");
     for chain in &verdict.chains {
-        assert_eq!(chain.links.len(), 1);
+        assert_eq!(chain.link_count(), 1);
         assert!(matches!(chain.closure, ChainClosure::Open { .. }));
         assert!(
             chain.junctions.is_empty(),
             "a box vertex is never a junction"
         );
-        let link = &chain.links[0];
+        let link = chain.first();
         assert_eq!(link.arm, BlendArm::PlanePlaneCylinder);
         assert_eq!(link.convexity, Convexity::Convex);
         assert!(
@@ -196,7 +192,7 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
     assert_eq!(verdict.chains.len(), 1, "one rim, one chain");
     let chain = &verdict.chains[0];
     assert_eq!(chain.closure, ChainClosure::Closed);
-    for link in &chain.links {
+    for link in chain.links() {
         assert_eq!(link.arm, BlendArm::PlaneSphereTorus);
         assert_eq!(link.convexity, Convexity::Convex);
         assert!(
@@ -324,7 +320,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let bottom = body
         .faces()
         .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(geom_surfaces::Surface::Plane { normal, .. })
+            matches!(body.get_surface(f.surface), Some(geom::Surface::Plane { normal, .. })
                 if normal.z.abs() > 0.9)
         })
         .map(|(k, _)| k)
@@ -392,7 +388,7 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
             radius: 0.1,
         };
         match run_battery(&req, band()) {
-            Ok(v) => match v.chains[0].links[0].convexity {
+            Ok(v) => match v.chains[0].first().convexity {
                 Convexity::Convex => convex += 1,
                 Convexity::Concave => concave += 1,
             },

@@ -70,7 +70,7 @@ use crate::node::RecipeNodeId;
 /// — the same fail-loud tripwire `SegTag::of` uses for role segments.
 ///
 /// (Placement: `SurfaceKind` lives in `geom-brep` rather than beside
-/// `Surface` in `geom-surfaces`, so "the mirror lives where it is
+/// `Surface` in `geom`, so "the mirror lives where it is
 /// used" is the shipped precedent; this one lives in the crate that
 /// selects with it. Moving it down beside `Curve3` later is additive.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -279,6 +279,10 @@ impl Cmp {
 /// through the plain [`Margin::of`](geom_core::Margin::of) door and
 /// owes NO `docs/predicate-dimension-audit.md` row — the flagged lane
 /// is for comparands that cannot honestly be lengths.
+///
+/// A K row name reaching the funnel through a const, not a literal at
+/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
+/// "The inventory method, restated").
 pub const SEL_DATUM_DISTANCE: &str = "sel_datum_distance";
 
 /// One geometric atom. A `&[GeomPred]` is their CONJUNCTION — the

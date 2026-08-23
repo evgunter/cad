@@ -454,10 +454,33 @@ inspection, no numerics beyond decided predicates. Five rules:
    declaring mates mint their records like any declaration (A3)
    after verification.
 
+**Member vocabulary (rider, ratified 2026-08-23 — Evan's
+approval in-session; the #945 conversation)**: a mate reference
+head is a live `InstantiatePart` OR a pattern-placed instance —
+the Pattern node with its `Instance(i)` qualifier. A
+pattern-placed member's frame is its pattern-derived pose (rule
+3), and rules 3–4 bind as written: gauge-ineligible, never a
+tree child, so a mate never gives a pattern instance a pose
+apart from its siblings. Rule 1's combination is unchanged — the
+member frame is an ordinary frame conjugated through the derived
+offset. Under rule 2 a mate to `Instance(i)` joins the other
+member into the pattern's cluster; a second tree mate from a
+sibling instance closes a loop and is therefore non-tree —
+declaring, verified (the stud-stack behavior rule 4 already
+promises). Two pins: **mates never solve pattern parameters** —
+a seat satisfiable only at a different spacing is CONTRADICTORY
+with the measured clash, recourse = edit the parameter
+(parameter back-solve is rung (c)); and **the canonical spelling
+is `Instance(i)` heads** — the pattern consumed its master's
+root (A10), so the master's faces are `Vanished` and a mate
+naming them refuses honestly.
+
 Named v1 losses, honest and banked by A1: cross-edge cancellation
 (UNDER tree edges whose composition would determine) refuses to
 rung (c); loop CERTIFICATION beyond the C2 verification tables
 (e.g. in-band closures) escalates per C4 rather than resolving.
+The member-vocabulary rider is ratified ahead of its
+implementation, which is banked (#945).
 
 ## A13 — Update granularity (discharges AQ2)
 
@@ -513,6 +536,36 @@ door, four clauses:
 - **AQ5 — in-context capture semantics**: the captured-context
   object's pin/update behavior (what exactly is captured; when it
   goes stale; how staleness surfaces).
+- **AQ8 — the crossing record's reachability (R2-b finding,
+  2026-08-17; the A4/A11 composition gap).** Ratified A4 says
+  "every mate edge crossing the cut becomes the interface
+  record"; ratified A11 rule 2 makes a mate JOIN its two
+  instances into one placement cluster; and R2-a's ratified
+  precondition (TornCluster) refuses any cut that is not a union
+  of whole clusters. Composed: a mate that would cross a cut also
+  welds its endpoints into one cluster, so the cut that would
+  sever it is refused — "crossing mate" and "legal split" are
+  mutually exclusive, and A4's interface record is UNREACHABLE
+  through split as ratified. R2-b shipped the collector as
+  specified (it inhabits the record, feeds the content key, and
+  re-verifies at evaluation — all machinery real and tested); the
+  rows pin the actual behavior in both directions. **Proposed
+  resolution (firm): amend A4's sentence to name the honest
+  mechanism instead of the impossible one** — the interface
+  record is populated by the DELIBERATE act: splitting a mated
+  cluster is legal exactly when the caller passes the mates
+  crossing the cut to be CONVERTED (each severed mate's
+  declaration moves into the interface record; the remainder's
+  instance re-verifies it against the new part — A4's "does it
+  actually fit" gate, exactly as shipped), turning TornCluster
+  from a wall into a gate with a named door. Alternative: leave
+  A4 vacuous-by-composition and drop the record (rejected: the
+  re-verification machinery is R2-b's most valuable artifact and
+  pin-move re-verification already uses it). The conversion
+  door is a small follow-on unit (ASM-XSPLIT); its spec binds the
+  construction-time refusals (non-crossing passed mate,
+  unresolvable reference, mate-not-in-document) so only fit
+  defers to evaluation.
 - **AQ6 — cross-document `Rest` verification detail**: the trilean
   shape for value-equal-by-authoring carriers (peg/bore radii),
   and the recourse text steering designed clearance to

@@ -35,6 +35,11 @@ conditional on green." Re-running CI-covered suites in a review
 clone is duplication (3 of the session's 4 waiter-parks happened
 grinding exactly such runs).
 
+**Never enshrine a causal story you have not checked** — a lane's, a
+reviewer's, or a warning's. Fix the facts and write no account of how they came
+to be that way. And when you retract one, grep for the claim, not the sentence —
+a correction made where you first wrote it leaves every other copy standing.
+
 **Reviewer suites get promoted into CI.** A review charter has the
 reviewer write their OWN consumer test suite — an independent
 derivation of what the PR claims, not a re-reading of its diff. After
@@ -81,9 +86,9 @@ their own file header said "Not in the `all` aggregator".
 any file dropped into `tests/` is forced into the `all` binary and runs
 on every ε row. So "review artifact" and "permanent gate" are the SAME
 THING by default. That default is fine — cheap promotion is worth it —
-*provided* clearing up afterwards is uncontroversial. Measured
-2026-08-13: 55% of all workspace test time sat in modules named after a
-specific past review or PR, and it got there because the clause above
+*provided* clearing up afterwards is uncontroversial. When it was last
+measured, most of the workspace's test time sat in modules named after
+a specific past review or PR, and it got there because the clause above
 read as forbidding exactly that clear-up.
 
 Three levers, not one — reach for the right one:
@@ -97,8 +102,13 @@ Three levers, not one — reach for the right one:
   own header says "REPORTING (measured, never gated) … there is no
   threshold gate", and a dedicated `rebuild latency (reporting)` job
   had existed for it since 2026-07-26 — yet the aggregation guard was
-  ALSO running it in all five ε rows, where its two assertions are a
-  strict subset of `m4_pr8_corpus`'s. Six payments for one report. Note
+  ALSO running it in all five ε rows, where its green-document and
+  counted-reuse assertions are a strict subset of `m4_pr8_corpus`'s.
+  Six payments for one report. (It has since grown assertions of its
+  OWN — the corpus manifest's nodes/cone pins, 2026-08-17 — so it is no
+  longer wholly redundant with the corpus row; the ignore still holds,
+  because those pins are ε-independent by construction and one run per
+  gate covers them.) Note
   the shape: the job already existed, so the fix was one attribute and
   one flag. Reach for this lever when a reporting row is being paid for
   by the matrix as well; it is not an instruction to stand up a new job
@@ -119,4 +129,4 @@ migrate or get pruned at that PR like any other test.
 tools/crates as needed is fine, as long as it isn't genuinely risky
 supply-chain-wise; put roughly a **2-week minimum age** on dependency
 versions (avoid brand-new releases). Combine with the existing
-crate-landscape vetting in DESIGN.md ([[cad-project-state]]).
+crate-landscape vetting in DESIGN.md.

@@ -562,11 +562,6 @@ fn member_of(
     band: Band,
     arm: f64,
 ) -> Result<Result<(), (&'static str, f64)>, Indeterminate> {
-    // The empty set holds nothing, and no margin decides that — the
-    // answer is structural, so it never reaches the funnel.
-    if matches!(g, Subgroup::Empty) {
-        return Ok(Err(("mate_member_empty", f64::INFINITY)));
-    }
     let axis_fixed = |axis: Vec3<f64>| {
         (
             "mate_member_axis_fixed",
@@ -574,7 +569,10 @@ fn member_of(
         )
     };
     let checks: Vec<(&'static str, f64)> = match g {
-        Subgroup::Se3 | Subgroup::Empty => Vec::new(),
+        // The empty set holds nothing, and no margin decides that —
+        // the answer is structural, so it never reaches the funnel.
+        Subgroup::Empty => return Ok(Err(("mate_member_empty", f64::INFINITY))),
+        Subgroup::Se3 => Vec::new(),
         Subgroup::Trivial => vec![
             (
                 "mate_member_rotation_identity",

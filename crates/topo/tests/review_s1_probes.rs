@@ -7,7 +7,7 @@
 //! History note (the review's F1 probe, not runnable against HEAD):
 //! at the S1 merge-base the declared crosslap union refused
 //! `JoinDesync { what: "every chord arc separates a loose scaffolding
-//! pair" }`, and the `dbg-join` germ dump showed the root cause the
+//! pair" }`, and a loose-germ dump showed the root cause the
 //! branch claims — one seam segment's two end records carrying
 //! DIFFERENT face-pair meta (e.g. `(A:side, B:bottom)` vs
 //! `(A:bottom, B:notchwall)`) because a REST germ direction lies in
@@ -21,6 +21,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, subtract_with,
     union_with, validate_geometric, validate_pseudomanifold,
@@ -31,15 +32,23 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 }
 
 fn glued(a: &Body<f64>, b: &Body<f64>, volume: f64) -> topo::BooleanBody<f64> {
-    let g = match union_with(a, b, &flush_declarations(a, b)).expect("declared union builds") {
+    let g = match union_with(a, b, &flush_declarations(a, b), Tol::witness())
+        .expect("declared union builds")
+    {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
     };
     assert_eq!(g.kind, BooleanResultKind::Seamed);
-    assert_eq!(mass_properties(&g.body).unwrap().volume, volume);
-    assert_eq!(validate_geometric(&g.body), Ok(()));
-    assert_eq!(validate_pseudomanifold(&g.body, &g.contacts), Ok(()));
-    let mesh = mesh::tessellate(&g.body, 1e-2).expect("tessellate");
+    assert_eq!(
+        mass_properties(&g.body, Tol::witness()).unwrap().volume,
+        volume
+    );
+    assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&g.body, &g.contacts, Tol::witness()),
+        Ok(())
+    );
+    let mesh = mesh::tessellate(&g.body, 1e-2, Tol::witness()).expect("tessellate");
     mesh::validate::check_mesh(&mesh).expect("watertight, consistently oriented");
     let v = mesh::validate::signed_volume(&mesh);
     assert!(
@@ -77,11 +86,11 @@ fn probe_symmetric_two_patch_bridge() {
     let a = brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0));
     let bridge_blank = brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0));
     let notch = brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5));
-    let BooleanResult::Body(b) = subtract(&bridge_blank, &notch).unwrap() else {
+    let BooleanResult::Body(b) = subtract(&bridge_blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
     let b = b.body;
-    assert_eq!(mass_properties(&b).unwrap().volume, 2.5);
+    assert_eq!(mass_properties(&b, Tol::witness()).unwrap().volume, 2.5);
     let g = glued(&a, &b, 5.5);
     // The hole-closing merges are real: ring-carrying faces exist and
     // their roles agree with the windings (tier-3 check 6 ran inside
@@ -125,7 +134,7 @@ fn probe_near_miss_false_declaration_contradicts() {
         side_of(&bot.body, 0.0),
         side_of(&top.body, 0.0625),
     ));
-    let err = union_with(&bot.body, &top.body, &decls).unwrap_err();
+    let err = union_with(&bot.body, &top.body, &decls, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
         "near-miss false declaration must contradict: {err:?}"
@@ -158,11 +167,11 @@ fn probe_subtract_notch_rests_on_b() {
         1.0,
     )
     .body;
-    assert_eq!(mass_properties(&a).unwrap().volume, 5.0);
+    assert_eq!(mass_properties(&a, Tol::witness()).unwrap().volume, 5.0);
     let b = brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
     let decls = flush_declarations(&a, &b);
     assert!(!decls.coincident_faces.is_empty());
-    let err = subtract_with(&a, &b, &decls).unwrap_err();
+    let err = subtract_with(&a, &b, &decls, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::Containment(_)),
         "notch-fill ∖ refuses through the containment fallback \

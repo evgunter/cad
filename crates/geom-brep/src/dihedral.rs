@@ -68,8 +68,8 @@
 //! poisoned arms escalate through the ordinary decide door. "Arm too
 //! small to say" is always an escalation, never a classification.
 
+use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
-use geom_surfaces::Surface;
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient};
 
@@ -167,16 +167,17 @@ pub fn classify_dihedral<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::{Point3, Tolerance, Vec3};
+    use geom_core::Tol;
+    use geom_core::{Point3, Vec3};
 
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {

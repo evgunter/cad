@@ -8,7 +8,7 @@
 //! sweep, re-derived under our counterclockwise convention), and
 //! attaches real geometry throughout: D2 intensional edge descriptions
 //! with certified carrier caches (`geom-brep`), analytic side surfaces
-//! (`geom-surfaces`), Newell-certified cap planes. Every
+//! (`geom`), Newell-certified cap planes. Every
 //! topology-determining comparison goes through named trilean
 //! predicates (Q1); every failure is a typed error (D4 ¶3); everything
 //! is generic over [`geom_core::Real`] via the [`geom_core::Decide`]
@@ -122,14 +122,27 @@
 
 pub mod extrude;
 pub mod loft;
-pub mod readback;
 pub mod revolve;
 pub mod skin;
+// The lowering the sweep verbs share (its own docs say what is in it
+// and what deliberately is not); crate-internal, so not `pub`.
+mod swept;
+// The gate is the module's own subject — see its docs for why
+// `cfg(test)` cannot serve and what each arm buys. `doc(hidden)`
+// because this repo's rustdoc gate runs `--all-features`, which turns
+// `test-support` ON: without it the gate would publish, as public API, a
+// module whose docs say it is not one.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod test_support;
 
 pub use extrude::{ExtrudeError, Extruded, Extrusion, extrude};
 pub use loft::{LoftError, Lofted, loft_body, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc};
-pub use revolve::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
+pub use revolve::{
+    Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError, WedgeFrames,
+    revolve, revolved_caps,
+};
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must
@@ -144,4 +157,5 @@ pub use skin::{
     make_compatible, segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
+pub mod chamfer;
 pub mod fillet;

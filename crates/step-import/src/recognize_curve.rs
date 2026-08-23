@@ -13,11 +13,8 @@
 //!   estimate fails certification and the carrier stays NURBS, so an
 //!   estimator can never make promotion incorrect, only incomplete;
 //! * **conditioning-gated typed ambiguity** ([`CurveRecognition::IllConditioned`]);
-//! * **`flush_zero` on every DERIVED frame** (center/axis/u_ref/origin/
-//!   dir): the reader's numeric path states `+0.0` as the one
-//!   representative, so a promoted carrier's derived frame must state
-//!   it too or the promoted one-cycle re-export fixed point misses by
-//!   exactly those sign bits;
+//! * **[`crate::signed_zero`] on every DERIVED frame**
+//!   (center/axis/u_ref/origin/dir), for the reason that module states;
 //! * **a carrier that certifies nowhere stays NURBS silently** — the
 //!   pre-#327 state; recognition failing must never refuse an edge
 //!   that imports today.
@@ -146,9 +143,11 @@
 //! surjectivity follow-up is the *tightness*: a carrier whose spans
 //! individually turn by π or more is refused rather than analysed.
 
+use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 use geom_core::{Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
+
+use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedCurveKind;
 
@@ -214,18 +213,6 @@ pub(crate) fn recognize(curve: &NurbsCurve3<f64>, eps_in: f64) -> CurveRecogniti
             margin,
         },
     }
-}
-
-/// Negative zeros flushed to `+0.0`, componentwise — verbatim
-/// [`crate::recognize`]'s, for the same re-export fixed-point reason
-/// (its docs carry the argument).
-fn flush_zero(v: Vec3<f64>) -> Vec3<f64> {
-    Vec3::new(v.x + 0.0, v.y + 0.0, v.z + 0.0)
-}
-
-/// [`flush_zero`] for a point.
-fn flush_zero_point(p: Point3<f64>) -> Point3<f64> {
-    Point3::new(p.x + 0.0, p.y + 0.0, p.z + 0.0)
 }
 
 /// The certified sup of `|f ∘ C|` over the whole domain, in the
@@ -348,10 +335,10 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
         return Ok(None);
     }
     let circle = Curve3::Circle {
-        center: flush_zero_point(center),
-        axis: flush_zero(axis),
+        center: plus_zero_point(center),
+        axis: plus_zero(axis),
         radius,
-        u_ref: flush_zero(u_ref),
+        u_ref: plus_zero(u_ref),
     };
     Ok(Some((circle, residual)))
 }
@@ -755,8 +742,8 @@ mod tests {
 
     /// C6: the COVERAGE CERTIFICATE, tested AT THE MECHANISM.
     ///
-    /// **This pin used to be green for the wrong reason**, and both
-    /// reviews found it independently: its carrier placed a 120°
+    /// **This pin can go green for the wrong reason**: its carrier
+    /// once placed a 120°
     /// corner (`2r`, weight ½) over a 60° chord, so the span sat
     /// 1.22 mm off a 5 mm circle and the pin died at the LOCUS
     /// certificate, never reaching the gate it is named for. It now

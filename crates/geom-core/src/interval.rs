@@ -31,6 +31,16 @@
 //! enclosures keep computing) but never through *decisions*, the same
 //! policy [`crate::real`] states for NaN at `f64`.
 //!
+//! There are **two** doors where a decoration turns into a refusal, and
+//! they ask the same question through [`Interval::is_certified`]:
+//! [`Decide::sign_within`], which will not branch, and
+//! [`crate::CertifiedEnclosure::certified_bracket`], which will not hand
+//! the value to certification arithmetic. [`Bounds`] is deliberately
+//! **not** one of them: it answers "what bracket does this carry?", and a
+//! clamped enclosure carries a perfectly sound one — reporting its
+//! endpoints is right, and containment properties written against
+//! `Bounds` depend on it.
+//!
 //! # Certification semantics: truth containment, not f64 containment
 //!
 //! An enclosure brackets the TRUE value — never, by contract, the `f64`
@@ -181,6 +191,33 @@ impl Interval {
             Decoration::Com => 4,
         };
         (self.0.lo().to_bits(), self.0.hi().to_bits(), dec)
+    }
+
+    /// Whether the decoration certifies that the computation behind this
+    /// enclosure was **defined on the whole input box** — `Decoration::Def`
+    /// or better.
+    ///
+    /// The one spelling of that threshold. Both doors that turn an enclosure
+    /// into a commitment ask through this: [`Decide::sign_within`], which
+    /// will not branch on an uncertified value, and
+    /// [`crate::CertifiedEnclosure::certified_bracket`], which will not hand one to
+    /// certification arithmetic. They are the same question — *may this
+    /// decide anything?* — and they must not be able to drift apart.
+    ///
+    /// `Def` is the threshold rather than `Dac` or `Com` because it is
+    /// exactly the claim a sound commitment needs: continuity and
+    /// boundedness are not required to know a sign or to bound a residual.
+    /// Below it (`Trv`, `Ill`) some operand went outside its domain and the
+    /// backend clamped, so the enclosure describes a *different* expression
+    /// from the one that was asked for.
+    ///
+    /// Note what this is NOT: a bracket-validity test. A `Trv` enclosure is
+    /// still a sound bracket of the values its expression was defined on —
+    /// which is why [`Bounds`] reports its endpoints unchanged and
+    /// containment properties written against `Bounds` hold for it.
+    #[must_use]
+    pub fn is_certified(self) -> bool {
+        self.0.decoration() >= Decoration::Def
     }
 }
 
@@ -458,6 +495,22 @@ impl Bounds for Interval {
     }
 }
 
+/// The certified door, refusing exactly where [`Decide::sign_within`]
+/// does ([`Interval::is_certified`]).
+///
+/// This is the seam the C9 ring reads an evaluation scalar through, and
+/// it is the *only* channel available there: [`crate::RingInterval`] has two
+/// states and no decorations, so whatever the accessor does not refuse
+/// cannot be refused anywhere downstream. A `Trv` enclosure with finite
+/// endpoints — `sqrt([−1, 4])` clamping to `[0, 2]` — is the case that
+/// needs it: it is a perfectly sound bracket, so [`Bounds`] reports it
+/// unchanged and must, while certification has to see the violation.
+impl crate::real::CertifiedEnclosure for Interval {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        self.is_certified().then(|| (self.0.lo(), self.0.hi()))
+    }
+}
+
 /// Span selection as **containment**: the inclusive hull of the spans
 /// overlapped by `[lo, hi]` (each end located by the f64 tie-break —
 /// see [`crate::spline::locate`]'s module docs). Sound because every
@@ -527,7 +580,7 @@ impl crate::spline::SpanLocate for Interval {
 /// `Invalid` never cures.
 impl Decide for Interval {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
-        if self.0.decoration() < Decoration::Def {
+        if !self.is_certified() {
             return Err(Indeterminate {
                 margin: MarginDiag::Invalid,
                 band,
@@ -598,8 +651,12 @@ fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
 /// (`Trv`) value is itself only `Trv`-trustworthy, and a tangent chosen
 /// by comparing `Trv` values likewise. In the clean (`Com`) case this is
 /// a no-op. Nothing in M0 branches on derivative decorations ([`Decide`]
-/// for duals classifies values only; `Bounds` is not implemented for
-/// duals), so this convention is about honest bookkeeping, not behavior.
+/// for duals classifies values only; `Bounds` for duals — implemented
+/// since the D1 ruling of 2026-08-19, where this sentence used to say it
+/// was not — is the **value channel's** bracket with the tangent
+/// discarded, so it does not read a derivative decoration either). The
+/// conclusion is unchanged: this convention is about honest bookkeeping,
+/// not behavior.
 impl KinkJacobian for Interval {
     /// `[1, 1]` when the value enclosure lies in `[0, ∞)` (including the
     /// point zero — matching `f64`'s `+1`-at-zero subgradient pick; an

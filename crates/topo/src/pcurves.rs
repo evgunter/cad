@@ -36,8 +36,9 @@
 //!   involution twin and the pole's zero azimuth lever (see
 //!   [`azimuth_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
 //!   classes refuse typed with the class named — the sphere's general
-//!   circles route through the fitted lane
-//!   ([`geom_brep::PcurveCache::certify_fitted`]), the cone/torus
+//!   circles have a certified route that this pass cannot reach
+//!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
+//!   frontier), so those faces stay uncached; the cone/torus
 //!   oblique classes have no honest route (no ring-computable meters
 //!   composite) and stay refused.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
@@ -60,7 +61,7 @@
 //! — with a total azimuth advance of zero, or exactly one period for a
 //! loop that wraps the chart (the seam case).
 //!
-//! This is the M2 PR 5 meridian finding generalized (`docs/M2-LOG.md`:
+//! This is the M2 PR 5 meridian finding generalized:
 //! "the junction's meridian column unwrapped nearest prev_u, but past
 //! 3π/2 the wrong branch is closer"). The fix there was to anchor the
 //! unwrap to a point that is *exact by construction* rather than
@@ -83,34 +84,80 @@
 //!
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
-//! Read this before storing a cache from a new call site. **Only two
-//! ops maintain the map**: the splitting lane (which runs
-//! [`mint_pcurves`] on each side it produces, and that pass CLEARS the
-//! map before re-minting) and [`crate::transform`] (which re-derives
-//! when the operand carried caches). **Every other op — the Euler
-//! operators, the kill ops, ring surgery, `merge_coplanar_faces`,
-//! `split_edge`, the boolean graft — neither clears nor re-mints.**
+//! Read this before storing a cache from a new call site. Three
+//! postures exist, and they classify **the op a consumer calls**, not
+//! every primitive that op uses internally: an op may drive `split_edge`
+//! or a bare Euler run in its own interior and still MAINTAIN, so long
+//! as it re-mints before it hands the body back.
+//!
+//! **Maintains the map** — runs [`mint_pcurves`] on the result, and
+//! that pass CLEARS the map before re-minting. In this crate: the
+//! splitting lane (on each side it produces), the boolean pipeline (on
+//! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
+//! staged result before commit, and only when the input carried
+//! caches), and [`crate::transform`] (which re-derives when the operand
+//! carried caches). **Downstream crates hold the same posture and are
+//! part of the list**: `sweep`'s loft, fillet build and fillet surgery,
+//! and `step_import`'s assembly all re-mint on the body they return.
+//!
+//! **Transfers the map** — the graft (`boolean::combine`, and
+//! [`crate::graft_disjoint`] through it) remaps each row onto the
+//! transplanted half-edge's fresh key and DROPS any row whose key the
+//! graft walk did not reach, which is exactly the staleness test.
+//!
+//! **Neither clears nor re-mints** — the Euler operators, the kill ops,
+//! ring surgery, [`crate::Body::split_edge`]. These are primitives, and
+//! they are what the stale-row consequence below is about.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). Nothing at M5 reaches that state on
-//! the ship path — caches are minted last, at the end of the split
-//! pipeline, and the pass clears first — and the tier-3 pcurve pass
-//! catches it LOUD if it ever happens: a stale row re-certifies against
-//! the current carrier/surface/window and fails, or breaks its face
-//! loop's continuity. So the posture is fail-loud, not silent-wrong —
-//! but an op that starts mutating already-minted bodies must either
-//! clear the map or re-mint, and should say which in its own docs.
+//! different half-edge entirely). What makes that bounded rather than
+//! dangerous is the backstop: the tier-3 pcurve pass catches a stale
+//! row LOUD — it re-certifies against the current
+//! carrier/surface/window and fails, or breaks its face loop's
+//! continuity. So the posture is fail-loud, not silent-wrong — but an
+//! op that mutates an already-minted body must either clear the map or
+//! re-mint before returning, and must say which.
+//!
+//! **Where it says which, and what checks it.** For a `&mut Body` door
+//! in this crate, in
+//! `staleness_posture::every_mutation_door_declares_its_pcurve_posture`
+//! — a walk of `topo/src` requiring every such door to either call
+//! `mint_pcurves` in its own body or carry a declared posture. It goes
+//! red the day a door is added and nobody says which bucket it is in,
+//! and red the day a door whose entry says it does not re-mint starts
+//! calling `mint_pcurves` directly.
+//!
+//! **What the guard does NOT establish**, so that nothing above reads
+//! as more than it is:
+//!
+//! - **It checks that an entry exists, not that it is true.** A door
+//!   declared `Maintains` is taken at its word: no walk can see that a
+//!   delegate re-mints, and `mint_pcurves`'s own entry is a claim
+//!   about the pass this module defines. Only the
+//!   not-`Maintains`-but-minting direction is mechanical.
+//! - **Delegation is invisible to it.** The one entry that rotted
+//!   historically — an op that started re-minting through a helper
+//!   while its bucket entry stayed put — is caught here only if the
+//!   helper is itself a `&mut Body` door on this surface, which for
+//!   [`crate::Body::merge_coplanar_faces`] it happens to be. A private
+//!   delegate would be a green guard over the same rot.
+//! - **It reads `topo/src` only.** The pipelines that take a body and
+//!   return one rather than taking `&mut Body` (the splitting lane, the
+//!   boolean pipeline, [`crate::transform`]) and every downstream crate
+//!   are outside the walk; over that remainder the buckets above are a
+//!   survey, checked by nothing.
 
+use geom::Surface;
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
 };
+use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
-use geom_surfaces::Surface;
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
@@ -264,7 +311,7 @@ pub fn pcurve_of<T: Decide>(
 fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
-) -> Result<(geom_curves::Curve3<T>, T, T), PcurveMintError> {
+) -> Result<(geom::Curve3<T>, T, T), PcurveMintError> {
     let he = body
         .get_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
@@ -517,8 +564,8 @@ fn nurbs_iso_derive<T: Decide>(
         geom_brep::EdgeGeometry::MappedCurve(
             geom_brep::MappedCurve::PlacedSegment { .. }
             | geom_brep::MappedCurve::RevolvedPoint { .. },
-        ) if matches!(carrier, geom_curves::Curve3::Circle { .. }) => {
-            let geom_surfaces::Surface::Nurbs(payload) = surface else {
+        ) if matches!(carrier, geom::Curve3::Circle { .. }) => {
+            let geom::Surface::Nurbs(payload) = surface else {
                 return Err(refuse("an arc cap rim on a non-NURBS chart"));
             };
             let ku = payload.knots_u();
@@ -635,7 +682,7 @@ fn nurbs_iso_derive<T: Decide>(
         // column under the chart's own parameterization refuses typed
         // and permanently (C5).
         geom_brep::EdgeGeometry::Intersection { .. } => {
-            if !matches!(carrier, geom_curves::Curve3::Nurbs(_)) {
+            if !matches!(carrier, geom::Curve3::Nurbs(_)) {
                 return Err(refuse(
                     "an Intersection carrier that is not a spline — the certified \
                      boundary-column class compares the carrier against the chart's own \
@@ -924,8 +971,8 @@ struct Walked<T: Real> {
 /// [`PcurveMintError`] — a certification refusal, a discontinuous or
 /// unclosed loop walk, or an escalated classification. Never a silent
 /// skip of a face the lane covers.
-pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError> {
-    let band = Band::linear().map_err(PcurveMintError::Band)?;
+pub fn mint_pcurves<T: Decide>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
+    let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the
     // surgery killed (a `SecondaryMap` row outlives its key until the
@@ -949,9 +996,10 @@ pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError
             // Circle-carrier arm, mate from the edge's description);
             // wiring it into this pass needs the `PcurveFittedLane`
             // bound on every constructor and is banked with that
-            // ripple. Every OTHER failure — a covered class whose
-            // residuals, envelope, continuity or closure refuse — is
-            // a genuine defect and propagates.
+            // ripple — banked in no milestone plan and in no
+            // carried-items register. Every OTHER failure — a covered
+            // class whose residuals, envelope, continuity or closure
+            // refuse — is a genuine defect and propagates.
             Err(PcurveMintError::Certify {
                 error: PcurveCertifyError::UnsupportedCarrier,
                 ..
@@ -1024,19 +1072,18 @@ fn mint_face<T: Decide>(
     // region the domain-validity limb certifies against (C4; the exact
     // point-in-region test is PR 11's tessellation consumer).
     //
-    // **Where this limb has teeth, stated plainly.** At MINT time the
-    // containment check is vacuous by construction: the window IS the
-    // hull of exactly the boxes being checked against it, so no minted
-    // pcurve can escape it. That is deliberate, not an oversight — a
-    // freshly derived face has no independent prior notion of its own
-    // trim region, and inventing one (say, the loop's vertex box) would
-    // refuse legitimate faces whose boundary arcs bulge past their
-    // endpoints. The limb bites at RE-certification
-    // (`validate_pcurves`) and on the attach path, where the window
-    // comes from the OTHER stored caches and from a body the checked
-    // pcurve did not help build: a swapped, shifted or hand-attached
-    // cache is then measured against a window it had no part in
-    // setting. `TrimEscape` rows exercise exactly that direction.
+    // **Check 5 is vacuous on both of this crate's callers.** The
+    // window IS the hull of exactly the boxes checked against it, so
+    // no minted pcurve can escape it, and `validate_pcurves` re-derives
+    // its window the same self-referential way. Check 5 is a
+    // precondition the caller supplies, not a check that fires on any
+    // path this crate walks; what the precondition buys is stated once,
+    // at `geom_brep::PcurveCache`'s module docs.
+    //
+    // The vacuity at mint is deliberate: a freshly derived face has no
+    // independent prior notion of its own trim region, and inventing
+    // one (say, the loop's vertex box) would refuse legitimate faces
+    // whose boundary arcs bulge past their endpoints.
     let mut window: Option<ChartWindow<T>> = None;
     for w in &walked {
         let b = w.pcurve.chart_box(w.t0, w.t1);
@@ -1409,4 +1456,261 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
         }
     }
     findings
+}
+
+#[cfg(test)]
+pub(crate) mod staleness_posture {
+    #![allow(clippy::expect_used)]
+
+    /// Which of this module's three postures a mutation door holds.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub(crate) enum Posture {
+        /// Clears and re-mints before returning. Read out of the
+        /// source (a `mint_pcurves` call in the door's own body); an
+        /// entry declares it only when the re-mint is one delegation
+        /// away, which a source read cannot see.
+        Maintains,
+        /// Remaps each row onto the surviving key and drops the rest.
+        Transfers,
+        /// Leaves the map exactly as it found it — a primitive, or a
+        /// write the map is not keyed on. Safe because the tier-3
+        /// pcurve pass catches the consequence loud.
+        Neither,
+    }
+
+    /// `(door, posture, note)` — the doors that do NOT re-mint the
+    /// map in their own body. The reason a posture is SAFE lives once,
+    /// on the [`Posture`] variant; a note here says only what is
+    /// particular to this door.
+    ///
+    /// Module-scoped rather than local to the guard so that
+    /// [`crate::review_m1_pr5_internal::the_two_door_tables_cover_the_same_surface`]
+    /// can read it. That row is the only other reader; this table
+    /// stays this guard's.
+    pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
+        use Posture::{Maintains, Neither, Transfers};
+        &[
+            // ---- Maintains, one delegation away from the re-mint. ----
+            (
+                "merge_coplanar_faces",
+                Maintains,
+                "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
+            ),
+            // ---- The pass itself. ----
+            (
+                "mint_pcurves",
+                Maintains,
+                "IS the pass: clears the map, then re-mints every row of the body it is given",
+            ),
+            // ---- Transfers: the graft's remap-and-drop. ----
+            (
+                "graft_disjoint",
+                Transfers,
+                "the graft, through `boolean::combine` — see `graft_disjoint_all_keyed`",
+            ),
+            (
+                "graft_disjoint_all",
+                Transfers,
+                "the graft — see `graft_disjoint_all_keyed`",
+            ),
+            (
+                "graft_disjoint_all_keyed",
+                Transfers,
+                "remaps each row onto the transplanted half-edge's fresh key and DROPS any \
+             row the graft walk did not reach, which is the staleness test itself",
+            ),
+            (
+                "graft_disjoint_all_onto_keyed",
+                Transfers,
+                "the graft — see `graft_disjoint_all_keyed`",
+            ),
+            (
+                "insert_void",
+                Transfers,
+                "the void-insertion door: reverts the cavity (rows keep their keys, going \
+             stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
+             which remaps the transplanted rows onto fresh keys; both producers' final \
+             mint passes re-derive every row of the merged body",
+            ),
+            // ---- Neither: the primitives. Their stale rows are what
+            // the tier-3 pcurve pass exists to catch. ----
+            ("mvfs", Neither, "Euler operator"),
+            ("mev", Neither, "Euler operator"),
+            ("mev_line", Neither, "Euler operator (sugar over `mev`)"),
+            ("mev_null", Neither, "Euler operator"),
+            ("mef", Neither, "Euler operator"),
+            ("mef_chord", Neither, "Euler operator (sugar over `mef`)"),
+            ("mekr", Neither, "Euler operator"),
+            ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
+            ("mfkrh", Neither, "Euler operator"),
+            ("mfkrh_plug", Neither, "Euler operator (sugar over `mfkrh`)"),
+            ("kemr", Neither, "Euler operator"),
+            ("kfmrh", Neither, "Euler operator"),
+            ("kev", Neither, "kill op"),
+            ("kef", Neither, "kill op"),
+            ("kvfs", Neither, "kill op"),
+            (
+                "ring_move",
+                Neither,
+                "ring surgery: re-parents a ring, mints no half-edge",
+            ),
+            (
+                "movefac",
+                Neither,
+                "re-parents faces between shells; no half-edge key changes meaning",
+            ),
+            (
+                "split_edge",
+                Neither,
+                "replaces one edge's geometry with two children — the one primitive that \
+             makes a row stale in CONTENT rather than by key",
+            ),
+            // ---- Neither: the caller's own row-level control of the
+            // map, and writes the map is not keyed on. ----
+            (
+                "attach_pcurve",
+                Neither,
+                "writes ONE row the caller chose; every other row is untouched, and \
+             certifying this one is the caller's",
+            ),
+            ("detach_pcurve", Neither, "drops ONE row the caller chose"),
+            (
+                "set_face_surface",
+                Neither,
+                "a surface swap is content staleness the tier-3 pass re-certifies against, \
+             not a key the map can lose",
+            ),
+            (
+                "set_edge_curve",
+                Neither,
+                "a carrier swap is content staleness the tier-3 pass re-certifies against",
+            ),
+            (
+                "set_edge_curve_nurbs_lane",
+                Neither,
+                "`set_edge_curve` with the NURBS certifier injected",
+            ),
+            ("set_face_sense", Neither, "writes one `bool`"),
+            ("set_surface_source", Neither, "GeomSource metadata"),
+            ("set_curve_source", Neither, "GeomSource metadata"),
+            ("set_point_source", Neither, "GeomSource metadata"),
+            ("clear_geom_sources", Neither, "GeomSource metadata"),
+            ("set_null_face_pair", Neither, "null-face annotation"),
+            ("clear_null_face_pair", Neither, "removes that annotation"),
+        ]
+    };
+
+    /// **The convention at the top of this module, checked rather than
+    /// surveyed.** Every public mutation path into a [`crate::Body`] —
+    /// `pub fn` taking `&mut self`, plus the free functions taking
+    /// `&mut Body<T>` — either re-mints the map in its own body, which
+    /// this walk reads directly, or is declared below with its posture
+    /// and a note on that door.
+    ///
+    /// **Why a test and not a list in prose.** A prose index has no way
+    /// to notice a door being added, and the previous one did not. This
+    /// goes red the day one lands unsorted, which is the rot the prose
+    /// could only describe.
+    ///
+    /// **What it checks, exactly.** Three failures, all mechanical: a
+    /// door that neither calls `mint_pcurves` nor appears below; a door
+    /// whose entry says anything but `Maintains` while its body calls
+    /// `mint_pcurves`; and an entry naming a door that no longer
+    /// exists.
+    ///
+    /// **Where the door set comes from, and what it cannot see:**
+    /// [`crate::source_walk::mutation_doors`], shared with the tier-1
+    /// postcondition guard in [`crate::review_m1_pr5_internal`], which
+    /// walks the same population to ask a different question. That
+    /// function's docs carry the reason the two tables do not merge
+    /// and the whole inherited blind-spot list; this guard does not
+    /// restate either.
+    ///
+    /// **"Calls `mint_pcurves`" is a read of code, not of prose.** The
+    /// body arrives with comments and literals blanked. This guard
+    /// used a raw `body.contains`, and a planted door whose body only
+    /// *mentioned* `mint_pcurves(` in a comment was counted as
+    /// re-minting, in both this guard and the tier-1 one, both green.
+    ///
+    /// **What it does not check.** That a `Maintains` entry is TRUE. A
+    /// re-mint reached through a delegate is invisible to a source
+    /// read, so those two entries are taken at their word — the guard
+    /// establishes that every door is sorted and that no door has
+    /// silently started minting, not that each sort is correct. The
+    /// module docs' *"what the guard does NOT establish"* list carries
+    /// this and the rest of the blind spot: delegation, and everything
+    /// outside `topo/src`'s `&mut Body` surface. The full inherited
+    /// list is on [`crate::source_walk::mutation_doors`].
+    #[test]
+    fn every_mutation_door_declares_its_pcurve_posture() {
+        use Posture::Maintains;
+        let mut minting: Vec<String> = Vec::new();
+        let mut declared: Vec<&str> = Vec::new();
+        let mut undeclared: Vec<String> = Vec::new();
+        let mut mislabelled: Vec<String> = Vec::new();
+
+        for door in crate::source_walk::mutation_doors() {
+            let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
+            if door.code_contains("mint_pcurves(") {
+                if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
+                    mislabelled.push(format!("{} declared {posture:?}", door.name));
+                }
+                minting.push(door.name);
+            } else if let Some((n, _, _)) = entry {
+                declared.push(n);
+            } else {
+                undeclared.push(door.site());
+            }
+        }
+
+        assert!(
+            undeclared.is_empty(),
+            "public mutation path(s) that neither re-mint the pcurve map nor declare a \
+             posture in this test: {undeclared:?}. Either re-mint before returning, or add \
+             the door above with the posture it holds.",
+        );
+        assert!(
+            mislabelled.is_empty(),
+            "door(s) whose body now calls `mint_pcurves` but whose entry says otherwise: \
+             {mislabelled:?}. This is the rot the prose index suffered — move the entry to \
+             `Maintains`, or drop it and let the walk classify the door.",
+        );
+        // The entries rot in the other direction too.
+        for (name, _, _) in DECLARED {
+            assert!(
+                declared.contains(name) || minting.iter().any(|n| n == name),
+                "this test declares a posture for `{name}`, which is no longer a public \
+                 mutation path — it was renamed or deleted. Drop the entry.",
+            );
+        }
+        // **Over-stripping is SILENT here**, which is why this pin is
+        // by name rather than a count. A door that stops reading as
+        // calling `mint_pcurves` does not red — it falls into the
+        // `else if let Some(entry)` arm and is accepted as declared.
+        // Only a door with no entry at all reds, and today exactly one
+        // door is classified by its body, so a lexing gap that erased
+        // the needle everywhere would leave this guard green over a
+        // surface it had stopped reading. The walk's own floor is
+        // upstream on `mutation_doors`; this is the needle's.
+        //
+        // **It is exactly one door wide, and that is the whole of it.**
+        // It does not cover the 36 `DECLARED` doors: those land in the
+        // same `else if` arm whether or not their needle survives, so a
+        // declared non-`Maintains` door that STARTS minting while its
+        // call is over-stripped would not reach `mislabelled`. Closing
+        // that needs a second oracle for "does this body call it",
+        // which a source read does not have.
+        assert!(
+            minting.iter().any(|n| n == "merge_coplanar_faces_declared"),
+            "`merge_coplanar_faces_declared` no longer reads as calling `mint_pcurves`. \
+             Either the door stopped re-minting — a finding, and its entry belongs below \
+             — or the source read lost the call.",
+        );
+        println!(
+            "[pcurve posture] {} door(s): {} re-mint, {} declared",
+            declared.len() + minting.len(),
+            minting.len(),
+            declared.len(),
+        );
+    }
 }

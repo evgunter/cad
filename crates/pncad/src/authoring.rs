@@ -18,9 +18,6 @@
 //! Before this seam existed, the demo corpus carried six
 //! near-identical `p2` helpers and four `validated` wrappers, one per
 //! scene. Those are now gone — deleted in favor of the forms below.
-//! A seventh function, `polygon`, lived here until LIB-RETTAIL; the
-//! comment where it stood records why it went.
-//!
 //! # What this seam does *not* yet do
 //!
 //! It offers an f64-first door; it does not by itself remove the
@@ -39,7 +36,8 @@
 //! telemetry or interval scalar for a certified one.
 
 use ::profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
-use geom_core::{Decide, Point2, Point3, Real, Tolerance, Vec2, Vec3};
+use geom_core::Tol;
+use geom_core::{Decide, Point2, Point3, Real, Vec2, Vec3};
 
 /// Embeds an `f64` literal as the working scalar.
 ///
@@ -114,10 +112,10 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
 
-// REMOVED (LIB-RETTAIL, Evan's ruling on #413): the f64-first
+// REMOVED: the f64-first
 // `polygon(&[(f64, f64)]) -> ProfileLoop` door. It minted a raw vertex
 // table — zero bulges, no declared joints, no junction classification —
-// which is exactly the public authoring tier the ruling demotes. The
+// which is exactly the public authoring tier that is demoted. The
 // straight-segment table is said through the PATHS lattice instead
 // (`Open.at(p0)`, a `line_to` per vertex, `line_to(Start)` as the
 // seam), which refuses a within-band-tangent or cusped corner AT
@@ -132,9 +130,9 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// Validates a profile at the ambient tolerance — the authoring
 /// ladder's first rung.
 ///
-/// Equivalent to `Profile::new(plane, loops).validate(Tolerance::get())`,
+/// Equivalent to `Profile::new(plane, loops).validate(tol)`,
 /// which is the form every scene wrote by hand. The tolerance comes
-/// from the environment ([`Tolerance::get`]) so that a corpus can be
+/// from the environment ([`Tol::witness`]) so that a corpus can be
 /// replayed at a different ε without editing a line; pass a tolerance
 /// explicitly through [`Profile::validate`] when a call site needs to
 /// pin one.
@@ -147,26 +145,29 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 /// only a scalar that can answer trilean predicates may be asked.
 ///
 /// ```
+/// use geom_core::Tol;
 /// use pncad::prelude::*;
 ///
+/// let tol = Tol::witness();
 /// let square: ClosedLoop<f64> = Open
 ///     .at(p2(0.0, 0.0))
-///     .line_to(p2(1.0, 0.0))?
-///     .line_to(p2(1.0, 1.0))?
-///     .line_to(p2(0.0, 1.0))?
-///     .line_to(Start)?;
-/// let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()])?;
+///     .line_to(p2(1.0, 0.0), tol)?
+///     .line_to(p2(1.0, 1.0), tol)?
+///     .line_to(p2(0.0, 1.0), tol)?
+///     .line_to(Start, tol)?;
+/// let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
 /// assert_eq!(profile.loops().len(), 1);
 ///
 /// // Fail-loud: a degenerate profile refuses with a typed error
 /// // rather than panicking or silently repairing itself.
-/// let empty = validated(SketchPlane::<f64>::xy(), vec![]);
+/// let empty = validated(SketchPlane::<f64>::xy(), vec![], tol);
 /// assert!(empty.is_err());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn validated<T: Decide>(
     plane: SketchPlane<T>,
     loops: Vec<ProfileLoop<T>>,
+    tol: Tol,
 ) -> Result<ValidatedProfile<T>, ProfileError> {
-    Profile::new(plane, loops).validate(Tolerance::get())
+    Profile::new(plane, loops).validate(tol)
 }

@@ -98,9 +98,9 @@
 
 use std::collections::BTreeMap;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
@@ -109,10 +109,9 @@ use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 /// Rotates `w` a half turn about the unit direction `axis` — the exact
 /// f64 identity `2(w·â)â − w`, with no trigonometry to round.
 fn half_turn(w: Vec3<f64>, axis: Vec3<f64>) -> Vec3<f64> {
-    // `plus_zero`: a half turn negates exact zeros into `−0.0`, and a
-    // minted field carrying one would cost the adoption pass its
-    // fixed point over a printed sign (`geometry::plus_zero`).
-    crate::geometry::plus_zero(axis * (2.0 * w.dot(axis)) - w)
+    // A half turn negates exact zeros into `−0.0`; [`crate::signed_zero`]
+    // states why a minted field must not carry one.
+    crate::signed_zero::plus_zero(axis * (2.0 * w.dot(axis)) - w)
 }
 
 /// A carrier rotated a half turn about `(origin, axis)` — the copy of
@@ -125,7 +124,7 @@ fn half_turn_curve(
     axis: Vec3<f64>,
 ) -> Option<Curve3<f64>> {
     let point =
-        |p: Point3<f64>| crate::geometry::plus_zero_point(origin + half_turn(p - origin, axis));
+        |p: Point3<f64>| crate::signed_zero::plus_zero_point(origin + half_turn(p - origin, axis));
     match *carrier {
         Curve3::Line { origin: o, dir } => Some(Curve3::Line {
             origin: point(o),
@@ -492,7 +491,7 @@ fn mint_band(
                     id: face_id,
                     what: "a seamless periodic band whose rim chain is not made of \
                            circles coaxial with the surface within the file's own \
-                           interpretation budget — outside the M7-5 band re-mint's \
+                           interpretation budget — outside the band re-mint's \
                            minted class (its winding read, splits and seam endpoints \
                            are exact only on coaxial rims); extending the band \
                            re-mint to this rim shape is the recourse",
@@ -564,8 +563,8 @@ fn mint_band(
             dir: s_axis,
         },
         Some((center, major_radius, minor_radius)) => Curve3::Circle {
-            center: crate::geometry::plus_zero_point(center + s_u_ref * major_radius),
-            axis: crate::geometry::plus_zero(s_u_ref.cross(s_axis)),
+            center: crate::signed_zero::plus_zero_point(center + s_u_ref * major_radius),
+            axis: crate::signed_zero::plus_zero(s_u_ref.cross(s_axis)),
             radius: minor_radius,
             u_ref: s_u_ref,
         },
@@ -701,7 +700,7 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::geometry::plus_zero_point(center + s_u_ref * radius);
+        let q = crate::signed_zero::plus_zero_point(center + s_u_ref * radius);
         let w = q - center;
         let vr = n.cross(uc);
         let mut t = w.dot(vr).atan2(w.dot(uc));
@@ -1248,7 +1247,7 @@ fn full_torus(
     // vertex sits at its angle 0. Built from the vertex the file's own
     // meridian produced, so it cannot drift off the locus.
     let v1 = solid.vertices[&mid_v];
-    let c1 = crate::geometry::plus_zero_point(center + axis * ((v1 - center).dot(axis)));
+    let c1 = crate::signed_zero::plus_zero_point(center + axis * ((v1 - center).dot(axis)));
     let spoke = v1 - c1;
     let radius = spoke.norm();
     if !(radius.is_finite() && radius > 0.0) {
@@ -1259,7 +1258,7 @@ fn full_torus(
         center: c1,
         axis: rim_axis,
         radius,
-        u_ref: crate::geometry::plus_zero(spoke * radius.recip()),
+        u_ref: crate::signed_zero::plus_zero(spoke * radius.recip()),
     };
     let Ok((t0, t1)) = crate::geometry::endpoint_params(rim_id, &carrier, v1, v1, true) else {
         return Ok(());

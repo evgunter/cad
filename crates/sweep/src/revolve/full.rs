@@ -26,45 +26,146 @@
 //! wire adds no handle — genus 0) and no null-edge `mekr` (the tips
 //! were never duplicated).
 
+use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign};
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
 use super::axis::{AxisFrame, AxisRun, LoopClasses};
+use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
-use super::surfaces::{chain_spec, cosurface, strut_spec, wall_surface};
-use super::upgrade::{face_surface_key, upgrade_intersection, upgrade_meridian_seam};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use super::surfaces::{strut_spec, wall_surface};
+use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
+use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
-/// (the module-doc convention; the sweep traverses reversed chains).
+/// (the module-doc convention; the sweep traverses reversed chains —
+/// a hole loop's stored clockwise chain traversed FORWARD, see
+/// `revolve`).
+///
+/// **Holed profiles** (the ratified O4 definition): the result is
+/// DEFINED as `revolve(outer) − revolve(hole-as-outer)` and executed
+/// as the degenerate no-crossing arm. The outer loop builds exactly
+/// as before (lamina or wire); each hole loop then builds as its own
+/// closed solid of revolution through the same lamina path — the
+/// per-hole seam surgery is the ordinary kfmrh + loopglue zip on the
+/// hole's own body — and its reversed boundary is inserted as a
+/// cavity shell through the shared void-insertion door
+/// ([`topo::insert_void`]). Containment evidence is CARRIED from the
+/// profile's own validation: loops 1.. are canonical hole loops, each
+/// decided strictly inside the outer loop (the containment forest's
+/// parity decision plus the simplicity pass's definite clearance
+/// margins), and revolution about the shared axis maps 2-D strict
+/// containment to 3-D strict containment verbatim — so the carried
+/// sign is `Positive` by the validation's own decisions, and no 3-D
+/// containment test (box or probe) runs here at all. No SSI, no
+/// crossing pipeline: the door is a structural insertion.
 pub(super) fn build_full<T: Decide>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],
     classes: &[LoopClasses<T>],
     theta: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
-    if loops.len() > 1 {
-        return Err(RevolveError::FullRevolveHoles);
-    }
     let segs = &loops[0];
     let cls = &classes[0];
     let run = super::axis::analyze_contact(segs, cls, 0)?;
-    match run {
-        None => build_lamina(frame, segs, cls, theta, band),
-        Some(run) => build_wire(frame, segs, cls, run, theta, band),
+    let mut out = match run {
+        None => build_lamina(frame, 0, segs, cls, theta, band, tol),
+        Some(run) => build_wire(frame, segs, cls, run, theta, band, tol),
+    }?;
+
+    for (li, (segs, cls)) in loops.iter().zip(classes).enumerate().skip(1) {
+        // A hole touching the axis contradicts its validated strict
+        // containment (interior points of an `r ≥ 0` region are
+        // strictly off-axis) — reachable only through a tolerance
+        // disagreement between validation and this run; refused typed.
+        if cls.verts.iter().any(|v| v.pinned) {
+            return Err(RevolveError::HoleTouchesAxis { loop_index: li });
+        }
+        let hole = build_lamina(frame, li, segs, cls, theta, band, tol)?;
+        let evidence = topo::VoidEvidence {
+            shells: vec![(
+                hole.shell,
+                // The profile validation's strict-containment decision,
+                // carried verbatim (fn docs).
+                topo::VoidContainment::Carried {
+                    sign: Sign::Positive,
+                },
+            )],
+        };
+        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence, tol)
+            .map_err(|source| RevolveError::VoidInsertion {
+                loop_index: li,
+                source,
+            })?;
+        // Re-key the hole's handles into the result body (the graft's
+        // bridge is the ONLY bridge; a miss is graft corruption).
+        let desync = |_| RevolveError::VoidInsertion {
+            loop_index: li,
+            source: topo::VoidInsertError::Corrupt {
+                what: "hole handle missing from the void graft bridge",
+            },
+        };
+        let n = segs.len();
+        let RevolvedKind::Full {
+            meridians: hole_mer,
+            ..
+        } = &hole.kind
+        else {
+            unreachable!("build_lamina answers with RevolvedKind::Full")
+        };
+        let mut walls_c = vec![None; n];
+        let mut rims_c = vec![None; n];
+        let mut mer_c = vec![None; n];
+        for j in 0..n {
+            if let Some(f) = hole.walls[0][j] {
+                walls_c[j] = Some(inserted.face(f).ok_or(()).map_err(desync)?);
+            }
+            if let Some(e) = hole.rims[0][j] {
+                rims_c[j] = Some(inserted.edge(e).ok_or(()).map_err(desync)?);
+            }
+            if let Some(e) = hole_mer[0][j] {
+                mer_c[j] = Some(inserted.edge(e).ok_or(()).map_err(desync)?);
+            }
+        }
+        out.cavities
+            .push(inserted.shell(hole.shell).ok_or(()).map_err(desync)?);
+        out.walls.push(walls_c);
+        out.rims.push(rims_c);
+        out.poles.push(vec![None; n]);
+        let RevolvedKind::Full { meridians, .. } = &mut out.kind else {
+            unreachable!("build_full's outer arm answers with RevolvedKind::Full")
+        };
+        meridians.push(mer_c);
     }
+
+    #[cfg(debug_assertions)]
+    if loops.len() > 1 {
+        debug_assert_eq!(
+            topo::validate_closed(&out.body),
+            Ok(()),
+            "revolve (full, holed) postcondition: cavity insertion broke tier 2 (kernel bug)",
+        );
+    }
+    Ok(out)
 }
 
-/// The lamina case (file docs): closed profile, no axis contact.
+/// The lamina case (file docs): closed loop, no axis contact — the
+/// outer loop of an off-axis profile, or (with `loop_index > 0`, for
+/// error attribution) one hole loop building as its own
+/// hole-as-outer solid of revolution before the door reverses it.
 fn build_lamina<T: Decide>(
     frame: &AxisFrame<T>,
+    loop_index: usize,
     segs: &[SweptSeg<T>],
     cls: &LoopClasses<T>,
     theta: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
     let n = segs.len();
@@ -75,49 +176,30 @@ fn build_lamina<T: Decide>(
     // face keeps an honest Nurbs no-description, like the mvfs seed.
     let mut body = Body::<T>::new();
     let seed = body.mvfs(qs[0])?;
-    let mut hes = Vec::with_capacity(n);
-    let first = body.mev(
-        MevSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        qs[1 % n],
-        chain_spec(&segs[0], place, frame.n3, qs[0], qs[1 % n]),
-    )?;
-    hes.push(first.he_plus);
-    let mut prev = first;
-    for j in 2..n {
-        let m = body.mev(
-            MevSite::Fan {
-                he1: prev.he_minus,
-                he2: prev.he_minus,
-            },
-            qs[j],
-            chain_spec(&segs[j - 1], place, frame.n3, qs[j - 1], qs[j]),
-        )?;
-        hes.push(m.he_plus);
-        prev = m;
-    }
-    let close = body.mef(
-        MefSite::Chords {
-            he1: prev.he_minus,
-            he2: first.he_plus,
-        },
-        chain_spec(&segs[n - 1], place, frame.n3, qs[n - 1], qs[0]),
+    let lamina = build_chain(
+        &mut body,
+        frame,
+        seed.r#loop,
+        seed.vertex,
+        segs,
+        &qs,
         FaceSurface::New(Surface::nurbs_placeholder()),
+        tol,
     )?;
-    hes.push(close.he_plus);
-    let start_disc = close.face;
+    let hes = lamina.hes;
+    let start_disc = lamina.face;
 
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
-    let axis_c = super::turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
-        &mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band,
+        &mut body, loop_index, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3,
+        band, tol,
     )?;
 
-    // ---- Phase 3: seam closure — kfmrh + the loopglue zip (file
-    // docs; see docs/M2-LOG.md PR 5 section). ----
+    // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
+    // file docs). ----
     body.kfmrh(start_disc, seed.face)?;
     let c_plus = |body: &Body<T>, edge: EdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
         Ok(body
@@ -154,6 +236,7 @@ fn build_lamina<T: Decide>(
             ring: c_plus(&body, tops[0])?,
         },
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
+        tol,
     )?;
     body.kev(n0.he_plus)?;
     for j in 1..n {
@@ -164,6 +247,7 @@ fn build_lamina<T: Decide>(
             },
             EdgeCurveSpec::self_loop_circle_at(qs[j]),
             FaceSurface::Inherit,
+            tol,
         )?;
         body.kev(nj.he_plus)?;
         body.kef(c_plus(&body, tops[j - 1])?)?;
@@ -177,7 +261,7 @@ fn build_lamina<T: Decide>(
         if let Some(f) = swept.faces[j] {
             let wall = face_surface_key(&body, f)?;
             let edge = he_edge(&body, *he)?;
-            upgrade_meridian_seam(&mut body, edge, wall)?;
+            upgrade_meridian_seam(&mut body, edge, wall, tol)?;
         }
     }
 
@@ -201,13 +285,14 @@ fn build_lamina<T: Decide>(
         body,
         solid: seed.solid,
         shell: seed.shell,
+        cavities: Vec::new(),
         walls: vec![walls_c],
         rims: vec![rims_c],
         // The lamina case is the no-axis-contact case: no profile
         // vertex is on-axis, so there are no poles.
         poles: vec![vec![None; n]],
         kind: RevolvedKind::Full {
-            meridians: mer_c,
+            meridians: vec![mer_c],
             pi_walls: vec![None; n],
             pi_meridians: vec![None; n],
             pi_rims: vec![None; n],
@@ -230,6 +315,7 @@ fn build_wire<T: Decide>(
     run: AxisRun,
     theta: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
     let n = segs.len();
@@ -265,7 +351,8 @@ fn build_wire<T: Decide>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        chain_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1]),
+        placed_segment_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1]),
+        tol,
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -276,7 +363,8 @@ fn build_wire<T: Decide>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            chain_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1]),
+            placed_segment_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1]),
+            tol,
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -291,16 +379,16 @@ fn build_wire<T: Decide>(
     // half-period rims at interior vertices; walls carry the FULL
     // revolution surfaces; the mef edges are the angle-π meridian
     // copies). Cosurface pairs precomputed; no wrap on an open chain.
-    let axis_c = super::turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.a3);
     let mut pair = vec![false; k];
     for i in 1..k {
-        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], band).map_err(|source| {
-            RevolveError::CosurfaceEscalated {
+        pair[i] = cosurface(&segs[wseg(i - 1)], &segs[wseg(i)], WALL_COSURFACE, band).map_err(
+            |source| RevolveError::CosurfaceEscalated {
                 loop_index: 0,
                 vertex_index: segs[wseg(i)].canonical_vertex,
                 source,
-            }
-        })?;
+            },
+        )?;
     }
     let mut struts: Vec<Option<topo::MevCreated>> = vec![None];
     for i in 1..k {
@@ -318,6 +406,7 @@ fn build_wire<T: Decide>(
                 half,
                 axis_c,
             ),
+            tol,
         )?;
         struts.push(Some(m));
     }
@@ -352,8 +441,9 @@ fn build_wire<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            chain_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
+            placed_segment_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
             surface,
+            tol,
         )?;
         // The honest orientation bit (M5 S11) — see
         // `partial::sweep_loop`; the band-2 twins below inherit the
@@ -375,19 +465,24 @@ fn build_wire<T: Decide>(
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
-        upgrade_intersection(&mut body, strut.edge, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            &mut body,
+            strut.edge,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
                 source,
-            }
-        })?;
+            },
+            tol,
+        )?;
     }
 
     // ---- Phase 3: band 2 — one rim-closing mef per interior vertex
     // carves the π…2π walls out of the wire face; the wire face itself
-    // survives as segment 0's band-2 wall (file docs; see
-    // docs/M2-LOG.md PR 5 section). ----
+    // survives as segment 0's band-2 wall (see the file docs). ----
     let mut band2_faces: Vec<FaceKey> = vec![seed.face];
     let mut rims2: Vec<Option<EdgeKey>> = vec![None];
     for i in 1..k {
@@ -415,7 +510,7 @@ fn build_wire<T: Decide>(
                     angle: half,
                 },
             ),
-            carrier: geom_curves::Curve3::Circle {
+            carrier: geom::Curve3::Circle {
                 center,
                 axis: axis_c,
                 radius: cls.verts[wseg(i)].r,
@@ -428,6 +523,7 @@ fn build_wire<T: Decide>(
             MefSite::Chords { he1, he2 },
             spec,
             FaceSurface::Shared(face_surface_key(&body, faces[i])?),
+            tol,
         )?;
         // The band-2 wall is the same classified wall as its band-1
         // twin (M5 S11): same surface, same material side, same sense.
@@ -454,13 +550,19 @@ fn build_wire<T: Decide>(
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
-        upgrade_intersection(&mut body, rim2, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            &mut body,
+            rim2,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index: 0,
                 vertex_index,
                 source,
-            }
-        })?;
+            },
+            tol,
+        )?;
     }
 
     // ---- Phase 4: meridian upgrades — angle-0 chain edges sit on the
@@ -470,7 +572,7 @@ fn build_wire<T: Decide>(
     for i in 0..k {
         let wall = face_surface_key(&body, faces[i])?;
         let edge = he_edge(&body, hes[i])?;
-        upgrade_meridian_seam(&mut body, edge, wall)?;
+        upgrade_meridian_seam(&mut body, edge, wall, tol)?;
     }
 
     #[cfg(debug_assertions)]
@@ -508,11 +610,12 @@ fn build_wire<T: Decide>(
         body,
         solid: seed.solid,
         shell: seed.shell,
+        cavities: Vec::new(),
         walls: vec![walls_c],
         rims: vec![rims_c],
         poles: vec![poles_c],
         kind: RevolvedKind::Full {
-            meridians: mer_c,
+            meridians: vec![mer_c],
             pi_walls,
             pi_meridians: pi_mer,
             pi_rims,

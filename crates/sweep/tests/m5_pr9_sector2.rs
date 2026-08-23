@@ -17,7 +17,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -33,19 +34,15 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// surface, with meridian ruling edges at (±0.5, 0).
 fn cylinder_body() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-0.5, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.5, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]
@@ -64,7 +61,7 @@ fn the_tangent_graze_resolves_past_first_order() {
         normal: Vec3::new(1.0, 0.0, 0.0),
     };
     start_verdict_log();
-    let out = split(&body, &plane);
+    let out = split(&body, &plane, Tol::witness());
     let v = take_verdict_log();
     // The second-order lane ran, by name (telemetry from birth).
     for name in [
@@ -110,7 +107,7 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
     if let Err(topo::splitting::SplitError::Reduce(
         e @ (SplitReduceError::TangencyUnsupported { .. }
         | SplitReduceError::ConsecutiveOnSectors { .. }),
-    )) = split(&body, &plane)
+    )) = split(&body, &plane, Tol::witness())
     {
         panic!("second order owns the graze: {e}")
     }
@@ -123,34 +120,21 @@ fn filleted_block() -> Body<f64> {
     // (1, 0.75) to (0.75, 1), bulge tan(π/8) (a CCW quarter arc).
     let b = (std::f64::consts::PI / 8.0).tan();
     let mut lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.75),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(0.75, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.75), b),
+        ProfileVertex::new(p2(0.75, 1.0), 0.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     // The tangency is authored, so it is DECLARED (the #101
     // discipline): joints 3 (arc→line) and 2 (line→arc).
-    lp.tangent_joints = vec![2, 3];
+    lp = lp.with_tangent_joints(vec![2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]
@@ -160,7 +144,8 @@ fn a_fillet_grade_tangency_must_carry_and_does() {
     // TangentIntersection (the upgrade pass descended), the body is
     // tier-3 valid, and the MARK records the tangency.
     let body = filleted_block();
-    let marks = topo::contact_marks(&body).expect("the filleted block is tier-3 valid");
+    let marks =
+        topo::contact_marks(&body, Tol::witness()).expect("the filleted block is tier-3 valid");
     let tangent_edges: Vec<_> = body
         .edges()
         .filter(|(_, e)| {
@@ -202,7 +187,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         })
         .expect("a tangent strut exists");
     let (t0, t1) = curve.params();
-    let geom_curves::Curve3::Line { origin, dir } = *curve.carrier() else {
+    let geom::Curve3::Line { origin, dir } = *curve.carrier() else {
         panic!("a strut is a line");
     };
     // The conventional description extrude would have kept: the
@@ -213,13 +198,13 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
             place: geom_core::Affine3::identity(),
             vec: dir * (t1 - t0),
         }),
-        carrier: geom_curves::Curve3::Line { origin, dir },
+        carrier: geom::Curve3::Line { origin, dir },
         param_start: t0,
         param_end: t1,
     };
-    body.set_edge_curve(edge, spec)
+    body.set_edge_curve(edge, spec, Tol::witness())
         .expect("the conventional description certifies (residuals only)");
-    let errs = topo::validate_geometric(&body).expect_err("the must-carry fires");
+    let errs = topo::validate_geometric(&body, Tol::witness()).expect_err("the must-carry fires");
     assert!(
         errs.iter().any(|e| matches!(
             e,
@@ -245,14 +230,15 @@ fn a_g2_underdetermined_join_must_not_carry() {
     // conventional, and the body stays valid. No exemption list
     // anywhere — the zero-side margin IS the exemption.
     let body = cylinder_body();
-    let marks = topo::contact_marks(&body).expect("the disc cylinder is tier-3 valid");
+    let marks =
+        topo::contact_marks(&body, Tol::witness()).expect("the disc cylinder is tier-3 valid");
     let mut saw_underdetermined = 0;
     for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
         if matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-            && matches!(c.carrier(), geom_curves::Curve3::Line { .. })
+            && matches!(c.carrier(), geom::Curve3::Line { .. })
         {
             assert_eq!(
                 marks.get(k),

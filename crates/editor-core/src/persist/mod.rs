@@ -1,7 +1,21 @@
-//! Persistence, schema v5 (M4 PR 6's format; four ratified clean
-//! breaks since — see [`SCHEMA_VERSION`]).
+//! Persistence: the ratified text format of M4 PR 6, at the schema
+//! version [`SCHEMA_VERSION`] names. Every bump since v1 is a ratified
+//! CLEAN BREAK — an older file refuses typed, naming
+//! [`REGENERATE_RECOURSE`], and the migration table stays empty
+//! because LQ7a rules it so ([`migration_step`]), not because no one
+//! has filled it in yet.
+//!
+//! Every version from v2 on carries an entry on [`SCHEMA_VERSION`],
+//! enforced by `tests/schema_ledger.rs` rather than left to
+//! discipline: the version is ONE LINE, so two units
+//! claiming the same number merge CLEANLY, and those entries are where
+//! their reasoning can be compared — and equally where one of them can
+//! be dropped to resolve a conflict.
 //!
 //! # Schema history
+//!
+//! v1 and v2 only, because the format TEXT below is theirs; every
+//! version's own entry is on [`SCHEMA_VERSION`].
 //!
 //! - **v1** (M4 PR 6) — the ratified text format below.
 //! - **v2** (M5 PR 10) — the same text format carrying the grown node
@@ -87,6 +101,10 @@
 mod canon;
 mod check;
 pub mod hexbytes;
+/// The bytes of kernel types, described from above the layering
+/// boundary — see the module's own docs for the rules a new one
+/// follows.
+pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
 pub(crate) mod strict;
 mod wire;
@@ -96,6 +114,7 @@ use geom_core::tolerance::{Tolerance, ToleranceError};
 use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
 use crate::ident::DocumentId;
 use crate::program::{ProfileDoc, ProfileProgram};
+use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
 pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
@@ -262,6 +281,22 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// exactly, and caught only because the ledger prose is long enough to
 /// collide. All three meanings survive here: 9 the fillet-family
 /// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
+///
+/// Version 12 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
+/// DESIGN, ratified A′; LIB-PLACEDUNION): the node vocabulary gained
+/// `Node::PlacedUnion` — one prototype, a placement rule, ONE fused
+/// body out — and the rule vocabulary gained `PatternKind::Explicit`,
+/// a listed set of absolute frames. ONE vocabulary change, one version
+/// (the one-meaning-per-version rule): the node kind and the rule kind
+/// ship together because neither is expressible without the other at
+/// the die tour's twenty-one-pip site that motivated both.
+///
+/// A pre-release clean break, both directions, on the v3/v9 precedent:
+/// a v12 file's new variants are unknown to a v11 reader, and this
+/// reader has no v11-shaped meaning to migrate from, so v11 and below
+/// refuse TYPED with the regenerate recourse and the migration table
+/// stays empty.
+///
 /// Version 13 is **node vocabulary growth** (ASSEMBLY-DESIGN
 /// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
 /// `Mate` variant — the mate's two instance-qualified references, its
@@ -276,9 +311,10 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// The mate's class rides the SAME stable spellings v11 gave
 /// `Declare`'s pairs (`declare_pairs_wire`'s table, reused rather
 /// than re-spelled): one contact vocabulary, one wire spelling of it.
-/// A class outside v1's admitted `Rest`/`Tangent` refuses at that door
-/// naming [`topo::FIT_DEFERRAL`] verbatim — the same sentence the
-/// solve door says.
+/// A spelling this build has no name for refuses at that door, in both
+/// directions. That is a WIRE refusal about a tag, not the v1 class
+/// policy — how far an admitted class then gets is
+/// [`crate::mate::class_admission`].
 ///
 /// The A11 placement registry did NOT force this bump, and that is
 /// worth stating: its keys generalized from per-instance to
@@ -297,15 +333,45 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// constant — both sides had written the identical line, so git
 /// merged it silently, exactly as the v11 and v12 entries above
 /// predicted. Three consecutive units have now reproduced that
-/// failure mode; the discipline (`memories/schema-claim-discipline`)
-/// is that the CLAIM lives as prose in `docs/MODEL-AB-LOG.md`, where
-/// it collides, and the number is re-read by eye at every re-merge.
+/// failure mode. The claim lives as prose in `docs/MODEL-AB-LOG.md`,
+/// where it collides, and the number was re-read by eye at the
+/// re-merge.
 /// A gap in the sequence would cost nothing; a collision costs a
 /// human eye.
 ///
+/// Version 14 is the **interface record inhabited** (ASM-R2b D-4,
+/// discharging the obligation ASM-4 wrote down at
+/// [`crate::InterfaceCrossing`]): the enum that was UNINHABITED — so
+/// that every [`crate::InterfaceRecord`] was provably empty, absent
+/// from the wire, and fed no content key — gained its
+/// `Mate { mate, class, outer, inner }` variant. A split that a mate
+/// crosses now writes a non-empty record onto the remainder's
+/// instantiate node, and that record is file data.
+///
+/// The claim reasoning, stated because a schema number is the one
+/// thing in this repo that two units can silently agree on: this is a
+/// FORMAT change, not merely a new value of an existing field. Before
+/// v14 the instantiate node's `interface` key could not appear on the
+/// wire at all (no `InterfaceCrossing` value exists to put in it), so
+/// a v13 reader handed a v14 file with a populated record reaches
+/// serde and dies on an unknown shape — exactly the direction the
+/// version gate exists to fail cleanly. Forward-additive as ever (a
+/// v13 file has no crossings), and the migration table stays empty:
+/// a v13 file refuses TYPED with the regenerate recourse.
+///
+/// The record's `class` rides the SAME `kernel_wire` spelling v11 gave
+/// `Declare`'s pairs and v13 gave `Node::Mate` — one contact
+/// vocabulary, one wire spelling of it, third consumer, still not
+/// re-spelled.
+///
+/// This number was taken by an explicit by-eye read of main's
+/// constant at the final re-merge, and the claim also lives as prose
+/// in `docs/MODEL-AB-LOG.md`, where a second claimant collides
+/// instead of merging clean.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these twelve.
-pub const SCHEMA_VERSION: u32 = 13;
+/// [`migration_step`] entry, or a ratified break like these thirteen.
+pub const SCHEMA_VERSION: u32 = 14;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -555,18 +621,23 @@ pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, Migr
 /// body, so a too-old file's diagnostics name the version problem
 /// rather than whatever the stale body happens to parse as.
 ///
-/// **The table is empty, on purpose**: 1 → 2 (M5 PR 10 §4), 2 → 3
-/// (M6-5, ruled #217), 3 → 4 (LIB-SWITCH §4h — profiles as programs,
-/// ratified LQ7a clean break), 4 → 5 (ASM-1 D-6 — document identity)
-/// 5 → 6 (ASM-ROOTS D-1 — product roots) and 6 → 7 (ASM-2A D-6 —
-/// the instantiate node + A11 placements), 7 → 8 (LIB-LBRET — the
-/// `AtToward` chain step), 8 → 9 (LIB-RESPELL — the §2c fillet
-/// family), 9 → 10 (ASM-UPD — the `UpdateReference` edit arm) and
-/// 10 → 11 (M9-1 — the declaration class) were all ratified clean
-/// breaks. The mechanism stays because it
-/// costs nothing and D6.3's forward-only rule is unchanged; a future
-/// format change that is NOT a break adds its `n => Some(step_n)` arm
-/// here.
+/// **The table is empty by RULING, not by omission.** LQ7a
+/// (`docs/LIBRARY-DESIGN.md`) bans backwards-compatibility machinery
+/// of any kind before release — no migration chains, no deprecation
+/// shims — so every bump is a clean break and none of them writes a
+/// step: 1 → 2, 2 → 3 (ruled #217), 3 → 4 (profiles as programs),
+/// 4 → 5 (document identity), 5 → 6 (product roots), 6 → 7 (the
+/// instantiate node + the placements registry), 7 → 8 (the `AtToward`
+/// chain step), 8 → 9 (the fillet-family re-spell), 9 → 10 (the
+/// `UpdateReference` edit arm), 10 → 11 (the declaration class),
+/// 11 → 12 (the group boolean's vocabulary), 12 → 13 (`Node::Mate`)
+/// and 13 → 14 (the inhabited interface record).
+///
+/// The MECHANISM stays by the same ruling's other half: D6.3's
+/// forward-only rule is unchanged, and the first post-release format
+/// change that is not a break adds its `n => Some(step_n)` arm here.
+/// An empty table is the ratified state of this door, not scaffolding
+/// waiting to be finished.
 fn migration_step(from_version: u32) -> Option<MigrationStep> {
     /// `(from_version, step)` pairs — the whole chain, one line each.
     const TABLE: &[(u32, MigrationStep)] = &[];
@@ -592,19 +663,19 @@ fn migration_step(from_version: u32) -> Option<MigrationStep> {
 pub fn save(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
+    tol: Tol,
 ) -> Result<String, PersistError> {
-    check::validate_document(snapshot, edits)?;
+    check::validate_document(snapshot, edits, tol)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —
     // never a file that saves clean and cannot load. (Pure and
     // document-scale cheap; the replayed value is discarded.)
     let mut replay = snapshot.clone();
     for (index, edit) in edits.iter().enumerate() {
-        replay = apply(&replay, edit)
+        replay = apply(&replay, edit, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
-    drop(replay);
     let body = SerBody { snapshot, edits };
     let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
         message: e.to_string(),
@@ -634,7 +705,7 @@ struct SerBody<'a> {
 /// Every arm of [`PersistError`] except `Serialize` (`NonFinite` is
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
-pub fn load(text: &str) -> Result<Loaded, PersistError> {
+pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     let (version, rest) = parse_header(text)?;
     // Migration chain (D1): walk explicit steps up to the current
     // version, then deserialize typed.
@@ -678,7 +749,7 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     // The ONE shared validator — the same call the save door makes
     // (convention 2): a parsed document passes exactly the checks an
     // in-memory document must pass to be saved.
-    check::validate_document(&body.snapshot, &body.edits)?;
+    check::validate_document(&body.snapshot, &body.edits, tol)?;
     // Replay through apply's doors: the loaded current state is the
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
@@ -686,7 +757,7 @@ pub fn load(text: &str) -> Result<Loaded, PersistError> {
     for (index, edit) in body.edits.iter().enumerate() {
         let Applied {
             doc: next, record, ..
-        } = apply(&doc, edit).map_err(|error| PersistError::EditReplay { index, error })?;
+        } = apply(&doc, edit, tol).map_err(|error| PersistError::EditReplay { index, error })?;
         doc = next;
         records.push(record);
     }

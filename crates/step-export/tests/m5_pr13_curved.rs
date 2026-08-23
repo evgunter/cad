@@ -4,7 +4,7 @@
 //! native AP214 entities — so most rows here are ε-INDEPENDENT by
 //! construction and say so where it matters. The one place the ambient
 //! tolerance reaches the file is the `UNCERTAINTY_MEASURE_WITH_UNIT`
-//! value, which the writer copies from `Tolerance::get()` (or the
+//! value, which the writer copies from `Tol::witness().get()` (or the
 //! explicit override the fixtures use); that single dependence is
 //! pinned by [`epsilon_reaches_only_the_uncertainty_record`], and the
 //! one new refusal arm is run at two tolerances by
@@ -43,28 +43,15 @@
 //!    4 seams, and the #210 fold's two skinned documents), and nowhere
 //!    else, plus the placeholder-surface refusal.
 //!
-//!    *Lineage, kept because the names are cited in `docs/M5-EXIT-WALK.md`.*
-//!    `CENSUS` is the successor of `no_body_at_rest_carries_a_nurbs_\
-//!    carrier_or_face` (flipped at M6-2) and then of
-//!    `no_export_corpus_body_carries_a_nurbs_carrier_or_face` (flipped
-//!    at M6-3), and most recently of
-//!    `nurbs_geometry_appears_exactly_where_the_kernel_put_it` (merged
-//!    at the test-cost audit). The retired rows pinned a VACUITY
-//!    positively — that nothing anywhere reached a rung-3 carrier at
-//!    rest, which is what made "every fitted pcurve cache carries the
-//!    full C2 certificate" a statement about the empty set. M6-2 lifted
-//!    the SSI enclosure/certification stack off `f64` and landed
-//!    `Pcurve::Fitted` (`topo/tests/m6_2_fitted_at_rest.rs` now pins the
-//!    POSITIVE law); M6-3's `loft_prism` then brought the corpus's first
-//!    NURBS faces (four skinned walls) AND its first NURBS carriers (the
-//!    four wall–wall seam edges, which store the walls' u-boundary
-//!    control rows — so the carrier half flipped WITH the face half, not
-//!    later). The record-level pins in `writer.rs` still own the
-//!    field-level facts (rational complex instance, knot run-length
-//!    encoding). What survives here is CONTAINMENT: a corpus document
-//!    that silently acquired a NURBS carrier (fitted lane, live since
-//!    M6-2) or a writer that manufactured a spline out of an analytic
-//!    carrier still fails.
+//!    *Lineage (the names are cited in `docs/M5-EXIT-WALK.md`)*:
+//!    `CENSUS` succeeds `no_body_at_rest_carries_a_nurbs_carrier_or_face`,
+//!    `no_export_corpus_body_carries_a_nurbs_carrier_or_face` and
+//!    `nurbs_geometry_appears_exactly_where_the_kernel_put_it`. The
+//!    record-level pins in `writer.rs` own the field-level facts
+//!    (rational complex instance, knot run-length encoding); what
+//!    survives here is CONTAINMENT: a corpus document that silently
+//!    acquired a NURBS carrier (fitted lane) or a writer that
+//!    manufactured a spline out of an analytic carrier still fails.
 //! 4. **Determinism and the refusal arms** — their own rows, because
 //!    [`curved_exports_are_byte_deterministic`] builds the corpus TWICE
 //!    on purpose and that second build IS its content.
@@ -75,9 +62,9 @@ mod common;
 
 use std::collections::HashMap;
 
-use geom_core::Tolerance;
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
+use geom::Curve3;
+use geom::Surface;
+use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
 
 /// The fixture options (matching `tests/export.rs` and the fixture
@@ -89,7 +76,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options).unwrap()
+    step_string(body, &options, Tol::witness()).unwrap()
 }
 
 /// The curved half of the committed corpus.
@@ -678,7 +665,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             "SINGLE-SHELL: {name} is single-shell"
         );
         assert!(
-            step_string(body, &StepOptions::default()).is_ok(),
+            step_string(body, &StepOptions::default(), Tol::witness()).is_ok(),
             "SINGLE-SHELL: {name}"
         );
     }
@@ -730,7 +717,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     skeleton
         .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
         .unwrap();
-    match step_string(&skeleton, &StepOptions::default()) {
+    match step_string(&skeleton, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::UnsupportedSurface { kind, .. }) => {
             assert_eq!(kind, "nurbs placeholder", "CENSUS");
         }
@@ -944,7 +931,7 @@ fn epsilon_reaches_only_the_uncertainty_record() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        step_string(&body, &options).unwrap()
+        step_string(&body, &options, Tol::witness()).unwrap()
     };
     let tight = at(1e-9);
     let loose = at(1e-6);
@@ -980,12 +967,17 @@ fn epsilon_reaches_only_the_uncertainty_record() {
 /// curved-export blocker — is the `SINGLE-SHELL` block of the corpus
 /// row (retired name:
 /// `single_shell_curved_solids_never_reach_the_classifier`).
+///
+/// Since VERBS-RING the two-stub complement is no longer the only
+/// reachable body in the class: the one-call hollow ring is a REAL
+/// two-shell curved solid, pinned on the same gate below
+/// ([`hollow_ring_hits_the_curved_shell_gate`]).
 #[test]
 fn curved_multi_shell_refuses_at_both_tolerances() {
     let stubs = common::two_stub_complement();
     assert_eq!(stubs.shells().count(), 2, "two disjoint stubs");
     assert!(
-        Tolerance::get().eps > 0.0,
+        Tol::witness().get().eps > 0.0,
         "the body above was built at the run's ambient tolerance"
     );
     for eps in [1e-9, 1e-6] {
@@ -993,7 +985,7 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        match step_string(&stubs, &options) {
+        match step_string(&stubs, &options, Tol::witness()) {
             Err(StepExportError::CurvedShellClassification { kind, .. }) => {
                 // The classifier walks a shell face-first and each
                 // face surface-then-carriers, so the entity it meets
@@ -1005,6 +997,42 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
             }
             other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
         }
+    }
+}
+
+/// **The standing gate, on the shape that made it real** (VERBS-RING;
+/// OFFSET-DESIGN O6's demo-gates list): the one-call hollow ring — a
+/// full revolve of an annulus, outer torus + toroidal cavity — builds
+/// tier-valid but cannot leave as STEP, because the outward/void
+/// shell classifier has closed forms for planar faces only. Recorded
+/// as a pin, not worked around; retiring it is the classifier's own
+/// unit, not a ring change.
+#[test]
+fn hollow_ring_hits_the_curved_shell_gate() {
+    use geom_core::{Point2, Vec2};
+    let tol = Tol::witness();
+    let outer = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).unwrap();
+    let inner = profile::circle(Point2::new(5.0, 0.0), 0.35, tol).unwrap();
+    let vp = profile::Profile::new(profile::SketchPlane::xy(), vec![outer.into(), inner.into()])
+        .validate(tol)
+        .unwrap();
+    let ring = sweep::revolve::<f64>(
+        &vp,
+        sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        sweep::Revolution::Full,
+        tol,
+    )
+    .unwrap();
+    assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
+    match step_string(&ring.body, &StepOptions::default(), tol) {
+        Err(StepExportError::CurvedShellClassification { kind, .. }) => {
+            // The classifier meets the torus wall's surface first.
+            assert_eq!(kind, "torus");
+        }
+        other => panic!("expected the standing curved-shell gate, got {other:?}"),
     }
 }
 

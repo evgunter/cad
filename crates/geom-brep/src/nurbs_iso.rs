@@ -15,11 +15,24 @@
 //! one (walls meet at their u-boundaries by construction), and an
 //! unconsumed general extractor would be untested machinery. The
 //! function that first needs it brings it.
+//!
+//! # Why this lives in `geom-brep` and not beside the payloads
+//!
+//! **Iso-curve extraction belongs to the EdgeGeometry layer, not to
+//! the evaluator layer**, and that is a placement rule rather than an
+//! accident of which crate the types used to sit in. Extraction is the
+//! step that turns one entity's data into *another entity's carrier*:
+//! its whole purpose is to hand a curve to an edge, which is what this
+//! layer is for. `geom` answers "what is this locus and what does it
+//! evaluate to"; it does not know that a surface row is about to
+//! become an edge's geometry, and giving it a door that produces
+//! carriers would make the evaluator layer aware of the B-rep above
+//! it.
 
+use geom::NurbsCurve3;
+use geom::NurbsSurface;
 use geom_core::Real;
 use geom_core::spline::SplineError;
-use geom_curves::NurbsCurve3;
-use geom_surfaces::NurbsSurface;
 
 /// The `u = 0` (`end = false`) or `u = 1` (`end = true`) boundary
 /// iso-curve of a clamped surface: the first/last u-row of the control

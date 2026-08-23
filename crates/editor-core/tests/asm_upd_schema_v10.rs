@@ -23,6 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 /// The pre-bump bytes, kept verbatim as the refusal fixture (the file
 /// `m4_pr6_golden.rs` pinned as LIVE until this bump).
@@ -32,9 +33,9 @@ const V9: &str = include_str!("golden/v9_golden.cad");
 fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): ASM-UPD's own bump was v10; M9-1 took v11,
-    // LIB-PLACEDUNION v12 and ASM-R2a v13, and the number is exactly
+    // LIB-PLACEDUNION v12, ASM-R2a v13 and ASM-R2b v14, and the number is
     // what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 13);
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]
@@ -47,7 +48,7 @@ fn the_checked_in_v9_file_is_really_v9() {
 /// step that does not exist.
 #[test]
 fn v9_refuses_too_old() {
-    match load(V9) {
+    match load(V9, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -64,7 +65,7 @@ fn v9_refuses_too_old() {
 /// The recourse is the standing one — regenerate, never a shim.
 #[test]
 fn the_refusal_carries_the_regenerate_recourse() {
-    let msg = match load(V9) {
+    let msg = match load(V9, Tol::witness()) {
         Err(e) => e.to_string(),
         Ok(_) => panic!("v9 must refuse"),
     };

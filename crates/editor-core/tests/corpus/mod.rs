@@ -28,7 +28,8 @@
 //! whose geometry is not dyadic (arcs) carry no mass pin and are
 //! pinned on validity + counts instead.
 
-#![allow(dead_code)] // shared across test binaries; not all use all of it
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -38,6 +39,7 @@ use editor_core::{
     evaluate,
 };
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::Body;
 
 pub mod boss;
@@ -112,7 +114,7 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(&self.doc, &self.bump)
+        apply(&self.doc, &self.bump, Tol::witness())
             .expect("corpus bump edit must apply")
             .doc
     }
@@ -193,7 +195,13 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
     doc: &ProfileDoc,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The per-node failure report of an evaluation (empty when green).

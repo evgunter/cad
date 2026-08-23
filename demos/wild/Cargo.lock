@@ -94,9 +94,9 @@ dependencies = [
 name = "editor-core"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-surfaces",
  "profile",
  "quantity",
  "rayon",
@@ -136,12 +136,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "geom"
+version = "0.0.0"
+dependencies = [
+ "bvh",
+ "geom-core",
+]
+
+[[package]]
 name = "geom-brep"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "slotmap",
 ]
 
@@ -150,22 +157,6 @@ name = "geom-core"
 version = "0.0.0"
 dependencies = [
  "libm",
-]
-
-[[package]]
-name = "geom-curves"
-version = "0.0.0"
-dependencies = [
- "bvh",
- "geom-core",
-]
-
-[[package]]
-name = "geom-surfaces"
-version = "0.0.0"
-dependencies = [
- "bvh",
- "geom-core",
 ]
 
 [[package]]
@@ -219,10 +210,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 name = "mesh"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "spade",
  "topo",
 ]
@@ -241,10 +231,9 @@ name = "pncad"
 version = "0.0.0"
 dependencies = [
  "editor-core",
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "getrandom",
  "mesh",
  "profile",
@@ -402,9 +391,8 @@ dependencies = [
 name = "step-export"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "topo",
 ]
 
@@ -412,10 +400,9 @@ dependencies = [
 name = "step-import"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "topo",
 ]
 
@@ -430,10 +417,9 @@ dependencies = [
 name = "sweep"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "profile",
  "topo",
 ]
@@ -454,10 +440,9 @@ name = "topo"
 version = "0.0.0"
 dependencies = [
  "bvh",
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "slotmap",
 ]
 

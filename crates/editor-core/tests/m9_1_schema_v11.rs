@@ -30,6 +30,7 @@ use editor_core::{
     CapEnd, ContactClass, DocEdit, Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, RoleSeg,
     SCHEMA_VERSION, load, save,
 };
+use geom_core::Tol;
 
 mod fixture;
 
@@ -48,8 +49,8 @@ const V1: &str = include_str!("golden/v1_golden.cad");
 fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12
-    // and ASM-R2a v13, and the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 13);
+    // ASM-R2a v13 and ASM-R2b v14, and the number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 /// The IMMEDIATE prior version refuses, from the real file. Named
@@ -62,7 +63,7 @@ fn v10_golden_refuses_too_old() {
         Some("schema: 10"),
         "the immediate-prior fixture must be the version it is named for"
     );
-    match load(V10) {
+    match load(V10, Tol::witness()) {
         Err(PersistError::SchemaTooOld { found, missing, .. }) => {
             assert_eq!(found, 10);
             assert_eq!(missing, 10);
@@ -75,7 +76,7 @@ fn v10_golden_refuses_too_old() {
 #[test]
 fn v9_golden_refuses_too_old() {
     assert_eq!(V9.lines().next(), Some("schema: 9"));
-    match load(V9) {
+    match load(V9, Tol::witness()) {
         Err(PersistError::SchemaTooOld { found, missing, .. }) => {
             assert_eq!(found, 9);
             assert_eq!(missing, 9);
@@ -98,7 +99,7 @@ fn the_checked_in_v8_file_is_really_v8() {
 /// from the file's version upward and names the FIRST gap.
 #[test]
 fn v8_refuses_too_old() {
-    match load(V8) {
+    match load(V8, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -120,7 +121,7 @@ fn v8_refuses_too_old() {
 /// through a chain that no longer exists.
 #[test]
 fn v1_refuses_too_old() {
-    match load(V1) {
+    match load(V1, Tol::witness()) {
         Err(PersistError::SchemaTooOld { found, missing, .. }) => {
             assert_eq!(found, 1);
             assert_eq!(missing, 1);
@@ -135,7 +136,7 @@ fn v1_refuses_too_old() {
 #[test]
 fn newer_than_this_build_is_unknown_not_too_old() {
     let text = format!("schema: {}\n{{}}\n", SCHEMA_VERSION + 1);
-    match load(&text) {
+    match load(&text, Tol::witness()) {
         Err(PersistError::UnknownSchema { found, newest }) => {
             assert_eq!(found, u64::from(SCHEMA_VERSION) + 1);
             assert_eq!(newest, SCHEMA_VERSION);
@@ -148,7 +149,9 @@ fn newer_than_this_build_is_unknown_not_too_old() {
 /// two-tolerance message discipline applied to the persistence door.
 #[test]
 fn the_too_old_message_names_the_recourse_exactly_once() {
-    let msg = load(V8).expect_err("v8 refuses").to_string();
+    let msg = load(V8, Tol::witness())
+        .expect_err("v8 refuses")
+        .to_string();
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
     assert!(msg.contains("v8"), "the message names the version: {msg}");
 }
@@ -160,7 +163,7 @@ fn the_too_old_message_names_the_recourse_exactly_once() {
 #[test]
 fn too_old_beats_a_broken_body() {
     let text = "schema: 8\nnot json at all\n";
-    match load(text) {
+    match load(text, Tol::witness()) {
         Err(PersistError::SchemaTooOld { found, .. }) => assert_eq!(found, 8),
         other => panic!("the version gate runs first, got {other:?}"),
     }
@@ -172,13 +175,15 @@ fn too_old_beats_a_broken_body() {
 #[test]
 fn a_declaration_round_trips_carrying_its_class() {
     let (doc, decl) = declaring_doc();
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert_eq!(
         text.lines().next(),
         Some(format!("schema: {SCHEMA_VERSION}").as_str())
     );
 
-    let back: ProfileDoc = load(&text).expect("the current version loads").doc;
+    let back: ProfileDoc = load(&text, Tol::witness())
+        .expect("the current version loads")
+        .doc;
     let Some(Node::Declare { pairs }) = back.node(decl) else {
         panic!("the Declare node survives the round trip");
     };
@@ -198,13 +203,13 @@ fn a_declaration_round_trips_carrying_its_class() {
 #[test]
 fn an_unknown_class_spelling_refuses_typed() {
     let (doc, _) = declaring_doc();
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(
         text.contains("\"rest\"") && text.contains("\"tangent\""),
         "classes ride the wire as stable spellings: {text}"
     );
     let tampered = text.replace("\"tangent\"", "\"fit\"");
-    let err = load(&tampered).expect_err("an unknown class spelling must refuse");
+    let err = load(&tampered, Tol::witness()).expect_err("an unknown class spelling must refuse");
     assert!(
         err.to_string().contains("fit"),
         "the refusal names the spelling it could not read: {err}"
@@ -216,7 +221,7 @@ fn an_unknown_class_spelling_refuses_typed() {
 /// only ever saw one class could not tell "persisted" from
 /// "defaulted on read".
 fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m9_1_schema_v10");
+    let doc = ProfileDoc::empty_derived("m9_1_schema_v10", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
     let cap = |node, end| fixture::fname(node, RoleSeg::Cap(end));
@@ -233,7 +238,7 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
         ],
     };
     let applied = doc
-        .apply(&DocEdit::InsertNode { node })
+        .apply(&DocEdit::InsertNode { node }, Tol::witness())
         .expect("the Declare inserts");
     let id = applied.record.minted.expect("an id is minted");
     (applied.doc, id)
@@ -276,7 +281,7 @@ fn block(
 /// against the real file.
 #[test]
 fn probe_v9_header_refuses_too_old() {
-    match load("schema: 9\n{}\n") {
+    match load("schema: 9\n{}\n", Tol::witness()) {
         Err(PersistError::SchemaTooOld { found, missing, .. }) => {
             assert_eq!(found, 9);
             assert_eq!(missing, 9);

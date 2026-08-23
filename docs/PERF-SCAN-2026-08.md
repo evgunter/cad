@@ -40,7 +40,7 @@ the line numbers, are what was re-verified.** What changed:
   and this scan mis-sized it on both axes. `armed()` is now
   `ARMED.with(Cell::get)`. Residual, tracked upstream as issue #558: the
   module is still `pub` and unconditionally compiled; the standing rule
-  is `memories/telemetry-gating.md`.
+  is the `discipline` job's "no ambient environment in the kernel" grep.
 - **Everything else still holds**, re-checked in the merged tree:
   finding 1 (`boxes.rs` untouched by main, still no `Nurbs` arm),
   finding 2 (still no `benches/`, still no `criterion`), finding 3
@@ -117,6 +117,32 @@ So the only trustworthy runtime signal in the repo today is the
 full/incremental **ratio** within the single verified-quiet run. Every
 absolute-millisecond claim in this report is provisional and labelled.
 
+> **Update, 2026-08-17 — the producer moved; this section's findings
+> stand as written.** The single committed baseline described above no
+> longer exists in that form. It was split along the rot line: the
+> machine-independent half (`about` / `nodes` / `cone`) stays in
+> `crates/editor-core/tests/baseline/rebuild-latency.json` as an
+> asserted structural manifest, and the timings moved to
+> `docs/perf-data/rebuild-latency/` — one append-only entry per merge
+> to `main`, produced and committed by ci.yml's `rebuild latency
+> (reporting)` job on a hosted runner, each carrying its own
+> `environment` block (runner, nproc, memory, toolchain, RUSTFLAGS,
+> `CARGO_PROFILE_*`, debug-assertions, ε).
+>
+> What this does and does not fix. It does **not** resolve
+> `disputed_measurement` retroactively — those three workstation
+> refreshes remain mutually incomparable, and every absolute-
+> millisecond claim in this report stays provisional. It makes the
+> failure unable to recur: one reproducible box class produces the
+> numbers, every entry records the environment the argument went
+> unresolved for want of, and the history accumulates instead of being
+> overwritten, so drift is recoverable rather than laundered. The
+> `die_composed` caveat is superseded by the first hosted entry —
+> re-measured on the same box as its neighbours, it is a datum again.
+>
+> The measurements are still **REPORTING ONLY**, still dev-profile, and
+> still never gated. What changed is that they are now comparable.
+
 **What partially rescues the situation:** `docs/k-report-data/` holds
 per-document *predicate decision counts* — 1 792 926 recorded decisions
 across 15 corpus documents and 19 demo scenes in the 1e-9 row alone —
@@ -169,7 +195,7 @@ most likely to break the invariant it depends on.
 | 9 | Kill-direction Euler ops are O(arena) via orphan scans | runtime | M | high |
 | 10 | CI: shard the default archive build across runners | CI wall | M | high |
 | 11 | `merge_group` rescans the edge arena after every kill | runtime | M | high |
-| 12 | Fillet `Plan::assemble` is ~cubic in blended edges | runtime | M | high |
+| 12 | ~~Fillet `Plan::assemble` is ~cubic in blended edges~~ | — | — | **RETIRED** — its subject was deleted |
 | 13 | Boolean `join` is O(n³) with hoistable invariants | runtime | M | high |
 | 14 | `graft_solid` is O(E²) — missing inverse map | runtime | S | high |
 | 15 | `StableName` nests one `Box` per boolean → O(chain²) | runtime | M/L | high |
@@ -247,7 +273,7 @@ See §0. Effort M.
 
 #### 3. CI: `opt-level = 2` on the interval build outlived its justification **[verified]**
 
-`.github/workflows/ci.yml:855-872` (scan base `:766-777`). PR #449 put
+`.github/workflows/ci.yml:652-669` (scan base `:563-574`). PR #449 put
 `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL: "2"` on both archive jobs on
 2026-08-12, justifying it for the interval job verbatim: *"This job is
 the run's critical path (its archive feeds the longest test leg in the
@@ -255,7 +281,7 @@ run) ... the interval lane's slowest leg was 828 s of pure execution,
 and opt-2 is aimed squarely at that."*
 
 **That leg no longer exists.** On 2026-08-13 — the next day — the
-interval-only-selection change (`ci.yml:990-1065`,
+interval-only-selection change (`ci.yml:787-862`,
 `scripts/interval-only-selection.py`) cut the interval legs to the 214
 tests the feature actually adds. Measured on run 31776906935, the four
 interval legs execute **3 s, 2 s, 3 s and 2 s — 10 seconds total** —
@@ -272,13 +298,19 @@ hitting perfectly — not one non-path `Compiling` line), 17 workspace libs
 | default | 127 s → 455 s (+328 s) | 6 legs, 168 s — opt-2 still wins |
 | **interval** | **132 s → 534 s (+402 s)** | **4 legs, 10 s — opt-2 loses by ~380 s** |
 
-(opt-0 figures are #449's own hosted measurements, `ci.yml:573-575`.)
+(opt-0 figures are #449's own hosted measurements, `ci.yml:370-372` —
+the same lines the scan cited, renumbered by #626. Note the citation
+was already misaimed: those lines are a prune-tooling step, not an
+opt-level knob. The knobs this table is about are `ci.yml:517-518`
+(default) and `:669-670` (interval).)
 
 **Fix:** delete the two `CARGO_PROFILE_*_OPT_LEVEL` lines from
 `build-interval` only, keep the debuginfo knobs, keep opt-2 on `build`,
 and rewrite the now-false rationale comment. D9-safe by the repo's own
-ratified reasoning (`ci.yml:611-614`, `ci.yml:1221-1223`: "the D9
-bit-exactness pins hold at any opt level — opt never moves rounding").
+ratified reasoning (`ci.yml:408-411`, `ci.yml:1018-1020`: "the D9
+bit-exactness pins hold at any opt level — opt never moves rounding" —
+both renumbered by #626, and both already misaimed: the quoted sentence
+is at `ci.yml:1145-1146`, in neither range).
 Effort S.
 
 **Estimated:** `build-interval` 569 s → ~170 s; **−6.7 min billed per
@@ -329,7 +361,7 @@ full ~40-sweep tier-1 pass over the *whole body*.
 Building a body with K operator calls therefore costs **Θ(K·N) instead
 of Θ(K)**. Booleans and splitting drive Euler ops in inner loops
 (`boolean/zip.rs:147,171,173`, `boolean/insert.rs:431`,
-`boolean/rest.rs:592,1191,…`, `splitting/join.rs:1926,…`), so the boolean
+`boolean/rest.rs:592,1191,…`, `chord_join.rs:1797,…`), so the boolean
 inner loop is quadratic in debug.
 
 **Why this matters for the numbers everyone reads:** the rebuild-latency
@@ -401,13 +433,15 @@ width-1. Parallelism helps `die`'s independent pip subtrees and the
 re-mints and re-certifies **every face in the body**, at `CERT_SAMPLES = 9`
 residual samples per boundary edge.
 
-It is called from **10 production call sites across 3 crates** (topo,
+It is called from **9 production call sites across 3 crates** (topo,
 sweep, step-import):
 `boolean/ops.rs:532`, `merge_faces.rs:536`, `splitting/mod.rs:632`,
-`transform.rs:424`, `sweep/fillet/surgery.rs:283`,
-`sweep/fillet/build.rs:938`, `sweep/loft.rs:532`,
+`transform.rs:424`, `sweep/fillet/surgery.rs:286`, `sweep/loft.rs:532`,
 `sweep/revolve/mod.rs:695`, `sweep/revolve/tube.rs:253`, plus
-`step-import/src/assemble.rs:820`.
+`step-import/src/assemble.rs:820`. (It was ten: the fillet's whole-body
+assembly door held the tenth, and both it and the door were deleted when
+SMELL-SCAN S7 / D3 was executed. The fillet now re-mints once, from the
+surgery, per fillet.)
 
 **The consequence is a quadratic nobody named.** A chain of N booleans on
 a growing body re-certifies the whole body N times: `die`'s 21 chained
@@ -520,20 +554,29 @@ against a degenerate cocircular hull, not point location.
 #### 8. `point_in_loop` re-decides loop-intrinsic facts on every query **[verified]**
 
 `crates/topo/src/splitting/containment.rs:162-197`, called from
-`boolean/contain.rs:130,141` and `splitting/join.rs:2079`.
+`boolean/contain.rs:130,141` and `chord_join.rs:1951`.
 
 Hard call-count evidence, recomputed from
 `docs/k-report-data/m7-eps-1e-9.csv.gz` (15 corpus documents,
 284 178 decisions): `point_in_loop_boundary` 49 290 (17.3%),
 `point_in_loop_side` 22 831 (8.0%), `point_in_loop_arm` 7 755 (2.7%),
 `point_in_loop_advance` 5 632 (2.0%) — **85 508, or 30.1% of every
-decision the corpus makes.** `point_in_loop_boundary` alone is the
-single largest predicate in the corpus, ahead of
-`bool_point_in_solid_plane` (6.8%) and `carrier_on_surface_1` (6.5%).
+decision the corpus makes.** The `point_in_loop_*` family is the
+largest in the corpus, ahead of `bool_point_in_solid_plane` (6.8%)
+and `carrier_on_surface_1` (6.5%).
+
+**Name split since #712.** That 49 290 was ONE name deciding two
+questions. #712 split it: the degeneracy gate is now
+`point_in_loop_segment` and the distance keeps
+`point_in_loop_boundary`, at **24 645 each** — exactly half, because
+the pre-pass asks both once per segment per query. The family total,
+the margins and the decision sequence are unchanged; a reader chasing
+the 49 290 figure in a fresh CSV must add the two rows.
 
 Three query-independent wastes:
 
-- `containment.rs:180` — `decide("point_in_loop_boundary", Margin::norm3(e), band)`
+- the pre-pass's degeneracy gate — `point_in_loop_segment` since #712,
+  now decided inside `ray_parity::on_boundary` —
   asks *"is this loop segment degenerate?"*. `e` depends only on the
   loop, not the query point, and it runs once per segment **per query**.
   That is ~24 600 corpus decisions — **8.7% of all decisions** —
@@ -582,7 +625,9 @@ Effort M (refcounts) / S (the allocation).
 
 #### 10. CI: shard the default archive build
 
-`ci.yml:547-684`. 19 test binaries at ~20 s each of codegen+link, fully
+`ci.yml:344-481` — renumbered by #626, and already misaimed: that span
+is the `discipline` job, while the `build` job this item is about is
+`ci.yml:434-575`. 19 test binaries at ~20 s each of codegen+link, fully
 independent, executing on a 2-vCPU runner. `ci.yml:96-106` establishes
 that 8-vCPU runners are not landable (`evgunter/cad` is User-owned;
 larger runners need an org), so more cores can only come from more
@@ -632,28 +677,28 @@ per merge group (10 arenas + 11 `SecondaryMap` sidecars) and run a full
 G groups. Fix by validating only the affected shell, or by staging all
 groups and validating once with per-group fallback on refusal. Effort M.
 
-#### 12. Fillet `Plan::assemble` is ~cubic in blended edges
+#### 12. ~~Fillet `Plan::assemble` is ~cubic in blended edges~~ — **RETIRED, subject deleted**
 
-`crates/sweep/src/fillet/build.rs:798-819`. The greedy face scan is
-`while remaining > 1 { for (i, face) in self.faces.iter().enumerate() { … self.runway(&state, face) … } }`,
-and `runway` (`:958-968`) calls `state.body.find_half_edge(...)` once per
-position of the candidate's cycle. `find_half_edge`
-(`crates/topo/src/euler.rs:1220-1245`) walks the entire hole loop via
-`loop_cycle`, and `bounded_walk` (`crates/topo/src/body.rs:816-843`)
-**allocates and grows a `Vec<HalfEdgeKey>` on every call**.
+This row's subject no longer exists. `Plan::assemble` and its `runway`
+greedy face scan were the fillet's **whole-body assembly door**, deleted
+in full when SMELL-SCAN S7 / D3 was executed: the composition surgery's
+front door strictly contains the whole-body door's, so the second
+implementation was retired rather than optimized. There is nothing left
+to re-measure and the prescribed fix has no site to apply to.
 
-For a polyhedron with V vertices the result has O(V) faces and an O(V)
-hole boundary, giving **O(V³)** with one allocation per probe. Concretely
-for `die_fillet` (V=8, F_result=26): ≈ 2 275 `find_half_edge` calls, each
-allocating and walking up to ~30 half-edges — ~68 000 half-edge steps to
-mint 25 faces.
+The row is kept struck through rather than removed, because what it
+measured is still a real cost SHAPE and a future assembler could
+reintroduce it: the finding was a greedy O(V) rescan whose inner probe
+(`find_half_edge` → `loop_cycle` → `bounded_walk`) walks and
+**allocates** per position, giving O(V³). The surviving surgery does not
+have that shape — it splits and merges named faces in place rather than
+growing a patch by scanning for the longest run — so nothing inherits
+the row.
 
-**Fix:** build a `(VertexKey, VertexKey) → HalfEdgeKey` index of the hole
-loop once per outer iteration and have `runway` probe it — O(k) instead
-of O(k·|hole|). Determinism preserved because the greedy pick order
-(first face with the strictly-longest run, in plan-face order) is
-unchanged. **Do not** replace the outer rescan with a priority queue —
-that would change tie-breaks and therefore arena order. Effort M.
+Two consequences elsewhere in this document, both applied: finding 7's
+`mint_pcurves` call-site list drops from ten sites to nine, and the
+fillet's contribution to it is now one re-mint per fillet rather than
+two doors' worth.
 
 #### 13. Boolean `join` is O(n³) with hoistable invariants
 
@@ -1100,7 +1145,7 @@ are not re-reported as findings.
   ≈38.7×) puts it near ~63 ms — mid-pack. **There is no combinatorial
   blowup in the octant/corner/torus-band handling**: `corner_ball`
   (`fillet/blend.rs:266-294`) is a closed-form Cramer solve,
-  `octant_chart` (`build.rs:319-352`) is an argmin over ≤3 links,
+  `octant_chart` (`build.rs:172-205`) is an argmin over ≤3 links,
   `plane_sphere_blend` is straight-line closed form, and the rim phase
   (`surgery.rs:1043-1432`) is O(n) per phase with no nesting. The one
   loop that looks like a retry (`surgery.rs:1176-1182`) is a bounded
@@ -1123,8 +1168,10 @@ are not re-reported as findings.
 - **Current CI tessellation is microseconds.** All CI tessellation runs
   at δ=1e-2 (`crates/stl/tests/common/mod.rs:47-66`) → ~31 chord points
   per circle. The 44 s `watertight` row and the 96–150 s montage rows
-  are **compile-bound**, not mesh-bound (`ci.yml:1522` records the tour
-  itself as "~3 s once built"). Do not attribute those wall times to
+  are **compile-bound**, not mesh-bound (`ci.yml:1319` records the tour
+  itself as "~3 s once built" — renumbered by #626, but the quotation
+  does not appear at that line or anywhere in ci.yml, so the citation
+  is unresolved rather than merely stale). Do not attribute those wall times to
   meshing.
 - **`mesh/cert.rs` is not a cost center and does no sampling.** All five
   certificates (`cert.rs:107-148`, `nurbs_cert.rs:183-187`) are
@@ -1180,7 +1227,7 @@ are not re-reported as findings.
   strings, no rehash.
 - **Test-binary count is fully optimized.** 367 `tests/*.rs` files exist,
   but all 14 crates with tests carry `autotests = false` plus a single
-  `[[test]]` aggregator, gated by `scripts/check-test-aggregation.sh`.
+  `[[test]]` aggregator, gated by `scripts/gates/test-aggregation.sh`.
   The 19 binaries CI builds are the floor for 10 packages. Anyone reading
   "367 test files" as a lever is reading a pre-#387 number.
 - **Generic monomorphization is not a material build cost** —
@@ -1310,8 +1357,10 @@ names as a target: `par_iter()` into a pre-sized buffer emitting *local*
 grid ids, then a sequential fold in face-arena order assigning base
 offsets. Output is bit-identical. Two details: pick the first error in
 arena order (not first-to-fail) so refusals stay deterministic, and
-update `probe_stats`' thread-local comment at `mesh/src/lib.rs:226`, which
-currently asserts "tessellation runs entirely on the calling thread".
+update the budget meter's thread-local invariant at
+`mesh/src/budget.rs` ("tessellation runs on the calling thread, so armed
+evidence stays attributable under a parallel test runner"), which is
+where that claim lives now that `probe_stats` is gone (#709).
 Effort M; ceiling is core count against face count.
 
 Finally, a mechanism worth recording because it strengthens finding 3:

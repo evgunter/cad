@@ -1,24 +1,71 @@
 # Memory Index
 
-- [CAD project state](cad-project-state.md) — M0–M8 COMPLETE (#89 closed K=10; M8 closed #508 2026-08-15); M9 = C7 join lane (next), M10 = error propagation; A′ PlacedUnion design ratified/unscheduled; the LIB and ASM programs run concurrently; live status = the relevant *-LOG tail, never the memory; gate = hosted nextest matrix
-- [CAD working style](cad-working-style.md) — discuss → ratify into DESIGN.md → commit; propose firmly, welcome pushback; no escape hatches; fail loud
-- [Evan profile](evan-profile.md) — differential-geometry fluent; define CAD jargon, don't simplify math; probes fudged invariants
-- [FreeCAD render lane](freecad-render-lane.md) — ROOT CAUSE FOUND 2026-08-10: the "random stall" is a FreeCAD self-deadlock (NotificationArea re-enters its own lock via the Console when the offscreen QPA plugin warns on raise()); fixed in render_freecad.py by disabling the notification area, side effect stated. Keep the per-scene isolation + staged publish anyway; PNG path stamp + timeout's unreliable exit status still bite; renders are hosted, and since 2026-08-11 CI RENDERS AND GATES all four lanes on every push — take them with `local-scripts/render-hosted.sh` (the default; dispatching is `--on-demand`), and expect a monthly mesa re-baseline
-- [Git workflow](git-workflow.md) — merge-only, no history rewriting; messy commits fine, documentation in PR descriptions; agents self-merge to main
-- [Interval square poison](interval-square-poison.md) — interval squares of possibly-zero quantities MUST use powi(2), never x*x (spurious negative lo → sqrt poison); four live occurrences, now CI-enforced by the discipline job's allowlist
-- [Name candidates (Q9)](name-candidates.md) — Evan's shortlist Intension / Noumenon / Selvage / Tertium with justifications; full slate incl. mined constructive-logic vein + availability 2026-07-25 (STALE — re-sweep before Q9 ratification)
-- [Multi-agent capabilities](multi-agent-capabilities.md) — nested subagent spawning verified; worktree isolation for parallel implementers; custom agent types go in .claude/agents/
-- [Orchestration model](orchestration-model.md) — top-level agent orchestrates/meta-reviews, subagents code+review; high-confidence design PRs self-merge (retroactive review), fundamental forks wait; commit crucial state before stopping (orchestrator-only); compressed standing operational rules (monitors, Evan-channel etiquette, state-sync PRs, subagent spec headers)
-- [Machine build config](machine-build-config.md) — READ docs/LOCAL-BUILD-PERF.md before tuning local build config; only line-tables-only is set (size knob, -68% target/); mold and sccache were measured and REVERTED (mold = noise at 14 test targets; sccache forces incremental=0 = 5-7x slower edit loop); the 22x machine-condition variance, not any flag, is the open lead
-- [Agent lane operations](agent-lane-operations.md) — consolidated lane rules (2026-08-05; build-slot locks 2026-08-06): new-lane.sh creation, with-build-slot.sh flock slots (width-1 mutex — measured: serial builds beat 2-wide by ~40%; replaces soft two-lane cap + cargo-slots.txt), disk budgets, clean-lanes.sh + monitor scripts, hourly liveness, death recovery, resume-vs-fresh policy
-- [Tessellation budget](tessellation-budget.md) — MEASURE, never estimate, whether a mesh is bigger than it needs to be: `demo-tour tess-budget` + `tools/tess-lint`, ~4 s over the whole tour; #320 answered — 8.8x recoverable tour-wide (17x on the lofted leaf) with the SAME certificates, and the dominant factor is the u/v split schedule (~4x on every NURBS wall), not the leaf's whole-patch sup (3.8x, second); the cheapest split is a strip, so it is an upper bound
-- [Telemetry gating](telemetry-gating.md) — instrumentation is feature-gated at its MODULE boundary from the first commit (live/inert split, so the hot lane carries no `#[cfg]`) and armed by an explicit call, NEVER by the environment; `NURBS_PROBE` reached shipped builds and cost 7.9 s → 19.8 s plus a panic-by-env, which is why the `discipline` job now greps for ambient env reads in `crates/*/src`; retrofitting is the expensive direction (#558)
-- [Schema-claim discipline](schema-claim-discipline.md) — same-number SCHEMA_VERSION double-claims MERGE CLEAN (no git conflict); by-eye check of main's live constant at final re-merge is the only guard; ledger claim prose is the tripwire
-- [Test-suite cost](test-suite-cost.md) — ASK WHICH SHAPE FIRST: a counterexample search (∀x. P) varies its seed, a witness you can write down becomes a static fixture, a witness you cannot write down (e.g. "a walk reaching every op kind") KEEPS a fixed seed — "everything needs a random seed" is how a coverage test becomes flaky. For the ∀ case a hardcoded seed is not a weak fuzzer, it is not a fuzzer; counts scale by an EFFORT dial and sweeps are MARKED to run only on changes to the code they test; failure isolation < per-run cost (merge fixture-sharing tests, label the assertions); assertion-free tests are never gates; tier `all` fires on 75% of building merges, so the existing closure output is a near-no-op as a frequency gate
-- [Review and dependency policy](review-and-dependency-policy.md) — reviews must run real e2e demos, not just read diffs; reviewer suites: conventions bind the AUTHOR, promotion takes them as-is with no combing obligation, and retirement afterwards is always permitted (Evan 2026-08-13 — the old "drop only exact duplicates" reading is what let them accumulate); deps fine to add with ~2-week minimum release age
-- [Model A/B experiment](model-ab-experiment.md) — standing (2026-07-25): blocked-randomization Opus 5 vs Fable 5 for implementation; blinded reviewers + fixed quality rubric; protocol/data/readouts in docs/MODEL-AB-LOG.md (M4-close n=10 and M5-close n=40 both: no evidence either arm is worse; rows now recorded AT MERGE; post-M5 rows under their own section)
-- [Local battery scope](local-battery-scope.md) — local testing = iteration-speed tool only, scoped per change shape by time-to-signal; hosted CI is the only gate
-- [K telemetry state](../docs/K-REPORT.md) — not a memory file, but the pointer that keeps getting lost: K = 10 is FINAL, #89 CLOSED (Evan, PR #169, 2026-08-03), K = 10 the permanent ratified default; re-open trigger = in-band landings, AND the M7 addendum records the first landing FIRING and being RETIRED as a dimensional-metering bug (#197) — check a landing's margin DIMENSION before reading it as K evidence. The large-K lint's baseline floor was re-derived to 4.0e-5 (M7 addendum) and the pickup is CLOSED: 0 flags at all three ε on the latest hosted gate
-- [Demo purpose](demo-purpose.md) — demos demonstrate REAL natural usage (Evan 2026-08-09); awkwardness = a library finding to record, never hide; byte-identity soft for improvements, kept for mechanical migrations; binding copy in demos/tour/src/main.rs crate docs
-- [Usage-limit protocol](usage-limit-protocol.md) — usage-watch.sh per-account monitor + WARN/STOP-SOON/STOP-NOW/RESET/CACHE-PING orchestrator protocol; mngr usage conflates accounts; mngr CLI hangs from agent worktrees
-- [ASM program state](../docs/ASM-LOG.md) — not a memory file: the assemblies program's live state = the ASM-LOG tail; plan = ASM-PLAN; design = ASSEMBLY-DESIGN A1–A11 (all ratified); handoff = issue #430 (resume-this-line-of-work)
+Read the files as relevance dictates; this index says what each is for,
+not what it says. **Live status is never here** — it is the tail of the
+relevant `docs/*-LOG.md`.
+
+**The three concurrent programs and their live logs:** kernel
+milestones (`docs/M9-LOG.md`, plan `M9-PLAN.md`), LIB —
+usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
+(`docs/ASM-LOG.md`, plan `ASM-PLAN.md`). Ratified design is
+`docs/DESIGN.md` plus its companion table. Merge gate = hosted Actions.
+
+## Working with Evan
+
+- [CAD working style](cad-working-style.md) — discuss → ratify into
+  DESIGN.md → commit; doc prose states the present only; **how to write
+  a memory** (the two tests, and be brief)
+- [Docs ledger](docs-ledger.md) — `docs/` is pruned, not archived; a
+  pointer to a missing `docs/` file resolves in `docs/DOC-LEDGER.md`
+- [Evan profile](evan-profile.md) — differential-geometry fluent; define
+  CAD jargon, don't simplify the math; probes fudged invariants
+- [Git workflow](git-workflow.md) — merge-only, no history rewriting;
+  documentation lives in PR descriptions; agents self-merge to main
+- [Demo purpose](demo-purpose.md) — demos demonstrate REAL usage;
+  awkwardness is a library finding, never hidden
+
+## Running the work
+
+- [Orchestration model](orchestration-model.md) — orchestrator plans and
+  meta-reviews, subagents code and review; when to self-merge vs wait
+  for Evan; standing operational rules (monitors, away-channel, subagent
+  brief headers)
+- [Orchestrator switch runbook](orchestrator-switch-runbook.md) —
+  RUNBOOK, read only when handing off to a successor
+- [Agent lane operations](agent-lane-operations.md) — lane creation,
+  build-slot locks, disk, liveness, death recovery, CONFLICTING
+- [Usage limit protocol](usage-limit-protocol.md) — why sessions must
+  stop BEFORE the window fills, and the WARN/STOP/RESET actions
+- [Model A/B experiment](model-ab-experiment.md) — the standing
+  Opus-vs-Fable implementation experiment; `docs/MODEL-AB-LOG.md` is
+  normative and owns every live number
+
+## Testing, review, measurement
+
+- [Local battery scope](local-battery-scope.md) — hosted CI is the gate
+  AND the cheap option; local runs only when they beat the gate to a
+  failure
+- [Review and dependency policy](review-and-dependency-policy.md) —
+  reviews run real e2e demos; reviewer suites promote as-is and may
+  always be retired; ~2-week minimum dependency age
+- [Test suite cost](test-suite-cost.md) — ask which SHAPE a test is
+  before giving it a seed; effort dials; assertion-free tests never gate
+- [Perf measurement lane](perf-measurement-lane.md) — a timing is worth
+  nothing without its box; hosted CI produces them, history is
+  append-only, reporting never gating
+- [Tessellation budget](tessellation-budget.md) — MEASURE whether a mesh
+  is bigger than it needs to be; the anisotropic-sliver lesson; and
+  WHERE instrument belongs (gating does not answer volume)
+- [FreeCAD render lane](freecad-render-lane.md) — CI renders and
+  re-baselines the lanes; PRs REPORT (neutral, not a failure), main
+  COMMITS; FreeCAD's two failure modes; the per-process budget
+
+## Kernel rules
+
+- [Output stability as justification](output-stability-as-justification.md)
+  — byte/bit-preservation may choose among equivalent implementations,
+  never justify keeping code; and the three uses of that vocabulary it
+  does not touch
+- [K telemetry state](../docs/K-REPORT.md) — not a memory: K = 10 is the
+  permanent ratified default, #89 CLOSED; check a landing's margin
+  DIMENSION before reading it as K evidence

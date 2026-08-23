@@ -9,14 +9,13 @@ Rust `compile_fail` probes — the lattice is only a type story if a
 type checker can be shown enforcing it.
 
 `ty` is not vendored: the test uses `$PNCAD_TY` if set, else a `ty` on
-PATH, and SKIPS otherwise, saying so. A skip is an honest "this
-environment has no type checker", never a pass.
+PATH, and FAILS otherwise: an environment without a type checker
+cannot report this check green.
 """
 
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,10 +30,12 @@ PYTHON_VERSION = "3.12"
 
 
 def ty_binary():
-    return os.environ.get("PNCAD_TY") or shutil.which("ty")
+    ty = os.environ.get("PNCAD_TY") or shutil.which("ty")
+    if ty is None:
+        raise RuntimeError("no `ty` on PATH and PNCAD_TY unset")
+    return ty
 
 
-@unittest.skipUnless(ty_binary(), "no `ty` on PATH and PNCAD_TY unset")
 class TestTheStubLatticeTypechecks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -99,19 +100,6 @@ class TestTheStubLatticeTypechecks(unittest.TestCase):
             [],
             f"ty flagged lines the fixture calls legal:\n{done.stdout}",
         )
-
-
-class TestTheDispositionIsRecorded(unittest.TestCase):
-    """A skipped static check must be visible, not silent."""
-
-    def test_the_checker_is_named_when_it_is_missing(self):
-        if ty_binary() is None:
-            print(
-                "\nty disposition: NOT MEASURED here — no `ty` binary "
-                "(set PNCAD_TY, or install the pinned release).",
-                file=sys.stderr,
-            )
-        self.assertTrue(FIXTURES.is_dir(), "the ty fixtures must ship regardless")
 
 
 if __name__ == "__main__":

@@ -23,11 +23,12 @@
 //! pick landed in the sliver band). Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::{NurbsSurface, Surface};
+use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
@@ -37,10 +38,7 @@ use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 /// walls, every weight 1.
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge: 0.0,
-        };
+        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
@@ -54,13 +52,13 @@ fn offset_square_prism() -> Body<f64> {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// Is this face's surface a described NURBS wall whose control net lies
@@ -166,6 +164,7 @@ fn intrinsic_seam(
             param_start: t0,
             param_end: t1,
         },
+        Tol::witness(),
     )?;
     // The loft minted this half-edge's cache against the description it
     // had before this surgery; a cache read back would answer about
@@ -180,7 +179,7 @@ fn intrinsic_seam(
 /// number and no mint happens at all. `None` IS that cell — pinned as a
 /// refusal whose own number explains it, never widened away.
 fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     match intrinsic_seam(swap) {
         Ok(seam) => {
             assert!(
@@ -302,7 +301,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     );
     assert!(p0.y.abs() < 1e-12, "and starts at its v origin: {p0:?}");
     // The mint pass certifies every face of the body it charts.
-    topo::mint_pcurves(&mut body).expect("the whole body charts over the new arm");
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the whole body charts over the new arm");
     let stored = body
         .pcurve(he)
         .expect("the seam's own half-edge stores its certified image");
@@ -313,7 +312,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     );
     println!(
         "M8-4 boundary column @ eps={:e}: u = {}, v slope {}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         p0.x,
         pl.y
     );
@@ -420,7 +419,7 @@ fn an_interior_column_intersection_refuses_typed() {
         p @ (MintPosture::Refused | MintPosture::Escalated) => {
             println!(
                 "M8-4 interior column @ eps={:e}: {p:?} — {out:?}",
-                Tolerance::get().eps
+                Tol::witness().get().eps
             );
         }
         MintPosture::Certified(p) => panic!(
@@ -470,7 +469,7 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     );
     println!(
         "M8-4 imported chart @ eps={:e}: u = {}, v slope {}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         p0.x,
         pl.y
     );

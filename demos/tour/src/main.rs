@@ -31,6 +31,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod assembly;
 mod az;
 mod bodies;
 mod bool_bodies;
@@ -39,6 +40,7 @@ mod bossplate;
 mod crosslap;
 mod curvedcut;
 mod cutaway;
+mod diechamfer;
 mod diefillet;
 mod heatsink;
 mod klein;
@@ -48,6 +50,7 @@ mod paths;
 #[cfg(feature = "probe")]
 mod probe;
 mod projectbox;
+mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
@@ -57,39 +60,34 @@ mod tube;
 mod uvdump;
 mod walls;
 
+use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::topo::{Body, ContactRecords};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
 /// boolean result — tier 3′ then runs `validate_pseudomanifold` with
-/// the op's OWN declared contacts (the M3 PR 6a contract; the old
-/// `upgrade_edges_to_intersections` clone hack is retired).
+/// the op's OWN declared contacts (the M3 PR 6a contract).
 struct SceneBody {
     name: String,
     body: Body<f64>,
     contacts: Option<ContactRecords>,
+    /// Whether this body is an ASSEMBLY at rest, whose tier-3′ verdict
+    /// was taken at the assembly door rather than here. See
+    /// [`SceneBody::at_rest`].
+    at_rest: bool,
     /// Base RGB for the render manifest.
     color: [f64; 3],
-    /// Render transparency, 0–100 (0 = opaque, the default every
-    /// scene had before the Klein bottle). Carried in the manifest so
+    /// Render transparency, 0–100 (0 = opaque, the default). Carried
+    /// in the manifest so
     /// it is a property of the SCENE rather than of a renderer: a
     /// shape whose point is what happens INSIDE it (a neck entering a
     /// body wall) cannot be read from an opaque render at any camera.
     transparency: u8,
-    /// Whether STEP export MUST succeed for this body (#91 review M2:
-    /// a refusal on a body inside the writer's subset is a regression
-    /// that fails the tour, never a silently hollowed F6 dogfood).
-    ///
-    /// **Since M5 PR 13 this is true for every tour body.** The
-    /// writer's subset grew to the whole elementary-surface vocabulary
-    /// plus conic and NURBS carriers, and since M6-3 to described
-    /// NURBS faces (the loft walls) — every shape the tour builds is
-    /// inside it. The field stays because the one live refusal (a
-    /// multi-shell CURVED solid, which the outward/void classifier
-    /// cannot sign) would produce a body the tour must not silently
-    /// drop.
-    step_expected: bool,
+    /// `Some(pin)` when the SCENE declares this body to be past the
+    /// STEP writer's named subset frontier. See
+    /// [`SceneBody::step_at_frontier`].
+    step_frontier: Option<StepFrontierPin>,
 }
 
 impl SceneBody {
@@ -101,9 +99,10 @@ impl SceneBody {
             name: name.into(),
             body,
             contacts: None,
+            at_rest: false,
             color,
             transparency: 0,
-            step_expected: true,
+            step_frontier: None,
         }
     }
 
@@ -115,14 +114,45 @@ impl SceneBody {
         self
     }
 
-    /// An all-planar non-boolean body (split halves, transformed
-    /// planar bodies). Kept as a distinct spelling because the CALLER
-    /// is asserting planarity, which is information about the body;
-    /// the STEP posture is now the same as [`Self::plain`]'s.
-    fn plain_planar(name: impl Into<String>, color: [f64; 3], body: Body<f64>) -> Self {
-        Self::plain(name, color, body)
+    /// **The scene DECLARES this body past the STEP writer's named
+    /// subset frontier**, and takes on the obligation that goes with
+    /// saying so.
+    ///
+    /// The STEP arm below refuses to drop a body from the manifest on
+    /// a frontier refusal, on the grounds that a scene which
+    /// legitimately enters that class has to say so where it is built.
+    /// This is that door, and it is a PROBE in the `walls` sense, not
+    /// a suppression: the export still runs on every pass, and
+    /// `pinned` — an EXACT variant test the scene supplies, exactly as
+    /// a wall probe supplies one — is the only outcome that passes
+    /// quietly. A different refusal fails the tour even when it is a
+    /// neighbouring variant of the same frontier CLASS, because a
+    /// probe that accepts the class cannot notice the frontier moving
+    /// inside it. SUCCESS fails it too, and `retire` then says what to
+    /// do with the scene.
+    ///
+    /// Its manifest entry carries a null `step`. That is a legitimate
+    /// value of the format (`demos/manifest.py`), and the readers that
+    /// take it are named there: the kernel lane never reads the field,
+    /// and the FreeCAD lane — whose whole subject is OCC re-tessellating
+    /// OUR STEP — has nothing to import for such a body and says so
+    /// rather than drawing it from the mesh, because a cell drawn from
+    /// the STL in that lane would look like OCC evidence and be none.
+    fn step_at_frontier(
+        mut self,
+        pinned: fn(&pncad::step_export::StepExportError) -> bool,
+        retire: &'static str,
+    ) -> Self {
+        self.step_frontier = Some(StepFrontierPin { pinned, retire });
+        self
     }
 
+    /// A boolean RESULT: validated at tier 3′ against the op's own
+    /// declared contacts rather than through the plain geometric gate.
+    /// Curved results (M5 PR 11's boss ∪ plate, whose cylinder walls
+    /// and circle seam arcs are what the curved arms were written for)
+    /// take this door too — the contacts, not the surface kind, are
+    /// what it is about.
     fn seamed(
         name: impl Into<String>,
         color: [f64; 3],
@@ -133,25 +163,47 @@ impl SceneBody {
             name: name.into(),
             body,
             contacts: Some(contacts),
+            at_rest: false,
             color,
             transparency: 0,
-            step_expected: true,
+            step_frontier: None,
         }
     }
 
-    /// A CURVED boolean result (M5 PR 11's boss∪plate): 3′ validation
-    /// with the op's declared contacts. Its STEP export is REQUIRED
-    /// since M5 PR 13 — this body's cylinder walls and circle seam
-    /// arcs are exactly what the curved arms were written for, and it
-    /// is the tour's end-to-end proof that they work on a boolean
-    /// result and not only on a swept primitive.
-    fn seamed_curved(
+    /// An ASSEMBLY at rest: a multi-solid product whose declared
+    /// contacts are the mates' minted records (A5's at-rest door).
+    ///
+    /// Its tier-3′ verdict is taken where the declarations can be
+    /// ATTRIBUTED — `pncad::document::assemble`, in the scene —
+    /// because attribution is what separates a finding against the
+    /// document from the declared direction's frontier, and the plain
+    /// `validate_pseudomanifold` call below cannot see it. So this
+    /// door REPORTS what the un-attributed gate said and leaves the
+    /// verdict to the scene, which asserts it.
+    ///
+    /// **This is a NARROWING of the harness, and it is deliberate.**
+    /// Where `seamed` panics on any tier-3′ refusal, this arm prints,
+    /// so a regression that moved a body from certified into the
+    /// frontier — or added declines to one already there — would pass
+    /// `run_body` unremarked. The gate that catches such a change is
+    /// the scene's own `assemble` match, which refuses the `AtRest`
+    /// arm and pins the minted count; a body taking this door without
+    /// that assertion beside it would be validated by nobody.
+    fn at_rest(
         name: impl Into<String>,
         color: [f64; 3],
         body: Body<f64>,
         contacts: ContactRecords,
     ) -> Self {
-        Self::seamed(name, color, body, contacts)
+        Self {
+            name: name.into(),
+            body,
+            contacts: Some(contacts),
+            at_rest: true,
+            color,
+            transparency: 0,
+            step_frontier: None,
+        }
     }
 }
 
@@ -194,22 +246,60 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 }
 
 /// A body entry for the scene manifest: file stems + render color.
-/// Every body exports STL; `step` is `None` where the writer's
-/// analytic subset legitimately refuses (curved surfaces until M5).
+///
+/// The STL stem is unconditional: every tour body tessellates and
+/// exports one, and [`run_body`] fails the tour on any refusal rather
+/// than emitting a body without it. The STEP stem is not, and there
+/// are two ways a null gets here — kept distinct because they say
+/// different things. The wild-corpus generator writes one for every
+/// cell, because its STEP is an input FIXTURE rather than something it
+/// exported; a tour body writes one only when its scene DECLARED the
+/// writer's named subset frontier ([`SceneBody::step_at_frontier`]),
+/// which is a probed refusal, not a skipped export.
+/// `demos/manifest.py` is where the field's nullability is stated for
+/// both readers.
 struct ManifestBody {
     stl: String,
+    /// `None` for a body whose scene declared the writer's frontier
+    /// (`SceneBody::step_at_frontier`) — serialized as a null.
     step: Option<String>,
     color: [f64; 3],
     transparency: u8,
+}
+
+/// A scene's declaration that one of its bodies is past the STEP
+/// writer's named subset frontier: the EXACT refusal it pins, and what
+/// to do when that stops being true.
+struct StepFrontierPin {
+    /// An exact-variant test, supplied by the scene. `walls::wall`'s
+    /// `pinned` argument is the same idea in the same words: a probe
+    /// that accepts a whole refusal CLASS cannot notice the frontier
+    /// moving inside it.
+    pinned: fn(&pncad::step_export::StepExportError) -> bool,
+    /// What to do with the scene when the export stops refusing.
+    retire: &'static str,
+}
+
+/// The writer's named subset frontier, as one list. Refusals in this
+/// class say a tour SCENE grew past the writer; everything else says
+/// the writer broke. Only the UNDECLARED arm asks this question — a
+/// declaring scene pins its own variant, which is narrower.
+fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
+    matches!(
+        e,
+        pncad::step_export::StepExportError::UnsupportedSurface { .. }
+            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
+            | pncad::step_export::StepExportError::CurvedShellClassification { .. }
+    )
 }
 
 fn run_body(
     sb: &SceneBody,
     delta: f64,
     outdir: &str,
-    scene: &str,
     dumps: &mut Vec<uvdump::FaceDump>,
-) -> Option<ManifestBody> {
+    tol: Tol,
+) -> ManifestBody {
     let label = &sb.name;
 
     // Tiers 1 + 2 on every body.
@@ -222,13 +312,23 @@ fn run_body(
     // op's declared contacts (3′); everything else through the plain
     // geometric gate (on contact-free bodies the two gates agree).
     match &sb.contacts {
+        Some(contacts) if sb.at_rest => {
+            match pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol) {
+                Ok(()) => println!("   [{label}] tier-3' at rest: every declaration certified"),
+                Err(e) => println!(
+                    "   [{label}] tier-3' at rest: {} finding(s), attributed at the assembly \
+                     door (the scene asserts the verdict)",
+                    e.len()
+                ),
+            }
+        }
         Some(contacts) => {
-            pncad::topo::validate_pseudomanifold(&sb.body, contacts).unwrap_or_else(|e| {
+            pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol).unwrap_or_else(|e| {
                 panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
             });
         }
         None => {
-            pncad::topo::validate_geometric(&sb.body)
+            pncad::topo::validate_geometric(&sb.body, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
         }
     }
@@ -237,10 +337,10 @@ fn run_body(
     println!(
         "   [{label}] topology: {v} vertices, {e} edges, {f} faces, {r} rings, \
          {s} shell(s) -> genus {genus}; validation: {}",
-        if sb.contacts.is_some() {
-            "tiers 1-2 + 3' on the RESULT body with its declared contacts"
-        } else {
-            "tiers 1-3 (structural, closed-solid census, geometric/+V)"
+        match (sb.contacts.is_some(), sb.at_rest) {
+            (true, true) => "tiers 1-2 + 3' AT REST, against the mates' minted declarations",
+            (true, false) => "tiers 1-2 + 3' on the RESULT body with its declared contacts",
+            (false, _) => "tiers 1-3 (structural, closed-solid census, geometric/+V)",
         }
     );
 
@@ -249,11 +349,11 @@ fn run_body(
     // contribute certified quadrature enclosures: `volume` is then a
     // bracket midpoint with half-width `volume_pad` (0.0 on
     // closed-form bodies).
-    let props = pncad::topo::mass_properties(&sb.body).expect("mass properties");
+    let props = pncad::topo::mass_properties(&sb.body, tol).expect("mass properties");
 
     // Tessellate, self-check the mesh, and compare its signed volume
     // against the exact one as an end-to-end sanity ribbon.
-    let mesh = pncad::mesh::tessellate(&sb.body, delta).expect("tessellate");
+    let mesh = pncad::mesh::tessellate(&sb.body, delta, tol).expect("tessellate");
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
@@ -273,11 +373,18 @@ fn run_body(
         rel * 100.0
     );
 
-    // STL export — fail-loud on any refusal.
+    // STL export — fail-loud on any refusal. The binary format's
+    // 80-byte header is the one caller-visible identity it carries, so
+    // it gets this body's name, exactly as the STEP export below sets
+    // `product_name`.
+    let stl_options = pncad::stl::BinaryOptions {
+        header: pncad::stl::BinaryHeader::new(label.clone())
+            .unwrap_or_else(|e| panic!("{label}: STL header refused: {e}")),
+    };
     let stl_name = format!("{label}.stl");
     let stl_path = format!("{outdir}/{stl_name}");
     let mut stl_buf = Vec::new();
-    pncad::stl::write_binary(&mesh, &mut stl_buf)
+    pncad::stl::write_binary(&mesh, &stl_options, &mut stl_buf)
         .unwrap_or_else(|e| panic!("{label}: STL write failed: {e:?}"));
     std::fs::write(&stl_path, &stl_buf).expect("write stl");
     let stl = stl_name.clone();
@@ -286,61 +393,84 @@ fn run_body(
     // PR 13 the writer's analytic subset is the whole elementary-
     // surface vocabulary (plane/cylinder/cone/sphere/torus) with
     // line/circle/ellipse/NURBS carriers, all as EXACT native AP214
-    // entities — so every tour body exports, curved ones included, and
-    // a refusal anywhere here is now a regression rather than a
-    // narrated frontier.
+    // entities, so a refusal on an ORDINARY body is a regression. It
+    // is not the only outcome any more: the writer's shell classifier
+    // has closed forms for planar faces only, and a scene carrying a
+    // body past that frontier declares it
+    // ([`SceneBody::step_at_frontier`]), which turns the refusal into
+    // a pinned probe rather than a failure. Undeclared, it still fails
+    // the tour.
     let step_name = format!("{label}.step");
-    let step = match pncad::step_export::step_string(
+    let step_result = pncad::step_export::step_string(
         &sb.body,
         &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()
         },
-    ) {
-        Ok(doc) => {
+        tol,
+    );
+    let step = match (step_result, &sb.step_frontier) {
+        // The ordinary body: exported, and its stem goes in the
+        // manifest.
+        (Ok(doc), None) => {
             std::fs::write(format!("{outdir}/{step_name}"), doc).expect("write step");
             println!("   [{label}] exported {stl} + {step_name}");
             Some(step_name)
         }
-        // The subset-frontier refusal stays an acceptable CLASS (a
-        // multi-shell curved solid awaits a curved outward/void
-        // classifier; NURBS faces export natively since M6-3), but no
-        // tour body is in it today — `step_expected` is true
-        // everywhere, so reaching this arm fails the tour loud. The
-        // arm is kept, not deleted: it is what keeps a future curved
-        // frontier from being silently dropped from the manifest.
-        Err(
-            e @ (pncad::step_export::StepExportError::UnsupportedSurface { .. }
-            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
-            | pncad::step_export::StepExportError::CurvedShellClassification { .. }),
-        ) => {
-            assert!(
-                !sb.step_expected,
-                "{label}: this body is inside the writer's analytic \
-                 subset and MUST export STEP, but the writer refused: {e:?}"
-            );
+        // A DECLARED frontier body whose export succeeded: the writer
+        // grew the arm this declaration was waiting on, so the
+        // declaration is now a lie about the kernel. Same posture as a
+        // wall probe that stops refusing.
+        (Ok(_), Some(d)) => panic!(
+            "{label}: STEP export NO LONGER REFUSES — the writer covers this body \
+             now. Retire the scene's `step_at_frontier` declaration and {}",
+            d.retire
+        ),
+        // The declared refusal, reached: narrate it and carry a null
+        // `step`. The refusal is the evidence, so it is printed like
+        // an export rather than swallowed. `pinned` is an EXACT
+        // variant test supplied by the scene (klein's wall probes are
+        // the template), so this arm cannot absorb a neighbouring
+        // frontier variant the declaration did not mean.
+        (Err(e), Some(d)) if (d.pinned)(&e) => {
             println!(
-                "   [{label}] exported {stl}; STEP refused typed ({e:?}) — \
-                 a named subset frontier, not a silent drop"
+                "   [{label}] exported {stl}; STEP REFUSED TYPED, exactly as the scene \
+                 pinned it ({e:?}) — manifest step = null"
             );
             None
         }
-        Err(other) => panic!(
+        // A declared body refusing for a DIFFERENT reason — including
+        // a different variant of the frontier class itself.
+        (Err(other), Some(_)) => panic!(
+            "{label}: the scene pinned a STEP refusal, but the export refused with a \
+             DIFFERENT one ({other:?}) — the frontier moved under the declaration. \
+             Re-derive the scene's `step_at_frontier` pin before trusting either."
+        ),
+        // Every OTHER tour body is inside the writer's analytic
+        // subset, so any refusal here fails the tour. The named subset
+        // frontier is still spelled out as its own arm because it says
+        // something different: reaching it undeclared means a tour
+        // SCENE grew past the writer, not that the writer broke.
+        // Either way the body does not go silently into the manifest
+        // without its STEP.
+        (Err(e), None) if named_subset_frontier(&e) => panic!(
+            "{label}: STEP refused typed at the writer's named subset \
+             frontier ({e:?}). A scene that legitimately enters that class says so \
+             where it is built — `SceneBody::step_at_frontier` — rather than having \
+             a body dropped from the manifest here"
+        ),
+        (Err(other), None) => panic!(
             "{label}: STEP export failed OUTSIDE the analytic-subset \
              refusal class: {other:?}"
         ),
     };
-    assert!(
-        !(sb.step_expected && step.is_none()),
-        "{label}: STEP expected but not produced"
-    );
 
     // The UV lane (`demos/render-uv.sh`): every face's chart domain as
     // its own SVG. Runs beside the exports rather than in a separate
     // pass because the pcurve caches are a property of THIS body — a
     // reader that re-imported the STEP would be looking at re-minted
     // ones, which is a different question.
-    let faces = uvdump::emit(scene, label, &sb.body, outdir);
+    let faces = uvdump::emit(label, &sb.body, outdir, tol);
     let refused = faces.iter().filter(|f| f.note.is_some()).count();
     println!(
         "   [{label}] uv: {} face chart(s) dumped to uv/{}",
@@ -353,24 +483,28 @@ fn run_body(
     );
     dumps.extend(faces);
 
-    Some(ManifestBody {
+    ManifestBody {
         stl,
         step,
         color: sb.color,
         transparency: sb.transparency,
-    })
+    }
 }
 
-/// Runs one stop; returns whether it contributed a scene to the render
-/// manifest. A fully STAGED stop (every body behind a frontier) has
-/// nothing to draw yet, so it narrates and emits no scene entry —
-/// `scenes.json` never carries a scene the renderers cannot render.
+/// Runs one stop and appends its scene entry to the manifest.
+///
+/// Every stop contributes a scene: [`run_body`] fails the tour rather
+/// than dropping a body, so there is no bodiless scene to suppress and
+/// no "this stop is entirely behind a frontier" state to report. A
+/// stop that genuinely could not be drawn would have to say so where
+/// it is built — see the STEP arm in `run_body`.
 fn run_stop(
     stop: &Stop,
     outdir: &str,
     manifest: &mut String,
     dumps: &mut Vec<uvdump::FaceDump>,
-) -> bool {
+    tol: Tol,
+) {
     println!("\n== {} ==", stop.name);
     println!("   {}", stop.story);
     println!("   built by: {}", stop.ops);
@@ -380,13 +514,9 @@ fn run_stop(
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .filter_map(|sb| run_body(sb, stop.delta, outdir, stop.name, dumps))
+        .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
         .collect();
-    if bodies.is_empty() {
-        return false;
-    }
     manifest.push_str(&scene_json(stop, &bodies));
-    true
 }
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
@@ -397,18 +527,28 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
     } else {
         stop.caption.clone()
     };
+    // The wild-corpus generator writes this same field set, scene
+    // keys and body keys alike, INDEPENDENTLY. The agreement is
+    // deliberate and unenforced: no shared type, no crate edge, and
+    // nothing compares the two emitters — two fields do not pay for
+    // that. What holds it together is that one reader
+    // (`demos/manifest.py`) walks both manifests and reads every key
+    // rather than defaulting any, so a drift on either side fails the
+    // first render loudly instead of drawing something plausible.
     let body_entries: Vec<String> = bodies
         .iter()
         .map(|b| {
-            let opt = |o: &Option<String>| match o {
-                Some(s) => format!("\"{s}\""),
-                None => "null".to_string(),
-            };
             format!(
                 "{{\"stl\": \"{}\", \"step\": {}, \"color\": [{}, {}, {}], \
                  \"transparency\": {}}}",
                 b.stl,
-                opt(&b.step),
+                // A null, not the string "null": the frontier bodies'
+                // entry is the format's own nullable `step`, which
+                // `demos/manifest.py` reads without a default.
+                match &b.step {
+                    Some(stem) => format!("\"{stem}\""),
+                    None => "null".to_string(),
+                },
                 b.color[0],
                 b.color[1],
                 b.color[2],
@@ -444,92 +584,120 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// detached from the stops it belongs to. Building each group as it is
 /// reached also keeps one group's bodies alive at a time, and lets the
 /// project box hand its body to the cutaway exactly as it always has.
-fn walk_tour(visit: &mut dyn FnMut(&Stop)) {
-    for stop in bodies::stops() {
+/// `work` is a directory the assembly stop uses as its document STORE.
+/// It is the one thing a tour scene had never needed: every other
+/// scene is one document built in memory, so `stops(tol)` was the
+/// whole scene contract. An assembly is a document that REFERENCES
+/// other documents, and the seam it crosses is a workspace on disk —
+/// so the contract grew a path. Recorded rather than hidden: the tour
+/// harness assumed single-document scenes.
+fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
+    for stop in bodies::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
-    for stop in rocker::stops() {
+    for stop in rocker::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the die (M5 PR 12: rolling-ball fillets, and the pips) --");
-    for stop in diefillet::stops() {
+    for stop in diefillet::stops(tol) {
+        visit(&stop);
+    }
+
+    println!("\n-- the same die, one verb over (VERBS: chamfer_edges at d == r) --");
+    for stop in diechamfer::stops(tol) {
         visit(&stop);
     }
 
     println!(
         "\n-- the fairy lantern (Calochortus pulchellus): a plant, at the kernel's frontier --"
     );
-    for stop in lily::stops() {
+    for stop in lily::stops(tol) {
         visit(&stop);
     }
-    lily::wall_probes::<f64>();
+    lily::wall_probes::<f64>(tol);
 
     println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
-    for stop in klein::stops() {
+    for stop in klein::stops(tol) {
         visit(&stop);
     }
-    klein::wall_probes::<f64>();
+    klein::wall_probes::<f64>(tol);
 
     println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
-    for stop in curvedcut::stops() {
+    for stop in curvedcut::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
-    for stop in bossplate::stops() {
+    for stop in bossplate::stops(tol) {
         visit(&stop);
     }
 
-    skinned::narration();
-    for stop in skinned::stops() {
+    skinned::narration(tol);
+    for stop in skinned::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
-    for stop in tube::stops() {
+    for stop in tube::stops(tol) {
+        visit(&stop);
+    }
+
+    println!("\n-- the one-call hollow ring (VERBS-RING: a holed profile, fully revolved) --");
+    for stop in ring::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
-    for stop in bool_bodies::stops() {
+    for stop in bool_bodies::stops(tol) {
         visit(&stop);
     }
-    bool_bodies::voidbox_narration();
+    bool_bodies::voidbox_narration(tol);
 
     println!("\n-- silhouettes (the first `intersect` in the tour) --");
-    for stop in letterforms::stops() {
+    for stop in letterforms::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- A x Z (#93's acceptance case, building since #108) --");
-    for stop in az::stops() {
+    for stop in az::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the cross-lap joint (#90's boolean-of-boolean, made visible) --");
-    for stop in crosslap::stops() {
+    for stop in crosslap::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
-    let (box_stop, box_body) = projectbox::stop();
+    let (box_stop, box_body) = projectbox::stop(tol);
     visit(&box_stop);
 
     println!("\n-- the cutaway (the first `topo::split` in the tour) --");
-    for stop in cutaway::stops(&box_body) {
+    for stop in cutaway::stops(&box_body, tol) {
         visit(&stop);
     }
 
     println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
-    for stop in heatsink::stops() {
+    for stop in heatsink::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
+         split/inline, the update door) --"
+    );
+    for stop in assembly::stops(work, tol) {
         visit(&stop);
     }
 }
 
 fn main() {
+    // The tour is an entry point: it mints the run's tolerance witness
+    // once, here, and hands it to every scene it walks.
+    let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
@@ -546,7 +714,7 @@ fn main() {
     // literally named "k-probe".
     #[cfg(feature = "probe")]
     if outdir == "k-probe" {
-        probe::run(std::env::args().nth(2));
+        probe::run(std::env::args().nth(2), tol);
         return;
     }
     #[cfg(not(feature = "probe"))]
@@ -567,7 +735,11 @@ fn main() {
     if outdir == "tess-budget" {
         let rest: Vec<String> = std::env::args().skip(2).collect();
         let deviation = rest.iter().any(|a| a == "--deviation");
-        tessbudget::run(rest.into_iter().find(|a| !a.starts_with("--")), deviation);
+        tessbudget::run(
+            rest.into_iter().find(|a| !a.starts_with("--")),
+            deviation,
+            tol,
+        );
         return;
     }
     #[cfg(not(feature = "budget"))]
@@ -583,16 +755,21 @@ fn main() {
     let mut manifest = String::new();
     let mut scenes: Vec<String> = Vec::new();
     let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
+    let mut cells = 0usize;
     let mut run = |stop: &Stop| {
         manifest.clear();
-        if run_stop(stop, &outdir, &mut manifest, &mut dumps) {
-            scenes.push(manifest.clone());
-        }
+        run_stop(stop, &outdir, &mut manifest, &mut dumps, tol);
+        scenes.push(manifest.clone());
+        cells += usize::from(stop.montage);
     };
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
     println!("==========================================================================");
-    walk_tour(&mut run);
+    // The assembly stop's document store, beside the exports it
+    // belongs with: a reader can open `assembly/*.pncad` next to the
+    // STL and STEP the same run wrote.
+    let work = std::path::Path::new(&outdir).join("assembly");
+    walk_tour(&mut run, &work, tol);
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
@@ -600,10 +777,89 @@ fn main() {
         .expect("write uv.json");
     let curved = dumps.iter().filter(|d| d.curved).count();
     let refused = dumps.iter().filter(|d| d.note.is_some()).count();
-    println!("\ntour complete: STL/STEP + scenes.json in {outdir}/ — render with demos/render.sh");
+    // The scene and cell counts, MEASURED. `demos/README.md` explains
+    // WHICH scenes stay off the montage and why; the arithmetic is
+    // here, where the scenes are, so the README never has to restate a
+    // number that a new stop changes.
+    println!(
+        "\ntour complete: {} scenes ({cells} montage cells, {} standalone) — \
+         STL/STEP + scenes.json in {outdir}/, render with demos/render.sh",
+        scenes.len(),
+        scenes.len() - cells
+    );
     println!(
         "uv lane: {} face charts ({curved} curved, {refused} unwalkable) in {outdir}/uv/ \
          + uv.json — sheet with demos/render-uv.sh",
         dumps.len()
     );
+    // The uv lane's own claims, MEASURED on this run rather than
+    // pinned in prose beside the code that computes them. Every number
+    // the module documents about the corpus is here: how many charts
+    // the winding check can speak about, how many agree with
+    // `Face::sense`, and the two worst junction gaps. A count written
+    // down beside its own computation is the one that drifts; this
+    // line is the record.
+    //
+    // A face whose loops could not be WALKED carries
+    // `FaceStats::default()` — all zeros, `winding_ok = false` — which
+    // is the absence of a measurement, not a failed one. It is
+    // excluded from every count here and reported as `unwalkable`
+    // above, once.
+    let walked: Vec<&uvdump::FaceDump> = dumps.iter().filter(|d| d.note.is_none()).collect();
+    let jumped = walked.iter().filter(|d| d.stats.chart_jump > 1e-9).count();
+    let disagree: Vec<&&uvdump::FaceDump> = walked.iter().filter(|d| !d.stats.winding_ok).collect();
+    let worst_gap = walked.iter().map(|d| d.stats.gap).fold(0.0f64, f64::max);
+    let worst_jump = walked
+        .iter()
+        .map(|d| d.stats.chart_jump)
+        .fold(0.0f64, f64::max);
+    println!(
+        "   winding vs Face::sense: {} chart(s) checkable, {} carry a branch jump \
+         (shoelace meaningless there); {} disagree",
+        walked.len() - jumped,
+        jumped,
+        disagree.len()
+    );
+    println!(
+        "   closure: worst 3-D loop gap {worst_gap:.2e} m; worst chart jump \
+         {worst_jump:.6} (seam/pole structure, not a defect)"
+    );
+    // AND IT IS FATAL, not a printed number. Every face here is the
+    // kernel's own output, so a chart winding that contradicts the
+    // face's `sense` bit is a kernel regression: the even-odd interior
+    // of that face is the complement of the intended one, and the
+    // tessellator's trim walk composes the same rings. The tour
+    // already fails on every other broken kernel invariant it meets
+    // (the three validation tiers, `check_mesh`, a non-positive mesh
+    // volume, any STEP refusal), and `uvdump`'s "a diagnostic must not
+    // refuse broken input" governs which FACES get drawn — it is about
+    // not hiding a bad chart from the reader, not about the tour
+    // shrugging at one. If this ever fires, the fix is a kernel issue
+    // and the witness is in the message.
+    assert!(
+        disagree.is_empty(),
+        "WINDING CONTRADICTION on {} chart(s): {} — the measured chart winding \
+         disagrees with the face's own `sense` bit, so the even-odd interior is \
+         the complement of the intended one. These charts are kernel output; \
+         this is a kernel regression, not a demo one.",
+        disagree.len(),
+        disagree
+            .iter()
+            .map(|d| format!("{} face {} ({})", d.body, d.face, d.chart))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    // The ε this whole tour was decided at, and WHERE IT CAME FROM
+    // (S22, 2026-08-19). ε is a declared run parameter, so a run says
+    // which one it used — a stale `CAD_TOLERANCE_EPS` in a shell
+    // changes what "coincident" means, and without this line nothing
+    // in the output would mention it (issues #415, #497).
+    //
+    // Reported at the END through the NON-committing door: asking is
+    // not deciding, so this cannot pre-empt a document that states its
+    // own ε. By now the first predicate has long since committed one.
+    match pncad::tolerance::committed_report() {
+        Some(report) => println!("{report}"),
+        None => println!("tolerance: never committed (no predicate ran)"),
+    }
 }

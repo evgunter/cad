@@ -52,6 +52,7 @@ use crate::node::SlotId;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
+use geom_core::Tol;
 
 /// Where a non-finite float sits (the D2 refusal's typed site).
 #[derive(Debug, Clone, PartialEq)]
@@ -106,17 +107,25 @@ pub enum NonFiniteSite {
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
+    tol: Tol,
 ) -> Result<(), super::PersistError> {
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
     }
-    if let Some((node, fault)) = first_program_fault(snapshot) {
+    if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
     }
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
 }
 
-/// The first non-finite float the format would write, or `None`.
+/// The first non-finite float in ε, the document params, the profile
+/// nodes, the appearance records or the edit log, reported as a
+/// [`NonFiniteSite`], or `None`.
+///
+/// NOT every float the format writes: placement frames and mate
+/// alignments are checked by [`validate_snapshot`] and reported under
+/// [`SnapshotError`], because they are structural state rather than a
+/// value the writer is asked to round-trip.
 fn first_non_finite(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -161,7 +170,11 @@ fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
         DocParam::Continuous { value, .. } if !value.is_finite() => {
             Some(NonFiniteSite::DocParam { name: name.clone() })
         }
-        _ => None,
+        // EXHAUSTIVE on purpose: a guarded arm does not count towards
+        // exhaustiveness, so the finite `Continuous` case is spelled
+        // out alongside the float-free ones rather than swept up by a
+        // wildcard that would also swallow a future float carrier.
+        DocParam::Continuous { .. } | DocParam::Count { .. } => None,
     }
 }
 
@@ -200,7 +213,40 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
                 })
         }
         DocEdit::SetTolerance { eps } if !eps.is_finite() => Some(NonFiniteSite::Epsilon),
-        _ => None,
+        // EXHAUSTIVE on purpose: a new `DocEdit` variant carrying a raw
+        // float must be classified here or the compile breaks — a
+        // wildcard would let it past the load door unchecked. The
+        // guarded arms above are repeated without their guards because
+        // a guarded arm does not count towards exhaustiveness.
+        //
+        // Why the classified variants carry nothing for this door,
+        // stated per mechanism rather than in one sweeping clause:
+        //
+        // - Most `InsertNode` node kinds hold their floats in `Expr`
+        //   literals, finite by the construction door.
+        // - `Node::Mate`'s `alignment` and `SetPlacement`'s `frame` are
+        //   RAW `f64`, not `Expr`s. They are refused on replay by
+        //   `apply` (`EditError::NonFiniteAlignment`,
+        //   `NonFinitePlacement`), which `persist::load` runs the log
+        //   through — so they are guarded, but by a door this function
+        //   deliberately does not rely on for the rest of its list.
+        // - The `Node` vocabulary is not closed here: this match is
+        //   exhaustive on `DocEdit`, not on `Node`.
+        DocEdit::InsertNode { .. }
+        | DocEdit::SetTolerance { .. }
+        | DocEdit::DeleteNode { .. }
+        | DocEdit::SetParam { .. }
+        | DocEdit::SetStructuralParam { .. }
+        | DocEdit::SetExpression { .. }
+        | DocEdit::Rebind { .. }
+        | DocEdit::ReWitness { .. }
+        | DocEdit::ReWitnessBulk { .. }
+        | DocEdit::SetAppearance { .. }
+        | DocEdit::ClearAppearance { .. }
+        | DocEdit::ClearAppearanceMeta { .. }
+        | DocEdit::SetRoots { .. }
+        | DocEdit::SetPlacement { .. }
+        | DocEdit::UpdateReference { .. } => None,
     }
 }
 
@@ -366,28 +412,26 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 return Err(SnapshotError::ForwardInput { node: id, input });
             }
         }
-        if let Node::Declare { pairs } = node {
-            for ((a, b), _) in pairs {
-                for n in derivation_nodes(a).iter().chain(derivation_nodes(b).iter()) {
-                    check_id(*n)?;
-                }
+        // Every name-carrying payload's references, by the one list of
+        // which payloads those are: an id past the counter inside a
+        // mate head or a fillet selection is as corrupt as one inside a
+        // Declare pair, and unrepairable by `Rebind` (whose source door
+        // refuses a never-minted id) if it loads.
+        for name in node.payload_names() {
+            for n in derivation_nodes(name) {
+                check_id(n)?;
             }
         }
-        // The fillet selection (M6-5): the same name-reference id
-        // check, PLUS the canonical-form assertion. `Node::fillet` is
-        // the only construction door and it canonicalizes, so a
-        // non-canonical selection on the wire is a CORRUPT file — it
-        // is refused, never quietly re-sorted (a repair would change
-        // the node's content key behind the caller's back).
-        if let Node::Fillet { selection, .. } = node {
-            for name in selection {
-                for n in derivation_nodes(name) {
-                    check_id(n)?;
-                }
-            }
-            if selection.windows(2).any(|w| w[0] >= w[1]) {
-                return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
-            }
+        // The fillet selection carries one check of its own (M6-5): the
+        // canonical form. `Node::fillet` is the only construction door
+        // and it canonicalizes, so a non-canonical selection on the
+        // wire is a CORRUPT file — refused, never quietly re-sorted (a
+        // repair would change the node's content key behind the
+        // caller's back).
+        if let Node::Fillet { selection, .. } = node
+            && selection.windows(2).any(|w| w[0] >= w[1])
+        {
+            return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
         }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,
@@ -500,7 +544,7 @@ pub enum ProgramFault {
 /// binding-dependent class as geometry refusals (V1 class 2) and
 /// surface as the node's typed evaluation error; no silent acceptance
 /// exists (review NOTE-1).
-fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFault)> {
+fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId, ProgramFault)> {
     use crate::program::ProfilePayload as _;
     let env = snapshot.param_env::<f64>();
     for (&id, node) in &snapshot.nodes {
@@ -527,7 +571,7 @@ fn first_program_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, ProgramFa
             step,
             state,
             verb,
-        }) = program.check(&env)
+        }) = program.check(&env, tol)
         {
             return Some((
                 id,
@@ -550,6 +594,7 @@ mod tests {
     use crate::node::RecipeNodeId;
     use crate::persist::{PersistError, SnapshotError, save};
     use crate::program::ProfileDoc;
+    use geom_core::Tol;
 
     /// Convention 2's point, pinned at the unit level: a document
     /// that would refuse to load cannot be saved. Both corruptions
@@ -560,18 +605,18 @@ mod tests {
     fn structurally_invalid_documents_refuse_at_save() {
         // ε = 0.0 is finite (past the float walk) but invalid — the
         // load door's EpsilonInvalid, now at save too.
-        let mut doc = ProfileDoc::empty_derived("check");
+        let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.epsilon = 0.0;
-        match save(&doc, &[]) {
+        match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
                 assert_eq!(value, 0.0);
             }
             other => panic!("non-positive ε must refuse at save, got {other:?}"),
         }
         // order naming a node the map does not hold.
-        let mut doc = ProfileDoc::empty_derived("check");
+        let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.order.push(RecipeNodeId(7));
-        match save(&doc, &[]) {
+        match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
             other => panic!("order mismatch must refuse at save, got {other:?}"),
         }

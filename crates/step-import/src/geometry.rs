@@ -11,32 +11,10 @@
 //! kernel's own certification gates when the edge is adopted — a wrong
 //! derivation cannot survive to rest.
 
-use geom_core::{Point3, Real, Vec3};
-use geom_curves::Curve3;
+use geom::Curve3;
+use geom_core::{Point3, Real};
 
 use crate::error::StepImportError;
-
-/// Negative zero normalized to `+0.0`, componentwise — the same
-/// hygiene the record reader applies to every literal it parses
-/// (`entities::as_real`), applied to values the importer DERIVES.
-///
-/// It matters for one reason beyond tidiness: a minted direction like
-/// `−(axis × u_ref)` picks up `−0.0` components from negating exact
-/// zeros, the writer prints them as `-0.0`, and a re-import normalizes
-/// them back to `0.0` — so the adoption pass would not be a fixed
-/// point of the writer over a single printed sign. Normalizing at the
-/// mint keeps one representative everywhere and moves no value
-/// (`-0.0 == 0.0`).
-pub(crate) fn plus_zero(v: Vec3<f64>) -> Vec3<f64> {
-    let z = |x: f64| if x == 0.0 { 0.0 } else { x };
-    Vec3::new(z(v.x), z(v.y), z(v.z))
-}
-
-/// [`plus_zero`] for a point.
-pub(crate) fn plus_zero_point(p: Point3<f64>) -> Point3<f64> {
-    let z = |x: f64| if x == 0.0 { 0.0 } else { x };
-    Point3::new(z(p.x), z(p.y), z(p.z))
-}
 
 /// The carrier parameters of `p_start` / `p_end` (module docs).
 ///

@@ -2,8 +2,8 @@
 //! certified carrier caches, the dihedral classification predicate, and
 //! Newell face equations (M2 PR 3).
 //!
-//! This crate sits between the evaluators (`geom-curves` /
-//! `geom-surfaces`) and the arena store (`topo`): it defines **what an
+//! This crate sits between the evaluators (`geom`) and the arena
+//! store (`topo`): it defines **what an
 //! edge's geometry is** ([`EdgeGeometry`] — a description, never a bare
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier
@@ -60,7 +60,9 @@ pub use certify::{
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
-pub use enters::{EntersMaterial, enters_material, enters_material_order2};
+pub use enters::{
+    EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
+};
 pub use implicit::{
     circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
     implicit_max_normal_curvature, implicit_residual,

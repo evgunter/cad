@@ -59,19 +59,33 @@
 
 use core::fmt;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeGeometry, MappedCurve, NewellError, SketchSegment,
-    classify_dihedral, newell_plane,
+    DihedralClass, EdgeCurveSpec, EdgeGeometry, MappedCurve, NewellError, classify_dihedral,
+    newell_plane,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
     SolidKey, SurfaceKey,
+};
+
+use crate::swept;
+use crate::swept::{
+    CosurfaceNames, SweptChord, SweptKind, cap_points, cosurface, decide, face_surface_key,
+    placed_segment_spec, turn_axis,
+};
+
+/// The predicate names this verb's cosurface decision reports under
+/// (the side walls of an extrusion: planes from lines, cylinders from
+/// arcs).
+const SIDE_COSURFACE: CosurfaceNames = CosurfaceNames {
+    lines: "side_planes_cosurface",
+    arcs: "side_cylinders_cosurface",
 };
 
 /// How far (and which way) to extrude — the operation's second input.
@@ -228,7 +242,7 @@ impl fmt::Display for ExtrudeError {
             ),
             Self::ObliqueExtrusion => f.write_str(
                 "extrusion vector has a definite in-plane component: oblique extrusion is \
-                 deferred past M2 (arc segments would sweep elliptic cylinders)",
+                 not supported (arc segments would sweep elliptic cylinders)",
             ),
             Self::ExtrusionEscalated { source } => {
                 write!(f, "extrusion-vector classification escalated: {source}")
@@ -282,52 +296,19 @@ impl From<EulerOpError> for ExtrudeError {
     }
 }
 
-/// The one classification funnel of this crate (the `geom-brep`
-/// pattern): delegates to the unified recorder funnel
-/// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate
-/// for the margin-telemetry recorder, classifies through the
-/// sanctioned [`Decide`] door, and tags any escalation.
-fn decide<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    geom_core::k_stats::decide(name, margin, band)
-}
-
-/// A segment's carrier class in swept traversal order (the canonical
-/// classification carried through the optional reversal — never
-/// re-decided from scalar data here).
+/// A swept segment plus the wall face it sweeps.
+///
+/// The traversal itself is [`crate::swept::SweptSeg`], built by
+/// [`crate::swept::swept_segments`] like every other verb's; this
+/// record wraps it to carry the one thing extrude decides that a
+/// traversal does not. Shared bodies see only the chord, through
+/// [`SweptChord`] below — which is why the bit can live here without
+/// reaching any of them.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum SweptKind<T: Real> {
-    Line,
-    Arc {
-        center: Point2<T>,
-        radius: T,
-        /// Turn sense in swept traversal: `Positive` = counterclockwise
-        /// in sketch coordinates. Never `Zero` (upstream classification;
-        /// kept total — a `Zero` would take the `Positive` arm).
-        turn: Sign,
-    },
-}
-
-/// One segment of a swept loop, in swept traversal order (canonical, or
-/// reversed for extrusion along `−n` — crate docs), with its canonical
-/// indices for error reporting.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SweptSeg<T: Real> {
-    /// Start point, sketch coordinates. Vertex `j` of the swept chain
-    /// is segment `j`'s start.
-    pub(crate) a: Point2<T>,
-    /// End point.
-    pub(crate) b: Point2<T>,
-    /// The bulge in swept traversal (negated by reversal).
-    pub(crate) bulge: T,
-    pub(crate) kind: SweptKind<T>,
-    /// Canonical index of the start vertex (for error reporting).
-    pub(crate) canonical_vertex: usize,
-    /// Canonical index of the segment (for error reporting).
-    pub(crate) canonical_segment: usize,
+pub(crate) struct WallSeg<T: Real> {
+    /// The swept traversal record: endpoints, bulge, carrier class and
+    /// canonical indices, all in swept traversal order.
+    pub(crate) chord: swept::SweptSeg<T>,
     /// The wall face's orientation sense (M5 S11): `false` iff the
     /// segment's wall has its material AGAINST the cylinder's chart
     /// normal — exactly the concave arcs. Exact stored structure, not
@@ -345,190 +326,51 @@ pub(crate) struct SweptSeg<T: Real> {
     pub(crate) wall_sense: bool,
 }
 
-/// Builds the swept traversal of one canonical loop: forward, or
-/// reversed via the profile crate's reversal involution (endpoints
-/// swapped, bulge negated, turn flipped).
-pub(crate) fn swept_segments<T: Decide>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<SweptSeg<T>> {
-    let segs = lp.segments();
-    let n = segs.len();
-    let mut out = Vec::with_capacity(n);
-    if reverse {
-        // Swept segment j retraces canonical segment n−1−j; swept
-        // vertex j is canonical vertex (n−j) mod n.
-        for j in 0..n {
-            let s = &segs[n - 1 - j];
-            out.push(SweptSeg {
-                a: s.end,
-                b: s.start,
-                bulge: T::zero() - s.bulge,
-                kind: match s.kind {
-                    SegmentKind::Line => SweptKind::Line,
-                    SegmentKind::Arc {
-                        center,
-                        radius,
-                        turn,
-                    } => SweptKind::Arc {
-                        center,
-                        radius,
-                        turn: turn.flip(),
-                    },
-                },
-                canonical_vertex: (n - j) % n,
-                canonical_segment: n - 1 - j,
-                wall_sense: wall_sense_of(s),
-            });
-        }
-    } else {
-        for (j, s) in segs.iter().enumerate() {
-            out.push(SweptSeg {
-                a: s.start,
-                b: s.end,
-                bulge: s.bulge,
-                kind: match s.kind {
-                    SegmentKind::Line => SweptKind::Line,
-                    SegmentKind::Arc {
-                        center,
-                        radius,
-                        turn,
-                    } => SweptKind::Arc {
-                        center,
-                        radius,
-                        turn,
-                    },
-                },
-                canonical_vertex: j,
-                canonical_segment: j,
-                wall_sense: wall_sense_of(s),
-            });
-        }
-    }
-    out
+/// Builds the swept traversal of one canonical loop and attaches each
+/// segment's wall sense.
+///
+/// The traversal is [`crate::swept::swept_segments`], shared with every
+/// verb that sweeps a validated loop. All this adds is
+/// [`wall_sense_of`], read off the CANONICAL segment the traversal
+/// records, so the bit is the same whichever direction the loop is
+/// swept.
+pub(crate) fn wall_segments<T: Real>(lp: &ValidatedLoop<T>, reverse: bool) -> Vec<WallSeg<T>> {
+    let canonical = lp.segments();
+    swept::swept_segments(lp, reverse)
+        .into_iter()
+        .map(|chord| WallSeg {
+            wall_sense: wall_sense_of(&canonical[chord.canonical_segment]),
+            chord,
+        })
+        .collect()
 }
 
-/// The wall sense of one CANONICAL segment ([`SweptSeg::wall_sense`]):
-/// `false` iff it is a concave arc (canonical turn `Negative`). Reads
-/// the stored classification only — `Zero` is unreachable for
-/// classified arcs (a zero turn classified as a line); kept total by
-/// taking the convex arm, the [`turn_axis`] posture.
+/// The wall sense of one CANONICAL segment ([`WallSeg::wall_sense`]):
+/// `false` iff it is a concave arc. An extrude wall's chart normal is
+/// the outward radial of its carrier cylinder, so the face's sense is
+/// `true` exactly when the material is on the far side of the carrier
+/// from the chord — which is [`swept::centre_on_material_side`], the
+/// same rule and the same body revolve's arc walls use. Line walls are
+/// Newell-outward by construction.
 fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
     match s.kind {
         SegmentKind::Line => true,
-        SegmentKind::Arc { turn, .. } => matches!(turn, Sign::Positive | Sign::Zero),
+        SegmentKind::Arc { turn, .. } => swept::centre_on_material_side(turn),
     }
 }
 
-impl<T: Real> SweptSeg<T> {
-    /// The segment as a `geom-brep` sketch segment (the description's
-    /// authoritative source data).
-    pub(crate) fn sketch_segment(&self) -> SketchSegment<T> {
-        match self.kind {
-            SweptKind::Line => SketchSegment::Line {
-                a: self.a,
-                b: self.b,
-            },
-            SweptKind::Arc { .. } => SketchSegment::Arc {
-                a: self.a,
-                b: self.b,
-                bulge: self.bulge,
-            },
-        }
+impl<T: Real> SweptChord<T> for WallSeg<T> {
+    fn a(&self) -> Point2<T> {
+        self.chord.a
     }
-}
-
-/// The arc apex (the profile crate's exact sagitta closed form:
-/// `midpoint − n̂·(L·b/2)`, n̂ the left normal of the chord direction) —
-/// an on-carrier, on-cap-plane interior point of the segment.
-fn arc_apex<T: Real>(s: &SweptSeg<T>) -> Point2<T> {
-    let chord = s.b - s.a;
-    let len = chord.norm();
-    let u = chord.normalize();
-    let nhat = geom_core::Vec2::new(T::zero() - u.y, u.x);
-    let mid = s.a.lerp(s.b, T::from_f64(0.5));
-    mid - nhat * (len * s.bulge * T::from_f64(0.5))
-}
-
-/// The world points determining a cap plane, in forward swept order:
-/// every loop vertex, plus every arc segment's apex. The apexes keep
-/// 2-vertex loops (the minimal circle) plane-determining — Newell needs
-/// three points and a 2-vertex cap has only two vertices — and they
-/// carry the traversal's winding faithfully (each sits between its
-/// segment's endpoints in loop order).
-pub(crate) fn cap_points<T: Real>(
-    segs: &[SweptSeg<T>],
-    qs: &[Point3<T>],
-    place: Affine3<T>,
-) -> Vec<Point3<T>> {
-    let mut pts = Vec::with_capacity(segs.len() * 2);
-    for (j, s) in segs.iter().enumerate() {
-        pts.push(qs[j]);
-        if matches!(s.kind, SweptKind::Arc { .. }) {
-            let apex = arc_apex(s);
-            pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
-        }
+    fn b(&self) -> Point2<T> {
+        self.chord.b
     }
-    pts
-}
-
-/// A rim-edge spec (bottom or top, per `place`): `PlacedSegment`
-/// description, line/circle carrier per the crate docs' carrier
-/// conventions (arc axis = turn-signed plane normal, span θ =
-/// 4·atan|bulge| from the stored bulge).
-pub(crate) fn rim_spec<T: Real>(
-    seg: &SweptSeg<T>,
-    place: Affine3<T>,
-    normal: Vec3<T>,
-    q_from: Point3<T>,
-    q_to: Point3<T>,
-) -> EdgeCurveSpec<T> {
-    let description = EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
-        segment: seg.sketch_segment(),
-        place,
-    });
-    match seg.kind {
-        SweptKind::Line => EdgeCurveSpec {
-            description,
-            carrier: Curve3::Line {
-                origin: q_from,
-                dir: (q_to - q_from).normalize(),
-            },
-            param_start: T::zero(),
-            param_end: q_from.distance(q_to),
-        },
-        SweptKind::Arc {
-            center,
-            radius,
-            turn,
-        } => {
-            let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
-            EdgeCurveSpec {
-                description,
-                carrier: Curve3::Circle {
-                    center: c_world,
-                    axis: turn_axis(turn, normal),
-                    radius,
-                    u_ref: (q_from - c_world).normalize(),
-                },
-                param_start: T::zero(),
-                param_end: arc_span(seg.bulge),
-            }
-        }
+    fn bulge(&self) -> T {
+        self.chord.bulge
     }
-}
-
-/// The arc parameter span θ = 4·atan|bulge| (the sanctioned bulge
-/// re-inspection — never endpoint `atan2`).
-fn arc_span<T: Real>(bulge: T) -> T {
-    T::from_f64(4.0) * bulge.abs().atan()
-}
-
-/// The turn-signed carrier axis (crate docs): `+normal` for a
-/// counterclockwise segment, `−normal` for a clockwise one. `Zero` is
-/// unreachable for classified arcs (a zero turn classified as a line);
-/// kept total by taking the positive arm.
-fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
-    match turn {
-        Sign::Positive | Sign::Zero => normal,
-        Sign::Negative => Vec3::zero() - normal,
+    fn kind(&self) -> SweptKind<T> {
+        self.chord.kind
     }
 }
 
@@ -553,57 +395,6 @@ fn strut_spec<T: Real>(
         },
         param_start: T::zero(),
         param_end: w_norm,
-    }
-}
-
-/// Decides whether two consecutive segments' side walls lie on the
-/// identical-by-construction surface (crate docs, cosurface sharing):
-/// collinear lines share a plane, same-carrier arcs share a cylinder.
-/// Mixed kinds never share (structurally); arcs with opposite turns
-/// never share (structurally — a same-carrier opposite-turn pair is an
-/// overlap the profile validator already refused; checked defensively).
-fn cosurface<T: Decide>(
-    prev: &SweptSeg<T>,
-    next: &SweptSeg<T>,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    match (&prev.kind, &next.kind) {
-        (SweptKind::Line, SweptKind::Line) => {
-            // Margin: perpendicular distance of the next chord's far
-            // endpoint from the previous chord's carrier line (meters,
-            // direct displacement).
-            let t = (prev.b - prev.a).normalize();
-            let d = next.b - prev.a;
-            let margin = t.perp_dot(d);
-            Ok(matches!(
-                decide("side_planes_cosurface", Margin::of(margin), band)?,
-                Sign::Zero
-            ))
-        }
-        (
-            SweptKind::Arc {
-                center: c1,
-                radius: r1,
-                turn: t1,
-            },
-            SweptKind::Arc {
-                center: c2,
-                radius: r2,
-                turn: t2,
-            },
-        ) => {
-            if t1 != t2 {
-                return Ok(false);
-            }
-            // Margin: center distance plus radius difference (meters,
-            // direct — the profile crate's carrier-identity pattern).
-            let margin = c1.distance(*c2) + (*r1 - *r2).abs();
-            Ok(matches!(
-                decide("side_cylinders_cosurface", Margin::of(margin), band)?,
-                Sign::Zero
-            ))
-        }
-        _ => Ok(false),
     }
 }
 
@@ -634,8 +425,9 @@ struct LoopBase {
 pub fn extrude<T: Decide>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
+    tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
-    let band = Band::linear().map_err(ExtrudeError::Band)?;
+    let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
     let place = profile.plane().placement;
     let normal = place.linear.c2;
 
@@ -675,15 +467,15 @@ pub fn extrude<T: Decide>(
     let top_place = Affine3::translation(w) * place;
 
     // ---- Swept traversals and world points, per loop. ----
-    let loops: Vec<Vec<SweptSeg<T>>> = profile
+    let loops: Vec<Vec<WallSeg<T>>> = profile
         .loops()
         .iter()
-        .map(|lp| swept_segments(lp, reverse))
+        .map(|lp| wall_segments(lp, reverse))
         .collect();
     let world = |p: Point2<T>| place.transform_point(Point3::new(p.x, p.y, T::zero()));
     let points: Vec<Vec<Point3<T>>> = loops
         .iter()
-        .map(|segs| segs.iter().map(|s| world(s.a)).collect())
+        .map(|segs| segs.iter().map(|s| world(s.chord.a)).collect())
         .collect();
 
     // ---- Phase 1: outer lamina. ----
@@ -698,7 +490,8 @@ pub fn extrude<T: Decide>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        rim_spec(&outer[0], place, normal, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n]),
+        tol,
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -709,7 +502,8 @@ pub fn extrude<T: Decide>(
                 he2: prev.he_minus,
             },
             qs[j],
-            rim_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j]),
+            tol,
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -733,18 +527,14 @@ pub fn extrude<T: Decide>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        rim_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0]),
         FaceSurface::New(bottom_plane),
+        tol,
     )?;
     hes.push(close.he_plus);
     let top_face = seed.face;
     let bottom_face = close.face;
-    let bottom_surface = body
-        .get_face(bottom_face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(bottom_face),
-        })?
-        .surface;
+    let bottom_surface = face_surface_key(&body, bottom_face)?;
     let mut bases = Vec::with_capacity(loops.len());
     bases.push(LoopBase { hes });
 
@@ -762,6 +552,7 @@ pub fn extrude<T: Decide>(
                 he2: anchor,
             },
             hq[0],
+            tol,
         )?;
         let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
         // Grow the hole chain inside the ring loop.
@@ -769,7 +560,8 @@ pub fn extrude<T: Decide>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            rim_spec(&segs[0], place, normal, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m]),
+            tol,
         )?;
         hole_hes.push(first.he_plus);
         let mut prev = first;
@@ -780,7 +572,8 @@ pub fn extrude<T: Decide>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                rim_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j]),
+                tol,
             )?;
             hole_hes.push(mv.he_plus);
             prev = mv;
@@ -792,8 +585,9 @@ pub fn extrude<T: Decide>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            rim_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0]),
             FaceSurface::Shared(bottom_surface),
+            tol,
         )?;
         hole_hes.push(close.he_plus);
         // Consume the disc: its loop becomes the bottom cap's ring —
@@ -810,7 +604,7 @@ pub fn extrude<T: Decide>(
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         let qs = &points[li];
         let swept = sweep_loop(
-            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band,
+            &mut body, li, segs, &base.hes, qs, place, top_place, normal, w, w_norm, band, tol,
         )?;
         side_faces.push(swept.faces);
         strut_edges.push(swept.struts);
@@ -854,8 +648,9 @@ pub fn extrude<T: Decide>(
                 q_from,
                 q_to,
                 li,
-                segs[j].canonical_segment,
+                segs[j].chord.canonical_segment,
                 band,
+                tol,
             )?;
             upgrade_rim(
                 &mut body,
@@ -865,8 +660,9 @@ pub fn extrude<T: Decide>(
                 q_from + w,
                 q_to + w,
                 li,
-                segs[j].canonical_segment,
+                segs[j].chord.canonical_segment,
                 band,
+                tol,
             )?;
         }
     }
@@ -897,7 +693,7 @@ pub fn extrude<T: Decide>(
 fn sweep_loop<T: Decide>(
     body: &mut Body<T>,
     loop_index: usize,
-    segs: &[SweptSeg<T>],
+    segs: &[WallSeg<T>],
     hes: &[topo::HalfEdgeKey],
     qs: &[Point3<T>],
     place: Affine3<T>,
@@ -906,6 +702,7 @@ fn sweep_loop<T: Decide>(
     w: Vec3<T>,
     w_norm: T,
     band: Band,
+    tol: Tol,
 ) -> Result<LoopSwept, ExtrudeError> {
     let n = segs.len();
 
@@ -922,13 +719,15 @@ fn sweep_loop<T: Decide>(
     let mut pair = Vec::with_capacity(n);
     for j in 0..n {
         let prev = &segs[(j + n - 1) % n];
-        pair.push(cosurface(prev, &segs[j], band).map_err(|source| {
-            ExtrudeError::CosurfaceEscalated {
-                loop_index,
-                vertex_index: segs[j].canonical_vertex,
-                source,
-            }
-        })?);
+        pair.push(
+            cosurface(prev, &segs[j], SIDE_COSURFACE, band).map_err(|source| {
+                ExtrudeError::CosurfaceEscalated {
+                    loop_index,
+                    vertex_index: segs[j].chord.canonical_vertex,
+                    source,
+                }
+            })?,
+        );
     }
 
     // Struts: one raised vertex per loop vertex, in traversal order.
@@ -940,7 +739,8 @@ fn sweep_loop<T: Decide>(
                 he2: hes[j],
             },
             qs[j] + w,
-            strut_spec(segs[j].a, place, qs[j], w, w_norm),
+            strut_spec(segs[j].chord.a, place, qs[j], w, w_norm),
+            tol,
         )?;
         struts.push(m);
     }
@@ -971,8 +771,9 @@ fn sweep_loop<T: Decide>(
                 he1: struts[j].he_minus,
                 he2,
             },
-            rim_spec(&segs[j], top_place, normal, top_q_from, top_q_to),
+            placed_segment_spec(&segs[j], top_place, normal, top_q_from, top_q_to),
             surface,
+            tol,
         )?;
         if j == 0 {
             first_top = Some(mef.he_plus);
@@ -982,7 +783,7 @@ fn sweep_loop<T: Decide>(
         // normal (unconditionally the outward radial) points into the
         // solid and the face's sense is `false`. Decided at
         // classification time from the profile's stored winding
-        // ([`SweptSeg::wall_sense`]); attached here because `mef`
+        // ([`WallSeg::wall_sense`]); attached here because `mef`
         // cannot know the material side (it sees chords, not the
         // profile).
         if !segs[j].wall_sense {
@@ -1035,7 +836,7 @@ fn sweep_loop<T: Decide>(
                     param_start: T::zero(),
                     param_end: w_norm,
                 };
-                body.set_edge_curve(struts[j].edge, spec)?;
+                body.set_edge_curve(struts[j].edge, spec, tol)?;
             }
             Ok(DihedralClass::Smooth) => {
                 // OQ7's must-carry, applied at construction (M5 PR 9):
@@ -1068,13 +869,13 @@ fn sweep_loop<T: Decide>(
                             param_start: T::zero(),
                             param_end: w_norm,
                         };
-                        body.set_edge_curve(struts[j].edge, spec)?;
+                        body.set_edge_curve(struts[j].edge, spec, tol)?;
                     }
                     Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {}
                     Err(source) => {
                         return Err(ExtrudeError::SliverJoin {
                             loop_index,
-                            vertex_index: segs[j].canonical_vertex,
+                            vertex_index: segs[j].chord.canonical_vertex,
                             source,
                         });
                     }
@@ -1083,7 +884,7 @@ fn sweep_loop<T: Decide>(
             Err(source) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
-                    vertex_index: segs[j].canonical_vertex,
+                    vertex_index: segs[j].chord.canonical_vertex,
                     source,
                 });
             }
@@ -1121,7 +922,7 @@ struct LoopSwept {
 fn side_surface<T: Decide>(
     body: &Body<T>,
     loop_index: usize,
-    segs: &[SweptSeg<T>],
+    segs: &[WallSeg<T>],
     pair: &[bool],
     faces: &[FaceKey],
     j: usize,
@@ -1148,14 +949,14 @@ fn side_surface<T: Decide>(
             return Ok(FaceSurface::Shared(key));
         }
     }
-    match segs[j].kind {
+    match segs[j].chord.kind {
         SweptKind::Line => {
             // Quad corners in the side loop's next order starting at
             // the raised start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
             let corners = [qs[j] + w, qs[j], qs[(j + 1) % n], qs[(j + 1) % n] + w];
             let plane = newell_plane(&corners, band).map_err(|source| ExtrudeError::SidePlane {
                 loop_index,
-                segment_index: segs[j].canonical_segment,
+                segment_index: segs[j].chord.canonical_segment,
                 source,
             })?;
             Ok(FaceSurface::New(plane))
@@ -1213,6 +1014,7 @@ fn upgrade_rim<T: Decide>(
     loop_index: usize,
     segment_index: usize,
     band: Band,
+    tol: Tol,
 ) -> Result<(), ExtrudeError> {
     let curve_key = body
         .get_edge(edge)
@@ -1259,7 +1061,7 @@ fn upgrade_rim<T: Decide>(
                 param_start: t0,
                 param_end: t1,
             };
-            body.set_edge_curve(edge, spec)?;
+            body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
         // Believed unreachable for a normal extrusion (the cap plane is
@@ -1274,20 +1076,6 @@ fn upgrade_rim<T: Decide>(
             source,
         }),
     }
-}
-
-/// Resolves a face's surface key (total: stale keys surface as the
-/// operator-layer typed error).
-pub(crate) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, ExtrudeError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
 }
 
 #[cfg(test)]

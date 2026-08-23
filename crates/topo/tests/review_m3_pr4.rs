@@ -12,6 +12,7 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
@@ -43,7 +44,8 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
+    let red =
+        topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
@@ -259,7 +261,7 @@ fn reflex_edge_touch_benign() {
     .body;
     let b = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)], 0.0, 1.0).body;
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 validate(&red.a).unwrap();
                 validate(&red.b).unwrap();
@@ -300,7 +302,7 @@ fn reflex_edge_crossing_refuses_loudly() {
     .body;
     let b = prism_z::<f64>(&[(1.0, 1.0), (2.0, 0.6), (2.0, 1.4)], 0.0, 1.0).body;
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 assert!(
                     !red.null_pairs.is_empty(),
@@ -339,7 +341,7 @@ fn notch_fill_dense_ties() {
     .body;
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 validate(&red.a).unwrap();
                 validate(&red.b).unwrap();
@@ -374,7 +376,7 @@ fn notch_fill_dense_ties() {
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
     use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
         normal: n,
@@ -508,7 +510,7 @@ fn curved_face_gate_witness() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom_surfaces::Surface::Torus {
+        topo::FaceSurface::New(geom::Surface::Torus {
             center: Point3::new(0.0, 0.0, 1.0),
             axis: Vec3::new(1.0, 0.0, 0.0),
             major_radius: 1.0,
@@ -517,7 +519,7 @@ fn curved_face_gate_witness() {
         }),
     )
     .unwrap();
-    match boolean_reduce(BooleanOp::Union, &a, &b) {
+    match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(BooleanError::CurvedBooleanUnsupported {
             operand: topo::Operand::B,
             face: f,
@@ -543,12 +545,12 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom_surfaces::Surface::Nurbs(std::sync::Arc::new(
-            geom_surfaces::NurbsSurface::placeholder(),
+        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::placeholder(),
         ))),
     )
     .unwrap();
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b) {
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(e) => e,
         Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
     };
@@ -561,15 +563,15 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     };
     let msg = format!("{err}");
     assert!(
-        msg.contains("PR 9c"),
-        "the refusal names the banked unit: {msg}"
+        msg.contains("fitted-chord join lane"),
+        "the refusal names the unwritten lane that blocks it: {msg}"
     );
     assert!(
         msg.contains("crossing layer"),
         "the refusal names the missing boolean piece: {msg}"
     );
     assert!(
-        msg.contains("PR 7b"),
+        msg.contains("already implemented at the INTERSECTION layer"),
         "the refusal is honest that the SECTION arm is already certified: {msg}"
     );
 }

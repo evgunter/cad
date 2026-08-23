@@ -54,15 +54,19 @@
 //! walling the whole certificate off the interval lane (M5-LOG PR 9c
 //! deviation 2).
 //!
-//! The bound is the **sole-bound `T: Bounds`** the discipline reserves
-//! for certification code: an operand enters as `[lo, hi]` and every
+//! The bound is the sole bound [`geom_core::CertifiedBounds`] — the pair
+//! of bracket doors, named, so certification code that reads both writes
+//! one bound rather than a compound one. Nothing here DECIDES; the
+//! discipline's compound-`Bounds` rule is about a parameter that decides
+//! *and* brackets, and this file has no decide half. An operand enters
+//! as `[lo, hi]` and every
 //! subsequent operation is ring arithmetic, so a widened operand widens
 //! the enclosure — which can only cost a refusal. At `f64` the bracket
 //! is the value, so this lane's numbers are what they were, up to the
 //! ring's outward rounding of the pad itself.
 
-use geom_core::{Bounds, Point3, RingInterval, Vec3};
-use geom_surfaces::{NurbsSurface, Surface, SurfaceWindow};
+use geom::{NurbsSurface, Surface, SurfaceWindow};
+use geom_core::{CertifiedBounds, CertifiedEnclosure, Point3, RingInterval, Vec3};
 
 /// An axis-aligned ring box in ℝ³.
 #[derive(Clone, Copy, Debug)]
@@ -78,7 +82,7 @@ pub(crate) struct Box3 {
 impl Box3 {
     /// The box `[cx−r, cx+r] × …` around `c` — the caller's scalar
     /// crosses into the ring here (module docs' seam).
-    pub(crate) fn around<T: Bounds>(c: Point3<T>, r: T) -> Self {
+    pub(crate) fn around<T: CertifiedBounds>(c: Point3<T>, r: T) -> Self {
         let g = pad_interval(r);
         Self {
             x: ring(c.x) + g,
@@ -88,7 +92,7 @@ impl Box3 {
     }
 
     /// The box spanned by two corners (componentwise hull).
-    pub(crate) fn between<T: Bounds>(a: Point3<T>, b: Point3<T>) -> Self {
+    pub(crate) fn between<T: CertifiedBounds>(a: Point3<T>, b: Point3<T>) -> Self {
         Self {
             x: RingInterval::hull(ring(a.x), ring(b.x)),
             y: RingInterval::hull(ring(a.y), ring(b.y)),
@@ -106,7 +110,7 @@ impl Box3 {
     }
 
     /// Grow every side by `r` (the certified tube radius).
-    pub(crate) fn pad<T: Bounds>(self, r: T) -> Self {
+    pub(crate) fn pad<T: CertifiedBounds>(self, r: T) -> Self {
         let g = pad_interval(r);
         Self {
             x: self.x + g,
@@ -176,8 +180,20 @@ impl Box3 {
 /// enclosure. At `f64` this is `RingInterval::point`; at the interval
 /// scalar it carries the whole enclosure in, so nothing downstream can
 /// narrow what the caller could not.
-fn ring<T: Bounds>(v: T) -> RingInterval {
-    RingInterval::from_bounds(v.lo(), v.hi())
+/// The seam itself: the caller's scalar crossing into the ring.
+///
+/// The bound is [`CertifiedEnclosure`], not `Bounds`. Everything built
+/// from this is a *certificate*, and the ring has two states and no
+/// decorations — so an operand that carries a sound bracket but whose
+/// computation left a domain has no way to say so once it is across.
+/// A refusing operand becomes ring poison, which fails every downstream
+/// test rather than shrinking a box.
+///
+/// The body is [`RingInterval::from_certified`]; this wrapper exists for
+/// the name at the call sites below, not for a second spelling of the
+/// door.
+fn ring<T: CertifiedEnclosure>(v: T) -> RingInterval {
+    RingInterval::from_certified(v)
 }
 
 /// A symmetric pad of magnitude `r` — `[−r⁺, r⁺]` taken at the
@@ -185,15 +201,20 @@ fn ring<T: Bounds>(v: T) -> RingInterval {
 /// direction for a widening is the largest value the operand could
 /// stand for.
 ///
-/// Poison, and a bracket whose upper end is negative, yield poison
-/// through [`RingInterval::from_bounds`] (`−hi ≤ hi` fails), which then
-/// fails every downstream test rather than shrinking a box. Stated
+/// An operand that cannot certify is refused at the door and yields
+/// poison here; a bracket whose upper end is negative is admitted by the
+/// door and yields poison at [`RingInterval::from_bounds`] (`−hi ≤ hi`
+/// fails). Either way the pad fails every downstream test rather than
+/// shrinking a box, and the two refusals stay distinct because only one
+/// of them is about the operand's right to certify anything. Stated
 /// precisely because the weaker claim is the true one: a bracket that
 /// merely STRADDLES zero has `hi ≥ 0` and pads by its upper end, which
 /// is sound — it is only an entirely-negative radius that poisons.
-fn pad_interval<T: Bounds>(r: T) -> RingInterval {
-    let hi = r.hi();
-    RingInterval::from_bounds(-hi, hi)
+fn pad_interval<T: CertifiedEnclosure>(r: T) -> RingInterval {
+    match r.certified_bracket() {
+        Some((_, hi)) => RingInterval::from_bounds(-hi, hi),
+        None => RingInterval::poison(),
+    }
 }
 
 fn dot3(a: [RingInterval; 3], b: [RingInterval; 3]) -> RingInterval {
@@ -209,11 +230,11 @@ fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     ]
 }
 
-fn constv<T: Bounds>(v: Vec3<T>) -> [RingInterval; 3] {
+fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [RingInterval; 3] {
     [ring(v.x), ring(v.y), ring(v.z)]
 }
 
-fn subp<T: Bounds>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
+fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
     [b.x - ring(p.x), b.y - ring(p.y), b.z - ring(p.z)]
 }
 
@@ -238,7 +259,10 @@ fn norm_sq(q: [RingInterval; 3]) -> RingInterval {
 /// wanted to would have to land that conversion first, which is
 /// exactly the per-arm retirement rule (C12.1). [`Surface::Nurbs`] has
 /// no implicit form at all.
-pub(crate) fn implicit_enclosure<T: Bounds>(surface: &Surface<T>, b: Box3) -> RingInterval {
+pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
+    surface: &Surface<T>,
+    b: Box3,
+) -> RingInterval {
     let two = RingInterval::point(2.0);
     match *surface {
         Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
@@ -280,7 +304,7 @@ pub(crate) fn implicit_enclosure<T: Bounds>(surface: &Surface<T>, b: Box3) -> Ri
 /// The enclosure of `∇f` ([`crate::implicit::implicit_gradient`]) over
 /// `b`. Same kind coverage and same reasons as
 /// [`implicit_enclosure`].
-pub(crate) fn implicit_gradient_enclosure<T: Bounds>(
+pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
 ) -> [RingInterval; 3] {
@@ -318,7 +342,7 @@ pub(crate) fn implicit_gradient_enclosure<T: Bounds>(
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: one arc, and therefore exactly one
 /// component to select.
-pub(crate) fn graph_margin<T: Bounds>(
+pub(crate) fn graph_margin<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     b: Box3,
@@ -339,11 +363,11 @@ pub(crate) fn graph_margin<T: Bounds>(
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
 /// goes through the homogeneous quotient rule.
-pub(crate) struct NurbsBoxes<'a, T: Bounds> {
+pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
 }
 
-impl<'a, T: Bounds> NurbsBoxes<'a, T> {
+impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// Wrap a surface.
     pub(crate) fn new(surface: &'a NurbsSurface<T>) -> Self {
         Self { surface }
@@ -837,5 +861,194 @@ mod tests {
         // Widest axis is x.
         assert!((l.x.hi() - 1.0).abs() < 1e-15 && (r.x.lo() - 1.0).abs() < 1e-15);
         assert!(l.width() < b.width());
+    }
+
+    /// **The two crossings agree with the door, whichever way it
+    /// answers.** `ring` destructures a refusal to poison and
+    /// `pad_interval` reads the bracket's upper end, so the door
+    /// beginning to REFUSE a value it used to hand over as a NaN bracket
+    /// takes a different branch through both of them. The `f64` lane is
+    /// where that is reachable without a feature: NaN is its poison, and
+    /// the door stops it here rather than leaving it to
+    /// `RingInterval::from_bounds`.
+    ///
+    /// **An infinite radius is a different case and deliberately not
+    /// poison** — ∞ is not `f64` poison (D4's Q1 residue), so the door
+    /// hands it over and `[−∞, ∞]` is what a pad of unbounded radius
+    /// honestly encloses. It is useless rather than wrong, and what
+    /// stops it is its width, downstream. The row pins the boundary
+    /// between the two so neither can drift into the other unnoticed.
+    #[test]
+    fn a_poisoned_f64_refuses_at_the_door_and_still_lands_on_poison() {
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let nan_pad = Box3::around(origin, f64::NAN);
+        assert!(
+            nan_pad.x.is_poison() && nan_pad.y.is_poison() && nan_pad.z.is_poison(),
+            "a NaN radius padded to {:?}",
+            nan_pad.x
+        );
+        let inf_pad = Box3::around(origin, f64::INFINITY);
+        assert_eq!(
+            (inf_pad.x.lo(), inf_pad.x.hi()),
+            (f64::NEG_INFINITY, f64::INFINITY),
+            "an infinite radius must enclose everything, not refuse"
+        );
+
+        let bad_centre = Box3::around(Point3::new(f64::NAN, 0.0, 0.0), 0.5);
+        assert!(bad_centre.x.is_poison(), "a NaN centre built a box");
+        assert!(
+            !bad_centre.y.is_poison(),
+            "the healthy coordinates must still build: poison is per-axis here"
+        );
+        let good = Box3::around(origin, 0.5);
+        assert!(
+            !good.x.is_poison() && good.x.contains(-0.5) && good.x.contains(0.5),
+            "the healthy pad must still build, or the row proves nothing: {:?}",
+            good.x
+        );
+        assert!(
+            good.x.width() < 1.5,
+            "the healthy pad widened to {:?}",
+            good.x
+        );
+    }
+
+    /// **The M6-2 seam requires the certified door.**
+    ///
+    /// `ring<T: CertifiedEnclosure>` is the only way an evaluation scalar
+    /// enters the C9 ring here, and the ring has two states and no
+    /// decorations — so an operand whose bracket is sound but whose
+    /// computation left a domain has no way to say so once it is across.
+    /// The rows sweep the operand across the domain boundary: the
+    /// enclosure must refuse on exactly the side where the decoration
+    /// degrades, which neither a laundering nor a uniformly-poisoning
+    /// implementation can satisfy.
+    #[cfg(feature = "interval")]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    mod decoration_seam {
+        use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
+
+        use super::{Box3, Point3, RingInterval, Surface, Vec3, implicit_enclosure};
+
+        /// One named entry point from an evaluation scalar into the ring.
+        type Crossing = (&'static str, fn(Interval) -> RingInterval);
+
+        /// `sqrt([a, 4])`: `Trv` with finite endpoints when `a < 0` forces
+        /// a clamp, certified otherwise.
+        fn operand(a: f64) -> Interval {
+            Interval::from_bounds(a, 4.0).sqrt()
+        }
+
+        fn h(x: f64) -> Interval {
+            Interval::from_f64(x)
+        }
+
+        fn unit_box() -> Box3 {
+            Box3 {
+                x: RingInterval::from_bounds(0.1, 0.9),
+                y: RingInterval::from_bounds(-0.4, 0.3),
+                z: RingInterval::from_bounds(-0.2, 0.7),
+            }
+        }
+
+        /// A sphere whose centre carries `c` in x — the operand reaches
+        /// `implicit_enclosure` through `subp`, the same `ring` helper
+        /// every other entry point uses.
+        fn sphere(c: Interval) -> Surface<Interval> {
+            Surface::Sphere {
+                center: Point3::new(c, h(0.0), h(0.0)),
+                radius: h(1.0),
+                axis: Vec3::new(h(0.0), h(0.0), h(1.0)),
+                u_ref: Vec3::new(h(1.0), h(0.0), h(0.0)),
+            }
+        }
+
+        fn crossings() -> [Crossing; 3] {
+            [
+                ("implicit_enclosure", |c| {
+                    implicit_enclosure(&sphere(c), unit_box())
+                }),
+                ("Box3::around", |c| {
+                    Box3::around(Point3::new(c, h(0.0), h(0.0)), h(0.5)).x
+                }),
+                ("Box3::between", |c| {
+                    Box3::between(
+                        Point3::new(c, h(0.0), h(0.0)),
+                        Point3::new(h(3.0), h(0.0), h(0.0)),
+                    )
+                    .x
+                }),
+            ]
+        }
+
+        /// Each entry point, swept. Both mutation directions are caught:
+        /// laundering certifies the whole sweep, uniform poisoning refuses
+        /// the whole sweep, and the non-vacuity assertions reject both.
+        #[test]
+        fn every_ring_crossing_refuses_exactly_where_the_decoration_degrades() {
+            for (name, cross) in crossings() {
+                let (mut certified, mut refused) = (0, 0);
+                for a in [-4.0, -1.0, -0.25, -1e-300, 0.0, 1e-300, 0.25, 1.0] {
+                    let c = operand(a);
+                    let e = cross(c);
+                    assert_eq!(
+                        e.is_poison(),
+                        !c.is_certified(),
+                        "{name}: sqrt([{a}, 4]) is {} but crossed as {e:?}",
+                        if c.is_certified() {
+                            "certified"
+                        } else {
+                            "domain-violated"
+                        }
+                    );
+                    if c.is_certified() {
+                        certified += 1;
+                    } else {
+                        refused += 1;
+                    }
+                }
+                assert!(certified > 0, "{name}: sweep never certified — vacuous");
+                assert!(refused > 0, "{name}: sweep never refused — vacuous");
+            }
+        }
+
+        /// **The crossings must follow the certified door, not the
+        /// bracket door** — the row that goes red if any of them is ever
+        /// re-bounded to plain `Bounds`.
+        ///
+        /// The fixture's two doors disagree visibly: the bracket is a
+        /// sound, finite `[0, 2]`, and the certified door refuses. So the
+        /// crossing's output says which one it consulted, and a
+        /// `Bounds`-bounded crossing is caught by name here rather than
+        /// as an anonymous boolean.
+        #[test]
+        fn no_crossing_may_be_rebounded_to_the_bracket_door() {
+            let c = operand(-1.0);
+            let bracket = (Bounds::lo(c), Bounds::hi(c));
+            assert_eq!(bracket, (0.0, 2.0), "fixture drifted");
+            assert!(c.certified_bracket().is_none(), "fixture drifted");
+            for (name, cross) in crossings() {
+                let e = cross(c);
+                assert!(
+                    e.is_poison(),
+                    "{name} consumed the BRACKET answer {bracket:?} and produced \
+                     {e:?}. It is reading `Bounds`, not `CertifiedEnclosure` — the \
+                     crossing's bound must require the certified door."
+                );
+            }
+        }
+
+        /// A radius is read at its UPPER end only (`pad_interval`), so it
+        /// is the one crossing where forwarding a single endpoint could
+        /// have been thought safe. It is not: the pad is a widening
+        /// derived from a quantity whose computation left its domain.
+        #[test]
+        fn a_violated_radius_poisons_the_pad() {
+            let c = Point3::new(h(0.0), h(0.0), h(0.0));
+            let bad = Box3::around(c, operand(-1.0));
+            assert!(bad.x.is_poison() && bad.y.is_poison() && bad.z.is_poison());
+            let good = Box3::around(c, operand(1.0));
+            assert!(!good.x.is_poison(), "the healthy half must still build");
+        }
     }
 }

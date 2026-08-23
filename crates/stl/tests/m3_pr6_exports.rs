@@ -17,41 +17,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
-use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResult, mass_properties, union, validate_pseudomanifold};
+use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
-fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
-    Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
-        .unwrap()
-}
-
-/// An axis-aligned raw-extrude brick.
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    extrude(
-        &validated(
-            SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            lp,
-        ),
-        Extrusion::Distance(z.1 - z.0),
-    )
-    .unwrap()
-    .body
-}
+mod common;
+use common::brick;
+use geom_core::Tol;
 
 fn stl_dir() -> String {
     let dir = std::env::var("REVIEW_STL_DIR").unwrap_or_else(|_| {
@@ -75,24 +46,27 @@ fn stl_dir() -> String {
 fn corner_kiss_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let BooleanResult::Body(r) = union(&a, &b).unwrap() else {
+    let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
     // Shell count pinned alongside exact volume: admesh's parts=N alone
     // cannot distinguish a legit assembly from a wrongly-disconnected
     // one-part result (review R7b).
     assert_eq!(r.body.shells().count(), 2);
-    let m = mass_properties(&r.body).unwrap();
+    let m = mass_properties(&r.body, Tol::witness()).unwrap();
     assert_eq!(m.volume, 2.0);
     assert_eq!(m.surface_area, 12.0);
-    let mesh = mesh::tessellate(&r.body, 1e-2).unwrap();
+    let mesh = mesh::tessellate(&r.body, 1e-2, Tol::witness()).unwrap();
     check_mesh(&mesh).unwrap();
     let v = signed_volume(&mesh);
     assert!((v - 2.0).abs() < 1e-9, "mesh volume {v}");
     let path = format!("{}/corner_kiss.stl", stl_dir());
     let mut file = std::fs::File::create(&path).unwrap();
-    stl::write_binary(&mesh, &mut file).unwrap();
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut file).unwrap();
 }
 
 /// The tangent-edge assembly (certified 3′ with the D3-reconstructed
@@ -102,22 +76,25 @@ fn corner_kiss_assembly_exports() {
 fn tangent_edge_assembly_exports() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
-    let BooleanResult::Body(r) = union(&a, &b).unwrap() else {
+    let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("tangent-edge union is a body");
     };
-    assert_eq!(validate_pseudomanifold(&r.body, &r.contacts), Ok(()));
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
     // Shell count pinned alongside exact volume: admesh's parts=N alone
     // cannot distinguish a legit assembly from a wrongly-disconnected
     // one-part result (review R7b).
     assert_eq!(r.body.shells().count(), 2);
-    let m = mass_properties(&r.body).unwrap();
+    let m = mass_properties(&r.body, Tol::witness()).unwrap();
     assert_eq!(m.volume, 2.0);
     assert_eq!(m.surface_area, 12.0);
-    let mesh = mesh::tessellate(&r.body, 1e-2).unwrap();
+    let mesh = mesh::tessellate(&r.body, 1e-2, Tol::witness()).unwrap();
     check_mesh(&mesh).unwrap();
     let v = signed_volume(&mesh);
     assert!((v - 2.0).abs() < 1e-9, "mesh volume {v}");
     let path = format!("{}/tangent_edge.stl", stl_dir());
     let mut file = std::fs::File::create(&path).unwrap();
-    stl::write_binary(&mesh, &mut file).unwrap();
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut file).unwrap();
 }

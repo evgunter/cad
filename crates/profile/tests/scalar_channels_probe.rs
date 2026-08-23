@@ -8,6 +8,14 @@
 //! default build has no reason to pay for a diagnostics scalar. The
 //! `Dual<f64>` cross-scalar tests stay ungated in `scalar_channels.rs`;
 //! only this file carries the whole-file gate.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p profile --features probe --test all -- scalar_channels_probe::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,7 +23,8 @@ mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, tol};
 use geom_core::Sign;
-use profile::k_stats::{self, Probe, SampleOutcome};
+use geom_core::Tol;
+use geom_core::k_stats::{self, Probe, SampleOutcome};
 
 #[test]
 fn probe_records_margin_distributions_without_changing_decisions() {
@@ -80,7 +89,7 @@ fn probe_records_margin_distributions_without_changing_decisions() {
 
 #[test]
 fn probe_records_the_near_tangent_escalation() {
-    let eps = tol().eps;
+    let eps = tol().eps();
     k_stats::start_recording();
     let outcome = lift::<Probe>(&near_tangent_hole(eps)).validate(tol());
     let samples = k_stats::take_samples();
@@ -122,7 +131,7 @@ fn probe_records_every_arc_fillet_gate() {
     // gates. The corner (2, 0) is the +x ray from (0, 0) meeting the
     // carrier about the origin through (0, 2).
     Open.at(pp(0.0, 0.0))
-        .toward(pr(1.0), pr(0.0))
+        .toward(pr(1.0), pr(0.0), Tol::witness())
         .expect("the incoming ray runs +x")
         .fillet_arc(
             pr(0.5),
@@ -131,6 +140,7 @@ fn probe_records_every_arc_fillet_gate() {
                 winding: ArcSweep::Ccw,
                 p: pp(0.0, 2.0),
             },
+            Tol::witness(),
         )
         .expect("the line×arc fillet constructs at Probe");
     // arc×arc: the vesica of two radius-2 carriers whose centres are
@@ -147,6 +157,7 @@ fn probe_records_every_arc_fillet_gate() {
             winding: ArcSweep::Ccw,
             p: pp(-1.0, 0.0),
         },
+        Tol::witness(),
     )
     .expect("the arc×arc fillet constructs at Probe");
     let samples = k_stats::take_samples();

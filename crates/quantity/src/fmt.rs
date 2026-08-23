@@ -52,21 +52,31 @@ pub enum FmtQuantityError {
 /// Formats a canonical-METERS value in `unit` (module docs; the pin:
 /// the text parses back to `meters`' exact bits).
 ///
+/// `unit` is not checked here and does not need to be: a
+/// [`crate::LengthUnit`] is an INDEX into [`crate::UNITS`] (the seal,
+/// whose narrative lives on [`crate::UnitDef`]), so its symbol and its
+/// factor are one row's and the rendered suffix names the factor that
+/// was applied. That is what makes this module's `parse(fmt(x, unit))`
+/// pin a statement about the whole surface rather than about
+/// well-behaved callers.
+///
 /// # Errors
 ///
 /// [`FmtQuantityError::NonFinite`] when `meters` is NaN or ±∞.
 pub fn fmt_length(meters: f64, unit: LengthUnit) -> Result<String, FmtQuantityError> {
-    fmt_in(meters, unit.symbol, unit.factor, M.symbol)
+    fmt_in(meters, unit.symbol(), unit.factor(), M.symbol())
 }
 
 /// Formats a canonical-RADIANS value in `unit` (module docs; the pin:
 /// the text parses back to `radians`' exact bits).
 ///
+/// `unit` needs no check, for the reason on [`fmt_length`].
+///
 /// # Errors
 ///
 /// [`FmtQuantityError::NonFinite`] when `radians` is NaN or ±∞.
 pub fn fmt_angle(radians: f64, unit: AngleUnit) -> Result<String, FmtQuantityError> {
-    fmt_in(radians, unit.symbol, unit.factor, RAD.symbol)
+    fmt_in(radians, unit.symbol(), unit.factor(), RAD.symbol())
 }
 
 /// The shared engine: preimage search in `symbol`, canonical fallback

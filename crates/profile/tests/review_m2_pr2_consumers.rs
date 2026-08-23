@@ -2,12 +2,11 @@
 //! the reviewer's session worktree into CI per the standing convention:
 //! does a PR 4-shaped sweep consumer and a PR 3-shaped dihedral
 //! consumer actually compose with ValidatedProfile + SketchPlane +
-//! geom-curves' Circle conventions? Independent derivations — keep
+//! `geom`'s Circle conventions? Independent derivations — keep
 //! verbatim (promotion adapted the header only).
 //!
-//! geom-curves is a dev-dependency here (acyclic — profile does not
-//! depend on geom-curves; mirrors the geom-surfaces review-suite
-//! precedent). NOTE: the axis-from-turn convention these dry-runs
+//! `geom` is a dev-dependency here (acyclic — profile does not depend
+//! on `geom`). NOTE: the axis-from-turn convention these dry-runs
 //! exercise (axis = +plane normal for a CCW turn, −normal for CW, so
 //! increasing parameter runs start → end per the he_plus forward
 //! contract) is **PR 4's convention to own and document** — this suite
@@ -17,8 +16,8 @@
 mod common;
 
 use common::{profile, rounded_rect, tol};
+use geom::Curve3;
 use geom_core::{Point2, Point3, Vec3};
-use geom_curves::Curve3;
 use profile::{LoopRole, Profile, SegmentKind, SketchPlane};
 
 fn close3(p: Point3<f64>, q: Point3<f64>, tol: f64) -> bool {
@@ -27,7 +26,7 @@ fn close3(p: Point3<f64>, q: Point3<f64>, tol: f64) -> bool {
 
 /// PR 4 dry-run: lift a rounded rectangle onto a tilted sketch plane,
 /// validate, and for every Arc segment reconstruct the 3-D circle
-/// carrier per the geom-curves conventions:
+/// carrier per `geom`'s curve conventions:
 ///
 /// - center3 = plane.to_world(center2);
 /// - axis = plane normal for turn = Positive, -normal for Negative

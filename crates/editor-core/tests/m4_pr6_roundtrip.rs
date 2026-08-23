@@ -28,13 +28,20 @@ use editor_core::{
 };
 
 use corpus::documents;
+use geom_core::Tol;
 
 /// The whole-evaluation bit fingerprint: `Debug` of every node result
 /// (payload arenas, name tables, verdicts, content keys) plus the
 /// appearance resolution. `Debug` prints floats shortest-round-trip
 /// (bit-faithful for finite values, sign of zero included).
 fn eval_fingerprint(label: &str, doc: &ProfileDoc) -> String {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     // #117: fingerprint identity is BLIND to evaluation health — a sick
     // document (Failed/Poisoned nodes) round-trips just as bit-perfectly
     // as a green one, which is exactly how PR 6's legacy kitchen-sink
@@ -64,7 +71,7 @@ fn files() -> Vec<Fixture> {
     for d in documents() {
         out.push((
             format!("{}_log", d.name),
-            ProfileDoc::empty_derived("m4_pr6_roundtrip"),
+            ProfileDoc::empty_derived("m4_pr6_roundtrip", Tol::witness()),
             d.edits.clone(),
             true,
         ));
@@ -79,10 +86,13 @@ fn save_load_replay_identity() {
         // The expected current state: snapshot + edits.
         let mut expected = snapshot.clone();
         for edit in &edits {
-            expected = apply(&expected, edit).expect("corpus edit").doc;
+            expected = apply(&expected, edit, Tol::witness())
+                .expect("corpus edit")
+                .doc;
         }
-        let text = save(&snapshot, &edits).expect("save");
-        let loaded = load(&text).unwrap_or_else(|e| panic!("{label}: load refused: {e:?}"));
+        let text = save(&snapshot, &edits, Tol::witness()).expect("save");
+        let loaded =
+            load(&text, Tol::witness()).unwrap_or_else(|e| panic!("{label}: load refused: {e:?}"));
         assert!(
             loaded.snapshot.bit_eq(&snapshot),
             "{label}: snapshot round-trip not bit-identical"
@@ -94,7 +104,7 @@ fn save_load_replay_identity() {
         );
         // Canonical bytes: re-saving the loaded state reproduces the
         // file exactly (BTreeMap ordering + ryu canonical floats).
-        let resaved = save(&loaded.snapshot, &loaded.edits).expect("re-save");
+        let resaved = save(&loaded.snapshot, &loaded.edits, Tol::witness()).expect("re-save");
         assert_eq!(resaved, text, "{label}: save bytes not canonical");
         // Replay identity: evaluation of the loaded document is
         // bit-identical — name tables, bodies, verdicts, keys.
@@ -113,8 +123,8 @@ fn loaded_metadata_round_trips_structurally() {
     // Pass-through interop (D7): the loader reproduces the exact
     // canonical tree, bits and all, without interpreting it.
     let ks = corpus::sink::document();
-    let text = save(&ks.doc, &[]).expect("save");
-    let loaded = load(&text).expect("load");
+    let text = save(&ks.doc, &[], Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
     let attributed = ks
         .doc
         .appearance()

@@ -11,8 +11,9 @@
 //! `NonPlanarTrim`, never `MissingCache`, never a silent answer.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
-use geom_surfaces::Surface;
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, ChartRegionError, FaceKey, Pcurve, chart_region_overlap};
 
@@ -65,10 +66,7 @@ fn wall_pcurve_kinds(body: &Body<f64>, face: FaceKey) -> Vec<&'static str> {
 
 #[test]
 fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
-    let v = |x: f64, y: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge: 0.0,
-    };
+    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
     let square = || {
         vec![ProfileLoop::new(vec![
             v(-1.0, -1.0),
@@ -85,7 +83,7 @@ fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    let body = sweep::loft_body::<f64>(&sections, &places, 2)
+    let body = sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body;
     let wall = nurbs_wall(&body);
@@ -107,10 +105,7 @@ fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
 fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
     // A square with one bulged (arc) edge: the swept wall over the
     // arc is RATIONAL and its cap rims store `IsoArc` caches (M8-3).
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     let bulged = || {
         vec![ProfileLoop::new(vec![
             v(0.0, 0.0, 0.0),
@@ -120,7 +115,7 @@ fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
         ])]
     };
     let sections = vec![bulged(), bulged()];
-    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1)
+    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1, Tol::witness())
         .expect("the bulged prism builds")
         .body;
     // Find the arc wall: the NURBS face whose rims are IsoArc.

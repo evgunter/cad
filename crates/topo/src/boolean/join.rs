@@ -110,10 +110,11 @@ use slotmap::SecondaryMap;
 
 use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
 use crate::body::Body;
+use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::null::NullFacePair;
-use crate::splitting::join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// One completed section-polygon **pair**: the 2-loop null face in
 /// each solid, with the loop roles as F9 data (IN copy = the loop
@@ -242,6 +243,7 @@ pub(super) fn bool_connect<T: Decide>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut sa = SolidJoin::new(red, Operand::A, band);
@@ -312,13 +314,12 @@ pub(super) fn bool_connect<T: Decide>(
         // the sphere chart's azimuth window; any other pair refuses
         // typed citing its C5 routing (per-arm, C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
-        let surf_of =
-            |body: &Body<T>, f: FaceKey| -> Result<geom_surfaces::Surface<T>, BooleanError> {
-                body.get_face(f)
-                    .and_then(|fd| body.get_surface(fd.surface))
-                    .cloned()
-                    .ok_or(desync("germ face surface no longer resolves"))
-            };
+        let surf_of = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
+            body.get_face(f)
+                .and_then(|fd| body.get_surface(fd.surface))
+                .cloned()
+                .ok_or(desync("germ face surface no longer resolves"))
+        };
         // The germ faces' SURFACES, deliberately unoriented (S10): what
         // the curved lanes below take from a plane germ is a
         // [`SplitPlane`] — a section datum, an operation input whose
@@ -330,16 +331,16 @@ pub(super) fn bool_connect<T: Decide>(
         // orientation comes from the joiner's stored winding.
         let ga = surf_of(&red.a, germ.a_face)?;
         let gb = surf_of(&red.b, germ.b_face)?;
+        use crate::chord_join::{JoinLane, SectionCtx, face_azimuth_window};
         use crate::splitting::SplitPlane;
-        use crate::splitting::join::{JoinLane, SectionCtx, face_azimuth_window};
-        use geom_surfaces::Surface as Sf;
+        use geom::Surface as Sf;
         match (&ga, &gb) {
             (Sf::Plane { .. }, Sf::Plane { .. }) => {
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Planar)
+                    .join(&mut red.a, a1, a2, JoinLane::Planar, tol)
                     .map_err(BooleanError::Join)?;
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Planar)
+                    .join(&mut red.b, b1, b2, JoinLane::Planar, tol)
                     .map_err(BooleanError::Join)?;
             }
             (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
@@ -358,6 +359,7 @@ pub(super) fn bool_connect<T: Decide>(
                             window,
                             partner_key: &mut partner,
                         },
+                        tol,
                     )
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = partner {
@@ -371,7 +373,7 @@ pub(super) fn bool_connect<T: Decide>(
                     plane_key: sb.aux_partner.get(&germ.a_face).copied(),
                 };
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx))
+                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx), tol)
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = ctx.plane_key {
                     sb.aux_partner.insert(germ.a_face, k);
@@ -387,7 +389,7 @@ pub(super) fn bool_connect<T: Decide>(
                     plane_key: sa.aux_partner.get(&germ.b_face).copied(),
                 };
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx))
+                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx), tol)
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = ctx.plane_key {
                     sa.aux_partner.insert(germ.b_face, k);
@@ -406,6 +408,7 @@ pub(super) fn bool_connect<T: Decide>(
                             window,
                             partner_key: &mut partner,
                         },
+                        tol,
                     )
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = partner {
@@ -453,9 +456,9 @@ pub(super) fn bool_connect<T: Decide>(
     let mut resolved = Vec::with_capacity(completed.len());
     for c in completed {
         let (a_in_loop, a_out_loop) =
-            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band)?;
+            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band, tol)?;
         let (b_in_loop, b_out_loop) =
-            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band)?;
+            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band, tol)?;
         red.a.set_null_face_pair(
             c.a_face,
             NullFacePair::Boolean {
@@ -486,17 +489,6 @@ pub(super) fn bool_connect<T: Decide>(
         .map(|r| r.a.iter().filter(|(_, u)| !u).count())
         .sum();
     if leftovers != 0 {
-        #[cfg(feature = "dbg-join")]
-        for r in &open {
-            for (g, used) in r.a.iter().chain(r.b.iter()) {
-                if !used {
-                    eprintln!(
-                        "loose germ: he {:?} faces ({:?},{:?}) dir ({:?},{:?},{:?})",
-                        g.he, g.a_face, g.b_face, g.dir.x, g.dir.y, g.dir.z
-                    );
-                }
-            }
-        }
         return Err(BooleanError::Join(SplitJoinError::UnpairedLooseEnds {
             count: leftovers,
         }));
@@ -520,7 +512,11 @@ pub(super) fn bool_connect<T: Decide>(
 /// a B-side face-pair or sense disagreement at matched slots is a
 /// loud desync, never an alternative pairing. Zero-distance
 /// combinations (distinct pair records at one coincident site) are
-/// skipped. Deterministic scan order breaks exact ties (D9).
+/// skipped — that degeneracy gate is `bool_join_chord` (margin = the
+/// chord LENGTH), a separate question from `bool_join_nearest`'s
+/// selection (margin = a DIFFERENCE of chord lengths), so the two
+/// populations meter separately. Deterministic scan order breaks
+/// exact ties (D9).
 fn find_match<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -572,7 +568,7 @@ fn find_match<T: Decide>(
                     let chord = p_e - p_c;
                     let dist = chord.norm();
                     let escalate = |diag| BooleanError::Escalated { diag };
-                    match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
+                    match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge
                     }
@@ -623,14 +619,6 @@ fn find_match<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// Still-unused null-edge halves, each mapped to its geometric MATCH
-/// PARTNER's half in the same solid: the nearest mutually-facing loose
-/// germ with the same face pair — [`find_match`]'s own criteria,
-/// static in the germ geometry, so a captured partner PAIR can still
-/// join (same face) while splitting a pair walls one side off. Germ
-/// meta is shared between the solids, so the (record, slot) partner
-/// relation is computed once (A-clone points — coincident copies) and
-/// translated per solid. A loose half with no partner maps to `None`
 /// The germ pair's section frame, when the pair is curved: the conic
 /// center and axis of the plane×cylinder section the germ line lies
 /// on. `None` for planar pairs (straight germ lines) and for the
@@ -645,7 +633,7 @@ fn germ_section_frame<T: Decide>(
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom_surfaces::Surface<T>, BooleanError> {
+    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)
             .and_then(|fd| body.get_surface(fd.surface))
             .cloned()
@@ -653,7 +641,7 @@ fn germ_section_frame<T: Decide>(
     };
     let sa = surf(&red.a, germ.a_face)?;
     let sb = surf(&red.b, germ.b_face)?;
-    use geom_surfaces::Surface as Sf;
+    use geom::Surface as Sf;
     let (plane_s, cyl_s, radius) = match (&sa, &sb) {
         (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (&sa, &sb, *radius),
         (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (&sb, &sa, *radius),
@@ -666,7 +654,7 @@ fn germ_section_frame<T: Decide>(
                 (&sb, &sa)
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
-                Ok(geom_brep::PlaneSphereSection::Circle(geom_curves::Curve3::Circle {
+                Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle {
                     center,
                     axis,
                     ..
@@ -690,12 +678,8 @@ fn germ_section_frame<T: Decide>(
         _ => return Ok(None),
     };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, radius, band) {
-        Ok(geom_brep::PlaneCylinderSection::Rim(geom_curves::Curve3::Circle {
-            center,
-            axis,
-            ..
-        }))
-        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom_curves::Curve3::Ellipse {
+        Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
+        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
             center,
             axis,
             ..
@@ -768,9 +752,17 @@ fn germs_face_each_other<T: Decide>(
     }
 }
 
-/// (conservatively separated wherever captured).
 type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 
+/// Still-unused null-edge halves, each mapped to its geometric MATCH
+/// PARTNER's half in the same solid: the nearest mutually-facing loose
+/// germ with the same face pair — [`find_match`]'s own criteria,
+/// static in the germ geometry, so a captured partner PAIR can still
+/// join (same face) while splitting a pair walls one side off. Germ
+/// meta is shared between the solids, so the (record, slot) partner
+/// relation is computed once (A-clone points — coincident copies) and
+/// translated per solid. A loose half with no partner maps to `None`
+/// (conservatively separated wherever captured).
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -812,7 +804,7 @@ fn loose_partners<T: Decide>(
             let p2 = point_of(g2.he)?;
             let chord = p2 - p;
             let dist = chord.norm();
-            match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
+            match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                 Sign::Positive => {}
                 _ => continue,
             }
@@ -935,7 +927,7 @@ fn choose_roles<T: Decide>(
 /// Whether the prospective mef run `[h1 .. h2]` — the `next`-order arc
 /// from `h1` through `h2`, closed by the chord `end(h2) → start(h1)`
 /// (exactly the cycle the joiner's first `mef(Chords { he1: h1,
-/// he2: next(h2) })` walls off as the new face) — winds CCW around
+/// he2: next(h2, tol) })` walls off as the new face) — winds CCW around
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///
@@ -995,7 +987,7 @@ fn ring_run_ccw<T: Decide>(
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface).map(|s| (f, s)))
     {
-        Some((f, geom_surfaces::Surface::Plane { normal, .. })) => *normal * f.sense_sign::<T>(),
+        Some((f, geom::Surface::Plane { normal, .. })) => *normal * f.sense_sign::<T>(),
         _ => return Err(desync("ring-lane face has no planar carrier")),
     };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
@@ -1053,11 +1045,11 @@ fn ring_run_ccw<T: Decide>(
         };
         let (t0, t1) = curve.params();
         let (axis, sa, sb) = match *curve.carrier() {
-            geom_curves::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
-            geom_curves::Curve3::Ellipse {
+            geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
+            geom::Curve3::Ellipse {
                 axis, major, minor, ..
             } => (axis, major, minor),
-            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
+            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
                 return Ok((zero, chord()?));
             }
         };
@@ -1299,6 +1291,7 @@ fn resolve_roles_geometric<T: Decide>(
     outer: LoopKey,
     ring: LoopKey,
     band: Band,
+    tol: Tol,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
     /// Which point of a region-loop half-edge anchors the probe.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1440,7 +1433,7 @@ fn resolve_roles_geometric<T: Decide>(
                                 continue;
                             }
                         }
-                        match super::solid_contain::point_in_solid(other_pristine, p, band)
+                        match super::solid_contain::point_in_solid(other_pristine, p, band, tol)
                             .map_err(BooleanError::Containment)?
                         {
                             super::solid_contain::SolidContainment::In => return Ok(Some(true)),

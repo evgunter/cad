@@ -6,9 +6,17 @@
 //!
 //! # Method: closest-hit ray test with the fixed schedule
 //!
-//! Cast a ray from `q` along a direction of the fixed schedule (the
-//! same 16-member golden-angle table as [`point_in_loop`], used as
-//! space directions directly). For each face (planar — the F5 regime):
+//! Cast a ray from `q` along a direction of the fixed schedule — the
+//! same 16-member golden-angle table as [`point_in_loop`], and
+//! literally the same const (`SCHEDULE`, read from
+//! `splitting::containment`), used here as space directions
+//! **directly**: this module normalizes the raw triple, where
+//! `point_in_loop` projects it into the loop's plane and skips the
+//! near-parallel members. One table, two different sweeps — the
+//! shared const buys the absence of drift between copies, not
+//! agreement on a direction, and determinism is per site (a `const`
+//! swept in a fixed order every run). For each face
+//! (planar — the F5 regime):
 //! intersect the ray with the face plane, test the hit point against
 //! the face's loops (outer minus rings) via [`point_in_loop`], and
 //! keep the **closest** crossing. The verdict reads the material side
@@ -66,31 +74,10 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
-use geom_surfaces::Surface;
-
-/// The 16-member fixed direction schedule (shared table with
-/// `point_in_loop` — re-declared here to keep the module boundaries
-/// thin; the values are the ratified schedule).
-const SCHEDULE: [[f64; 3]; 16] = [
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.0],
-    [0.5, 0.25, 1.0],
-    [1.0, 0.5, 0.25],
-    [0.25, 1.0, 0.5],
-    [-0.5, 1.0, 0.125],
-    [0.125, -0.5, 1.0],
-    [1.0, 0.125, -0.5],
-    [0.75, -1.0, 0.375],
-    [0.375, 0.75, -1.0],
-    [-1.0, 0.375, 0.75],
-    [0.625, 0.9375, 0.3125],
-    [0.3125, -0.625, 0.9375],
-    [0.9375, 0.3125, -0.625],
-    [-0.75, -0.25, 1.0],
-];
+use geom::Surface;
+use geom_core::Tol;
 
 /// The trilean answer: is `q` in the solid's **material**?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,7 +165,7 @@ impl core::fmt::Display for PointInSolidError {
                      sphere surface do not close on each other, so the group covers less \
                      than the whole chart and this door cannot say where its boundary \
                      runs. This arm is \
-                     STRUCTURAL (an exact-f64 scan of the loop's edge descriptions, C6): it \
+                     STRUCTURAL (an exact-f64 scan of the loop's edge descriptions): it \
                      has no in-band twin and does not move with ε — tightening or loosening \
                      the tolerance changes nothing here. Recourse: the trimmed-sphere chart \
                      window (the cylinder arm's exact azimuth/latitude analogue) lands with \
@@ -339,7 +326,7 @@ fn face_geo<T: Decide>(
                 .get_surface(f.surface)
                 .cloned()
                 .ok_or(PointInSolidError::CorruptFace { face })?;
-            let az = crate::splitting::join::face_azimuth_window(body, &surf, face, band)
+            let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
                 .ok()
                 .flatten()
                 .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -531,6 +518,7 @@ pub fn point_in_solid<T: Decide>(
     body: &Body<T>,
     q: Point3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Deterministic face sweep order (arena order).
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
@@ -607,7 +595,7 @@ pub fn point_in_solid<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
-        if let Some(verdict) = cast_ray(body, &faces, q, d, band)? {
+        if let Some(verdict) = cast_ray(body, &faces, q, d, band, tol)? {
             return Ok(verdict);
         }
         // graze: next schedule member
@@ -645,6 +633,7 @@ fn cast_ray<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
     // A candidate crossing (advance, outward sign), or a graze.
@@ -880,7 +869,7 @@ fn cast_ray<T: Decide>(
         Some((_, Sign::Positive)) => Ok(Some(SolidContainment::In)),
         Some((_, _)) => Ok(Some(SolidContainment::Out)),
         // No crossing: q is on the at-infinity side (module docs).
-        None => Ok(Some(at_infinity_side(body, faces, band)?)),
+        None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
     }
 }
 
@@ -895,9 +884,10 @@ fn at_infinity_side<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
+    tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
-    let props = crate::props::mass_properties_closed_form(body, band).map_err(|_| {
+    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| {
         PointInSolidError::CorruptFace {
             face: faces.first().copied().unwrap_or_default(),
         }

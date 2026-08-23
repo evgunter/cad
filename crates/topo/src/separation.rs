@@ -21,6 +21,56 @@
 //! affine image of a superset is a superset of the affine image, so a
 //! box-level separation is a genuine separation of the solids.
 //!
+//! **That premise is the box module's contract, and it is not fully
+//! held today — issue #862.** Under an `Interval` scalar the slab and
+//! conic arms read single bracket endpoints, so there are loci
+//! `face_box` does not enclose; the `f64` lane is unaffected. This
+//! door is the one where a box-level non-overlap is a GRANT rather
+//! than a prune, so it is the door that pays for it, and the sentence
+//! above must not be read as unconditional while #862 is open.
+//!
+//! **The other direction costs this door too, and costs it more
+//! often.** A box that is too BIG cannot make a wrong certificate —
+//! it can only withhold one — but withholding is this door's whole
+//! output. `face_box`'s cylinder arm is over-wide by a full radius
+//! along its own axis and its conic arm's amplitude is not even a
+//! function of the locus (both #862), so genuinely separated
+//! placements are refused here for reasons that are not about the
+//! placements.
+//!
+//! **This door needs no surface-kind gate of its own.** It shares the one
+//! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a
+//! POISON box MEANS at each door, and that difference is what lets the
+//! rule be shared. In the sweep, poison prunes nothing, so an unboxable
+//! face reaches the exact predicates. Here, poison overlaps everything, so
+//! an unboxable face makes every pair carrying it refuse typed and the
+//! prototype is never certified. Both readings are the same box's
+//! fail-loud direction, so this module does not care WHICH kinds are
+//! boxable — only that an unboxable one is never silently claimed, which
+//! the rule guarantees.
+//!
+//! # This door GRANTS, and it admits a `Dual` (D1, 2026-08-19)
+//!
+//! `Separation::of`, [`Separation::certify`] and `image` are
+//! `T: Decide + Bounds` with **no** `geom_core::CertifiedEnclosure`, so
+//! since the D1 ruling they are instantiable at `Dual64` and at
+//! `Dual<Interval>`. Worth saying plainly because the direction is easy
+//! to get backwards: box NON-overlap here is a **grant**, not a refusal —
+//! `Ok(())` IS the certificate, and `crate::graft_disjoint_all_keyed`
+//! re-checks nothing (#382), so this module is the whole establishment of
+//! disjointness.
+//!
+//! What makes the dual instantiation sound is **delegation**, not the
+//! refusal direction: every endpoint a `Dual<T>` box carries is its value
+//! channel's, and the value channel of a `Dual<T>` build IS the plain-`T`
+//! build bit-identically (D9). So a dual run's certificate is exactly the
+//! base scalar's — the `f64` run's at `Dual<f64>`, the `Interval` run's
+//! at `Dual<Interval>` — and there is no reading under which a dual gets
+//! a certificate its base scalar would not. Whether this door should
+//! nonetheless take `CertifiedEnclosure` is a **#643-completeness**
+//! question (it grants, and the grant is believed), left open rather than
+//! answered in passing; see `geom-core/src/real.rs`'s `Bounds` scope rule.
+//!
 //! The converse does not hold: two genuinely disjoint copies whose boxes
 //! interpenetrate are REFUSED, not accepted. That is the fail-loud reading
 //! of the design's "identical objects make non-overlap easier" — a refusal
@@ -49,10 +99,11 @@
 //! everything, so poison refuses — it never certifies.
 
 use bvh::{Aabb, Bvh};
-use geom_core::{Affine3, Band, Bounds, Decide};
+use geom_core::{Affine3, Band, Bounds, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
+use crate::boolean::boxes::{face_box, sweep_pad};
 
 /// A pair of placements the certificate could not separate: their padded
 /// boxes meet, so the union of those two copies is not provably a
@@ -94,14 +145,14 @@ impl Separation {
     /// [`BooleanError`] — the box builder's own corruption refusals (a
     /// face whose loop is unwalkable is not a body), and
     /// `ClassificationInvariant` when the ambient band is unusable.
-    pub fn of<T: Decide + Bounds>(proto: &Body<T>) -> Result<Self, BooleanError> {
-        let band = Band::linear().map_err(|_| BooleanError::ClassificationInvariant {
+    pub fn of<T: Decide + Bounds>(proto: &Body<T>, tol: Tol) -> Result<Self, BooleanError> {
+        let band = Band::linear(tol).map_err(|_| BooleanError::ClassificationInvariant {
             what: "placement separation: the ambient tolerance band is unusable",
         })?;
-        let pad = crate::boolean::boxes::sweep_pad(band);
+        let pad = sweep_pad(band);
         let mut boxes = Vec::new();
         for (f, _) in proto.faces() {
-            boxes.push(certified_face_box(proto, f, pad)?);
+            boxes.push(face_box(proto, f, pad)?);
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -155,70 +206,6 @@ impl Separation {
             }
         }
         Ok(())
-    }
-}
-
-/// A face box this module is willing to CERTIFY with — a genuine
-/// superset of the face's locus, per surface kind:
-///
-/// - **Plane**: the sweep's box (the boundary VERTEX hull) hulled with
-///   every boundary edge's own certified box. A planar face lies in the
-///   convex hull of its boundary, so this contains it whatever the
-///   boundary curves are — the vertex hull alone would not, for a
-///   circular rim.
-/// - **Cylinder, Sphere**: the sweep's box already bounds the WHOLE
-///   extent (the axial slab widened by the radius; the whole ball), not
-///   the vertex hull, so it is a superset by construction.
-/// - **Cone, Torus, Nurbs**: no certified box exists here, so the face
-///   gets the POISON box. Poison overlaps everything, so a prototype
-///   carrying one can never be certified and every pair refuses typed —
-///   the fail-loud direction. Sharper boxes for these kinds are the
-///   refinement the design leaves open; until then nothing is claimed.
-///
-/// The distinction matters because [`crate::boolean::boxes::face_box`]
-/// is written for the boolean sweep, whose operand gate has already
-/// narrowed the surface kinds it can meet. This door has no such gate.
-fn certified_face_box<T: Decide + Bounds>(
-    body: &Body<T>,
-    face: crate::entity::FaceKey,
-    pad: f64,
-) -> Result<Aabb, BooleanError> {
-    let corrupt = |what| BooleanError::ClassificationInvariant { what };
-    let f = body
-        .get_face(face)
-        .ok_or_else(|| corrupt("separation box: face lost"))?;
-    match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Cylinder { .. } | geom_surfaces::Surface::Sphere { .. }) => {
-            crate::boolean::boxes::face_box(body, face, pad)
-        }
-        Some(geom_surfaces::Surface::Plane { .. }) => {
-            let mut b = crate::boolean::boxes::face_box(body, face, pad)?;
-            let mut walk = |lk: crate::entity::LoopKey| -> Result<(), BooleanError> {
-                let l = body
-                    .get_loop(lk)
-                    .ok_or_else(|| corrupt("separation box: loop lost"))?;
-                let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
-                    return Ok(());
-                };
-                for he in body
-                    .loop_cycle(first)
-                    .ok_or_else(|| corrupt("separation box: unwalkable loop"))?
-                {
-                    let ek = body
-                        .get_half_edge(he)
-                        .ok_or_else(|| corrupt("separation box: half-edge lost"))?
-                        .edge;
-                    b = b.hull(&crate::boolean::boxes::edge_box(body, ek, pad)?);
-                }
-                Ok(())
-            };
-            walk(f.outer)?;
-            for &ring in &f.rings {
-                walk(ring)?;
-            }
-            Ok(b)
-        }
-        _ => Ok(Aabb::poison()),
     }
 }
 

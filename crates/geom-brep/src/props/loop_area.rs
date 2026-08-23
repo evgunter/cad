@@ -1,9 +1,9 @@
 //! The vector-area boundary integral `(1/2)∮(p − ref)×dp` with exact
 //! per-carrier closed forms (module docs of [`super`]).
 
+use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
 
 use super::{LoopEdge, PropsError};
 

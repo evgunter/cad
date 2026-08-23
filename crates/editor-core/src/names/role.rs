@@ -441,3 +441,44 @@ pub enum RoleSeg {
         of: Box<StableName>,
     },
 }
+
+/// The [`RoleSeg`] variants that embed no [`StableName`], as a
+/// PATTERN rather than a predicate.
+///
+/// Three matches classify segments by this partition and each does
+/// something different with the other half — the name walk visits,
+/// the rewrite rebuilds, the selector collects. Only the negative
+/// answer is common, so only the negative answer is shared, and it is
+/// shared as an or-pattern so that none of the three loses its
+/// exhaustiveness: a variant added to [`RoleSeg`] and not added here
+/// breaks all three builds, exactly as spelling the list out three
+/// times did. What changes is that classifying it name-free is now
+/// ONE decision at one site instead of three that can be made
+/// differently.
+///
+/// A `fn` returning `bool` would not do: a caller may forget to call
+/// a predicate, and the property this list carries is the one the
+/// compiler holds.
+macro_rules! name_free_seg {
+    () => {
+        $crate::names::RoleSeg::OutputBody
+            | $crate::names::RoleSeg::Cap(_)
+            | $crate::names::RoleSeg::Lateral(_)
+            | $crate::names::RoleSeg::RimEdge(..)
+            | $crate::names::RoleSeg::LateralEdge(_)
+            | $crate::names::RoleSeg::CapVertex(..)
+            | $crate::names::RoleSeg::Band(_)
+            | $crate::names::RoleSeg::BandRim(_)
+            | $crate::names::RoleSeg::BandRimPi(_)
+            | $crate::names::RoleSeg::BandPi(_)
+            | $crate::names::RoleSeg::Meridian(..)
+            | $crate::names::RoleSeg::MeridianVertex(..)
+            | $crate::names::RoleSeg::RevolveCap(_)
+            | $crate::names::RoleSeg::Pole(_)
+            | $crate::names::RoleSeg::AxisEdge(_)
+            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SectionFace { .. }
+    };
+}
+
+pub(crate) use name_free_seg;

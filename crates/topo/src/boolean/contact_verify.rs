@@ -59,11 +59,11 @@
 //! and a configuration outside the sampled direction is missed rather
 //! than bridged.
 
+use geom::Curve3;
 use geom_brep::{
     CERT_SAMPLES, sample_param, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
-use geom_curves::Curve3;
 
 use crate::body::Body;
 use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
@@ -276,9 +276,9 @@ pub fn tangent_pair_relation<T: Decide>(
 /// [`ContactRefusal`] — see [`tangent_pair_relation`].
 #[allow(clippy::too_many_arguments)]
 pub fn tangent_locus_relation<T: Decide>(
-    s1: &geom_surfaces::Surface<T>,
+    s1: &geom::Surface<T>,
     sense1: bool,
-    s2: &geom_surfaces::Surface<T>,
+    s2: &geom::Surface<T>,
     sense2: bool,
     carrier: &Curve3<T>,
     t0: T,
@@ -293,7 +293,7 @@ pub fn tangent_locus_relation<T: Decide>(
     if !tangent_certificate_lane(carrier, s1, s2) {
         return Err(ContactRefusal::NotCertifiable {
             what: "the (carrier kind, surface-kind pair) triple is outside the jet \
-                   certificate's span-bound lane (C3's order-k boundary)",
+                   certificate's span-bound lane (the order-k boundary)",
         });
     }
     let bounds =
@@ -463,11 +463,12 @@ pub fn tangent_locus_relation<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom::Surface;
+    use geom_core::Tol;
     use geom_core::{Point3, Vec3};
-    use geom_surfaces::Surface;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
@@ -478,8 +479,8 @@ mod tests {
         }
     }
 
-    fn line(o: [f64; 3], d: [f64; 3]) -> geom_curves::Curve3<f64> {
-        geom_curves::Curve3::Line {
+    fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
+        geom::Curve3::Line {
             origin: Point3::new(o[0], o[1], o[2]),
             dir: Vec3::new(d[0], d[1], d[2]),
         }
@@ -536,7 +537,7 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let equator = geom_curves::Curve3::Circle {
+        let equator = geom::Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, 1.0),
             radius: 1.0,

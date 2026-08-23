@@ -5,15 +5,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane, implicit_residual};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::Surface;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn cyl() -> Surface<f64> {
@@ -365,12 +366,9 @@ fn ellipse_differential_interval_lane() {
         .iter()
         .map(|p| Point3::new(iv(p.x), iv(p.y), iv(p.z)))
         .collect();
-    let oracle_iv = geom_curves::NurbsCurve3::<Interval>::new(
-        oracle.knots().clone(),
-        ctrl,
-        oracle.weights().to_vec(),
-    )
-    .unwrap();
+    let oracle_iv =
+        geom::NurbsCurve3::<Interval>::new(oracle.knots().clone(), ctrl, oracle.weights().to_vec())
+            .unwrap();
     let center = Point3::new(iv(-0.5), iv(4.0), iv(1.25));
     let axis = Vec3::new(iv(2.0 / 3.0), iv(2.0 / 3.0), iv(1.0 / 3.0));
     let u_ref = Vec3::new(iv(1.0 / 3.0), iv(-2.0 / 3.0), iv(2.0 / 3.0));

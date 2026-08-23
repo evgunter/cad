@@ -1,17 +1,22 @@
 //! Stable discriminant tags for the document layer's refusals.
 //!
-//! §L4 requires typed exceptions carrying the structured error, never
-//! strings. Neither [`EditError`] nor [`NodeErrorKind`] implements
-//! `Display`, and neither is re-exported with a field-level accessor
-//! set, so the SMALLEST faithful reading available to a scaffold is:
-//! the exception carries a stable **tag** — a discriminant name, which
-//! is structured data a caller can branch on — while the `Debug`
-//! rendering is relegated to the human-facing message.
+//! Typed exceptions carry the structured error, never strings. The
+//! exception's machine payload is a stable **tag** — a discriminant
+//! name a caller can branch on, which no `Display` prose gives it
+//! because prose is not a stable interface — and its human message is
+//! the kernel error's own `Display`, never a `Debug` dump.
+//!
+//! Neither [`EditError`] nor [`NodeErrorKind`] is re-exported with a
+//! field-level accessor set, so a tag plus the rendered message is the
+//! whole of what a scaffold can read today.
 //!
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
 //! untagged refusal; that is the drift alarm, and it fires in hosted
-//! CI because this module compiles without Python.
+//! CI because this module compiles without Python. **One map is the
+//! exception**: [`select_refusal_tag`]'s enum is `#[non_exhaustive]`,
+//! which forces a wildcard arm and takes the compile-time alarm away —
+//! see that function for what stands in its place.
 //!
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.
@@ -20,9 +25,12 @@ use pncad::document::{
     DimensionError, EditError, MateFault, NodeErrorKind, PersistError, PlacementRuleFault,
     RecordedProgramError, RootFault,
 };
+use pncad::geom_core::{FrameError, FrameInput};
 use pncad::profile::PathError;
+use pncad::step_import::StepImportError;
+use pncad::workspace::WorkspaceError;
 
-/// The stable tag for a PATHS authoring refusal (LIB-PYG1).
+/// The stable tag for a PATHS authoring refusal.
 ///
 /// `PathError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant —
@@ -59,7 +67,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
 }
 
 /// The stable tag for a recorded-program lift refusal
-/// (`LoopProgram::from_recorded`, LIB-PYG1). The literal arm carries
+/// (`LoopProgram::from_recorded`). The literal arm carries
 /// the expression layer's own tag through rather than flattening it.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
@@ -69,7 +77,7 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     }
 }
 
-/// The stable tag for a selection refusal (LIB-PYSEL: the
+/// The stable tag for a selection refusal (the
 /// `Evaluation.select_where` door).
 ///
 /// `SelectRefusal` is `#[non_exhaustive]`, so unlike this module's
@@ -132,7 +140,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::MetaNonFinite { .. } => "meta_non_finite",
         EditError::MetaNotSet { .. } => "meta_not_set",
         EditError::RebindMetadataCollision { .. } => "rebind_metadata_collision",
-        // The product-root invariants (ASM-ROOTS D-2) tag per FAULT,
+        // The product-root invariants tag per FAULT,
         // not per wrapper: which invariant broke is what a caller
         // branches on.
         EditError::Roots(fault) => root_fault_tag(fault),
@@ -143,15 +151,52 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
-        // ASM-R2a: a mate's alignment is authored geometry, so the
-        // non-finite refusal is the placement one's sibling and tags
-        // beside it.
+        // A mate's alignment is authored geometry, so the non-finite
+        // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
     }
 }
 
-/// The stable tag for a product-root invariant refusal (ASM-ROOTS
-/// D-2) — shared by every door that carries a `RootFault`.
+/// The stable tag for a placement-rule fault (GROUP-BOOLEAN-DESIGN) —
+/// ONE tag per fault, shared by every door that carries one.
+///
+/// The tags are the EDIT door's own (`placement_rule_mismatch`,
+/// `empty_placement_list`, `non_finite_placement`,
+/// `improper_placement`), so the same broken rule reads the same
+/// whether it is refused at the node constructor, at the edit gate, or
+/// at the evaluation backstop — one fault, one spelling, three doors.
+pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
+    match fault {
+        PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
+        PlacementRuleFault::NoPlacements => "empty_placement_list",
+        PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
+        PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
+    }
+}
+
+/// The stable tag for a frame-construction refusal
+/// (`geom_core::linalg::frame`'s constructors).
+///
+/// `FrameError` implements `Display`, so the human message is the
+/// kernel's own prose and the tag is the branchable discriminant. The
+/// degenerate arm tags per INPUT: which direction was unusable is what
+/// a caller branches on, and the wrapper arm alone would collapse four
+/// distinct refusals into one.
+pub fn frame_error_tag(err: &FrameError) -> &'static str {
+    match err {
+        FrameError::Degenerate { input, .. } => match input {
+            FrameInput::Aim => "degenerate_aim",
+            FrameInput::Tangent => "degenerate_tangent",
+            FrameInput::RollReference => "degenerate_roll_reference",
+            FrameInput::ReferenceLadder => "degenerate_reference_ladder",
+            FrameInput::MirrorNormal => "degenerate_mirror_normal",
+        },
+        FrameError::Band(_) => "band",
+    }
+}
+
+/// The stable tag for a product-root invariant refusal — shared by
+/// every door that carries a `RootFault`.
 pub fn root_fault_tag(fault: &RootFault) -> &'static str {
     match fault {
         RootFault::NotLive { .. } => "root_not_live",
@@ -188,20 +233,13 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
         NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
-        // One tag per fault so a Python caller can tell "the count is
-        // spelled twice" from "the list is empty" from a bad frame.
-        NodeErrorKind::PlacementRule(fault) => match fault {
-            PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
-            PlacementRuleFault::NoPlacements => "empty_placement_list",
-            PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
-            PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
-        },
+        NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),
         NodeErrorKind::UnschedulableCycle => "unschedulable_cycle",
         NodeErrorKind::Naming { .. } => "naming",
         NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
         NodeErrorKind::DeclareBothOperands { .. } => "declare_both_operands",
         NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
-        // The refusal MENU (register R3, LIB-PYG5): the boolean's
+        // The refusal MENU: the boolean's
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
@@ -210,19 +248,20 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
         NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
-        // ASM-2A: the seam faults stay separable at the tag level —
+        // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
         // different recourses, so they are different tags.
         NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
-        // ASM-R2a: the mate solve's refusals tag per FAULT, the way
+        // The mate solve's refusals tag per FAULT, the way
         // the root invariants do — UNDER, CONTRADICTORY and a
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         NodeErrorKind::Mate(fault) => mate_fault_tag(fault),
+        NodeErrorKind::CrossingUnverified { .. } => "crossing_unverified",
     }
 }
 
-/// The stable tag for a mate-solve refusal (ASM-R2a D-4). Each arm is
+/// The stable tag for a mate-solve refusal. Each arm is
 /// a different recourse: add the complementary mate, delete one of the
 /// clashing pair, rebind the stranded head, author the missing
 /// primitive, or move the geometry out of the band.
@@ -240,7 +279,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     }
 }
 
-/// The stable tag for a declare-sugar refusal (LIB-PYG5: the
+/// The stable tag for a declare-sugar refusal (the
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
 /// layer's own tag through rather than flattening it.
@@ -253,7 +292,7 @@ pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     }
 }
 
-/// The stable tag for an instantiation refusal (ASM-2A D-3).
+/// The stable tag for an instantiation refusal.
 pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
     use pncad::document::PartFault as F;
     use pncad::document::ResolveFault as R;
@@ -278,7 +317,7 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
     }
 }
 
-/// The stable tag for a persistence refusal (LIB-DOORS F1; the v4
+/// The stable tag for a persistence refusal (the v4
 /// doors). `PersistError` DOES implement `Display`, so unlike the two
 /// above the human message is real prose — the tag is still the
 /// machine payload a caller branches on.
@@ -301,8 +340,81 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
     }
 }
 
-/// The stable tag for a document-layer export refusal (LIB-DOORS F2:
-/// `pncad::export::step_for_node`'s error).
+/// The stable tag for a WORKSPACE refusal.
+///
+/// `WorkspaceError` implements `Display`, so the human message is the
+/// store's own prose and this is the branchable discriminant — the
+/// [`persist_error_tag`] treatment.
+///
+/// The four wrapping arms keep their own tag rather than carrying the
+/// inner [`PersistError`]'s through: the STAGE is the discriminant a
+/// caller branches on (a file whose header refused is a different
+/// situation from one whose body did), and it is what would be lost
+/// by flattening. A caller wanting the inner refusal reads it from
+/// the message, exactly as before.
+///
+/// Exhaustive, per this module's rule, and here that rule is doing
+/// real work: only one door raises a `WorkspaceError` into Python
+/// today, and its message would be perfectly true under any label —
+/// so a mislabelled variant is invisible from Python and invisible in
+/// CI. The map is what makes the label a fact about the value instead
+/// of a fact about which door happened to raise it.
+pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
+    match err {
+        WorkspaceError::Io { .. } => "io",
+        WorkspaceError::DuplicateId { .. } => "duplicate_id",
+        WorkspaceError::Header { .. } => "header",
+        WorkspaceError::UnknownId { .. } => "unknown_id",
+        WorkspaceError::Load { .. } => "load",
+        WorkspaceError::Pin { .. } => "pin",
+        WorkspaceError::PinMismatch { .. } => "pin_mismatch",
+        WorkspaceError::Save { .. } => "save",
+        WorkspaceError::RandomnessUnavailable { .. } => "randomness_unavailable",
+        WorkspaceError::Update { .. } => "update",
+    }
+}
+
+/// The stable tag for a STEP IMPORT refusal.
+///
+/// `StepImportError` implements `Display`, so the human message is the
+/// importer's own prose naming the entity id and line; this is the
+/// branchable discriminant. Twenty-one arms, and unlike
+/// [`workspace_error_tag`]'s door **every one of them is reachable**
+/// through `import_step` — a caller distinguishing a malformed file
+/// from an unsupported entity from a tier refusal has no other way to
+/// do it, because the id and line live in prose.
+///
+/// The nested arms keep their own tag rather than carrying the inner
+/// refusal's through: what the caller branches on is which STAGE of
+/// the import refused, and the inner error is in the message.
+pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
+    match err {
+        StepImportError::Syntax { .. } => "syntax",
+        StepImportError::DanglingReference { .. } => "dangling_reference",
+        StepImportError::WrongEntityType { .. } => "wrong_entity_type",
+        StepImportError::MalformedRecord { .. } => "malformed_record",
+        StepImportError::UnsupportedEntity { .. } => "unsupported_entity",
+        StepImportError::UnsupportedUnit { .. } => "unsupported_unit",
+        StepImportError::NothingToImport => "nothing_to_import",
+        StepImportError::Structure { .. } => "structure",
+        StepImportError::MissingUncertainty => "missing_uncertainty",
+        StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
+        StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
+        StepImportError::MalformedReal { .. } => "malformed_real",
+        StepImportError::Topology { .. } => "topology",
+        StepImportError::Assembly { .. } => "assembly",
+        StepImportError::Adoption { .. } => "adoption",
+        StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
+        StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
+        StepImportError::Pcurves { .. } => "pcurves",
+        StepImportError::Placement { .. } => "placement",
+        StepImportError::Instance { .. } => "instance",
+        StepImportError::TierInvalid { .. } => "tier_invalid",
+    }
+}
+
+/// The stable tag for a document-layer export refusal
+/// (`pncad::export::step_for_node`'s error).
 pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     use pncad::export::ExportError as E;
     match err {
@@ -316,8 +428,8 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     }
 }
 
-/// The stable tag for a whole-document product refusal (ASM-ROOTS
-/// D-4: `editor_core::product`'s error).
+/// The stable tag for a whole-document product refusal
+/// (`editor_core::product`'s error).
 pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     use pncad::document::ProductError as E;
     match err {
@@ -329,11 +441,13 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         E::SolidInvalid { .. } => "solid_invalid",
         E::ProductInvalid { .. } => "product_invalid",
         E::Naming { .. } => "product_naming",
+        E::ContactLineage { .. } => "contact_lineage",
     }
 }
 
-/// The stable tag for an expression-constructor refusal (LIB-DOORS
-/// F5: `Expr::literal`'s own error type, no longer pre-checked).
+/// The stable tag for an expression-constructor refusal
+/// (`Expr::literal`'s own error type, matched rather than
+/// pre-checked).
 pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     match err {
         DimensionError::Mismatch { .. } => "mismatch",

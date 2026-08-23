@@ -5,22 +5,44 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
     EqualCylinderSection, PlaneConeSection, PlaneCylinderSection, RadiusEvidence, Rung,
     SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
     plane_cylinder_section, route,
 };
-use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
+use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
+}
+
+/// The general rung EXISTS (M5 PR 7). So an arm that still refuses owes
+/// what it is MISSING — a trace shape, a certificate, a conversion —
+/// and may not spend the refusal on "unimplemented" or on a schedule
+/// naming SSI, which arrived.
+///
+/// The rule was written in a comment in this file and asserted only in
+/// its positive half, so five notes broke it while this test iterated
+/// over them. This is the negative half, and it is deliberately NOT
+/// scoped to `Rung::General`: the wording it bans appeared on
+/// **conic-rung** notes describing what routes onward, which a rung-3
+/// guard would never have visited.
+fn refusal_is_grounded(text: &str, what: &str) {
+    for banned in ["unimplemented until", "until SSI", "not ready until"] {
+        assert!(
+            !text.contains(banned),
+            "{what}: a refusal must name what is MISSING, not {banned:?} — \
+             the general rung has existed since M5 PR 7: {text}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -75,10 +97,11 @@ fn route_inventory() {
                 let msg = r.refusal(x, y);
                 assert!(msg.contains("routes to"), "{msg}");
             }
+            // The rule above, enforced for EVERY row rather than only
+            // the rung-3 ones — see `refusal_is_grounded`.
+            refusal_is_grounded(r.note, &format!("{}x{} note", x.name(), y.name()));
             // Every rung-3 arm names its TRACE SHAPE — a compile-time
-            // decision per C5, and after M5 PR 7 the honest thing to
-            // cite: the general rung exists now, so an arm that still
-            // refuses must say what is missing, not "unimplemented".
+            // decision per C5.
             if rung == Rung::General {
                 assert!(
                     r.note.contains("IMPLICIT") || r.note.contains("PARAMETRIC"),
@@ -351,8 +374,18 @@ fn radius_equality_is_never_inferred_from_values() {
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the rung-3 routing refusal, got {err:?}");
     };
+    refusal_is_grounded(why, "cylinder x cylinder, undeclared");
+    // Pinned on wording unique to THIS note (`:840`), not on tokens it
+    // shares with the skew one.
     assert!(why.contains("never inferred from values"), "{why}");
-    assert!(why.contains("unimplemented until SSI"), "{why}");
+    assert!(
+        why.contains("the undeclared pair routes to the general rung"),
+        "{why}"
+    );
+    assert!(
+        why.contains("cylinder×cylinder arm has not retired"),
+        "{why}"
+    );
 }
 
 #[test]
@@ -396,7 +429,8 @@ fn skew_axes_route_to_rung_3() {
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the rung-3 routing refusal, got {err:?}");
     };
-    assert!(why.contains("skew"), "{why}");
+    refusal_is_grounded(why, "cylinder x cylinder, skew axes");
+    assert!(why.contains("skew axes have no conic section"), "{why}");
 
     // In-band axis offset: escalated.
     if let Surface::Cylinder { origin, .. } = &mut c2 {
@@ -593,9 +627,13 @@ fn plane_cone_generic_tilt_refuses_typed_r1() {
         panic!("expected the R1 routing refusal, got {err:?}");
     };
     assert_eq!(pair, "plane×cone");
+    refusal_is_grounded(why, "plane x cone, generic tilt");
     assert!(why.contains("PERMANENTLY"), "{why}");
-    assert!(why.contains("general rung"), "{why}");
-    assert!(why.contains("unimplemented until SSI"), "{why}");
+    // Unique to this note: the permanence has a REASON, and the reason
+    // is what a rewrite must not drop.
+    assert!(why.contains("parabola/hyperbola"), "{why}");
+    assert!(why.contains("The general rung is implemented"), "{why}");
+    assert!(why.contains("not waiting on it"), "{why}");
 }
 
 // ---------------------------------------------------------------------

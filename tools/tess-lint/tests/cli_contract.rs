@@ -15,13 +15,18 @@ use tess_lint::EXPECTED_HEADER as HEADER;
 
 /// A one-plane, one-NURBS scene. `tris` is the wall's triangle count
 /// and `span_opt` the cheapest per-cell grid, which together move the
-/// two gate rules independently.
+/// two gate rules independently — and, at `span_opt = 0`, produce the
+/// unreadable denominator this file's harness-voice row needs.
+///
+/// **The twin of `tess_lint`'s own test fixture**, deliberately: an
+/// integration test cannot see a `#[cfg(test)]` item, so the two
+/// cannot share one. Keep them in step.
 fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{HEADER}\n\
-         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
-         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,10,20,1e0,1e0,1e0,4,\
-         2e2,5e1,1e2,{span_opt:e},1e-4,5e-5,99\n"
+         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n\
+         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
+         1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n"
     )
 }
 
@@ -100,6 +105,33 @@ fn a_drifted_header_exits_one_not_two() {
     );
 }
 
+/// VOICE (b) again, on the case the voices exist to separate. The
+/// gate fires only on growth, so a denominator resolved in band would
+/// be its own pass value: an unreadable `span_opt_cells` must reach
+/// exit 1, NOT the clean 0 it would reach if the lint answered a
+/// broken measurement with a number.
+#[test]
+fn an_unreadable_denominator_exits_one_not_zero() {
+    let base = csv("broken-base.csv", &scene(100, 2.5e1));
+    let fresh = csv("broken-fresh.csv", &scene(100, 0.0));
+    let out = run(&[
+        fresh.to_str().unwrap(),
+        "--baseline",
+        base.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a zero denominator is harness breakage, never a clean gate: {}",
+        out_of(&out)
+    );
+    assert!(
+        err_of(&out).contains("span_opt_cells"),
+        "the message names the column: {}",
+        err_of(&out)
+    );
+}
+
 #[test]
 fn no_input_exits_one_with_usage() {
     let out = run(&[]);
@@ -115,10 +147,11 @@ fn an_unreadable_file_exits_one() {
 }
 
 /// A REPORT IS NOT A VERDICT: without `--baseline` the tool prints
-/// whatever slack it finds — here a 4x split and an 8x recoverable —
-/// and still exits 0. The absolute factors are known and tracked in
-/// #320; making them fail a row would only pressure someone to coarsen
-/// δ, which is the one move the discipline forbids.
+/// whatever slack it finds — here a 2x held span gain and a 100x
+/// recoverable split — and still exits 0. The absolute factors are
+/// known and tracked in #320; making them fail a row would only
+/// pressure someone to coarsen δ, which is the one move the
+/// discipline forbids.
 #[test]
 fn a_report_without_a_baseline_never_fails() {
     let path = csv("report.csv", &scene(100_000, 1.0));
@@ -126,7 +159,8 @@ fn a_report_without_a_baseline_never_fails() {
     assert_eq!(out.status.code(), Some(0), "a report is not a verdict");
     let o = out_of(&out);
     assert!(o.contains("no gate ran"), "{o}");
-    assert!(o.contains("4.0x"), "the split factor is reported: {o}");
+    assert!(o.contains("2.0x"), "the held span gain is reported: {o}");
+    assert!(o.contains("100.0x"), "the split factor is reported: {o}");
 }
 
 /// The report's own arithmetic, end to end through the binary: the

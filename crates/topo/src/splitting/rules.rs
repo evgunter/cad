@@ -3,6 +3,17 @@
 //! adjudicated between the two contradicting witnesses (F4) — the
 //! derivation is this module's docs (M3-LOG-ready).
 //!
+//! **[`face_extent`] is not one of those rules, and this is not its
+//! home.** It is the `Margin::levered` lever arm for the
+//! coplanarity/sense predicates, and two of its three callers are
+//! outside this module (`chord_join`'s section chooser, twice) against
+//! one inside it (`apply_rule_a`) — a shared core hosted inside the
+//! minority consumer. §H14 is where that cost showed: the function's
+//! error contract was extended, documented on the function, and
+//! discarded by both outside callers, which `map_err` it into their
+//! own refusals. Named here rather than moved; moving it is a
+//! placement decision with its own callers to re-audit.
+//!
 //! # Rule (a) — coplanar sectors, derived
 //!
 //! A sector whose face lies in the split plane belongs to the closure
@@ -125,8 +136,10 @@ pub(super) fn apply_rule_a<T: Decide>(
         let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
         let extent = face_extent(body, vertex, face)?;
-        // Distinct K name from neighborhood.rs's `split_sector_arm`
+        // Distinct K name from the shared sector rungs' `sector_arm`
         // (the shorter-chord arm): this margin is the FACE extent.
+        // Still lane-prefixed, and correctly so — the boolean lane has
+        // no counterpart to it, so #652's pooling does not reach it.
         match decide("split_sector_extent", Margin::of(extent), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
@@ -145,7 +158,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         // coplanar with the split plane, so a parallel local normal is
         // a **tangent contact** — C7 territory, refused typed (never
         // marched into); the arm for that pair moves at M5 PR 9.
-        let parallel_margin = Margin::levered(n_face.cross(plane.normal).norm(), extent);
+        let parallel_margin = Margin::levered(n_face.vec().cross(plane.normal).norm(), extent);
         match decide("split_sector_coplanar", parallel_margin, band) {
             Ok(Sign::Zero) => {
                 if !is_plane {
@@ -189,14 +202,18 @@ pub(super) fn apply_rule_a<T: Decide>(
         // Part 2, the material sense — the F3 primitive with
         // dir = +n_SP (module docs): Exits ⇒ material Below.
         //
-        // Exactly one of the two vectors carries an orientation (S10).
-        // `n_face` is the FACE's outward normal, already multiplied by
-        // its `sense_sign` in `sector_face` — this is a material-side
-        // verdict and inverts on a reversed face read off the chart.
-        // `plane.normal` is the SPLIT PLANE's: an operation input that
-        // DEFINES the Above/Below convention, belonging to no face and
-        // carrying no sense to thread (likewise the parallelism margin
-        // above, which is a magnitude in any case).
+        // Exactly one of the two vectors carries an orientation (S10),
+        // and the types say which. `n_face` is the FACE's
+        // outward normal, an `OutwardNormal` minted from chart × sense
+        // in this lane's `neighborhood::sector_face` — this is a
+        // material-side verdict and
+        // inverts on a reversed face read off the chart, so the
+        // primitive refuses anything else in that slot. `plane.normal`
+        // is the SPLIT PLANE's: an operation input that DEFINES the
+        // Above/Below convention, belonging to no face and carrying no
+        // sense to thread, which is why it travels as a bare vector in
+        // the `dir` slot (likewise the parallelism margin above, which
+        // is a magnitude in any case).
         let class = match enters_material(plane.normal, n_face, extent, band) {
             Ok(EntersMaterial::Exits) => PlaneSide::Below,
             Ok(EntersMaterial::Enters) => PlaneSide::Above,
@@ -250,29 +267,77 @@ pub(super) fn apply_rule_b(
 /// farthest distance from the base vertex to any vertex of the face's
 /// loops — the largest displacement a normal-angle error can induce
 /// across this face (D4 ¶1's "face extent" arm, computed, named).
-pub(super) fn face_extent<T: Decide>(
+///
+/// The arm must be an OVER-estimate of that displacement: it divides
+/// out of the caller's angular residuals ([`Margin::levered`]), so an
+/// under-claimed arm shrinks the margin and makes a face that is not
+/// parallel to the split plane likelier to decide `Zero` — a wrong
+/// answer, not a loud one. Two loop shapes have to be read with that
+/// in mind rather than walked past:
+///
+/// - A [`LoopBoundary::Empty`] **ring** is an isolated vertex, and
+///   that vertex is part of the face's boundary — it contributes its
+///   own distance like any other boundary vertex.
+/// - A [`LoopBoundary::Empty`] **outer** loop means the face has no
+///   outer boundary at all, so its locus is unbounded and no finite
+///   arm over-estimates anything. That is refused, not measured.
+///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
+///   validated operand cannot carry one; the boolean's own operand
+///   gates (`gate_operand_kinds`, `gate_maximal_faces`) do not run
+///   that check, which is why the refusal is here rather than assumed.
+///
+/// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
+/// is *"a traversal failed (broken orbit/loop or a **lone vertex**):
+/// the operand is not a well-formed closed solid"* — which is what an
+/// empty outer loop is, and what `validate_closed` calls
+/// `ScaffoldingEmptyLoop`. It names the loop's **lone vertex**, not the
+/// caller's base vertex, so the message points at the thing that is
+/// wrong. It cannot also name the FACE: the variant carries a
+/// `VertexKey` only, and widening it to an `EntityId` is public API,
+/// filed as issue #695 (`splitting/neighborhood.rs`). Both outside
+/// callers (`chord_join.rs:1088`, `:1289`) then `map_err` this into
+/// their own corrupt-face / corrupt-vertex refusals, so at those two
+/// the distinction is flattened on arrival — loud, but reported as a
+/// body corruption for what is really unsupported inventory. Closing
+/// that properly is #695's, not this arm's.
+///
+/// [`LoopBoundary::Empty`]: crate::entity::LoopBoundary::Empty
+/// [`Margin::levered`]: geom_core::Margin::levered
+pub(crate) fn face_extent<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     face: FaceKey,
 ) -> Result<T, SplitReduceError> {
+    use crate::entity::LoopBoundary;
     let corrupt = || SplitReduceError::CorruptOperand { vertex };
-    let p_base = *body
-        .get_point(body.get_vertex(vertex).ok_or_else(corrupt)?.point)
-        .ok_or_else(corrupt)?;
+    let point_of = |v: VertexKey| -> Result<geom_core::Point3<T>, SplitReduceError> {
+        Ok(*body
+            .get_point(body.get_vertex(v).ok_or_else(corrupt)?.point)
+            .ok_or_else(corrupt)?)
+    };
+    let p_base = point_of(vertex)?;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
     let mut extent = T::zero();
-    let loops = core::iter::once(face_data.outer).chain(face_data.rings.iter().copied());
+    let outer = face_data.outer;
+    let loops = core::iter::once(outer).chain(face_data.rings.iter().copied());
     for loop_key in loops {
         let loop_data = body.get_loop(loop_key).ok_or_else(corrupt)?;
-        let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-            continue; // an empty loop contributes no extent
+        let first = match loop_data.boundary {
+            LoopBoundary::Cycle { first } => first,
+            // An unbounded face has no finite lever arm (docs above).
+            // Named at the loop's own lone vertex, not the caller's
+            // base vertex: that is the entity the refusal is about.
+            LoopBoundary::Empty { vertex: lone } if loop_key == outer => {
+                return Err(SplitReduceError::CorruptOperand { vertex: lone });
+            }
+            LoopBoundary::Empty { vertex: lone } => {
+                extent = extent.max((point_of(lone)? - p_base).norm());
+                continue;
+            }
         };
         for he in body.loop_cycle(first).ok_or_else(corrupt)? {
             let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-            let p = *body
-                .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
-                .ok_or_else(corrupt)?;
-            extent = extent.max((p - p_base).norm());
+            extent = extent.max((point_of(start)? - p_base).norm());
         }
     }
     Ok(extent)
@@ -284,6 +349,7 @@ mod tests {
     use super::*;
     use crate::entity::HalfEdgeKey;
     use crate::splitting::SectorEntryKind;
+    use geom_core::Tol;
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
         classes
@@ -332,5 +398,100 @@ mod tests {
         let mut e = entries(&[O, O, B]);
         let err = apply_rule_b(VertexKey::default(), &mut e).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
+    }
+
+    // ============ §H14: the lever arm may not be under-claimed ============
+
+    /// **An unbounded face has no lever arm.** `mvfs` seeds a face
+    /// whose OUTER loop is a lone vertex, so the face's locus is the
+    /// whole carrier: no finite distance over-estimates the
+    /// displacement an angular error induces across it. `face_extent`
+    /// used to walk past that loop and answer `0`, which is the
+    /// under-claiming direction — a zero arm makes every angular
+    /// residual decide `Zero`, i.e. coplanar.
+    ///
+    /// The zero answer was loud at ONE caller by accident (`apply_rule_a`
+    /// gates on `split_sector_extent` being definitely positive) and
+    /// silent at the other two, in `chord_join`, which pass the extent
+    /// straight into `section_case`. The refusal is at the source.
+    #[test]
+    fn an_unbounded_face_has_no_lever_arm() {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        assert!(matches!(
+            body.get_loop(seed.r#loop).unwrap().boundary,
+            crate::entity::LoopBoundary::Empty { .. }
+        ));
+        // `face_extent` mints `CorruptOperand` from eleven arena
+        // lookups as well as from the arm under test, so the variant
+        // alone cannot tell the refusal from a broken fixture. Pin the
+        // fixture first — every lookup the function makes resolves —
+        // and then pin the vertex the refusal NAMES, which is the
+        // loop's lone vertex and not the base vertex the eleven others
+        // would report.
+        assert!(body.get_face(seed.face).is_some(), "fixture: face resolves");
+        assert!(
+            body.get_vertex(seed.vertex)
+                .and_then(|v| body.get_point(v.point))
+                .is_some(),
+            "fixture: the base vertex and its point resolve"
+        );
+        assert!(
+            matches!(
+                face_extent(&body, seed.vertex, seed.face),
+                Err(SplitReduceError::CorruptOperand { vertex }) if vertex == seed.vertex
+            ),
+            "an empty OUTER loop refuses at its own lone vertex; it must not answer zero"
+        );
+    }
+
+    /// **An isolated RING vertex is boundary, so it contributes.** The
+    /// same `continue` also walked past a lone-vertex ring, whose
+    /// vertex is a real point of the face's boundary and can be the
+    /// farthest one. Planted on the cube's seed face, at the corner
+    /// diagonally opposite the base vertex, it is strictly farther
+    /// than every vertex of that face's own cycle — so the row is not
+    /// vacuous, and it asserts that gap rather than just the maximum.
+    #[test]
+    fn an_isolated_ring_vertex_contributes_its_distance() {
+        let mut cube = crate::fixtures::ops_cube(Tol::witness());
+        // The BOTTOM face, whose own cycle stops at the far bottom
+        // corner; the seed (top) face already reaches the body's
+        // farthest vertex, which would make the row vacuous.
+        let face = cube.mefs[0].face;
+        let base = cube.seed.vertex;
+        let before = face_extent(&cube.body, base, face).unwrap();
+        // The farthest vertex in the whole body from `base`.
+        let p_base = *cube
+            .body
+            .get_point(cube.body.get_vertex(base).unwrap().point)
+            .unwrap();
+        let (far, far_d) = cube
+            .body
+            .vertices()
+            .map(|(k, v)| {
+                let p = *cube.body.get_point(v.point).unwrap();
+                (k, (p - p_base).norm())
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .unwrap();
+        assert!(
+            far_d > before,
+            "the fixture's precondition: the planted vertex must be farther \
+             than the face's own cycle ({far_d} vs {before})"
+        );
+        let ring = cube.body.add_loop(
+            crate::entity::Loop {
+                boundary: crate::entity::LoopBoundary::Empty { vertex: far },
+                face,
+            },
+            crate::provenance::Provenance::Primordial { op: "h14-row" },
+        );
+        cube.body.get_face_mut(face).unwrap().rings.push(ring);
+        let after = face_extent(&cube.body, base, face).unwrap();
+        assert!(
+            (after - far_d).abs() < 1e-12,
+            "the ring's lone vertex sets the arm: {after} vs {far_d}"
+        );
     }
 }

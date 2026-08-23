@@ -6,11 +6,10 @@
 //! documented sizing safety factor):
 //!
 //! - Line carriers: 1 chord (a segment of the exact locus).
-//! - Circle carriers (radius ρ, forward span Δt): per-chord angle
+//! - Circle carriers (radius ρ, forward span Δt): per-chord step
 //!   φ = 2·acos(1 − δ_s/ρ) (the closed-form sagitta bound
-//!   ρ(1 − cos(φ/2)) ≤ δ_s), capped at π/4 (so periodic unwrapping is
-//!   branch-unambiguous and full-period rims polygonalize with ≥ 8
-//!   chords); n = ceil(Δt/φ).
+//!   ρ(1 − cos(φ/2)) ≤ δ_s), capped at π/4 (`sizing::MAX_ANGULAR_STEP`);
+//!   n = ceil(Δt/φ).
 //! - Adjacent-torus tightening: a face on a torus certifies through
 //!   the UV interpolation bound (crate docs), which needs boundary UV
 //!   steps ≤ its grid step h = √(δ_s/(3(R+2r))); a circle edge's
@@ -41,102 +40,48 @@
 
 use std::collections::HashMap;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use topo::{Body, EdgeKey};
 
-use crate::nurbs_cert::nurbs_face_bound;
+use crate::nurbs_cert::{FaceBounds, face_bound};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_step};
 use crate::types::TessellateError;
 
-/// Sanity cap on any single count (δ small enough to exceed this would
-/// allocate gigabytes before failing anywhere else).
-const MAX_STEPS: f64 = 16_777_216.0; // 2^24
-
-/// The per-chord azimuth angle for sagitta ≤ `delta_s` on a circle of
-/// radius `rho`, capped at π/4. Total (poison-free for positive
-/// inputs): if δ_s ≥ ρ the sagitta constraint is vacuous and the π/4
-/// cap rules.
-pub fn sagitta_angle(delta_s: f64, rho: f64) -> f64 {
-    let cap = core::f64::consts::FRAC_PI_4;
-    if delta_s < rho {
-        let phi = 2.0 * (1.0 - delta_s / rho).acos();
-        if phi < cap { phi } else { cap }
-    } else {
-        cap
-    }
-}
-
-/// The per-chord parameter step for chord deviation ≤ `delta_s` on an
-/// ellipse with semi-axes `major > minor` (M5 PR 5), capped at π/4.
+/// The chord pass's output: every edge's chord-point ids and the
+/// parameter schedule they were sampled at.
 ///
-/// Certified-conservative from the standard C² chord bound
-/// `deviation ≤ κ_max·L²/8`: over a parameter span φ the arc length is
-/// `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the ellipse's maximum
-/// curvature is `κ_max = major/minor²` (at the major vertices), so
-/// `deviation ≤ R_eff·φ²/8` with `R_eff = major·(major/minor)²` and
-/// `φ = √(8·δ_s/R_eff)` guarantees the bound. Coarser than the
-/// circle's exact sagitta near `major = minor` — conservative is the
-/// promised direction.
-pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    let cap = core::f64::consts::FRAC_PI_4;
-    let r_eff = major * (major / minor) * (major / minor);
-    let phi = (8.0 * delta_s / r_eff).sqrt();
-    if phi < cap { phi } else { cap }
-}
-
-/// `ceil(span/step)` as a chord/grid count, with the `MAX_STEPS` (2^24)
-/// sanity cap surfaced as a typed error and a floor of 1.
-pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
-    let raw = (span / step).ceil();
-    if !(raw.is_finite() && raw < MAX_STEPS) {
-        return Err(TessellateError::ResolutionOverflow { count: raw });
-    }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    Ok(if raw < 1.0 { 1 } else { raw as usize })
-}
-
-/// The torus boundary-step requirement `h` (crate docs) for a face's
-/// surface, if that surface is a torus.
-fn torus_step(surface: &geom_surfaces::Surface<f64>, delta_s: f64) -> Option<f64> {
-    match *surface {
-        geom_surfaces::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(torus_grid_step(delta_s, major_radius, minor_radius)),
-        _ => None,
-    }
-}
-
-/// The torus UV grid step `h = √(δ_s/(3(R+2r)))` — shared with the
-/// curved-face grid sizing so boundary and interior steps agree.
-pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
+/// One value rather than two, because they are ONE derivation and
+/// every consumer that reads the ids at a parameter reads both — the
+/// trimmed lane evaluates pcurves at exactly the schedule the 3-D
+/// chords were minted on, which is the property that keeps a face's
+/// boundary and its neighbour's the same points.
+pub(crate) struct ChordPass {
+    /// Per-edge chord-point mesh ids, `he_plus`-forward.
+    pub ids: HashMap<EdgeKey, Vec<u32>>,
+    /// The matching per-edge chord parameters (endpoints included).
+    pub params: HashMap<EdgeKey, Vec<f64>>,
 }
 
 /// Computes every edge's chord-point ids (minting interior points into
 /// `positions`), in edge-arena order. `vids` maps topology vertices to
 /// their already-minted mesh ids.
-#[allow(clippy::type_complexity)] // an (ids, params) pair of per-edge maps
 pub(crate) fn compute_chords(
     body: &Body<f64>,
     delta_s: f64,
     vids: &HashMap<topo::VertexKey, u32>,
     positions: &mut Vec<geom_core::Point3<f64>>,
-) -> Result<(HashMap<EdgeKey, Vec<u32>>, HashMap<EdgeKey, Vec<f64>>), TessellateError> {
+    bounds: &mut FaceBounds,
+) -> Result<ChordPass, TessellateError> {
     let mut chords = HashMap::new();
     // Chord PARAMETERS per edge (`he_plus`-forward, endpoints
     // included) — the trimmed-face lane evaluates pcurves at exactly
     // the chord schedule, so both stay one derivation (M5 PR 11).
     let mut params = HashMap::new();
-    // Per-NURBS-face (h_u, h_v) memo for the adjacent-NURBS
-    // tightening (module docs) — the Hessian hull is a per-face fact,
-    // computed once however many edges the face bounds.
-    let mut nurbs_steps: HashMap<topo::FaceKey, (f64, f64)> = HashMap::new();
     for (ek, edge) in body.edges() {
         let curve = body
             .get_curve_geom(edge.curve)
@@ -149,7 +94,7 @@ pub(crate) fn compute_chords(
             Curve3::Line { .. } => 1,
             Curve3::Circle { .. } => {
                 let mut n =
-                    ceil_count(span, sagitta_angle(delta_s, circle_radius(curve.carrier())))?;
+                    ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
                     let face = body
                         .get_face(fk)
@@ -188,7 +133,7 @@ pub(crate) fn compute_chords(
         // Adjacent-NURBS tightening (module docs), on every carrier
         // kind — a straight wall edge is one 3-D chord but many UV
         // steps of the wall's certificate budget.
-        let n = nurbs_tighten(body, ek, span, delta_s, &mut nurbs_steps, n)?;
+        let n = nurbs_tighten(body, ek, span, delta_s, bounds, n)?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -214,7 +159,10 @@ pub(crate) fn compute_chords(
         chords.insert(ek, ids);
         params.insert(ek, ts);
     }
-    Ok((chords, params))
+    Ok(ChordPass {
+        ids: chords,
+        params,
+    })
 }
 
 /// Chord count for a B-spline carrier from the hull-bounded sagitta
@@ -228,7 +176,7 @@ pub(crate) fn compute_chords(
 /// arc-walled bodies BUILD now, and their seam edges read back
 /// rational, which is exactly why this arm exists.)
 fn nurbs_chord_count(
-    n: &geom_curves::NurbsCurve3<f64>,
+    n: &geom::NurbsCurve3<f64>,
     span: f64,
     delta_s: f64,
     ek: EdgeKey,
@@ -256,7 +204,7 @@ fn nurbs_chord_count(
         // is a locus fact). One with interior knots is a C⁰ polyline
         // whose kinks a uniform parameter schedule would miss —
         // refused, not guessed at.
-        return if kv.knots().len() == 4 {
+        return if kv.interior_knots().next().is_none() {
             Ok(1)
         } else {
             Err(TessellateError::UnsupportedCurve {
@@ -266,22 +214,14 @@ fn nurbs_chord_count(
             })
         };
     }
-    // C¹ needed for the secant bound: interior multiplicities ≤ p − 1.
-    let interior = &kv.knots()[p + 1..kv.knots().len() - p - 1];
-    let mut i = 0;
-    while i < interior.len() {
-        let mut j = i + 1;
-        while j < interior.len() && interior[j] == interior[i] {
-            j += 1;
-        }
-        if j - i > p - 1 {
-            return Err(TessellateError::UnsupportedCurve {
-                edge: ek,
-                note: "B-spline carrier with a C⁰ kink (interior multiplicity = degree) — \
-                       the hull sagitta bound needs C¹; split the edge at the kink",
-            });
-        }
-        i = j;
+    // C¹ needed for the secant bound: interior multiplicities ≤ p − 1
+    // (p ≥ 2 here — degree 1 returned above).
+    if kv.interior_knots().any(|(_, m)| m > p - 1) {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "B-spline carrier with a C⁰ kink (interior multiplicity = degree) — \
+                   the hull sagitta bound needs C¹; split the edge at the kink",
+        });
     }
     let m_bound = if rational {
         rational_carrier_m_bound(n, ek)?
@@ -331,8 +271,7 @@ fn nurbs_chord_count(
     if m_bound == 0.0 {
         return Ok(1);
     }
-    let h = (8.0 * delta_s / m_bound).sqrt();
-    ceil_count(span, h)
+    ceil_count(span, curvature_step(delta_s, m_bound))
 }
 
 /// Certified `sup‖C″‖` for a RATIONAL B-spline carrier (M8-5): the
@@ -361,7 +300,7 @@ fn nurbs_chord_count(
 /// max over spans (hull of the squared enclosures), `next_up` after
 /// the final square root — poison flows to the caller's finite check.
 fn rational_carrier_m_bound(
-    n: &geom_curves::NurbsCurve3<f64>,
+    n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
 ) -> Result<f64, TessellateError> {
     let refined = n
@@ -538,14 +477,14 @@ fn rational_carrier_m_bound(
 /// The adjacent-NURBS chord tightening (module docs): for each
 /// adjacent described NURBS face, raise `n` until the edge's UV image
 /// steps fit inside the face's certificate-budget grid steps. The
-/// per-face `(h_u, h_v)` memo (`steps`) keeps the Hessian hull a
-/// once-per-face computation.
+/// bound comes from the tessellation's shared [`FaceBounds`] memo, so
+/// the Hessian hull is assembled once per face for the whole run.
 fn nurbs_tighten(
     body: &Body<f64>,
     ek: EdgeKey,
     span: f64,
     delta_s: f64,
-    steps: &mut HashMap<topo::FaceKey, (f64, f64)>,
+    bounds: &mut FaceBounds,
     mut n: usize,
 ) -> Result<usize, TessellateError> {
     let edge = body
@@ -575,14 +514,7 @@ fn nurbs_tighten(
         if payload.is_placeholder() {
             return Err(TessellateError::UnsupportedSurface { face: fk });
         }
-        let (hu, hv) = match steps.get(&fk) {
-            Some(&s) => s,
-            None => {
-                let s = nurbs_face_bound(payload, fk)?.grid_steps(delta_s);
-                steps.insert(fk, s);
-                s
-            }
-        };
+        let (hu, hv) = face_bound(bounds, payload, fk)?.grid_steps(delta_s);
         let Some(cache) = body.pcurve(hek) else {
             return Err(TessellateError::UnsupportedCurve {
                 edge: ek,
@@ -693,8 +625,8 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom::NurbsCurve3;
     use geom_core::Point3;
-    use geom_curves::NurbsCurve3;
     use topo::EdgeKey;
 
     fn wiggle() -> NurbsCurve3<f64> {

@@ -26,7 +26,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::PropsError;
-use geom_core::{Affine3, Point2, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Section, loft_body};
@@ -53,7 +54,7 @@ enum EpsPosture {
 /// posture's own invariants. Anything outside the three is a real
 /// failure and panics.
 fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
-    let target = QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+    let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     match out {
         Ok(_) => EpsPosture::Certified,
         Err(MassPropsError::Face {
@@ -95,10 +96,7 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
 /// arc-bearing profile whose lofted wall is RATIONAL (weights
 /// `1, cos 22.5°, 1` over two 45° sub-arcs).
 fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex {
-        pos: Point2::new(x, y),
-        bulge,
-    };
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     vec![ProfileLoop::new(vec![
         v(-s, -s, 0.0),
         // tan(π/8): a quarter-circle bulge-out.
@@ -129,10 +127,9 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 /// the same 2 samples — and both then ran the same rational
 /// quadrature over it. Under nextest's process-per-test isolation
 /// there is no cache between them, so every ε row paid that
-/// build-plus-quadrature twice (measured 21.4 s + 37.0 s at the
-/// default ε, 862 s + 837 s at ε=1e-12). The oracle side — one
-/// `extrude` and its closed-form props — costs ~0.03 s, so folding
-/// the bracket in here is free and the duplicate build is gone.
+/// build-plus-quadrature twice. The oracle side — one `extrude` and
+/// its closed-form props — costs ~0.03 s, so folding the bracket in
+/// here is free and the duplicate build is gone.
 ///
 /// What the split bought and a merged row cannot is failure
 /// ISOLATION: a tier-3 break and an accuracy break now surface under
@@ -159,6 +156,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc prism lofts (the pcurve mint is inside the build)")
     .body;
@@ -168,11 +166,11 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // the volume posture below turns out to be. Nothing may gate this
     // line on that posture.
     topo::validate_closed(&loft).expect("TIER-1/2: tiers 1/2 admit the rational-wall body");
-    let got = topo::mass_properties(&loft);
+    let got = topo::mass_properties(&loft, Tol::witness());
     let posture = body_posture("arc prism", &got);
     eprintln!(
         "EPS-ROW arc prism @ eps={:e}: {posture:?}{}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         match &got {
             Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
             Err(e) => format!(" ({e})"),
@@ -190,16 +188,18 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // TIER 3: the +V invariant consumes the quadrature, so the verdict
     // is pinned exactly where the quadrature certifies (a budget
     // refusal here would be an honest tier-3 refusal, not a break).
-    topo::validate_geometric(&loft)
+    topo::validate_geometric(&loft, Tol::witness())
         .expect("TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276)");
 
     // The oracle: the same solid through `extrude`, whose bulged wall
     // is an analytic cylinder (closed form, pad 0).
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the profile validates");
-    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0)).expect("extrude");
-    let want = topo::mass_properties(&oracle.body).expect("analytic mass properties");
+    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
+        .expect("extrude");
+    let want =
+        topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
@@ -218,7 +218,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // absorb assertion 1 without tripping this. The ceiling is keyed
     // to ε because the schedule is fixed and the pad is what the
     // schedule achieves — never widened past the run's own target.
-    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     assert!(
         got.volume_pad < ceiling,
         "PAD CEILING: volume pad {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",
@@ -251,14 +251,15 @@ fn arc_loft_is_volume_computable_with_a_pinned_pad() {
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stack([0.0, 1.0, 2.0]),
         2,
+        Tol::witness(),
     )
     .expect("the arc loft builds")
     .body;
-    let got = topo::mass_properties(&loft);
+    let got = topo::mass_properties(&loft, Tol::witness());
     let posture = body_posture("arc loft", &got);
     eprintln!(
         "EPS-ROW arc loft @ eps={:e}: {posture:?}{}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         match &got {
             Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
             Err(e) => format!(" ({e})"),
@@ -274,7 +275,7 @@ fn arc_loft_is_volume_computable_with_a_pinned_pad() {
         "arc-loft volume out of band: {}",
         got.volume,
     );
-    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     assert!(
         got.volume_pad < ceiling,
         "volume pad ceiling: {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",

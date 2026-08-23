@@ -17,7 +17,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
    viable." Genuine design forks still escalate.
 2. **Façade placeholder crate name: `pncad`** ("pending-name CAD")
    — greppable, carries the Q9 rename debt visibly. See the
-   name-candidates memory for the rename-time grep note.
+   docs/NAME-CANDIDATES.md for the rename-time grep note.
 3. **v2 profiles-as-programs spec timing**: the design-conversation
    draft waits for U2's algebra to be implemented AND the demo
    corpus reworked onto it — the rework is the evidence base for
@@ -854,3 +854,176 @@ PathOnArc, bit-identity pinned per census site, shim DELETES
 (same crate, overlapping tests); RESPELL-TABLE stays gated behind
 it. Draw at dispatch (LIB-11 slots 2-4 banked: opus, fable,
 opus remaining).
+
+**LIB-PYPU DISPATCHED (2026-08-17, block LIB-11 slot 2 = OPUS,
+banked draw consumed)**: PlacedUnion's Python/audit slice —
+docs/LIB-PYPU-SPEC.md, cut from a full census (Frame/PatternKind
+unbound, refusal tags ALREADY crossed via tags.rs, the loft
+Expr::count precedent governs the count spelling, the fused-base
+wall stays kernel-side). Pre-draw fields logged at spec time:
+M / STRUCTURAL. Lane lib-pypu, branch lib/pypu — pncad-py +
+audit page only, disjoint from the SEAL fix pass and ONARC by
+fence. Evan's load ruling (in-chat, 2026-08-17): LIB runs at
+full efficient parallelism while the third orchestrator's
+account is down. Also filed: #601 (the SEAL review's MAJOR-2
+class made durable — CI compiles no whole-file feature-gated
+test lane). SEAL state: review ordinal 55 returned
+NOT-MERGEABLE-AS-IS (2 MAJ / 2 MIN / 3 NOTE, 2 silent — both
+MAJORs feature-lane compile breaks; MAJOR-1 = the D7 pncad-py
+fix, already landed post-freeze); fix pass IMPLEMENTER-INHERITED,
+in flight; delta re-review next per the v4 ladder.
+
+**SEAL MERGED (2026-08-17, #596 35/35, merge badbfb1b; ordinal-55
+NMAI→delta APPROVE — the row is in MODEL-AB-LOG).** #431's open
+question SETTLED (struct-literal sealing executed). The review's
+durable finds: the feature-lane CI rot class (#601, both MAJORs'
+mechanism — no hosted lane compiles whole-file feature-gated
+tests) and D1's honest boundary (the tour names `profile`
+directly for lily's #433-gap loop — the gap now lives in the
+dependency graph, not an invisible literal). ONARC dispatches
+now on LIB-11 slot 3 = FABLE (lane lib-onarc, pre-staged).
+
+**PYPU DELIVERED (2026-08-17, PR #604, suite 140→160; review
+ordinal 56 dispatched).** Register fold (the implementer's
+deviation-9 flag, orchestrator-applied): category B's G8 text is
+NARROWED — replication (Node.placed_union/placed_union_at,
+Frame/PatternKind values, U4b trio) and the structural-param
+count edit (DocEdit.bind_count_param) are CLOSED from Python;
+G8's residual = the kernel's multi-solid boolean operand
+(combine's single-solid contract, JoinDesync) + the
+memo-observability door (evaluate takes no prior — the banked
+third claim). Audit marks unchanged at 25+3+6 by measurement,
+not omission. die_tool's Python re-authoring = a banked
+candidate behind the Revolve/datum half.
+
+**ONARC DELIVERED (2026-08-18, PR #608; ordinal-57 cross-model
+dual dispatched).** Orchestrator disposition of the implementer's
+deviation 1: the enclosing-tangency (ρ<0) sub-class is
+UNREACHABLE through the §2c door — the other crossing always
+carries a strictly-nearer ordinary candidate the gates cannot
+exclude; only the retired corner-authoring spelling ever reached
+it, so nothing shipped is lost and the delegation's wall clause
+is NOT tripped. Recorded as boundary pins (the door must
+refuse-or-round, never emit the class) + a NAMED low-priority
+design question for Evan: should enclosing tangency ever be
+authorable, it needs a corner-authoring-shaped verb — vocabulary,
+not a defect. #377 completes at #608's merge.
+
+**PYPU MERGED (2026-08-18, #604 35/35, merge 8d404bd7; ordinal-56
+APPROVE 5/5/5 — row in MODEL-AB-LOG).** The en-route CI fix is
+the durable part beyond the bindings: interval-only-selection.py
+now proves scoped no-ops from SOURCE (the #601-adjacent guard
+family; the implementer falsified the orchestrator's diagnosis
+and built the correct arm — recorded as the model behavior for
+handed-down-diagnosis briefs). LIB-11 slots 1-3 consumed
+(SEAL/PYPU/ONARC); slot 4 (opus) banks for RESPELL-TABLE.
+
+**ONARC MERGED (2026-08-18, #608 fully green at de6ff336;
+ordinal-57 cross-model dual: R1 NMAI→APPROVE, R2 A-W-F — the row
+incl. the divergence calibration is in MODEL-AB-LOG).** #377
+CLOSED — the LoopBuilder retirement arc that began at #377/#386
+is COMPLETE. The §2c surface now matches the ratified axiom
+exactly. RESPELL-TABLE dispatches next on LIB-11 slot 4 (opus) —
+the four-projection transition table, now over the
+post-dissolution row set.
+
+**LIB-RTABLE DISPATCHED (2026-08-18, block LIB-11 slot 4 = OPUS
+— LIB-11 fully consumed: SEAL opus / PYPU opus / ONARC fable /
+RTABLE opus).** docs/LIB-RTABLE-SPEC.md: the four-projection
+transition table over the post-dissolution row set, closing the
+#531 interim's gap; pre-draw fields logged at spec time: M /
+STRUCTURAL. Lane lib-rtable, branch lib/rtable. The RESPELL-TABLE
+register entry closes at its merge — the register's last
+scheduled unit.
+
+**RTABLE MERGED (2026-08-18, #616 34/34, merge db0a4c21;
+ordinal-58 A-W-F→fixed, the first v5-instrument LIB row — in
+MODEL-AB-LOG). RESPELL-TABLE register entry CLOSED — the
+register's SCHEDULED column is EMPTY.** The v5 style lane earned
+its keep on row one: the census fix (every table row's replay
+coverage pinned) closes a class, not an instance. What remains in
+the register is Evan-paced or cross-program: the
+enclosing-tangency vocabulary question (#608's named residue),
+G8's multi-solid-operand kernel gap + the evaluate-memo door,
+the G2 sweep/tube design conversation (U4/frontier), die_tool's
+Python re-authoring (banked), Q9, and whatever #614's smell-scan
+schedule routes to LIB (the orphaned ProfileError fillet
+variants are claimed).
+
+**LIB-PERR DISPATCHED (2026-08-18, block LIB-12 slot 1 = FABLE)**:
+the smell-scan finding LIB claimed on #613 — ProfileError's five
+fillet variants (validate.rs:411-507) became fully orphaned when
+#608 deleted test_support.rs, their only constructor. Brief-as-
+spec (S size): delete the five variants + their payload-only
+support types IF those go dead too (FilletLeg/FilletLegCarrier/
+NoCornerReason are LIVE via NoCornerForFillet — verify, don't
+assume); sweep pncad-py's tag mirror, doc references
+(PATHS-DESIGN, rustdoc), and any match arms; closure = the
+workspace compiles with zero dangling references and the tag
+parity tests stay green; zero behavior change (no live path can
+mint them — prove by the compiler after deletion). Fence: nothing
+else from the smell scan; no other error surface changes.
+
+**PERR MERGED (2026-08-18, #622, merge ecf43ab6; ordinal-59
+APPROVE — row in MODEL-AB-LOG). LIB's claimed #614 item is
+discharged.** Resting state: NO active lanes; LIB-12 slots 2-4
+banked (opus ×3). Everything scheduled is done — remaining
+register items need Evan (enclosing-tangency vocabulary, Wave 0
+D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
+or a #614 routing.
+
+**Resting-state correction (2026-08-18, prompted by Evan's
+pickup-path question)**: the entry above under-enumerates. The
+DISPATCHABLE-NOW column is not empty — it has one item:
+**G11 (mesh/tessellation door from Python)** — blocks no audit
+row but completes the guide's ladder (steps 4-5: tessellate +
+mesh-vs-exact cross-check); register category B names it; a
+banked LIB-12 slot (opus) covers its draw; no design conversation
+needed (the Rust mesh door exists — this is a bindings unit of
+the PYG-family shape). Also dispatchable when wanted, smaller:
+the **evaluate-memo door** (PYPU's banked finding — evaluate
+takes no prior, so memoized recompute is unobservable from
+Python; a small additive door) and **die_tool's Python
+re-authoring** (banked behind its Revolve/datum half). The full
+pickup map for a cold successor: this log's tail + the residual
+register (category B self-enforcing via the audit test) +
+memories/MEMORY.md. Correction recorded rather than edited in
+place — the log is append-only by convention.
+
+**Cross-program deposit from ASM (2026-08-23, ASM orchestrator,
+recorded here at Evan's direction — LIB inactive)**: ASM-DEMO
+(#938, the R2 exit demo) surfaced two LIB-owned items.
+(1) **The façade omitted the assembly VALIDATION surface** (the
+PR's F1): `pncad::document` exposed the whole assembly authoring
+vocabulary (InstantiatePart/Pattern/Mate + payloads, split/
+inline, update_references, mixed_pins, solve_document, product)
+and not the gate that validates the result — assemble, Assembly,
+AssemblyError, AtRestFinding, Attribution, MintedDeclaration,
+RefusedRef. A façade-only consumer could author an assembly and
+never run its validity gate. The minimal re-export block LANDS
+in #938's fix pass (adjudication on the PR: the `profile`
+manifest entry documents a DELIBERATE omission, this one was an
+accident, and the tour's own LIB-U1 invariant had made the
+flagship assembly scene its standing exception). What LIB owes
+is only a retroactive curation review of that block at next
+activation — if the façade rules want a different shape, say so
+on #938's thread.
+(2) **The assembly surface is entirely absent from `pncad-py`**
+(the demo's Python survey, independently spot-checked by both of
+#938's reviewers): no instantiate_part / mate (+ Alignment,
+MateFrame, MatePrimitive, AxisSense, ContactClass) / plain
+N-bodies pattern / Workspace-DocRef-ContentPin family /
+set_placement / set_roots / update_reference / mixed_pins /
+solve_document / product / assemble / split / inline — and
+structurally FIRST, `evaluate(doc)` takes no resolver, so an
+InstantiatePart node cannot evaluate from Python at all. Neither
+of the demo's two assembly documents is authorable through the
+bindings; the standing demo-purpose goal ("every demo authorable
+through the Python bindings") fails for the assembly layer. This
+joins the dispatchable column as a PYG-family series with a
+stated order: the resolver/workspace door first (small, possibly
+wanting a short design conversation on the workspace-from-Python
+shape), then the node/edit/refactoring bindings, which are
+mechanical once evaluation can resolve. The demo
+(`demos/tour/src/assembly.rs`) is the ready-made coverage oracle
+for the whole series, per the standing tour-corpus rule.

@@ -17,11 +17,10 @@ by M9-D, may collapse into M9-3), M9-5 the lily FULL rebuild
 Candidates: D1 early. A′ PlacedUnion went to LIB (#510 thread).
 Schema posture ruled: clean breaks, bump count not optimized.
 
-A/B state at opening: block M8-15's remainder consumes first
-(slots 1..3 = opus, fable, opus from the byte-186 draw); next
-block opens as M9-16; ordinals fixed through 38 (M9 side), next
-third = 39 (the banked same-model dual twin); stopping-rule tally
-4-of-6. Away-channel re-arms at this seam as "(M9 orchestrator)"
+A/B state at opening lives in `docs/MODEL-AB-LOG.md` and is read
+from that ledger on main at dispatch — block, slot, ordinal and
+dual tally are never copied into this log. Away-channel re-arms
+at this seam as "(M9 orchestrator)"
 with the clean one-prefix convention: unit branches `m9/<unit>`,
 orchestrator branch stays mngr/cad-m8 (mngr-owned name; recorded
 in the arm env as a legacy prefix alongside m9/). Watchlist
@@ -171,5 +170,95 @@ own texts; instance.rs's "nothing validates silently" is
 exhaustively true. Owed one-liner (successor): the reflex-arc
 plane-pad lemma scope + final-probes adoption (row NOTE).
 ORCHESTRATOR SWITCH at this seam per Evan: remaining slate =
-M9-0 → M9-3 (spec from scratch, block M9-16 draw) → M9-5 (after
+M9-0 → M9-3 (spec from scratch, block drawn from the ledger) →
+M9-5 (after
 TESS-SPAN) → exit walk. Handoff: handoff-prompt-m9b.md.
+
+## M9-0 MERGED (#588) + the owed one-liner (#589) — 2026-08-17, successor's first seam
+
+Successor orchestrator online: switch-seam PR #587 merged (the
+M9-2 row/log), all four monitors re-armed from installed copies,
+m9-2b + m9-2b-r1 lanes verified (merged / pushed-clean) and
+swept. M9-0 landed as #588, orchestrator-direct: only THREE OQ5
+sites survived to migrate (M9-2's census door had already
+rewritten the CensusUnsupported Display, its doc comment, and the
+boss_union pin) — vtxfac's C7/OQ5 disambiguated to CONTACT-DESIGN
+C7 item 1 with the C4 recourse named, merge_faces' two
+declared-PAIR-rung claims re-pointed at C2/C4; `grep OQ5 crates/`
+is empty; #459 CLOSED. The owed one-liner landed as #589, its own
+PR at the same seam: the F5 plane-pad lemma scoped honestly — pad
+= max(r, sagitta) from the certified param span, bit-identical
+for spans ≤ π, diameter-bounded for reflex arcs — closing the
+pair-level soundness gap R1's pac-man probe exposed
+(body-loudness had held only via the neighbouring wall's box);
+the probe branch adopted authorship-preserving; 393/393 topo +
+6/6 boss_union locally, hosted matrix green. GROUP-BOOLEAN's
+lowering sentence corrected per the #571 adjudication (rides this
+seam). Machine note (#590, filed and CLOSED same day): a timed-out
+battery call from the lib-seal implementer left fd-inheriting
+orphans holding BOTH main build-slot flocks — the documented
+leak shape, with dead-holder files that misleadingly read
+"free". Kill was classifier-blocked from this session; the ASM
+orchestrator's session had the permission and cleared it. Two
+corrections to that filing, recorded on its thread: the LIB
+orchestrator is ALIVE (its bash pane is the mngr wrapper — a
+dead-pane misread on my part, and the takeover-courtesy rule
+says message first), and the two legacy-file watchlist entries
+were already-ruled items, since removed rather than stranded.
+Board: M9-3 substrate DONE (the recl.rs second wall site is its
+headline), germ-reachability spike running; spec + the block draw
+next.
+
+## M9-3 PAUSED MID-SPEC (2026-08-18) — resume point
+
+This thread stopped between the substrate and the dispatch; the
+resume affordance is its own issue, pointing here and at the
+spec. State, precisely:
+
+- **NOTHING IN FLIGHT.** No implementer or reviewer agents alive;
+  no ordinal claimed on the M9 side, and **no block drawn** — take
+  both from the ledger on main at dispatch (draw byte mod 4,
+  reject ≥252).
+- **docs/M9-3-SPEC.md exists as a DRAFT** — binding in substance
+  (both wall sites, the door-by-inventory ruling, the
+  no-new-metered-predicate default, the U2 emission constraint,
+  the two-PR shape, the acceptance rows) with ONE ruling left
+  open: the PR boundary, which depends on whether curved germ /
+  v-v records reach the rest lane on a two-peg body.
+- **The spike that answers it was authored and never run** — the
+  substrate agent hit a model usage limit mid-authorship.
+  Salvaged to branch `m9/3-spike-wip` (2c618982,
+  crates/sweep/tests/spike_peg.rs); **never merge it**, finish and
+  run it, then fix the ruling and drop DRAFT.
+- The substrate report was lane-private; its load-bearing
+  file:line anchors are folded into the spec's evidence appendix,
+  so the lane is safe to sweep.
+
+Cross-program movement during the pause, which the resumer must
+read as CHANGED state: **TESS-SPAN MERGED (#594, 2026-08-18) —
+M9-5's stated dependency is DISCHARGED in the code.** Read the
+next sentence before relying on it: **ASM-LOG has NO at-merge
+entry for TESS-SPAN** (its tail still ends at ASM-R2A and calls
+TESS-SPAN in-flight), because the ASM orchestrator died at a
+monthly spend cap before writing one (#600). So the fresh-state
+pointer M9-5's baselines were to consume DOES NOT EXIST yet: the
+resumer either waits for ASM's entry or derives the baselines
+from #594 itself, and says which in M9-5's spec. Subject to
+that, M9-5 is unblocked (walls 1+7
+retire, wall 2 stays deferred by ruling, wall 8 still rides the
+post-M9 pcurve migration, #554 rides-or-banks as a question for
+Evan). ASM also opened R2-b (#591) and the AQ8 design
+conversation (#592); LIB landed LIB-SEAL (#596) and has lib/pypu
+(#604) open. **Review ordinals moved while M9 was paused** — claim
+from the ledger ON MAIN at review dispatch, never from this entry. Filed
+by other programs and worth a read before the next dispatch:
+#598 (CI committing its own measurements), #601 (feature-gated
+test lanes rot uncompiled), #600 (two orchestrators dead at
+usage-credit walls — Evan's decision, not this program's).
+
+Next actions, in order: finish + run the spike → fix the spec's
+PR-boundary ruling and drop DRAFT → draw the next block →
+dispatch
+PR-A with the standard brief lines → M9-5 spec (dependency
+discharged in code, baseline pointer still owed — see the
+caveat above) → the M9 exit walk.

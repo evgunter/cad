@@ -434,14 +434,14 @@ impl Parser<'_> {
                 pos,
                 text: text.to_string(),
             })?;
-            let dim = match unit.quantity {
+            let dim = match unit.quantity() {
                 UnitQuantity::Length => Dimension::Length,
                 UnitQuantity::Angle => Dimension::Angle,
             };
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
             // U8b): canonical value from the one multiply, display
             // unit stored as presentation metadata for the formatter.
-            return Expr::literal_with_unit(value * unit.factor, dim, unit)
+            return Expr::literal_with_unit(value * unit.factor(), dim, unit)
                 .map_err(|error| ParseError::Dimension { pos, error });
         }
         if integral {

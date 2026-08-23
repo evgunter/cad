@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 /// The pre-break bytes, kept verbatim as the refusal fixture.
 const V2: &str = include_str!("golden/v2_golden.cad");
@@ -28,7 +29,7 @@ fn schema_version_is_current() {
     // M9-1's declaration class (v11), by LIB-PLACEDUNION's group
     // boolean (v12), and by ASM-R2a's `Node::Mate` arm (v13); this
     // file keeps pinning the v3 refusal fixture below.
-    assert_eq!(SCHEMA_VERSION, 13);
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]
@@ -42,7 +43,7 @@ fn the_checked_in_v3_file_is_really_v3() {
 /// posture is a clean break, never a shim.
 #[test]
 fn v3_refuses_too_old() {
-    match load(V3) {
+    match load(V3, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -61,7 +62,7 @@ fn v3_refuses_too_old() {
 /// step that does not exist.
 #[test]
 fn v2_refuses_too_old() {
-    match load(V2) {
+    match load(V2, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -96,7 +97,10 @@ fn the_too_old_message_names_the_recourse_exactly_once() {
 fn too_old_beats_a_broken_body() {
     let text = "schema: 2\nnot json at all\n";
     assert!(
-        matches!(load(text), Err(PersistError::SchemaTooOld { found: 2, .. })),
+        matches!(
+            load(text, Tol::witness()),
+            Err(PersistError::SchemaTooOld { found: 2, .. })
+        ),
         "version door must precede the body parse"
     );
 }
@@ -121,7 +125,7 @@ fn the_selection_reaches_the_wire_canonical() {
         editor_core::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
             .expect("finite");
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length literal");
-    let mut doc = ProfileDoc::empty_derived("m6_5_schema_v3");
+    let mut doc = ProfileDoc::empty_derived("m6_5_schema_v3", Tol::witness());
     for edit in [
         DocEdit::InsertNode {
             node: Node::Profile(editor_core::ProfileProgram {
@@ -136,7 +140,9 @@ fn the_selection_reaches_the_wire_canonical() {
             },
         },
     ] {
-        doc = apply(&doc, &edit).expect("the fixture builds").doc;
+        doc = apply(&doc, &edit, Tol::witness())
+            .expect("the fixture builds")
+            .doc;
     }
     let rim = |seg: u32| StableName {
         kind: editor_core::EntityKind::Edge,
@@ -158,11 +164,12 @@ fn the_selection_reaches_the_wire_canonical() {
                 vec![rim(2), rim(0)],
             ),
         },
+        Tol::witness(),
     )
     .expect("the fillet node inserts")
     .doc;
 
-    let text = save(&doc, &[]).expect("the fixture saves");
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     assert_eq!(
         text.lines().next(),
         Some(&format!("schema: {SCHEMA_VERSION}")[..])
@@ -177,7 +184,7 @@ fn the_selection_reaches_the_wire_canonical() {
     // at the shared validator, never quietly re-sorted (a repair would
     // move the node's content key behind the caller's back).
     let corrupt = text.replacen("\"segment\": 0", "\"segment\": 9", 1);
-    match load(&corrupt) {
+    match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::FilletSelectionNotCanonical {
             ..
         })) => {}
@@ -189,7 +196,7 @@ fn the_selection_reaches_the_wire_canonical() {
     // hand, because the field has no default and `deny_unknown_fields`
     // admits no stand-in. Refusing is the honest answer.
     let v2_shaped = text.replacen("\"selection\"", "\"unselection\"", 1);
-    match load(&v2_shaped) {
+    match load(&v2_shaped, Tol::witness()) {
         Err(PersistError::Parse { .. }) => {}
         other => panic!("a fillet without its selection must refuse at the body, got {other:?}"),
     }

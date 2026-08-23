@@ -2,7 +2,10 @@
 //! through the raw builder (insert with provisional null keys, then
 //! patch — see the builder notes in [`crate::body`]).
 //!
-//! Test-only (`#[cfg(test)]` at the declaration site). Three families:
+//! Test-only (`#[cfg(test)]` at the declaration site), so a `tests/`
+//! binary cannot name any of it. This is one of three homes for test
+//! vocabulary in this crate; `src/test_support_impl.rs`'s docs give the
+//! rule for which one a new item belongs in. Three families:
 //!
 //! - [`ngon_pillow`] — the minimal *closed* body family: two n-gon faces
 //!   glued along an n-cycle of edges ("pillow"). `n = 2` is the digon
@@ -16,6 +19,10 @@
 //!   one face whose outer loop is `Empty`, holding a lone vertex.
 //!   Tier-1-legal by design.
 //!
+//! Plus two whole-body observations the suites compare by —
+//! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
+//! (key-for-key, field-for-field, provenance-for-provenance).
+//!
 //! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
 //! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
 //! the kill-direction, oracle, and teardown tests.
@@ -26,6 +33,7 @@
 //! documented geometric pictures live in the doc comments here and in
 //! the topology itself, and that is what orientation reasoning in tests
 //! points at.
+//!
 
 // Test-support code: panicking is a test's failure mechanism (L5), and
 // fixture unwraps are on keys the fixture itself just minted.
@@ -42,6 +50,8 @@ use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+use crate::test_support_impl::ArenaCounts;
+use geom_core::Tol;
 
 /// The fixture provenance (all fixture entities share it).
 pub(crate) fn prov() -> Provenance {
@@ -54,14 +64,14 @@ pub(crate) fn prov() -> Provenance {
 /// no geometric claims about the fixture's topology (raw fixtures make
 /// no validity promises anyway; the anchor keeps snapshots
 /// per-call-site distinct like the M0 placeholder anchors did).
-pub(crate) fn test_curve(anchor: Point3<f64>) -> geom_brep::EdgeCurve<f64> {
+pub(crate) fn test_curve(anchor: Point3<f64>, tol: Tol) -> geom_brep::EdgeCurve<f64> {
     let spec = geom_brep::EdgeCurveSpec::self_loop_circle_at(anchor);
     geom_brep::EdgeCurve::certify(
         spec,
         anchor,
         anchor,
         |_| None,
-        geom_core::Band::linear().unwrap(),
+        geom_core::Band::linear(tol).unwrap(),
     )
     .unwrap()
 }
@@ -69,8 +79,39 @@ pub(crate) fn test_curve(anchor: Point3<f64>) -> geom_brep::EdgeCurve<f64> {
 /// A raw-fixture surface: the `Nurbs` "no description yet" state (the
 /// anchor argument is accepted for call-site symmetry with
 /// [`test_curve`] and ignored — surfaces carry no certification).
-pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom_surfaces::Surface<f64> {
-    geom_surfaces::Surface::nurbs_placeholder()
+pub(crate) fn test_surface(_anchor: Point3<f64>) -> geom::Surface<f64> {
+    geom::Surface::nurbs_placeholder()
+}
+
+/// All ten arena lengths of a body: the seven topology arenas, held as
+/// the crate's one [`ArenaCounts`], plus the three geometry arenas.
+/// The "body unchanged" snapshot of the atomicity tests, and the delta
+/// base of the operator count checks.
+///
+/// The topology half is *not* restated here: an `ArenaSnapshot` is an
+/// [`ArenaCounts`] extended by geometry, and the seven have exactly one
+/// producer ([`Body::arena_counts`]), shared with the debug
+/// postcondition that checks them against each operator's declared
+/// delta.
+///
+/// A different quantity from [`crate::euler::ArenaDelta`]: these are
+/// counts, not shifts, and they include geometry.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ArenaSnapshot {
+    pub counts: ArenaCounts,
+    pub points: usize,
+    pub curves: usize,
+    pub surfaces: usize,
+}
+
+/// Captures every arena length of `body`.
+pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
+    ArenaSnapshot {
+        counts: body.arena_counts(),
+        points: body.points().count(),
+        curves: body.curves().count(),
+        surfaces: body.surfaces().count(),
+    }
 }
 
 /// A deep, order-sensitive snapshot of a body: one line per arena entry
@@ -182,7 +223,7 @@ pub(crate) struct NgonPillow {
 /// # Panics
 ///
 /// If `n == 0` (fixture misuse, not kernel behavior).
-pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
+pub(crate) fn ngon_pillow(n: usize, tol: Tol) -> NgonPillow {
     assert!(n >= 1, "an n-gon pillow needs at least one edge");
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -204,7 +245,7 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
     let curves: Vec<CurveKey> = (0..n)
-        .map(|_| body.add_curve(test_curve(Point3::origin())))
+        .map(|_| body.add_curve(test_curve(Point3::origin(), tol)))
         .collect();
     let surface_a = body.add_surface(test_surface(Point3::origin()));
     let surface_b = body.add_surface(test_surface(Point3::origin()));
@@ -349,8 +390,8 @@ pub(crate) fn ngon_pillow(n: usize) -> NgonPillow {
 }
 
 /// The digon pillow — the minimal closed fixture (see [`ngon_pillow`]).
-pub(crate) fn pillow() -> NgonPillow {
-    ngon_pillow(2)
+pub(crate) fn pillow(tol: Tol) -> NgonPillow {
+    ngon_pillow(2, tol)
 }
 
 /// Key bundle for [`prism`].
@@ -404,7 +445,7 @@ pub(crate) struct Prism {
 /// # Panics
 ///
 /// If `n < 2` (fixture misuse, not kernel behavior).
-pub(crate) fn prism(n: usize) -> Prism {
+pub(crate) fn prism(n: usize, tol: Tol) -> Prism {
     assert!(n >= 2, "a prism needs at least a digon cap");
     let mut body = Body::<f64>::new();
     let null_he = HalfEdgeKey::default();
@@ -428,7 +469,7 @@ pub(crate) fn prism(n: usize) -> Prism {
     let bottom_points: Vec<PointKey> = (0..n)
         .map(|i| body.add_point(Point3::new(index_coord(i), 0.0, 0.0)))
         .collect();
-    let mut curve = || body.add_curve(test_curve(Point3::origin()));
+    let mut curve = || body.add_curve(test_curve(Point3::origin(), tol));
     let curves_t: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_b: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
     let curves_v: Vec<CurveKey> = (0..n).map(|_| curve()).collect();
@@ -700,7 +741,7 @@ pub(crate) struct OpsCube {
 /// Builds the unit cube through the operators (1 mvfs + 7 mev + 5 mef,
 /// the §9.4.2-minimal sequence; same construction as the PR 2
 /// acceptance test).
-pub(crate) fn ops_cube() -> OpsCube {
+pub(crate) fn ops_cube(tol: Tol) -> OpsCube {
     let pt = Point3::new;
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
@@ -710,14 +751,15 @@ pub(crate) fn ops_cube() -> OpsCube {
                 r#loop: seed.r#loop,
             },
             pt(1.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
     };
     let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
     let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
     let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
     let he_dc = body
@@ -761,20 +803,20 @@ pub(crate) struct OpsHoledBox {
 /// 1 kfmrh, same construction as the PR 3 acceptance test (on the unit
 /// cube instead of the 2×2×2 box; coordinates are scaled, structure
 /// identical).
-pub(crate) fn ops_holed_box() -> OpsHoledBox {
+pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     let pt = Point3::new;
     let OpsCube {
         mut body,
         seed,
         mevs,
         mefs,
-    } = ops_cube();
+    } = ops_cube(tol);
     let strut = |body: &mut Body<f64>, at, x, y, z| {
-        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+        body.mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z), tol)
             .unwrap()
     };
     let mef =
-        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        |body: &mut Body<f64>, he1, he2| body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
     let f_bottom = mefs[0];
     let f_front = mefs[1];
     // (f)–(g): plant the hole anchor P as an empty ring of the top face.
@@ -783,7 +825,11 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
     // (h)–(i): grow and close the rim P→Q→R→S; a membrane face covers
     // the opening.
     let s_pq = body
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(0.75, 0.25, 1.0))
+        .mev_line(
+            MevSite::Lone { r#loop: kill.ring },
+            pt(0.75, 0.25, 1.0),
+            tol,
+        )
         .unwrap(); // Q
     let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0); // R
     let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0); // S
@@ -822,11 +868,11 @@ pub(crate) fn ops_holed_box() -> OpsHoledBox {
 /// triangular through-hole carved front → back (the PR 4 review's
 /// recipe, compacted from `src/review_m1_pr4.rs`'s
 /// `genus_two_double_hole_body_tears_down_to_nothing` — the annotated
-/// original stays in the review artifact). Ledger check inside:
+/// original stays in the review artifact). Euler ledger check inside:
 /// v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2).
-pub(crate) fn ops_genus2() -> Body<f64> {
+pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
     let pt = Point3::new;
-    let t = ops_holed_box();
+    let t = ops_holed_box(tol);
     let mut body = t.body;
     let f_front = t.box_mefs[1].face;
     let f_back = t.box_mefs[3].face;
@@ -839,11 +885,11 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     // Plant the rim anchor as an empty ring of the front face, then
     // grow and close the triangular rim; a membrane face covers it.
     let strut = body
-        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0])
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim_pts[0], tol)
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     let mut rim: Vec<MevCreated> = vec![
-        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1])
+        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim_pts[1], tol)
             .unwrap(),
     ];
     for rp in &rim_pts[2..] {
@@ -855,15 +901,19 @@ pub(crate) fn ops_genus2() -> Body<f64> {
                     he2: prev,
                 },
                 *rp,
+                tol,
             )
             .unwrap(),
         );
     }
     let membrane = body
-        .mef_chord(MefSite::Chords {
-            he1: rim[0].he_plus,
-            he2: rim.last().unwrap().he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: rim[0].he_plus,
+                he2: rim.last().unwrap().he_minus,
+            },
+            tol,
+        )
         .unwrap();
     // Drop the verticals, cut the tube walls, and connect the sum.
     let mut drops: Vec<MevCreated> = Vec::new();
@@ -880,24 +930,31 @@ pub(crate) fn ops_genus2() -> Body<f64> {
                     he2: anchor,
                 },
                 *dp,
+                tol,
             )
             .unwrap(),
         );
     }
     for i in 0..drops.len() - 1 {
-        body.mef_chord(MefSite::Chords {
-            he1: drops[i].he_minus,
-            he2: drops[i + 1].he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: drops[i].he_minus,
+                he2: drops[i + 1].he_minus,
+            },
+            tol,
+        )
         .unwrap();
     }
     let he_first_far = body
         .find_half_edge(membrane.face, drops[0].vertex, drops[1].vertex)
         .unwrap();
-    body.mef_chord(MefSite::Chords {
-        he1: drops.last().unwrap().he_minus,
-        he2: he_first_far,
-    })
+    body.mef_chord(
+        MefSite::Chords {
+            he1: drops.last().unwrap().he_minus,
+            he2: he_first_far,
+        },
+        tol,
+    )
     .unwrap();
     body.kfmrh(f_back, membrane.face).unwrap();
     // Genus-2 checkpoint.
@@ -909,4 +966,158 @@ pub(crate) fn ops_genus2() -> Body<f64> {
     assert_eq!(v - e + f - r, -2, "genus 2");
     assert_eq!(crate::validate::validate(&body), Ok(()));
     body
+}
+
+/// `text` with every **comment** and every **literal body** blanked —
+/// the shared answer to *"is this text code?"* for the crate's textual
+/// guards.
+///
+/// Lives here for [`src_root`]'s reason one paragraph up: the guards
+/// that walk this crate's sources each carried their own
+/// `trim_start().starts_with("//")` line test, which is blind to a
+/// `/* … */` block, to `#[doc = "…"]`, and to a needle sitting inside a
+/// string. A guard against duplication should not be the next copy of
+/// its own walk, and the *predicate* is the part that was being copied.
+///
+/// Removed: `//` line comments (anywhere on the line, not only at its
+/// start), `/* … */` blocks (nested), and the CONTENTS of string, byte
+/// and char literals — nothing that a read of an identifier can hide
+/// inside, so blanking them can only remove false positives, never
+/// create a false negative. Byte offsets and line structure are
+/// preserved (newlines survive; removed bytes become spaces), so a
+/// caller may still count lines.
+///
+/// **What it does not model**, because `topo/src` contains none and a
+/// guard that silently mis-parses is worse than one that says so:
+/// **raw strings** (`r"…"`, `r#"…"#`) are treated as an ordinary
+/// string opened at the quote, which is correct unless the body
+/// contains a backslash-quote pair; and an identifier assembled by a
+/// macro (`concat_idents!`, `paste!`) is invisible to any textual walk.
+pub(crate) fn code_only(text: &str) -> String {
+    let b = text.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    // Blank a byte range, keeping newlines so line numbers survive.
+    let blank = |out: &mut Vec<u8>, b: &[u8], from: usize, to: usize| {
+        for &c in &b[from..to.min(b.len())] {
+            out.push(if c == b'\n' { b'\n' } else { b' ' });
+        }
+    };
+    let mut i = 0usize;
+    while i < b.len() {
+        match b[i] {
+            b'/' if b.get(i + 1) == Some(&b'/') => {
+                let start = i;
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+                blank(&mut out, b, start, i);
+            }
+            b'/' if b.get(i + 1) == Some(&b'*') => {
+                let (start, mut depth) = (i, 1usize);
+                i += 2;
+                while i + 1 < b.len() && depth > 0 {
+                    if b[i] == b'/' && b[i + 1] == b'*' {
+                        depth += 1;
+                        i += 2;
+                    } else if b[i] == b'*' && b[i + 1] == b'/' {
+                        depth -= 1;
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                }
+                if depth > 0 {
+                    i = b.len();
+                }
+                blank(&mut out, b, start, i);
+            }
+            b'"' => {
+                let start = i;
+                i += 1;
+                while i < b.len() && b[i] != b'"' {
+                    i += usize::from(b[i] == b'\\') + 1;
+                }
+                i = (i + 1).min(b.len());
+                blank(&mut out, b, start, i);
+            }
+            // A quote is a char literal only if it closes within one
+            // character (or one escape). Otherwise it is a LIFETIME and
+            // must stay code — mis-reading `'a` as an opening quote
+            // would swallow the rest of the file.
+            b'\'' => {
+                let close = if b.get(i + 1) == Some(&b'\\') {
+                    (i + 2..b.len().min(i + 8)).find(|&k| b[k] == b'\'')
+                } else {
+                    let mut k = i + 1;
+                    // One UTF-8 scalar: 1 byte plus its continuations.
+                    k += 1;
+                    while k < b.len() && (b[k] & 0b1100_0000) == 0b1000_0000 {
+                        k += 1;
+                    }
+                    (b.get(k) == Some(&b'\'')).then_some(k)
+                };
+                match close {
+                    Some(k) => {
+                        blank(&mut out, b, i, k + 1);
+                        i = k + 1;
+                    }
+                    None => {
+                        out.push(b'\'');
+                        i += 1;
+                    }
+                }
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).unwrap_or_default()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod code_only_tests {
+    /// The shared "is this text code?" predicate, pinned on the four
+    /// shapes the line-prefix test it replaces was blind to, and on the
+    /// one shape a naive quote-scanner breaks on (a lifetime).
+    #[test]
+    fn comments_and_literal_bodies_are_blanked_and_code_is_not() {
+        let n = concat!("sense", "_sign");
+        let blanked = [
+            "// a line comment naming sense_sign",
+            "/// a doc comment naming sense_sign",
+            "//! a module comment naming sense_sign",
+            "/* a block naming sense_sign */",
+            "/* outer /* nested naming sense_sign */ still inside */",
+            "let x = 1; // trailing comment naming sense_sign",
+            "const S: &str = \"a string naming sense_sign\";",
+            "#[doc = \"an attribute naming sense_sign\"]",
+        ];
+        for row in blanked {
+            let out = super::code_only(row);
+            assert_eq!(out.matches(n).count(), 0, "not blanked: {row}");
+            assert_eq!(out.len(), row.len(), "byte offsets moved: {row}");
+        }
+
+        // Code survives, including code that FOLLOWS a blanked region
+        // on the same line — the prefix test could not see it at all.
+        for row in [
+            "let s = f.sense_sign::<T>();",
+            "/* c */ let s = f.sense_sign::<T>();",
+            "let q = '\\'' ; let s = f.sense_sign::<T>();",
+            // A double-quote CHAR literal: mis-read as an opening
+            // string, this swallows the rest of the file.
+            "if line.contains('\"') { let s = f.sense_sign::<T>(); }",
+            // A lifetime is not a quote.
+            "fn f<'a>(x: &'a str) -> T { x.sense_sign() }",
+        ] {
+            assert_eq!(super::code_only(row).matches(n).count(), 1, "lost: {row}");
+        }
+
+        // Newlines survive, so a caller may still count lines.
+        let multi = "// sense_sign\nlet s = f.sense_sign();\n";
+        assert_eq!(super::code_only(multi).lines().count(), 2);
+    }
 }

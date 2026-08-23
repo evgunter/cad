@@ -44,6 +44,7 @@ use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::validated;
+use pncad::geom_core::Tol;
 
 /// Exact volume oracle: 880383/327680 (counter-hole A × Z), derived by
 /// independent exact-fraction integration for the #93 acceptance test
@@ -72,23 +73,25 @@ const A_COUNTER: [(f64, f64); 3] = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 
 /// Letterform polygons, authored through the PATHS algebra (LIB-U2
 /// PR-2): same vertices, same loop — said as a chain of `line_to`s
 /// closing at `Start`.
-fn lp<S: Scalar>(poly: &[(f64, f64)]) -> ProfileLoop<S> {
-    crate::paths::path_polygon(poly)
+fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ProfileLoop<S> {
+    crate::paths::path_polygon(poly, tol)
 }
 
 /// The A prism: xy sketch at z = -1/16, extruded 2.125 along +z
 /// (strictly covering Z's z-extent — the C2 decoupling audit from #91:
 /// the only possible coincident carriers are y = const planes, and the
 /// two bodies' y-plane sets are disjoint by 1/16 straddles).
-fn a_prism<S: Scalar>() -> Body<S> {
+fn a_prism<S: Scalar>(tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(
         Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(-0.0625)),
         Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
     extrude(
-        &validated(plane, vec![lp(&A_OUTLINE), lp(&A_COUNTER)]).expect("A x Z profile"),
+        &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol)
+            .expect("A x Z profile"),
         Extrusion::Distance(S::from_f64(2.125)),
+        tol,
     )
     .expect("extrude A")
     .body
@@ -97,7 +100,7 @@ fn a_prism<S: Scalar>() -> Body<S> {
 /// The Z prism: (y, z) sketch at x = -1/16 — bars z ∈ [0, 0.4375] and
 /// [1.5625, 2], diagonal at slope 3/5 — extruded 2.125 along +x
 /// (strictly covering A's x-extent).
-fn z_prism<S: Scalar>() -> Body<S> {
+fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
     let z_poly = [
         (-0.0625, 0.0),
         (2.5625, 0.0),
@@ -116,8 +119,9 @@ fn z_prism<S: Scalar>() -> Body<S> {
         Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
     extrude(
-        &validated(plane, vec![lp(&z_poly)]).expect("A x Z profile"),
+        &validated(plane, vec![lp(&z_poly, tol)], tol).expect("A x Z profile"),
         Extrusion::Distance(S::from_f64(2.125)),
+        tol,
     )
     .expect("extrude Z")
     .body
@@ -125,16 +129,20 @@ fn z_prism<S: Scalar>() -> Body<S> {
 
 /// Builds the A × Z intersect result (generic — the Probe sweep runs
 /// the same construction).
-pub(crate) fn build<S: Scalar>() -> pncad::topo::BooleanBody<S> {
+pub(crate) fn build<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
     expect_seamed(
         "A x Z intersect (counter-hole A)",
-        check(try_intersect(&a_prism::<S>(), &z_prism::<S>()), V_AZ),
+        check(
+            try_intersect(&a_prism::<S>(tol), &z_prism::<S>(tol), tol),
+            V_AZ,
+            tol,
+        ),
         V_AZ,
     )
 }
 
-pub fn stops() -> Vec<Stop> {
-    let az = build::<f64>();
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let az = build::<f64>(tol);
     vec![Stop {
         name: "az",
         caption: "A x Z (the #93 acceptance case)".to_string(),

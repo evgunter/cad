@@ -53,7 +53,7 @@ optional = true
 oracle-inari = ["dep:inari"]
 
 [dev-dependencies]
-# Shared fuzz harness for tests/review_fuzz_div.rs (one RNG, the per-run
+# Shared fuzz harness for tests/review_fuzz_exact.rs (one RNG, the per-run
 # seed, the CAD_FUZZ_EFFORT dial) — the same one every sweep in the
 # kernel workspace draws from, so one dial and one seed cover the whole
 # tree including this separate root.

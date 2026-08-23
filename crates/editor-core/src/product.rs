@@ -54,12 +54,13 @@
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{Body, PropsQuadLane, ValidationError};
+use topo::{Body, ContactRecords, PropsQuadLane, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
+use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
+use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
 /// the roots or none of them — there are no partial products.
@@ -119,6 +120,16 @@ pub enum ProductError {
         /// Every failure the validator found.
         errors: Vec<ValidationError>,
     },
+    /// A source's declared contact record names an entity the graft's
+    /// descendant map has no image for (ASM-R2b D-1). The bridge is
+    /// total over what it grafted, so this is a bridge bug surfaced —
+    /// never a quietly dropped declaration.
+    ContactLineage {
+        /// The root whose records were being carried.
+        node: RecipeNodeId,
+        /// Which entity kind had no descendant.
+        what: &'static str,
+    },
 }
 
 impl core::fmt::Display for ProductError {
@@ -157,6 +168,13 @@ impl core::fmt::Display for ProductError {
                 f,
                 "product: the gathered product is not valid at rest: {errors:?}"
             ),
+            Self::ContactLineage { node, what } => write!(
+                f,
+                "product: root {node:?}'s declared contact names a {what} the \
+                 graft's descendant map has no image for — the key bridge is \
+                 incomplete; declarations are never dropped to make a gather \
+                 succeed"
+            ),
         }
     }
 }
@@ -169,16 +187,36 @@ impl core::error::Error for ProductError {}
 /// rows by, so carrying it here is what lets [`product_named`] find the
 /// rows belonging to each grafted body. `None` for a root that denotes
 /// no body at all.
-fn sources_of<T: Decide>(payload: &ValuePayload<T>) -> Option<Vec<(u32, Arc<Body<T>>)>> {
-    match payload {
-        ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body))]),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => Some(vec![(0, Arc::clone(body))]),
+///
+/// Each source also carries the DECLARED CONTACT RECORDS keyed in that
+/// body's arena (ASM-R2b D-1). This function is the ONE place the
+/// channel's two homes reconcile: a boolean's records ride its payload
+/// (the `BooleanBody` contract, which predates the channel), every
+/// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
+/// therefore never asks which op put records where.
+fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
+    let carried = || Arc::clone(&value.contacts);
+    let none = || Arc::new(ContactRecords::default());
+    match &value.payload {
+        ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body), carried())]),
+        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+            Some(vec![(0, Arc::clone(body), Arc::clone(contacts))])
+        }
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
+        // Multi-output ops carry no records (the `OpOut` invariant):
+        // "output body 0" names nothing here, so there is no home to
+        // read from and none is invented.
         ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
-                .map(|(i, body)| (u32::try_from(i).unwrap_or(u32::MAX), Arc::clone(body)))
+                .map(|(i, body)| {
+                    (
+                        u32::try_from(i).unwrap_or(u32::MAX),
+                        Arc::clone(body),
+                        none(),
+                    )
+                })
                 .collect(),
         ),
         // Split's halves are output bodies 0 (above) and 1 (below);
@@ -189,7 +227,7 @@ fn sources_of<T: Decide>(payload: &ValuePayload<T>) -> Option<Vec<(u32, Arc<Body
             [(0u32, above), (1u32, below)]
                 .into_iter()
                 .filter_map(|(ix, side)| match side {
-                    SplitSide::Body(body) => Some((ix, Arc::clone(body))),
+                    SplitSide::Body(body) => Some((ix, Arc::clone(body), none())),
                     SplitSide::Empty => None,
                 })
                 .collect(),
@@ -219,18 +257,36 @@ fn sources_of<T: Decide>(payload: &ValuePayload<T>) -> Option<Vec<(u32, Arc<Body
 pub fn product<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Body<T>, ProductError> {
-    product_named(doc, evaluation).map(|(body, _)| body)
+    product_recorded(doc, evaluation, tol).map(|p| p.body)
+}
+
+/// The whole-document product, with everything the gather knows about
+/// it: the aggregate body, its name table, and its DECLARED CONTACT
+/// RECORDS (ASM-R2b D-1).
+///
+/// Three doors, one implementation — [`product`] and [`product_named`]
+/// are this function with fields dropped — because a gather that named
+/// or recorded its entities differently from the gather that shipped
+/// them would be a second truth about what a document's product is.
+#[derive(Debug)]
+pub struct Product<T: Decide> {
+    /// The gathered aggregate.
+    pub body: Body<T>,
+    /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
+    pub names: NameTable,
+    /// Its declared contacts, re-keyed onto the aggregate through the
+    /// graft's own descendant map.
+    pub contacts: ContactRecords,
 }
 
 /// The document's product, with the product's own NAME TABLE: every
 /// gathered root's stable names, re-keyed onto the aggregate's entities
 /// (ASM-2A D-4).
 ///
-/// One implementation serves both doors — [`product`] is this function
-/// with the table dropped — because a gather that named its entities
-/// differently from the gather that shipped them would be a second
-/// truth about what a document's product is.
+/// One implementation serves all three doors — this is
+/// [`product_recorded`] with the contacts dropped.
 ///
 /// The table carries FACE, EDGE and VERTEX rows. Body-kind rows are
 /// deliberately absent: a root's body name denotes THAT ROOT's body,
@@ -246,7 +302,35 @@ pub fn product<P, T: Decide + PropsQuadLane>(
 pub fn product_named<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<(Body<T>, NameTable), ProductError> {
+    product_recorded(doc, evaluation, tol).map(|p| (p.body, p.names))
+}
+
+/// The document's product with its name table AND its declared contact
+/// records — the widest of the three doors, and the one the other two
+/// are defined by ([`Product`]).
+///
+/// # The contacts carry (ASM-R2b D-1)
+///
+/// A source body's records move onto the aggregate through the GRAFT's
+/// own descendant map, exactly as its name rows do — the lineage rule
+/// the boolean pipeline's `remap_contacts` states: a record's new key
+/// is the key the graft says its old entity BECAME, never a key
+/// re-derived by looking at the gathered geometry. Re-derivation is
+/// the scan-to-bless move F1 bans; there is no second opinion here
+/// about which faces touch.
+///
+/// # Errors
+///
+/// Every arm of [`ProductError`], including
+/// [`ProductError::ContactLineage`] when the graft's bridge has no
+/// image for a record's entity.
+pub fn product_recorded<P, T: Decide + PropsQuadLane>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+) -> Result<Product<T>, ProductError> {
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is
@@ -267,14 +351,14 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
                 });
             }
         };
-        let Some(bodies) = sources_of(&value.payload) else {
+        let Some(bodies) = sources_of(value) else {
             continue;
         };
         any_body_denoting = true;
         sources.extend(
-            bodies
-                .into_iter()
-                .map(|(ix, body)| (node, ix, body, Arc::clone(&value.name_table))),
+            bodies.into_iter().map(|(ix, body, contacts)| {
+                (node, ix, body, Arc::clone(&value.name_table), contacts)
+            }),
         );
     }
     if !any_body_denoting {
@@ -286,10 +370,13 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
     // is over SOLIDS, not sources: one source may itself carry several
     // (an instantiated sub-assembly), and it is the product's solid
     // count the rule speaks about.
-    let total_solids: usize = sources.iter().map(|(_, _, b, _)| b.solids().count()).sum();
+    let total_solids: usize = sources
+        .iter()
+        .map(|(_, _, b, _, _)| b.solids().count())
+        .sum();
     if total_solids > 1 {
-        for (node, _, body, _) in &sources {
-            topo::validate_geometric(body.as_ref()).map_err(|errors| {
+        for (node, _, body, _, _) in &sources {
+            topo::validate_geometric(body.as_ref(), tol).map_err(|errors| {
                 ProductError::SolidInvalid {
                     node: *node,
                     errors,
@@ -306,31 +393,106 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
     // is the same code for N as for 1.
     let mut aggregate = Body::new();
     let mut names = NameTable::new();
-    for (node, ix, body, table) in &sources {
+    let mut contacts = ContactRecords::default();
+    for (node, ix, body, table, records) in &sources {
         // An empty source contributes nothing; the graft door refuses a
         // solidless body, so the skip is here rather than there.
         if body.solids().next().is_none() {
             continue;
         }
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref()).map_err(|source| {
-                ProductError::Graft {
-                    node: *node,
-                    source: Box::new(source),
-                }
-            })?;
+        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(
+            |source| ProductError::Graft {
+                node: *node,
+                source: Box::new(source),
+            },
+        )?;
         carry_names(&mut names, table, *ix, &keys)
             .map_err(|name| ProductError::Naming { node: *node, name })?;
+        carry_contacts(&mut contacts, records, &keys)
+            .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
     }
-    topo::validate_geometric(&aggregate)
+    topo::validate_geometric(&aggregate, tol)
         .map_err(|errors| ProductError::ProductInvalid { errors })?;
-    Ok((aggregate, names))
+    Ok(Product {
+        body: aggregate,
+        names,
+        contacts,
+    })
 }
 
 /// One body the gather will graft: which root contributed it, which
 /// OUTPUT-BODY index it occupies in that root's value (the index its
-/// name rows are keyed by), the body, and the root's name table.
-type Source<T> = (RecipeNodeId, u32, Arc<Body<T>>, Arc<NameTable>);
+/// name rows are keyed by), the body, the root's name table, and the
+/// body's declared contact records.
+type Source<T> = (
+    RecipeNodeId,
+    u32,
+    Arc<Body<T>>,
+    Arc<NameTable>,
+    Arc<ContactRecords>,
+);
+
+/// One body-denoting source as [`sources_of`] hands it back: output
+/// index, body, and the records keyed in that body's arena.
+type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
+
+/// Re-keys one grafted body's contact records onto the aggregate,
+/// through the graft's DESCENDANT MAP (`product_recorded`'s contacts
+/// carry). INVARIANT: every key here is `keys.<kind>(old)` — the
+/// lineage the graft recorded. Nothing is looked up by position, by
+/// name, or by re-measuring the aggregate.
+///
+/// The bridge is total over a source it grafted, so a missing image is
+/// a bridge bug, not a dropped declaration: it refuses typed rather
+/// than silently weakening the at-rest gate the records feed.
+///
+/// [`ProductError::ContactLineage`] is therefore DEFENSIVE and has no
+/// test: no public API can reach it without first breaking the graft's
+/// own key-bridge contract. Stated rather than left to be discovered —
+/// an arm that cannot be exercised is worth knowing about, and the
+/// alternative (dropping the record) is the failure this guards.
+fn carry_contacts(
+    into: &mut ContactRecords,
+    from: &ContactRecords,
+    keys: &topo::GraftKeys,
+) -> Result<(), &'static str> {
+    let vertex = |v| keys.vertex(v).ok_or("vertex");
+    let face = |f| keys.face(f).ok_or("face");
+    let edge = |e| keys.edge(e).ok_or("edge");
+    for c in &from.vv {
+        into.vv.push(topo::VvContact {
+            a: vertex(c.a)?,
+            b: vertex(c.b)?,
+        });
+    }
+    for (src, dst) in [(&from.a_on_b, 0u8), (&from.b_on_a, 1)] {
+        for c in src {
+            let moved = topo::VfContact {
+                vertex: vertex(c.vertex)?,
+                face: face(c.face)?,
+            };
+            if dst == 0 {
+                into.a_on_b.push(moved);
+            } else {
+                into.b_on_a.push(moved);
+            }
+        }
+    }
+    for c in &from.curves {
+        into.curves.push(topo::CurveContact {
+            face_a: face(c.face_a)?,
+            face_b: face(c.face_b)?,
+            witness: edge(c.witness)?,
+        });
+    }
+    for c in &from.patches {
+        into.patches.push(topo::PatchContact {
+            face_a: face(c.face_a)?,
+            face_b: face(c.face_b)?,
+        });
+    }
+    Ok(())
+}
 
 /// Re-keys one grafted body's name rows onto the aggregate: the same
 /// stable names, pointing at the entities the graft minted. Body index

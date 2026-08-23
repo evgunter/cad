@@ -143,14 +143,14 @@ fn one_ulp_lex_min_tie_is_deterministic() {
     let x_hi = 1.0f64.next_up(); // 1 + 2^-52
     let base = ProfileLoop::polygon([p2(x_lo, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(x_hi, 2.0)]);
     let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos;
+    let v0 = canon.loops()[0].vertices()[0].pos();
     assert_eq!(v0.x.to_bits(), x_lo.to_bits(), "lex-min must be x = 1.0");
     for r in 0..4 {
         for reversed in [false, true] {
-            let n = base.vertices.len();
+            let n = base.vertices().len();
             let rotated = ProfileLoop::new(
                 (0..n)
-                    .map(|k| base.vertices[(r + k) % n])
+                    .map(|k| base.vertices()[(r + k) % n])
                     .collect::<Vec<_>>(),
             );
             let lp = if reversed {
@@ -174,14 +174,14 @@ fn one_ulp_lex_min_tie_is_deterministic() {
 fn origin_centered_square_canonicalizes_uniquely() {
     let base = ProfileLoop::polygon([p2(-1.0, -1.0), p2(1.0, -1.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
     let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos;
+    let v0 = canon.loops()[0].vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (-1.0, -1.0));
     for r in 0..4 {
         for reversed in [false, true] {
-            let n = base.vertices.len();
+            let n = base.vertices().len();
             let rotated = ProfileLoop::new(
                 (0..n)
-                    .map(|k| base.vertices[(r + k) % n])
+                    .map(|k| base.vertices()[(r + k) % n])
                     .collect::<Vec<_>>(),
             );
             let lp = if reversed {
@@ -281,11 +281,8 @@ fn cocircular_partial_arc_overlap() {
     // Two vertices: `a` leaves along the shared carrier to `b`, and `b`
     // closes back on the straight chord.
     let riding = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: a,
-            bulge: bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw),
-        },
-        ProfileVertex { pos: b, bulge: 0.0 },
+        ProfileVertex::new(a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
+        ProfileVertex::new(b, 0.0),
     ]);
     match err(&profile(vec![lens, riding])) {
         ProfileError::NonSimple {
@@ -321,7 +318,7 @@ fn externally_tangent_loops_are_tangential_contact() {
 /// definitely-corner joins.
 #[test]
 fn near_tangent_join_escalates() {
-    let eps = tol().eps;
+    let eps = tol().eps();
     // Quarter arc leaving (2,0) with chord rotated by phi off the
     // exact-tangency direction (45 deg): carrier clearance to the
     // incoming line y=0 is r(1 - cos phi) ~ phi^2/2 with r = 1.
@@ -342,7 +339,7 @@ fn near_tangent_join_escalates() {
             (0.0, 3.0, 0.0),
         ]);
         if declare {
-            lp.tangent_joints = vec![1, 2];
+            lp = lp.with_tangent_joints(vec![1, 2]);
         }
         profile(vec![lp])
     };
@@ -481,7 +478,7 @@ fn far_from_origin_rectangle_and_l_profile_validate() {
     let r = rect(big, big, 2.0, 1.0);
     let vp = ok(&profile(vec![r]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos;
+    let v0 = vp.loops()[0].vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (big, big));
     // With a hole (ray casting + orientation of both loops far away).
     let vp = ok(&profile(vec![
@@ -514,7 +511,7 @@ fn near_full_arc_with_chord_closure_validates() {
     // Half-gap angle, sized so the chord-to-carrier clearance
     // r(1 - cos delta) ~ delta^2/2 clears the escalation band (>= 20
     // eps) at whatever eps the CI row runs.
-    let delta = (44.0 * tol().eps).sqrt();
+    let delta = (44.0 * tol().eps()).sqrt();
     let (s, c) = (delta.sin(), delta.cos());
     let a = p2(c, s);
     let b = p2(c, -s);
@@ -557,7 +554,7 @@ fn near_full_arc_with_chord_closure_validates() {
 fn hair_thin_near_full_arc_is_refused_but_mislabeled() {
     // Clearance r(1-cos delta) ~ delta^2/2 well below eps (and the
     // diameter clearance ~ delta^2/4 below it too).
-    let delta = (0.02 * tol().eps).sqrt();
+    let delta = (0.02 * tol().eps()).sqrt();
     let (s, c) = (delta.sin(), delta.cos());
     let theta = std::f64::consts::TAU - 2.0 * delta;
     let bulge = (theta / 4.0).tan();

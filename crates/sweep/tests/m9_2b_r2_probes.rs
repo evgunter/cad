@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -24,26 +25,19 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 fn holed_plate() -> Body<f64> {
     let outer = ProfileLoop::new(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .to_vec(),
     );
     let hole = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(2.5, 2.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(1.5, 2.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(2.5, 2.0), 1.0),
+        ProfileVertex::new(p2(1.5, 2.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The through-boss: radius 0.5 at (2, 2), three 120-deg arcs with
@@ -57,35 +51,37 @@ fn through_boss() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(90.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(210.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(330.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(90.0), b120),
+        ProfileVertex::new(at(210.0), b120),
+        ProfileVertex::new(at(330.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.6)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.6), Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]
 fn probe_cross_instance_conformal_wall_touch_at_three_prime() {
     let plate = holed_plate();
     let boss = through_boss();
-    assert_eq!(topo::validate_geometric(&plate), Ok(()), "plate tier 3");
-    assert_eq!(topo::validate_geometric(&boss), Ok(()), "boss tier 3");
+    assert_eq!(
+        topo::validate_geometric(&plate, Tol::witness()),
+        Ok(()),
+        "plate tier 3"
+    );
+    assert_eq!(
+        topo::validate_geometric(&boss, Tol::witness()),
+        Ok(()),
+        "boss tier 3"
+    );
     let mut body = plate.clone();
-    topo::graft_disjoint(&mut body, &boss).unwrap();
-    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default());
+    topo::graft_disjoint(&mut body, &boss, Tol::witness()).unwrap();
+    let verdict =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("cross-instance conformal wall touch, undeclared: {verdict:?}");
     // OBSERVED (a1b78954): the gate refuses LOUDLY — but not through
     // any conformal arm (the walls' keys are distinct, so the arm

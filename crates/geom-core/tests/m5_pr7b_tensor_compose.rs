@@ -484,7 +484,7 @@ fn the_domain_mismatch_message_carries_the_recourse_exactly_once() {
         "the recourse fragment must appear exactly once: {msg}"
     );
     assert_eq!(
-        msg.matches("OQ4").count(),
+        msg.matches("the shared-parameter identity").count(),
         1,
         "the identity is named exactly once: {msg}"
     );

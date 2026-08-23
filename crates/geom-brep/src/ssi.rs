@@ -122,14 +122,14 @@ pub mod jet;
 pub mod march;
 pub mod system;
 
+use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Indeterminate, Margin, Point3};
-use geom_curves::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
 pub use march::{
-    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
+    BranchEnd, MarchTol, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
@@ -194,6 +194,45 @@ pub enum SsiOperand<'a, T: geom_core::Real> {
     Analytic(&'a Surface<T>),
     /// A NURBS surface: certified foot points and chart hulls.
     Nurbs(&'a NurbsSurface<T>),
+}
+
+/// The two lengths a rung-3 certificate is stated over: the lever arm
+/// the transversality margin is levered by, and the feature extent that
+/// sets the tube ladder's widest rung.
+///
+/// **One type rather than two parallel parameters**, for the reason
+/// that made the tolerance one type: at three of the four call sites
+/// they are the same quantity, so as a pair of positional arguments
+/// they are a second copy waiting to drift — the same shape S25 named
+/// for ε, one line below it. [`TubeScale::uniform`] is the common
+/// case; [`TubeScale::split`] is for the caller that genuinely has a
+/// curvature arm narrower than the feature it sits on.
+#[derive(Clone, Copy, Debug)]
+pub struct TubeScale<T> {
+    /// The lever arm the transversality margin is stated over.
+    pub(crate) arm: T,
+    /// The feature extent, in meters — the ladder's widest rung.
+    pub(crate) extent: f64,
+}
+
+impl<T: geom_core::Bounds> TubeScale<T> {
+    /// One length for both: the caller's named feature, used as the
+    /// transversality lever arm and as the ladder's widest rung.
+    #[must_use]
+    pub fn uniform(arm: T) -> Self {
+        Self {
+            arm,
+            extent: geom_core::Bounds::hi(arm),
+        }
+    }
+
+    /// A transversality lever arm distinct from the feature extent —
+    /// the ℝ³ analytic arm, where the folded curvature radius is
+    /// genuinely tighter than the domain's named extent.
+    #[must_use]
+    pub fn split(arm: T, extent: f64) -> Self {
+        Self { arm, extent }
+    }
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
@@ -271,6 +310,34 @@ pub enum SsiError {
         /// The offending value, in meters.
         value: f64,
     },
+    /// Limb 3 never ran: the tube ladder is EMPTY. Every rung radius
+    /// `SSI_TUBE_RADIUS_MAX·extent / 2^k` sits below the ladder floor
+    /// `SSI_TUBE_RADIUS·ε`, which happens when the carrier's extent is
+    /// small against the run's tolerance — a structural fact about the
+    /// pairing of geometry and ε, decided before any box is probed.
+    ///
+    /// It is NOT a limb exceedance, and it does not carry a margin:
+    /// nothing was measured. This variant exists because the case used
+    /// to be reported as `CertificateLimb { limb: Tube, value: NaN }`
+    /// — a structural refusal wearing a limb-exceeded costume, whose
+    /// NaN payload then had to be laundered by every consumer that
+    /// tried to render it.
+    TubeLadderEmpty {
+        /// The carrier extent the ladder was scaled from (meters).
+        extent: f64,
+        /// The floor every rung fell below (meters).
+        floor: f64,
+    },
+    /// Limb 3 ran and never got an answer: the ladder had rungs, but
+    /// no rung's tube probe produced an enclosure at all (each
+    /// returned nothing rather than a margin). Structural, like
+    /// [`SsiError::TubeLadderEmpty`], and likewise carrying no margin
+    /// — the distinction between them is exactly whether any radius
+    /// was ever tried.
+    TubeProbeSilent {
+        /// How many rungs were offered and answered with nothing.
+        rungs: u32,
+    },
     /// Limb 3's transversality enclosure straddles zero over a tube
     /// box: two branches pass within the band of each other. A genuine
     /// sliver (F6), not a resolution failure to retry.
@@ -317,6 +384,23 @@ pub enum SsiError {
     Escalated(Indeterminate),
     /// Band construction refused.
     Band(geom_core::BandError),
+    /// A decoupled marcher step tolerance was not a usable length.
+    InvalidMarchTol {
+        /// The offending value, in meters.
+        value: f64,
+    },
+    /// A branch reached the certifying seam having been marched at a
+    /// tolerance that is not the run band's. **This is S25's divergence
+    /// caught at the one place both numbers are in scope**: the
+    /// certified doors derive the generator's tolerance from the band
+    /// and can only reach this by being edited, so it refuses rather
+    /// than certifying a carrier generated at some other ε.
+    MarchTolMismatch {
+        /// The tolerance the carrier was marched at, in meters.
+        marched: f64,
+        /// The run band's coincidence threshold, in meters.
+        band_zero: f64,
+    },
 }
 
 impl From<FitError> for SsiError {
@@ -342,7 +426,7 @@ impl core::fmt::Display for SsiError {
                 f,
                 "ssi: transversality died along the candidate locus \
                  (sin θ = {sin_theta:e}, arm = {arm:e} m, σ₂ = {sigma_min:e}) — this is \
-                 the tangency regime (TangentIntersection, M5 PR 9), not a locus to \
+                 the tangency regime (TangentIntersection), not a locus to \
                  march through; separate the operands, declare the tangency, or lower \
                  the tolerance"
             ),
@@ -392,12 +476,25 @@ impl core::fmt::Display for SsiError {
                  within tolerance of the locus it claims",
                 limb.name()
             ),
+            Self::TubeLadderEmpty { extent, floor } => write!(
+                f,
+                "ssi: the uniqueness tube's radius ladder is empty — every rung scaled \
+                 from the carrier's {extent:e} m extent falls below the {floor:e} m \
+                 ladder floor, so limb 3 never ran. The carrier is too short against \
+                 this run's tolerance to carry a certified tube; nothing was measured"
+            ),
+            Self::TubeProbeSilent { rungs } => write!(
+                f,
+                "ssi: none of the uniqueness tube's {rungs} ladder rungs produced an \
+                 enclosure, so limb 3 has nothing to decide — a structural refusal, \
+                 with no margin behind it"
+            ),
             Self::TubeStraddles { margin, boxes } => write!(
                 f,
                 "ssi: the uniqueness tube's transversality enclosure straddles zero \
                  over its {boxes}-box chain (margin {margin:e} m) — two branches pass \
                  within the band of each other, which is a genuine sliver of the \
-                 operand pair (F6), not a resolution to refine away"
+                 operand pair, not a resolution to refine away"
             ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
@@ -426,9 +523,21 @@ impl core::fmt::Display for SsiError {
             Self::Escalated(diag) => write!(
                 f,
                 "ssi: a trace or certificate trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance (F6): {diag}"
+                 operand pair at this tolerance: {diag}"
             ),
             Self::Band(e) => write!(f, "ssi: {e}"),
+            Self::InvalidMarchTol { value } => write!(
+                f,
+                "ssi: the marcher's step tolerance {value:e} m is not a usable length \
+                 (finite and > 0); derive it from the run band with `MarchTol::from_band`"
+            ),
+            Self::MarchTolMismatch { marched, band_zero } => write!(
+                f,
+                "ssi: the carrier was marched at {marched:e} m but the run band's \
+                 tolerance is {band_zero:e} m — a certified branch may not be \
+                 generated at one tolerance and certified at another; build the \
+                 marcher's tolerance with `MarchTol::from_band`"
+            ),
         }
     }
 }
@@ -458,6 +567,12 @@ pub struct SsiBranch {
     pub pcurve_b: Option<NurbsCurve2<f64>>,
     /// The smallest transversality margin the march saw, in meters.
     pub min_transversality: f64,
+    /// The generator's step tolerance this carrier was marched at, in
+    /// meters — the receipt that makes the tie observable rather than
+    /// merely intended. Equal to the run band's coincidence threshold
+    /// on every certified door, enforced at the certifying seam
+    /// ([`SsiError::MarchTolMismatch`]).
+    pub march_tol: f64,
 }
 
 /// The result of a rung-3 intersection: the certified branches **and**
@@ -473,7 +588,13 @@ pub struct SsiOutcome {
 }
 
 /// Knobs a caller must name rather than have guessed: the bounded
-/// domain, the feature extent, and the tolerance.
+/// domain and the feature extent.
+///
+/// **The tolerance is not among them.** Every door that takes an
+/// `SsiDomain` also takes the run's [`Band`], whose `zero()` *is* the
+/// run's ε, and the floors this struct derives read it from there — so
+/// a caller cannot size the accounting floor at one tolerance and
+/// decide against another.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiDomain {
     /// The session-box slab (ℝ³ lane) or the plane window (ℝ⁴ lane),
@@ -484,8 +605,6 @@ pub struct SsiDomain {
     /// The caller's named feature extent — the lever arm of last
     /// resort (D4 ¶1), in meters.
     pub extent: f64,
-    /// The run's tolerance, in meters.
-    pub eps: f64,
     /// Multiplier on [`SSI_FLOOR`] for the **accounting** floor only
     /// (seeding is unaffected — see [`SsiDomain::seed_floor`]). `1.0`
     /// is the standard floor; the acceptance suite raises it far above
@@ -503,8 +622,26 @@ impl SsiDomain {
     }
 
     /// The accounting floor, in meters.
-    fn floor(&self) -> f64 {
-        SSI_FLOOR * self.eps * self.floor_scale
+    ///
+    /// Stated in the run band's ε and nowhere else: the floor is a
+    /// proof obligation, so the tolerance it is stated in is the one
+    /// the trileans decide against, by construction rather than by
+    /// convention at the call site.
+    fn floor(&self, band: Band) -> f64 {
+        SSI_FLOOR * band.zero() * self.floor_scale
+    }
+
+    /// The [`SsiDomain::floor_scale`] that names an accounting floor of
+    /// `metres` under `band` — the inverse of [`SsiDomain::floor`].
+    ///
+    /// A caller whose premise is about a **width** states the width. A
+    /// literal multiplier does not: the floor is `SSI_FLOOR · band.zero()
+    /// · floor_scale`, so one literal names a different width at every ε,
+    /// and a fixture placed by literal is placed only at the tolerance
+    /// whoever wrote it happened to run.
+    #[must_use]
+    pub fn floor_scale_for(metres: f64, band: Band) -> f64 {
+        metres / (SSI_FLOOR * band.zero())
     }
 
     /// The seeding floor, in meters — a fraction of the **extent**,
@@ -657,8 +794,8 @@ pub fn cylinder_sphere_ssi(
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
 
-    // ---- seeds: the subdivision, with no tubes ----
-    let (_, seeds) = exhaust::sweep_r3(a, b, slab, &[], domain.seed_floor())?;
+    // ---- seeds: the subdivision, asked for its seeding duty ----
+    let seeds = exhaust::seed_r3(a, b, slab, domain.seed_floor())?;
     let seed_count = seeds.len() as u32;
 
     // ---- march, fit, certify ----
@@ -669,7 +806,7 @@ pub fn cylinder_sphere_ssi(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        eps: domain.eps,
+        tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -686,11 +823,16 @@ pub fn cylinder_sphere_ssi(
         // component, and an exhaustiveness receipt that double-counts
         // the same tube). Refine first, then test.
         let state = [seed.x, seed.y, seed.z];
-        let landed = march::newton_refine::<2, 3, _>(&sys, state, domain.eps);
+        let landed = march::newton_refine::<2, 3, _>(&sys, state, ctx.tol);
         let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
         if tubes
             .iter()
-            .any(|t| Box3::around(probe, domain.eps).contained_in(*t))
+            // The band, not the marcher: this box decides whether two
+            // seeds name one component, and the tubes it gates feed the
+            // exhaustiveness accounting. It is a proof-relevant length,
+            // so it is stated where every other proof-relevant length
+            // in this door is stated.
+            .any(|t| Box3::around(probe, band.zero()).contained_in(*t))
         {
             continue;
         }
@@ -702,18 +844,39 @@ pub fn cylinder_sphere_ssi(
             Err(SsiError::SeedRefinementFailed { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let branch = finish_r3(&sys, &trace, a, b, &domain, band)?;
+        let branch = finish_r3(&sys, &trace, a, b, &domain, ctx.tol, band)?;
         tubes.extend(branch_tubes(&branch));
         branches.push(branch);
     }
 
-    // ---- accounting: the same subdivision, now with the tubes ----
-    let (exhaustiveness, _) = exhaust::sweep_r3(a, b, slab, &tubes, domain.floor())?;
+    // ---- accounting: the same subdivision, asked for its proof duty.
+    // An empty `tubes` here means nothing was found, so nothing is
+    // proved. ----
+    let exhaustiveness = exhaust::account_r3(a, b, slab, &tubes, domain.floor(band))?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
         seeds: seed_count,
     })
+}
+
+/// **The certifying seam.** A carrier may not cross from the untrusted
+/// generator into the certificate unless the tolerance it was generated
+/// at is the run band's own. Returns the receipt on success.
+///
+/// This is the runtime counterpart of the signature rule: the doors
+/// derive their generator tolerance from the band and cannot reach this
+/// refusal, but a future edit to a door *can*, and that edit is exactly
+/// the divergence S25 is about. A door is maintained by someone, and a
+/// sentence in a doc comment does not stop them.
+fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
+    if tol != MarchTol::from_band(band) {
+        return Err(SsiError::MarchTolMismatch {
+            marched: tol.meters(),
+            band_zero: band.zero(),
+        });
+    }
+    Ok(tol.meters())
 }
 
 fn finish_r3(
@@ -722,8 +885,10 @@ fn finish_r3(
     a: &Surface<f64>,
     b: &Surface<f64>,
     domain: &SsiDomain,
+    tol: MarchTol,
     band: Band,
 ) -> Result<SsiBranch, SsiError> {
+    let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<2, 3, _>(sys, trace);
     let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::implicit::curvature_lever_arm(a, points[0])
@@ -734,9 +899,7 @@ fn finish_r3(
         None,
         &SsiOperand::Analytic(a),
         &SsiOperand::Analytic(b),
-        arm,
-        domain.extent,
-        domain.eps,
+        TubeScale::split(arm, domain.extent),
         band,
     )?;
     let params = carrier.domain();
@@ -750,6 +913,7 @@ fn finish_r3(
         pcurve_a: None,
         pcurve_b: None,
         min_transversality: trace.min_transversality,
+        march_tol,
     })
 }
 
@@ -820,8 +984,7 @@ pub fn plane_nurbs_ssi(
     }
 
     // ---- seeds ----
-    let (_, seeds) =
-        exhaust::sweep_chart_plane(wall, p0, normal, root, &[], domain.seed_floor() / speed)?;
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, domain.seed_floor() / speed)?;
     let seed_count = seeds.len() as u32;
 
     let v_ref = normal.cross(u_ref);
@@ -832,7 +995,7 @@ pub fn plane_nurbs_ssi(
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
-        eps: domain.eps,
+        tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
@@ -852,7 +1015,7 @@ pub fn plane_nurbs_ssi(
             Err(SsiError::SeedRefinementFailed { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let branch = finish_r4(&sys, &trace, plane, wall, &domain, band)?;
+        let branch = finish_r4(&sys, &trace, plane, wall, &domain, ctx.tol, band)?;
         if let Some(ref pc) = branch.pcurve_b {
             // The tube the CERTIFICATE earned, in chart units — the
             // same region limb 3 proved one-arc-ness over.
@@ -862,8 +1025,8 @@ pub fn plane_nurbs_ssi(
         branches.push(branch);
     }
 
-    let (exhaustiveness, _) =
-        exhaust::sweep_chart_plane(wall, p0, normal, root, &tubes, domain.floor() / speed)?;
+    let exhaustiveness =
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor(band) / speed)?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
@@ -892,6 +1055,11 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
         let hu = geom_core::spline::hull::span_hull(kv, &coords[0], span);
         let hv = geom_core::spline::hull::span_hull(kv, &coords[1], span);
         if hu.is_poison() || hv.is_poison() {
+            // A window this pass cannot bound is not banked. Dropping
+            // it only ever SHRINKS the accounted set, so the accounting
+            // pass gets strictly harder: the failure direction is the
+            // typed refusal, never a false `Ok`. A tube is a claim, and
+            // an unbounded hull supports none.
             continue;
         }
         out.push(UvRect {
@@ -908,8 +1076,10 @@ fn finish_r4(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
     domain: &SsiDomain,
+    tol: MarchTol,
     band: Band,
 ) -> Result<SsiBranch, SsiError> {
+    let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<3, 4, _>(sys, trace);
     let chart_a: Vec<geom_core::Point2<f64>> = trace
         .states
@@ -927,9 +1097,7 @@ fn finish_r4(
         pb.as_ref(),
         &SsiOperand::Analytic(plane),
         &SsiOperand::Nurbs(wall),
-        domain.extent,
-        domain.extent,
-        domain.eps,
+        TubeScale::uniform(domain.extent),
         band,
     )?;
     let params = carrier.domain();
@@ -943,6 +1111,7 @@ fn finish_r4(
         pcurve_a: pa,
         pcurve_b: pb,
         min_transversality: trace.min_transversality,
+        march_tol,
     })
 }
 
@@ -964,16 +1133,34 @@ fn finish_r4(
 /// the tensor composite bound that retired limb 2 (the fixture role
 /// the PR 7 refusal reserved for it).
 ///
+/// **The only door that names the generator's tolerance separately.**
+/// `march_tol` is the marcher's step tolerance in meters; every
+/// certifying door derives its own from `band` and has no such
+/// parameter. This door takes a bare `f64` and mints the private
+/// [`MarchTol`] itself, which is what keeps a decoupled tolerance
+/// unmintable anywhere else — including inside a certifying door, whose
+/// maintainer is the caller who would otherwise reach for it.
+///
+/// Naming it here is what lets the marcher be measured against itself
+/// at a tolerance the run is not banded at, which is the one legitimate
+/// reason the two numbers ever differ. A carrier so generated may still
+/// be handed to [`certify_rung3`]; it certifies at the `Band` like any
+/// other, so a decoupled march can only cost carrier quality, never
+/// buy a weaker certificate.
+///
 /// # Errors
 ///
-/// Any [`SsiError`] the trace or the fit can produce.
+/// Any [`SsiError`] the trace or the fit can produce, plus
+/// [`SsiError::InvalidMarchTol`] when `march_tol` is not a length.
 pub fn trace_plane_nurbs_uncertified(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
     seed_uv: (f64, f64),
     domain: SsiDomain,
+    march_tol: f64,
     band: Band,
 ) -> Result<TracedTriple, SsiError> {
+    let tol = MarchTol::decoupled(march_tol)?;
     let Surface::Plane {
         origin: p0,
         normal,
@@ -999,7 +1186,7 @@ pub fn trace_plane_nurbs_uncertified(
     let ctx = MarchContext::<4> {
         domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
         extent: domain.extent,
-        eps: domain.eps,
+        tol,
         max_steps: SSI_MAX_STEPS,
     };
     let v_ref = normal.cross(u_ref);
@@ -1039,18 +1226,27 @@ pub fn trace_plane_nurbs_uncertified(
 /// # Errors
 ///
 /// As [`certify::certify_branch`].
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
-pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds>(
+///
+/// **There is no `eps` parameter.** The certificate's own floors — the
+/// tube ladder's, in particular — are stated in `band.zero()`, which
+/// *is* the run tolerance, so the tolerance a branch is certified at
+/// cannot differ from the one its trileans decide against.
+///
+/// That identity is **contingent on `band` being a linear band**
+/// ([`Band::linear`]), whose `zero()` is the run's ε in meters, stored
+/// unmodified. An angular band ([`Band::angular_at`]) carries ε/r in
+/// radians, and this door would then floor the tube ladder in radians.
+/// Every caller passes a linear band today; the door is `pub`, so this
+/// is a stated contract, not a proof.
+pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
     b: &SsiOperand<'_, T>,
-    arm: T,
-    extent: f64,
-    eps: f64,
+    scale: TubeScale<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
-    certify::certify_branch(carrier, pcurve_b, a, b, arm, extent, eps, band)
+    certify::certify_branch(carrier, pcurve_b, a, b, scale, band)
 }
 
 /// The idealized stepper's trace of an analytic pair from an explicit
@@ -1077,7 +1273,7 @@ pub fn idealized_trace_r3(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        eps: domain.eps,
+        tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
     let trace = march_both::<2, 3, _>(

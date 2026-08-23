@@ -18,9 +18,14 @@ governs how the gaps get treated:
 > library — never quietly work around it, and never contort the demo
 > to hide it.
 
-**Result: 26 of the 34 tour stops are authorable through Python
-today** — 23 outright, and 3 more only if you re-author by hand what
-the scene says structurally. 8 are blocked by a missing door.
+**Result: 28 of the 34 tour stops are authorable through Python
+today** — 25 outright, and 3 more only if you re-author by hand what
+the scene says structurally. 6 are blocked by a missing door.
+
+(Those three numbers are counted off the table below at each
+revision, never carried forward: the previous revision's headline
+read 26 = 23 + 3 against a table that already said 25 + 3, and the
+tally section further down had it right. The rows are the record.)
 
 The count climbed from 7 as each binding unit closed its gap:
 **LIB-PYG1** bound the PATHS lattice, closing G1 (`bracket`, `vase`,
@@ -35,6 +40,13 @@ G12; **LIB-PYSEL** bound the selector surface, closing G13 — so
 `diecomposed`'s two blends are now narrowed by the SAME two geometric
 filters the Rust scene runs, with no name text read; **LIB-G14** took
 down the two split-naming walls, closing G14 (`cutaway`).
+
+**LIB-PYPU** is the counter-example that proves the rule this page
+works by: it bound the group boolean (`Node.placed_union`) and the
+narrowed structural-count edit (`DocEdit.bind_count_param`), which is
+two thirds of what G8 named — and it flipped NO row, because the
+third third is a kernel door. So the gap was re-diagnosed rather than
+closed, and the count did not move.
 
 One instructive pattern from LIB-PYBUNDLE: three of its stops did NOT
 flip outright, and each named the door it was actually waiting on
@@ -76,7 +88,7 @@ Everything Python can say about geometry, in full:
 - The **PATHS authoring lattice** — `Open`, `Start`, `circle`,
   `circle_split`, and one class per lattice state (`PathOpen`,
   `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
-  `PathOnArc`, and the arrival builders `PathRadiusArrival` /
+  and the arrival builders `PathRadiusArrival` /
   `PathRadiusArrivalAt` / `PathRadiusArrivalDir` / `PathViaArrival` /
   `PathViaArrivalStart`), each exposing only its legal continuations.
   The full current verb vocabulary: `at`, `angle`, `toward`,
@@ -159,6 +171,13 @@ Everything Python can say about geometry, in full:
 - Edits: `insert_node`, `delete_node`, `set_tolerance`, and — since
   R1-PARAMS — `set_doc_param(ParamName, DocParam)`, the named
   document parameter edit (guide §3.2).
+- `Doc(label=…)` and `Doc.id` — a document's IDENTITY. `Doc()` mints
+  a fresh random id, so two documents authored from Python are two
+  parts and one workspace holds both; `Doc(label)` derives the id
+  from the label for callers whose saves must reproduce. `Doc.id` is
+  the canonical 32 hex digits the save header carries and the store
+  keys on. What is NOT bound is the rest of the identity surface —
+  see G15.
 
 Plus evaluation, validation, mass properties, STEP export/import,
 persistence, and typed quantities. That is the whole vocabulary.
@@ -206,17 +225,21 @@ blockers stay named in the last column.
 | 29 | `crosslap_exploded` | **YES** | — | — |
 | 30 | `projectbox` | **YES** | — | — |
 | 31 | `cutaway` | **YES** | — | — |
-| 32 | `heatsink5` | YES\* | G8 | pattern node + structural-param edit |
-| 33 | `heatsink7` | YES\* | G8 | pattern node + structural-param edit |
-| 34 | `heatsink9` | YES\* | G8 | pattern node + structural-param edit |
+| 32 | `heatsink5` | YES\* | G8 | fin family is ONE node with a param-driven count (LIB-PYPU); the fins-into-base fusion is still hand-authored |
+| 33 | `heatsink7` | YES\* | G8 | same |
+| 34 | `heatsink9` | YES\* | G8 | same |
 
 **YES** = the exact body is reproducible with the bound surface.
 **YES\*** = the exact body is reproducible, but only by hand-authoring
 what the scene expresses structurally — so the *body* transfers and
-the *point of the scene* does not. `heatsink` hand-authors each fin
-where the scene says one pattern. (`diecomposed` was this mark's
-other case — hand-narrowing a materialized name set where the scene
-says one selector — until LIB-PYSEL bound the selector.)
+the *point of the scene* does not. `heatsink`'s residue is now
+narrower than it was: the fin FAMILY is one `Node.placed_union`
+node whose count rides a document parameter (LIB-PYPU), and what
+still has to be hand-authored is the last step — fusing that
+multi-solid family into the base, which is a kernel door that does
+not exist. (`diecomposed` was this mark's other case — hand-narrowing
+a materialized name set where the scene says one selector — until
+LIB-PYSEL bound the selector.)
 
 ## What the YES rows look like
 
@@ -278,6 +301,7 @@ body.validate()
 assert abs(body.mass_properties().volume - 8.505859375) < 1e-12
 ```
 
+let tol = Tol::witness();
 Rows 24–26 are the same body as row 23 seen down a different axis, so
 they flip together and the Python rows read one node three times
 rather than rebuilding three solids — exactly what the Rust scene does
@@ -309,13 +333,15 @@ is named too.
 | # | gap | stops | register / pointer | note |
 |---|---|---|---|---|
 | G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the precedent was exactly Loft/Sweep landing), so it has to be sequenced against whatever bump is in flight. The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
-| G8 | **Pattern + structural params** | degrades 3 | register B | No pattern node and no `SetStructuralParam` edit, so `heatsink`'s actual subject — one recipe, a count edit, memoized recompute — cannot be said. MEASURED at LIB-PYBUNDLE and deliberately left unbound: binding `Node::Pattern` would flip no row, because the heatsink's shape is a pattern UNIONED into a base and a pattern evaluates to an `Instances` payload, which the boolean's operand door refuses (`wrong_operand`, `eval/wire.rs::body_operand`). The gap is the kernel payload, not the binding; `test_the_named_gaps_are_still_gaps` executes the refusal on the one plural payload Python can already produce |
+| G8 | **Multi-solid boolean operand** (replication + structural params CLOSED) | degrades 3 | register B | **Re-diagnosed at LIB-PYPU, from executed evidence.** The row used to read "no pattern node and no `SetStructuralParam` edit". Two of those three halves are now bound: `Node.placed_union`/`placed_union_at` say a whole placed family in ONE node whose value is an ordinary `body` (`TestHeatsinkFins`, `tests/test_placed_union.py`), and `DocEdit.bind_count_param` binds its Count slot to a document parameter, so `heatsink`'s 5 → 7 → 9 is ONE `set_doc_param` edit each against the corpus's own dyadic pins. What is left is the residual the old entry hid behind the binding question: the heat sink's shape is that family UNIONED INTO A BASE, and the kernel's `combine` door takes two SINGLE-SOLID operands (`JoinDesync`: "operand A/B is not a single-solid body"), so the fusion needs a kernel door that does not exist. That is why the rows stay YES\* rather than flipping — the gap is the kernel operand, not the binding, exactly as the old entry's own reasoning ran, one level down. `Node::Pattern` stays deliberately UNBOUND for the unchanged reason: its value is a plural `Instances` payload no boolean can consume, so binding it would still flip no row (`test_a_plural_payload_cannot_feed_a_boolean` executes the split's refusal and asserts the group's singular `body` as the contrast). One further residue, measured here and NOT a row-blocker: `evaluate` takes no prior evaluation as a memo, so the scene's *memoized recompute* — its third claim — is unobservable from Python even though the count edit itself is now sayable |
 | G14 | **Split naming: chord multiplicity + tied upstreams** | 0 (**CLOSED**, LIB-G14) | closed by LIB-G14 against `docs/NAMING-DESIGN.md`'s split-naming-walls section (RATIFIED, #512); the `NamingError`-`Display` gap it hid behind is #380, closed separately | The row's original diagnosis — "a plane crossing boolean-minted faces" — was WRONG, and the survey (`cad-work/g14-survey.md`) is how that surfaced: a split ACROSS boolean-minted faces named fine all along. TWO disjoint M4-era deferrals refused, and the one this scene hit involves no boolean at all — a section line that re-enters ONE operand face (an inner loop, or any non-convex face) would mint `SectionEdge{side, face}` twice; a plain L-shaped single-loop extrude reproduced it. The second wall refused a split whenever ANY operand-table entry was tied, even for pass-throughs nowhere near the tie. Both were logged as one M4 PR-3 sentence and read as one refusal because `NamingError` had no `Display`. Fixed as ratified: the chords become an N2 TIE (A2), and tied upstreams PROPAGATE as tied (B1), matching `name_pattern`/`name_in_part`/`graft_names` |
 
 G2 alone partitions the 6 NO rows: rows 10, 15–19, counted off the
 table above (G5's two closed at LIB-PYG5, G14's one at LIB-G14 —
-concurrent units, merged counts re-derived here). G8 degrades three,
-which is what makes three rows YES\* rather than YES (32, 33, 34).
+concurrent units, merged counts re-derived here). G8 still degrades
+three, which is what makes three rows YES\* rather than YES (32, 33,
+34): LIB-PYPU narrowed what G8 IS without moving a mark, because the
+half it closed was never the half the mark depended on.
 Authorable = 25 outright + 3 YES\* = 28, and 28 + 6 = 34.
 
 Two counts in this list were off by one before LIB-PYG1 recounted
@@ -324,11 +350,12 @@ The rows are the record and the tallies are derived — every number
 above is counted off the table just now, never carried forward from
 the previous revision.
 
-One further gap blocks no tour scene but matters to the library:
+Two further gaps block no tour scene but matter to the library:
 
 | # | gap | register / pointer | why it matters |
 |---|---|---|---|
 | G11 | **Tessellation and STL** | register B (named there as completing the ladder) | No mesh door, so Python loses steps 4 and 5 of the guide's ladder — no tessellate, and therefore no mesh-vs-exact cross-check. Step 6 does work: `Evaluation.step_string` exports STEP, and re-importing it is the strongest check available from Python |
+| G15 | **The workspace store, content pins, and cross-document references** | THIS PAGE (`test_the_named_gaps_are_still_gaps` asserts the absence of `Workspace`, `ContentPin`, `DocRef` and `random_document_id`, so the row fails the day a door lands) | Identity itself is bound now — `Doc()` mints a distinct id per document and `Doc.id` reads it — but the surface identity EXISTS FOR is not. Python can save a document to text and load one back; it cannot open a directory of them, resolve a `DocRef`, compute or compare a `ContentPin`, or say "this part instantiates that one". So a Python author can produce two documents a workspace will accept side by side, and cannot then assemble them. The doors are `pncad::workspace::{Workspace, random_document_id, update_to_store}` and `pncad::document::{DocRef, ContentPin, content_pin}` — all curated in Rust already, so this is a binding unit and not a kernel one. The identity half is what made the rest sayable: before it, every Python document was the same part |
 
 ## Closed gaps
 

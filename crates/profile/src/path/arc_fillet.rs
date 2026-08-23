@@ -17,9 +17,11 @@
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
 //! DECIDES (the carrier-meet and angular advance/reach gates) and reads
-//! the selection channel, in that order. It carries `sugar.rs`'s
-//! ratified justification verbatim, because it is the same rule on the
-//! same channel: **a representation-level choice between
+//! the selection channel, in that order. The justification is
+//! [`crate::fillet_select`]'s, which is where the S8 rule has its one
+//! home — restated here only because this file's allowlist line needs
+//! a purpose-matched sentence of its own; the rule itself is the same
+//! rule on the same channel: **a representation-level choice between
 //! already-classified constructions, never a re-decision of geometry**
 //! (M5 S8; the ruling's "plain deterministic selection rule, not a Q1
 //! predicate" — no funnel entry, no escalation arm, no error). The
@@ -58,11 +60,11 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
-use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
-use crate::k_stats::decide;
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
@@ -438,9 +440,9 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     incoming: FilletSide<T>,
     arrival: FilletSide<T>,
     radius: T,
-    tol: Tolerance,
+    tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
-    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(PathError::Band)?;
+    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
     // and the other root is usually the one they meant. A corner that
@@ -499,6 +501,17 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             }
             Err(ArcTrimRefusal::Escalated(source)) => {
                 return Err(PathError::Escalated { source });
+            }
+            // The M8 conditioning gate ABORTS the resolve exactly as an
+            // escalation does, and for the same reason: a joint space
+            // one of whose members the band cannot CERTIFY (a tangent
+            // point over an unsupported lever) cannot be honestly
+            // ranked. Falling through to another corner's build would
+            // let the twin corner of a near-tangent carrier pair mask
+            // the refusal — the silent-build class the gate exists to
+            // keep refused at every band.
+            Err(refusal @ ArcTrimRefusal::OffsetLeverTooShort { .. }) => {
+                return Err(map_refusal(refusal, radius));
             }
             Err(refusal) => {
                 if build_refused.is_none() {

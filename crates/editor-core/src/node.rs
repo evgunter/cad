@@ -1,6 +1,6 @@
-//! The v1 recipe-node vocabulary AS DATA (ratified F4; spec D3). No
-//! node here evaluates anything — PR 2's evaluation service interprets
-//! this data against the kernel ops.
+//! The recipe-node vocabulary AS DATA (ratified F4; spec D3). No node
+//! here evaluates anything — the evaluation service interprets this
+//! data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
@@ -8,6 +8,33 @@ use crate::expr::{Dimension, Expr};
 // carry the same words this node authors, and `crate::names::flush`
 // owns the single upward re-export.
 use topo::ContactClass;
+
+/// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
+/// a PATTERN.
+///
+/// [`Node::payload_names`] and [`Node::rebind_payload_names`] must name
+/// the same variants — the read and the rewrite are one answer read two
+/// ways, and a variant one of them treats as nameless while the other
+/// rewrites it is a name that survives a `Rebind`.
+/// Both matches stay exhaustive: a new [`Node`] variant absent
+/// from this list breaks both builds, and adding it to this list is one
+/// decision at one site.
+macro_rules! name_free_node {
+    () => {
+        $crate::node::Node::Datum(_)
+            | $crate::node::Node::Profile(_)
+            | $crate::node::Node::Extrude { .. }
+            | $crate::node::Node::Revolve { .. }
+            | $crate::node::Node::Loft { .. }
+            | $crate::node::Node::Sweep { .. }
+            | $crate::node::Node::Split { .. }
+            | $crate::node::Node::Boolean { .. }
+            | $crate::node::Node::Transform { .. }
+            | $crate::node::Node::Pattern { .. }
+            | $crate::node::Node::PlacedUnion { .. }
+            | $crate::node::Node::InstantiatePart { .. }
+    };
+}
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
 /// substrate): minted from `Doc`'s monotone counter at insertion,
@@ -36,18 +63,13 @@ pub enum Axis3 {
     Z,
 }
 
-/// The regularized boolean operations (F4; kernel semantics in M3's
-/// boolean pipeline, interpreted by PR 2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub enum BooleanOp {
-    /// Regularized union.
-    Union,
-    /// Regularized intersection.
-    Intersect,
-    /// Regularized difference (a minus b).
-    Subtract,
-}
+/// The regularized boolean operations, re-exported from the kernel
+/// (F4; ONE enum, defined lowest and re-exported upward, never a
+/// parallel enum). A recipe node's operation IS the kernel operation
+/// the evaluation service will run, so no conversion stands between
+/// authoring it and performing it. Its persisted bytes are this
+/// crate's, described by `persist::kernel_wire::boolean_op`.
+pub use topo::BooleanOp;
 
 /// A profile-program step's ARGUMENT ROLE — the closed per-verb enum
 /// that, with a loop and step index, addresses one expression inside a
@@ -270,16 +292,43 @@ pub enum Datum {
 /// A4: "the seam is the crossing declarations" — each entry is a
 /// (wrapped name, declaration) pair against the pinned document).
 ///
-/// UNINHABITED in v1: no mate vocabulary exists yet, so no crossing
-/// declaration can be spelled — every [`InterfaceRecord`] is provably
-/// empty, which is why the record feeds no content key and never
-/// appears on the wire. R2 EXTENDS this enum with the mate-edge
-/// variants (rather than retrofitting a record type onto the node);
-/// making it inhabited is a format change that must feed the
-/// instantiate node's content key and ride a schema-version bump.
+/// **INHABITED as of ASM-R2b D-4** — the hook ASM-4 named is taken up
+/// by its one intended inhabitant, the crossing MATE EDGE. The
+/// obligation ASM-4 recorded here is discharged with it: the record
+/// now feeds the instantiate node's content key, and the format change
+/// rode a schema-version bump (see [`crate::SCHEMA_VERSION`]'s ledger).
+///
+/// An enum with a single variant, not a struct, for the reason ASM-4
+/// gave: a crossing is whatever KIND of edge crossed, and mates are
+/// the only kind of edge that can cross today. A second kind extends
+/// this enum rather than retrofitting a shape onto the first.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum InterfaceCrossing {}
+pub enum InterfaceCrossing {
+    /// A mate whose two ends landed on OPPOSITE SIDES of the split cut
+    /// (A4: "every mate edge crossing the cut becomes the interface
+    /// record in the remainder").
+    ///
+    /// `outer` is the reference that stayed in the remainder; `inner`
+    /// is the reference that moved into the part, spelled in the
+    /// PART's own names — unwrapped, because that is what the part's
+    /// product answers to and re-verification resolves against. The
+    /// wrapped form (`outer_head / InPart{ inner }`) is what the
+    /// remainder's mate now reads, and re-wrapping is the split's
+    /// rebind, so storing the wrapper twice would be storing a
+    /// derivable fact.
+    Mate {
+        /// The crossing mate, in the remainder.
+        mate: RecipeNodeId,
+        /// The class the crossing declares.
+        #[serde(with = "crate::persist::kernel_wire::contact_class")]
+        class: crate::mate::ContactClass,
+        /// The remainder-side reference.
+        outer: StableName,
+        /// The part-side reference, in the part's own names.
+        inner: StableName,
+    },
+}
 
 /// The interface record of an instantiate seam (ASM-4 D-2): the
 /// declarations that crossed the cut when the referenced document was
@@ -294,8 +343,9 @@ pub enum InterfaceCrossing {}
 #[serde(deny_unknown_fields)]
 pub struct InterfaceRecord {
     /// The crossing declarations, in the deterministic order the split
-    /// collected them. Provably empty in v1 ([`InterfaceCrossing`] is
-    /// uninhabited).
+    /// collected them (the pre-split document's mate order). Empty for
+    /// a directly-authored instance, and for a split that no mate
+    /// crossed.
     pub crossings: Vec<InterfaceCrossing>,
 }
 
@@ -494,12 +544,11 @@ pub enum Node<P> {
     /// deliberate act, which is the point of freezing.
     ///
     /// Note also that nothing today can quietly widen a selection
-    /// even if it wanted to: the kernel's assembly doors admit only
-    /// the whole-body request or a fully-requested chain set
-    /// (`sweep::fillet`'s front doors), so a partially-grown
-    /// selection refuses typed rather than blending something the
-    /// author never picked. Freeze is enforced structurally, and its
-    /// breaks are loud.
+    /// even if it wanted to: the kernel's assembly admits only a
+    /// fully-requested chain set (`sweep::fillet`'s front door), so a
+    /// partially-grown selection refuses typed rather than blending
+    /// something the author never picked. Freeze is enforced
+    /// structurally, and its breaks are loud.
     ///
     /// # Canonical form
     ///
@@ -530,6 +579,7 @@ pub enum Node<P> {
     /// recipe data ON the consuming boolean node).
     Boolean {
         /// The operation.
+        #[serde(with = "crate::persist::kernel_wire::boolean_op")]
         op: BooleanOp,
         /// Left operand.
         a: RecipeNodeId,
@@ -616,7 +666,7 @@ pub enum Node<P> {
         /// there is no constructor that omits it and no default to
         /// fall back to, because defaulting would let a `Tangent`
         /// intent be verified against the conformal table.
-        #[serde(with = "declare_pairs_wire")]
+        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
         pairs: Vec<((StableName, StableName), ContactClass)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
@@ -636,13 +686,13 @@ pub enum Node<P> {
         /// — an edit to the referenced document never retargets this
         /// reference; moving the pin is its own recorded edit.
         doc_ref: crate::ident::DocRef,
-        /// The split seam's interface record (ASM-4 D-2): the
-        /// declarations that crossed the cut this instance was minted
-        /// by. Empty for directly-authored instances — and provably
-        /// empty in v1, since [`InterfaceCrossing`] is uninhabited
-        /// until R2's mates give a crossing something to say. Absent
-        /// from the wire while empty, so it feeds no content key and
-        /// moves no pin.
+        /// The split seam's interface record (ASM-4 D-2; inhabited by
+        /// ASM-R2b D-4): the declarations that crossed the cut this
+        /// instance was minted by. Empty for directly-authored
+        /// instances, and absent from the wire while empty — so an
+        /// instance that no mate crosses still costs no bytes and
+        /// moves no pin. A NON-empty record is on-wire data and feeds
+        /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
     },
@@ -673,10 +723,11 @@ pub enum Node<P> {
         /// The declared contact class — the KERNEL vocabulary (M9-1),
         /// re-exported rather than re-minted, so a mate's declaration
         /// is already the currency the boolean wrapper's records
-        /// speak. v1 admits `Rest`/`Tangent`; a class outside that
-        /// refuses typed at both the wire and the solve door, naming
-        /// the deferral.
-        #[serde(with = "crate::mate::class_wire")]
+        /// speak. How far each class gets is
+        /// [`crate::mate::class_admission`], not a set restated here;
+        /// separately, a spelling this build has no name for refuses
+        /// typed at the wire door.
+        #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
         /// Which frames coincide, with which axis senses, at which
         /// clocking (A3's alignment datum).
@@ -873,7 +924,28 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
-            _ => None,
+            // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
+            // node kind must be classified here or the compile breaks,
+            // while "this node does not carry that slot" stays the
+            // honest answer for a slot the listed arms did not claim.
+            // `Pattern` and `PlacedUnion` are absent because their arms
+            // above already bind every slot.
+            (
+                Node::Datum(..)
+                | Node::Profile(..)
+                | Node::Extrude { .. }
+                | Node::Revolve { .. }
+                | Node::Loft { .. }
+                | Node::Sweep { .. }
+                | Node::Fillet { .. }
+                | Node::Split { .. }
+                | Node::Boolean { .. }
+                | Node::Transform { .. }
+                | Node::Declare { .. }
+                | Node::InstantiatePart { .. }
+                | Node::Mate { .. },
+                _,
+            ) => None,
         }
     }
 
@@ -910,41 +982,117 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
-            _ => None,
+            // EXHAUSTIVE on the NODE axis, open on the slot axis (the
+            // `expr` rule).
+            (
+                Node::Datum(..)
+                | Node::Profile(..)
+                | Node::Extrude { .. }
+                | Node::Revolve { .. }
+                | Node::Loft { .. }
+                | Node::Sweep { .. }
+                | Node::Fillet { .. }
+                | Node::Split { .. }
+                | Node::Boolean { .. }
+                | Node::Transform { .. }
+                | Node::Declare { .. }
+                | Node::InstantiatePart { .. }
+                | Node::Mate { .. },
+                _,
+            ) => None,
         }
     }
 
-    /// The node ids REFERENCED BY NAME from this payload (Declare
-    /// pairs) — validated for existence at edit time per the spec D3
-    /// carve-out, but NOT DAG edges ([`Node::inputs`] excludes them;
-    /// a later delete may strand them, N5 semantics).
-    pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
+    /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
+    /// fillet's selection, a mate's two heads. Document data, never DAG
+    /// edges ([`Node::inputs`] excludes them): the edit door checks at
+    /// insertion that each one names a live node, and a later delete may
+    /// strand it, which is NAMING-DESIGN N5's dangling-reference
+    /// semantics with `Rebind` as the one repair.
+    ///
+    /// The single answer to "which payloads carry a name": every reader
+    /// reads this rather than its own copy of the list. The negative
+    /// half is [`name_free_node`], shared with the rewriting twin.
+    pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
-            Node::Declare { pairs } => pairs
-                .iter()
-                .flat_map(|((a, b), _)| [a.node, b.node])
-                .collect(),
-            // A12: a mate's two heads carry the SAME carve-out — the
-            // edit door checks they exist, a later delete may strand
-            // them (N5), and `Rebind` is the one repair.
-            Node::Mate { a, b, .. } => vec![a.node, b.node],
-            // The fillet selection references names the same way, and
-            // carries the same N5 carve-out (M6-5).
-            Node::Fillet { selection, .. } => selection.iter().map(|n| n.node).collect(),
-            _ => Vec::new(),
+            Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
+            Node::Fillet { selection, .. } => selection.iter().collect(),
+            // A12: a mate's two heads are the instance-qualified
+            // references its reading edges are recomputed from.
+            Node::Mate { a, b, .. } => vec![a, b],
+            name_free_node!() => Vec::new(),
         }
+    }
+
+    /// Rewrites every payload reference EXACTLY equal to `from` into
+    /// `to`, returning how many it rewrote — the substrate of `Rebind`,
+    /// N5's one repair. A set-shaped payload re-canonicalizes, because
+    /// `to` may sort elsewhere or already be present: a rebind onto an
+    /// already-selected edge SHRINKS the set by one rather than
+    /// duplicating it.
+    ///
+    /// The two must name the same variants; [`name_free_node`] is where
+    /// that agreement is held.
+    pub(crate) fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
+        fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
+            if name == from {
+                *name = to.clone();
+                1
+            } else {
+                0
+            }
+        }
+        let mut hits = 0usize;
+        match self {
+            Node::Declare { pairs } => {
+                for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
+                    hits += rewrite(name, from, to);
+                }
+            }
+            Node::Fillet { selection, .. } => {
+                for name in selection.iter_mut() {
+                    hits += rewrite(name, from, to);
+                }
+                if hits > 0 {
+                    selection.sort();
+                    selection.dedup();
+                }
+            }
+            Node::Mate { a, b, .. } => {
+                hits += rewrite(a, from, to);
+                hits += rewrite(b, from, to);
+            }
+            name_free_node!() => {}
+        }
+        hits
+    }
+
+    /// The node ids [`Node::payload_names`] reaches: the heads whose
+    /// existence the insert door checks.
+    pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
+        self.payload_names().iter().map(|name| name.node).collect()
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
     /// record — the authoring constructor. A non-empty record is
     /// mintable only by the refactoring that observed declarations
-    /// crossing a cut (none can in v1: [`InterfaceCrossing`] is
-    /// uninhabited).
+    /// crossing a cut, which reaches it through
+    /// [`Node::instantiate_part_with`]: an authored instance crosses
+    /// nothing.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Node::InstantiatePart {
-            doc_ref,
-            interface: InterfaceRecord::default(),
-        }
+        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
+    }
+
+    /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
+    /// (ASM-R2b D-4): the split's door, since only a split knows what
+    /// crossed its cut. Authoring an instance by hand goes through
+    /// [`Node::instantiate_part`] — an authored instance crosses
+    /// nothing.
+    pub fn instantiate_part_with(
+        doc_ref: crate::ident::DocRef,
+        interface: InterfaceRecord,
+    ) -> Self {
+        Node::InstantiatePart { doc_ref, interface }
     }
 
     /// Builds a [`Node::PlacedUnion`] with a PARAMETRIC rule (linear
@@ -985,7 +1133,24 @@ impl<P> Node<P> {
             // always a second answer to the same question.
             Node::Pattern { kind, .. } => (true, kind),
             Node::PlacedUnion { count, kind, .. } => (count.is_some(), kind),
-            _ => return None,
+            // EXHAUSTIVE on purpose: a future node kind carrying a
+            // placement rule must be classified here or the compile
+            // breaks, rather than defaulting to "has no rule" and
+            // slipping past all three doors this function is the one
+            // answer for.
+            Node::Datum(..)
+            | Node::Profile(..)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. } => return None,
         };
         let Some(frames) = kind.placements() else {
             // A stepped rule needs its count slot and nothing else.
@@ -1072,88 +1237,5 @@ impl<P: PartialEq> Node<P> {
                 (None, None) => true,
                 _ => false,
             })
-    }
-}
-
-/// The wire form of a [`Node::Declare`] payload's classes.
-///
-/// **Why this module exists instead of `#[derive(Serialize)]` on
-/// [`ContactClass`].** Two ratified rules meet here and both are kept:
-///
-/// - the kernel crates gain NO serde dependency (the F3/G1 layering
-///   rule, workspace `Cargo.toml`) — persistence is editor-core's job;
-/// - the contact vocabulary is ONE enum, defined lowest and
-///   re-exported upward, never a parallel enum (CONTACT-DESIGN C4's
-///   layering ruling, M9-1 PR-1) — so the mirror-enum pattern
-///   `BooleanOp` uses is not available for this type.
-///
-/// A `with` module satisfies both: the type stays `topo::ContactClass`
-/// everywhere, and only the BYTES are described here.
-///
-/// The wire spelling is a stable STRING, not a discriminant: a
-/// discriminant would silently re-map if `Fit` ever lands between the
-/// two variants, and the file would then read a different class than
-/// it was written with. Both directions refuse typed on a spelling
-/// this build does not know — including the SERIALIZE direction, which
-/// `ContactClass` being `#[non_exhaustive]` makes reachable: a class
-/// added in a newer kernel than this writer must never be written out
-/// under a guessed tag.
-pub(crate) mod declare_pairs_wire {
-    use super::{ContactClass, StableName};
-    use serde::de::Error as _;
-    use serde::ser::Error as _;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    /// The wire spelling of a class, or `None` if this build has no
-    /// name for it. `pub(crate)` because the MATE node's class field
-    /// spells its class the same way (ASM-R2a D-1) — one contact
-    /// vocabulary, one wire spelling of it, one table.
-    pub(crate) fn tag(class: ContactClass) -> Option<&'static str> {
-        match class {
-            ContactClass::Rest => Some("rest"),
-            ContactClass::Tangent => Some("tangent"),
-            // `ContactClass` is `#[non_exhaustive]`: a kernel newer
-            // than this writer can present a class with no spelling
-            // here. Refusing is the only honest answer — see the
-            // module docs.
-            _ => None,
-        }
-    }
-
-    /// The inverse of [`tag`], shared with the mate node's class field
-    /// for the same reason.
-    pub(crate) fn untag(s: &str) -> Option<ContactClass> {
-        match s {
-            "rest" => Some(ContactClass::Rest),
-            "tangent" => Some(ContactClass::Tangent),
-            _ => None,
-        }
-    }
-
-    type Pairs = Vec<((StableName, StableName), ContactClass)>;
-
-    pub(super) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
-        let mut out = Vec::with_capacity(pairs.len());
-        for ((a, b), class) in pairs {
-            let t = tag(*class).ok_or_else(|| {
-                S::Error::custom(
-                    "persist: this build has no wire spelling for the declared contact class \
-                     (a newer kernel's vocabulary) — refusing to write a guessed tag",
-                )
-            })?;
-            out.push(((a, b), t));
-        }
-        out.serialize(ser)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
-        let raw: Vec<((StableName, StableName), String)> = Vec::deserialize(de)?;
-        raw.into_iter()
-            .map(|(pair, t)| {
-                untag(&t)
-                    .map(|class| (pair, class))
-                    .ok_or_else(|| D::Error::custom(format!("unknown contact class '{t}'")))
-            })
-            .collect()
     }
 }

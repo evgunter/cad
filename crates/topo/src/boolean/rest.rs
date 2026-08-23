@@ -23,10 +23,10 @@
 //!
 //! 1. **Segments**: the null-pair germ records are matched into seam
 //!    segments by the SAME mutual-facing/nearest tests as the join
-//!    (`bool_join_facing` / `bool_join_nearest` — reused predicate
-//!    funnels, no new numeric predicate), with the ambiguous face-pair
-//!    identity dropped. Incomplete matching ⇒ not this frontier (the
-//!    original join refusal stands).
+//!    (`bool_join_chord` / `bool_join_facing` / `bool_join_nearest` —
+//!    reused predicate funnels, no new numeric predicate), with the
+//!    ambiguous face-pair identity dropped. Incomplete matching ⇒
+//!    not this frontier (the original join refusal stands).
 //! 2. **Lane door**: every declared face pair is verified through
 //!    [`super::oriented_plane_eq`]'s declared rung — a false
 //!    declaration refuses [`BooleanError::ContactContradicted`]
@@ -93,6 +93,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::splitting::finish::single_solid;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// A kernel-bug-class desync inside the lane (after the frontier is
 /// positively identified) — same posture as the join's lockstep
@@ -140,6 +141,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     b_pristine: &Body<T>,
     decls: &BooleanDeclarations,
     band: Band,
+    tol: Tol,
 ) -> Result<Option<BooleanResult<T>>, BooleanError> {
     debug_assert_eq!(red.op, BooleanOp::Union);
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
@@ -193,6 +195,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
+        tol,
     )?;
     let Some(a_seam) = a_seam else {
         return Ok(None);
@@ -202,6 +205,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
+        tol,
     )?;
     let Some(b_seam) = b_seam else {
         return Ok(None);
@@ -227,7 +231,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
     let mut body = red.a;
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
-    let graft = graft_solid(&mut body, solid, &red.b)?;
+    let graft = graft_solid(&mut body, solid, &red.b, tol)?;
 
     // Result-key views of the correspondence and the patch pairs.
     let mut vmap: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
@@ -257,9 +261,9 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         let fb = fb_of(fa)?;
         let shared = shared_run(&body, fa, fb)?;
         let rep = if shared.is_empty() {
-            zip_seam(&mut body, fa, fb, &vmap)?
+            zip_seam(&mut body, fa, fb, &vmap, tol)?
         } else {
-            slit_zip(&mut body, fa, fb, &shared, &vmap)?
+            slit_zip(&mut body, fa, fb, &shared, &vmap, tol)?
         };
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
@@ -281,10 +285,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let reduction_contacts = red.contacts;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs)
+        .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(BooleanError::Merge)?;
     desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band)?;
+    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
         &body,
         &contacts,
@@ -301,7 +305,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &desc,
     );
     gate(&body)?;
-    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band)?;
+    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -398,7 +402,7 @@ fn enumerate_segments<T: Decide>(
                 }
                 let chord = germs[j].point - germs[i].point;
                 let dist = chord.norm();
-                match decide("bool_join_nearest", Margin::of(dist), band).map_err(escalate)? {
+                match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                     Sign::Positive => {}
                     _ => continue,
                 }
@@ -517,16 +521,16 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
     // signs (S10's exact-bit discipline).
     let outward = f.sense;
     match body.get_surface(f.surface) {
-        Some(geom_surfaces::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
+        Some(geom::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
             origin: *origin,
             normal: *normal * sign,
         }),
-        Some(geom_surfaces::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
+        Some(geom::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
             center: *center,
             radius: *radius,
             outward,
         }),
-        Some(geom_surfaces::Surface::Cylinder {
+        Some(geom::Surface::Cylinder {
             origin,
             axis,
             radius,
@@ -661,11 +665,11 @@ pub enum TangentLocusError {
 /// [`TangentLocusError`] — escalation, definite non-tangency, or a
 /// configuration outside the closed-form lane.
 pub fn tangent_locus<T: Decide>(
-    a: &geom_surfaces::Surface<T>,
-    b: &geom_surfaces::Surface<T>,
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
-    use geom_surfaces::Surface;
+    use geom::Surface;
     let arm = T::one();
     let escalate = TangentLocusError::Escalated;
     match (a, b) {
@@ -986,6 +990,7 @@ fn realize_seam<T: Decide>(
     segments: &[(VertexKey, VertexKey)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
 ) -> Result<Option<SeamSet>, BooleanError> {
     let mut out = SeamSet {
         set: SecondaryMap::new(),
@@ -994,7 +999,7 @@ fn realize_seam<T: Decide>(
     for &(u, v) in segments {
         let edge = match fan_edge_between(body, u, v)? {
             Some(e) => e,
-            None => match mint_chord(body, u, v, rings, fragments)? {
+            None => match mint_chord(body, u, v, rings, fragments, tol)? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -1049,6 +1054,7 @@ fn mint_chord<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
 ) -> Result<Option<EdgeKey>, BooleanError> {
     let fu = incident_faces(body, u, rings)?;
     let fv = incident_faces(body, v, rings)?;
@@ -1078,7 +1084,7 @@ fn mint_chord<T: Decide>(
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
                 let created = body
-                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv })
+                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv }, tol)
                     .map_err(|_| unsupported("seam chord mef refused on its host face"))?;
                 fragments.push((created.face, face));
                 created.edge
@@ -1089,7 +1095,7 @@ fn mint_chord<T: Decide>(
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
                 let (target, ring) = if lv == outer { (*hv, *hu) } else { (*hu, *hv) };
-                body.mekr_chord(MekrSite::Cycles { target, ring })
+                body.mekr_chord(MekrSite::Cycles { target, ring }, tol)
                     .map_err(|_| unsupported("seam chord mekr refused on its host face"))?
                     .edge
             }
@@ -1097,14 +1103,14 @@ fn mint_chord<T: Decide>(
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
                 .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring })
+            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring }, tol)
                 .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
                 .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
                 .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring })
+            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring }, tol)
                 .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
                 .edge
         }
@@ -1474,6 +1480,7 @@ fn slit_zip<T: Decide>(
     fb: FaceKey,
     shared: &[EdgeKey],
     vmap: &SecondaryMap<VertexKey, VertexKey>,
+    tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     let mut report = ZipReport::default();
@@ -1674,6 +1681,7 @@ fn slit_zip<T: Decide>(
             },
             geom_brep::EdgeCurveSpec::self_loop_circle_at(p),
             FaceSurface::Inherit,
+            tol,
         )?;
         body.kev(made.he_plus)
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;

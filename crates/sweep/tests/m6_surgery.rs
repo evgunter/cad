@@ -11,11 +11,13 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Affine3, Band, Point2, Tolerance, Vec2, Vec3};
-use geom_surfaces::Surface;
+use geom::Surface;
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::cube;
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
@@ -33,28 +35,12 @@ const PIP_D: f64 = 0.22;
 const RIM_R: f64 = 0.02;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn cube(l: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
 }
 
 fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
@@ -72,6 +58,7 @@ fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
                     Vec3::new(1.0, 0.0, 0.0),
                     PI,
                 ),
+                Tol::witness(),
             )
             .unwrap()
         }
@@ -83,32 +70,29 @@ fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
                 axis.normalize(),
                 y.dot(pole).clamp(-1.0, 1.0).acos(),
             ),
+            Tol::witness(),
         )
         .unwrap()
     };
-    topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
+    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -r),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, r),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -r), 1.0),
+        ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
@@ -187,6 +171,7 @@ fn pip_tool() -> Body<f64> {
             &ball_poled(PIP_R, *c, *n),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("assembling the pip tool: {e}"))
         .body()
@@ -204,6 +189,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         b,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
     out.body().expect("a body").body.clone()
@@ -211,7 +197,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// The pipped cube and its twelve surviving box edges.
 fn pipped_and_box_edges() -> (Body<f64>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L);
+    let cube0 = cube(DIE_L, Tol::witness());
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges
@@ -333,12 +319,16 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
 #[test]
 fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, band())
+    let out = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
         .expect("the surgery fillets the pipped cube");
     let body = out.body;
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&body), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     assert_eq!(out.blend_faces.len(), 12);
     assert_eq!(out.corner_faces.len(), 8);
     assert_eq!(out.band_faces.len(), 0);
@@ -349,14 +339,14 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     assert_eq!(body.edges().count(), 48 + 21 * 4);
     assert_eq!(body.faces().count(), 26 + 21 * 2);
     let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
-    let props = topo::mass_properties(&body).unwrap();
+    let props = topo::mass_properties(&body, Tol::witness()).unwrap();
     assert!(
         (props.volume - want).abs() <= 1e-9 * want,
         "volume {} vs closed form {want}",
         props.volume
     );
     assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
-    let mesh = mesh::tessellate(&body, 5e-3).expect("tessellates");
+    let mesh = mesh::tessellate(&body, 5e-3, Tol::witness()).expect("tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
@@ -368,12 +358,9 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
 /// **K-funnel coverage rides along**: the surgery's one new predicate,
 /// `fillet3_ring_clearance`, must reach the funnel BY NAME during the
 /// composed-die construction (the ring carry-through is decided, not
-/// assumed). That was its own test until the test-cost audit — it
-/// only ever OBSERVED the build this row already performs, and
-/// `composed_die()` costs ~1.7 s that nextest's process-per-test
-/// isolation made the suite pay twice, on every ε row. The verdict
-/// log is a `Vec` push per definite outcome inside `decide`, so
-/// installing it changes nothing the certification battery measures.
+/// assumed). The verdict log is a `Vec` push per definite outcome
+/// inside `decide`, so installing it changes nothing the certification
+/// battery measures.
 #[test]
 fn the_composed_die_certifies_and_tessellates_watertight() {
     use geom_core::k_stats::{start_verdict_log, take_verdict_log};
@@ -389,7 +376,11 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     );
     assert_eq!(topo::validate(&die), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&die), Ok(()), "tier 2");
-    assert_eq!(topo::validate_geometric(&die), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&die, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     // Counts: blank 24/48/26 + per pip: the pole and the two lower
     // meridian pieces survive in the shrunk half-caps; 2 plane-trim
     // feet + 2 meridian split vertices; 2 ta + 2 tb arcs + 1 slit
@@ -400,7 +391,7 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     assert_eq!(die.edges().count(), 48 + 21 * 7);
     assert_eq!(die.faces().count(), 26 + 21 * 3);
     let want = blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
-    let props = topo::mass_properties(&die).unwrap();
+    let props = topo::mass_properties(&die, Tol::witness()).unwrap();
     assert!(
         (props.volume - want).abs() <= 1e-9 * want,
         "composed volume {} vs closed form {want} (diff {})",
@@ -408,7 +399,7 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
         props.volume - want
     );
     assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
-    let mesh = mesh::tessellate(&die, 5e-3).expect("the composed die tessellates");
+    let mesh = mesh::tessellate(&die, 5e-3, Tol::witness()).expect("the composed die tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let v_mesh = mesh::validate::signed_volume(&mesh);
     assert!(v_mesh > 0.0 && ((v_mesh - props.volume) / props.volume).abs() < 5e-3);
@@ -419,12 +410,13 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
 /// in ONE further call.
 fn composed_die() -> Body<f64> {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band())
+    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
         .expect("the box edges fillet in place")
         .body;
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
-    let out = fillet_edges(&blanked, &rims, RIM_R, band()).expect("the rims fillet to tori");
+    let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        .expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
@@ -436,8 +428,8 @@ fn the_composed_die_replays_bit_identically() {
     let a = composed_die();
     let b = composed_die();
     let (va, vb) = (
-        topo::mass_properties(&a).unwrap().volume,
-        topo::mass_properties(&b).unwrap().volume,
+        topo::mass_properties(&a, Tol::witness()).unwrap().volume,
+        topo::mass_properties(&b, Tol::witness()).unwrap().volume,
     );
     assert_eq!(va.to_bits(), vb.to_bits(), "volume bits");
     assert_eq!(
@@ -455,7 +447,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     use sweep::fillet::surgery::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     // Definite pass.
     ring_clearance(face, 0.05, band()).expect("a definite clearance carries the ring");
     // Definite refuse, typed with the margin as payload.
@@ -492,7 +484,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
     // (a) One box edge: its corners' other edges are not requested.
-    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, band())
+    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, band(), Tol::witness())
         .expect_err("a partially-requested corner is a run-out, not implemented");
     let text = format!("{err}");
     assert!(
@@ -506,7 +498,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     // The refusal is one door earlier than the surgery's own front
     // door, and that is the honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
-    let err = fillet_edges(&pipped, &rims[..1], RIM_R, band())
+    let err = fillet_edges(&pipped, &rims[..1], RIM_R, band(), Tol::witness())
         .expect_err("an open rim arc has no classifiable termination");
     let text = format!("{err}");
     assert!(
@@ -527,7 +519,8 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .map(|(k, f)| (k, f.rings.len(), f.sense))
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, band()).expect("the surgery");
+    let out =
+        fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness()).expect("the surgery");
     for (k, n, sense) in rings_before {
         let f = out.body.get_face(k).expect("the shrunk face keeps its key");
         assert_eq!(f.rings.len(), n, "ring count carried");

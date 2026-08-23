@@ -7,8 +7,9 @@
 
 mod revolve_common;
 
+use geom::Surface;
 use geom_brep::EdgeGeometry;
-use geom_surfaces::Surface;
+use geom_core::Tol;
 use profile::ProfileLoop;
 use profile::RawLoop;
 use revolve_common::*;
@@ -22,7 +23,7 @@ fn washer_profile() -> ProfileLoop<f64> {
 #[test]
 fn washer_full_revolve_is_genus_one_and_tier_valid() {
     let vp = validated(vec![washer_profile()]);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // V4 E8 F4 R0: component E–P v − e + f − r = 0 = 2(1 − g) ⇒ g = 1
     // (the kfmrh genus supplier).
@@ -66,6 +67,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     // Lamina case: one full-period band, no π-band entities.
     assert!(pi_walls.iter().all(Option::is_none));
     assert!(pi_meridians.iter().all(Option::is_none));
@@ -95,17 +97,11 @@ fn donut_two_arc_profile_shares_one_torus() {
     // torus's u = 0 minor circle and carry `Seam { torus }`. Also the
     // minimal (m = 2) exercise of the kfmrh + zip closure.
     let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex {
-            pos: p2(1.0, 0.5),
-            bulge: 1.0,
-        },
-        profile::ProfileVertex {
-            pos: p2(2.0, 0.5),
-            bulge: 1.0,
-        },
+        profile::ProfileVertex::new(p2(1.0, 0.5), 1.0),
+        profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
     let vp = validated(vec![lp]);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // V2 E4 F2 R0: v − e + f − r = 0 ⇒ genus 1.
     assert_eq!(counts(&t.body), (2, 4, 2, 0));
@@ -129,6 +125,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     for m in meridians {
         assert!(matches!(
             description(&t.body, m.unwrap()),

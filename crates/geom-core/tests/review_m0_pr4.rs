@@ -14,7 +14,11 @@
 //!   results outside tight enclosures) is dropped: it was exploratory and
 //!   assertion-free; the documented certification hazard it illustrated
 //!   is pinned deterministically by
-//!   [`powi_diverges_from_the_tight_enclosure`] instead.
+//!   `powi_f64_lane_is_contained_by_the_padded_enclosure` instead —
+//!   which, since the backend swap, pins the INVERSE property: a
+//!   pad-based backend contains its own `f64` lane op-for-op, so the
+//!   divergence witness cannot exist. That row's own doc carries the
+//!   inversion and what it does and does not guard.
 //! - The review flagged that an EMPTY residual passed the documented
 //!   `hi() <= eps` certification check (poison laundering). That hole was
 //!   closed after the review: [`geom_core::Bounds`] now surfaces empty as
@@ -407,8 +411,9 @@ fn next_up(x: f64) -> f64 {
 /// round-to-nearest multiply chain and moves with the mutation. The
 /// crate's own lanes caught that mutation immediately: `certify.rs`
 /// (differential, against MPFR) and `edges.rs`, plus
-/// `review_fuzz_div.rs` for the division witness. Those are the pad
-/// tripwires; this is a lane-agreement pin.
+/// `review_fuzz_exact.rs` for the division, multiplication and sqrt
+/// witnesses and `pad_contract.rs` for the pads' upper bound. Those are
+/// the pad tripwires; this is a lane-agreement pin.
 #[test]
 fn powi_f64_lane_is_contained_by_the_padded_enclosure() {
     let mut checked = 0u32;

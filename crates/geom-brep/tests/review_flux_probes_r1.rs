@@ -8,11 +8,11 @@
 //! must refuse typed.
 #![allow(clippy::unwrap_used, clippy::panic)]
 
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::props::loop_vector_area;
 use geom_brep::{LoopEdge, PropsError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
 
 fn line(a: Point3<f64>, b: Point3<f64>, s: u32, e: u32) -> LoopEdge<f64> {
     LoopEdge {

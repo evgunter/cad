@@ -639,9 +639,10 @@ PR-plan line item, none re-ratifying anything):
 3. **`split_edge`/`EdgeCurveSpec::split_specs`**: NURBS carrier
    splitting = knot insertion (C11); conic splitting = parameter
    interval split (bounded like circles). The M3 restrict-a-bulge
-   machinery generalizes; the `MappedCurve` arc lane's coverage note
-   (unreachable-at-rest) gets revisited once curved booleans mint
-   split curved edges at rest.
+   machinery generalizes; the `MappedCurve` arc lane's old coverage
+   note (unreachable-at-rest) is retired — curved booleans and the
+   fillet verbs split mapped arcs mid-operation, so the lane is
+   exercised end-to-end by whole-body rows.
 4. **Census** (`topo::census`): stays planar-exact; the
    `CensusUnsupported` boundary text names the frontier explicitly.
    *(OQ5 has since CLOSED — the boundary text's target is now
@@ -724,7 +725,9 @@ for* — each an obligation on M5 code shape, none a new decision:
   near-coincident/near-tangent *operands* (C5, the envelope) should
   point at the explicit repair/adoption operation as the resolution —
   the `FullRevolveHoles` precedent: a standing rule whose error text
-  names the front door that does not exist yet.
+  names the front door that does not exist yet. (That precedent later
+  completed its own arc: VERBS-RING built the door the text pointed
+  at and retired the refusal.)
 - **Recognition's substrate.** D7 step 1 (NURBS-within-ε-of-analytic
   promotion) will want closest-analytic-fit machinery; C11's fitting
   stack and C9's enclosures are its substrate, and nothing more is
@@ -869,7 +872,8 @@ is its three-convex-edge case), `RunOutFeather` (radius decays to
 zero before the vertex; the blend fades into the sharp edge), plus
 corner-configuration tags for the N-edge / mixed-convexity vertex
 cases. Honest, actionable frontier error text (the `FullRevolveHoles`
-precedent: errors name the front door that does not exist yet), zero
+precedent — since retired by VERBS-RING, which built its door:
+errors name the front door that does not exist yet), zero
 constructor surface; the finer taxonomy (per-end assignment, setback
 parameters) is left to the post-M5 design that implements run-outs.
 

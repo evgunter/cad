@@ -29,23 +29,41 @@ publish = false
 probe = ["pncad/probe"]
 budget = ["pncad/budget"]
 
-# ONE kernel dependency. The tour is the façade's acceptance corpus
-# (LIB-U1): eighteen scenes, every kernel type they touch reached
-# through `pncad::`, including the error payloads. It used to name
-# eleven crates here — among them `geom-brep`, present for no reason
-# but to spell `SurfaceKind`, the payload of
+# The façade carries the tour. The tour is the façade's acceptance
+# corpus (LIB-U1): every scene, and every kernel type they touch
+# reached through `pncad::`, including the error payloads. It used to
+# name eleven crates here — among them `geom-brep`, present for no
+# reason but to spell `SurfaceKind`, the payload of
 # `topo::BooleanError::CurvedBooleanUnsupported` that `topo` does not
 # re-export. The façade's closure property retires that whole class,
 # so the entry is gone rather than commented.
 [dependencies]
 pncad = { path = "../../crates/pncad" }
 
+# The budget meter's consumer half: the CSV schema and the
+# counterfactual arithmetic the `tess-budget` mode writes. Not gated
+# behind the `budget` feature — the crate is plain derivation over
+# `mesh::budget`'s (ungated, data-only) measurement types, so carrying
+# it never turns the instrument on. What `budget` gates is `arm`/`take`.
+tess-meter = { path = "../../tools/tess-meter" }
+
+# The one exception, and it is a MEASUREMENT, not a convenience:
+# `profile::RawLoop` is the raw loop door — kernel vocabulary that
+# `pncad::profile` omits on purpose — and `ProfileLoop`'s fields are
+# sealed, so a consumer needing a vertex table the PATHS lattice has no
+# spelling for has exactly this route and no other. One scene needs it:
+# `lily.rs::section_loops`, the #433 named gap (exactly-collinear
+# junctions the lattice refuses and `Profile::validate` accepts). This
+# entry IS that gap, stated in the dependency graph where it cannot be
+# overlooked; it goes when the lattice grows the verb.
+profile = { path = "../../crates/profile" }
+
 # The tour is the ONLY release build of the kernel in CI (the ten
 # nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`
 # in ci.yml, which leaves cargo's dev default of debug-assertions ON, so
 # the fail-loud postconditions keep their teeth there). Cargo's release
-# default turns them OFF, so without this the eighteen scenes were the
-# one lane exercising the kernel with every `debug_assert` compiled out
+# default turns them OFF, so without this the tour was the one lane
+# exercising the kernel with every `debug_assert` compiled out
 # — D9's operator postconditions, the Euler-vector arena deltas, the N6
 # bitwise-agreement check, all vacuous.
 #

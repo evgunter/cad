@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 /// The pre-bump bytes, kept verbatim as the refusal fixture (the file
 /// `m4_pr6_golden.rs` pinned as LIVE until this bump).
@@ -30,7 +31,7 @@ fn schema_version_is_current() {
     // pin it invalidates, so the number stays exact here. This file
     // keeps pinning the v8 refusal fixture below,
     // which is what the row is actually about.
-    assert_eq!(SCHEMA_VERSION, 13);
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]
@@ -43,7 +44,7 @@ fn the_checked_in_v8_file_is_really_v8() {
 /// step that does not exist.
 #[test]
 fn v8_refuses_too_old() {
-    match load(V8) {
+    match load(V8, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -60,7 +61,7 @@ fn v8_refuses_too_old() {
 /// The recourse is the standing one — regenerate, never a shim.
 #[test]
 fn the_refusal_names_the_regenerate_recourse() {
-    let err = load(V8).expect_err("v8 refuses");
+    let err = load(V8, Tol::witness()).expect_err("v8 refuses");
     assert!(
         err.to_string().contains(REGENERATE_RECOURSE),
         "the refusal must carry the regenerate recourse: {err}"
@@ -79,7 +80,7 @@ fn the_refusal_names_the_regenerate_recourse() {
 fn a_future_version_refuses_unknown() {
     let ahead = u64::from(SCHEMA_VERSION) + 1;
     let future = V8.replacen("schema: 8", &format!("schema: {ahead}"), 1);
-    match load(&future) {
+    match load(&future, Tol::witness()) {
         Err(PersistError::UnknownSchema { found, newest }) => {
             assert_eq!(found, ahead);
             assert_eq!(newest, SCHEMA_VERSION);

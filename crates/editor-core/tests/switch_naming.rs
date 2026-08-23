@@ -15,6 +15,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
     evaluate,
 };
+use geom_core::Tol;
 use profile::SketchPlane;
 
 /// A quad whose LAST authored corner x is a document parameter: at
@@ -25,14 +26,17 @@ use profile::SketchPlane;
 fn param_rect_doc(x0: f64) -> ProfileDoc {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let x0e = || Expr::param(ParamName::new("x0"), Dimension::Length);
-    let doc = ProfileDoc::empty_derived("switch_naming")
-        .apply(&DocEdit::SetDocParam {
-            name: ParamName::new("x0"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: x0,
+    let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+        .apply(
+            &DocEdit::SetDocParam {
+                name: ParamName::new("x0"),
+                value: DocParam::Continuous {
+                    dim: Dimension::Length,
+                    value: x0,
+                },
             },
-        })
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let loop_ = LoopProgram::Chain(vec![
@@ -43,26 +47,38 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let doc = doc
-        .apply(&DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops: vec![loop_],
-            }),
-        })
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::xy(),
+                    loops: vec![loop_],
+                }),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
-    doc.apply(&DocEdit::InsertNode {
-        node: Node::Extrude {
-            profile: RecipeNodeId(0),
-            distance: lit(1.0),
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: RecipeNodeId(0),
+                distance: lit(1.0),
+            },
         },
-    })
+        Tol::witness(),
+    )
     .unwrap()
     .doc
 }
 
 fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     ev.value(id)
         .expect("node evaluates")
         .name_table
@@ -72,7 +88,13 @@ fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
 }
 
 fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
         panic!("profile payload");
     };
@@ -107,7 +129,13 @@ fn lex_min_swap_cannot_renumber_program_names() {
     // program segment 0 — Lateral(0)'s referent — is the leg leaving
     // the authored entry corner (1, 0), read through the anchor.
     for doc in [&before, &after] {
-        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+        let ev = evaluate::<f64>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
             panic!("profile payload");
         };
@@ -115,7 +143,7 @@ fn lex_min_swap_cannot_renumber_program_names() {
         let c = (0..a.len)
             .find(|&k| a.segment(k) == 0)
             .expect("program segment 0 exists");
-        let start = pv.validated.loops()[0].vertices()[c as usize].pos;
+        let start = pv.validated.loops()[0].vertices()[c as usize].pos();
         assert_eq!(start.x.to_bits(), 1.0_f64.to_bits());
         assert_eq!(start.y.to_bits(), 0.0_f64.to_bits());
     }
@@ -126,21 +154,27 @@ fn lex_min_swap_cannot_renumber_program_names() {
 #[test]
 fn circle_radius_edit_keeps_names() {
     let mk = |r: f64| {
-        let doc = ProfileDoc::empty_derived("switch_naming")
-            .apply(&DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
-                    loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
-                }),
-            })
+        let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::Profile(ProfileProgram {
+                        plane: SketchPlane::xy(),
+                        loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
+                    }),
+                },
+                Tol::witness(),
+            )
             .unwrap()
             .doc;
-        doc.apply(&DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: RecipeNodeId(0),
-                distance: Expr::literal(1.0, Dimension::Length).unwrap(),
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Node::Extrude {
+                    profile: RecipeNodeId(0),
+                    distance: Expr::literal(1.0, Dimension::Length).unwrap(),
+                },
             },
-        })
+            Tol::witness(),
+        )
         .unwrap()
         .doc
     };
@@ -158,7 +192,13 @@ fn circle_radius_edit_keeps_names() {
 fn stale_program_refs_refuse_vanished() {
     use editor_core::{CapEnd, EntityKind, ProfileEdgeRef, RoleSeg};
     let doc = param_rect_doc(0.5);
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ghost = StableName {
         kind: EntityKind::Edge,
         node: RecipeNodeId(1),
@@ -200,7 +240,13 @@ fn stale_program_refs_refuse_vanished() {
 fn program_vertex_zero_is_the_authored_entry() {
     for x0 in [0.5, 1.5] {
         let doc = param_rect_doc(x0);
-        let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
             panic!("profile payload");
         };
@@ -209,7 +255,7 @@ fn program_vertex_zero_is_the_authored_entry() {
         let canonical_of_program_zero = (0..anchor.len)
             .find(|&k| anchor.vertex(k) == 0)
             .expect("program vertex 0 exists");
-        let v = verts[canonical_of_program_zero as usize].pos;
+        let v = verts[canonical_of_program_zero as usize].pos();
         assert_eq!(
             v.x.to_bits(),
             1.0_f64.to_bits(),
@@ -233,25 +279,37 @@ fn hole_circle_anchor_recovers_reversal() {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
-    let doc = ProfileDoc::empty_derived("switch_naming")
-        .apply(&DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops: vec![outer, hole],
-            }),
-        })
+    let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::xy(),
+                    loops: vec![outer, hole],
+                }),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
     let doc = doc
-        .apply(&DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: RecipeNodeId(0),
-                distance: lit(1.0),
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Extrude {
+                    profile: RecipeNodeId(0),
+                    distance: lit(1.0),
+                },
             },
-        })
+            Tol::witness(),
+        )
         .unwrap()
         .doc;
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
         panic!("profile payload");
     };
@@ -263,7 +321,7 @@ fn hole_circle_anchor_recovers_reversal() {
     assert!(a.reversed, "a CW-canonicalized CCW hole is REVERSED");
     // The program's own lowering (the primitive, replayed directly):
     // program segment 0 is the arc leaving (cx+r, cy) with bulge +1.
-    let program = profile::circle(geom_core::Point2::new(2.0, 2.0), 0.5)
+    let program = profile::circle(geom_core::Point2::new(2.0, 2.0), 0.5, Tol::witness())
         .expect("circle lowers")
         .loop_;
     let verts = pv.validated.loops()[1].vertices();
@@ -275,13 +333,13 @@ fn hole_circle_anchor_recovers_reversal() {
         // carries the NEGATED bulge — bit-exact both.
         let p_end = (p_seg + 1) % n as usize;
         assert_eq!(
-            verts[c as usize].pos.x.to_bits(),
-            program.vertices[p_end].pos.x.to_bits(),
+            verts[c as usize].pos().x.to_bits(),
+            program.vertices()[p_end].pos().x.to_bits(),
             "canonical seg {c} starts at program vertex {p_end}"
         );
         assert_eq!(
-            verts[c as usize].bulge.to_bits(),
-            (-program.vertices[p_seg].bulge).to_bits(),
+            verts[c as usize].bulge().to_bits(),
+            (-program.vertices()[p_seg].bulge()).to_bits(),
             "canonical seg {c} carries program seg {p_seg}'s negated bulge"
         );
     }

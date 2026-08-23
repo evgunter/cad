@@ -37,6 +37,13 @@ pub mod fail_loud {
     #![doc = include_str!("../../../docs/guide/fail-loud.md")]
 }
 
+/// Selecting entities: materializers, the structural pattern
+/// language, the geometric filters, the doors from a name back to
+/// geometry, and the detect/declare protocol.
+pub mod selecting {
+    #![doc = include_str!("../../../docs/guide/selecting.md")]
+}
+
 /// The north-star audit: which demos are authorable through the
 /// Python bindings today, and the named gap for each that is not.
 pub mod north_star_audit {

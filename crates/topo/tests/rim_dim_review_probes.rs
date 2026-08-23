@@ -7,6 +7,13 @@
 //! `split_section_area`). `bool_strut_order` stays SILENT here too —
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p topo --features probe --test all -- rim_dim_review_probes::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -59,11 +66,12 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
     k_stats::start_recording();
     let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = bx((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-    let r = subtract(&a, &b).expect("corner subtract");
+    let r = subtract(&a, &b, Tol::witness()).expect("corner subtract");
     let BooleanResult::Body(rb) = r else {
         panic!("corner: body out");
     };
-    topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default()).expect("census");
+    topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default(), Tol::witness())
+        .expect("census");
     let a2 = bx((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let b2 = bx((1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
     // The F4 fix (see rim_dim_boolean_twins module docs) retired this
@@ -71,7 +79,7 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
     // metered to its mean width, so the mm pocket subtract computes at
     // every ε. The signature tolerance this printer carried is gone
     // with it — a refusal here is now a finding.
-    subtract(&a2, &b2).expect("pocket subtract");
+    subtract(&a2, &b2, Tol::witness()).expect("pocket subtract");
     let mut counts: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
     for sample in k_stats::take_samples() {
         let e = counts.entry(sample.predicate).or_default();
@@ -134,6 +142,7 @@ fn which_fixed_predicates_fire_in_the_twin_configs() {
 }
 
 use geom_core::Sign;
+use geom_core::Tol;
 use geom_core::k_stats::SampleOutcome;
 use topo::{SplitPlane, split};
 
@@ -164,7 +173,10 @@ fn silent_fixed_predicates_scale_linearly() {
         // all this probe harvests.
         let a = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5));
-        assert!(subtract(&a, &b).is_err(), "undeclared flush must refuse");
+        assert!(
+            subtract(&a, &b, Tol::witness()).is_err(),
+            "undeclared flush must refuse"
+        );
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();
         let n = geom_core::Vec3::new(Probe(1.0 / 3.0), Probe(2.0 / 3.0), Probe(2.0 / 3.0));
@@ -172,7 +184,7 @@ fn silent_fixed_predicates_scale_linearly() {
             origin: geom_core::Point3::new(Probe(s(1.0)), Probe(s(1.0)), Probe(s(1.0))),
             normal: n,
         };
-        split(&body, &plane).expect("oblique split");
+        split(&body, &plane, Tol::witness()).expect("oblique split");
         let mut out: BTreeMap<&'static str, Vec<f64>> = BTreeMap::new();
         for sample in k_stats::take_samples() {
             if matches!(

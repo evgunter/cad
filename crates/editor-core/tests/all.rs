@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `editor-core`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 51 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -42,12 +47,20 @@ mod asm4_split_inline;
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_schema_v13.rs"]
 mod asm_r2a_schema_v13;
+#[path = "asm_r2b_assembly.rs"]
+mod asm_r2b_assembly;
+#[path = "asm_r2b_schema_v14.rs"]
+mod asm_r2b_schema_v14;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
 #[path = "asm_upd_schema_v10.rs"]
 mod asm_upd_schema_v10;
+#[path = "boolean_op_wire.rs"]
+mod boolean_op_wire;
+#[path = "e4_dual_door.rs"]
+mod e4_dual_door;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
@@ -186,6 +199,10 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "ring_r1_names_probe.rs"]
+mod ring_r1_names_probe;
+#[path = "schema_ledger.rs"]
+mod schema_ledger;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -196,6 +213,8 @@ mod switch_naming;
 mod switch_plate_param;
 #[path = "switch_program_key.rs"]
 mod switch_program_key;
+#[path = "switch_program_vocabulary.rs"]
+mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
 #[path = "u8a_parse.rs"]

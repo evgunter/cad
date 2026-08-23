@@ -18,7 +18,9 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`] — per-arm
 //!    retirement, C12.1). Edge carriers `Line`/`Circle`/`Ellipse`
 //!    pass; `Nurbs` refuses
-//!    ([`SplitReduceError::CurvedEdgeUnsupported`]).
+//!    ([`SplitReduceError::CurvedEdgeUnsupported`]) — a rung-3 carrier
+//!    in the input operand, refused on this gate's own footing: the
+//!    general rung is implemented, and gates retire per arm.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
 //!    through the Q1 trilean `split_vertex_side` — definitely-off ⇒
 //!    clean side, coincident ⇒ [`PlaneSide::On`], in-band ⇒ the typed
@@ -75,11 +77,12 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::null::NullEdge;
+use geom_core::Tol;
 use slotmap::SecondaryMap;
 
+pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
-pub use join::{ArcWindowCase, SplitJoinError};
 pub use neighborhood::classify_neighborhood;
 pub use section::{Section, SectionPolygon, plane_section};
 
@@ -191,9 +194,12 @@ pub enum SplitReduceError {
         /// Its surface kind (the table row).
         kind: geom_brep::SurfaceKind,
     },
-    /// An edge carrier is the `Nurbs` fallback — rung 3, unimplemented
-    /// until SSI (M5 PR 7). Line/circle/ellipse carriers all pass the
-    /// gate since M5 PR 5.
+    /// An edge carrier is the `Nurbs` fallback — a rung-3 carrier in
+    /// the INPUT operand. The general rung itself is implemented (SSI);
+    /// this gate is what has not retired, and gates retire per arm,
+    /// never wholesale (C12.1) — so the refusal rests on its own
+    /// footing, not on SSI's absence. Line/circle/ellipse carriers all
+    /// pass the gate.
     CurvedEdgeUnsupported {
         /// The offending edge.
         edge: EdgeKey,
@@ -311,8 +317,9 @@ impl core::fmt::Display for SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { edge } => write!(
                 f,
-                "split_reduce: edge {edge:?} has a NURBS carrier — this routes to the \
-                 general rung, unimplemented until SSI (M5 PR 7)"
+                "split_reduce: edge {edge:?} has a NURBS carrier — a rung-3 carrier in \
+                 an INPUT operand. The general rung itself is implemented (SSI); this \
+                 gate has not retired, and gates retire one arm at a time"
             ),
             Self::CrossingEscalated { edge, diag } => write!(
                 f,
@@ -382,8 +389,9 @@ impl std::error::Error for SplitReduceError {}
 pub fn vertex_sides<T: geom_core::Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(tol)?;
     classify::gate_operand(body)?;
     classify::classify_vertices(body, plane, band)
 }
@@ -404,13 +412,14 @@ pub fn vertex_sides<T: geom_core::Decide>(
 pub fn split_reduce<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitReduction<T>, SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(tol)?;
     let mut body = operand.clone();
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices)?;
+    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
     for &v in &on_vertices {
@@ -472,12 +481,18 @@ impl From<crate::pcurves::PcurveMintError> for SplitError {
     }
 }
 
+// A stage that names itself is not re-named here: `split_reduce`,
+// `split join` and `split finish` each lead with their own stage, so a
+// prefix would only stutter once this error is forwarded — the node
+// layer prefixes again, and so does the binding. `Pcurves` is the one
+// stage whose error is shared with callers that are not splits, so it
+// is the one arm that says where it ran.
 impl core::fmt::Display for SplitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Reduce(e) => write!(f, "split: {e}"),
-            Self::Join(e) => write!(f, "split: {e}"),
-            Self::Finish(e) => write!(f, "split: {e}"),
+            Self::Reduce(e) => write!(f, "{e}"),
+            Self::Join(e) => write!(f, "{e}"),
+            Self::Finish(e) => write!(f, "{e}"),
             Self::Pcurves(e) => write!(f, "split: {e}"),
         }
     }
@@ -491,17 +506,18 @@ impl std::error::Error for SplitError {}
 pub(crate) fn split_scratch<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<
     (
         SplitReduction<T>,
         Vec<join::CompletedSection>,
-        join::FragmentRows,
+        crate::chord_join::FragmentRows,
     ),
     SplitError,
 > {
-    let band = geom_core::Band::linear().map_err(SplitReduceError::from)?;
-    let mut red = split_reduce(operand, plane)?;
-    let (completed, fragments) = join::split_connect(&mut red, band)?;
+    let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
+    let mut red = split_reduce(operand, plane, tol)?;
+    let (completed, fragments) = join::split_connect(&mut red, band, tol)?;
     Ok((red, completed, fragments))
 }
 
@@ -533,7 +549,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// below-copy minting through the **mirror identity**
 /// `split(S, n) ≡ swap(split(S, −n))` (exact: piece assignment is
 /// plane-orientation-equivariant — PR 2's principle, executed by the
-/// PR 3 review's orientation table): on a `DegenerateSection` refusal
+/// PR 3 review's orientation table, tol): on a `DegenerateSection` refusal
 /// the pipeline reruns under the flipped plane — where the pinched
 /// fans ARE the above runs and receive their distinct copies — and
 /// swaps the sides back. Success is therefore
@@ -565,8 +581,9 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 pub fn split<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
-    match split_direct(operand, plane) {
+    match split_direct(operand, plane, tol) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {}
         other => return other,
     }
@@ -577,7 +594,7 @@ pub fn split<T: geom_core::Decide>(
         origin: plane.origin,
         normal: -plane.normal,
     };
-    match split_direct(operand, &mirrored) {
+    match split_direct(operand, &mirrored, tol) {
         Ok(SplitResult {
             above,
             below,
@@ -609,7 +626,7 @@ pub fn split<T: geom_core::Decide>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
-        Err(_) => split_direct(operand, plane),
+        Err(_) => split_direct(operand, plane, tol),
     }
 }
 
@@ -624,12 +641,13 @@ pub fn split<T: geom_core::Decide>(
 fn split_direct<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitError> {
-    let (red, completed, fragments) = split_scratch(operand, plane)?;
-    let mut result = finish::split_finish(red, &completed, fragments)?;
+    let (red, completed, fragments) = split_scratch(operand, plane, tol)?;
+    let mut result = finish::split_finish(red, &completed, fragments, tol)?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
-            crate::pcurves::mint_pcurves(body)?;
+            crate::pcurves::mint_pcurves(body, tol)?;
         }
     }
     Ok(result)

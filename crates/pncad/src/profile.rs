@@ -8,9 +8,8 @@
 //!
 //! # The boundary this module draws
 //!
-//! Evan's ruling on #413 (LIB-RETTAIL): **raw `ProfileLoop`
-//! construction is kernel vocabulary and leaves the presented
-//! surface.** The types stay nameable — read-back hands back a
+//! **Raw `ProfileLoop` construction is kernel vocabulary and stays
+//! off the presented surface.** The types stay nameable — read-back hands back a
 //! `ProfileLoop`, `ProfileError` payloads carry `SegmentRef`s,
 //! `ValidatedProfile` is what every body operation consumes — but the
 //! minting doors go.
@@ -22,32 +21,37 @@
 //! nameable. This module re-exports everything in `profile`'s root
 //! EXCEPT `RawLoop`, so `pncad::profile::ProfileLoop::polygon(…)` does
 //! not resolve: the trait is not in scope and there is no path to it.
-//! (`pub use profile;` did resolve it — that is the measurement this
-//! narrowing answers, and it is the LB13 precedent: a curated module in
-//! place of a whole-crate re-export, aimed at one nameability.)
 //!
-//! RESIDUE, stated rather than glossed: `ProfileLoop` and
-//! `ProfileVertex` are plain data with public fields, so
-//! `ProfileLoop { vertices, tangent_joints }` still type-checks
-//! wherever the type is nameable. Sealing that means private fields
-//! plus accessors, which is a change to the plain-data convention and
-//! not a housekeeping edit. What this module removes is the *authoring
-//! tier*: the named, documented, prelude-carried way to mint a loop
-//! from a coordinate table without the lattice's junction
-//! classification.
+//! What this module removes is the *authoring tier*: the named,
+//! documented, prelude-carried way to mint a loop from a coordinate
+//! table without the lattice's junction classification. The COMPILER
+//! is what makes the removal total — `ProfileLoop`'s fields are
+//! private, so a struct literal is an E0451 privacy error in every
+//! crate but `profile` itself (pinned by a `compile_fail` doctest on
+//! the type). Naming the type, reading it through its accessors, and
+//! matching on error payloads that carry it are all untouched; the two
+//! surfaces are complementary, and the funnel is the pair.
+//!
+//! Stated honestly, because it is a crate boundary and not a module
+//! one: `profile`'s own internals build loops directly and hold the
+//! invariant by their sealed-verbs discipline, not by privacy. And a
+//! consumer willing to depend on `profile` directly still reaches
+//! `RawLoop` — the door is off the PRESENTED surface, not out of
+//! existence. `demos/tour` does exactly that, in one scene, on purpose
+//! (its manifest says why).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`].
 
-// The submodules a caller reaches for by path. `test_support` is gone
-// (LIB-RETTAIL) and `path`'s own root re-exports are already listed
+// The submodules a caller reaches for by path. `path`'s own root
+// re-exports are already listed
 // below, but the module hop is what the lattice's program vocabulary
 // (`profile::path::program::Step`) is spelled through.
-pub use ::profile::{k_stats, lift, path};
+pub use ::profile::{lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
-    ArcCarrierScalar, ArcData, ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, OnArc, Open,
+    ArcCarrierScalar, ArcData, ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open,
     PartialPath, PathError, PointLeg, Radius, ReplayError, ReplayErrorKind, Start, Step, Sweep,
     TangentArcTarget, Target, TipState, Verb, Via, circle, circle_split, replay,
 };
@@ -55,7 +59,7 @@ pub use ::profile::{
 // matrix (one impl per admissible (state, mode) pair) and the states a
 // spec that leaves binders free completes through.
 pub use ::profile::path::{
-    ArrivalSpec, OnArcIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
+    ArrivalSpec, LegEndIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
     TangentIncoming, ViaArrival, ViaArrivalStart,
 };
 

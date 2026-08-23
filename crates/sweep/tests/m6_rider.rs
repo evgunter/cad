@@ -15,7 +15,8 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Affine3, Point2, Tolerance, Vec2, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -28,24 +29,20 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// A radius-`r` ball at `c` (poles on +Y; meridian circle in z = 0).
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -r),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, r),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -r), 1.0),
+        ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, BooleanError> {
@@ -55,10 +52,13 @@ fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, B
         b,
         &BooleanDeclarations::none(),
         strategy,
+        Tol::witness(),
     )?;
-    Ok(topo::mass_properties(&out.body().expect("a body").body)
-        .unwrap()
-        .volume)
+    Ok(
+        topo::mass_properties(&out.body().expect("a body").body, Tol::witness())
+            .unwrap()
+            .volume,
+    )
 }
 
 /// **Definite miss, both strategies**: two far disjoint balls union
@@ -98,7 +98,7 @@ fn overlapping_balls_keep_the_pierce_frontier() {
 /// band, so neither "miss" nor "meet" may be asserted.
 #[test]
 fn in_band_clearance_escalates_through_the_funnel() {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     let delta = 5.0 * tol.eps; // strictly inside [eps, K*eps)
     let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
     let b = ball_at(1.0, Vec3::new(4.0 + delta, 2.0, 0.0));

@@ -32,13 +32,17 @@ matplotlib stamps exactly one:
 
     Software  Matplotlib version3.10.3, https://matplotlib.org/
 
-`strip_png_stamps.py` drops only the two WALL-CLOCK chunks (`tEXt`
-"Creation Time", `zTXt` "Description") — the three above are
-deterministic and survive the strip, so they are a stable signature of
-which renderer drew the pixels. This guard reads Author + Software.
-(Title is deterministic too, but it records the path passed at render
-time, which is a render-invocation detail, not provenance — so it is
-not asserted.)
+`strip_png_stamps.py` drops the two WALL-CLOCK chunks (`tEXt`
+"Creation Time", `zTXt` "Description") AND `Title` — Author and
+Software are deterministic and survive the strip, so they are a stable
+signature of which renderer drew the pixels. This guard reads exactly
+those two, and always did: Title records the path passed at render
+time, which is a render-invocation detail rather than provenance, so
+it was never asserted here — which is why stripping it (2026-08-22, to
+make a frame's bytes independent of where it was written) costs this
+guard nothing. A frame that still carries Title — one strip_png_stamps
+has not been run over — passes here too, since the guard asserts what
+must be PRESENT and never what must be absent.
 
 SHEETS ARE EXEMPT — AND WHY THAT IS SAFE. The two montage sheets
 (`renders/montage.png`, `renders-freecad/montage-freecad.png`) are
@@ -83,6 +87,7 @@ file named) otherwise. Stdlib only — no venv, no numpy — so the gate
 can run it anywhere.
 """
 
+import re
 import struct
 import sys
 import zlib
@@ -100,17 +105,55 @@ LANE_DIRS = ("renders", "renders-freecad", "renders-wild")
 WILD_LANE = "renders-wild"
 
 # The matplotlib-COMPOSED contact sheets — the only exempt names, and
-# they must actually be matplotlib-composed. Kept in sync with
-# render.sh's / render-wild.sh's `--montage=` arguments (and
-# compose_montage.py's default).
+# they must actually be matplotlib-composed. This set is the exemption
+# list; the sheet names themselves are decided by the render scripts'
+# `--montage=` arguments and compose_montage.py's default, and
+# `sheet_names_in_scripts()` reads them back out of those files so the
+# agreement is CHECKED (the selftest's last case) rather than asked for
+# in a comment.
 SHEETS = {"montage.png", "montage-freecad.png", "montage-wild.png"}
 
 FREECAD_AUTHOR = "FreeCAD (https://www.freecad.org)"
 FREECAD_SOFTWARE = "FreeCAD"
 MATPLOTLIB_SOFTWARE_PREFIX = "Matplotlib"
-# The wild lane's own signature (render-wild.sh passes it to
-# render.py --author; keep the three spellings in sync).
+# The wild lane's own signature. Two spellings, and they must agree:
+# this constant and `render-wild.sh`'s AUTHOR, which it passes to
+# `render.py --author`. `wild_author_in_script()` reads the second one
+# and the selftest compares them, because a signature that drifts turns
+# every committed wild cell into a violation at once.
 WILD_AUTHOR = "pncad wild-corpus lane (kernel tessellation of licensed third-party STEP)"
+
+
+def sheet_names_in_scripts(root=None):
+    """Every sheet name the render scripts and the composer can write.
+
+    `--montage=NAME` in either render script, plus `compose_montage.py`'s
+    own default for the invocation that passes no such flag.
+    """
+    root = root or HERE
+    names = set(
+        re.findall(
+            r"--montage=(\S+)", (root / "render.sh").read_text()
+        )
+    ) | set(
+        re.findall(
+            r"--montage=(\S+)", (root / "render-wild.sh").read_text()
+        )
+    )
+    (default,) = re.findall(
+        r'^\s*montage_name = "([^"]+)"', (root / "compose_montage.py").read_text(),
+        re.MULTILINE,
+    )
+    return names | {default}
+
+
+def wild_author_in_script(root=None):
+    """The Author string `render-wild.sh` actually stamps into its cells."""
+    root = root or HERE
+    (author,) = re.findall(
+        r"^AUTHOR='([^']*)'$", (root / "render-wild.sh").read_text(), re.MULTILINE
+    )
+    return author
 
 
 def text_chunks(path):
@@ -232,15 +275,24 @@ def _tiny_png(path, texts):
     path.write_bytes(b"".join(blob))
 
 
+# Title is kept in this fixture ON PURPOSE, though render.sh's frames no
+# longer carry it: the guard must pass on a frame that has one (a
+# straight-from-FreeCAD render, before the strip) exactly as on one that
+# does not, because it asserts presence of Author/Software and never the
+# absence of anything else. `selftest` renders the stripped case too.
 FREECAD_TEXTS = [
     ("Author", FREECAD_AUTHOR),
     ("Software", FREECAD_SOFTWARE),
     ("Title", "renders/selftest.png"),
 ]
+FREECAD_TEXTS_STRIPPED = [
+    ("Author", FREECAD_AUTHOR),
+    ("Software", FREECAD_SOFTWARE),
+]
 MATPLOTLIB_TEXTS = [
     ("Software", "Matplotlib version3.10.3, https://matplotlib.org/")
 ]
-WILD_TEXTS = MATPLOTLIB_TEXTS + [("Author", WILD_AUTHOR)]
+WILD_TEXTS = [*MATPLOTLIB_TEXTS, ("Author", WILD_AUTHOR)]
 
 
 def selftest():
@@ -250,9 +302,11 @@ def selftest():
         d = Path(tmp) / "renders"
         d.mkdir()
         _tiny_png(d / "good_cell.png", FREECAD_TEXTS)
+        # The same cell as render.sh publishes it: Title stripped.
+        _tiny_png(d / "stripped_cell.png", FREECAD_TEXTS_STRIPPED)
         _tiny_png(d / "montage.png", MATPLOTLIB_TEXTS)
         violations, checked = check_dirs([d])
-        assert checked == 2, checked
+        assert checked == 3, checked
         assert violations == [], violations
 
         # A fallback frame in a cell path: refused, and named.
@@ -311,7 +365,18 @@ def selftest():
             "stray_wild.png" in v and "MATPLOTLIB FALLBACK FRAME" in v
             for v in violations
         ), violations
-    print("check_render_provenance --selftest: 9 cases OK")
+    # ---- the two cross-file agreements this module asserts ---------
+    # Both used to be comments asking a future editor to keep files in
+    # sync. Read them instead: a sheet name only the scripts know would
+    # make the exemption list wrong (a real sheet refused as a fallback
+    # frame), and a drifted Author string would fail every committed
+    # wild cell at once.
+    in_scripts = sheet_names_in_scripts()
+    assert in_scripts == SHEETS, (in_scripts, SHEETS)
+    stamped = wild_author_in_script()
+    assert stamped == WILD_AUTHOR, (stamped, WILD_AUTHOR)
+
+    print("check_render_provenance --selftest: 11 cases OK")
 
 
 def main():

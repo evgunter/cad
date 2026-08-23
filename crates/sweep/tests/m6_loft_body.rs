@@ -18,6 +18,7 @@
 mod common;
 
 use common::quad;
+use geom_core::Tol;
 use geom_core::{Affine3, Vec3};
 use profile::RawLoop;
 use sweep::{Section, loft_body};
@@ -39,18 +40,19 @@ fn shape_iii_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
 #[test]
 fn shape_iii_loft_body_is_tier3_valid_at_rest() {
     let (sections, places) = shape_iii_sections();
-    let lofted = loft_body::<f64>(&sections, &places, 2).expect("shape (iii) loft builds");
+    let lofted =
+        loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("shape (iii) loft builds");
     let body = &lofted.body;
     assert_eq!(topo::validate(body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(body), Ok(()), "tier 2 (watertight)");
-    let report = topo::validate_geometric(body);
+    let report = topo::validate_geometric(body, Tol::witness());
     assert_eq!(report, Ok(()), "tier 3 at rest");
 }
 
 #[test]
 fn loft_walls_store_exact_iso_pcurves() {
     let (sections, places) = shape_iii_sections();
-    let lofted = loft_body::<f64>(&sections, &places, 2).expect("loft builds");
+    let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("loft builds");
     let body = &lofted.body;
     // Every wall-face half-edge carries a stored cache; caps (planar)
     // store nothing.
@@ -111,8 +113,8 @@ fn face_outer_cycle(body: &topo::Body<f64>, face: &topo::Face) -> Option<Vec<top
 #[test]
 fn shape_iii_volume_matches_the_derived_closed_form() {
     let (sections, places) = shape_iii_sections();
-    let lofted = loft_body::<f64>(&sections, &places, 2).expect("loft builds");
-    let m = topo::props::mass_properties(&lofted.body).expect("mass properties");
+    let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("loft builds");
+    let m = topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
     let exact = 9.0;
     assert!(
         (m.volume - exact).abs() <= m.volume_pad + 1e-9,
@@ -126,8 +128,35 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
         m.volume_pad
     );
     // The caps' closed forms contribute pad-free; the walls' area is
-    // an honest enclosure (positive, finite).
-    assert!(m.surface_area > 0.0 && m.area_pad.is_finite());
+    // an honest enclosure — positive, and NARROW. Positivity and
+    // containment are both monotone in the degrading direction, so a
+    // ceiling is the only thing that reports a widening.
+    //
+    // This lane's pad is RESOLUTION-driven, not tolerance-driven — the
+    // patch area rule is O(h) at a fixed cell count — so the measured
+    // half-width of 0.199 m² (a bracket 0.397 m² wide, on a 25.31 m²
+    // surface) is identical at every ε CI runs, and it doubles exactly
+    // when the cell count halves. The ceiling is 1.5x the measured
+    // half-width, which leaves it below the 0.397 m² one halving
+    // produces.
+    //
+    // The contrast is the point: this same body's certified VOLUME
+    // half-width is 1.1e-13 m³. The flux lane refines to machine
+    // precision; the area lane stays at whatever its fixed resolution
+    // bought, and nothing in the kernel meters it.
+    //
+    // Spelled as a bare absolute because this loft has no closed-form
+    // area to scale to (its walls are degree-2 skins); the cut-cylinder
+    // rows in `m5_pr11_quad_props.rs` scale to theirs. The tree spells
+    // this kind of ceiling four ways and unifying them is not this
+    // row's job.
+    assert!(m.surface_area > 0.0);
+    assert!(
+        m.area_pad < 0.3,
+        "the walls' area half-width is {} m² (surface area {} m²)",
+        m.area_pad,
+        m.surface_area
+    );
 }
 
 /// **The cut-loft row (M6-3 §7, the PR 10 §5 contract verbatim):** a
@@ -137,7 +166,7 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
 #[test]
 fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
     let (sections, places) = shape_iii_sections();
-    let loft = loft_body::<f64>(&sections, &places, 2)
+    let loft = loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("loft builds")
         .body;
     let cutter = {
@@ -150,13 +179,13 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
             Point2::new(0.0, 2.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(geom_core::Tolerance::get())
+            .validate(geom_core::Tol::witness())
             .unwrap();
-        sweep::extrude(&vp, sweep::Extrusion::Distance(3.0))
+        sweep::extrude(&vp, sweep::Extrusion::Distance(3.0), Tol::witness())
             .unwrap()
             .body
     };
-    let out = topo::subtract(&loft, &cutter);
+    let out = topo::subtract(&loft, &cutter, Tol::witness());
     let err = match out {
         Err(e) => e,
         Ok(_) => panic!("the cut-loft boolean cannot succeed before the edge×NURBS-face layer"),
@@ -184,14 +213,37 @@ mod certified {
     #[test]
     fn the_loft_body_certifies_and_encloses_nine_at_interval() {
         let (sections, places) = shape_iii_sections();
-        let lofted =
-            loft_body::<Interval>(&sections, &places, 2).expect("the loft builds at Interval");
-        assert_eq!(topo::validate_geometric(&lofted.body), Ok(()), "tier 3");
-        let m = topo::props::mass_properties(&lofted.body).expect("mass properties");
+        let lofted = loft_body::<Interval>(&sections, &places, 2, Tol::witness())
+            .expect("the loft builds at Interval");
+        assert_eq!(
+            topo::validate_geometric(&lofted.body, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
+        let m =
+            topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
         let (lo, hi) = (
             geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
             geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
         );
         assert!(lo <= 9.0 && 9.0 <= hi, "9 ∈ [{lo}, {hi}]");
+        // The same two ceilings the f64 row carries, against the same
+        // measured half-widths — this row folds the pads into the
+        // bracket, so without them any widening of either makes it
+        // easier, and it is the only row that reads this body at
+        // `Interval`. Both pads come out bit-identical to the f64
+        // lane's, so the constants are shared deliberately.
+        let (vpad, apad) = (
+            geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::hi(m.area_pad),
+        );
+        assert!(
+            vpad < 1e-6,
+            "the exact per-span lane is tight, pad = {vpad}"
+        );
+        assert!(
+            apad < 0.3,
+            "the walls' area half-width is {apad} m² at Interval"
+        );
     }
 }

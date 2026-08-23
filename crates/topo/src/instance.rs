@@ -62,15 +62,18 @@
 //! loudness backstop for the classes no arm can examine yet (the
 //! C9-ring conformal-rest / partial-embedding class; C6's
 //! interference class, representable only through recorded
-//! gate-skips that do not exist yet). Planar-only solids always meet
-//! along line/vertex evidence the sweeps examine, so nothing in the
-//! inter-instance touching/overlap space validates silently; a
-//! caller assembling instances at rest runs THAT gate with its
-//! declaration records.
+//! gate-skips that do not exist yet). A pair of PLANAR faces is left
+//! to the sweeps only when both are bounded entirely by line edges,
+//! which is what puts a whole boundary in front of them — so an
+//! arc-bounded planar face (a cylinder's cap) is backstopped like a
+//! curved one, and nothing in the inter-instance touching/overlap
+//! space validates silently; a caller assembling instances at rest
+//! runs THAT gate with its declaration records.
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
 use crate::entity::{Solid, SolidKey};
+use geom_core::Tol;
 
 /// Grafts `src`'s single solid into `dst` as a NEW solid, returning its
 /// key (module docs).
@@ -92,13 +95,14 @@ use crate::entity::{Solid, SolidKey};
 pub fn graft_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
+    tol: Tol,
 ) -> Result<SolidKey, BooleanError> {
     if src.solids().count() != 1 {
         return Err(BooleanError::JoinDesync {
             what: "graft source is not a well-formed single-solid body",
         });
     }
-    let mut keys = graft_disjoint_all(dst, src)?;
+    let mut keys = graft_disjoint_all(dst, src, tol)?;
     keys.pop().ok_or(BooleanError::JoinDesync {
         what: "graft source is not a well-formed single-solid body",
     })
@@ -126,17 +130,26 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError`] — as [`graft_disjoint`]: `JoinDesync` when `src`
-/// holds no solid or is otherwise not well formed, `GraftRecertify`
-/// when a transplanted edge description does not re-certify. Parity
-/// with the single door extends to the failure state: a refusal RAISED
-/// MID-TRANSPLANT (`GraftRecertify`) leaves `dst` partially written, so
-/// a failed graft's destination is spent, never resumable.
+/// [`BooleanError::JoinDesync`] — when `src` holds no solid, when a
+/// solid has no provenance, or when a source-internal reference does
+/// not resolve during the remap. **`GraftRecertify` is not among them
+/// at this door**, and the distinction is load-bearing rather than
+/// pedantic: this door bridges with `combine::Bridge::RemapKeys`, whose
+/// arm carries each certificate verbatim and never reaches the
+/// re-certification that is the only site raising that variant. Only
+/// the in-crate `Bridge::Recertify` path (the booleans') can.
+///
+/// The failure STATE is unchanged and is what a caller must plan for:
+/// the destination solids are minted before the transplant, and the
+/// remap writes as it goes, so a `JoinDesync` raised mid-transplant
+/// leaves `dst` partially written — a failed graft's destination is
+/// spent, never resumable.
 pub fn graft_disjoint_all<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
+    tol: Tol,
 ) -> Result<Vec<SolidKey>, BooleanError> {
-    Ok(graft_disjoint_all_keyed(dst, src)?.solids)
+    Ok(graft_disjoint_all_keyed(dst, src, tol)?.solids)
 }
 
 /// The source → destination key correspondence a graft established
@@ -191,6 +204,7 @@ impl GraftKeys {
 pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
+    tol: Tol,
 ) -> Result<GraftKeys, BooleanError> {
     let desync = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body: a solid without provenance",
@@ -216,6 +230,7 @@ pub fn graft_disjoint_all_keyed<T: geom_core::Decide>(
         &targets,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
+        tol,
     )?;
     Ok(GraftKeys {
         solids: targets,
@@ -262,6 +277,7 @@ pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
     dst: &mut Body<T>,
     targets: &[SolidKey],
     src: &Body<T>,
+    tol: Tol,
 ) -> Result<GraftKeys, BooleanError> {
     if targets.iter().any(|&k| dst.get_solid(k).is_none()) {
         return Err(BooleanError::JoinDesync {
@@ -278,6 +294,7 @@ pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
         targets,
         src,
         crate::boolean::combine::Bridge::RemapKeys,
+        tol,
     )?;
     Ok(GraftKeys {
         solids: targets.to_vec(),
@@ -293,13 +310,14 @@ pub fn graft_disjoint_all_onto_keyed<T: geom_core::Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use crate::body::Body;
     use crate::fixtures::ops_cube;
     use crate::instance::graft_disjoint;
 
     fn cube() -> Body<f64> {
-        ops_cube().body
+        ops_cube(Tol::witness()).body
     }
 
     /// **Disjointness.** The graft adds a SECOND solid; every arena
@@ -318,7 +336,7 @@ mod tests {
             dst.points().count(),
             dst.surfaces().count(),
         );
-        let key = graft_disjoint(&mut dst, &src).expect("a single-solid graft");
+        let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a single-solid graft");
         assert_eq!(dst.solids().count(), before.0 + 1, "one more solid");
         assert_eq!(dst.shells().count(), before.1 + src.shells().count());
         assert_eq!(dst.faces().count(), before.2 + src.faces().count());
@@ -358,7 +376,7 @@ mod tests {
         let src = cube();
         let mut dst = cube();
         let original: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
-        let key = graft_disjoint(&mut dst, &src).expect("a graft");
+        let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a graft");
 
         let grafted: Vec<_> = dst
             .get_solid(key)
@@ -399,16 +417,18 @@ mod tests {
     fn a_source_that_is_not_a_single_solid_refuses_typed() {
         // Empty: no solid at all.
         let mut dst = cube();
-        let err = graft_disjoint(&mut dst, &Body::<f64>::new()).expect_err("no solid to graft");
+        let err = graft_disjoint(&mut dst, &Body::<f64>::new(), Tol::witness())
+            .expect_err("no solid to graft");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
         assert_eq!(dst.solids().count(), 1, "and nothing was written");
 
         // Two solids: the graft transplants ONE, so a two-solid source
         // is a caller error, not a thing to guess at.
         let mut two = cube();
-        graft_disjoint(&mut two, &cube()).expect("build a two-solid body");
+        graft_disjoint(&mut two, &cube(), Tol::witness()).expect("build a two-solid body");
         let mut dst = cube();
-        let err = graft_disjoint(&mut dst, &two).expect_err("two solids in the source");
+        let err =
+            graft_disjoint(&mut dst, &two, Tol::witness()).expect_err("two solids in the source");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
     }
 
@@ -422,7 +442,7 @@ mod tests {
             format!("{:?}", src.solid_provenance.get(k).unwrap())
         };
         let mut dst = cube();
-        let key = graft_disjoint(&mut dst, &src).expect("a graft");
+        let key = graft_disjoint(&mut dst, &src, Tol::witness()).expect("a graft");
         assert_eq!(
             format!("{:?}", dst.solid_provenance.get(key).unwrap()),
             want

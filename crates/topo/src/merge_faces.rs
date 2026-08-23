@@ -28,15 +28,17 @@
 //! generalization — the boolean zip's cylinder-wall re-merge is the
 //! named consumer); only the per-call declared-PAIR rung stays planar
 //! (its verification predicate is `oriented_plane_eq`; the curved
-//! counterpart belongs to the curved census design, OQ5).
+//! counterpart's verification is the contact census's — CONTACT-DESIGN
+//! C2's decision procedure and C4's per-class tables — not a
+//! merge-local predicate).
 //!
 //! Serves the ch. 15 boolean pipeline's operand precondition and
 //! output stage (M3 PRs 4–5).
 
 use std::collections::BTreeMap;
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin};
-use geom_surfaces::Surface;
+use geom::Surface;
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -225,9 +227,8 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: killing shared edge {edge:?} would close the \
                  curved cosurface run's full chart period — outside the merge's \
-                 inventory at M5 (C12.5: sub-period re-merges commit; full closures \
-                 stay in their cut-carrying canonical form and are recorded as a loud \
-                 skip)"
+                 inventory: sub-period re-merges commit, full closures stay in their \
+                 cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::InvalidDeclaration { surface, what } => write!(
@@ -341,8 +342,11 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
-    pub fn merge_coplanar_faces(&mut self) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
-        self.merge_coplanar_faces_declared(&[])
+    pub fn merge_coplanar_faces(
+        &mut self,
+        tol: Tol,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+        self.merge_coplanar_faces_declared(&[], tol)
     }
 
     /// [`Body::merge_coplanar_faces`] with declared coincident
@@ -366,6 +370,7 @@ impl<T: Decide> Body<T> {
     pub fn merge_coplanar_faces_declared(
         &mut self,
         declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
@@ -396,7 +401,7 @@ impl<T: Decide> Body<T> {
         } else {
             Some(DeclaredCtx {
                 eq,
-                band: Band::linear().map_err(|error| MergeCoplanarError::Band { error })?,
+                band: Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?,
             })
         };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
@@ -481,11 +486,11 @@ impl<T: Decide> Body<T> {
                     .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
             });
             if !licensed && !curved {
-                outcome.groups.push(work.merge_group(&members)?);
+                outcome.groups.push(work.merge_group(&members, tol)?);
                 continue;
             }
             let mut trial = work.clone();
-            match trial.merge_group(&members) {
+            match trial.merge_group(&members, tol) {
                 Ok(group) => match validate_closed(&trial) {
                     Ok(()) => {
                         work = trial;
@@ -533,7 +538,7 @@ impl<T: Decide> Body<T> {
         // when the fitted route joins the mint pass, this site
         // inherits the fix for free.
         if !self.pcurves.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work)
+            crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
         *self = work;
@@ -650,7 +655,7 @@ impl<T: Decide> Body<T> {
                 debug_assert!(
                     crate::source::plane_bits_agree(o1, n1, o2, n2, false)
                         && crate::source::vec3_bits_agree(u1, u2),
-                    "N6 theorem violated: same-source surface descriptions disagree \
+                    "same-source theorem violated: same-source surface descriptions disagree \
                      bitwise (kernel bug: a source survived a geometric rewrite)"
                 );
             }
@@ -658,7 +663,8 @@ impl<T: Decide> Body<T> {
         }
         // The declared-PAIR rung stays planar (its verification is
         // `oriented_plane_eq`; the curved-pair verification predicate
-        // is the curved census's design, OQ5 — not minted here).
+        // is the contact census's — CONTACT-DESIGN C2/C4 — not minted
+        // here).
         let (
             Surface::Plane {
                 origin: o1,
@@ -729,7 +735,11 @@ impl<T: Decide> Body<T> {
 
     /// Merges one group into its first member (see the public op's
     /// docs for order and refusals). Runs on the staged clone.
-    fn merge_group(&mut self, members: &[FaceKey]) -> Result<MergedGroup, MergeCoplanarError> {
+    fn merge_group(
+        &mut self,
+        members: &[FaceKey],
+        tol: Tol,
+    ) -> Result<MergedGroup, MergeCoplanarError> {
         let rep = members[0];
         let mut group = MergedGroup {
             kept: rep,
@@ -846,7 +856,28 @@ impl<T: Decide> Body<T> {
         // decides on); swap it into the outer slot if the kemr put it
         // elsewhere; no unique positive cycle refuses typed.
         if !group.rings_made.is_empty() {
-            self.normalize_merged_roles(rep)?;
+            // The survivor is resolved HERE, where its liveness is
+            // proven in this call: the curved-survivor gate above
+            // resolved `rep`, and the absorption between only runs
+            // `kemr`, which kills no face. The role pass then takes
+            // resolved data and performs no lookup of its own.
+            let Some(survivor) = self.get_face(rep) else {
+                unreachable!(
+                    "merge_group: `rep` resolved by the curved-survivor gate above and \
+                     the absorption's `kemr` kills no face"
+                )
+            };
+            let survivor = survivor.clone();
+            if let Some(i) = self.merged_outline_ring(rep, &survivor, tol)? {
+                let Some(fm) = self.faces.get_mut(rep) else {
+                    unreachable!(
+                        "merge_group: `rep` resolved a few lines above and the winding \
+                         pass between is read-only"
+                    )
+                };
+                fm.outer = survivor.rings[i];
+                fm.rings[i] = survivor.outer;
+            }
         }
         Ok(group)
     }
@@ -908,7 +939,7 @@ impl<T: Decide> Body<T> {
                 .and_then(|hd| self.get_edge(hd.edge))
                 .and_then(|e| self.get_curve_geom(e.curve))
                 .and_then(crate::null::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.carrier(), geom_curves::Curve3::Line { .. }))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
         });
         if !all_lines {
             return Ok(None);
@@ -942,47 +973,44 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Assigns the merged survivor's outer/ring roles by winding
-    /// (doc at the call site): the unique positively-wound cycle
-    /// becomes the outer loop; everything else must wind negatively
-    /// (or be an empty ring). Zero/multiple positive cycles refuse
-    /// [`MergeCoplanarError::MergedFaceRoleAmbiguous`].
-    fn normalize_merged_roles(&mut self, face: FaceKey) -> Result<(), MergeCoplanarError> {
-        let band = Band::linear().map_err(|error| MergeCoplanarError::Band { error })?;
-        let Some(f) = self.get_face(face) else {
-            return Ok(()); // unreachable: the survivor is live
-        };
+    /// Which of the merged survivor's rings is its outline, decided by
+    /// winding (doc at the call site): the unique positively-wound
+    /// cycle is the outer loop. `Some(i)` means ring `i` must swap into
+    /// the outer slot; `None` means the roles are already correct, or
+    /// the survivor is not a planar rung. Zero or multiple positive
+    /// cycles refuse [`MergeCoplanarError::MergedFaceRoleAmbiguous`].
+    ///
+    /// Takes the survivor's resolved data rather than looking it up:
+    /// the caller holds the liveness proof, and a helper that cannot
+    /// look anything up cannot discard a failed lookup. `face` is the
+    /// refusal's payload only — nothing here dereferences it.
+    fn merged_outline_ring(
+        &self,
+        face: FaceKey,
+        survivor: &crate::entity::Face,
+        tol: Tol,
+    ) -> Result<Option<usize>, MergeCoplanarError> {
+        let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
-        let normal = match self.get_surface(f.surface) {
-            Some(Surface::Plane { normal, .. }) => *normal * f.sense_sign::<T>(),
-            _ => return Ok(()), // merges only fire on planar rungs
+        let normal = match self.get_surface(survivor.surface) {
+            Some(Surface::Plane { normal, .. }) => *normal * survivor.sense_sign::<T>(),
+            _ => return Ok(None), // merges only fire on planar rungs
         };
-        let (outer, rings) = (f.outer, f.rings.clone());
         let mut positives: Vec<Option<usize>> = Vec::new(); // None = outer
-        if self.loop_winding(outer, normal, band)? == Some(geom_core::Sign::Positive) {
+        if self.loop_winding(survivor.outer, normal, band)? == Some(geom_core::Sign::Positive) {
             positives.push(None);
         }
-        for (i, &r) in rings.iter().enumerate() {
+        for (i, &r) in survivor.rings.iter().enumerate() {
             if self.loop_winding(r, normal, band)? == Some(geom_core::Sign::Positive) {
                 positives.push(Some(i));
             }
         }
         match positives[..] {
-            [None] => Ok(()), // roles already correct
-            [Some(i)] => {
-                // Swap the outline into the outer slot (pure role
-                // relabeling: loops, half-edges, and arena counts are
-                // untouched — both loops already belong to this face).
-                let Some(fm) = self.faces.get_mut(face) else {
-                    return Ok(()); // unreachable: checked live above
-                };
-                fm.outer = rings[i];
-                fm.rings[i] = outer;
-                Ok(())
-            }
+            [None] => Ok(None), // roles already correct
+            [Some(i)] => Ok(Some(i)),
             _ => Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face }),
         }
     }

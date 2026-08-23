@@ -6,10 +6,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Affine3, Band, Mat3, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
 
 fn table(
     surfs: Vec<Surface<f64>>,
@@ -30,8 +31,8 @@ fn table(
 /// residual. The re-mint formula's witness has bit-zero mid residual.
 #[test]
 fn marginal_witness_slack_vs_remint_freshness() {
-    let eps = Tolerance::get().eps;
-    let band = Band::linear().unwrap();
+    let eps = Tol::witness().get().eps;
+    let band = Band::linear(Tol::witness()).unwrap();
     let (keys, resolve) = table(vec![
         Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),

@@ -38,7 +38,8 @@
 mod fixture;
 
 use geom_brep::{EnvelopeStatement, Pcurve};
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
+use geom_core::Tol;
 
 /// The full at-rest run at `f64`: build, validate, and read the
 /// certificate the tier-3 pass re-derived.
@@ -51,7 +52,7 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
         );
         return;
     };
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
 
     // 1. The cache at rest IS fitted — the variant reached a body.
     for he in [built.he_plus, built.he_minus] {
@@ -119,8 +120,19 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 // successor's. Nothing is lost.
 
 /// The `Dual` lane's refusing side, executed rather than assumed: a
-/// fitted cache cannot be certified where there is no bracket to reach
-/// the C9 ring with, and it says so.
+/// fitted cache cannot be certified by a scalar that may not certify
+/// (D1, 2026-08-19 — a dual now carries a bracket and still may not
+/// reach the C9 ring), and it says so.
+///
+/// **The asserted substring changed with D1, and it had to.** This row
+/// used to require the message to contain `"bracket"`, which was the
+/// reason the refusal gave: *"this scalar carries no bracket to reach the
+/// ring with"*. That sentence is now false — a dual carries the value
+/// channel's bracket — so the message says the true reason instead, and
+/// this row asserts the true reason. It is the assertion that keeps the
+/// user-facing string honest, so it is the one place that must move when
+/// the string does: `msg.contains("bracket")` passing again would mean
+/// someone reintroduced the stale claim.
 #[test]
 fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let Some(built) = fixture::build::<f64>() else {
@@ -130,16 +142,20 @@ fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let err = fixture::certify_at_dual(&built);
     let msg = format!("{err}");
     assert!(
-        msg.contains("dual") && msg.contains("bracket"),
-        "the refusal names the lane and why it has none: {msg}"
+        msg.contains("dual") && msg.contains("may not certify"),
+        "the refusal names the lane and the true reason it has none: {msg}"
+    );
+    assert!(
+        !msg.contains("no bracket") && !msg.contains("carries no bracket"),
+        "the refusal must not re-assert the premise D1 invalidated: {msg}"
     );
 }
 
 /// ε is never a literal here; this row states what the file relies on.
 #[test]
 fn the_band_is_the_runs_own() {
-    let band = Band::linear().unwrap();
-    assert_eq!(band.zero(), Tolerance::get().eps);
+    let band = Band::linear(Tol::witness()).unwrap();
+    assert_eq!(band.zero(), Tol::witness().get().eps);
 }
 
 // ==================================================================
@@ -163,6 +179,7 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 mod certified {
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};
+    use geom_core::Tol;
     use geom_core::{Band, Bounds, Interval};
 
     /// The same body, at the interval scalar: the C2 certificate is
@@ -199,7 +216,7 @@ mod certified {
             );
             return;
         };
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let cache = built
             .body
             .pcurve(built.he_plus)

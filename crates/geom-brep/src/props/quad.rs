@@ -41,9 +41,18 @@
 //!   free.
 //! - **B-spline** ([`bspline_green_integral`], the general machinery):
 //!   channel hulls and derivative hulls from the control-coefficient
-//!   convexity facts (`geom_core::spline::hull`). Since M6-3 the loft
-//!   assembly mints stored iso-line pcurves on described NURBS walls
-//!   and the patch flux engine consumes this machinery at rest.
+//!   convexity facts (`geom_core::spline::hull`). This family has **no
+//!   at-rest consumer**: the NURBS-patch flux lane is a separate engine
+//!   in this file (`patch_flux_exact` and its composite rounds, a
+//!   tensor Newton–Cotes rule over knot-span rectangles), not this
+//!   Green-form boundary integral. The consumer that would use it is
+//!   the fitted-boundary Green lane, blocked on a construction that
+//!   mints a fitted pcurve on an analytic chart at rest — the blocker
+//!   `topo::props`' `QuadratureUnsupported` refusal names. That is a
+//!   CONDITION, not a date: the lane is a deliberate frontier whose
+//!   consumer lands with whichever banked construction (the marched
+//!   join windows, the edge×NURBS-face boolean layer) first produces
+//!   one, and its callers until then are tests.
 //!
 //! # The rule and its remainder
 //!
@@ -168,7 +177,7 @@ fn cos_step(s: f64) -> RingInterval {
     let s4 = s2.sqr();
     let lo = pt(1.0) - s2 / pt(2.0) + s4 / pt(24.0) - s4 * s2 / pt(720.0);
     let hi = lo + s4.sqr() / pt(40_320.0);
-    RingInterval::from_bounds(lo.lo().max(-1.0), hi.hi().min(1.0))
+    RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0)
 }
 
 /// Enclosure of `sin s` for an EXACT step `s`, |s| ≤ 1.5: the degree-9
@@ -187,11 +196,11 @@ fn sin_step(s: f64) -> RingInterval {
     let a7 = a5 * a2;
     let lo = a1 - a3 / pt(6.0) + a5 / pt(120.0) - a7 / pt(5040.0);
     let hi = lo + a7 * a2 / pt(362_880.0);
-    let (l, h) = (lo.lo().max(-1.0), hi.hi().min(1.0));
+    let unit = RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0);
     if s >= 0.0 {
-        RingInterval::from_bounds(l, h)
+        unit
     } else {
-        RingInterval::from_bounds(-h, -l)
+        RingInterval::from_bounds(-unit.hi(), -unit.lo())
     }
 }
 
@@ -205,7 +214,7 @@ fn rotate(
     ch: RingInterval,
     sh: RingInterval,
 ) -> (RingInterval, RingInterval) {
-    let clamp = |x: RingInterval| RingInterval::from_bounds(x.lo().max(-1.0), x.hi().min(1.0));
+    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
@@ -232,7 +241,7 @@ fn trig_at(base: (RingInterval, RingInterval), off: f64) -> (RingInterval, RingI
         k += 1;
     }
     let (mut c, mut s) = (cos_step(seed), sin_step(seed));
-    let clamp = |x: RingInterval| RingInterval::from_bounds(x.lo().max(-1.0), x.hi().min(1.0));
+    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
     for _ in 0..k {
         // Double angle; `sqr` keeps the squares tight (the
         // interval-square rule).
@@ -257,6 +266,12 @@ fn trig_over(base: (RingInterval, RingInterval), off: f64, d: f64) -> (RingInter
         return (full, full);
     }
     let at = trig_at(base, off);
+    // The `.max`/`.min` below are NOT the poison-swallowing shape
+    // `RingInterval::clamped_to` exists for: `d` is a finite nonnegative
+    // f64 by the guard above, so this ring arithmetic cannot produce
+    // poison and there is no NaN for `f64::max` to absorb. `base` is the
+    // operand that can be poison, and it reaches only `trig_at`/`rotate`,
+    // which clamp through `clamped_to`.
     let ch = {
         let lo = (pt(1.0) - pt(d).sqr() / pt(2.0)).lo().max(-1.0);
         RingInterval::from_bounds(lo, 1.0)
@@ -317,6 +332,9 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) ->
     // (a cursor march would amplify it by ~e^span).
     // Per-piece spread: midpoint ± h/2 (the interval rotation of
     // `trig_over`, midpoint-anchored).
+    // `h` is finite by the `span`/`pieces` guard above, so — as in
+    // `trig_over` — the `.max`/`.min` here operate on poison-free ring
+    // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
     let spread_c = if h2 <= 1.5 {
         RingInterval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
@@ -694,10 +712,15 @@ impl DerivLadder {
 /// smoothness-free first-order hull rule `h·hull(f)` — both sound, so
 /// the total is an enclosure at every resolution.
 ///
-/// At-rest B-spline pcurves exist since M6-3 (the loft walls' exact
-/// iso lines; general spline images remain the SSI trace's);
-/// rational pcurves refuse typed — a rational derivative is not a
-/// control-coefficient convexity fact.
+/// **No at-rest construction mints a stored B-spline pcurve**, so this
+/// lane's callers today are tests (module docs). What M6-3 added on
+/// loft walls is `Pcurve::IsoLine` — an exact straight line in UV, not
+/// a spline — which this integrand does not take; a spline chart image
+/// is the SSI trace's `Pcurve::Fitted`, and the construction that first
+/// stores one at rest brings this lane's consumer with it. The
+/// weights-not-1 refusal below says the same thing. Rational pcurves
+/// refuse typed — a rational derivative is not a control-coefficient
+/// convexity fact.
 ///
 /// # Errors
 ///
@@ -827,6 +850,9 @@ fn rv_dot(a: RVec3, b: RVec3) -> RingInterval {
 /// go through [`RingInterval::sqr`]) clamps to zero, the safe
 /// direction for a magnitude.
 fn sqrt_enclosure(x: RingInterval) -> RingInterval {
+    // The early-out is what makes the `.max(0.0)` clamps below safe: past
+    // it the endpoints are non-NaN, so no `f64::max` can absorb poison
+    // into a plausible magnitude. Callers do pass poisonable sums.
     if x.is_poison() {
         return x;
     }
@@ -2633,7 +2659,7 @@ pub fn nurbs_patch_face<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::Tolerance;
+    use geom_core::Tol;
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary
@@ -2684,7 +2710,7 @@ mod tests {
         truth_area: f64,
         slack: f64,
     ) -> EpsPosture {
-        let target = QUAD_TARGET_LEN_FACTOR * Tolerance::get().eps;
+        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         match out {
             Ok(b) => {
                 for (what, encl, truth) in
@@ -2825,8 +2851,8 @@ mod tests {
             env: pt(0.0),
         };
         let edges = [rim, seam_up, top, seam_down];
-        let band = geom_core::Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         let out = cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band)
             .expect("the band face converges");
         let exact = 2.0 * tau; // ∮ u dv = 4π
@@ -2891,8 +2917,8 @@ mod tests {
             trig0: (wide, wide),
             env: pt(0.0),
         };
-        let band = geom_core::Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         match cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &[e], eps, band) {
             Err(PropsError::QuadratureBudget { .. }) => {}
             other => panic!("expected the typed budget refusal, got {other:?}"),
@@ -2905,8 +2931,8 @@ mod tests {
     /// against a dense midpoint oracle (containment + tightness).
     #[test]
     fn nurbs_patch_flux_matches_flat_and_warped_oracles() {
-        let band = Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         let kv = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         // Row-major iu·nv+iv, nu = nv = 2: [(u0v0), (u0v1), (u1v0), (u1v1)].
@@ -3007,7 +3033,7 @@ mod tests {
     /// exactly what the weight-1 patch gives.
     #[test]
     fn rational_patch_encloses_the_reparameterized_square() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
         let flat = [
@@ -3024,13 +3050,13 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band,
         );
         let posture = eps_posture("reparameterized square", &out, 1.0, 1.0, 0.0);
         eprintln!(
             "EPS-ROW reparameterized square @ eps={:e}: {posture:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 
@@ -3039,7 +3065,7 @@ mod tests {
     /// than `MAX_SUB_ARC` actually has.
     #[test]
     fn rational_two_span_quarter_cylinder() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let kv_v = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
@@ -3071,14 +3097,14 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band,
         );
         let truth = core::f64::consts::PI;
         let posture = eps_posture("two-span quarter cylinder", &out, truth, truth, 0.0);
         eprintln!(
             "EPS-ROW two-span quarter cylinder @ eps={:e}: {posture:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 
@@ -3101,7 +3127,7 @@ mod tests {
     #[allow(clippy::too_many_lines)] // the ladder plus its own oracle
     fn interior_multiplicity_ladder_never_certifies_a_wrong_enclosure() {
         use geom_core::spline::basis::ders_basis_funs;
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv_v = KnotVector::unit_segment(1);
         // `pv` is gone: the oracle's v-window base is the `Span`'s own
         // `first_control()`, not a re-derived `span − degree`.
@@ -3232,7 +3258,7 @@ mod tests {
                     (0.0, 1.0, 0.0, 1.0),
                     10.0,
                     0.0,
-                    Tolerance::get().eps,
+                    Tol::witness().get().eps,
                     band,
                 );
                 // The slack is the ORACLE's discretization error, not
@@ -3247,7 +3273,7 @@ mod tests {
         }
         eprintln!(
             "EPS-ROW multiplicity ladder @ eps={:e}: {postures:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
         // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
         // ride the exact per-span Newton–Cotes lane, whose width is
@@ -3262,7 +3288,7 @@ mod tests {
             .filter(|(_, p)| *p == EpsPosture::Certified)
             .map(|(r, _)| r.as_str())
             .collect();
-        let expected = if Tolerance::get().eps >= CORPUS_EPS {
+        let expected = if Tol::witness().get().eps >= CORPUS_EPS {
             2 * pu
         } else {
             pu
@@ -3271,7 +3297,7 @@ mod tests {
             certified.len(),
             expected,
             "the ladder's ε posture MOVED at eps={:e}: certified {certified:?}, all {postures:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
         assert!(
             certified.iter().all(|r| r.ends_with("integral")) || certified.len() == 2 * pu,
@@ -3287,7 +3313,7 @@ mod tests {
     /// `r·(π/2)·2 = π` — both independent of the parameterization.
     #[test]
     fn rational_quarter_cylinder_brackets_the_closed_form() {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv_v = KnotVector::unit_segment(1);
         let p = |x: f64, y: f64, z: f64| [pt(x), pt(y), pt(z)];
@@ -3310,14 +3336,14 @@ mod tests {
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
-            Tolerance::get().eps,
+            Tol::witness().get().eps,
             band,
         );
         let truth = core::f64::consts::PI;
         let posture = eps_posture("quarter cylinder", &out, truth, truth, 0.0);
         eprintln!(
             "EPS-ROW quarter cylinder @ eps={:e}: {posture:?}",
-            Tolerance::get().eps
+            Tol::witness().get().eps
         );
     }
 
@@ -3411,8 +3437,8 @@ mod tests {
     #[test]
     fn adversarial_faces_contain_their_dense_oracles() {
         let tau = core::f64::consts::TAU;
-        let band = geom_core::Band::linear().unwrap();
-        let eps = Tolerance::get().eps;
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
         let seam = |u_at: f64, v_hi: f64, forward: bool| TrimEdgeQ {
             u: chan(u_at, 0.0, 0.0, 0.0),
             v: chan(0.0, 0.0, 0.0, 1.0),

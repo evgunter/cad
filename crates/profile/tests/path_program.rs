@@ -15,8 +15,9 @@
 //!   subset of the arms that composite chain plus the differential and
 //!   property suites' blanket `pinned` exercise);
 //! - the fused-family recording shapes: every §2c chain — entry fused
-//!   verb, mid-chain `Radius@OnArc`, the arc-arrival close — records the
-//!   ONE fused vocabulary, and its steps keep authored data only;
+//!   verb, mid-chain `Radius` arc extension, the arc-arrival close —
+//!   records the ONE fused vocabulary, and its steps keep authored data
+//!   only;
 //! - the driver's own refusal surface: the Transition class (corrupt
 //!   file — no authoring surface can produce it) against the Path class
 //!   (legal at rest, geometry refuses under this binding).
@@ -25,7 +26,8 @@
 mod common;
 
 use common::pinned;
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::{
     ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
     Target, TipState, Verb, replay,
@@ -53,16 +55,16 @@ fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
 fn validate_ok(lp: &ProfileLoop<f64>) {
     use profile::{Profile, SketchPlane};
     Profile::new(SketchPlane::xy(), vec![lp.clone()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("the replayed loop validates");
 }
 
 /// **The census smoke row** — the one survivor of the V2 differential
 /// census (LIB-RESPELL item 2). One composite chain exercises the §2c
 /// family end to end: the fused ENTRY verb, an interior arc arrival
-/// (`OnArc`), the `Radius` re-derivation off it, straight arrivals via
-/// the uniform binders, a sharp `Sweep` leg, ray extension off a leg
-/// end, and a straight close. Its recorded program must replay to the
+/// (a directed point at the hard anchor), the `Radius` arc extension
+/// off it, straight arrivals via the uniform binders, a sharp `Sweep`
+/// leg, ray extension off a leg end, and a straight close. Its recorded program must replay to the
 /// SAME bits — which, now that both surfaces call one kernel, is the
 /// tautology the census retired into; this row smokes the plumbing
 /// (recording, driver arms, the state walk) rather than proving two
@@ -78,15 +80,16 @@ fn the_fused_family_records_and_replays_bit_identically() {
                 p: p2(5.0, 0.0),
             },
             0.5,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0))
+        .at(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
@@ -115,23 +118,27 @@ fn the_fused_family_records_and_replays_bit_identically() {
     validate_ok(&pinned(closed));
 
     // The wider walk: a Sweep leg, ray extension off its end, an
-    // interior Center arrival (OnArc), and the Radius continuation —
-    // recorded and replayed to the bit (`pinned` is the assertion).
+    // interior Center arrival, and the Radius arc extension off its
+    // directed point — recorded and replayed to the bit (`pinned` is
+    // the assertion).
     let walk = Open
         .at(p2(0.0, 0.0))
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .arc_to(Sweep {
-            r: 2.0,
-            side: ArcSide::Left,
-            angle: 0.6,
-        })
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .fillet(0.2)
+        .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0))
+        .at(p2(4.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
@@ -140,6 +147,7 @@ fn the_fused_family_records_and_replays_bit_identically() {
                 winding: ArcSweep::Ccw,
                 p: p2(2.0, 9.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         .arc_fillet(
@@ -148,15 +156,16 @@ fn the_fused_family_records_and_replays_bit_identically() {
                 side: ArcSide::Left,
             },
             0.25,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0))
+        .at(p2(1.0, 4.0), Tol::witness())
         .unwrap()
-        .toward(0.0, -1.0)
+        .toward(0.0, -1.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&walk)),
@@ -178,15 +187,13 @@ fn the_fused_family_records_and_replays_bit_identically() {
     validate_ok(&pinned(walk));
 }
 
-/// **The MID-CHAIN Radius@OnArc row** — the one admissible OnArc
-/// incoming after this unit's adjudication (`Center@OnArc` is excluded
-/// by the `Center@Directed` value-match doctrine; see
-/// `family::OnArcIncoming`). An entry fused verb with an interior
-/// `Center` arrival, continued off the resulting `OnArc` tip by
+/// **The MID-CHAIN Radius arc-extension row** (see
+/// `family::LegEndIncoming`). An entry fused verb with an interior
+/// `Center` arrival, continued off the resulting directed point by
 /// `arc_fillet(Radius { .. })` and its binders, comes out as
 /// [`ArcFilletArc` (entry `Center`), `ArcFillet` (`Radius`), binders,
-/// legs]; the `Radius` names the carrier the `OnArc` tip already runs
-/// on (`r = |anchor − centre| = 3`, centre right of Cw travel), so the
+/// legs]; the `Radius` names the carrier the tip already runs on
+/// (`r = |anchor − centre| = 3`, centre right of Cw travel), so the
 /// recorded program and the typed elaboration are the same geometry and
 /// replay to the same bits (`pinned` asserts it).
 #[test]
@@ -205,6 +212,7 @@ fn the_mid_chain_radius_row_records_and_replays() {
                 winding: ArcSweep::Cw,
                 p: p2(0.0, 4.0),
             },
+            Tol::witness(),
         )
         .unwrap()
         .arc_fillet(
@@ -213,15 +221,16 @@ fn the_mid_chain_radius_row_records_and_replays() {
                 side: ArcSide::Right,
             },
             0.3,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(-2.0, 2.0))
+        .at(p2(-2.0, 2.0), Tol::witness())
         .unwrap()
-        .toward(0.0, -1.0)
+        .toward(0.0, -1.0, Tol::witness())
         .unwrap()
-        .line(1.0)
+        .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
@@ -243,7 +252,7 @@ fn the_mid_chain_radius_row_records_and_replays() {
             assert_eq!(side, profile::ArcSide::Right, "Cw travel = centre right");
             assert_eq!(radius.to_bits(), 0.3_f64.to_bits());
         }
-        ref other => panic!("expected the Radius@OnArc fused step, got {other:?}"),
+        ref other => panic!("expected the Radius arc-extension fused step, got {other:?}"),
     }
     validate_ok(&pinned(closed));
 }
@@ -271,6 +280,7 @@ fn the_eye_is_one_fused_step() {
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
+            Tol::witness(),
         )
         .unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::ArcFilletArc]);
@@ -305,7 +315,7 @@ fn the_eye_is_one_fused_step() {
 /// alone.
 #[test]
 fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
-    let closed = profile::circle(p2(1.5, -2.25), 0.75).unwrap();
+    let closed = profile::circle(p2(1.5, -2.25), 0.75, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::Circle]);
     assert_eq!(
         closed.program.len(),
@@ -313,12 +323,12 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
         "a circle program is exactly one step"
     );
     let lowered = pinned(closed);
-    assert_eq!(lowered.vertices.len(), 2);
-    assert_eq!(lowered.vertices[0].pos.x.to_bits(), 2.25_f64.to_bits());
-    assert_eq!(lowered.vertices[1].pos.x.to_bits(), 0.75_f64.to_bits());
-    assert_eq!(lowered.vertices[0].bulge.to_bits(), 1.0_f64.to_bits());
+    assert_eq!(lowered.vertices().len(), 2);
+    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), 2.25_f64.to_bits());
+    assert_eq!(lowered.vertices()[1].pos().x.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(lowered.vertices()[0].bulge().to_bits(), 1.0_f64.to_bits());
     assert!(
-        lowered.tangent_joints.is_empty(),
+        lowered.tangent_joints().is_empty(),
         "same-carrier joints declare nothing — there is no tangency to claim"
     );
     validate_ok(&lowered);
@@ -331,25 +341,25 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 /// (same-carrier identities, exactly `circle`'s posture).
 #[test]
 fn circle_split_is_a_one_step_program_with_structural_seams() {
-    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25).unwrap();
+    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
     let lowered = pinned(closed);
-    assert_eq!(lowered.vertices.len(), 3, "n vertices, n arcs");
+    assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
     let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
-    for v in &lowered.vertices {
-        assert_eq!(v.bulge.to_bits(), expected_bulge.to_bits());
+    for v in lowered.vertices() {
+        assert_eq!(v.bulge().to_bits(), expected_bulge.to_bits());
     }
     // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
-    for (k, v) in lowered.vertices.iter().enumerate() {
+    for (k, v) in lowered.vertices().iter().enumerate() {
         let theta = 0.25 + (k as f64) * std::f64::consts::TAU / 3.0;
         let (s, c) = geom_core::Real::sin_cos(theta);
-        assert_eq!(v.pos.x.to_bits(), (1.0 + 0.4 * c).to_bits());
-        assert_eq!(v.pos.y.to_bits(), (0.5 + 0.4 * s).to_bits());
+        assert_eq!(v.pos().x.to_bits(), (1.0 + 0.4 * c).to_bits());
+        assert_eq!(v.pos().y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
     assert!(
-        lowered.tangent_joints.is_empty(),
+        lowered.tangent_joints().is_empty(),
         "structural subdivisions declare nothing — one carrier, no tangency claim"
     );
     validate_ok(&lowered);
@@ -360,18 +370,18 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
 /// [`PathError::CircleSplitCount`] class.
 #[test]
 fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
-    let _tol = Tolerance::get();
-    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0) {
+    let _tol = Tol::witness().get();
+    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0, Tol::witness()) {
         Err(PathError::NonpositiveCircleRadius { .. }) => {}
         other => panic!("r = 0 must refuse as NonpositiveCircleRadius, got {other:?}"),
     }
-    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0) {
+    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
         Err(PathError::CircleSplitCount { n: 1 }) => {}
         other => panic!("n = 1 must refuse as CircleSplitCount, got {other:?}"),
     }
     // n = 2 is legal — the smallest subdivision, circle's own count.
-    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0).unwrap();
-    assert_eq!(pinned(two).vertices.len(), 2);
+    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
+    assert_eq!(pinned(two).vertices().len(), 2);
 }
 
 /// **`arc_continue`'s declared subdivision (LIB-SWITCH §5-1 fallback,
@@ -385,14 +395,17 @@ fn arc_continue_subdivides_the_carrier_structurally() {
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: q,
-        })
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: q,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5))
+        .arc_continue(p2(0.0, 0.5), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     assert_eq!(
         verbs(&program_of(&closed)),
@@ -400,17 +413,17 @@ fn arc_continue_subdivides_the_carrier_structurally() {
         "the subdivision records as its own verb, storing only the authored target"
     );
     let lowered = pinned(closed);
-    assert_eq!(lowered.vertices.len(), 3);
+    assert_eq!(lowered.vertices().len(), 3);
     // The derived bulge continues the SAME carrier: a quarter of the
     // r = 0.5 circle about the origin, tan(π/8) up to the tangent-chord
     // derivation's rounding.
-    let b = lowered.vertices[1].bulge;
+    let b = lowered.vertices()[1].bulge();
     assert!(
         (b - q).abs() < 1e-15,
         "continuation bulge ≈ tan(π/8), got {b}"
     );
     assert!(
-        lowered.tangent_joints.is_empty(),
+        lowered.tangent_joints().is_empty(),
         "a subdivision vertex claims nothing — same-carrier identity, not tangency"
     );
     validate_ok(&lowered);
@@ -421,39 +434,286 @@ fn arc_continue_subdivides_the_carrier_structurally() {
 #[test]
 fn arc_continue_refuses_lines_and_off_carrier_targets() {
     use profile::Bulge;
-    let after_line = Open.at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0)).unwrap();
-    match after_line.arc_continue(p2(2.0, 0.0)) {
+    let after_line = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
+        .unwrap();
+    match after_line.arc_continue(p2(2.0, 0.0), Tol::witness()) {
         Err(PathError::ArcContinueNeedsArcCarrier) => {}
         other => panic!("a straight leg must refuse arc_continue, got {other:?}"),
     }
     let q = std::f64::consts::FRAC_PI_8.tan();
     let after_arc = Open
         .at(p2(0.0, -0.5))
-        .arc_to(Bulge {
-            p: p2(0.5, 0.0),
-            b: q,
-        })
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: q,
+            },
+            Tol::witness(),
+        )
         .unwrap();
-    match after_arc.arc_continue(p2(0.3, 0.5)) {
+    match after_arc.arc_continue(p2(0.3, 0.5), Tol::witness()) {
         Err(PathError::ArcContinueOffCarrier { .. }) => {}
         other => panic!("an off-carrier target must refuse, got {other:?}"),
     }
 }
 
 // ------------------------------------------------------------------
-// The `turn(δ)` arm (review MINOR-1)
-//
-// `.turn(δ)` is the one verb the corpus exercised ONLY in refusal rows
-// that never close, so the (DirectedPoint, Turn) arm had zero
-// record->replay coverage: swapping its binder for `.tangent()` left the
-// whole battery green. These rows close that hole. Each turns by a δ far
-// from both 0 (which refuses, → `.tangent()`) and ±π (the reverse
-// class), so a `.tangent()` substitution moves real geometry and the pin
-// goes red on the first vertex it reaches.
+// The replay-coverage census (LIB-RTABLE)
 // ------------------------------------------------------------------
 
+/// **Every verb the transition table declares is exercised by a
+/// record→replay round-trip.** The failure class this pins is a row
+/// whose DRIVER projection silently stops working: the four-projection
+/// invariant makes a deleted ROW a compile error everywhere, but a row
+/// that keeps its typed method while its arm goes missing or
+/// over-strict still compiles, and the only thing standing behind that
+/// direction is a test that actually replays the verb.
+///
+/// The census is anchored on [`Verb::ALL`], projected from the same
+/// declaration as the rows, so it cannot fall behind a verb the table
+/// gains — a new verb with no corpus chain fails HERE, by name, rather
+/// than quietly acquiring an unpinned arm. (`.turn(δ)` is the standing
+/// example: its round-trip rows were retired with the V2 census in
+/// 68d80104 and nothing replaced them, leaving the (DirectedPoint,
+/// Turn) arm pinned by nothing until this row.)
+///
+/// Granularity is honest: this is verb coverage, not per-arm coverage.
+/// The arms of a multi-row verb are covered here only where the corpus
+/// happens to reach both states; what is NOT possible is a verb with
+/// no replayed arm at all.
+#[test]
+fn every_table_verb_is_replayed_by_the_corpus() {
+    let mut seen: Vec<Verb> = Vec::new();
+    for closed in coverage_corpus() {
+        seen.extend(verbs(&closed.program));
+        // The round-trip itself: replay the recording, bit-identical.
+        pinned(closed);
+    }
+    let missing: Vec<&Verb> = Verb::ALL.iter().filter(|v| !seen.contains(v)).collect();
+    assert!(
+        missing.is_empty(),
+        "these table verbs are declared but never replayed by the corpus: {missing:?} \
+         — every row's driver arm must be exercised by a record->replay chain, \
+         so add one to `coverage_corpus` (see this test's rustdoc)"
+    );
+}
+
+/// The census corpus: closed chains whose union covers every declared
+/// verb. Each is authored through the typed surface, so its recorded
+/// program is the table's own output.
+fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
+    use profile::{ArcSide, Bulge, Center, Radius, Sweep};
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+
+    // 1. The fused entry verb, the plain binders and the straight legs.
+    let fused = Open
+        .arc_fillet(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(0.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
+    //    the mid-chain Radius arc extension.
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .fillet(0.2, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, -1.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 3. `.turn(δ)` at the corners. Each δ is far from both 0 (which
+    //    refuses — `.tangent()` is its recourse) and ±π (the reverse
+    //    class), so substituting any other director moves real geometry
+    //    and the round-trip reddens on the first vertex it reaches.
+    let turned = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 4. The seam-fillet close: mid-side anchors, every corner filleted
+    //    including the one under the entry vertex, which `.to(Start)`
+    //    retrims.
+    let seam = Open
+        .at(p2(1.5, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(3.0, 1.5), Tol::witness())
+        .unwrap()
+        .angle(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(1.5, 3.0), Tol::witness())
+        .unwrap()
+        .angle(PI, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(0.0, 1.5), Tol::witness())
+        .unwrap()
+        .angle(-FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .to(Start, Tol::witness())
+        .unwrap();
+
+    // 5. The declared tangent joint and the unique tangent arc.
+    let tangent_arc = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(3.0, 1.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 6. The declared-subdivision step on an arc carrier.
+    let subdivided = Open
+        .at(p2(0.0, -0.5))
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: FRAC_PI_8.tan(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 7. The far-end anchor: the arrival side ENDS at its authored point.
+    let far_end = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(3.0, 1.0), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .to(p2(1.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(0.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 8. The fused verb with an ARC arrival, closing on the far lobe.
+    let tip = 0.75f64.sqrt();
+    let eye = Open
+        .arc_fillet_arc(
+            Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
+            0.25,
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+
+    // 9/10. The complete-loop program forms.
+    let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
+    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
+
+    vec![
+        fused,
+        walk,
+        turned,
+        seam,
+        tangent_arc,
+        subdivided,
+        far_end,
+        eye,
+        circle,
+        split,
+    ]
+}
+
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
-    match replay(program) {
+    match replay(program, Tol::witness()) {
         Err(ReplayError {
             step: s,
             kind:
@@ -631,8 +891,8 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
             Step::CloseTo,
         ]
     };
-    replay(&square(0.25)).expect("r = 0.25 elaborates");
-    let refused = replay(&square(5.0));
+    replay(&square(0.25), Tol::witness()).expect("r = 0.25 elaborates");
+    let refused = replay(&square(5.0), Tol::witness());
     match refused {
         Err(ReplayError {
             kind: ReplayErrorKind::Path(_),
@@ -642,21 +902,27 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     }
 
     // The sign gates are the same class, carried straight through.
-    match replay(&[Step::Circle {
-        centre: p2(0.0, 0.0),
-        radius: 0.0,
-    }]) {
+    match replay(
+        &[Step::Circle {
+            centre: p2(0.0, 0.0),
+            radius: 0.0,
+        }],
+        Tol::witness(),
+    ) {
         Err(ReplayError {
             step: 0,
             kind: ReplayErrorKind::Path(PathError::NonpositiveCircleRadius { .. }),
         }) => {}
         other => panic!("a zero radius must refuse NonpositiveCircleRadius, got {other:?}"),
     }
-    match replay(&[
-        Step::At(p2(0.0, 0.0)),
-        Step::Angle(0.0),
-        Step::Fillet { radius: -1.0 },
-    ]) {
+    match replay(
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::Angle(0.0),
+            Step::Fillet { radius: -1.0 },
+        ],
+        Tol::witness(),
+    ) {
         Err(ReplayError {
             step: 2,
             kind: ReplayErrorKind::Path(PathError::NonpositiveFilletRadius { .. }),

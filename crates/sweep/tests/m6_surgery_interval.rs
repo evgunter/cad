@@ -28,10 +28,11 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 #[cfg(feature = "interval")]
 mod certified {
     use core::f64::consts::PI;
+    use geom_core::Tol;
 
-    use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
-    use geom_curves::Curve3;
-    use geom_surfaces::Surface;
+    use geom::Curve3;
+    use geom::Surface;
+    use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::fillet::build::fillet_edges;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -53,13 +54,13 @@ mod certified {
     }
 
     fn band() -> Band {
-        let tol = Tolerance::get();
+        let tol = Tol::witness().get();
         Band::new(tol.eps, tol.k * tol.eps).unwrap()
     }
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -70,9 +71,13 @@ mod certified {
             p2(DIE_L, DIE_L),
             p2(0.0, DIE_L),
         ]);
-        extrude(&validated(vec![lp]), Extrusion::Distance(iv(DIE_L)))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(iv(DIE_L)),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// One +Z-poled pip ball at the top face centre — the die_pips
@@ -86,14 +91,8 @@ mod certified {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, -PIP_R),
-                bulge: iv(1.0),
-            },
-            ProfileVertex {
-                pos: p2(0.0, PIP_R),
-                bulge: iv(0.0),
-            },
+            ProfileVertex::new(p2(0.0, -PIP_R), iv(1.0)),
+            ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
         ]);
         let profile = Profile::new(
             SketchPlane::from_frame(
@@ -103,17 +102,20 @@ mod certified {
             ),
             vec![lp],
         )
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),
         };
-        let ball = revolve(&profile, axis, Revolution::Full).unwrap().body;
+        let ball = revolve(&profile, axis, Revolution::Full, Tol::witness())
+            .unwrap()
+            .body;
         let h = DIE_L / 2.0;
         topo::transform_rigid(
             &ball,
             &Affine3::translation(Vec3::new(iv(h), iv(h), iv(DIE_L + (PIP_R - PIP_H)))),
+            Tol::witness(),
         )
         .unwrap()
     }
@@ -174,6 +176,7 @@ mod certified {
             &pip_ball(),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         )
         .expect("the pip cuts at Interval")
         .body()
@@ -191,7 +194,7 @@ mod certified {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(box_edges.len(), 12);
-        let blanked = fillet_edges(&pipped, &box_edges, iv(DIE_R), band())
+        let blanked = fillet_edges(&pipped, &box_edges, iv(DIE_R), band(), Tol::witness())
             .expect("the in-place box blends decide definitely at Interval")
             .body;
         let rims: Vec<_> = blanked
@@ -216,12 +219,16 @@ mod certified {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(rims.len(), 2, "one rim of two arcs");
-        let out = fillet_edges(&blanked, &rims, iv(RIM_R), band())
+        let out = fillet_edges(&blanked, &rims, iv(RIM_R), band(), Tol::witness())
             .expect("the rim torus band decides definitely at Interval");
         assert_eq!(out.band_faces.len(), 1);
         let die = out.body;
-        assert_eq!(topo::validate_geometric(&die), Ok(()), "tier 3");
-        let vol = mass_properties(&die).unwrap().volume;
+        assert_eq!(
+            topo::validate_geometric(&die, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
+        let vol = mass_properties(&die, Tol::witness()).unwrap().volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(
             vol.lo() <= want && want <= vol.hi(),

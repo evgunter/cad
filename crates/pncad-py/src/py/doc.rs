@@ -1,7 +1,7 @@
 //! The document surface: `Doc`, `DocEdit`, `Node`, `evaluate`.
 //!
-//! §L3: Python speaks Doc/DocEdit/evaluate/persist and **never an
-//! arena key**. The only identifier that crosses is [`NodeId`], a
+//! Python speaks Doc/DocEdit/evaluate/persist and **never an arena
+//! key**. The only identifier that crosses is [`NodeId`], a
 //! wrapper over `RecipeNodeId` — a recipe-level id, which is precisely
 //! the document layer's own public vocabulary, not a slotmap key.
 
@@ -10,8 +10,11 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{edit_error_tag, expr_dimension_error_tag, persist_error_tag};
+use crate::tags::{
+    edit_error_tag, expr_dimension_error_tag, persist_error_tag, workspace_error_tag,
+};
 use pncad::document as d;
+use pncad::tolerance::Tol;
 
 /// Raise `EditError` carrying the refusal's stable tag.
 fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
@@ -19,15 +22,15 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements `Display` (LIB-DOORS F6, reopened on
-        // review): the human message is real prose; the machine
-        // payload is the `variant` tag (see `crate::tags`).
+        // `EditError` implements `Display`: the human message is real
+        // prose; the machine payload is the `variant` tag (see
+        // `crate::tags`).
         err.to_string(),
         &[("variant", PyString::new(py, tag).unbind().into_any())],
     )
 }
 
-/// Raise `EditError` for a declare-sugar refusal (LIB-PYG5).
+/// Raise `EditError` for a declare-sugar refusal.
 ///
 /// `DeclareError` carries no `Display`; the per-arm prose is
 /// hand-written here and the machine payload is the stable tag
@@ -73,11 +76,10 @@ fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// Build a dimensioned literal expression, refusing at the boundary.
 ///
 /// The refusal is `Expr::literal`'s OWN error type, matched — not
-/// predicted: the pre-check this function used to carry (LIB-U9S's F5
-/// workaround, from before the façade curated `DimensionError`) is
-/// gone, so the binding cannot drift from what the kernel refuses.
-/// The exception keeps U9S's payload: `kind` (the stable tag) AND
-/// `value`, the offending number — the kernel error deliberately
+/// predicted: the binding carries no pre-check of its own, so it
+/// cannot drift from what the kernel refuses. The exception carries
+/// `kind` (the stable tag) AND `value`, the offending number — the
+/// kernel error deliberately
 /// carries no float, but the boundary has it in hand.
 pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
     d::Expr::literal(value, dim).map_err(|err| {
@@ -109,9 +111,9 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// and code that reads inside a name is code this crate will break.
 /// The supported operations are equality, ordering, storage, and
 /// handing it back to [`Node::fillet`]. Narrowing a set of names is a
-/// SELECTOR's job — `Evaluation.select` / `select_where` (LIB-PYSEL),
+/// SELECTOR's job — `Evaluation.select` / `select_where`,
 /// which answer in this same alphabet; the binding is the one
-/// licensed reader of the text (the ordinal-28 ruling).
+/// licensed reader of the text.
 ///
 /// # Why this encoding
 ///
@@ -168,6 +170,7 @@ impl NodeId {
     }
 
     fn __hash__(&self) -> u64 {
+        let _tol = Tol::witness();
         self.0.0
     }
 }
@@ -189,16 +192,56 @@ pub(crate) struct Doc {
 impl Doc {
     /// An empty document.
     ///
-    /// Identity note (ASM-1 D-7): the Python surface gains no
-    /// identity door in this unit — every `Doc()` carries the same
-    /// label-derived placeholder id (deterministic, so Python-driven
-    /// saves stay reproducible). The id/pin/workspace doors are a
-    /// recorded bindings-parity pickup.
+    /// A document's id answers WHICH PART, and a workspace refuses to
+    /// hold two files claiming one — so `Doc()` mints a FRESH random
+    /// identity and two documents authored here are two parts.
+    /// `Doc(label)` derives the id from the label instead: same
+    /// label, same id, on every platform, which is the spelling a
+    /// caller whose saves must reproduce byte for byte wants — and
+    /// which therefore makes two same-label documents the SAME part,
+    /// deliberately.
+    ///
+    /// Raises `IdentityError` if the OS entropy source refuses.
     #[new]
-    fn new() -> Self {
-        Self {
-            inner: d::ProfileDoc::empty_derived("pncad-py:Doc"),
-        }
+    #[pyo3(signature = (label = None))]
+    fn new(py: Python<'_>, label: Option<&str>) -> PyResult<Self> {
+        let tol = Tol::witness();
+        let inner = match label {
+            Some(label) => crate::identity::derived(label, tol),
+            // The tag is the store's own, through `crate::tags`, not a
+            // literal chosen here: `interactive` refuses with the whole
+            // `WorkspaceError` vocabulary, and which of its arms a
+            // caller sees is that enum's fact to state, not this raise
+            // site's to assume. Only `randomness_unavailable` is
+            // reachable through this door today — `random_document_id`
+            // has one failure arm — but that is a fact about ANOTHER
+            // crate, and a literal here would go on being written
+            // confidently over a second arm the day one appears.
+            None => crate::identity::interactive(tol).map_err(|err| {
+                typed_err(
+                    py,
+                    ErrorClass::Identity,
+                    err.to_string(),
+                    &[(
+                        "variant",
+                        PyString::new(py, workspace_error_tag(&err))
+                            .unbind()
+                            .into_any(),
+                    )],
+                )
+            })?,
+        };
+        Ok(Self { inner })
+    }
+
+    /// This document's identity as 32 lowercase hex digits — the
+    /// canonical text form, the same one the save file's `id:` header
+    /// carries and the workspace store keys on.
+    ///
+    /// Identity survives every edit; it is not a content hash.
+    #[getter]
+    fn id(&self) -> String {
+        self.inner.id().hex()
     }
 
     /// Apply an edit, returning the id it minted (if any).
@@ -206,7 +249,8 @@ impl Doc {
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
-        let applied = d::apply(&self.inner, &edit.inner).map_err(|err| edit_err(py, &err))?;
+        let tol = Tol::witness();
+        let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         self.inner = applied.doc;
         Ok(applied.record.minted.map(NodeId))
     }
@@ -214,10 +258,11 @@ impl Doc {
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
     fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
+        let tol = Tol::witness();
         let edit = d::DocEdit::InsertNode {
             node: node.inner.clone(),
         };
-        let applied = d::apply(&self.inner, &edit).map_err(|err| edit_err(py, &err))?;
+        let applied = d::apply(&self.inner, &edit, tol).map_err(|err| edit_err(py, &err))?;
         self.inner = applied.doc;
         applied.record.minted.map(NodeId).ok_or_else(|| {
             typed_err(
@@ -235,7 +280,7 @@ impl Doc {
     /// Declare ONE inspected finding: insert a `Declare` node with
     /// its pair and return the node's id, for `Node.boolean`'s
     /// `declare=` input — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3; LIB-PYG5). Sugar over the same vocabulary
+    /// (SELECT-DESIGN §3). Sugar over the same vocabulary
     /// `Node.declare` constructs; nothing here detects — findings
     /// reach this door as VALUES the caller already inspected (the
     /// ruled no-fusion boundary).
@@ -244,8 +289,9 @@ impl Doc {
         py: Python<'_>,
         finding: &super::flush::FlushFinding,
     ) -> PyResult<NodeId> {
-        let (doc, id) =
-            pncad::select::declare(&self.inner, &finding.0).map_err(|err| declare_err(py, &err))?;
+        let tol = Tol::witness();
+        let (doc, id) = pncad::select::declare(&self.inner, &finding.0, tol)
+            .map_err(|err| declare_err(py, &err))?;
         self.inner = doc;
         Ok(NodeId(id))
     }
@@ -259,8 +305,9 @@ impl Doc {
         py: Python<'_>,
         findings: Vec<super::flush::FlushFinding>,
     ) -> PyResult<NodeId> {
+        let tol = Tol::witness();
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel)
+        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel, tol)
             .map_err(|err| declare_err(py, &err))?;
         self.inner = doc;
         Ok(NodeId(id))
@@ -289,7 +336,7 @@ impl Doc {
     }
 
     /// Serialize this document to the persistence text format
-    /// (LIB-DOORS F1; the schema-v4 doors, via the curated façade).
+    /// (the schema-v4 doors, via the curated façade).
     ///
     /// The Python wrapper holds only the CURRENT document — its edit
     /// history lives in the Rust values it discarded — so the file is
@@ -297,7 +344,8 @@ impl Doc {
     /// document; the GUI's edit-log-bearing files load through the
     /// same `load` door.
     fn save(&self, py: Python<'_>) -> PyResult<String> {
-        d::save(&self.inner, &[]).map_err(|err| persist_err(py, &err))
+        let tol = Tol::witness();
+        d::save(&self.inner, &[], tol).map_err(|err| persist_err(py, &err))
     }
 
     fn __len__(&self) -> usize {
@@ -311,11 +359,12 @@ impl Doc {
 
 /// Which Boolean the document layer performs.
 ///
-/// This is the DOCUMENT-layer `BooleanOp` (`pncad::document`), not the
-/// kernel's identically-named `topo::BooleanOp` that sits in the Rust
-/// prelude. LIB-LOG's U9 backlog note left the choice open; bindings
-/// speak the document vocabulary throughout (§L3), so the document
-/// one is what crosses.
+/// Rust has ONE `BooleanOp` — the kernel enum the recipe node carries
+/// — and this is its binding. The mirror exists because `#[pyclass]`
+/// cannot be attached to a type from another crate, so a python-side
+/// copy is forced; the obligation it owes the kernel is that every
+/// kernel operation has a member here, which
+/// [`_binds_every_kernel_operation`] is what enforces.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum BooleanOp {
@@ -334,6 +383,24 @@ impl BooleanOp {
             Self::Intersect => d::BooleanOp::Intersect,
             Self::Subtract => d::BooleanOp::Subtract,
         }
+    }
+}
+
+/// Every kernel operation has a member on the python mirror.
+///
+/// The direction is the load-bearing one. `to_document` matches on
+/// `Self` — a closed local enum — so it says nothing about the kernel
+/// growing; an operation added there would leave the python surface
+/// silently short of it. This match is over the KERNEL enum, so that
+/// addition breaks this build and the binding must be written.
+///
+/// It is never called: a type-checked match is the whole product, and
+/// the leading underscore is what says so.
+const fn _binds_every_kernel_operation(kernel: d::BooleanOp) -> BooleanOp {
+    match kernel {
+        d::BooleanOp::Union => BooleanOp::Union,
+        d::BooleanOp::Intersect => BooleanOp::Intersect,
+        d::BooleanOp::Subtract => BooleanOp::Subtract,
     }
 }
 
@@ -381,7 +448,7 @@ impl SketchPlane {
 
     /// The plane through `origin` spanned by `u` and `v`.
     ///
-    /// `origin` is dimensioned (`Length`s, §L4); `u` and `v` are
+    /// `origin` is dimensioned (`Length`s); `u` and `v` are
     /// dimensionless direction triples. Rigidity is the caller's
     /// unchecked convention — see the class docs.
     #[staticmethod]
@@ -529,7 +596,7 @@ impl Node {
     /// `elevation=` is the xy sugar — the world xy-plane, that far up
     /// z. The default is the xy-plane itself.
     ///
-    /// Coordinates arrive as typed `Length`s (§L4), so a bare number
+    /// Coordinates arrive as typed `Length`s, so a bare number
     /// is a boundary refusal rather than an ambiguous unit; they are
     /// the sketch's own (x, y), which `plane` maps into the world.
     ///
@@ -862,16 +929,16 @@ impl Node {
     /// A Boolean of two upstream solids.
     ///
     /// `declare` names a `Declare` node whose coincidence pairs this
-    /// boolean consumes — the DATA door for F5's declared contact.
+    /// boolean consumes — the DATA door for a declared contact.
     /// Without it the kernel never infers that two faces are the same
-    /// face, so operands that merely touch refuse — and since
-    /// register R3 the refusal is the typed MENU: an
+    /// face, so operands that merely touch refuse, and that refusal is
+    /// the typed MENU: an
     /// `EvaluationError` with `kind == "undeclared_contact"` whose
     /// `finding` attribute carries the candidate declaration. The
     /// protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → `Node.declare`
     /// (or the `Doc.declare`/`Doc.declare_all` sugar) → this
-    /// `declare=` (LIB-PYG5, audit G5).
+    /// `declare=`.
     #[staticmethod]
     #[pyo3(signature = (op, a, b, declare=None))]
     fn boolean(op: BooleanOp, a: &NodeId, b: &NodeId, declare: Option<NodeId>) -> Self {
@@ -898,6 +965,77 @@ impl Node {
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
         let node = pncad::select::declare_node(&kernel).map_err(|err| declare_err(py, &err))?;
         Ok(Self { inner: node })
+    }
+
+    /// **The group boolean** over a PARAMETRIC rule: one prototype,
+    /// `count` placements stepped by `kind`, ONE body out — the union
+    /// of the prototype at each placement.
+    ///
+    /// The value is an ordinary body, so every downstream door
+    /// consumes it with no new arms; that is exactly what a `Pattern`
+    /// node's plural `Instances` payload cannot do. Per-instance
+    /// naming is the `Instance(i)` qualifier, ONE segment deep
+    /// whatever the count.
+    ///
+    /// `count` crosses as a plain `int`, the structural-slot exception
+    /// to the typed quantities (`Node.loft`'s `v_degree` precedent):
+    /// a Count is an integer in the kernel's own expression language,
+    /// not a dimensioned measurement, and there is no `Count` quantity
+    /// to wrap it in.
+    ///
+    /// Disjointness is CERTIFIED, never declared: overlapping
+    /// placements refuse typed at `evaluate` (`placements_uncertified`,
+    /// naming the pair), and the certificate is
+    /// sufficient-not-necessary — a touching-but-genuinely-disjoint
+    /// arrangement refuses honestly rather than passing on a guess.
+    ///
+    /// An `explicit` rule brings its OWN placements, so pairing it
+    /// with a count is the two-sources-of-truth state: it refuses here
+    /// (`EditError`, `placement_rule_mismatch`) and
+    /// `Node.placed_union_at` is its door.
+    #[staticmethod]
+    fn placed_union(
+        py: Python<'_>,
+        input: &NodeId,
+        count: i64,
+        kind: &super::place::PatternKind,
+    ) -> PyResult<Self> {
+        let node = d::Node::placed_union(input.0, d::Expr::count(count), kind.0.clone())
+            .ok_or_else(|| {
+                typed_err(
+                    py,
+                    ErrorClass::Edit,
+                    "an explicit placement rule carries its own placements, so it has no \
+                     count slot: use Node.placed_union_at",
+                    &[(
+                        "variant",
+                        PyString::new(
+                            py,
+                            crate::tags::placement_rule_fault_tag(
+                                &d::PlacementRuleFault::CountSpelling,
+                            ),
+                        )
+                        .unbind()
+                        .into_any(),
+                    )],
+                )
+            })?;
+        Ok(Self { inner: node })
+    }
+
+    /// **The group boolean** over LISTED absolute frames: one
+    /// prototype placed at each of `frames`, unioned into ONE body.
+    ///
+    /// There is no count argument because the list IS the count — one
+    /// number, one spelling. An EMPTY list is this rule's `count < 1`
+    /// and refuses typed at `Doc.insert` (`empty_placement_list`), as
+    /// does a non-finite (`non_finite_placement`) or improper
+    /// (`improper_placement`) frame.
+    #[staticmethod]
+    fn placed_union_at(input: &NodeId, frames: Vec<super::place::Frame>) -> Self {
+        Self {
+            inner: d::Node::placed_union_at(input.0, frames.into_iter().map(|f| f.0).collect()),
+        }
     }
 }
 
@@ -940,7 +1078,7 @@ impl ParamName {
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
-/// Continuous values arrive as typed quantities (§L4), so the
+/// Continuous values arrive as typed quantities, so the
 /// dimension is carried by the constructor rather than guessed from a
 /// bare float. A non-finite value is NOT pre-checked here — the edit
 /// door refuses it typed (`non_finite_doc_param`), fail-loud where
@@ -1030,15 +1168,18 @@ impl DocParam {
     }
 }
 
-/// A single edit to a document — the G1 edit vocabulary, which §L3
-/// names as the ONE API surface shared by the GUI, the bindings, macro
-/// recording and headless tests.
+/// A single edit to a document — the ONE API surface shared by the
+/// GUI, the bindings, macro recording and headless tests.
 ///
-/// Four edits are exposed today: `insert_node`, `delete_node`,
-/// `set_tolerance` and `set_doc_param` (R1-PARAMS). The remaining
-/// variants (slot edits, re-witnessing, appearance, rebinds,
-/// expression paths) are mechanical additions once the surface they
-/// need is curated — tracked as named gaps in
+/// Five edits are exposed today: `insert_node`, `delete_node`,
+/// `set_tolerance`, `set_doc_param` and
+/// `bind_count_param`, the structural-slot edit narrowed to the Count
+/// slot and a parameter reference. The remaining variants (continuous
+/// slot edits, re-witnessing, appearance, rebinds, expression paths)
+/// are mechanical additions once the surface they need is curated —
+/// each waits on an expression vocabulary, which is the reason the
+/// count edit crosses in this narrowed form rather than as the
+/// general door. Tracked as named gaps in
 /// `docs/guide/north-star-audit.md`.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -1087,9 +1228,41 @@ impl DocEdit {
             },
         }
     }
+
+    /// Bind `node`'s STRUCTURAL count slot to the document parameter
+    /// `name` — the edit that makes a pattern's or a group's
+    /// replication count a named, editable number.
+    ///
+    /// With the binding in place, one `set_doc_param` re-counts the
+    /// placements and recomputes exactly the nodes downstream of the
+    /// count; without it a count is a literal and each new number is a
+    /// new document.
+    ///
+    /// # Why the door is this narrow
+    ///
+    /// The underlying edit replaces a slot's EXPRESSION, and its two
+    /// remaining degrees of freedom are the slot and the expression
+    /// tree. Both stay closed here: the slot is `Count` — the only
+    /// structural slot there is — and the expression is a parameter
+    /// reference at `Count` dimension, so no expression algebra
+    /// crosses and there is no way to aim this edit at a continuous
+    /// slot (the refusal the general door would need). What DOES stay
+    /// live is every refusal the edit itself carries: a node with no
+    /// count slot, an unknown parameter, a parameter of the wrong
+    /// dimension — each arrives as its own typed `EditError`.
+    #[staticmethod]
+    fn bind_count_param(node: &NodeId, name: &ParamName) -> Self {
+        Self {
+            inner: d::DocEdit::SetStructuralParam {
+                node: node.0,
+                slot: d::SlotId::Count,
+                expr: d::Expr::param(name.0.clone(), d::Dimension::Count),
+            },
+        }
+    }
 }
 
-/// A loaded document (LIB-DOORS F1): what the persistence door
+/// A loaded document: what the persistence door
 /// answered — the snapshot as saved, the replayed current state, and
 /// how many recorded edits the replay ran.
 #[pyclass(frozen, module = "pncad")]
@@ -1133,14 +1306,15 @@ impl Loaded {
     }
 }
 
-/// Parse, validate, and replay a saved document (LIB-DOORS F1).
+/// Parse, validate, and replay a saved document.
 ///
 /// Every refusal is a typed `PersistError` carrying the arm's stable
 /// `variant` tag — bad header, unknown schema, unparseable body, a
 /// snapshot or edit log the shared validator rejects, an ε conflict.
 #[pyfunction]
 pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
-    let loaded = d::load(text).map_err(|err| persist_err(py, &err))?;
+    let tol = Tol::witness();
+    let loaded = d::load(text, tol).map_err(|err| persist_err(py, &err))?;
     Ok(Loaded {
         snapshot: loaded.snapshot,
         doc: loaded.doc,

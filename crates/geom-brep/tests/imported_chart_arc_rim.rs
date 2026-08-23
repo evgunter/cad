@@ -13,11 +13,12 @@
 //! miss exact thirds of the domain by ~2·10⁻¹⁴.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{ChartWindow, Pcurve, PcurveCache};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Vec2, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::{NurbsSurface, Surface};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -78,7 +79,7 @@ fn breaks() -> KnotVector {
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn window() -> ChartWindow<f64> {

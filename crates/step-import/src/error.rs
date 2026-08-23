@@ -102,9 +102,12 @@ pub enum StepImportError {
         keyword: String,
     },
     /// The file's unit context is outside the subset the kernel
-    /// understands (the writer emits unprefixed `SI_UNIT($, .METRE.)`
-    /// / `.RADIAN.` / `.STERADIAN.`). Parsed, not assumed — a foreign
-    /// unit is a typed refusal until the M7-2 unit ladder.
+    /// understands. Parsed, not assumed. The subset resolves any of the
+    /// sixteen ISO 10303-41 SI prefixes on `.METRE.`, unprefixed
+    /// `.RADIAN.`/`.STERADIAN.`, and `CONVERSION_BASED_UNIT` chains
+    /// against those bases (`crate::units` module docs); a **prefixed**
+    /// angle unit, a scaled steradian, and any other unit context
+    /// refuse here rather than being guessed.
     UnsupportedUnit {
         /// The offending unit entity instance.
         id: u64,
@@ -314,8 +317,8 @@ impl fmt::Display for StepImportError {
             Self::UnsupportedUnit { id, found } => write!(
                 f,
                 "step import: entity #{id} declares unit {found} — the subset covers \
-                 unprefixed SI metre/radian/steradian only (a foreign unit context is \
-                 the M7-2 ladder, refused rather than guessed)"
+                 SI metres under any prefix, unprefixed radians/steradians, and \
+                 CONVERSION_BASED_UNIT chains onto those (refused rather than guessed)"
             ),
             Self::NothingToImport => f.write_str(
                 "step import: the data section carries no MANIFOLD_SOLID_BREP and no \

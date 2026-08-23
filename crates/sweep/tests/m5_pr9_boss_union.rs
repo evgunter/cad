@@ -8,7 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -21,27 +22,17 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(4.0, 4.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 4.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 0.0), 0.0),
+        ProfileVertex::new(p2(4.0, 4.0), 0.0),
+        ProfileVertex::new(p2(0.0, 4.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The boss: a radius-0.5 disc centered at (2, 2) authored as THREE
@@ -59,35 +50,28 @@ fn boss() -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.2)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.2), Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]
 fn the_boss_union_lands_end_to_end() {
     let a = plate();
     let b = boss();
-    let out = topo::union(&a, &b).expect("the first transverse curved boolean");
+    let out = topo::union(&a, &b, Tol::witness()).expect("the first transverse curved boolean");
     let body = &out.body().expect("a seamed result").body;
 
     // Tier 3 in full: dihedrals, descriptions, pcurve caches, +V.
-    if let Err(errs) = topo::validate_geometric(body) {
+    if let Err(errs) = topo::validate_geometric(body, Tol::witness()) {
         panic!("shape (ii) must be tier-3 valid: {errs:?}");
     }
 
@@ -98,7 +82,7 @@ fn the_boss_union_lands_end_to_end() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom_curves::Curve3::Circle { center, radius, .. } = *c.carrier()
+        if let geom::Curve3::Circle { center, radius, .. } = *c.carrier()
             && (center.z - 1.0).abs() < 1e-9
             && (radius - 0.5).abs() < 1e-9
         {
@@ -116,7 +100,7 @@ fn the_boss_union_lands_end_to_end() {
 
     // Volume: plate (16) + protruding boss (π·0.25·0.6), within the
     // exact-B-rep props' honesty.
-    let vol = topo::mass_properties(body).unwrap().volume;
+    let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
     assert!(
         (vol - expect).abs() < 1e-6,
@@ -136,8 +120,8 @@ fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
     let mut contacts = topo::ContactRecords::default();
     let v = b.vertices().next().unwrap().0;
     contacts.vv.push(topo::VvContact { a: v, b: v });
-    let errs =
-        topo::validate_pseudomanifold(&b, &contacts).expect_err("the bogus record is refused");
+    let errs = topo::validate_pseudomanifold(&b, &contacts, Tol::witness())
+        .expect_err("the bogus record is refused");
     assert!(
         errs.iter()
             .all(|e| !matches!(e, topo::ValidationError::CensusUnsupported { .. })),
@@ -166,31 +150,25 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let boss_on_top = extrude(&profile, Extrusion::Distance(0.6)).unwrap().body;
+    let boss_on_top = extrude(&profile, Extrusion::Distance(0.6), Tol::witness())
+        .unwrap()
+        .body;
     let mut body = a.clone();
-    topo::graft_disjoint(&mut body, &boss_on_top).unwrap();
+    topo::graft_disjoint(&mut body, &boss_on_top, Tol::witness()).unwrap();
 
     // UNDECLARED: the census finds the boss cap's rim-joint vertices
     // resting on the plate's top face — the hard error, typed.
-    let errs = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default())
-        .expect_err("an undeclared touching assembly is the F1 hard error");
+    let errs =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness())
+            .expect_err("an undeclared touching assembly is the F1 hard error");
     assert!(
         errs.iter()
             .any(|e| matches!(e, topo::ValidationError::UndeclaredContact { .. })),
@@ -209,7 +187,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     let top_face = body
         .faces()
         .find_map(|(k, f)| match body.get_surface(f.surface) {
-            Some(geom_surfaces::Surface::Plane { origin, normal, .. })
+            Some(geom::Surface::Plane { origin, normal, .. })
                 if (origin.z - 1.0).abs() < 1e-9 && normal.z > 0.5 =>
             {
                 Some(k)
@@ -231,7 +209,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     }
     assert_eq!(records.a_on_b.len(), 3, "the three arc joints");
     assert_eq!(
-        topo::validate_pseudomanifold(&body, &records),
+        topo::validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),
         "the declared touching curved assembly validates at 3′"
     );
@@ -251,24 +229,17 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(60.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(180.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(300.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(60.0), b120),
+        ProfileVertex::new(at(180.0), b120),
+        ProfileVertex::new(at(300.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h)).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// The cradle: a slab with a 60-degree concave bite of radius 0.5
@@ -280,35 +251,19 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     // Bite endpoints at +/-30 degrees: x = 2 + 0.5 cos 30, y = 2 +/- 0.25.
     let xw = 2.0 + 0.5 * (30f64).to_radians().cos();
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(5.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(5.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 2.25),
-            bulge,
-        },
-        ProfileVertex {
-            pos: p2(xw, 1.75),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(xw, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(5.0, 1.0), 0.0),
+        ProfileVertex::new(p2(5.0, 3.0), 0.0),
+        ProfileVertex::new(p2(xw, 3.0), 0.0),
+        ProfileVertex::new(p2(xw, 2.25), bulge),
+        ProfileVertex::new(p2(xw, 1.75), 0.0),
+        ProfileVertex::new(p2(xw, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
@@ -327,11 +282,11 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         .into_iter()
         .map(r1_cradle)
         .find(|b| {
-            topo::validate_geometric(b).is_ok()
+            topo::validate_geometric(b, Tol::witness()).is_ok()
                 && b.faces().any(|(_, f)| {
                     matches!(
                         b.get_surface(f.surface),
-                        Some(geom_surfaces::Surface::Cylinder { origin, radius, .. })
+                        Some(geom::Surface::Cylinder { origin, radius, .. })
                             if (origin.x - 2.0).abs() < 1e-9
                                 && (origin.y - 2.0).abs() < 1e-9
                                 && (radius - 0.5).abs() < 1e-9
@@ -341,18 +296,22 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         .expect("one bulge sign yields the valid bitten cradle");
     // Pin taller than the cradle so no cap plane meets a cradle strut.
     let pin = r1_pin(-0.2, 1.4);
-    assert_eq!(topo::validate_geometric(&pin), Ok(()), "pin is tier-3");
-    let mut body = cradle.clone();
-    topo::graft_disjoint(&mut body, &pin).unwrap();
     assert_eq!(
-        topo::validate_geometric(&body),
+        topo::validate_geometric(&pin, Tol::witness()),
+        Ok(()),
+        "pin is tier-3"
+    );
+    let mut body = cradle.clone();
+    topo::graft_disjoint(&mut body, &pin, Tol::witness()).unwrap();
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3 cannot see the touch (the #382 half-1 statement)"
     );
     let cyl_faces = |b: &Body<f64>| -> Vec<topo::FaceKey> {
         b.faces()
             .filter_map(|(k, f)| match b.get_surface(f.surface) {
-                Some(geom_surfaces::Surface::Cylinder { origin, radius, .. })
+                Some(geom::Surface::Cylinder { origin, radius, .. })
                     if (origin.x - 2.0).abs() < 1e-9
                         && (origin.y - 2.0).abs() < 1e-9
                         && (radius - 0.5).abs() < 1e-9 =>
@@ -369,8 +328,9 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     // the cross-solid curved pair as UNDECIDABLE — the C9-ring class,
     // named — instead of validating silently. (Pre-fix this probe
     // pinned the silent Ok(()) the R1 review found.)
-    let errs = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default())
-        .expect_err("the cross-solid curved proximity refuses loudly");
+    let errs =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness())
+            .expect_err("the cross-solid curved proximity refuses loudly");
     assert!(
         errs.iter()
             .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
@@ -388,7 +348,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         face_a: bite,
         face_b: pin_wall,
     });
-    let errs = topo::validate_pseudomanifold(&body, &records)
+    let errs = topo::validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the cross-key record cannot certify");
     assert!(
         errs.iter().any(|e| matches!(
@@ -413,62 +373,54 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
 #[test]
 fn r1_delta_probe_ball_cap_embedded_in_plate() {
     let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     let profile = Profile::new(SketchPlane::xy(), vec![ball_lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let ball = sweep::revolve(&profile, axis, sweep::Revolution::Full)
+    let ball = sweep::revolve(&profile, axis, sweep::Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    assert_eq!(topo::validate_geometric(&ball), Ok(()), "ball is tier-3");
+    assert_eq!(
+        topo::validate_geometric(&ball, Tol::witness()),
+        Ok(()),
+        "ball is tier-3"
+    );
     // The plate: x, y in [-3, 3], z in [0.3, 1.3] — the ball's upper
     // cap (z > 0.3) is inside the plate's material; the ball's poles
     // (y = +/-1, z = 0) and seam circles (z = 0 plane) never meet the
     // plate's boundary, and the plate's line edges (|x| = 3 or
     // |y| = 3) are far from the ball.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(-3.0, -3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, -3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(3.0, 3.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(-3.0, 3.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(-3.0, -3.0), 0.0),
+        ProfileVertex::new(p2(3.0, -3.0), 0.0),
+        ProfileVertex::new(p2(3.0, 3.0), 0.0),
+        ProfileVertex::new(p2(-3.0, 3.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let plate = extrude(
         &Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.0),
+        Tol::witness(),
     )
     .unwrap()
     .body;
-    assert_eq!(topo::validate_geometric(&plate), Ok(()), "plate is tier-3");
+    assert_eq!(
+        topo::validate_geometric(&plate, Tol::witness()),
+        Ok(()),
+        "plate is tier-3"
+    );
     let mut body = plate.clone();
-    topo::graft_disjoint(&mut body, &ball).unwrap();
-    let verdict = topo::validate_pseudomanifold(&body, &topo::ContactRecords::default());
+    topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
+    let verdict =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("ball-cap-in-plate verdict: {verdict:?}");
     let errs = verdict.expect_err(
         "R1 DELTA FINDING if this fires as Ok: a curved x planar transverse \
@@ -482,5 +434,89 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
                 | topo::ValidationError::UndeclaredContact { .. }
         )),
         "loud somehow: {errs:?}"
+    );
+}
+
+/// **R1 FINAL-DELTA probe (F5 lemma edge): a REFLEX (270-degree) arc
+/// cap.** The plane reach box's lemma says an arc bulges at most its
+/// radius from its chord — false for major arcs (sagitta up to 2r),
+/// so the cap's box misses the far half of the disc. A ball tangent
+/// to the cap INSIDE that uncovered zone probes whether the system
+/// still refuses (the arc's neighbouring wall face's own sound box
+/// must catch the ball) or validates silently through the lemma gap.
+#[test]
+fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
+    // Pac-man prism: 270-degree arc r 1 about the origin, endpoints
+    // at angles -135/+135 degrees (chord on the left), extruded 1.
+    let b270 = (67.5f64).to_radians().tan();
+    let at = |deg: f64| {
+        let th = deg.to_radians();
+        p2(th.cos(), th.sin())
+    };
+    let lp = ProfileLoop::new(vec![
+        // chord from 135 to 225 (straight)
+        ProfileVertex::new(at(135.0), 0.0),
+        // the 270-degree arc from 225 around to 135
+        ProfileVertex::new(at(225.0), b270),
+    ]);
+    let pac = extrude(
+        &Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(Tol::witness())
+            .unwrap(),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&pac, Tol::witness()),
+        Ok(()),
+        "pac prism tier-3"
+    );
+    // The ball: radius 0.3, tangent to the top cap (z = 1) at
+    // (0.65, 0), i.e. resting on the cap deep inside the reflex zone
+    // (the cap's vertex hull is the chord x = cos 135 ~ -0.707, so
+    // the +x half of the disc is beyond hull + pad on no axis... the
+    // probe asks the gate, not the box).
+    let ball_lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.0, -0.3), 1.0),
+        ProfileVertex::new(p2(0.0, 0.3), 0.0),
+    ]);
+    let axis = sweep::RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    // Place the ball by translating the SKETCH plane: center lands at
+    // (0.65, 0, 1.3) — beyond even the cap's padded box on x (box hi
+    // ~ 0.293), tangent to the cap plane z = 1 at (0.65, 0, 1).
+    let ball_plane = SketchPlane::new(Affine3::translation(Vec3::new(0.65, 0.0, 1.3)));
+    let ball = sweep::revolve(
+        &Profile::new(ball_plane, vec![ball_lp])
+            .validate(Tol::witness())
+            .unwrap(),
+        axis,
+        sweep::Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&ball, Tol::witness()),
+        Ok(()),
+        "ball tier-3"
+    );
+    let mut body = pac.clone();
+    topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
+    let verdict =
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
+    println!("reflex-arc cap + tangent ball verdict: {verdict:?}");
+    let errs = verdict.expect_err(
+        "R1 FINAL-DELTA FINDING if Ok: the reflex-arc lemma gap admits a silent \
+         tangent touch",
+    );
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+        "loud somehow else: {errs:?}"
     );
 }

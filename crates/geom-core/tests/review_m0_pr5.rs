@@ -19,7 +19,7 @@
 use geom_core::predicate::Sign;
 use geom_core::predicate::{Band, Decide};
 use geom_core::real::Real;
-use geom_core::{Affine2, Dual, Dual64, Mat2, Point2, Vec2};
+use geom_core::{Dual, Dual64, Point2, Vec2};
 use num_dual::DualNum;
 
 type Nd = num_dual::Dual64;
@@ -35,15 +35,21 @@ fn ulp_dist(a: f64, b: f64) -> u64 {
 // ---------------------------------------------------------------------
 // The M6-flavored stackup pipeline: a part feature point p0, rotated by
 // the joint angle theta and translated by the carriage offset, measured
-// as perpendicular distance to a fixed datum line. Real linalg (Mat2
-// rotation, Affine2, Point2/Vec2), ends in abs() — a kink op in the
-// pipeline on purpose.
+// as perpendicular distance to a fixed datum line. Real linalg
+// (Point2/Vec2, perp_dot), ends in abs() — a kink op in the pipeline on
+// purpose. The rotate-then-translate pose is spelled out rather than
+// assembled from a shipped affine type: the independence is the
+// regression value, and this association order is the one the analytic
+// derivative below differentiates.
 // ---------------------------------------------------------------------
 fn stackup<T: Real>(theta: T) -> T {
     let p0 = Point2::new(T::from_f64(2.0), T::from_f64(0.5));
     let carriage = Vec2::new(T::from_f64(1.5), T::from_f64(-0.25));
-    let pose = Affine2::from_parts(Mat2::rotation(theta), carriage);
-    let p = pose.transform_point(p0);
+    let (s, c) = theta.sin_cos();
+    let p = Point2::new(
+        (c * p0.x - s * p0.y) + carriage.x,
+        (s * p0.x + c * p0.y) + carriage.y,
+    );
     // datum line through la, unit direction ld (3-4-5 exact unit);
     // la sits near the orbit so the signed distance crosses zero (an
     // abs kink exists in theta)

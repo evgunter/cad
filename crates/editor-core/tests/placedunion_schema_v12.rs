@@ -27,6 +27,7 @@ use editor_core::{
     Expr, Frame, Node, PatternKind, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load, save,
 };
 use fixture::{desc, len, scl};
+use geom_core::Tol;
 
 /// The pre-bump bytes, kept verbatim as the refusal fixture (the file
 /// `m4_pr6_golden.rs` pinned as LIVE until this bump).
@@ -34,12 +35,12 @@ const V11: &str = include_str!("golden/v11_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved once since this row was written (ASM-R2a's v13
-    // `Node::Mate` arm) — the convention is that a bump updates every
+    // Moved twice since this row was written (ASM-R2a's v13
+    // `Node::Mate` arm, ASM-R2b's v14 interface record) — the convention is that a bump updates every
     // pin it invalidates, so the number stays exact here. Named for
     // the PROPERTY rather than the number, since the number is exactly
     // what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 13);
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]
@@ -52,7 +53,7 @@ fn the_checked_in_v11_file_is_really_v11() {
 /// that does not exist.
 #[test]
 fn v11_refuses_too_old() {
-    match load(V11) {
+    match load(V11, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -72,7 +73,7 @@ fn v11_refuses_too_old() {
 /// The recourse is the standing one — regenerate, never a shim.
 #[test]
 fn the_refusal_names_the_regenerate_recourse() {
-    let err = load(V11).expect_err("v11 refuses");
+    let err = load(V11, Tol::witness()).expect_err("v11 refuses");
     assert!(
         err.to_string().contains(REGENERATE_RECOURSE),
         "the refusal must carry the regenerate recourse: {err}"
@@ -88,7 +89,7 @@ fn a_future_version_refuses_unknown() {
     // (ASM-R2a took v13 after this row was written).
     let next = SCHEMA_VERSION + 1;
     let future = V11.replacen("schema: 11", &format!("schema: {next}"), 1);
-    match load(&future) {
+    match load(&future, Tol::witness()) {
         Err(PersistError::UnknownSchema { found, newest }) => {
             assert_eq!(found, u64::from(next));
             assert_eq!(newest, SCHEMA_VERSION);
@@ -135,20 +136,20 @@ fn both_rules_round_trip_at_v12() {
             ),
         ],
     ));
-    let text = save(&r.doc, &[]).expect("the document saves");
+    let text = save(&r.doc, &[], Tol::witness()).expect("the document saves");
     assert_eq!(
         text.lines().next(),
         Some(format!("schema: {SCHEMA_VERSION}").as_str()),
         "a fresh save carries the CURRENT version, whatever bumped it last"
     );
-    let back = load(&text).expect("the current version loads");
+    let back = load(&text, Tol::witness()).expect("the current version loads");
     assert_eq!(back.doc.node(stepped), r.doc.node(stepped));
     assert_eq!(back.doc.node(listed), r.doc.node(listed));
     // Bit-exact frames: a placement is data, and `-0.0` is a different
     // placement from `0.0` to the content key, so it must be one on
     // the wire too.
     assert_eq!(
-        save(&back.doc, &[]).expect("the reloaded document saves"),
+        save(&back.doc, &[], Tol::witness()).expect("the reloaded document saves"),
         text,
         "save ∘ load is a fixpoint"
     );

@@ -29,7 +29,8 @@ mod common;
 
 use core::f64::consts::FRAC_PI_8;
 
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use step_export::{StepOptions, step_string};
 use sweep::{Extrusion, extrude};
@@ -40,7 +41,7 @@ fn export(body: &topo::Body<f64>) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options).unwrap()
+    step_string(body, &options, Tol::witness()).unwrap()
 }
 
 /// **Row 1: `.F.` is real output.** Flip one cube face's bit through
@@ -90,27 +91,17 @@ fn notched_body_exports_with_exactly_one_reversed_cylinder_wall() {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: Point2::new(2.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(2.0, 1.5),
-            bulge: -b,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, 1.5),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, 0.0), b),
+        ProfileVertex::new(Point2::new(2.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(2.0, 1.5), -b),
+        ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let body = extrude(&vp, Extrusion::Distance(1.0)).unwrap().body;
+    let body = extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body;
     // The kernel-side fact this row mirrors: one reversed face.
     assert_eq!(
         body.faces().filter(|(_, f)| !f.sense).count(),

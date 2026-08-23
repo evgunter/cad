@@ -10,9 +10,10 @@
 use core::f64::consts::FRAC_PI_8;
 use profile::RawLoop;
 
+use geom::Surface;
 use geom_brep::{EdgeGeometry, newell_plane};
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
-use geom_surfaces::Surface;
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{
@@ -21,7 +22,7 @@ use topo::{
 };
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -30,7 +31,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -50,14 +51,8 @@ fn l_loop() -> ProfileLoop<f64> {
 /// with radius `r`, counterclockwise as written.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(cx - r, cy),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(cx + r, cy),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(cx - r, cy), 1.0),
+        ProfileVertex::new(p2(cx + r, cy), 1.0),
     ])
 }
 
@@ -76,7 +71,7 @@ fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
 fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 /// The vertex points of a loop's cycle in `next` order.
@@ -124,7 +119,9 @@ fn loop_probe_points(body: &Body<f64>, r#loop: topo::LoopKey) -> Vec<Point3<f64>
 fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
-    let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear().unwrap()).unwrap() else {
+    let Surface::Plane { normal, .. } =
+        newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
+    else {
         panic!("newell returns a plane");
     };
     normal
@@ -144,7 +141,12 @@ fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
 #[test]
 fn extruded_l_profile_passes_all_tiers() {
     // (a) The L-prism: 8 faces, genus 0, every join a corner.
-    let t = extrude(&validated(vec![l_loop()]), Extrusion::Distance(1.5)).unwrap();
+    let t = extrude(
+        &validated(vec![l_loop()]),
+        Extrusion::Distance(1.5),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 0));
@@ -193,7 +195,12 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     // hole is a torus — v − e + f − r = 0 = 2(1 − g)).
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let hole = circle_loop(0.5, 0.5, 0.1);
-    let t = extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(
+        &validated(vec![outer, hole]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (12, 18, 8, 2));
@@ -232,7 +239,8 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
         let outward = outward_normal(&t.body, cap);
         let ring = t.body.get_face(cap).unwrap().rings[0];
         let pts = loop_probe_points(&t.body, ring);
-        let Surface::Plane { normal, .. } = newell_plane(&pts, Band::linear().unwrap()).unwrap()
+        let Surface::Plane { normal, .. } =
+            newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
         else {
             panic!("plane");
         };
@@ -252,41 +260,22 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // vertex carries the bulge of the segment LEAVING it: the four
     // straight legs leave with 0, the four quarter-arcs with b.
     let mut lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(0.25, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.75, 0.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.25),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.75),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(0.75, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.25, 1.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 0.75),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 0.25),
-            bulge: b,
-        },
+        ProfileVertex::new(p2(0.25, 0.0), 0.0),
+        ProfileVertex::new(p2(0.75, 0.0), b),
+        ProfileVertex::new(p2(1.0, 0.25), 0.0),
+        ProfileVertex::new(p2(1.0, 0.75), b),
+        ProfileVertex::new(p2(0.75, 1.0), 0.0),
+        ProfileVertex::new(p2(0.25, 1.0), b),
+        ProfileVertex::new(p2(0.0, 0.75), 0.0),
+        ProfileVertex::new(p2(0.0, 0.25), b),
     ]);
-    lp.tangent_joints = vec![0, 1, 2, 3, 4, 5, 6, 7];
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(0.5)).unwrap();
+    lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    let t = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(0.5),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (16, 24, 10, 0));
@@ -345,6 +334,7 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     let t = extrude(
         &validated(vec![circle_loop(0.0, 0.0, 0.5)]),
         Extrusion::Distance(1.0),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&t.body);
@@ -373,16 +363,15 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     // The chord leaves (-1,0) straight; the closing semicircle leaves
     // (1,0) with bulge 1.
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex {
-            pos: p2(-1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(-1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 1.0),
     ]);
-    let t = extrude(&validated(vec![lp]), Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (4, 6, 4, 0));
@@ -401,12 +390,12 @@ fn both_extrusion_directions_build_outward_solids() {
     // the sweep is outward along w; the sketch-plane cap is outward
     // along −w.
     let vp = validated(vec![l_loop()]);
-    let up = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
+    let up = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&up.body);
     assert!(outward_normal(&up.body, up.top).z > 0.99);
     assert!(outward_normal(&up.body, up.bottom).z < -0.99);
 
-    let down = extrude(&vp, Extrusion::Distance(-1.0)).unwrap();
+    let down = extrude(&vp, Extrusion::Distance(-1.0), Tol::witness()).unwrap();
     assert_all_tiers(&down.body);
     // Downward: the swept (top) cap sits at z = −1, outward −z; the
     // bottom cap keeps the sketch plane, outward +z.
@@ -416,7 +405,12 @@ fn both_extrusion_directions_build_outward_solids() {
     assert!(top_pts.iter().all(|p| (p.z + 1.0).abs() < 1e-12));
 
     // The vector form agrees with the distance form structurally.
-    let vec_down = extrude(&vp, Extrusion::Vector(Vec3::new(0.0, 0.0, -1.0))).unwrap();
+    let vec_down = extrude(
+        &vp,
+        Extrusion::Vector(Vec3::new(0.0, 0.0, -1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&vec_down.body);
     assert_eq!(counts(&vec_down.body), counts(&down.body));
     assert!(outward_normal(&vec_down.body, vec_down.top).z < -0.99);
@@ -426,6 +420,7 @@ fn both_extrusion_directions_build_outward_solids() {
     let holed = extrude(
         &validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]),
         Extrusion::Distance(-0.5),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&holed.body);
@@ -440,9 +435,9 @@ fn placed_profile_extrudes_along_its_own_normal() {
     // normal +y (u = ẑ, v = x̂), offset from the origin.
     let plane = SketchPlane::from_frame(Point3::new(2.0, 1.0, 3.0), Vec3::unit_z(), Vec3::unit_x());
     let vp = Profile::new(plane, vec![l_loop()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert!(outward_normal(&t.body, t.top).y > 0.99);
     assert!(outward_normal(&t.body, t.bottom).y < -0.99);
@@ -453,16 +448,21 @@ fn error_paths_are_typed_and_leave_no_body() {
     let vp = validated(vec![l_loop()]);
     // In-plane vector: no normal component.
     assert_eq!(
-        extrude(&vp, Extrusion::Vector(Vec3::new(1.0, 0.0, 0.0))).unwrap_err(),
+        extrude(
+            &vp,
+            Extrusion::Vector(Vec3::new(1.0, 0.0, 0.0)),
+            Tol::witness()
+        )
+        .unwrap_err(),
         ExtrudeError::DegenerateExtrusion
     );
     // Zero distance.
     assert_eq!(
-        extrude(&vp, Extrusion::Distance(0.0)).unwrap_err(),
+        extrude(&vp, Extrusion::Distance(0.0), Tol::witness()).unwrap_err(),
         ExtrudeError::DegenerateExtrusion
     );
     // Sliver distance: strictly inside the band (ε, K·ε) escalates.
-    let err = extrude(&vp, Extrusion::Distance(3.0 * eps())).unwrap_err();
+    let err = extrude(&vp, Extrusion::Distance(3.0 * eps()), Tol::witness()).unwrap_err();
     assert!(
         matches!(err, ExtrudeError::ExtrusionEscalated { ref source }
             if source.predicate == Some("extrusion_normal_component")),
@@ -470,7 +470,12 @@ fn error_paths_are_typed_and_leave_no_body() {
     );
     // Oblique vector: definite normal + definite in-plane component.
     assert_eq!(
-        extrude(&vp, Extrusion::Vector(Vec3::new(0.5, 0.0, 1.0))).unwrap_err(),
+        extrude(
+            &vp,
+            Extrusion::Vector(Vec3::new(0.5, 0.0, 1.0)),
+            Tol::witness()
+        )
+        .unwrap_err(),
         ExtrudeError::ObliqueExtrusion
     );
 }
@@ -489,7 +494,12 @@ fn sliver_dihedral_join_is_a_typed_error() {
         p2(1.0 + theta.cos(), theta.sin()),
         p2(0.0, 1.0),
     ]);
-    let err = extrude(&validated(vec![lp]), Extrusion::Distance(1.0e-3)).unwrap_err();
+    let err = extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0e-3),
+        Tol::witness(),
+    )
+    .unwrap_err();
     match err {
         ExtrudeError::SliverJoin {
             loop_index,
@@ -511,7 +521,12 @@ fn certification_failures_surface_the_report() {
     // A degenerate profile cannot exist post-validation, so corrupt the
     // extrusion instead: a poisoned vector escalates (typed, no panic).
     let vp = validated(vec![l_loop()]);
-    let err = extrude(&vp, Extrusion::Vector(Vec3::new(0.0, 0.0, f64::NAN))).unwrap_err();
+    let err = extrude(
+        &vp,
+        Extrusion::Vector(Vec3::new(0.0, 0.0, f64::NAN)),
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(
         matches!(err, ExtrudeError::ExtrusionEscalated { .. }),
         "{err:?}"
@@ -519,7 +534,7 @@ fn certification_failures_surface_the_report() {
     // And the Op wrapper carries certification reports verbatim when an
     // operator-level gate fires (exercised here through the public
     // sweep API only as the absence case: a clean build has none).
-    let ok = extrude(&vp, Extrusion::Distance(1.0));
+    let ok = extrude(&vp, Extrusion::Distance(1.0), Tol::witness());
     assert!(ok.is_ok());
     drop(ok);
     // Shape check: the error type embeds EulerOpError::Certification.
@@ -561,6 +576,7 @@ fn rebuild_is_byte_identical() {
         extrude(
             &validated(vec![outer.clone(), circle_loop(0.5, 0.5, 0.1)]),
             Extrusion::Distance(1.0),
+            Tol::witness(),
         )
         .unwrap()
     };
@@ -582,21 +598,33 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
     let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
         ProfileLoop::new(
-            lp.vertices
+            lp.vertices()
                 .iter()
-                .map(|v| ProfileVertex {
-                    pos: Point2::new(Dual::constant(v.pos.x), Dual::constant(v.pos.y)),
-                    bulge: Dual::constant(v.bulge),
+                .map(|v| {
+                    ProfileVertex::new(
+                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
+                        Dual::constant(v.bulge()),
+                    )
                 })
                 .collect(),
         )
     };
-    let f = extrude(&validated(vec![l_loop()]), Extrusion::Distance(1.0)).unwrap();
+    let f = extrude(
+        &validated(vec![l_loop()]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     let dp = Profile::new(SketchPlane::<Dual64>::xy(), vec![lift(&l_loop())])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let d = extrude(&dp, Extrusion::Distance(Dual::constant(1.0))).unwrap();
-    assert_eq!(validate_geometric(&d.body), Ok(()));
+    let d = extrude(
+        &dp,
+        Extrusion::Distance(Dual::constant(1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_eq!(validate_geometric(&d.body, Tol::witness()), Ok(()));
     let f_res: Vec<f64> = f
         .body
         .curves()

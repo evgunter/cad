@@ -6,15 +6,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
+use geom_core::Tol;
 
 /// Printer probe for the re-exec (ignored in normal runs).
 #[test]
 #[ignore]
 fn print_band_ratio() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     println!("KPROBE ratio={}", band.escalate() / band.zero());
-    println!("KPROBE k={}", Tolerance::get().k);
+    println!("KPROBE k={}", Tol::witness().get().k);
 }
 
 #[test]

@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `topo`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 41 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -10,9 +15,9 @@
 //! its own crate root.
 //!
 //! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link — measured at 494 of the 514 s of the workspace build job
-//! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
-//! are small; the per-binary constant was the bill.
+//! codegen+link (see the LINK/DEBUGINFO note in
+//! .github/workflows/ci.yml). The suites are small; the per-binary
+//! constant was the bill.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
@@ -42,6 +47,8 @@ mod cube_by_hand;
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
 mod graft_disjoint;
+#[path = "h14_census_deferrals.rs"]
+mod h14_census_deferrals;
 #[path = "interval_body.rs"]
 mod interval_body;
 #[path = "issue86_double_subtract.rs"]
@@ -127,10 +134,16 @@ mod review_s1_controls;
 mod review_s1_probes;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_ssiflat_r1_probes.rs"]
+mod review_ssiflat_r1_probes;
+#[path = "review_ssiflat_r2_probes.rs"]
+mod review_ssiflat_r2_probes;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "void_door.rs"]
+mod void_door;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
@@ -170,3 +183,5 @@ fn every_suite_file_is_aggregated() {
 mod probe_census;
 #[path = "probe_f34_review.rs"]
 mod probe_f34_review;
+#[path = "probe_s5_sectors.rs"]
+mod probe_s5_sectors;

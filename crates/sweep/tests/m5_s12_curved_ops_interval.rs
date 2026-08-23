@@ -37,9 +37,10 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 #[cfg(feature = "interval")]
 mod certified {
     use core::f64::consts::PI;
+    use geom_core::Tol;
 
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tolerance, Vec2, Vec3};
-    use geom_surfaces::Surface;
+    use geom::Surface;
+    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -54,7 +55,7 @@ mod certified {
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -67,9 +68,13 @@ mod certified {
             p2(3.0, 3.0),
             p2(0.0, 3.0),
         ]);
-        extrude(&validated(vec![lp]), Extrusion::Distance(iv(0.8)))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(iv(0.8)),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.
@@ -83,9 +88,9 @@ mod certified {
         // Three equal 120° arcs: every vertex leaves with the same
         // bulge, the third one closing the circle.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex { pos: at(0), bulge },
-            ProfileVertex { pos: at(1), bulge },
-            ProfileVertex { pos: at(2), bulge },
+            ProfileVertex::new(at(0), bulge),
+            ProfileVertex::new(at(1), bulge),
+            ProfileVertex::new(at(2), bulge),
         ]);
         let plane = SketchPlane::from_frame(
             geom_core::Point3::new(iv(0.0), iv(0.0), iv(z0)),
@@ -93,9 +98,11 @@ mod certified {
             Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
         );
         let vp = Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
-        extrude(&vp, Extrusion::Distance(iv(len))).unwrap().body
+        extrude(&vp, Extrusion::Distance(iv(len)), Tol::witness())
+            .unwrap()
+            .body
     }
 
     /// A 3 × 3 × 1 plate with a concave semicircular notch on its `x = 3`
@@ -104,34 +111,20 @@ mod certified {
         // Only (3, 1) leaves on an arc: the semicircular notch bowing
         // into the plate.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, 0.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 0.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 1.0),
-                bulge: iv(-1.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 2.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(3.0, 3.0),
-                bulge: iv(0.0),
-            },
-            ProfileVertex {
-                pos: p2(0.0, 3.0),
-                bulge: iv(0.0),
-            },
+            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(3.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(3.0, 1.0), iv(-1.0)),
+            ProfileVertex::new(p2(3.0, 2.0), iv(0.0)),
+            ProfileVertex::new(p2(3.0, 3.0), iv(0.0)),
+            ProfileVertex::new(p2(0.0, 3.0), iv(0.0)),
         ]);
-        extrude(&validated(vec![lp]), Extrusion::Distance(iv(1.0)))
-            .unwrap()
-            .body
+        extrude(
+            &validated(vec![lp]),
+            Extrusion::Distance(iv(1.0)),
+            Tol::witness(),
+        )
+        .unwrap()
+        .body
     }
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
@@ -187,20 +180,22 @@ mod certified {
     fn interval_curved_subtract_and_intersect_decide_definitely() {
         let a = plate();
         let b = boss(0.3, 1.0);
-        let cut = topo::subtract(&a, &b).expect("curved subtract decides at Interval");
+        let cut =
+            topo::subtract(&a, &b, Tol::witness()).expect("curved subtract decides at Interval");
         let cut = &cut.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(cut), Ok(()));
+        assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(cut).unwrap().volume,
+            mass_properties(cut, Tol::witness()).unwrap().volume,
             3.0 * 3.0 * 0.8 - PI * R * R * 0.5,
             "blind hole",
         );
 
-        let met = topo::intersect(&a, &b).expect("curved intersect decides at Interval");
+        let met =
+            topo::intersect(&a, &b, Tol::witness()).expect("curved intersect decides at Interval");
         let met = &met.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(met), Ok(()));
+        assert_eq!(topo::validate_geometric(met, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(met).unwrap().volume,
+            mass_properties(met, Tol::witness()).unwrap().volume,
             PI * R * R * 0.5,
             "the plug",
         );
@@ -224,16 +219,18 @@ mod certified {
             Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
         );
         let vp = Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
-        let b = extrude(&vp, Extrusion::Distance(iv(0.4))).unwrap().body;
+        let b = extrude(&vp, Extrusion::Distance(iv(0.4)), Tol::witness())
+            .unwrap()
+            .body;
 
         let notch = PI * 0.25 / 2.0;
-        let out = topo::intersect(&a, &b).expect("the split decides at Interval");
+        let out = topo::intersect(&a, &b, Tol::witness()).expect("the split decides at Interval");
         let out = &out.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(out), Ok(()));
+        assert_eq!(topo::validate_geometric(out, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(out).unwrap().volume,
+            mass_properties(out, Tol::witness()).unwrap().volume,
             (2.0 - notch) * 0.4,
             "the meet across the reversed wall",
         );
@@ -248,6 +245,25 @@ mod certified {
         );
     }
 
+    /// The `carrier_matches_mapped_source` enclosure this row's chain
+    /// escalates on (metres), measured at the FIRST escalating sample
+    /// of the crossing insertion's second child — certification aborts
+    /// there, so later samples of that edge never run and this is not a
+    /// claim about them. It is ε-INDEPENDENT — the same bits at every ε
+    /// — because it is the interval lane's enclosure width, a property
+    /// of the arithmetic that built the two points, not of the
+    /// tolerance they are judged against. The row therefore certifies
+    /// exactly when ε is at or above it.
+    ///
+    /// The escalation arm below pins `hi` to this value BIT-EXACTLY, in
+    /// both directions. A regression that widens the arc chain is loud,
+    /// and so is a tightening that narrows it — including a partial one
+    /// that lands between the band and this constant, which an
+    /// upper-bound-only guard would admit in silence. Either way the
+    /// answer is the same: re-measure and re-state the constant, never
+    /// loosen the guard around it.
+    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.1414768974413613e-12;
+
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified
     /// scalar. The half-buried ball is the finding's own
@@ -256,41 +272,98 @@ mod certified {
     /// definitely from honest enclosures, the re-cut's rigid rotation
     /// re-certifies, and the re-entered pipeline's plane×sphere germs
     /// mint arcs whose volume enclosure contains the closed form.
+    ///
+    /// **Scoped to ε ≥ [`RECUT_MAPPED_ENCLOSURE_HI`]** (#921). Below it
+    /// the chain escalates on `carrier_matches_mapped_source`, and that
+    /// escalation is honest rather than a defect, so the row asserts it
+    /// instead of asserting a decision the scalar cannot make. The
+    /// enclosure it escalates on is `[0, hi]`: its low end is exactly
+    /// zero, so nothing about the locus is being denied — the carrier
+    /// and its mapped source may coincide exactly, and the interval
+    /// lane simply cannot see that they do. What `hi ≤ ε` asks at
+    /// `T = Interval` is whether the CONSTRUCTION's accumulated
+    /// enclosure width fits inside the tolerance, which is a question
+    /// about conditioning, not about geometry; the geometry claim is
+    /// the f64 lane's, and it holds three decades clear (K-REPORT's
+    /// largest `zero`-classified margin for this predicate). D4 ¶2's
+    /// certification and D2's prefer-intrinsic exemptions both already
+    /// ratify that ε-tightening may escalate; an Interval indeterminate
+    /// is a designed outcome, not a red.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
         // The half-disc lamina: a semicircle out of (0, -1) and the
         // straight diameter back.
         let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex {
-                pos: p2(0.0, -1.0),
-                bulge: iv(1.0),
-            },
-            ProfileVertex {
-                pos: p2(0.0, 1.0),
-                bulge: iv(0.0),
-            },
+            ProfileVertex::new(p2(0.0, -1.0), iv(1.0)),
+            ProfileVertex::new(p2(0.0, 1.0), iv(0.0)),
         ]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),
         };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full)
+        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
             .unwrap()
             .body;
         let ball = topo::transform_rigid(
             &ball,
             &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
+            Tol::witness(),
         )
         .unwrap();
 
-        let cut = topo::subtract(&plate(), &ball).expect("S13: the sphere class decides");
+        let cut = topo::subtract(&plate(), &ball, Tol::witness());
+        if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {
+            let Err(topo::BooleanError::CrossingInsertion { source, .. }) = cut else {
+                panic!(
+                    "below the enclosure width the chain must escalate on the mapped-source \
+                     check, got {cut:?}"
+                );
+            };
+            let topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::Escalated { check, cause, .. },
+            } = source
+            else {
+                panic!("the refusal must be a certification escalation, got {source:?}");
+            };
+            assert_eq!(check, geom_brep::CertCheck::MappedSource);
+            assert_eq!(cause.predicate, Some("carrier_matches_mapped_source"));
+            let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+                panic!(
+                    "the escalation must carry an enclosure, got {:?}",
+                    cause.margin
+                );
+            };
+            // The honest content of the refusal: the enclosure does not
+            // exclude exact coincidence (lo = 0), and it escaped the
+            // band only by being WIDE — construction conditioning, not a
+            // residual saying the carrier left its source.
+            assert_eq!(lo, 0.0, "the enclosure must not exclude coincidence");
+            assert!(
+                hi > cause.band.zero(),
+                "the enclosure must exceed the coincidence threshold, else it would classify"
+            );
+            // Pinned bit-exactly, both directions (D9: same build, same
+            // inputs, same bits). A ceiling alone would admit the very
+            // width this unit retired, and would let a partial
+            // tightening leave the constant stale in silence.
+            assert!(
+                hi == RECUT_MAPPED_ENCLOSURE_HI,
+                "the mapped-source enclosure is {hi:e}, not its measured value \
+                 {RECUT_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
+            );
+            // The cylinder class is unaffected by the arc-chain width
+            // and still decides at this scalar.
+            assert!(topo::subtract(&plate(), &boss(0.3, 1.0), Tol::witness()).is_ok());
+            return;
+        }
+        let cut = cut.expect("S13: the sphere class decides");
         let cut = &cut.body().expect("a body").body;
-        assert_eq!(topo::validate_geometric(cut), Ok(()));
+        assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         // plate − (ball zone between z = 0 and z = 0.8):
         // zone = 4π/3 − cap(0.7) − cap(0.5), cap(h) = πh²(3−h)/3.
         let cap = |h: f64| PI * h * h * (3.0 - h) / 3.0;
         let zone = 4.0 * PI / 3.0 - cap(0.7) - cap(0.5);
-        let vol = mass_properties(cut).unwrap().volume;
+        let vol = mass_properties(cut, Tol::witness()).unwrap().volume;
         assert!(
             vol.lo() <= 7.2 - zone && 7.2 - zone <= vol.hi(),
             "enclosure [{}, {}] must contain {}",
@@ -305,6 +378,6 @@ mod certified {
         );
         // And the cylinder class still decides at this scalar (S13
         // opens a class, it does not trade one away).
-        assert!(topo::subtract(&plate(), &boss(0.3, 1.0)).is_ok());
+        assert!(topo::subtract(&plate(), &boss(0.3, 1.0), Tol::witness()).is_ok());
     }
 }

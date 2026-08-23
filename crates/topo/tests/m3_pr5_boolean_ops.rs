@@ -17,6 +17,8 @@ mod common;
 
 use common::prism_z;
 use geom_core::Decide;
+use geom_core::Tol;
+use topo::test_support::{ArenaCounts, arena_counts};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract,
     subtract_with, union, union_with, validate, validate_closed, validate_geometric,
@@ -26,30 +28,21 @@ fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-/// Census: (solids, shells, faces, loops, half-edges, edges, vertices).
-fn census<T: geom_core::Real>(b: &Body<T>) -> (usize, usize, usize, usize, usize, usize, usize) {
-    (
-        b.solids().count(),
-        b.shells().count(),
-        b.faces().count(),
-        b.loops().count(),
-        b.half_edges().count(),
-        b.edges().count(),
-        b.vertices().count(),
-    )
-}
-
 /// A public declared boolean op as a value (M4 PR 5: the corpus
 /// declares its intended flush contacts — recipe intent, test form).
-type BoolOp<T> =
-    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(
+    &Body<T>,
+    &Body<T>,
+    &topo::BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one op functionally with the author's flush contacts
 /// declared, checking the operands stayed bitwise untouched and the
 /// result passes tier 1 + 2.
 fn run<T: Decide + geom_core::Bounds>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let out = op(a, b, &common::flush_declarations(a, b)).unwrap();
+    let out = op(a, b, &common::flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &out {
@@ -65,7 +58,7 @@ fn body_of<T: Decide + geom_core::Bounds>(r: &BooleanResult<T>) -> &BooleanBody<
 
 /// Volume/area equality at f64 (exact values for the pinned corpus).
 fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
-    let m = mass_properties(body).unwrap();
+    let m = mass_properties(body, Tol::witness()).unwrap();
     assert_eq!(m.volume, volume, "exact volume");
     assert_eq!(m.surface_area, area, "exact area");
 }
@@ -73,7 +66,7 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
 /// Tier 3 directly at rest (D6, M3 PR 6a): boolean results carry
 /// honest `Intersection` descriptions natively.
 fn assert_tier3_posture(body: &Body<f64>) {
-    assert_eq!(validate_geometric(body), Ok(()));
+    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
 // ---------------------------------------------------------------
@@ -144,7 +137,18 @@ fn two_bricks_intersect() {
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // The [1,2]³ cube: 3 A faces + 3 B faces, hexagon seam.
-    assert_eq!(census(&body.body), (1, 1, 6, 6, 24, 12, 8));
+    assert_eq!(
+        arena_counts(&body.body),
+        ArenaCounts {
+            solids: 1,
+            shells: 1,
+            faces: 6,
+            loops: 6,
+            half_edges: 24,
+            edges: 12,
+            vertices: 8
+        }
+    );
     assert_props(&body.body, 1.0, 6.0);
     assert_tier3_posture(&body.body);
     // D9: byte-identical replay.
@@ -162,7 +166,18 @@ fn two_bricks_union() {
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // 7+7 operand corners + 6 seam; 3 full + 3 L faces per operand.
-    assert_eq!(census(&body.body), (1, 1, 12, 12, 60, 30, 20));
+    assert_eq!(
+        arena_counts(&body.body),
+        ArenaCounts {
+            solids: 1,
+            shells: 1,
+            faces: 12,
+            loops: 12,
+            half_edges: 60,
+            edges: 30,
+            vertices: 20
+        }
+    );
     assert_props(&body.body, 15.0, 42.0);
     assert_tier3_posture(&body.body);
     let again = run(union_with, &a, &b);
@@ -207,7 +222,18 @@ fn void_birth_cube_minus_inner_cube() {
     assert_eq!(body.kind, BooleanResultKind::Voided);
     // Outer cube shell + reverted inner void shell: tier-2-legal
     // multi-shell (asserted by `run`), exact volume outer − inner.
-    assert_eq!(census(&body.body), (1, 2, 12, 12, 48, 24, 16));
+    assert_eq!(
+        arena_counts(&body.body),
+        ArenaCounts {
+            solids: 1,
+            shells: 2,
+            faces: 12,
+            loops: 12,
+            half_edges: 48,
+            edges: 24,
+            vertices: 16
+        }
+    );
     assert_props(&body.body, 26.0, 60.0);
     assert!(body.contacts.vv.is_empty());
 }
@@ -224,7 +250,18 @@ fn disjoint_operands() {
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
-    assert_eq!(census(&body.body), (1, 2, 12, 12, 48, 24, 16));
+    assert_eq!(
+        arena_counts(&body.body),
+        ArenaCounts {
+            solids: 1,
+            shells: 2,
+            faces: 12,
+            loops: 12,
+            half_edges: 48,
+            edges: 24,
+            vertices: 16
+        }
+    );
     assert_props(&body.body, 2.0, 12.0);
     // ∩: the typed empty success.
     assert!(matches!(
@@ -235,7 +272,7 @@ fn disjoint_operands() {
     let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
-    assert_eq!(census(&body.body), census(&a));
+    assert_eq!(arena_counts(&body.body), arena_counts(&a));
     assert_props(&body.body, 1.0, 6.0);
 }
 
@@ -249,7 +286,7 @@ fn nested_operands() {
     let r = run(topo::intersect_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandB);
-    assert_eq!(census(&body.body), census(&b));
+    assert_eq!(arena_counts(&body.body), arena_counts(&b));
     assert_props(&body.body, 1.0, 6.0);
     // A ∪ B_inside = A.
     let r = run(union_with, &a, &b);
@@ -273,7 +310,18 @@ fn corner_kiss_operands() {
     let r = run(union_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::Assembly);
-    assert_eq!(census(&body.body), (1, 2, 12, 12, 48, 24, 16));
+    assert_eq!(
+        arena_counts(&body.body),
+        ArenaCounts {
+            solids: 1,
+            shells: 2,
+            faces: 12,
+            loops: 12,
+            half_edges: 48,
+            edges: 24,
+            vertices: 16
+        }
+    );
     assert_props(&body.body, 2.0, 12.0);
     assert_eq!(body.contacts.vv.len(), 1);
     let c = body.contacts.vv[0];
@@ -407,14 +455,18 @@ fn subtract_equals_intersect_revert_oracle() {
         ),
     ];
     for (name, a, b) in corpus {
-        let direct = subtract(&a, &b).unwrap();
-        let via_revert = topo::intersect(&a, &b.revert().unwrap()).unwrap();
+        let direct = subtract(&a, &b, Tol::witness()).unwrap();
+        let via_revert = topo::intersect(&a, &b.revert().unwrap(), Tol::witness()).unwrap();
         match (&direct, &via_revert) {
             (BooleanResult::Empty, BooleanResult::Empty) => {}
             (BooleanResult::Body(d), BooleanResult::Body(r)) => {
-                assert_eq!(census(&d.body), census(&r.body), "{name}: census equality");
-                let md = mass_properties(&d.body).unwrap();
-                let mr = mass_properties(&r.body).unwrap();
+                assert_eq!(
+                    arena_counts(&d.body),
+                    arena_counts(&r.body),
+                    "{name}: census equality"
+                );
+                let md = mass_properties(&d.body, Tol::witness()).unwrap();
+                let mr = mass_properties(&r.body, Tol::witness()).unwrap();
                 assert_eq!(md.volume, mr.volume, "{name}: volume equality");
                 assert_eq!(md.surface_area, mr.surface_area, "{name}: area equality");
             }
@@ -443,7 +495,7 @@ fn merge_ladder_fires_only_on_declared_planes() {
     // (0..2)²×(0..4) brick's six maximal faces.
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    let undeclared = union(&a, &b);
+    let undeclared = union(&a, &b, Tol::witness());
     assert!(
         undeclared.is_err(),
         "the undeclared stacked-full union must keep refusing typed \
@@ -468,7 +520,7 @@ fn tangential_rest_operands() {
     let r = run(subtract_with, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
-    assert_eq!(census(&body.body), census(&a));
+    assert_eq!(arena_counts(&body.body), arena_counts(&a));
     assert_props(&body.body, 8.0, 24.0);
 }
 
@@ -480,7 +532,18 @@ fn two_bricks_subtract() {
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     // A's union side (7 corners, 3 L + 3 full faces) + reverted BinA
     // (3 squares, corner (1,1,1), 3 split-edge remnants).
-    assert_eq!(census(&body.body), (1, 1, 9, 9, 42, 21, 14));
+    assert_eq!(
+        arena_counts(&body.body),
+        ArenaCounts {
+            solids: 1,
+            shells: 1,
+            faces: 9,
+            loops: 9,
+            half_edges: 42,
+            edges: 21,
+            vertices: 14
+        }
+    );
     assert_props(&body.body, 7.0, 24.0);
     assert_tier3_posture(&body.body);
     let again = run(subtract_with, &a, &b);

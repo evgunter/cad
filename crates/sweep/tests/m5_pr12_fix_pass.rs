@@ -8,7 +8,8 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::FilletError;
 use sweep::fillet::build::fillet_edges;
@@ -17,23 +18,22 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         pts.iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(*x, *y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(Point2::new(*x, *y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(h)).unwrap().body
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// A unit-side regular hexagonal prism (circumradius 1 ⇒ side 1,
@@ -67,17 +67,19 @@ fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
     let body = hexagonal_prism();
     let edges = all_edges(&body);
     assert_eq!(edges.len(), 18, "a hexagonal prism has 18 edges");
-    let f = fillet_edges(&body, &edges, 0.3, band()).expect("the hexagonal prism fillets");
+    let f = fillet_edges(&body, &edges, 0.3, band(), Tol::witness())
+        .expect("the hexagonal prism fillets");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
     assert_eq!(
-        topo::validate_geometric(&f.body),
+        topo::validate_geometric(&f.body, Tol::witness()),
         Ok(()),
         "tier 3 — every corner face admits the iso-rectangle chart"
     );
     assert_eq!(f.corner_faces.len(), 12, "one octant per prism vertex");
     assert_eq!(f.blend_faces.len(), 18, "one blend per prism edge");
-    let props = topo::mass_properties(&f.body).expect("closed-form mass properties");
+    let props =
+        topo::mass_properties(&f.body, Tol::witness()).expect("closed-form mass properties");
     assert!(props.volume > 0.0);
     assert_eq!(
         props.volume_pad, 0.0,
@@ -94,8 +96,13 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
         3.0,
     );
     let edges = all_edges(&body);
-    let f = fillet_edges(&body, &edges, 0.12, band()).expect("the pentagonal prism fillets");
-    assert_eq!(topo::validate_geometric(&f.body), Ok(()), "tier 3");
+    let f = fillet_edges(&body, &edges, 0.12, band(), Tol::witness())
+        .expect("the pentagonal prism fillets");
+    assert_eq!(
+        topo::validate_geometric(&f.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
     assert_eq!(f.corner_faces.len(), 10);
 }
 
@@ -121,10 +128,10 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let edges = all_edges(&body);
 
     for r in [0.30, 0.45, 0.499] {
-        let f = fillet_edges(&body, &edges, r, band())
+        let f = fillet_edges(&body, &edges, r, band(), Tol::witness())
             .unwrap_or_else(|e| panic!("r = {r} is well inside the screen: {e}"));
         assert_eq!(
-            topo::validate_geometric(&f.body),
+            topo::validate_geometric(&f.body, Tol::witness()),
             Ok(()),
             "tier 3 at r = {r}"
         );
@@ -135,7 +142,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let apothem = 3.0_f64.sqrt() / 2.0;
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
-        match fillet_edges(&body, &edges, r, band()) {
+        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
             Err(e @ FilletError::FaceClearanceUncertified { margin, gap, .. }) => {
                 assert!(margin < 0.0);
                 assert!(
@@ -164,8 +171,12 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
     let c2 = prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0);
-    let c2 =
-        topo::transform_rigid(&c2, &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45))).unwrap();
+    let c2 = topo::transform_rigid(
+        &c2,
+        &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)),
+        Tol::witness(),
+    )
+    .unwrap();
     let c2 = topo::transform_rigid(
         &c2,
         &Affine3::rotation_about_axis(
@@ -173,6 +184,7 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
             Vec3::new(1.0, -1.0, 0.0).normalize(),
             0.4,
         ),
+        Tol::witness(),
     )
     .unwrap();
     let clipped = boolean_op_with(
@@ -181,6 +193,7 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
         &c2,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .expect("the oblique clip")
     .body()
@@ -188,11 +201,11 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     .body
     .clone();
     let edges = all_edges(&clipped);
-    let f =
-        fillet_edges(&clipped, &edges, 0.08, band()).expect("an oblique trihedron still builds");
+    let f = fillet_edges(&clipped, &edges, 0.08, band(), Tol::witness())
+        .expect("an oblique trihedron still builds");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
-    let errs = topo::validate_geometric(&f.body)
+    let errs = topo::validate_geometric(&f.body, Tol::witness())
         .expect_err("tier 3 cannot meter a spherical triangle at M5");
     let text = format!("{errs:?}");
     assert!(

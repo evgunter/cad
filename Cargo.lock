@@ -366,9 +366,9 @@ dependencies = [
 name = "editor-core"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-surfaces",
  "mesh",
  "profile",
  "proptest",
@@ -522,12 +522,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "geom"
+version = "0.0.0"
+dependencies = [
+ "bvh",
+ "curvo",
+ "geom-core",
+ "nalgebra 0.35.0",
+ "proptest",
+ "test-utils",
+]
+
+[[package]]
 name = "geom-brep"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "proptest",
  "slotmap",
  "test-utils",
@@ -540,29 +551,6 @@ dependencies = [
  "interval-transcendentals",
  "libm",
  "num-dual",
- "proptest",
- "test-utils",
-]
-
-[[package]]
-name = "geom-curves"
-version = "0.0.0"
-dependencies = [
- "bvh",
- "curvo",
- "geom-core",
- "nalgebra 0.35.0",
- "proptest",
- "test-utils",
-]
-
-[[package]]
-name = "geom-surfaces"
-version = "0.0.0"
-dependencies = [
- "bvh",
- "geom-core",
- "geom-curves",
  "proptest",
  "test-utils",
 ]
@@ -1033,10 +1021,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 name = "mesh"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "profile",
  "spade",
  "sweep",
@@ -1241,10 +1228,9 @@ name = "pncad"
 version = "0.0.0"
 dependencies = [
  "editor-core",
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "getrandom 0.3.4",
  "mesh",
  "profile",
@@ -1328,9 +1314,8 @@ dependencies = [
 name = "profile"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-core",
- "geom-curves",
- "profile",
  "proptest",
  "test-utils",
 ]
@@ -1868,9 +1853,8 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 name = "step-export"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "profile",
  "proptest",
  "ruststep",
@@ -1883,10 +1867,10 @@ dependencies = [
 name = "step-import"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
+ "mesh",
  "profile",
  "step-export",
  "sweep",
@@ -1909,13 +1893,14 @@ dependencies = [
 name = "sweep"
 version = "0.0.0"
 dependencies = [
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "mesh",
  "profile",
  "proptest",
+ "sweep",
+ "test-utils",
  "topo",
 ]
 
@@ -2037,10 +2022,9 @@ name = "topo"
 version = "0.0.0"
 dependencies = [
  "bvh",
+ "geom",
  "geom-brep",
  "geom-core",
- "geom-curves",
- "geom-surfaces",
  "mesh",
  "proptest",
  "slotmap",

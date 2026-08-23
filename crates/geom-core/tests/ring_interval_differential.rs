@@ -1,5 +1,5 @@
 //! **Differential lane: the C9 ring against the repo's two other
-//! interval implementations** (M5 PR 2, `docs/M5-PR2-SPEC.md` family 2).
+//! interval implementations** (M5 PR 2, acceptance family 2).
 //!
 //! The exact-arithmetic fuzz (`ring_interval_fuzz.rs`) proves the ring
 //! *sound*. This file proves it is not soundly useless: on every shared

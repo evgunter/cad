@@ -6,18 +6,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand};
+use geom::{NurbsSurface, Surface};
+use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand, TubeScale};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
-use geom_core::{Band, Point3, Tolerance, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
+use geom_core::{Band, Point3, Vec3};
 
 fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 // `at_default_eps()` lived here and gated two rows into silence. Both
@@ -53,22 +54,24 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
-fn wall_domain_at(e: f64) -> SsiDomain {
+fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
         extent: 1.5,
-        eps: e,
         floor_scale: 1.0,
     }
 }
 
 /// The dense-scan max of |S(P(t)) − C(t)| for a traced pair, plus the
 /// argmax parameter.
+/// `e` is the **generator's** step tolerance, not the run's: this door
+/// returns no certificate, which is the whole reason it takes one at
+/// all. It is the only door in the module that does.
 fn trace_deviation(w: &NurbsSurface<f64>, e: f64, samples: u32) -> Option<(f64, f64)> {
     let p = cutting_plane();
     let (carrier, _pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain_at(e), band()) {
+        match ssi::trace_plane_nurbs_uncertified(&p, w, (0.5, 0.5), wall_domain(), e, band()) {
             Ok(t) => t,
             Err(SsiError::FitSampleBudget { .. }) => return None,
             Err(err) => panic!("trace: {err}"),
@@ -190,8 +193,9 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
 
 /// **This row is about the MARCH ε, not the ambient one.** The
 /// tolerance under test is the one handed to [`trace_deviation`]
-/// (`1e-9`, then `1e-9 / factor`), which lands in
-/// `SsiDomain::eps` and drives the stepper's spacing. The ambient
+/// (`1e-9`, then `1e-9 / factor`), which becomes the uncertified
+/// door's generator tolerance and drives the stepper's spacing — the
+/// one door in the module that names one. The ambient
 /// `CAD_TOLERANCE_EPS` is not the subject; its only bearing is that a
 /// tight ambient band can push the march past the SSI fit budget, at
 /// which point there is no fitted pair to measure at all.
@@ -270,26 +274,28 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
     // certifying to refusing.
     let w = nurbs_wall();
     let p = cutting_plane();
-    let (carrier, _pa, pb) =
-        match ssi::trace_plane_nurbs_uncertified(&p, &w, (0.5, 0.5), wall_domain_at(eps()), band())
-        {
-            Ok(t) => t,
-            Err(SsiError::FitSampleBudget { .. }) => return,
-            Err(err) => panic!("trace: {err}"),
-        };
+    let (carrier, _pa, pb) = match ssi::trace_plane_nurbs_uncertified(
+        &p,
+        &w,
+        (0.5, 0.5),
+        wall_domain(),
+        band().zero(),
+        band(),
+    ) {
+        Ok(t) => t,
+        Err(SsiError::FitSampleBudget { .. }) => return,
+        Err(err) => panic!("trace: {err}"),
+    };
     let knots: Vec<f64> = pb.knots().knots().iter().map(|k| k * 2.0).collect();
     let stretched = KnotVector::clamped(knots, pb.knots().degree()).unwrap();
-    let bad =
-        geom_curves::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
-            .expect("structure fine");
+    let bad = geom::NurbsCurve2::new(stretched, pb.control().to_vec(), pb.weights().to_vec())
+        .expect("structure fine");
     let err = ssi::certify_rung3(
         &carrier,
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::Nurbs(&w),
-        1.5,
-        1.5,
-        eps(),
+        TubeScale::uniform(1.5),
         band(),
     )
     .expect_err("a domain-mismatched pcurve cannot certify");
@@ -325,7 +331,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
         control.push(Point3::new(x, y, 0.8));
     }
     let w = NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap();
-    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain_at(eps()), band()) {
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Ok(out) => {
             let sup = out.branches[0].certificate.hull_sup;
             eprintln!("[review] multi-cell wall CERTIFIED, hull_sup {sup:.3e}");

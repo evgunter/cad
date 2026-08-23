@@ -15,8 +15,9 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Point2, Point3, Tolerance, Vec2, Vec3};
-use geom_surfaces::Surface;
+use geom::Surface;
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, TubeError, TubeWindow, revolve, tube_along_arc};
 use topo::Body;
@@ -32,6 +33,7 @@ fn tube_donut() -> Body<f64> {
         R,
         TubeWindow::Full,
         MINOR,
+        Tol::witness(),
     )
     .expect("the tube-door donut builds")
     .body
@@ -41,23 +43,17 @@ fn tube_donut() -> Body<f64> {
 /// construction: a bulge-encoded circle profile about the y-axis).
 fn revolve_donut() -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(R - MINOR, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(R + MINOR, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(R - MINOR, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(R + MINOR, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve::<f64>(&vp, axis, Revolution::Full)
+    revolve::<f64>(&vp, axis, Revolution::Full, Tol::witness())
         .expect("the revolve donut builds")
         .body
 }
@@ -84,7 +80,11 @@ fn tube_donut_matches_the_revolve_donut() {
     for (name, body) in [("tube", &tube), ("revolve", &rev)] {
         assert_eq!(topo::validate(body), Ok(()), "{name} tier 1");
         assert_eq!(topo::validate_closed(body), Ok(()), "{name} tier 2");
-        assert_eq!(topo::validate_geometric(body), Ok(()), "{name} tier 3");
+        assert_eq!(
+            topo::validate_geometric(body, Tol::witness()),
+            Ok(()),
+            "{name} tier 3"
+        );
     }
 }
 
@@ -149,7 +149,7 @@ fn tube_minor_radius_is_stored_bit_exact() {
 #[test]
 fn tube_donut_volume_is_pappus_exact() {
     let tube = tube_donut();
-    let props = topo::props::mass_properties(&tube).expect("mass properties");
+    let props = topo::props::mass_properties(&tube, Tol::witness()).expect("mass properties");
     let exact = 2.0 * PI * PI * R * MINOR * MINOR;
     let pad = props.volume_pad;
     assert!(
@@ -170,16 +170,28 @@ fn tube_window_and_refusal_doors() {
         R,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         MINOR,
+        Tol::witness(),
     )
     .expect("the wedge builds")
     .body;
     assert_eq!(topo::validate_closed(&wedge), Ok(()), "wedge tier 2");
-    assert_eq!(topo::validate_geometric(&wedge), Ok(()), "wedge tier 3");
-    // Wedge census: 2 half-tube walls + 2 planar caps.
+    assert_eq!(
+        topo::validate_geometric(&wedge, Tol::witness()),
+        Ok(()),
+        "wedge tier 3"
+    );
     assert_eq!(wedge.faces().count(), 4, "two walls + two caps");
 
     let build = |axis: Vec3<f64>, u_ref: Vec3<f64>, window| {
-        tube_along_arc::<f64>(Point3::new(0.0, 0.0, 0.0), axis, u_ref, R, window, MINOR)
+        tube_along_arc::<f64>(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            u_ref,
+            R,
+            window,
+            MINOR,
+            Tol::witness(),
+        )
     };
     assert!(matches!(
         build(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full),
@@ -218,6 +230,7 @@ fn tube_window_and_refusal_doors() {
             0.4,
             TubeWindow::Full,
             MINOR,
+            Tol::witness(),
         ),
         Err(TubeError::Revolve(_))
     ));
@@ -245,15 +258,32 @@ mod certified {
             iv(R),
             TubeWindow::Full,
             iv(MINOR),
+            Tol::witness(),
         )
         .expect("the tube builds at Interval");
-        assert_eq!(topo::validate_geometric(&t.body), Ok(()), "tier 3");
-        let m = topo::props::mass_properties(&t.body).expect("mass properties");
+        assert_eq!(
+            topo::validate_geometric(&t.body, Tol::witness()),
+            Ok(()),
+            "tier 3"
+        );
+        let m = topo::props::mass_properties(&t.body, Tol::witness()).expect("mass properties");
         let exact = 2.0 * PI * PI * R * MINOR * MINOR;
         let (lo, hi) = (
             geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
             geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
         );
         assert!(lo <= exact && exact <= hi, "Pappus {exact} ∈ [{lo}, {hi}]");
+        // Containment alone is monotone in the degrading direction, so
+        // the enclosure needs a width. The torus takes the CLOSED-FORM
+        // lane, so both quadrature pads are exactly 0 here and the
+        // whole bracket is the `Interval` scalar's own: measured
+        // 5.7e-14 on a 9.87 m³ body (5.8e-15 relative). The ceiling is
+        // 18x that, and it goes red if the scalar's enclosure starts
+        // growing through the revolve.
+        assert!(
+            hi - lo < 1e-12,
+            "the certified bracket is {} m³ wide on a {exact} m³ body",
+            hi - lo
+        );
     }
 }

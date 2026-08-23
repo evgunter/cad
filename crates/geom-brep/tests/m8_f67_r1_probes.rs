@@ -9,6 +9,13 @@
 //!   just the `param_rate_gate` unit.
 //! - The pcurve gate's own reparametrization invariance, sampled at
 //!   `Probe` through the iso lane.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p geom-brep --features probe --test all -- m8_f67_r1_probes::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -16,20 +23,21 @@
 use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point2, Point3, Vec2, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 use slotmap::SlotMap;
 
 fn band() -> Band {
-    Band::linear().expect("the run's linear band")
+    Band::linear(Tol::witness()).expect("the run's linear band")
 }
 
 /// Chord-sum arc length of a `Curve3<f64>` over `[d0, d1]` — a LOWER

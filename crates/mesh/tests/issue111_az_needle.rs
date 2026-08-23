@@ -19,7 +19,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
@@ -75,7 +76,7 @@ fn lp(poly: &[(f64, f64)]) -> ProfileLoop<f64> {
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("profile validation")
 }
 
@@ -85,9 +86,13 @@ fn a_prism(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    extrude(&validated(plane, loops), Extrusion::Distance(2.125))
-        .expect("extrude A")
-        .body
+    extrude(
+        &validated(plane, loops),
+        Extrusion::Distance(2.125),
+        Tol::witness(),
+    )
+    .expect("extrude A")
+    .body
 }
 
 fn z_prism() -> Body<f64> {
@@ -111,13 +116,14 @@ fn z_prism() -> Body<f64> {
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
         Extrusion::Distance(2.125),
+        Tol::witness(),
     )
     .expect("extrude Z")
     .body
 }
 
 fn az(loops: Vec<ProfileLoop<f64>>, label: &str) -> Body<f64> {
-    match topo::intersect(&a_prism(loops), &z_prism()) {
+    match topo::intersect(&a_prism(loops), &z_prism(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("{label}: A×Z intersect did not produce a body ({other:?})"),
     }
@@ -131,7 +137,7 @@ fn watertight_at_every_delta(body: &Body<f64>, oracle: f64, label: &str) {
     // δ-independent by construction (every carrier is a line, so no
     // chord subdivision happens) — sweep δ anyway to pin that.
     for delta in [1e-1, 1e-2, 1e-3] {
-        let mesh = tessellate(body, delta).unwrap_or_else(|e| {
+        let mesh = tessellate(body, delta, Tol::witness()).unwrap_or_else(|e| {
             panic!("{label} @ δ={delta}: tessellate refused {e:?}");
         });
         assert_eq!(
@@ -162,8 +168,8 @@ fn survives_az_counter_through_rederived_frame_deterministic() {
         vec![lp(&A_OUTLINE), lp(&A_COUNTER)],
         "A with counter hole (rederived frame)",
     );
-    let m1 = tessellate(&body, 1e-2).expect("first tessellation");
-    let m2 = tessellate(&body, 1e-2).expect("second tessellation");
+    let m1 = tessellate(&body, 1e-2, Tol::witness()).expect("first tessellation");
+    let m2 = tessellate(&body, 1e-2, Tol::witness()).expect("second tessellation");
     assert_eq!(
         m1.positions.len(),
         m2.positions.len(),

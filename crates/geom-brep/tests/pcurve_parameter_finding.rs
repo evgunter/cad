@@ -21,18 +21,22 @@
 //!
 //! Both land at millimetre scale on half-metre geometry — 6 to 10 orders
 //! above every ε row this kernel's CI runs (1e-6, 1e-9, 1e-12). Nothing
-//! about the constructors is wrong; they answer a different question,
-//! and PR 7's SSI rung (which produces a fitted pcurve natively) will
-//! have to answer this one explicitly when it adds the fitted variant.
+//! about the constructors is wrong; they answer a different question.
+//! The fitted variant has since landed — `Pcurve::Fitted` exists and
+//! certifies at rest — and this file does NOT establish what parameter
+//! the SSI rung's natively-fitted pcurve carries. That is still the
+//! open question, stated in the present tense rather than promised of a
+//! milestone that has passed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 /// The corpus shape (i) configuration: radius 0.5 m disc, tilt 0.3 rad.
 const R: f64 = 0.5;
@@ -72,7 +76,7 @@ fn section_plane() -> Surface<f64> {
 /// only correspondence a stored cache could offer without storing a
 /// second (peer) reparameterization.
 fn schedule_gap(
-    curve: &geom_curves::NurbsCurve2<f64>,
+    curve: &geom::NurbsCurve2<f64>,
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     t0: f64,
@@ -169,7 +173,7 @@ fn the_stored_harmonic_form_is_pointwise_exact() {
     let (t0, t1) = (0.0, PI);
     let cyl = cylinder();
     let carrier = section();
-    let band = geom_core::Band::linear().expect("band");
+    let band = geom_core::Band::linear(Tol::witness()).expect("band");
     let p = geom_brep::chart_pcurve(&carrier, &cyl, band).expect("chart image");
     let mut worst: f64 = 0.0;
     for i in 0..9 {

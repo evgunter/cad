@@ -17,9 +17,12 @@ use geom_core::{Affine3, Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
-use super::surfaces::{cap_points, chain_spec, cosurface, strut_spec, wall_surface};
-use super::upgrade::{face_surface_key, upgrade_intersection};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
+use super::chain::build_chain;
+use super::surfaces::{strut_spec, wall_surface};
+use super::upgrade::upgrade_intersection;
+use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
+use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
+use geom_core::Tol;
 
 /// Builds the wedge solid (file docs). `reverse` is the already-decided
 /// sign class of θ (`true` ⇔ θ definitely positive — module docs'
@@ -32,12 +35,13 @@ pub(super) fn build_partial<T: Decide>(
     theta: T,
     reverse: bool,
     band: Band,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let place = frame.place;
     let rot = Affine3::rotation_about_axis(frame.o3, frame.a3, theta);
     let place_end = rot * place;
     let n_end = rot.linear * frame.n3;
-    let axis_c = super::turn_axis(
+    let axis_c = turn_axis(
         if reverse {
             Sign::Positive
         } else {
@@ -73,39 +77,13 @@ pub(super) fn build_partial<T: Decide>(
     // ---- Phase 1: start lamina (outer loop; extrude's shape). ----
     let outer = &loops[0];
     let qs = &points[0];
-    let n = outer.len();
     let mut body = Body::<T>::new();
     let seed = body.mvfs(qs[0])?;
-    let mut hes = Vec::with_capacity(n);
-    let first = body.mev(
-        MevSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        qs[1 % n],
-        chain_spec(&outer[0], place, frame.n3, qs[0], qs[1 % n]),
-    )?;
-    hes.push(first.he_plus);
-    // The start chain's vertex per swept position (position j is the
-    // start of chain edge `hes[j]`): the mvfs seed, then each `mev`'s
-    // new vertex. On-axis positions are the wedge's poles — the
-    // rotation fixes them, so this ONE vertex serves both chains.
-    let mut chain_verts = vec![seed.vertex, first.vertex];
-    let mut prev = first;
-    for j in 2..n {
-        let m = body.mev(
-            MevSite::Fan {
-                he1: prev.he_minus,
-                he2: prev.he_minus,
-            },
-            qs[j],
-            chain_spec(&outer[j - 1], place, frame.n3, qs[j - 1], qs[j]),
-        )?;
-        hes.push(m.he_plus);
-        chain_verts.push(m.vertex);
-        prev = m;
-    }
     // Start cap plane: the mef face's loop runs the chain reversed;
     // first point kept, rest reversed (extrude's bottom-cap order).
+    // Derived from the sketch data alone — it reads no entity and
+    // mints none — so the closing surface can be in hand before the
+    // chain that will carry it.
     let forward = cap_points(outer, qs, place);
     let mut start_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
     if let Some(&p0) = forward.first() {
@@ -116,22 +94,23 @@ pub(super) fn build_partial<T: Decide>(
     }
     let start_plane =
         newell_plane(&start_order, band).map_err(|source| RevolveError::CapPlane { source })?;
-    let close = body.mef(
-        MefSite::Chords {
-            he1: prev.he_minus,
-            he2: first.he_plus,
-        },
-        chain_spec(&outer[n - 1], place, frame.n3, qs[n - 1], qs[0]),
+    let start = build_chain(
+        &mut body,
+        frame,
+        seed.r#loop,
+        seed.vertex,
+        outer,
+        qs,
         FaceSurface::New(start_plane),
+        tol,
     )?;
-    hes.push(close.he_plus);
     let end_face = seed.face;
-    let start_face = close.face;
+    let start_face = start.face;
     let start_surface = face_surface_key(&body, start_face)?;
     let mut bases = Vec::with_capacity(loops.len());
-    bases.push(hes);
+    bases.push(start.hes);
     let mut verts = Vec::with_capacity(loops.len());
-    verts.push(chain_verts);
+    verts.push(start.verts);
 
     // ---- Phase 2: holes (rings in the seed face + kfmrh into the
     // start cap; extrude's shape — hole vertices are never on-axis for
@@ -139,56 +118,35 @@ pub(super) fn build_partial<T: Decide>(
     let anchor = bases[0][0];
     for (li, segs) in loops.iter().enumerate().skip(1) {
         let hq = &points[li];
-        let m = segs.len();
         let bridge = body.mev_line(
             MevSite::Fan {
                 he1: anchor,
                 he2: anchor,
             },
             hq[0],
+            tol,
         )?;
         let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
-        let mut hole_hes = Vec::with_capacity(m);
-        let first = body.mev(
-            MevSite::Lone { r#loop: ring },
-            hq[1 % m],
-            chain_spec(&segs[0], place, frame.n3, hq[0], hq[1 % m]),
-        )?;
-        hole_hes.push(first.he_plus);
-        // Recorded for EVERY loop, holes included, though a validated
-        // profile's hole vertices are never on-axis (the phase note
-        // above), so the pole export reads none of these today. The
-        // uniformity is the point: the assembly stays one loop keyed
-        // on `pinned`, which is the real discriminator, and a hole
-        // that ever reached the axis would export its pole rather
-        // than silently lose it.
-        let mut hole_verts = vec![bridge.vertex, first.vertex];
-        let mut prev = first;
-        for j in 2..m {
-            let mv = body.mev(
-                MevSite::Fan {
-                    he1: prev.he_minus,
-                    he2: prev.he_minus,
-                },
-                hq[j],
-                chain_spec(&segs[j - 1], place, frame.n3, hq[j - 1], hq[j]),
-            )?;
-            hole_hes.push(mv.he_plus);
-            hole_verts.push(mv.vertex);
-            prev = mv;
-        }
-        let close = body.mef(
-            MefSite::Chords {
-                he1: prev.he_minus,
-                he2: first.he_plus,
-            },
-            chain_spec(&segs[m - 1], place, frame.n3, hq[m - 1], hq[0]),
+        let hole = build_chain(
+            &mut body,
+            frame,
+            ring,
+            bridge.vertex,
+            segs,
+            hq,
             FaceSurface::Shared(start_surface),
+            tol,
         )?;
-        hole_hes.push(close.he_plus);
-        body.kfmrh(start_face, close.face)?;
-        bases.push(hole_hes);
-        verts.push(hole_verts);
+        body.kfmrh(start_face, hole.face)?;
+        bases.push(hole.hes);
+        // The chain's vertices are recorded for EVERY loop, holes
+        // included, though a validated profile's hole vertices are
+        // never on-axis (the phase note above), so the pole export
+        // reads none of these today. The uniformity is the point: the
+        // assembly stays one loop keyed on `pinned`, which is the real
+        // discriminator, and a hole that ever reached the axis would
+        // export its pole rather than silently lose it.
+        verts.push(hole.verts);
     }
 
     // ---- Phase 3: sweep each loop (struts, walls, latitude joins).
@@ -211,6 +169,7 @@ pub(super) fn build_partial<T: Decide>(
             place_end,
             n_end,
             band,
+            tol,
         )?;
         walls_all.push(swept.faces);
         rims_all.push(swept.rims);
@@ -237,6 +196,7 @@ pub(super) fn build_partial<T: Decide>(
         start_surface,
         end_surface,
         band,
+        tol,
     )?;
 
     #[cfg(debug_assertions)]
@@ -284,6 +244,7 @@ pub(super) fn build_partial<T: Decide>(
         body,
         solid: seed.solid,
         shell: seed.shell,
+        cavities: Vec::new(),
         walls: walls_c,
         rims: rims_c,
         poles: poles_c,
@@ -325,6 +286,7 @@ fn finish_partial<T: Decide>(
     start_surface: topo::SurfaceKey,
     end_surface: topo::SurfaceKey,
     band: Band,
+    tol: Tol,
 ) -> Result<(), RevolveError> {
     for (li, segs) in loops.iter().enumerate() {
         let n = segs.len();
@@ -339,14 +301,22 @@ fn finish_partial<T: Decide>(
             match walls_all[li][j] {
                 Some(wall_face) => {
                     let wall = face_surface_key(body, wall_face)?;
-                    upgrade_intersection(body, bottom, start_surface, wall, band, sliver)?;
+                    upgrade_intersection(body, bottom, start_surface, wall, band, sliver, tol)?;
                     if let Some(top) = tops_all[li][j] {
-                        upgrade_intersection(body, top, end_surface, wall, band, sliver)?;
+                        upgrade_intersection(body, top, end_surface, wall, band, sliver, tol)?;
                     }
                 }
                 None => {
                     debug_assert!(matches!(classes[li].walls[j], WallClass::OnAxis));
-                    upgrade_intersection(body, bottom, start_surface, end_surface, band, sliver)?;
+                    upgrade_intersection(
+                        body,
+                        bottom,
+                        start_surface,
+                        end_surface,
+                        band,
+                        sliver,
+                        tol,
+                    )?;
                 }
             }
         }
@@ -380,6 +350,7 @@ pub(super) fn sweep_loop<T: Decide>(
     place_end: Affine3<T>,
     n_end: geom_core::Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<LoopSwept, RevolveError> {
     let n = segs.len();
     let walled: Vec<bool> = cls.walls.iter().map(|w| w.kind().is_some()).collect();
@@ -393,7 +364,7 @@ pub(super) fn sweep_loop<T: Decide>(
         let p = (j + n - 1) % n;
         let linked = walled[p]
             && walled[j]
-            && cosurface(&segs[p], &segs[j], band).map_err(|source| {
+            && cosurface(&segs[p], &segs[j], WALL_COSURFACE, band).map_err(|source| {
                 RevolveError::CosurfaceEscalated {
                     loop_index,
                     vertex_index: segs[j].canonical_vertex,
@@ -417,6 +388,7 @@ pub(super) fn sweep_loop<T: Decide>(
             },
             rq[j],
             strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c),
+            tol,
         )?;
         struts.push(Some(m));
     }
@@ -474,8 +446,9 @@ pub(super) fn sweep_loop<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            chain_spec(&segs[j], place_end, n_end, rq[j], rq[next]),
+            placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next]),
             surface,
+            tol,
         )?;
         if j == 0 {
             first_top = Some(mef.he_plus);
@@ -516,13 +489,19 @@ pub(super) fn sweep_loop<T: Decide>(
             continue;
         }
         let vertex_index = segs[j].canonical_vertex;
-        upgrade_intersection(body, strut.edge, k_prev, k_next, band, |source| {
-            RevolveError::SliverJoin {
+        upgrade_intersection(
+            body,
+            strut.edge,
+            k_prev,
+            k_next,
+            band,
+            |source| RevolveError::SliverJoin {
                 loop_index,
                 vertex_index,
                 source,
-            }
-        })?;
+            },
+            tol,
+        )?;
     }
 
     Ok(LoopSwept { faces, rims, tops })

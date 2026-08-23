@@ -110,8 +110,11 @@ impl Length {
 
     /// The value expressed in `unit` (display-side conversion; the
     /// canonical value stays what it is).
+    ///
+    /// `unit`'s factor is the table's, not the caller's — [`LengthUnit`]
+    /// wraps a [`UnitDef`] row (the seal, whose narrative lives there).
     pub fn in_unit(self, unit: LengthUnit) -> f64 {
-        self.0 / unit.factor
+        self.0 / unit.factor()
     }
 }
 
@@ -126,9 +129,10 @@ impl Angle {
         self.0
     }
 
-    /// The value expressed in `unit` (display-side conversion).
+    /// The value expressed in `unit` (display-side conversion); the
+    /// factor is the table's, as on [`Length::in_unit`].
     pub fn in_unit(self, unit: AngleUnit) -> f64 {
-        self.0 / unit.factor
+        self.0 / unit.factor()
     }
 }
 
@@ -145,10 +149,16 @@ impl Count {
 }
 
 /// `25.0 * MM` — the primary construction spelling (L4: `25 * mm`).
+///
+/// This is the D6 typed-units boundary itself: the factor applied is
+/// the one the unit table pairs with the symbol, because a
+/// [`LengthUnit`] is a table row (the seal on [`UnitDef`]). A unit
+/// whose factor disagreed with its symbol would make this multiply
+/// produce a correct-looking `Length` of the wrong magnitude.
 impl Mul<LengthUnit> for f64 {
     type Output = Length;
     fn mul(self, unit: LengthUnit) -> Length {
-        Length(self * unit.factor)
+        Length(self * unit.factor())
     }
 }
 
@@ -156,7 +166,7 @@ impl Mul<LengthUnit> for f64 {
 impl Mul<f64> for LengthUnit {
     type Output = Length;
     fn mul(self, value: f64) -> Length {
-        Length(value * self.factor)
+        Length(value * self.factor())
     }
 }
 
@@ -164,7 +174,7 @@ impl Mul<f64> for LengthUnit {
 impl Mul<AngleUnit> for f64 {
     type Output = Angle;
     fn mul(self, unit: AngleUnit) -> Angle {
-        Angle(self * unit.factor)
+        Angle(self * unit.factor())
     }
 }
 
@@ -172,7 +182,7 @@ impl Mul<AngleUnit> for f64 {
 impl Mul<f64> for AngleUnit {
     type Output = Angle;
     fn mul(self, value: f64) -> Angle {
-        Angle(value * self.factor)
+        Angle(value * self.factor())
     }
 }
 

@@ -4,7 +4,10 @@
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
 three ε rows and independently re-derived every reported number. The
 outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
-Per Evan on #41, the value needed no separate sign-off.)
+Per Evan on #41, the value needed no separate sign-off. That
+byte-reproduction was a check against the tree of that day and is not
+a standing property of the committed CSVs — see "Provenance of the M2
+CSVs" under Methodology.)
 
 ## Background
 
@@ -32,10 +35,201 @@ gathered across M2's full pipeline.
 
   ```sh
   CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=docs/k-report-data/eps-1e-9.csv \
-    cargo test -p sweep --test k_report -- --ignored --nocapture
+    cargo test -p sweep --features probe --test all \
+      -- --ignored --nocapture k_report::
   ```
 
+  (`sweep` sets `autotests = false` and aggregates every suite into one
+  `tests/all.rs` binary, so `--test k_report` names no target; the
+  suite is selected by the `k_report::` module prefix instead. The
+  `probe` feature is what compiles the file at all — it is
+  `#![cfg(feature = "probe")]`.)
+
 - Rows: ε ∈ {1e-6, 1e-9, 1e-12}. Raw CSVs: `docs/k-report-data/`.
+
+  **Provenance of the M2 CSVs — what byte-reproduction does and does
+  not mean here (corrected 2026-08-20, D15).** The status line above is
+  a statement about 2026-07-21: the adversarial review byte-reproduced
+  `docs/k-report-data/eps-*.csv` against the tree as it stood at
+  finalization, and that check was real. It is **not** a standing
+  claim: no tree since 2026-07-25 could have reproduced these files.
+  Two things happened after the cut:
+
+  - **2026-07-25, #101 (`548c9618`, declared-tangency discipline)**
+    added `ProfileLoop::tangent_joints`, `judge_joints` and
+    `ProfileError::UndeclaredTangency`. It migrated the corpora it
+    exercised; `k_report.rs` is `#[ignore]`d and runs in no CI row, so
+    its `rounded_prism` fixture — a rounded rectangle, tangent at all
+    eight fillet-to-edge joints by construction — was missed and the
+    harness has panicked at profile validation ever since. Nothing
+    noticed for 26 days. Fixed by declaring the eight joints (D15); the
+    fixture's coordinates and bulges are unchanged and the kernel
+    verifies each declaration — a wrong declaration is refused as
+    `TangencyContradicted`, so this is an assertion the kernel checks,
+    not a silencer.
+
+    **The migrator was in this directory that same afternoon.** #101's
+    companion `0cda5f08` migrated ten files across six crates, among
+    them `crates/sweep/tests/extrude_acceptance.rs` — where it declared
+    **eight joints on a rounded square** — and
+    `crates/mesh/tests/common/mod.rs`, whose rounded square is the same
+    fixture down to `r = 0.5` and `tan(π/8)` and now reads
+    `with_tangent_joints((0..n).collect())`, the identical idiom D15
+    applied here. So the fix is not a judgement call reconstructed after
+    the fact: it is the migration this file was supposed to get, and
+    `rounded_prism` is conspicuously absent from a commit that
+    enumerates the fixtures it converted. What singled it out was being
+    `#[ignore]`d.
+  - **2026-08-04 (`d8b8f6a8`, *collapse the remaining 122 test
+    targets*)** folded `sweep`'s 60 test targets into one `tests/all.rs`
+    binary, which retired the `--test k_report` target this section's
+    command named. That command has therefore been **dead 16 days**, and
+    it fails before compiling anything. The command above is the working
+    one. Note the shape: **two independent breaks ten days apart**, and
+    the second alone would have hidden the first — a reader who ran the
+    documented command got `no test target named k_report`, never the
+    panic.
+
+  **The M2 CSVs are therefore a historical snapshot, not a
+  reproducible artifact.**
+
+  > **Measured against `9f559f6a` (2026-08-20), re-verified BYTE-IDENTICAL
+  > after merging `origin/main` through `f382c4aa` (12 commits), and
+  > still NOT GUARDED.** Every
+  > figure in the next two paragraphs is a one-off observation of a
+  > moving quantity: the next merge that adds a predicate name
+  > falsifies the sample count, the name count and the ratio. It is not
+  > registered, not asserted, and nothing will notice when it goes
+  > stale — the harness runs in no CI row (D17). Guarding it would mean
+  > committing a second baseline, which is the re-cut this unit
+  > deliberately did not do. Read these as *dated evidence that the
+  > committed files are stale*, never as current numbers.
+
+  A fresh cut of the same ten shapes records **16 824 samples over 105
+  predicate names** against the committed **13 282 over 63**. The
+  breakdown matters, because the growth is **not purely additive**:
+
+  - **+3 365** from **42 new names** — the `pcurve_*` chart/loop/trim
+    family (PCURVE-UNIFY) 28, `tangent_*` 6, `props_rim_*` /
+    `props_meridian_*` 7, `bool_ring_run_winding` 1;
+  - **+177 of churn inside the original 63**, where **19 of the 63
+    changed their own counts** — `chord_side` 216 → 245,
+    `witness_on_surface_{1,2}` 178 → 194, `props_circle_axis_class`
+    80 → 120 and others up, and **one down**:
+    `carrier_matches_mapped_source` **1 296 → 1 224 (−72)**.
+
+  "No name was lost" is true at the *name* level only. **The
+  per-predicate counts in this report are stale for 19 of its 63 rows**,
+  and one of them moved the wrong way — which is exactly the kind of
+  thing a byte-reproduction check existed to surface. The committed
+  files are left as cut: they are the M2-era record this report's
+  numbers describe, and re-cutting them is the runbook's and the
+  orchestrator's call, not a lane's.
+
+  **The K = 10 conclusion survives the re-cut**, which is the part that
+  decides whether anyone needs to hurry. The fresh sweep is ε-stable
+  exactly as reported here (shape/predicate/outcome columns
+  byte-identical across all three ε rows), and lands **0 samples in
+  (ε, Kε), 0 within a decade of Kε, 0 indeterminate and 0 invalid** at
+  every row. The definite-side minimum |m| is 1.0e-2 m — **250× the M7
+  lint floor of 4.0e-5, i.e. 2.4 decades** (the "3 decades" figure in
+  Finding 3 above is against *Kε at ε = 1e-6*, a different comparand;
+  do not conflate them).
+
+  **One claim does NOT carry over unscoped**, and it is named here
+  rather than quietly left: the Zero-side bullet above reports the
+  largest `zero`-classified |margin| as 8.9e-16 m, *"≥ 3 decades below
+  even the tightest row's ε = 1e-12"*. On the fresh cut the largest is
+  **1.378e-15 m** (`pcurve_map_residual`, one of the 42 new names) —
+  **2.86 decades**, not ≥ 3. Restricted to the original 63 names it is
+  still **8.882e-16 m**, so the sentence as written about *these CSVs*
+  is intact and K = 10 is untouched; it is the *generalisation* to
+  today's predicate set that fails, by 0.14 of a decade.
+
+  **This break never touched the gate, and the gate reads no committed
+  CSV at all.** `ci.yml`'s *K-telemetry probe sweep* runs
+  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every building
+  merge, and `tools/k-lint` lints **that fresh sweep** against constants
+  pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
+  and the rule set). Nothing under `docs/k-report-data/` is opened at
+  gate time — the committed CSVs, M2's included, are a **record**, not
+  an input. (Its neighbour `tess-lint` *does* diff against a committed
+  baseline; k-lint deliberately does not.) So no staleness in any
+  committed CSV can weaken the gate, and `k_report.rs` is the M2-era
+  instrument only.
+
+  **What CI now covers, stated precisely** (D17, closed 2026-08-20).
+  `k_report.rs` is both **type-checked and run** on every building
+  merge. The `k-lint` job's *"compile and list every probe-gated test target"*
+  step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
+  derives the owning crates from the tree and the step `cargo check`s
+  each `--features probe --all-targets`; the gate greps for that step
+  name, so this paragraph cannot go quietly false — and
+  `scripts/k_probe_sweep.sh` then *executes* this
+  harness at all three ε beside the Band 4 corpus and the tour scenes.
+  The two are not interchangeable: a type-check cannot see a panic, and
+  running one harness says nothing about the suites nothing runs.
+
+  **Which suites CI executes, rostered rather than counted.** The
+  executed set is `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`,
+  and `scripts/k_probe_sweep.sh` is what runs it: two `--ignored` dump
+  invocations (`m4_pr8_k_probe::` in `editor-core`, `k_report::` in
+  `sweep`) inside the ε loop, and two default-selection preconditions
+  before it (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::`, both in
+  `editor-core`). Every other censused suite is compiled and not run, and
+  each of them says so in its own header — the census gate refuses a
+  probe suite that is on neither side, so a new one has to pick.
+
+  **The roster is floored on what RAN, not on what a filter could
+  match.** The sweep records the runner's own passed and ignored counts
+  per invocation and `--check-executed` reads them back. Reachability
+  would be the wrong key: `run_dump` passes `--ignored`, so a filter
+  naming a suite of plain `#[test]`s matches the module and executes none
+  of it — a floor built on "some filter names it" scores such a suite
+  covered while it is inert. **The selection is part of the roster key**
+  for the same reason: `--ignored` and the default selection run disjoint
+  halves of a suite.
+
+  **And the floor alone is not the whole check.** A floor catches a suite
+  that stops running; it cannot catch one that grows a test no rostered
+  selection reaches. Every rostered suite is therefore invoked once under
+  the default selection, which reports how many `#[ignore]`d tests it
+  skipped, and that number must equal what the `--ignored` invocation
+  ran. The two selections then cover the suite with nothing left over,
+  from the runner's own numbers rather than from a predicate over the
+  source.
+
+  **The distinction that was wrong, stated so it is not re-inferred.**
+  Earlier prose put `editor-core`'s suites on the executed side because
+  the sweep's invocation names that crate with `-p`. **Naming the crate
+  is not naming the suite, and naming the suite is not naming the
+  selection**: `crates/editor-core/tests/m5_pr5_corpus_probe.rs` was
+  selected by no filter at all, and `m4_pr8_k_probe.rs`'s
+  `corpus_evaluates_green_at_probe` sat inside a module the sweep DID
+  name while carrying no `#[ignore]` — so the one filter that reached its
+  module ran the other test in it and never that one. Both run now, as
+  preconditions, once and outside the ε loop — **and the reason is
+  redundancy, not ε-invariance.** What both actually assert is one-sided
+  *greenness* at `Probe`; neither compares a `Probe` result against an
+  f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
+  `run_doc` asserts the same predicate over every corpus document at all
+  three ε on every merge, so the ε sweep of that property is already
+  paid. What running the default selection adds is that these bodies
+  execute at all, and the `#[ignore]`d complement the floor reconciles.
+  It runs at a stated ε (1e-9) rather than at whatever the ambient
+  default happens to be.
+
+  The total is deliberately not written here: it is that gate's derived
+  tally, recomputed on every merge.
+
+  **The M2 dump rides beside the gate, not inside it.** The sweep writes
+  it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
+  merged corpus+tour CSV only. Folding ten M2 shapes into the linted
+  distribution would move what the thresholds are argued over, which is
+  a K conversation and not a coverage one. So `k_report.rs` remains the
+  M2-era instrument, and re-cutting `docs/k-report-data/eps-1e-*.csv` is
+  now the same script CI runs rather than a hand-typed invocation.
+
 - Scope: the corpus is all-valid by construction, so refusal-path
   predicates that only fire on invalid input never sample here (dead
   on this corpus: `carrier_circles_internal`, `collinear_overlap`,
@@ -143,7 +337,7 @@ candidate in {3, 10, 30, 100} behaves identically on this corpus — so
 the value is currently free, and a free parameter should keep its
 ratified, documented default rather than churn. (Per Evan's #41
 direction, K is now ε-style per-run configuration —
-`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10 — so future
+`Tol::k`, env `CAD_AMBIGUITY_K`, default 10 — so future
 corpora can probe alternatives without code changes.)
 Retaining a full decade of escalation headroom above ε remains the
 right *a-priori* posture for M3, where boolean/SSI margins will be
@@ -167,11 +361,12 @@ unified `geom_core::k_stats` funnel — the richest crop yet, and the
 first computed-intersection (rather than construction-controlled)
 margin sources, exactly the pressure source Finding 4 anticipated:
 
-- **24 `bool_*`** (boolean reduction/classification/join;
+- **25 `bool_*`** (boolean reduction/classification/join;
   `crates/topo`): `bool_contact_edge`, `bool_contact_edge_span`,
   `bool_contact_vertex`, `bool_dir_parallel`, `bool_dir_same`,
   `bool_ee_collinear`, `bool_faces_parallel`, `bool_germ_line`,
-  `bool_join_facing`, `bool_join_nearest`, `bool_plane_offset`,
+  `bool_join_chord`, `bool_join_facing`, `bool_join_nearest`,
+  `bool_plane_offset`,
   `bool_plane_orient`, `bool_plane_parallel`,
   `bool_point_in_solid_{advance,denom,infinity,order,plane}`,
   `bool_sector_{arm,coplanar,reflex,straight,within}`,
@@ -194,18 +389,168 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `split_join_frame_arm`, `split_section_area`,
   `split_sector_{arm,coplanar,extent,reflex,straight}`,
   `split_vertex_side`.
-- **4 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
-  parity): `point_in_loop_{advance,arm,boundary,side}`.
+- **5 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
+  parity): `point_in_loop_{advance,arm,boundary,segment,side}`.
+  `_segment` (the segment-length degeneracy gate) was split off
+  `_boundary` (the point-to-segment distance) by #712, which found one
+  name deciding two questions; the family's samples and margins are
+  unchanged, the 49 290 `_boundary` samples of the M7 sweep now
+  splitting 24 645 / 24 645.
 - **2 `enters_material*`** (the F3 sign-chain primitive;
   `crates/geom-brep/src/enters.rs`): `enters_material`,
   `enters_material_arm`.
 
-(Inventory method: `grep -r 'decide("' crates/*/src` diffed against
-this report's M2 CSV predicate column, plus the census's
-`gap_is_zero`/`signed_is_zero` helper call sites, which pass names
-into the same funnel. The three M2 refusal-path predicates dead on
-the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
+(Inventory method: **superseded 2026-08-20 — see "The inventory
+method, restated" below.** The method this addendum was cut with was
+`grep -r 'decide("' crates/*/src` diffed against this report's M2 CSV
+predicate column, plus the census's `gap_is_zero`/`signed_is_zero`
+helper call sites, plus — since #712 — the row-name TABLES. It reaches
+one spelling of one funnel entry point in one directory tree, and the
+crop above is what it found. The three M2 refusal-path predicates dead
+on the M2 corpus — `carrier_circles_internal`, `collinear_overlap`,
 `extrusion_obliquity` — are M2-era, not counted here.)
+
+### The inventory method, restated (2026-08-20)
+
+**READ THIS FIRST: the roster is not complete, and was not.** The row
+that ordered this restatement (§D's D19) described the roster as
+*"complete today by luck of era"*. That premise is wrong, and it is
+corrected here rather than worked around. **Seven predicate names that
+the `k-lint`-gated corpus actually emits are recorded in neither this
+document nor `docs/predicate-dimension-audit.md`, under any reading**
+(tabled below). A reader who meets the old premise first and then finds
+seven missing names will conclude the restatement is broken; it is the
+premise that was.
+
+**And a count of SITES was never the right measure of a NAME roster.**
+The old method's blind spot was sized at *"37 sites across 24 files"*.
+That figure reproduces exactly — and it understates the hole by more
+than a factor of two, because one parameterised site carries many
+names: those 37 sites carry **83 of the 233 names** in the committed M7
+baseline. Size a name roster's hole in names.
+
+**The rule.** A predicate name is in scope if it reaches the
+`geom_core::k_stats` funnel — `decide`, `decide_flagged` or
+`decide_invariant` — from anywhere the sweep can execute, **however it
+is spelled at the call site**. That is the criterion
+`docs/predicate-dimension-audit.md` already states for the same funnel
+(*"every `classify`/`require_zero`/`require_extent`/`decide` funnel
+call and every raw `sign_within` use"*); this document was using a
+narrower one.
+
+**Why the old rule under-reached, measured at `4a007a76`.** Of **349**
+funnel call sites under `crates/*/src` (338 `decide`, 8
+`decide_flagged`, 3 `decide_invariant`), **311 pass a bare string
+literal** and carry **238 distinct names**. The other **37 sites, in 24
+files**, do not — and the site count badly understates the consequence,
+because one parameterised site carries many names: **83 of the 233
+names in the committed M7 baseline have no `decide("<name>"` site
+anywhere in the tree.**
+
+Five ways a name escapes the old pattern, all live today:
+
+1. **A different funnel entry — the sharpest instance, because the
+   site satisfies the method's own criterion.** `decide("` does not
+   match `decide_flagged("` or `decide_invariant("`. **Eleven sites,
+   ten of them passing a bare string literal**: by the old rule's own
+   description — "a name written as a literal at the funnel site" —
+   these are covered, and they are not.
+   `volume_backstop{,_operand,_violation}`, `bool_ray_cylinder_disc`,
+   `revolve_axis_dir_in_plane`, `revolve_full_vs_partial`,
+   `pcurve_cone_chart_nappe`, `bool_point_in_solid_denom`.
+2. **A different wrapper spelling.** Names reach the funnel through at
+   least `check_residual`, `classify`, `require_zero`, `coincident`,
+   `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
+   last two.
+3. **A module-private `const &str`.** Five, not the three previously
+   recorded: `sector_shape.rs`'s `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
+   `editor-core/src/names/geompred.rs`'s `SEL_DATUM_DISTANCE`
+   (`sel_datum_distance`) and `sweep/src/fillet/surgery.rs`'s
+   `RING_CLEARANCE` (`fillet3_ring_clearance`).
+4. **A struct field or a local table.** `ray_parity::ParityRows` (the
+   one carrier this document already listed), `swept.rs`'s
+   `CosurfaceNames`, and `transform.rs:129`'s seven-element
+   `[(&'static str, T); 7]` array consumed by a loop variable.
+5. **The scan root — a scope error in the method, not a missed site.**
+   The pattern greps `crates/*/src`, while the corpus the gate is fed
+   from is not confined to it: `demos/tour/src/booleans.rs` decides
+   `demo_flush_{offset,orient,parallel}` through the same funnel, and
+   `k_probe_sweep.sh` records them into the very CSV `k-lint` reads. A
+   roster method that sweeps one tree and calls itself complete, while
+   the gated corpus is fed from two, is wrong by construction — no
+   amount of care at the sites it does scan would have found these.
+
+**Both halves have a blind spot, and the union is the roster.** The
+code scan misses names not written as a literal at a funnel site (the
+83 above). The CSV column — "what the corpus actually emitted" — misses
+names the corpus never reaches: **88** of the 238 literal names are
+absent from the M7 baseline, `bool_join_chord` among them, and it is
+listed in the M3 crop above. Neither is a roster alone. Re-deriving:
+
+```sh
+# behavioural half — what a fresh sweep emitted
+scripts/k_probe_sweep.sh target/k-fresh
+tail -n +2 target/k-fresh/k-eps-1e-9.csv | cut -d, -f2 | sort -u
+# code half — every funnel site, all three entries, all roots
+grep -rnE '\b(decide|decide_flagged|decide_invariant)\s*\(' \
+  crates/*/src demos/*/src
+```
+
+The second command is a **starting set, not an answer**: it reports
+sites, and a site whose first argument is not a literal has to be read.
+That residue is the roster's standing cost, and it is why this is
+written down rather than discovered.
+
+**What the restatement catches that the old one did not.** *Measured
+against this document AS THE ROW FOUND IT (`ff5ad78e`, before this
+section existed) — re-running them against the text below now returns
+smaller numbers, because the seven orphans are tabled here.* Of the 83
+carried names, **53 appear nowhere in the pre-restatement document**
+verbatim, and **17** are not covered even by a `family_*` mention
+there. Cross-checked
+against `docs/predicate-dimension-audit.md`, which carries
+`transform_rigid_*` and `transform_rigid_trans_finite_*` as family rows,
+**seven names are recorded in neither document under any reading**:
+
+| name | home | carrier |
+|---|---|---|
+| `arc_apex_identity` | `profile/src/seg.rs` | `coincident(…)` wrapper |
+| `contact_at_shared_vertex` | `profile` | wrapper |
+| `side_planes_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
+| `side_cylinders_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
+| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root |
+
+They are recorded here rather than folded into the M3 crop above: that
+crop is a dated era snapshot of what M3 added, and back-filling it
+would make it describe something it never described.
+
+**Maintenance: this roster is a RECORD, and stays hand-maintained.**
+The decision is on what the roster is *for*, and the evidence is that
+nothing computes with it:
+
+- No tool opens `docs/K-REPORT.md`. Every reference to it in `*.rs`,
+  `*.sh`, `*.py`, `*.toml` and `*.yml` is a prose citation.
+- `tools/k-lint` is handed CSV paths and lints rows against constants
+  pinned in its own source. Its one name-keyed rule,
+  `EPS_COUPLED_PREDICATES`, is a deliberate allow-list that fails
+  **loud** — an ε-coupled predicate missing from it *keeps flagging*
+  under the metre rules until someone rules. A roster omission
+  therefore cannot silently weaken the gate. (Its neighbour `tess-lint`
+  *does* diff a committed baseline; k-lint deliberately does not, and
+  that difference is what makes this ruling possible.)
+- A gate would have to be fed a machine-readable roster, which is the
+  maintenance burden this decision declines; a reporting register would
+  commit a second copy of a number the sweep already produces on every
+  merge in `target/k-fresh`, one `cut -d, -f2 | sort -u` away.
+
+So: **stated criterion, disclosed residue, no CI row.** What a future
+reader is owed instead is above — the rule, the five escape routes, the
+two blind spots, and the seven names measured outside both documents.
+Adding a name carrier without recording it here still silently drops
+its rows from the roster; that is now a disclosed cost rather than an
+undetected one.
 
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
@@ -287,6 +632,36 @@ pm_census gap/residual family), 63 die `witness_at_mid_parameter`
 (42 corpus + 21 demo — the same document through both paths), 3
 demo/projectbox_cutaway `split_bisector_side`, 1 demo/table. All are
 real millimeter-scale feature clearances, not noise.
+
+**The `bool_join_nearest` 38 stay under that name after #719's split**
+(which minted `bool_join_chord` for the germ-chord LENGTH gate and left
+the name on the nearest-candidate DIFFERENCE). Two independent reads of
+the committed M7 rows say so, identically at all three ε rows:
+
+- **Sign.** Three of the 38 are negative
+  (`-5.172658143638709e-3` ×1, `-5.88521089089028e-3` ×2), and across
+  all of az's sub-1e-1 samples every magnitude appears with both signs
+  at bit-identical values (`±5.474101278454191e-2` at 130/15). A chord
+  norm cannot be negative; a difference of two of them can.
+- **Recording order.** The CSV rows are in decision order, and the two
+  sites have distinct signatures: the gate is followed by the facing or
+  conic-section decision it guards, the selection is preceded by a
+  facing decision. Partitioning M7's 41 745 `bool_join_nearest` samples
+  that way is total (no unclassified row) and splits them **28 544
+  chord-gate / 13 201 selection**; the gate half is entirely positive
+  with `min |m| = 5.000e-2 m` and contributes **nothing** to this
+  decade-3 tail and nothing to the zero cluster, while the selection
+  half carries all 4 726 exact zeros, all 466 negatives, and all 38 of
+  these. The partition rule was checked against ground truth on the
+  twin boolean configurations at the post-split head, where the names
+  are known: 656 of 656 correct, none ambiguous.
+
+The corollary is that the split is **not** a clean cleave of the pooled
+row into the report's two clusters: on the M7 corpus the chord row is
+all-positive with a 5 cm floor while the selection row keeps positives,
+zeros and negatives together. `docs/k-report-data/`
+rule 1 stands — nothing in those files is renamed, and a `bool_join_*`
+row there dates to its era.
 
 Zero-side: 447 581 of 458 734 zero-classified margins are EXACTLY 0;
 the rest are ≤ 5.33e-15 m (worst: `pm_census_ee_span`, demo/az).
@@ -613,7 +988,7 @@ hosted run without anyone re-reading this report.
 
 Note that the machinery for a future change is already in place and
 costs nothing to leave there: K is per-run configuration
-(`Tolerance::get().k`, env `CAD_AMBIGUITY_K`, default 10), so a
+(`Tol::k`, env `CAD_AMBIGUITY_K`, default 10), so a
 future corpus can probe alternatives without code changes. Closing
 #89 ratifies the default; it does not weld the dial.
 
@@ -727,6 +1102,15 @@ still the stale M4-era 1.5e-3 with ~102 advisory flags/run").
   which is exactly the property a threshold snapshot is supposed to
   have. Re-cutting the baseline on every main merge is neither the M4/M5
   precedent nor useful; re-cut it when the DISTRIBUTION moves.
+  **Drift since, in the other direction (2026-08-19).** #661 pooled the
+  six `bool_sector_*` / `split_sector_*` names into three
+  (`sector_{arm,reflex,straight}`), so a fresh sweep now also DROPS six
+  names where until then drift had only added them. The **233** below is
+  still the correct count for this committed snapshot, which still
+  contains all six; a sweep at today's main carries **231**. Margins,
+  bands, outcomes and order are untouched — only the `predicate` column,
+  and only for those six values. Full treatment: the census note
+  (2026-08-19) at the end of this report.
 
 | ε row | samples | zero | definite (ambient) | indet. | invalid | in (ε, Kε) |
 |-------|--------:|-----:|---------:|-------:|--------:|-----------:|
@@ -941,3 +1325,118 @@ the row to advisory in both wirings with a recorded justification.
 move** — it destroys precisely the evidence the row exists to collect.
 The CLI prints this on every failure; the three exit voices are pinned
 by `tools/k-lint/tests/cli_contract.rs`.
+
+## Census note (2026-08-19): the sector rungs are ONE population (#652)
+
+Not a sweep and not a threshold change — a **name merge**, recorded here
+because the census is the thing it changes.
+
+Six K names became three. `bool_sector_{arm,reflex,straight}` (boolean
+lane) and `split_sector_{arm,reflex,straight}` (splitting lane) are, since
+#647, literally one implementation of one quantity —
+`crates/topo/src/sector_shape.rs`, called from both lanes, with the name
+set handed in as a parameter precisely so this decision could be taken
+separately. It is taken: **pool them** (Evan, 2026-08-19, issue #652).
+They now emit `sector_arm`, `sector_reflex`, `sector_straight`.
+
+**Why, in one line that is not tidiness.** Coverage. Recomputed from
+`m7-eps-1e-6.csv.gz`: all 64 `split_sector_reflex` samples are exactly
+zero, so the splitting lane's wideness name had **no** corpus coverage of
+a definite convex-or-reflex verdict, while `bool_sector_reflex` had 426
+(418 positive + 8 negative) of 1880. Pooling gives the rung one
+population with those 426 rather than two of which one is degenerate.
+The precedent runs both ways and both directions are now on the record:
+`docs/archive/M3-LOG.md:264` (PR #55 review MINOR-1) forced two margins
+under one name to be **split**; `bool_planar_chord_spec` and `chord_spec`
+deliberately **share** `split_arc_window`. This is the first time one
+margin under two names was examined.
+
+**Effect on the census count.** The M7 baseline's **233 distinct
+predicate names** (`docs/k-report-data/m7-eps-*.csv.gz`, verified 233 at
+all three ε rows) becomes **230** for any sweep cut after this change:
+six names out, three in, nothing else touched. Main has since also added
+`path_junction_turn` (recorded above), so a fresh sweep at this tip
+carries **231**. No other predicate's name, margin, band or outcome
+changes. The M7 addendum's own "233" is left as written — it describes
+the committed snapshot, which still says 233 because it still contains
+the six old names.
+
+**Effect on the emitted stream.** Margins, order, bands and outcomes are
+bit-identical; only the `predicate` column changes, and only for these
+six values. Reproduced with the probe #647 left for exactly this —
+`cargo test -p topo --features probe --test all -- --nocapture
+probe_s5_sectors::sector_margin_stream | grep '^K '` on merge base
+(`17b077f7`) and tip:
+
+| | merge base | tip |
+|---|--:|--:|
+| recorded rows | 26 541 | 26 541 |
+| rows that are NOT sector rungs | 26 121 | 26 121 — **byte-identical, no rewrite** |
+| sector-rung rows | 420 | 420 |
+| `bool_sector_arm` / `split_sector_arm` | 56 / 112 | `sector_arm` **168** |
+| `bool_sector_reflex` / `split_sector_reflex` | 56 / 112 | `sector_reflex` **168** |
+| `bool_sector_straight` / `split_sector_straight` | 56 / 28 | `sector_straight` **84** |
+
+Rewriting only the predicate column of the base stream
+(`s/^K (bool|split)_sector_(arm|reflex|straight)\|/K sector_\2|/`) makes
+the two files **identical**, SHA-256
+`7c0e4ee0efe0a60fb564bed3f049e2f097214c00c9bbd1dff8622065bee71aed`
+(the base stream unrewritten is
+`b1d84289d2f80db66be434b0c98451938628814b1a901336feec9e272dd8649f`).
+Order, margins, bands and outcomes are untouched; the merge is exactly a
+substitution on one column. `bool_sector_{coplanar,within}` and
+`split_sector_{coplanar,extent}` appear in both streams unchanged, as
+they should.
+
+**Disposition of `docs/k-report-data/`: LEFT AS WRITTEN.** The committed
+CSVs (`m4-`, `m5-`, `m7-`, and the M2-era `eps-*.csv`) are dated
+snapshots of a stated head — "these rows are what the script wrote, no
+rename" is already the standing rule for them (M7 addendum), and the
+k-lint gate reads a *fresh* sweep, never these files, so nothing breaks
+by leaving them. Regenerating them would be worse than useless: it would
+destroy the historical record to make it agree with a name. A map of
+that directory — the four eras, the two rules that govern it, and which
+of the eleven names matching `grep sector` belong to which — now sits
+at `docs/k-report-data/README.md`, so a reader who arrives at the CSVs
+by grep does not have to reach section nine of this report to date a
+row.
+
+**How a future reader knows which era a row belongs to** — the one
+sentence this note exists for. The pooled names are **new spellings, not
+either lane's old one**, so the predicate column is self-dating: a row
+reading `bool_sector_arm` / `split_sector_arm` (etc.) is **pre-#652**
+data; a row reading `sector_arm` (etc.) is **post-#652**. No row in any
+committed file silently changes meaning, because no committed row is
+touched and no name is reused across the boundary.
+
+That is the reason the merge did not simply keep `bool_sector_*`. The
+29:1 majority spelling was the cheap choice — three fewer rows to
+touch — and two things are wrong with it, in this order.
+
+1. **It would be an actively FALSE name, not merely an uninformative
+   one.** After pooling there is one population, so every
+   splitting-lane decision would be recorded under a name whose prefix
+   asserts `bool_`, on rows that carry nothing else to tell the lanes
+   apart. That argument does not depend on a count. *How many* rows it
+   would mislabel is a property of the corpus and not of the design,
+   and the two numbers in this report differ by an order of magnitude:
+   **64 of 1944** sector-arm samples in the M7 sweep (3.3% — the corpus
+   is boolean-heavy), but **112 of 168** — two thirds — in the S5
+   probe's fixture set, which is deliberately weighted to drive both
+   walks. Neither number bounds the next sweep's.
+2. **The era ambiguity**: 1880 pre-merge rows per ε would have become
+   indistinguishable from post-merge ones. That one bites only a
+   **cross-snapshot** comparison, since every committed file is dated by
+   filename and cut at a single head, so no one file mixes eras. But
+   cross-snapshot comparison is precisely what this report does — M4 →
+   M5 → M7 in nearly every table above — so it is not hypothetical
+   either.
+
+The **M3 addendum's inventory** (the `bool_*` and `split_*` bullet lists
+above) is likewise left as written: it is a dated 2026-07-23 record of the
+crop M3 added, and it is accurate about that. Read alongside this note.
+
+**Still forked, and correctly so.** `bool_sector_{coplanar,within}`,
+`split_sector_{coplanar,extent}` are the `sector_face` twins and the
+face-extent arm — different quantities, still two implementations, the
+rest of smell-scan S5. Pooling does not reach them.

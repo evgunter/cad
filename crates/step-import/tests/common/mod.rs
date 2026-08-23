@@ -7,11 +7,13 @@
 //! invariants. Nothing here pairs arena order against the writer's
 //! walk order — the known trap (`memories/step-curved-subset.md`): the
 //! two coincide on simple extrusions and diverge on boolean results.
-#![allow(dead_code)] // each consumer uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::PathBuf;
 
+use geom_core::Tol;
 use topo::Body;
 
 /// The committed solid corpus, in `fixture_corpus()` file order.
@@ -151,7 +153,8 @@ pub fn import_fixture(name: &str) -> step_import::StepImport {
     } else {
         step_import::ImportOptions::default()
     };
-    step_import::import_step(&text, &options).unwrap_or_else(|e| panic!("importing {name}: {e}"))
+    step_import::import_step(&text, &options, Tol::witness())
+        .unwrap_or_else(|e| panic!("importing {name}: {e}"))
 }
 
 /// The imported solid body, panicking on a wireframe disposition.

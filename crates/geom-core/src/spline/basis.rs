@@ -8,14 +8,30 @@
 //!
 //! # The span contract (binding, shared by every consumer)
 //!
-//! **Structural, not checked.** A [`Span`] is a span index proven
-//! nonempty and in `[kv.first_span(), kv.last_span()]` at construction
-//! (its only constructors are [`KnotVector::span`] and
-//! [`KnotVector::span_at`]), so "out-of-range span" is not a
-//! representable input and there is no poison-on-bad-span output here.
-//! The one obligation left to the caller is the one the type cannot
-//! state: a `Span` is **not branded** to its knot vector, so it must be
-//! drawn from the `kv` it is evaluated against.
+//! **Checked, not structural.** A [`Span`] is proven nonempty and in
+//! range *for the vector it was drawn from*, but it carries no borrow
+//! of that vector, so a span of some **other** `KnotVector` is a
+//! representable input here. Every entry point below therefore asks
+//! [`KnotVector::admits`] first and returns an **all-poison** row for a
+//! span this `kv` does not admit (fail-loud, D4) — never an
+//! out-of-bounds knot read and never a row divided by a zero knot gap.
+//!
+//! What the check buys here, exactly. Degree agreement gives
+//! `span.index() >= kv.first_span()`, which keeps the low knot read
+//! `u[span + 1 + r − j] >= u[span + 1 − p]` at a non-negative index,
+//! and makes the returned row the same length as the window the caller
+//! will index with. `span.index() <= kv.last_span()` bounds the high
+//! reads — `u[span + p]` here, `u[i + p + 1]` in the derivative ladder
+//! — at `u.len() − 1`, exactly. Nonemptiness is what the division
+//! safety note below rests on: it is the `> 0` in
+//! `knots[span+1] − knots[span] > 0`, and a foreign span can be an
+//! empty span of *this* vector even when both index bounds hold.
+//!
+//! What the check does **not** buy is the right vector: a span from a
+//! different vector of the same degree and control count, nonempty at
+//! that index in both, is admitted, and the answer is then this
+//! vector's polynomial on the wrong span rather than a refusal
+//! ([`KnotVector::admits`] states the residue).
 //!
 //! Within a span the result is the span's polynomial: for `t` outside
 //! the span's knot interval the values are the **polynomial extension**
@@ -37,15 +53,21 @@
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
 
+/// All-poison row — the total outcome for a span `kv` does not admit
+/// (module docs: the span contract).
+fn poison_row<T: Real>(len: usize) -> Vec<T> {
+    vec![T::from_f64(f64::NAN); len]
+}
+
 /// The `p + 1` nonvanishing basis functions
 /// `N_{span−p,p}(t), …, N_{span,p}(t)` on `span` (Book A2.2 shape,
 /// structure-denominator form — module docs).
 ///
-/// Total: a poisoned `t` propagates through the arithmetic, and there
-/// is no invalid-span case to totalize (module docs: the contract is
-/// structural). Division safety: every denominator is
+/// Total: a span `kv` does not admit ([`KnotVector::admits`]) returns
+/// an all-poison row of the same length, and a poisoned `t` propagates
+/// through the arithmetic. Division safety: every denominator is
 /// `knots[span+1+r] − knots[span+1+r−j] ≥ knots[span+1] − knots[span] > 0`,
-/// which is exactly the nonemptiness [`Span`] carries.
+/// which is exactly the nonemptiness [`KnotVector::admits`] checks.
 ///
 /// That estimate is why the inner loop stops at `r = j − 1` and the
 /// level's high end is written after it as `n[j] = saved`. It needs
@@ -56,8 +78,12 @@ use crate::real::Real;
 /// uniformity computes `0/0` and poisons the row.
 pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
     let p = kv.degree();
+    if !kv.admits(span) {
+        return poison_row(p + 1);
+    }
     // The index, once — the recursion below reads knots around it. Its
-    // range facts (`span ≥ p`, `span + 1 < len`) came with the `Span`.
+    // range facts (`span ≥ p`, `span + 1 < len`) hold against THIS `kv`
+    // by the check above, not by the `Span`'s own construction.
     let span = span.index();
     let u = kv.knots();
     let mut n = vec![T::zero(); p + 1];
@@ -90,10 +116,19 @@ pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T> {
 /// the span; its coefficient is set to exactly 0). The generic scalar
 /// enters only in the stored basis triangle and the final ascending-`j`
 /// accumulation `Σ a_{k,j}·N_{i+j,p−k}`, scaled by `p!/(p−k)!`.
+///
+/// Total in the same way [`basis_funs`] is: a span `kv` does not admit
+/// yields `n_ders + 1` all-poison rows.
 pub fn ders_basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T, n_ders: usize) -> Vec<Vec<T>> {
     let p = kv.degree();
+    if !kv.admits(span) {
+        return (0..=n_ders).map(|_| poison_row(p + 1)).collect();
+    }
     // The window's base, subtracted once inside `Span`, and the index
-    // the knot reads are centred on. Neither needs checking here.
+    // the knot reads are centred on. Both are in range for THIS `kv` by
+    // the check above: the ladder's highest read is `u[i + p + 1]` at
+    // `i = base + p = span.index()`, which `admits` bounds at
+    // `u.len() − 1` exactly.
     let base = span.first_control();
     let span = span.index();
     let u = kv.knots();

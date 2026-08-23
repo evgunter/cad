@@ -7,7 +7,7 @@ mkdir -p $OUT
 
 # Crates that DEFINE or INSTANTIATE the Real generics, plus editor-core
 # (the workspace's largest codegen unit) as the control.
-CRATES="geom-core geom-surfaces geom-curves geom-brep topo profile sweep editor-core"
+CRATES="geom-core geom geom-brep topo profile sweep editor-core"
 
 for c in $CRATES; do
   echo "=== llvm-lines -p $c --lib --release (default features) ==="

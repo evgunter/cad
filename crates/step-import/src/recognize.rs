@@ -61,6 +61,10 @@
 //! estimator can therefore never make promotion incorrect, only
 //! incomplete.
 //!
+//! Every DERIVED frame here (origin/normal/axis/u_ref) goes through
+//! [`crate::signed_zero`], for the reason that module states — the same
+//! posture [`crate::recognize_curve`] takes for curves.
+//!
 //! # Conditioning (D7's typed ambiguity, its only stage-1 site)
 //!
 //! The cylinder estimator carries its own margin trilean: a patch
@@ -74,8 +78,10 @@
 //! face with an ill-conditioned estimator stays NURBS, exactly like a
 //! refuted one.
 
+use geom::{NurbsSurface, Surface};
 use geom_core::{Point3, Vec3};
-use geom_surfaces::{NurbsSurface, Surface};
+
+use crate::signed_zero::{plus_zero, plus_zero_point};
 
 pub(crate) use crate::PromotedKind;
 
@@ -127,7 +133,8 @@ pub(crate) enum Recognition {
 /// NOTE-2), the preference order is unfalsifiable by execution — no
 /// authorable patch double-certifies — so only the plane-first arm is
 /// pinned (P6); the order stays stated for the day a tighter cylinder
-/// certificate lands.
+/// certificate lands. **That the promoting arm is unreachable is
+/// stated here and nowhere the compiler can see it — issue #711.**
 pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
     if let Some((surface, residual)) = try_plane(patch, eps_in) {
         return Recognition::Promoted {
@@ -148,22 +155,6 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
             margin,
         },
     }
-}
-
-/// Negative zeros flushed to `+0.0`, componentwise (`x + 0.0` maps
-/// `-0.0` to `+0.0` and moves nothing else). The reader's numeric
-/// path states `+0.0` as the one representative (`as_real`'s
-/// documented normalization), so a promoted surface's DERIVED frame
-/// must state it too — otherwise the first re-export prints `-0.`
-/// tokens the re-import canonicalizes, and the promoted one-cycle
-/// fixed point misses by exactly those sign bits.
-fn flush_zero(v: Vec3<f64>) -> Vec3<f64> {
-    Vec3::new(v.x + 0.0, v.y + 0.0, v.z + 0.0)
-}
-
-/// [`flush_zero`] for a point.
-fn flush_zero_point(p: Point3<f64>) -> Point3<f64> {
-    Point3::new(p.x + 0.0, p.y + 0.0, p.z + 0.0)
 }
 
 /// The NURBS chart normal (unnormalized `∂u × ∂v`) at the domain
@@ -225,12 +216,12 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
     if align < 0.0 {
         normal = -normal;
     }
-    let normal = flush_zero(normal);
+    let normal = plus_zero(normal);
     let (u_ref, _) = normal.orthonormal_basis();
     let plane = Surface::Plane {
-        origin: flush_zero_point(origin),
+        origin: plus_zero_point(origin),
         normal,
-        u_ref: flush_zero(u_ref),
+        u_ref: plus_zero(u_ref),
     };
     // The hull sup-bound over the WHOLE net — BOTH tracks (R1 fix
     // pass, M-1): with strictly positive weights the rational basis
@@ -322,10 +313,10 @@ fn try_cylinder(
         return Ok(None);
     }
     let cylinder = Surface::Cylinder {
-        origin: flush_zero_point(center),
-        axis: flush_zero(axis),
+        origin: plus_zero_point(center),
+        axis: plus_zero(axis),
         radius,
-        u_ref: flush_zero(radial / radius),
+        u_ref: plus_zero(radial / radius),
     };
     // The residual's Lipschitz constant in the point (envelope docs):
     // `|∇ implicit| = ρ/r`, and with positive weights the patch lies
@@ -386,14 +377,15 @@ fn enveloped_residual_sup(
     let kv = patch.knots_v();
     let mut worst = 0.0f64;
     for su in ku.first_span()..=ku.last_span() {
-        // The emptiness skip and the window validation are one
-        // operation now; the window itself is built once per span cell.
-        let Some(span_u) = ku.span(su) else { continue };
         let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
         for sv in kv.first_span()..=kv.last_span() {
-            let Some(span_v) = kv.span(sv) else { continue };
+            // The emptiness skip, the span validation and the window
+            // construction are one operation, both directions; the
+            // window itself is built once per span cell.
+            let Some(win) = patch.window(su, sv) else {
+                continue;
+            };
             let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
-            let win = patch.window_of(span_u, span_v);
             let mut cell = 0.0f64;
             for i in 0..k {
                 let u = ua + (ub - ua) * f64::from(i) / f64::from(k - 1);

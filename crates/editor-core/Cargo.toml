@@ -15,7 +15,7 @@ workspace = true
 interval = [
     "geom-core/interval",
     "geom-brep/interval",
-    "geom-surfaces/interval",
+    "geom/interval",
     "profile/interval",
     "sweep/interval",
     "topo/interval",
@@ -29,7 +29,7 @@ interval = [
 probe = [
     "geom-core/probe",
     "geom-brep/probe",
-    "geom-surfaces/probe",
+    "geom/probe",
     "profile/probe",
     "sweep/probe",
     "topo/probe",
@@ -45,13 +45,14 @@ geom-core = { path = "../geom-core" }
 # and `geom_brep::SurfaceKind` is the workspace's ONE fieldless mirror
 # of `Surface` (D3: closed, compiler-enumerated). Reused rather than
 # re-minted — a second mirror is a second thing to keep in step — and
-# `topo` deliberately does not re-export it (pncad `closure.rs`'s
-# "zero kernel edits" ruling), so the honest reach is a direct edge on
-# a crate editor-core already builds against through `sweep`.
+# `topo` deliberately does not re-export it (the "zero kernel edits"
+# ruling, `crates/pncad/src/lib.rs` contract clause 1), so the honest
+# reach is a direct edge on a crate editor-core already builds against
+# through `sweep`.
 geom-brep = { path = "../geom-brep" }
 # M4 PR 3: the naming layer reads face carrier PLANES (side-of
 # discriminators against cutting carriers, N2) from the result body.
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 profile = { path = "../profile" }
 # LIB-U8a: the expression TEXT parser's unit-suffix vocabulary is the
 # quantity crate's closed unit table (a leaf crate — no dependency

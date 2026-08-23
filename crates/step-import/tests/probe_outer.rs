@@ -10,6 +10,7 @@
 //! not: the inference answers, and the volume is unchanged to the bit.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 #[test]
@@ -25,28 +26,28 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
     // is unanswerable. What IS answerable at any ε — and is the half
     // that would actually be dangerous — is that marking every bound
     // outer never turns a file the kernel refuses into one it accepts.
-    let baseline = import_step(&base, &ImportOptions::default());
+    let baseline = import_step(&base, &ImportOptions::default(), Tol::witness());
     // Mark EVERY bound outer: the hole now claims to be an outer bound.
     let m = base.replace("FACE_BOUND(", "FACE_OUTER_BOUND(");
     assert_ne!(m, base);
     let Ok(StepImport::Solid { body, .. }) = baseline else {
-        let eps = geom_core::Tolerance::get().eps;
+        let eps = geom_core::Tol::witness().get().eps;
         println!(
             "baseline refuses at ambient ε {eps:e}: {:?}",
             baseline.err()
         );
         assert!(
-            import_step(&m, &ImportOptions::default()).is_err(),
+            import_step(&m, &ImportOptions::default(), Tol::witness()).is_err(),
             "the all-outer latitude must not import a file the honest one refuses"
         );
         return;
     };
-    let v0 = topo::mass_properties(&body).unwrap().volume;
+    let v0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     println!("baseline volume {v0}");
-    match import_step(&m, &ImportOptions::default()) {
+    match import_step(&m, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body);
-            let v = topo::mass_properties(&body).map(|x| x.volume);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
+            let v = topo::mass_properties(&body, Tol::witness()).map(|x| x.volume);
             println!("all-outer: t3ok={} vol={v:?}", t3.is_ok());
             if t3.is_ok() {
                 let v = v.unwrap();

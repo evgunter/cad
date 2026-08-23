@@ -16,14 +16,18 @@ from pncad import (
     ContactClass,
     CurveKind,
     Doc,
+    DocEdit,
     EntityKind,
     FlushFinding,
     FlushRung,
+    Frame,
     GeomPred,
     Length,
     NamePat,
     Node,
     NodeId,
+    ParamName,
+    PatternKind,
     Via,
     Open,
     PlaneRelation,
@@ -217,3 +221,23 @@ decl_node: NodeId = doc.insert(Node.declare(findings))
 glued: NodeId = doc.insert(
     Node.boolean(BooleanOp.Union, plate, lightened, declare=decl_many)
 )
+
+# LIB-PYPU: the group boolean and its placement vocabulary. Lengths
+# and angles are typed; the count is a plain int (the structural-slot
+# exception); a frame reads back as the dimensioned triple it took.
+here: Frame = Frame.translation((0 * m, 0 * m, 0 * m))
+turned: Frame = Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (1 * m, 0 * m, 0 * m))
+aimed: Frame = Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0))
+swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
+flipped: Frame = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+frame_origin: tuple[Length, Length, Length] = here.origin
+frame_det: float = here.determinant
+
+stepped: PatternKind = PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m)
+spin_axis: NodeId = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+around: PatternKind = PatternKind.circular(spin_axis, 90 * deg)
+listed: PatternKind = PatternKind.explicit([here, turned])
+
+fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
+listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
+count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))

@@ -13,15 +13,16 @@
 
 use std::fmt::Write as _;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
+use geom_core::{Point3, Vec3};
 use topo::{Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
 
 use crate::real::fmt_real;
 use crate::volume::shell_signed_volume;
 use crate::{SharedIds, StepExportError, StepOptions, quoted};
+use geom_core::Tol;
 
 /// The surface variant's name, for typed refusals and for the
 /// curved-shell classification message.
@@ -98,37 +99,29 @@ fn refs(ids: &[u64]) -> String {
     out
 }
 
-/// Run-length-encodes a flat clamped knot vector into STEP's
-/// `(multiplicities)` / `(distinct knots)` pair, returning both as
-/// ready-to-splice argument text.
+/// Formats a knot vector's runs as STEP's `(multiplicities)` /
+/// `(distinct knots)` pair, both as ready-to-splice argument text.
 ///
-/// Runs are cut on **exact f64 equality** — the kernel's own
-/// multiplicity predicate (`KnotVector`'s type docs: knots are
-/// structure, and structure identity is bitwise-value identity, never
-/// a tolerance question). So the pair round-trips to the identical
-/// flat vector, and no ε enters this path.
+/// The run-length encoding itself is `KnotVector::knot_runs`, which
+/// cuts on **exact f64 equality** — knots are structure, and structure
+/// identity is bitwise-value identity, never a tolerance question. So
+/// the pair round-trips to the identical flat vector, and no ε enters
+/// this path. What is left here is formatting: the separators and the
+/// `fmt_real` refusal, which is why this walks the runs rather than
+/// collecting them.
 fn run_length_knots(
-    knots: &[f64],
+    knots: &KnotVector,
     context: &'static str,
 ) -> Result<(String, String), StepExportError> {
     let mut mults = String::new();
     let mut values = String::new();
-    let mut index = 0;
-    let mut first = true;
-    while index < knots.len() {
-        let value = knots[index];
-        let mut run = 1;
-        while index + run < knots.len() && knots[index + run] == value {
-            run += 1;
-        }
-        if !first {
+    for (index, (value, run)) in knots.knot_runs().enumerate() {
+        if index > 0 {
             mults.push_str(", ");
             values.push_str(", ");
         }
-        first = false;
         let _ = write!(mults, "{run}");
         values.push_str(&fmt_real(value, context)?);
-        index += run;
     }
     Ok((mults, values))
 }
@@ -326,7 +319,7 @@ impl<'a> Writer<'a> {
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
             Curve3::Nurbs(ref payload) => {
-                if payload.control().iter().all(|p| !p.x.is_finite()) {
+                if payload.is_placeholder() {
                     // The "no description yet" carrier placeholder —
                     // the curve-side twin of the mvfs surface
                     // placeholder. Mid-surgery, never exportable.
@@ -390,7 +383,7 @@ impl<'a> Writer<'a> {
         }
         let points = refs(&points);
         let degree = knots.degree();
-        let (mults, values) = run_length_knots(knots.knots(), "b-spline curve knot")?;
+        let (mults, values) = run_length_knots(knots, "b-spline curve knot")?;
         if weights.iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_CURVE_WITH_KNOTS('', {degree}, ({points}), .UNSPECIFIED., .U., .U., \
@@ -438,7 +431,7 @@ impl<'a> Writer<'a> {
     ///   OF LIST in the same layout, printed round-trip exact.
     fn b_spline_surface(
         &mut self,
-        surface: &geom_surfaces::NurbsSurface<f64>,
+        surface: &geom::NurbsSurface<f64>,
     ) -> Result<u64, StepExportError> {
         let (nu, nv) = surface.control_counts();
         let mut rows = Vec::with_capacity(nu);
@@ -454,10 +447,8 @@ impl<'a> Writer<'a> {
         }
         let points = rows.join(", ");
         let (du, dv) = (surface.knots_u().degree(), surface.knots_v().degree());
-        let (u_mults, u_values) =
-            run_length_knots(surface.knots_u().knots(), "b-spline surface u-knot")?;
-        let (v_mults, v_values) =
-            run_length_knots(surface.knots_v().knots(), "b-spline surface v-knot")?;
+        let (u_mults, u_values) = run_length_knots(surface.knots_u(), "b-spline surface u-knot")?;
+        let (v_mults, v_values) = run_length_knots(surface.knots_v(), "b-spline surface v-knot")?;
         if surface.weights().iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_SURFACE_WITH_KNOTS('', {du}, {dv}, ({points}), .UNSPECIFIED., .U., \
@@ -837,6 +828,7 @@ impl<'a> Writer<'a> {
 pub(crate) fn write_document(
     body: &Body<f64>,
     options: &StepOptions,
+    tol: Tol,
 ) -> Result<String, StepExportError> {
     let name = quoted(&options.product_name, "product name")?;
     let mut w = Writer::new(body);
@@ -871,7 +863,7 @@ pub(crate) fn write_document(
             }
             value
         }
-        None => Tolerance::get().eps,
+        None => tol.eps(),
     };
     let eps_str = fmt_real(eps, "uncertainty")?;
     let unc = w.emit(&format!(
@@ -954,9 +946,9 @@ mod tests {
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    use geom::NurbsCurve3;
     use geom_core::Point3;
     use geom_core::spline::KnotVector;
-    use geom_curves::NurbsCurve3;
 
     use super::*;
 
@@ -1029,7 +1021,7 @@ mod tests {
     fn interior_knot_multiplicities_encode_exactly() {
         let flat = vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.5, 1.0, 1.0, 1.0];
         let knots = KnotVector::clamped(flat.clone(), 2).unwrap();
-        let (mults, values) = run_length_knots(knots.knots(), "test").unwrap();
+        let (mults, values) = run_length_knots(&knots, "test").unwrap();
         assert_eq!(mults, "3, 1, 2, 3");
         assert_eq!(values, "0.0, 0.25, 0.5, 1.0");
         // Round trip: multiplicities × values rebuild the flat vector.
@@ -1044,20 +1036,18 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
-    /// **The two `Surface::Nurbs` states are told apart** (S9-flipped
-    /// at M6-3: the described state used to be a named frontier
-    /// refusal; it now EXPORTS, and this row pins the surface records
-    /// at byte level exactly as the curve rows above pin theirs —
-    /// both arms, the non-rational simple entity and the RATIONAL
-    /// complex instance, even though the first corpus body is
-    /// non-rational: cheap, and it keeps the arm from being dead
-    /// code).
+    /// **The two `Surface::Nurbs` states are told apart.** This row
+    /// pins the surface records at byte level exactly as the curve
+    /// rows above pin theirs — both arms, the non-rational simple
+    /// entity and the RATIONAL complex instance, even though the first
+    /// corpus body is non-rational: cheap, and it keeps the arm from
+    /// being dead code.
     #[test]
     fn the_nurbs_surface_arms_emit_and_the_placeholder_refuses() {
         let placeholder = Surface::<f64>::nurbs_placeholder();
         assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
 
-        let patch = geom_surfaces::NurbsSurface::new(
+        let patch = geom::NurbsSurface::new(
             KnotVector::unit_segment(1),
             KnotVector::unit_segment(1),
             vec![
@@ -1087,7 +1077,7 @@ mod tests {
             w.data
         );
 
-        let rational = geom_surfaces::NurbsSurface::new(
+        let rational = geom::NurbsSurface::new(
             KnotVector::unit_segment(1),
             KnotVector::unit_segment(1),
             patch.control().to_vec(),
@@ -1118,7 +1108,7 @@ mod tests {
         let Curve3::Nurbs(ref payload) = placeholder else {
             panic!("the placeholder is a NURBS curve");
         };
-        assert!(payload.control().iter().all(|p| !p.x.is_finite()));
+        assert!(payload.is_placeholder());
         assert_eq!(carrier_kind(&placeholder), "nurbs curve");
     }
 }

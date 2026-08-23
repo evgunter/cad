@@ -9,6 +9,7 @@
 mod common;
 
 use common::{axis_y, check_mesh_acceptance, p2, validated};
+use geom_core::Tol;
 use mesh::validate::signed_volume;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
@@ -18,7 +19,9 @@ use topo::Body;
 const PI: f64 = core::f64::consts::PI;
 
 fn rev(lp: ProfileLoop<f64>, r: Revolution<f64>) -> Body<f64> {
-    revolve(&validated(vec![lp]), axis_y(), r).unwrap().body
+    revolve(&validated(vec![lp]), axis_y(), r, Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn washer_profile() -> ProfileLoop<f64> {
@@ -31,14 +34,8 @@ fn cone_profile() -> ProfileLoop<f64> {
 
 fn half_disc() -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ])
 }
 
@@ -52,7 +49,7 @@ fn diamond_profile() -> ProfileLoop<f64> {
 #[test]
 fn survives_wedge_angles_near_pi_and_extremes() {
     // θ near π is the half-period tie neighborhood; tiny and near-2π
-    // wedges stress the unwrap and the closure snap.
+    // wedges stress the unwrap and the loop closure.
     for theta in [0.05, PI / 2.0, PI - 0.01, PI, PI + 0.5, 2.0 * PI - 0.05] {
         let body = rev(washer_profile(), Revolution::Partial(theta));
         let v_exact = theta / 2.0 * 3.0; // (R2²−R1²)/2·h·θ = 3θ/2
@@ -98,26 +95,14 @@ fn survives_cone_wedges_apex_junctions_below_three_half_pi() {
 fn silo_profile() -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan();
     let mut lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 2.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(1.0, 1.0), b),
+        ProfileVertex::new(p2(0.0, 2.0), 0.0),
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
-    lp.tangent_joints = vec![2];
+    lp = lp.with_tangent_joints(vec![2]);
     lp
 }
 
@@ -199,22 +184,10 @@ fn survives_many_segment_dome_wedges() {
     let t = |theta: f64| (theta / 4.0).tan();
     let a1 = 0.8f64;
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: t(a1),
-        },
-        ProfileVertex {
-            pos: p2(a1.sin(), -a1.cos()),
-            bulge: t(a1),
-        },
-        ProfileVertex {
-            pos: p2((2.0 * a1).sin(), -(2.0 * a1).cos()),
-            bulge: t(PI - 2.0 * a1),
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), t(a1)),
+        ProfileVertex::new(p2(a1.sin(), -a1.cos()), t(a1)),
+        ProfileVertex::new(p2((2.0 * a1).sin(), -(2.0 * a1).cos()), t(PI - 2.0 * a1)),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     for theta in [PI - 0.01, PI + 0.7] {
         let body = rev(lp.clone(), Revolution::Partial(theta));
@@ -232,14 +205,8 @@ fn survives_outward_shell_assumption_via_public_api() {
     // still mesh with positive signed volume.
     let cw_tri = ProfileLoop::polygon([p2(0.0, 0.0), p2(0.0, 1.0), p2(1.0, 0.0)]); // CW
     let cw_half_disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: -1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 1.0), -1.0),
+        ProfileVertex::new(p2(0.0, -1.0), 0.0),
     ]); // CW traversal of the same half disc
     for lp in [cw_tri, cw_half_disc] {
         for r in [Revolution::Full, Revolution::Partial(2.0)] {

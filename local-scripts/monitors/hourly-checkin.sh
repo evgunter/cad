@@ -7,6 +7,11 @@
 # Lost wake-on-completion events are common; the work is usually done
 # and pushed but unreported, silently blocking the pipeline.
 #
+# Second purpose (Evan, 2026-08-22): the tick itself re-invokes the
+# orchestrator, keeping its prompt cache warm through otherwise-idle
+# stretches — so an hourly cadence (within the cache TTL) is worth
+# keeping armed even when no lanes currently need sweeping.
+#
 # The tick is anchored to WALL CLOCK, not to sleep durations: a bare
 # `sleep 3600` fires early whenever the sleep is interrupted (WSL2
 # clock skew under load, host suspend/resume), which showers the
@@ -18,7 +23,7 @@ while true; do
   sleep 300
   now=$(date +%s)
   if [ $((now - last)) -ge 3300 ]; then
-    echo "HOURLY AGENT CHECK-IN TICK $(date -u +%Y-%m-%dT%H:%MZ) — sweep every running subagent lane; nudge any that idled without reporting"
+    echo "HOURLY AGENT CHECK-IN TICK $(date -u +%Y-%m-%dT%H:%MZ) — sweep every running subagent lane; nudge any that idled without reporting (tick also keeps the orchestrator's prompt cache warm — no lanes running is still a valid tick)"
     last=$now
   fi
 done

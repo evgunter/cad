@@ -39,7 +39,7 @@ that is a deliberate design choice and not a shortfall.
 Nothing is published to crates.io or PyPI yet — the project is
 unnamed, so there is nothing to publish under. Build from source.
 
-### 1.2 Rust: build, and a first model in ten lines
+### 1.2 Rust: build, and a first model in a dozen lines
 
 ```console
 $ git clone <this repo> && cd cad
@@ -60,17 +60,18 @@ A first solid — an 80 × 40 × 8 mm plate, validated, measured:
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 let mm = |v: f64| (v * MM).meters();
 let rect: ClosedLoop<f64> = Open
     .at(p2(mm(0.0), mm(0.0)))
-    .line_to(p2(mm(80.0), mm(0.0)))?
-    .line_to(p2(mm(80.0), mm(40.0)))?
-    .line_to(p2(mm(0.0), mm(40.0)))?
-    .line_to(Start)?;
-let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()])?;
-let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))))?.body;
+    .line_to(p2(mm(80.0), mm(0.0)), tol)?
+    .line_to(p2(mm(80.0), mm(40.0)), tol)?
+    .line_to(p2(mm(0.0), mm(40.0)), tol)?
+    .line_to(Start, tol)?;
+let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
+let plate = extrude(&profile, Extrusion::Distance(real(mm(8.0))), tol)?.body;
 validate_closed(&plate).expect("a closed solid");
-let props = mass_properties(&plate)?;
+let props = mass_properties(&plate, tol)?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -80,6 +81,24 @@ The `quantity` layer (`MM`, `CM`, `M`, `IN`, `DEG`, `RAD`) is there
 when you want the units visible, as above; `25.0 * MM` builds a
 `Length` and `.meters()` unwraps it. The kernel never sees a unit —
 it sees metres.
+
+The first line is the one that needs explaining. `Tol::witness()`
+commits this process's tolerance ε — one value per run, never changed
+after, the thing that decides what "coincident" means — and hands back
+a witness that it is committed. Every call that *decides* something
+takes it, which is why it appears so often below.
+
+`Tol` is zero-sized and has exactly one inhabitant, so passing it
+costs nothing at runtime and cannot introduce a second ε: it carries
+the right to read the run's tolerance, never a copy of the value. Read
+it as punctuation rather than an argument — its job is to make a
+signature say whether the answer depends on ε. The operations that
+*don't* take one, like `validate_closed` above, are telling you
+something: they are exact, and no tolerance can change their answer.
+
+Configure ε per run with `CAD_TOLERANCE_EPS`, or state it in code
+with `Tolerance::init` before the first witness. `pncad::tolerance`
+reports what a run committed to and where the value came from.
 
 ### 1.3 Python: build (maturin), and a first model in ten lines
 
@@ -127,6 +146,8 @@ mm + 90 * deg` is a `DimensionError`, not a number.
   example in the repo to what it demonstrates.
 - The fail-loud tour (`docs/guide/fail-loud.md`) is the refusal
   vocabulary, layer by layer.
+- Selecting entities (`docs/guide/selecting.md`) is how you name a
+  face or an edge so a later step can refer to it.
 - The north-star audit (`docs/guide/north-star-audit.md`) says
   exactly which demos Python can author today.
 
@@ -190,16 +211,17 @@ accidentally tangent or reversed refuses here rather than at
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 // The algebra: open at a point, walk the legs, close at the seam.
 let mm = |v: f64| (v * MM).meters();
 let outline: ProfileLoop<f64> = Open
     .at(p2(mm(0.0), mm(0.0)))
-    .line_to(p2(mm(80.0), mm(0.0)))?
-    .line_to(p2(mm(80.0), mm(40.0)))?
-    .line_to(p2(mm(0.0), mm(40.0)))?
-    .line_to(Start)?
+    .line_to(p2(mm(80.0), mm(0.0)), tol)?
+    .line_to(p2(mm(80.0), mm(40.0)), tol)?
+    .line_to(p2(mm(0.0), mm(40.0)), tol)?
+    .line_to(Start, tol)?
     .into();
-assert_eq!(outline.vertices.len(), 4);
+assert_eq!(outline.vertices().len(), 4);
 # Ok::<(), pncad::profile::PathError<f64>>(())
 ```
 
@@ -215,19 +237,20 @@ constructive, never a flag you set:
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 let mm = |v: f64| (v * MM).meters();
 let rounded: ProfileLoop<f64> = Open
     .at(p2(mm(0.0), mm(0.0)))
-    .line_to(p2(mm(40.0), mm(0.0)))?  // sharp corner here, arriving east
-    .toward(0.0, 1.0)?                // departure ray: north, the line x = 40
-    .fillet(mm(6.0))?                 // round where that ray meets the next
-    .toward(-1.0, 0.0)?               // arrival ray: west, the line y = 30
-    .to(p2(mm(0.0), mm(30.0)))?       // anchored at the authored far vertex
-    .line_to(Start)?
+    .line_to(p2(mm(40.0), mm(0.0)), tol)?  // sharp corner here, arriving east
+    .toward(0.0, 1.0, tol)?                // departure ray: north, the line x = 40
+    .fillet(mm(6.0), tol)?                 // round where that ray meets the next
+    .toward(-1.0, 0.0, tol)?               // arrival ray: west, the line y = 30
+    .to(p2(mm(0.0), mm(30.0)), tol)?       // anchored at the authored far vertex
+    .line_to(Start, tol)?
     .into();
 // Five vertices: two sharp corners, and the arc's two tangent points
 // where the fourth corner used to be.
-assert_eq!(rounded.vertices.len(), 5);
+assert_eq!(rounded.vertices().len(), 5);
 # Ok::<(), pncad::profile::PathError<f64>>(())
 ```
 
@@ -324,6 +347,7 @@ area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
 assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
 ```
 
+let tol = Tol::witness();
 **Corners between a line and a CIRCLE.** A fillet's two sides do not
 have to be straight, and a side that rides a carrier is authored in
 the SAME act as the fillet: `arc_fillet(spec, r)` gives the corner an
@@ -339,6 +363,7 @@ author's two anchors do not bracket.
 ```
 use pncad::prelude::*;
 
+let tol = Tol::witness();
 // Enter on the R = 5 circle at its east point, travelling
 // counterclockwise; round where that circle meets the line y = 3.
 let blended: ProfileLoop<f64> = Open
@@ -346,15 +371,16 @@ let blended: ProfileLoop<f64> = Open
     .arc_fillet(
         Center { c: p2(0.0, 0.0), winding: ArcSweep::Ccw, p: p2(5.0, 0.0) },
         0.5,
+        tol,
     )?
-    .at(p2(0.0, 3.0))?          // arrival: the line y = 3 ...
-    .toward(-1.0, 0.0)?         // ... heading west
-    .line(3.0)?
-    .line_to(Start)?
+    .at(p2(0.0, 3.0), tol)?          // arrival: the line y = 3 ...
+    .toward(-1.0, 0.0, tol)?         // ... heading west
+    .line(3.0, tol)?
+    .line_to(Start, tol)?
     .into();
 // The entry, the trim point on the circle, the arc's far tangent
 // point, and the straight side's end.
-assert_eq!(blended.vertices.len(), 4);
+assert_eq!(blended.vertices().len(), 4);
 # Ok::<(), pncad::profile::PathError<f64>>(())
 ```
 
@@ -420,6 +446,7 @@ else:
     raise AssertionError("plane= and elevation= must be mutually exclusive")
 ```
 
+let tol = Tol::witness();
 **Stacked sections make a loft.** `Node.loft(profiles, v_degree)`
 skins a solid through two or more section profiles in skin order — and
 takes no placement argument, because each section rides its own
@@ -465,19 +492,21 @@ the one two-call wrapper the façade adds (`Profile::new` then
 ```
 use pncad::prelude::*;
 
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+    let tol = Tol::witness();
     let rect: ClosedLoop<f64> = Open
         .at(p2(x.0, y.0))
-        .line_to(p2(x.1, y.0))?
-        .line_to(p2(x.1, y.1))?
-        .line_to(p2(x.0, y.1))?
-        .line_to(Start)?;
+        .line_to(p2(x.1, y.0), tol)?
+        .line_to(p2(x.1, y.1), tol)?
+        .line_to(p2(x.0, y.1), tol)?
+        .line_to(Start, tol)?;
     let plane = SketchPlane::from_frame(
         p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
     );
-    let profile = validated(plane, vec![rect.into()])?;
-    Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)))?.body)
+    let profile = validated(plane, vec![rect.into()], tol)?;
+    Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 }
 
 let mm = |v: f64| (v * MM).meters();
@@ -485,9 +514,9 @@ let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
 let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
 
-let bracket = union(&base, &web)?;
+let bracket = union(&base, &web, tol)?;
 let bracket = bracket.body().expect("a non-empty union");
-let lightened = subtract(&bracket.body, &pocket)?;
+let lightened = subtract(&bracket.body, &pocket, tol)?;
 let lightened = lightened.body().expect("a non-empty difference");
 assert_eq!(lightened.kind, BooleanResultKind::Seamed);
 # Ok::<(), E>(())
@@ -509,28 +538,30 @@ first one wastes your time.
 
 ```
 use pncad::prelude::*;
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
-#         .line_to(p2(x.1, y.0))?
-#         .line_to(p2(x.1, y.1))?
-#         .line_to(p2(x.0, y.1))?
-#         .line_to(Start)?;
+#         .line_to(p2(x.1, y.0), tol)?
+#         .line_to(p2(x.1, y.1), tol)?
+#         .line_to(p2(x.0, y.1), tol)?
+#         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 # let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
-# let u = union(&base, &web)?; let u = u.body().expect("union");
-# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
+# let u = union(&base, &web, tol)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 let body = &result.body;
 
 validate(body).expect("tier 1: structural integrity");
 validate_closed(body).expect("tier 2: a closed, connected solid");
-validate_pseudomanifold(body, &result.contacts)
+validate_pseudomanifold(body, &result.contacts, tol)
     .expect("tier 3′: geometry, with this operation's declared contacts");
 # Ok::<(), E>(())
 ```
@@ -553,22 +584,24 @@ body from `split` carries no contacts, so it takes plain tier 3.
 
 ```
 use pncad::prelude::*;
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
-#         .line_to(p2(x.1, y.0))?
-#         .line_to(p2(x.1, y.1))?
-#         .line_to(p2(x.0, y.1))?
-#         .line_to(Start)?;
+#         .line_to(p2(x.1, y.0), tol)?
+#         .line_to(p2(x.1, y.1), tol)?
+#         .line_to(p2(x.0, y.1), tol)?
+#         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 // A body with no declared contacts: the two gates agree.
-validate_geometric(&base).expect("tier 3 on a plain extrusion");
-validate_pseudomanifold(&base, &ContactRecords::default())
+validate_geometric(&base, tol).expect("tier 3 on a plain extrusion");
+validate_pseudomanifold(&base, &ContactRecords::default(), tol)
     .expect("3′ on an empty-contact body is tier 3 plus a census");
 # Ok::<(), E>(())
 ```
@@ -580,24 +613,26 @@ theorem on the real surfaces, not on a mesh:
 
 ```
 use pncad::prelude::*;
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
-#         .line_to(p2(x.1, y.0))?
-#         .line_to(p2(x.1, y.1))?
-#         .line_to(p2(x.0, y.1))?
-#         .line_to(Start)?;
+#         .line_to(p2(x.1, y.0), tol)?
+#         .line_to(p2(x.1, y.1), tol)?
+#         .line_to(p2(x.0, y.1), tol)?
+#         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 # let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
-# let u = union(&base, &web)?; let u = u.body().expect("union");
-# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
-let props = mass_properties(&result.body)?;
+# let u = union(&base, &web, tol)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
+let props = mass_properties(&result.body, tol)?;
 
 assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
 assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
@@ -629,24 +664,26 @@ decision.
 
 ```
 use pncad::prelude::*;
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
-#         .line_to(p2(x.1, y.0))?
-#         .line_to(p2(x.1, y.1))?
-#         .line_to(p2(x.0, y.1))?
-#         .line_to(Start)?;
+#         .line_to(p2(x.1, y.0), tol)?
+#         .line_to(p2(x.1, y.1), tol)?
+#         .line_to(p2(x.0, y.1), tol)?
+#         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 # let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
-# let u = union(&base, &web)?; let u = u.body().expect("union");
-# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
-let mesh = tessellate(&result.body, 0.0005)   // 0.5 mm chord budget
+# let u = union(&base, &web, tol)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
+let mesh = tessellate(&result.body, 0.0005, tol)   // 0.5 mm chord budget
     .expect("the bracket tessellates");
 
 assert!(!mesh.positions.is_empty());
@@ -667,25 +704,27 @@ the step that earns trust in both of them:
 ```
 use pncad::prelude::*;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
-#         .line_to(p2(x.1, y.0))?
-#         .line_to(p2(x.1, y.1))?
-#         .line_to(p2(x.0, y.1))?
-#         .line_to(Start)?;
+#         .line_to(p2(x.1, y.0), tol)?
+#         .line_to(p2(x.1, y.1), tol)?
+#         .line_to(p2(x.0, y.1), tol)?
+#         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 # let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
-# let u = union(&base, &web)?; let u = u.body().expect("union");
-# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
-# let props = mass_properties(&result.body)?;
-# let mesh = tessellate(&result.body, 0.0005).expect("tessellate");
+# let u = union(&base, &web, tol)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
+# let props = mass_properties(&result.body, tol)?;
+# let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
 // 1. The mesh is a closed 2-manifold — no boundary edges, no
 //    non-manifold junctions. A refusal here is fail-loud, not a hint.
 check_mesh(&mesh).expect("a watertight mesh");
@@ -710,44 +749,58 @@ STEP (AP242) for exchange, STL for the mesh:
 ```
 use pncad::prelude::*;
 use pncad::step_import::StepImport;
+# let tol = Tol::witness();
 # type E = Box<dyn std::error::Error>;
 # fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
+#     let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(x.0, y.0))
-#         .line_to(p2(x.1, y.0))?
-#         .line_to(p2(x.1, y.1))?
-#         .line_to(p2(x.0, y.1))?
-#         .line_to(Start)?;
+#         .line_to(p2(x.1, y.0), tol)?
+#         .line_to(p2(x.1, y.1), tol)?
+#         .line_to(p2(x.0, y.1), tol)?
+#         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
-#     Ok(extrude(&validated(plane, vec![rect.into()])?, Extrusion::Distance(real(z.1 - z.0)))?.body)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
 # let web = slab((mm(36.0), mm(44.0)), (mm(5.0), mm(35.0)), (mm(4.0), mm(34.0)))?;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(-2.0), mm(5.0)))?;
-# let u = union(&base, &web)?; let u = u.body().expect("union");
-# let r = subtract(&u.body, &pocket)?; let result = r.body().expect("difference");
-# let props = mass_properties(&result.body)?;
-# let mesh = tessellate(&result.body, 0.0005).expect("tessellate");
+# let u = union(&base, &web, tol)?; let u = u.body().expect("union");
+# let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
+# let props = mass_properties(&result.body, tol)?;
+# let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
 let step = step_string(&result.body, &StepOptions {
     product_name: "bracket".to_string(),
     ..Default::default()
-})?;
+}, tol)?;
 assert!(step.starts_with("ISO-10303-21;"));
 
+// STL's two formats carry different things, so they take different
+// options. The binary format's 80 bytes are free text — conventionally
+// the producer; the ASCII format's `solid <name>` names the part. Each
+// is a validated newtype, so a name that cannot be written is refused
+// here rather than when you export.
 let mut stl = Vec::new();
-write_binary(&mesh, &mut stl)?;
+write_binary(&mesh, &BinaryOptions {
+    header: BinaryHeader::new("bracket, exported by the tour")?,
+}, &mut stl)?;
+let mut stl_text = Vec::new();
+write_ascii(&mesh, &AsciiOptions {
+    solid_name: SolidName::new("bracket")?,
+}, &mut stl_text)?;
+assert!(String::from_utf8(stl_text)?.starts_with("solid bracket\n"));
 let declared = u32::from_le_bytes(stl[80..84].try_into().unwrap()) as usize;
 assert_eq!(declared, pncad::mesh::validate::triangle_count(&mesh));
 
 // The strongest export check available: read your own file back with
 // the kernel's importer and re-measure it.
 let StepImport::Solid { body: reimported, .. } =
-    import_step(&step, &ImportOptions::default())?
+    import_step(&step, &ImportOptions::default(), tol)?
 else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
-let back = mass_properties(&reimported)?;
+let back = mass_properties(&reimported, tol)?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
 ```
@@ -1058,6 +1111,7 @@ parametric rather than opaque.
 use pncad::prelude::*;
 use pncad::document::NodeResult;
 
+let tol = Tol::witness();
 // Author a plate with a round hole. Both the outline and the hole
 // are programs; every coordinate is an expression.
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
@@ -1068,9 +1122,9 @@ let hole = LoopProgram::Circle {
     radius: len(0.25),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1085,7 +1139,7 @@ doc = next;
 let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 doc = next;
 
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev.recomputed, 2);
 assert_eq!(ev.reused, 0);
 
@@ -1096,7 +1150,7 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-let props = mass_properties(body.as_ref())?;
+let props = mass_properties(body.as_ref(), tol)?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1109,29 +1163,30 @@ silently target the wrong argument when the node changes:
 
 ```
 use pncad::prelude::*;
+# let tol = Tol::witness();
 # let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 # let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]).expect("corners");
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
-# let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
+# let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node }).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![outline, hole] }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 # doc = next;
-# let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+# let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 // Make the plate twice as thick.
 let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
     expr: len(1.0),
-})?.doc;
+}, tol)?.doc;
 
 // Pass the PRIOR evaluation: the profile is untouched, so its value
 // is reused by content key and only the extrude re-runs.
-let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default());
+let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 1);
 assert_eq!(ev2.reused, 1);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1191,6 +1246,7 @@ One parameter, referenced by two loops, moved by one edit:
 use pncad::prelude::*;
 use pncad::document::{BooleanOp, BooleanValue, NodeResult};
 
+let tol = Tol::witness();
 let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
@@ -1198,17 +1254,17 @@ let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
 };
 
-let mut doc = Doc::<ProfileProgram>::empty_derived("guide");
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::Continuous { dim: Dimension::Length, value: 0.25 },
-})?.doc;
+}, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1250,7 +1306,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    mass_properties(body.as_ref()).expect("mass properties").volume
+    mass_properties(body.as_ref(), tol).expect("mass properties").volume
 };
 
 // The analytic oracle: plate + tab − their overlap − two cylinders of
@@ -1261,15 +1317,15 @@ let v = |r: f64| {
         - 2.0 * core::f64::consts::PI * r * r * 0.5
 };
 
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
+let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::Continuous { dim: Dimension::Length, value: 0.4 },
-})?.doc;
-let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default());
+}, tol)?.doc;
+let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 2);     // the tab's whole branch, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
@@ -1300,6 +1356,10 @@ crosses as a number and the parameter link is lost.
 - **`docs/guide/fail-loud.md`** — the refusal vocabulary, layer by
   layer, with executed examples of reading each one. If you are new
   here and something refused, start there.
+- **`docs/guide/selecting.md`** — naming and selecting entities: the
+  materializers, the structural pattern language, the geometric
+  filters, the doors from a name back to geometry, and the
+  detect/declare protocol for flush contact.
 - **`docs/guide/north-star-audit.md`** — which demos are authorable
   through the Python bindings today, and the named gap for each that
   is not.

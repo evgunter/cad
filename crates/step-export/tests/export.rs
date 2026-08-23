@@ -9,6 +9,7 @@
 
 mod common;
 
+use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
 
 /// Exports with the fixed test options: product name per shape, and an
@@ -21,7 +22,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options).unwrap()
+    step_string(body, &options, Tol::witness()).unwrap()
 }
 
 /// Counts non-overlapping occurrences of `needle`.
@@ -137,11 +138,11 @@ fn kiss_assembly_exports_two_solids() {
 fn byte_identity_same_body_and_same_recipe() {
     let body = common::die(0.0, 0.0, 0.0);
     let options = StepOptions::default();
-    let first = step_string(&body, &options).unwrap();
-    let again = step_string(&body, &options).unwrap();
+    let first = step_string(&body, &options, Tol::witness()).unwrap();
+    let again = step_string(&body, &options, Tol::witness()).unwrap();
     assert_eq!(first, again, "same body value ⇒ byte-identical");
     let rebuilt = common::die(0.0, 0.0, 0.0);
-    let from_rebuild = step_string(&rebuilt, &options).unwrap();
+    let from_rebuild = step_string(&rebuilt, &options, Tol::witness()).unwrap();
     assert_eq!(first, from_rebuild, "same recipe ⇒ byte-identical");
 }
 
@@ -181,14 +182,14 @@ fn uncertainty_override_and_validation() {
         uncertainty_m: Some(2.5e-6),
         ..StepOptions::default()
     };
-    let text = step_string(&body, &options).unwrap();
+    let text = step_string(&body, &options, Tol::witness()).unwrap();
     assert!(text.contains("LENGTH_MEASURE(2.5E-6)"));
     for bad in [0.0, -1e-9, f64::NAN, f64::INFINITY] {
         let options = StepOptions {
             uncertainty_m: Some(bad),
             ..StepOptions::default()
         };
-        match step_string(&body, &options) {
+        match step_string(&body, &options, Tol::witness()) {
             Err(StepExportError::InvalidUncertainty { .. }) => {}
             other => panic!("expected InvalidUncertainty for {bad}, got {other:?}"),
         }
@@ -202,13 +203,13 @@ fn product_name_escaping() {
         product_name: "o'brien".to_owned(),
         ..StepOptions::default()
     };
-    let text = step_string(&body, &options).unwrap();
+    let text = step_string(&body, &options, Tol::witness()).unwrap();
     assert!(text.contains("PRODUCT('o''brien', 'o''brien', '', ("));
     let options = StepOptions {
         product_name: "kübel".to_owned(),
         ..StepOptions::default()
     };
-    match step_string(&body, &options) {
+    match step_string(&body, &options, Tol::witness()) {
         Err(StepExportError::UnrepresentableString { .. }) => {}
         other => panic!("expected UnrepresentableString, got {other:?}"),
     }
@@ -234,7 +235,7 @@ fn curved_bodies_export_rather_than_refuse() {
         ("boss_union", common::boss_union()),
     ] {
         assert!(
-            step_string(&body, &StepOptions::default()).is_ok(),
+            step_string(&body, &StepOptions::default(), Tol::witness()).is_ok(),
             "{name} must export"
         );
     }
@@ -243,7 +244,7 @@ fn curved_bodies_export_rather_than_refuse() {
 #[test]
 fn voided_body_refuses_typed() {
     let body = common::voided();
-    match step_string(&body, &StepOptions::default()) {
+    match step_string(&body, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::VoidShellUnsupported { volume, .. }) => {
             // The reverted inner shell bounds the unit cavity; its
             // outward-from-material normals point INTO the cavity, so
@@ -257,7 +258,7 @@ fn voided_body_refuses_typed() {
 #[test]
 fn empty_body_refuses_typed() {
     let body = topo::Body::<f64>::new();
-    match step_string(&body, &StepOptions::default()) {
+    match step_string(&body, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::NothingToExport) => {}
         other => panic!("expected NothingToExport, got {other:?}"),
     }
@@ -272,7 +273,7 @@ fn mid_surgery_body_refuses_typed() {
     // plane, the empty loop would refuse as EmptyLoop next).
     let mut body = topo::Body::<f64>::new();
     body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
-    match step_string(&body, &StepOptions::default()) {
+    match step_string(&body, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::UnsupportedSurface { kind, .. }) => {
             assert_eq!(kind, "nurbs placeholder");
         }

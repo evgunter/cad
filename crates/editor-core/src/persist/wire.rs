@@ -86,7 +86,7 @@ impl From<&Expr> for WireExpr {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
                 dim: e.dim(),
-                unit: lit.unit_def().map(|u| u.symbol.to_string()),
+                unit: lit.unit_def().map(|u| u.symbol().to_string()),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
             ExprKind::Param(name) => WireExpr::Param {
@@ -249,7 +249,20 @@ impl WireTarget {
     }
 }
 
-/// One chain step on the wire — `ProgramStep`'s structural mirror.
+/// One chain step on the wire — `ProgramStep`'s structural mirror, and
+/// the vocabulary's last stop. A verb reaching here is a SCHEMA
+/// change, not a mapping: v8 and v9 are both bumps for exactly this
+/// enum's vocabulary (see [`crate::persist::SCHEMA_VERSION`]), so this
+/// enum going quietly short is worse than its being a third spelling
+/// — a spelling can be reconciled later, a shipped format cannot.
+///
+/// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
+/// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
+/// `WireStep` respectively, so neither can gain a variant the other
+/// lacks. What those two matches cannot see is a verb `profile`'s
+/// transition table gained and `ProgramStep` never learned, or an arm
+/// that maps one verb onto another's wire shape; both are checked by
+/// the round-trip census in `tests/switch_program_vocabulary.rs`.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum WireStep {

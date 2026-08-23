@@ -7,6 +7,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
@@ -15,7 +16,7 @@ use topo::contact::{ContactRefusal, ContactVerdict};
 use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn declared() -> PlaneIdentity<'static> {
@@ -34,8 +35,8 @@ fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
     }
 }
 
-fn line(o: [f64; 3], d: [f64; 3]) -> geom_curves::Curve3<f64> {
-    geom_curves::Curve3::Line {
+fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
+    geom::Curve3::Line {
         origin: Point3::new(o[0], o[1], o[2]),
         dir: Vec3::new(d[0], d[1], d[2]),
     }
@@ -205,7 +206,7 @@ fn probe_replay_partial_eq_bites_on_mutation() {
     )
     .body;
     let decls = flush_declarations(&a, &b);
-    let BooleanResult::Body(x) = union_with(&a, &b, &decls).unwrap() else {
+    let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");
     };
     let mut mutated = x.contacts.clone();
@@ -253,7 +254,7 @@ fn probe_census_gate_contradicts_curve_and_refuses_patch() {
         face_a: fk,
         face_b: fk,
     });
-    let errors = topo::validate_pseudomanifold(&a, &contacts)
+    let errors = topo::validate_pseudomanifold(&a, &contacts, Tol::witness())
         .expect_err("fabricated contact records must be refused at rest");
     assert!(
         errors

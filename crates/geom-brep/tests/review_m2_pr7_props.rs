@@ -14,13 +14,14 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU};
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 // ---------------------------------------------------------------------
@@ -54,7 +55,7 @@ fn simpson2(mut f: impl FnMut(f64, f64) -> f64, r: [f64; 4], n: usize) -> f64 {
 }
 
 /// Point, unit chart normal, and Jacobian of the surface at (u, v),
-/// derived from the documented parameterizations (geom-surfaces).
+/// derived from the documented parameterizations (`geom`'s `surfaces` module).
 fn chart(s: &Surface<f64>, u: f64, v: f64) -> (Point3<f64>, Vec3<f64>, f64) {
     let frame = |axis: Vec3<f64>, u_ref: Vec3<f64>, u: f64| {
         let v_ref = axis.cross(u_ref);

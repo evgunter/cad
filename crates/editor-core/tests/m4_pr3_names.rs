@@ -12,11 +12,18 @@ use editor_core::{
     evaluate,
 };
 use fixture::{ang, desc, insert, len};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -76,7 +83,11 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
 
 #[test]
 fn extrude_names_every_boundary_entity_with_the_d2_roles() {
-    let (doc, ext) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 1.0);
+    let (doc, ext) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        1.0,
+    );
     let ev = run(&doc);
     let t = table(&ev, ext);
     // 1 body + 6 faces + 12 edges + 8 vertices.
@@ -139,7 +150,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
 
 /// Profile on the xy plane (the y datum axis lies in it).
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts])),
@@ -166,7 +177,7 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
 /// diameter. EVERY vertex of this loop is on the axis — the shape the
 /// pole export exists for.
 fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, -1.0)),
@@ -326,6 +337,75 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
 }
 
 #[test]
+fn full_holed_revolve_names_the_cavity_loop() {
+    // VERBS-RING: a holed profile fully revolved — the hollow ring.
+    // The hole's cavity shell names exactly like a second lamina
+    // loop: bands, full rims, seam meridians, meridian vertices, all
+    // under loop index 1.
+    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![
+                vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+                vec![(1.25, 0.25), (1.75, 0.25), (1.75, 0.75), (1.25, 0.75)],
+            ],
+        )),
+    );
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
+        }),
+    );
+    let (doc, rev) = insert(
+        doc,
+        Node::Revolve {
+            profile: p,
+            axis,
+            angle: ang(std::f64::consts::TAU),
+        },
+    );
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    // Two square-torus shells: 1 body + 2·(4 bands + 4 rims + 4 seam
+    // meridians + 4 meridian vertices).
+    assert_eq!(t.len(), 33);
+    for l in 0..2 {
+        for s in 0..4 {
+            assert!(
+                t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(l, s))))
+                    .is_some()
+            );
+            assert!(
+                t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(l, s))))
+                    .is_some()
+            );
+            assert!(
+                t.lookup(&name1(
+                    EntityKind::Edge,
+                    rev,
+                    RoleSeg::Meridian(MeridianEnd::Seam, pe(l, s))
+                ))
+                .is_some()
+            );
+            assert!(
+                t.lookup(&name1(
+                    EntityKind::Vertex,
+                    rev,
+                    RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(l, s))
+                ))
+                .is_some()
+            );
+        }
+    }
+}
+
+#[test]
 fn full_wire_revolve_names_pi_band_and_poles() {
     // Cylinder: side 3 on the axis, full revolve → the wire case.
     let (doc, rev) = revolve_doc(
@@ -433,7 +513,11 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
 
 #[test]
 fn split_names_sections_fragments_and_crossings() {
-    let (doc, ext) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 2.0);
+    let (doc, ext) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        2.0,
+    );
     let (doc, plane) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -545,7 +629,11 @@ fn split_names_sections_fragments_and_crossings() {
 
 #[test]
 fn transform_passes_names_through_and_pattern_wraps_instances() {
-    let (doc, ext) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 1.0);
+    let (doc, ext) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        1.0,
+    );
     let (doc, tr) = insert(
         doc,
         Node::Transform {
@@ -593,7 +681,11 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
 
 #[test]
 fn declare_pairs_resolve_in_the_named_nodes_tables() {
-    let (doc, a) = cube(ProfileDoc::empty_derived("m4_pr3_names"), 0.0, 1.0);
+    let (doc, a) = cube(
+        ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
+        0.0,
+        1.0,
+    );
     let (doc, b) = cube(doc, 0.5, 1.0);
     let pair = (
         name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top)),

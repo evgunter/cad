@@ -8,7 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -20,35 +21,20 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
     // = 1, margin = 1/(2R). Choose S from the RESOLVED band so the
     // margin is mid-band: margin = sqrt(zero * escalate) (geometric
     // mean), R = 1/(2*margin).
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let margin = (band.zero() * band.escalate()).sqrt();
     let r_fillet = 1.0 / (2.0 * margin);
     let s = r_fillet / 0.25;
     let b = (std::f64::consts::PI / 8.0).tan();
     let mut lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(s, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(s, 0.75 * s),
-            bulge: b,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.75 * s, s),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, s),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(s, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(s, 0.75 * s), b),
+        ProfileVertex::new(Point2::new(0.75 * s, s), 0.0),
+        ProfileVertex::new(Point2::new(0.0, s), 0.0),
     ]);
-    lp.tangent_joints = vec![2, 3];
-    let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tolerance::get()) {
+    lp = lp.with_tangent_joints(vec![2, 3]);
+    let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Ok(p) => p,
         Err(e) => {
             // A typed profile-stage refusal is loud enough — record it.
@@ -56,7 +42,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
             return;
         }
     };
-    match extrude(&profile, Extrusion::Distance(1.0)) {
+    match extrude(&profile, Extrusion::Distance(1.0), Tol::witness()) {
         Err(e) => {
             // Loud at construction: acceptable per F6. The error must
             // not be a panic and should speak.
@@ -77,7 +63,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
                     Some(geom_brep::EdgeGeometry::TangentIntersection { .. })
                 )
             });
-            match topo::contact_marks(&body) {
+            match topo::contact_marks(&body, Tol::witness()) {
                 Err(errs) => {
                     eprintln!("IN-BAND-AT-REST: tier-3 walk escalated: {errs:?}");
                     assert!(

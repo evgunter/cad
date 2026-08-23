@@ -78,20 +78,21 @@ mod rest;
 pub(crate) mod sectors;
 pub mod solid_contain;
 pub mod tables;
+pub mod voids;
 pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real, Tol,
 };
 
 use crate::body::Body;
+use crate::chord_join::SplitJoinError;
 use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, FaceKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
 use crate::revert::RevertError;
-use crate::splitting::join::SplitJoinError;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
@@ -115,10 +116,16 @@ pub use rest::{
     flush_pair_relation, tangent_locus,
 };
 pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
+pub use voids::{VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void};
 
 /// Which regularized boolean is being computed — threaded through the
 /// classifier because on-case lumping (Eq. 15.3) is op-dependent.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// `Hash`/`Ord` are derived because this is also the DOCUMENT layer's
+/// operation (re-exported, never re-minted), where a node's fields are
+/// keyed and ordered. Ordering is declaration order and carries no
+/// meaning — nothing may read it as a ranking of the operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BooleanOp {
     /// A ∪* B.
     Union,
@@ -575,8 +582,23 @@ pub enum BooleanError {
         /// The band the clearance margins were classified against.
         band: Band,
     },
-    /// An edge carrier is not a `Line` (F5).
+    /// The operand gate (F5) refused a rung-3 (`Nurbs`) carrier in an
+    /// INPUT operand: rung-3 edges are what the curved zip MINTS, not
+    /// what it consumes.
     CurvedEdgeUnsupported {
+        /// The offending operand and edge.
+        operand: Operand,
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// The both-edges-split point lane needs a carrier with an exact
+    /// point parameter and got one without. `Circle` and `Ellipse`
+    /// reach here: the operand gate admits them, so this is a
+    /// **narrower** condition than the gate's, at a later stage — which
+    /// is exactly why it is its own variant rather than a second reach
+    /// of [`Self::CurvedEdgeUnsupported`]. One doc and one message
+    /// covering both could name neither.
+    PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
         /// The edge.
@@ -918,19 +940,16 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
                  classification this site required has no wired boolean arm for the \
-                 kind in this build (the refusal retires per C5 table arm, never \
-                 wholesale — C12.1). Pairs involving this kind route per \
+                 kind in this build (the refusal retires one table arm at a time, \
+                 never wholesale). Pairs involving this kind route per \
                  geom_brep::intersect::route; where a route is already implemented \
-                 at the INTERSECTION layer (plane×NURBS since PR 7b), what is \
-                 missing here is the boolean's own crossing layer for the kind — \
-                 edge×face sweep events, curved trim containment, and the fitted \
-                 chord join lane. M5 PR 9c landed the SPHERE half of the curved \
-                 containment/pierce door and reported the fitted-chord join lane \
-                 still open behind Pcurve::Fitted, whose certification envelope \
-                 needed the SSI enclosure stack lifted off f64. That lift LANDED at \
-                 M6-2 and Pcurve::Fitted with it, so the blocker here is now the \
-                 join lane itself — no cyl×sphere azimuth-window analog exists, and \
-                 building one is banked past M6 (M5-LOG PR 9c deviation 1)",
+                 at the INTERSECTION layer (plane×NURBS), what is missing here is \
+                 the boolean's own crossing layer for the kind — edge×face sweep \
+                 events, curved \
+                 trim containment, and the fitted chord join lane. The curved \
+                 containment/pierce door covers the sphere half; the blocker is the \
+                 fitted-chord join lane, which has no cyl×sphere azimuth-window \
+                 analog to read",
                 kind.name()
             ),
             Self::CurvedPierceUnsupported {
@@ -944,9 +963,9 @@ impl core::fmt::Display for BooleanError {
                  curved face {face:?} away from a shared boundary (clearance classified \
                  against band [zero {:e}, escalate {:e}]) — the curved pierce door \
                  (point-in-face trim containment on a curved chart, and the ring \
-                 insertion behind it) does not exist yet: the M5 envelope's typed \
-                 frontier. The same margin one band-width away escalates as a sliver \
-                 instead (F6); {}",
+                 insertion behind it) does not exist yet — this is the typed \
+                 frontier of the supported envelope. The same margin one band-width \
+                 away escalates as a sliver instead; {}",
                 band.zero(),
                 band.escalate(),
                 COINCIDENCE_RECOURSE
@@ -954,8 +973,15 @@ impl core::fmt::Display for BooleanError {
             Self::CurvedEdgeUnsupported { operand, edge } => write!(
                 f,
                 "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
-                 (Nurbs) carrier — rung-3 INPUT operands are outside the M5 envelope \
-                 (rung-3 edges are what the curved zip MINTS, not what it consumes)"
+                 (Nurbs) carrier — refused at the operand gate: rung-3 edges are what \
+                 the curved zip MINTS, not what it consumes"
+            ),
+            Self::PointSplitCarrierUnsupported { operand, edge } => write!(
+                f,
+                "boolean_reduce: edge {edge:?} of operand {operand:?} must be split at \
+                 an event point, and its carrier has no exact point parameter — only a \
+                 Line does. The operand gate admits Circle and Ellipse; this lane is \
+                 narrower, and refuses rather than solving for the parameter"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
@@ -965,39 +991,25 @@ impl core::fmt::Display for BooleanError {
             Self::NonMaximalFaces { operand, edge } => write!(
                 f,
                 "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
-                 {edge:?} (not maximal-faced, F7); run merge_coplanar_faces explicitly first"
+                 {edge:?} (not maximal-faced); run merge_coplanar_faces explicitly first"
             ),
             Self::CurvedOpUnsupported { op, operand, face } => write!(
                 f,
                 "boolean: {op:?} met a surface class with no seam lane (operand \
-                 {operand:?}, first such face {face:?}). This door was WHOLESALE \
-                 until M5 S12 — it refused every non-plane face, because \
-                 subtract/intersect route regions through revert \
-                 (A∖B ≡ A∩revert(B)) and curved revert had nothing it could \
-                 write on a curved face. That gap is CLOSED: S10 ratified Face::sense, S11 made the \
-                 constructors' bits honest, S12 wired revert to flip them, and \
-                 plane×CYLINDER subtract and intersect are now live and pinned \
-                 end-to-end (blind and through holes, exact closed-form volumes, \
-                 tier 3, both sweep strategies). The SPHERE class went live in M5 \
-                 S13 (the plane×sphere germ arm plus the extent-certified fallback \
-                 re-cut), so this door no longer stops it. What is still refused is \
-                 per class, and the blocker is a JOIN lane, not revert: a cone or \
-                 torus germ pair has no seam lane at all (M5 PR 9c deviation 1 \
-                 lineage — the germ-pair dispatch wires (Plane, Cylinder) and \
+                 {operand:?}, first such face {face:?}). The refusal is PER CLASS: \
+                 plane×CYLINDER and plane×SPHERE subtract and intersect are live \
+                 (blind and through holes, exact closed-form volumes, tier 3, both \
+                 sweep strategies). What is still refused is blocked on a JOIN \
+                 lane, not on revert: a cone or torus germ pair has no seam lane at \
+                 all — the germ-pair dispatch wires (Plane, Cylinder) and \
                  (Plane, Sphere) only, and a cyl×sphere fitted-chord window has no \
-                 window analog to read; Pcurve::Fitted itself LANDED at M6-2, so \
-                 the blocker there is the unwired join lane, banked past M6), and \
-                 a NURBS face has no crossing layer \
-                 (deviation 5). The refusal is UP FRONT and structural because the \
-                 downstream failure is SILENT, not typed: with no crossings found \
-                 the pipeline falls through to vertex-probed containment, and a \
-                 curved face leaves the other solid between its vertices with no \
-                 vertex noticing — the executed witness was the sphere-class row \
-                 finding_sphere_class_containment_fallback_is_wrong_today (flipped \
-                 to its construction row by S13's extent scan; the scan refuses \
-                 typed for the classes it cannot certify rather than re-opening \
-                 that silence). Recourse: express the cut with cylindrical or \
-                 spherical tooling, or wait on the join lane"
+                 window analog to read — and a NURBS face has no crossing layer. \
+                 The refusal is UP FRONT and structural because the downstream \
+                 failure is SILENT, not typed: with no crossings found the \
+                 pipeline falls through to vertex-probed containment, and a curved \
+                 face leaves the other solid between its vertices with no vertex \
+                 noticing. Recourse: express the cut with cylindrical or spherical \
+                 tooling, or wait on the join lane"
             ),
             Self::NurbsExtentUnsupported { operand, face } => write!(
                 f,
@@ -1006,13 +1018,12 @@ impl core::fmt::Display for BooleanError {
                  written for the kind: implicit_residual(Nurbs) is poison, so a certified \
                  extent would have to be argued through a foot point plus a bound on how \
                  far the patch reaches past it, and no such argument has been written. \
-                 The projection half of the old blocker is GONE — M6-2 lifted \
-                 NurbsSurface::project off its impl NurbsSurface<f64> block to any \
-                 bracket-carrying scalar, so the Interval lane is no longer the \
-                 obstacle. The class is re-gated HERE, typed and pinned (M5 S13), so a \
-                 future NURBS body constructor cannot re-open the vertex-probe silence \
-                 the S12 finding executed. Recourse: write the NURBS extent test, then \
-                 retire this gate per class"
+                 Projection is not the obstacle: NurbsSurface::project is generic \
+                 over any bracket-carrying scalar, so the Interval lane is \
+                 available. The class is re-gated HERE, typed and pinned, so a future \
+                 NURBS body constructor cannot re-open the vertex-probe silence. \
+                 Recourse: write the NURBS extent test, then retire this gate per \
+                 class"
             ),
             Self::FallbackExtentUnsupported {
                 operand,
@@ -1020,15 +1031,15 @@ impl core::fmt::Display for BooleanError {
                 what,
             } => write!(
                 f,
-                "boolean fallback: the curved-extent scan (M5 S13) cannot certify the \
+                "boolean fallback: the curved-extent scan cannot certify the \
                  no-crossings configuration at face {face:?} of operand {operand:?}: \
                  {what}. The vertex-probed answer a curved boundary defeats is never \
-                 given (the S12 finding's silence stays closed); refused typed instead"
+                 given; refused typed instead"
             ),
             Self::Pcurves { source } => write!(
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
-                 certified per-half-edge pcurves at rest, M5 PR 9): {source}"
+                 certified per-half-edge pcurves at rest): {source}"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -1073,8 +1084,8 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "boolean op: the declared {} contact between faces {:?} and {:?} is \
-                 contradicted by {} — every definite verdict wins over every declaration \
-                 (C4); {}{}",
+                 contradicted by {} — every definite verdict wins over every declaration; \
+                 {}{}",
                 declaration.class.name(),
                 declaration.a,
                 declaration.b,
@@ -1104,7 +1115,7 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: null-edge pairing mismatch at vertex pair \
                  ({a_vertex:?}, {b_vertex:?}): a surviving crossing-record pair is not \
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
-                 refusal, F12)"
+                 refusal)"
             ),
             Self::ClassificationInvariant { what } => {
                 write!(
@@ -1130,7 +1141,7 @@ impl core::fmt::Display for BooleanError {
             Self::Join(e) => write!(f, "boolean op: joining refused: {e}"),
             Self::RestZipUnsupported { what } => write!(
                 f,
-                "boolean op: declared-REST union zip (M5 S1): {what} — a named \
+                "boolean op: declared-REST union zip: {what} — a named \
                  sub-frontier of the boundary-on-boundary REST lane (planar declared \
                  contacts whose seam splits cleanly are covered); \
                  {COINCIDENCE_RECOURSE}"
@@ -1168,8 +1179,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean op: kernel invariant violated — this is a bug in the kernel, not in \
                  your geometry: {which} failed (got {got}, bound {bound}); no such body is \
-                 returned. Please report it, with the model that produced it (the ledger's \
-                 invariant/debt tracking lane — the issue #214 pattern)"
+                 returned. Please report it, with the model that produced it"
             ),
             Self::UnrepresentableResult => write!(
                 f,
@@ -1204,8 +1214,9 @@ pub fn boolean_reduce<T: Decide + Bounds>(
     op: BooleanOp,
     a_operand: &Body<T>,
     b_operand: &Body<T>,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none())
+    boolean_reduce_declared(op, a_operand, b_operand, &BooleanDeclarations::none(), tol)
 }
 
 /// [`boolean_reduce`] with declared coincidence intents (F5, M4
@@ -1222,8 +1233,16 @@ pub fn boolean_reduce_declared<T: Decide + Bounds>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    boolean_reduce_declared_strategy(op, a_operand, b_operand, decls, SweepStrategy::Realized)
+    boolean_reduce_declared_strategy(
+        op,
+        a_operand,
+        b_operand,
+        decls,
+        SweepStrategy::Realized,
+        tol,
+    )
 }
 
 /// The differential suite's sweep-level door (PERF-PLAN §4.4 / C10,
@@ -1249,8 +1268,9 @@ pub fn sweep_traces<T: Decide + Bounds>(
     b_operand: &Body<T>,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
+    tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None)
+    sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
 }
 
 /// [`sweep_traces`] with a PAD OVERRIDE (fix-pass pin 1b): the suite
@@ -1268,10 +1288,11 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
+    tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
-    let band = Band::linear()?;
-    reduce::gate_planar(a_operand, Operand::A)?;
-    reduce::gate_planar(b_operand, Operand::B)?;
+    let band = Band::linear(tol)?;
+    reduce::gate_operand_kinds(a_operand, Operand::A)?;
+    reduce::gate_operand_kinds(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -1299,6 +1320,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         strategy,
         &ab_knobs,
         Some(&mut ab),
+        tol,
     )?;
     reduce::sweep_direction(
         &mut b,
@@ -1309,6 +1331,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         strategy,
         &ba_knobs,
         Some(&mut ba),
+        tol,
     )?;
     Ok((ab, ba))
 }
@@ -1323,13 +1346,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     b_operand: &Body<T>,
     decls: &BooleanDeclarations,
     strategy: SweepStrategy,
+    tol: Tol,
 ) -> Result<BooleanReduction<T>, BooleanError> {
-    let band = Band::linear()?;
+    let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
-    reduce::gate_planar(a_operand, Operand::A)?;
-    reduce::gate_planar(b_operand, Operand::B)?;
+    reduce::gate_operand_kinds(a_operand, Operand::A)?;
+    reduce::gate_operand_kinds(b_operand, Operand::B)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -1348,6 +1372,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         strategy,
         &knobs,
         None,
+        tol,
     )?;
     reduce::sweep_direction(
         &mut b,
@@ -1358,6 +1383,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         strategy,
         &knobs,
         None,
+        tol,
     )?;
     let contacts = acc.finish();
 
@@ -1367,15 +1393,31 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
-        let out =
-            vtxfac::classify_vertex_on_face(&mut a, &mut b, Operand::A, c, op, &declared, band)?;
+        let out = vtxfac::classify_vertex_on_face(
+            &mut a,
+            &mut b,
+            Operand::A,
+            c,
+            op,
+            &declared,
+            band,
+            tol,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
     }
     for &c in &contacts.b_on_a {
-        let out =
-            vtxfac::classify_vertex_on_face(&mut b, &mut a, Operand::B, c, op, &declared, band)?;
+        let out = vtxfac::classify_vertex_on_face(
+            &mut b,
+            &mut a,
+            Operand::B,
+            c,
+            op,
+            &declared,
+            band,
+            tol,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
@@ -1505,7 +1547,7 @@ fn validate_declarations<T: Decide>(
             .get_face(f)
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         match body.get_surface(face.surface) {
-            Some(geom_surfaces::Surface::Plane { .. }) => Ok(()),
+            Some(geom::Surface::Plane { .. }) => Ok(()),
             Some(_) => Err(bad(operand, "declared face is not a plane")),
             None => Err(bad(operand, "declared face lost its surface")),
         }
@@ -1638,6 +1680,6 @@ mod tests {
         .to_string();
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         assert!(msg.contains("contact patch face carries rings"), "{msg}");
-        assert!(msg.contains("M5 S1"), "{msg}");
+        assert!(msg.contains("declared-REST union zip"), "{msg}");
     }
 }

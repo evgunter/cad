@@ -1,18 +1,18 @@
-//! The §L4 typed quantities: `25 * mm` constructs a `Length`.
+//! The typed quantities: `25 * mm` constructs a `Length`.
 //!
 //! These mirror `crates/quantity` exactly — canonical metres and
-//! radians underneath (GQ5), and the SAME infallible arithmetic
+//! radians underneath, and the SAME infallible arithmetic
 //! subset: same-dimension add/sub, negation, scalar scaling, scalar
 //! division. `quantity` refuses everything else by having no `impl`
 //! for it; Python has no compile step to refuse at, so those cases
 //! become typed `DimensionError` raises here. That is the whole of
-//! §L4's "runtime checks live at the Rust boundary, once".
+//! the rule that runtime checks live at the Rust boundary, once.
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use crate::errors::{DimensionError as DimErr, ErrorClass, dimension_tag};
+use crate::errors::{ErrorClass, QuantityOpMismatch, dimension_tag};
 use crate::py::typed_err;
 use pncad::document::Dimension;
 use pncad::quantity as q;
@@ -48,7 +48,7 @@ fn mismatch(py: Python<'_>, op: &'static str, left: Dimension, other: &Bound<'_,
     typed_err(
         py,
         ErrorClass::Dimension,
-        DimErr::new(op, left, right).to_string(),
+        QuantityOpMismatch::new(op, left, right).to_string(),
         &[
             ("op", text(op)),
             ("left", text(dimension_tag(left))),
@@ -142,7 +142,7 @@ macro_rules! continuous_quantity {
 pub(crate) struct Length(pub(crate) q::Length);
 
 continuous_quantity!(Length, Dimension::Length, meters, {
-    /// The value in metres — the canonical unit (GQ5).
+    /// The value in metres — the canonical unit.
     #[getter]
     fn meters(&self) -> f64 {
         self.0.meters()
@@ -164,7 +164,7 @@ continuous_quantity!(Length, Dimension::Length, meters, {
 pub(crate) struct Angle(pub(crate) q::Angle);
 
 continuous_quantity!(Angle, Dimension::Angle, radians, {
-    /// The value in radians — the canonical unit (GQ5).
+    /// The value in radians — the canonical unit.
     #[getter]
     fn radians(&self) -> f64 {
         self.0.radians()
@@ -227,13 +227,13 @@ impl LengthUnit {
     /// The unit's symbol, e.g. `"mm"`.
     #[getter]
     fn symbol(&self) -> &'static str {
-        self.0.symbol
+        self.0.symbol()
     }
 
     /// Metres per unit.
     #[getter]
     fn factor(&self) -> f64 {
-        self.0.factor
+        self.0.factor()
     }
 
     fn __rmul__(&self, value: f64) -> Length {
@@ -245,7 +245,7 @@ impl LengthUnit {
     }
 
     fn __repr__(&self) -> String {
-        format!("LengthUnit({})", self.0.symbol)
+        format!("LengthUnit({})", self.0.symbol())
     }
 }
 
@@ -260,13 +260,13 @@ impl AngleUnit {
     /// The unit's symbol, e.g. `"deg"`.
     #[getter]
     fn symbol(&self) -> &'static str {
-        self.0.symbol
+        self.0.symbol()
     }
 
     /// Radians per unit.
     #[getter]
     fn factor(&self) -> f64 {
-        self.0.factor
+        self.0.factor()
     }
 
     fn __rmul__(&self, value: f64) -> Angle {
@@ -278,7 +278,7 @@ impl AngleUnit {
     }
 
     fn __repr__(&self) -> String {
-        format!("AngleUnit({})", self.0.symbol)
+        format!("AngleUnit({})", self.0.symbol())
     }
 }
 

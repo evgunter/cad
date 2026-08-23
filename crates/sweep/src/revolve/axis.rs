@@ -12,7 +12,8 @@
 use geom_core::{Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 use profile::ValidatedProfile;
 
-use super::{RevolveAxis, RevolveError, SweptKind, SweptSeg, arc_apex, arc_span, decide};
+use super::{RevolveAxis, RevolveError, SweptSeg};
+use crate::swept::{SweptKind, arc_apex, arc_span, decide};
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -130,12 +131,12 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
             if let profile::SegmentKind::Arc { center, radius, .. } = s.kind {
-                let apex = apex_of(s.start, s.end, s.bulge);
+                let apex = arc_apex(s.start, s.end, s.bulge);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
                 // c ± R·ê_r, each folded in iff on the arc. The arc is
                 // the chord side of sign −bulge (apex side; see
-                // `apex_of`), so with the chord normal
+                // `arc_apex`), so with the chord normal
                 // n = (−chord.y, chord.x) the membership margin is
                 // −bulge·((p − a)·n) ≥ 0.
                 let chord = s.end - s.start;
@@ -149,17 +150,6 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
         }
     }
     r_max
-}
-
-/// The arc apex from raw endpoint/bulge data (the same closed form as
-/// [`super::arc_apex`], usable outside swept traversals).
-fn apex_of<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<T> {
-    let chord = b - a;
-    let len = chord.norm();
-    let u = chord.normalize();
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = a.lerp(b, T::from_f64(0.5));
-    mid - nhat * (len * bulge * T::from_f64(0.5))
 }
 
 /// A vertex's axis-contact class (swept order).
@@ -333,14 +323,14 @@ pub(super) fn classify_loop<T: Decide>(
 ///   above exactly when the canonical traversal runs outward, so
 ///   `sense = (canonical Δr < 0)`.
 /// - **Sphere & torus** (chart normal away from the on-meridian
-///   carrier center): the center lies left of the traversal iff the
-///   canonical turn is `Positive` (a counterclockwise arc curves
-///   around its center), so `sense = (canonical turn == Positive)` —
-///   the same concave-arc criterion as extrude's cylinder walls.
+///   carrier center): the sense is
+///   [`crate::swept::centre_on_material_side`] of the canonical turn —
+///   one body, shared with extrude's cylinder walls, which carries the
+///   derivation and the `Zero` totality posture.
 ///
-/// Unreachable `Zero` signs (a degenerate segment survives to here
-/// only as a kernel bug) keep the convex/outward arm, `sense: true` —
-/// the `turn_axis` totality posture.
+/// Unreachable `Zero` signs on the LINE arms (a degenerate segment
+/// survives to here only as a kernel bug) keep the convex/outward arm,
+/// `sense: true` — the `turn_axis` totality posture.
 #[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
 fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
@@ -402,9 +392,9 @@ fn classify_segment<T: Decide>(
             radius,
             turn,
         } => {
-            // Arc walls' sense (doc above): the carrier center is on
-            // the material side iff the canonical turn is Positive.
-            let sense = !matches!(canonical(turn), Sign::Negative);
+            // Arc walls' sense (doc above), through the shared rule —
+            // the same body extrude's cylinder walls read.
+            let sense = crate::swept::centre_on_material_side(canonical(turn));
             let rc = frame.r(center);
             match decide("axis_arc_center", Margin::of(rc), band).map_err(escalated)? {
                 Sign::Zero => {
@@ -423,7 +413,7 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    let r_apex = frame.r(arc_apex(s));
+                    let r_apex = frame.r(arc_apex(s.a, s.b, s.bulge));
                     match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing
@@ -546,7 +536,8 @@ pub(super) fn analyze_contact<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::Tolerance;
+    use geom_core::Tol;
+
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 
@@ -561,17 +552,11 @@ mod tests {
         let at = |phi: f64| Point2::new(cx + r * phi.cos(), r * phi.sin());
         let span = phi_b - phi_a; // counterclockwise, radians
         let lp = ProfileLoop::new(vec![
-            ProfileVertex {
-                pos: at(phi_a),
-                bulge: (span / 4.0).tan(),
-            },
-            ProfileVertex {
-                pos: at(phi_b),
-                bulge: 0.0,
-            },
+            ProfileVertex::new(at(phi_a), (span / 4.0).tan()),
+            ProfileVertex::new(at(phi_b), 0.0),
         ]);
         Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap()
     }
 
@@ -580,7 +565,12 @@ mod tests {
             origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         };
-        AxisFrame::build(vp.plane().placement, &axis, Band::linear().unwrap()).unwrap()
+        AxisFrame::build(
+            vp.plane().placement,
+            &axis,
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap()
     }
 
     /// NIT-1 regression: an arc from −90° to 130° contains the carrier

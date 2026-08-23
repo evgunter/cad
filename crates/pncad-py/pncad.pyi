@@ -16,7 +16,7 @@ ATTRIBUTES, never as prose to be parsed.
 
 Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
-`PathOnArc` and the arrival builders, `Start`, `circle`,
+the arrival builders, `Start`, `circle`,
 `circle_split`) plus the straight-segment shortcut `Node.polygon`;
 one loop or a list of them, on any sketch plane. Arcs — sharp legs
 and the fillet family alike — are authored by SPEC MODE (`Bulge`,
@@ -41,7 +41,7 @@ from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
 # Every subclass carries its refusal as ATTRIBUTES, never as parsed
-# prose (§L4).
+# prose.
 
 class PncadError(Exception):
     """Base class for every refusal this module raises."""
@@ -58,11 +58,10 @@ class EvaluationError(PncadError):
     `node_failed`, or `poisoned`. `kind` (the `NodeErrorKind`'s
     stable tag), `through` (the nearest failed ancestor) and
     `finding` (the refusal-menu payload) are always present, `None`
-    where the reason has none (LIB-DOORS F3; attributes never go
-    missing).
+    where the reason has none (attributes never go missing).
 
-    `finding` is the boolean's refusal MENU (register R3, LIB-PYG5):
-    when `kind == "undeclared_contact"`, it carries the candidate
+    `finding` is the boolean's refusal MENU: when
+    `kind == "undeclared_contact"`, it carries the candidate
     declaration as a typed `FlushFinding` — the same value
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
@@ -82,7 +81,15 @@ class ValidationError(PncadError):
     failure_count: int
 
 class DimensionError(PncadError):
-    """A dimension mismatch at the quantity boundary."""
+    """An operator applied to two QUANTITIES whose dimensions do not
+    admit it — `1 * m + 1 * rad`.
+
+    The quantity boundary only, and not the library's only dimension
+    check. The document layer's own refusal type reaches Python
+    through literal construction (as LiteralError) and through `load`,
+    where a save file's ill-dimensioned expression arrives as
+    PersistError with `variant == "parse"` rather than as any
+    dimension class (issue #694)."""
 
     op: str
     left: str
@@ -90,18 +97,25 @@ class DimensionError(PncadError):
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
-    curated error, LIB-DOORS F5). `value` is the offending number."""
+    curated error). `value` is the offending number.
+
+    Not DimensionError, which is the quantity boundary's operator
+    check. The expression layer's refusal type has dimension-mismatch
+    arms too, and `load` does reach them from a hand-edited save file
+    — but they arrive as PersistError with `variant == "parse"`, not
+    here (issue #694). Every `kind` raised on this class is a
+    literal-value refusal."""
 
     kind: str
     value: float
 
 class PersistError(PncadError):
-    """A save or load the persistence doors refused (LIB-DOORS F1)."""
+    """A save or load the persistence doors refused."""
 
     variant: str
 
 class ExportError(PncadError):
-    """The document-layer export door refused (LIB-DOORS F2).
+    """The document-layer export door refused.
     `through` (poisoning ancestor) and `kind` (the wrong-kind value's
     tag) are always present, `None` where inapplicable."""
 
@@ -111,8 +125,18 @@ class ExportError(PncadError):
     kind: Optional[str]
 
 class StepImportError(PncadError):
-    """A STEP text the importer refused (`refused`), or one that
-    parsed to a non-solid (`wireframe`)."""
+    """A STEP text the importer refused, or one that parsed to a
+    non-solid.
+
+    `variant` is the importer's own refusal tag — `syntax`,
+    `dangling_reference`, `wrong_entity_type`, `malformed_record`,
+    `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
+    `structure`, `missing_uncertainty`, `invalid_eps_override`,
+    `declaration_unresolved`, `malformed_real`, `topology`,
+    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
+    `tier_invalid` — or `wireframe`, which is not a refusal at all:
+    the file parsed, to something this door does not adopt."""
 
     variant: str
 
@@ -144,8 +168,34 @@ class SelectRefusal(PncadError):
     found: Optional[str]
     dim: Optional[str]
 
+class FrameError(PncadError):
+    """A frame constructor refused its inputs — a direction that was
+    not DEFINITELY usable, or a tolerance yielding no usable band.
+
+    `variant` is `degenerate_aim`, `degenerate_tangent`,
+    `degenerate_roll_reference`, `degenerate_reference_ladder`,
+    `degenerate_mirror_normal`, or `band`."""
+
+    variant: str
+
+class IdentityError(PncadError):
+    """A document identity could not be minted. Identity is never
+    defaulted — two documents sharing an id are the same part, and a
+    workspace refuses to hold both.
+
+    `variant` is the workspace refusal's own tag:
+    `randomness_unavailable`, `io`, `duplicate_id`, `header`,
+    `unknown_id`, `load`, `pin`, `pin_mismatch`, `save` or `update`.
+    Only `randomness_unavailable` is reachable through this door today
+    — minting an identity has one failure mode, the OS entropy source
+    refusing — but the tag names the refusal that actually occurred, so
+    a second one would arrive under its own name rather than this
+    one."""
+
+    variant: str
+
 # --- quantities -------------------------------------------------------
-# Canonical metres and radians underneath (GQ5). The arithmetic is
+# Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
 # DimensionError.
 
@@ -299,6 +349,10 @@ _Pt: TypeAlias = tuple[Length, Length]
 # incoming-side set (a fused verb's incoming ends at its own anchor, so
 # `Start` is not one of them).
 _PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
+# A DIRECTED-POINT tip's fused-incoming set: the endpoint-full trio
+# plus `Radius` — arc extension (carrier derived from the tip's own
+# position and tangent; the incoming side's anchor is the tip).
+_LegEndIncoming: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt] | Radius
 _PointClose: TypeAlias = Bulge[StartToken] | Via[StartToken] | Center[StartToken]
 _Tangent: TypeAlias = Sweep | ArcLen
 
@@ -317,7 +371,7 @@ class Open:
     @staticmethod
     def arc_fillet_arc(
         spec: Center[_Pt], radius: Length, spec2: Center[_Pt]
-    ) -> PathOnArc: ...
+    ) -> PathDirectedPoint: ...
     @overload
     @staticmethod
     def arc_fillet_arc(
@@ -355,34 +409,6 @@ class PathAngle:
     def at(self, p: tuple[Length, Length]) -> PathDirected: ...
     def to(self, anchor: tuple[Length, Length]) -> PathDirectedPoint: ...
 
-class PathOnArc:
-    """A tip continuing ON an arrival carrier: position and tangent
-    bound, the carrier run into the next trim still unemitted. Only the
-    verbs that AUTHOR their incoming carrier continue it, and `Radius`
-    is the one mode that re-derives it from these two bits."""
-
-    def arc_fillet(self, spec: Radius, radius: Length) -> PathOpen: ...
-    @overload
-    def arc_fillet_arc(
-        self, spec: Radius, radius: Length, spec2: Center[_Pt]
-    ) -> PathOnArc: ...
-    @overload
-    def arc_fillet_arc(
-        self, spec: Radius, radius: Length, spec2: Center[StartToken]
-    ) -> ClosedLoop: ...
-    @overload
-    def arc_fillet_arc(
-        self, spec: Radius, radius: Length, spec2: Radius
-    ) -> PathRadiusArrival: ...
-    @overload
-    def arc_fillet_arc(
-        self, spec: Radius, radius: Length, spec2: Via[_Pt]
-    ) -> PathViaArrival: ...
-    @overload
-    def arc_fillet_arc(
-        self, spec: Radius, radius: Length, spec2: Via[StartToken]
-    ) -> PathViaArrivalStart: ...
-
 class PathRadiusArrival:
     """A `Radius` arrival awaiting both binders, in either order."""
 
@@ -393,19 +419,19 @@ class PathRadiusArrival:
 class PathRadiusArrivalAt:
     """A `Radius` arrival with its anchor bound, director pending."""
 
-    def angle(self, theta: Angle) -> PathOnArc: ...
-    def toward(self, dx: float, dy: float) -> PathOnArc: ...
+    def angle(self, theta: Angle) -> PathDirectedPoint: ...
+    def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
 
 class PathRadiusArrivalDir:
     """A `Radius` arrival with its director bound, anchor pending."""
 
-    def at(self, p: tuple[Length, Length]) -> PathOnArc: ...
+    def at(self, p: tuple[Length, Length]) -> PathDirectedPoint: ...
 
 class PathViaArrival:
     """A `Via` arrival: the anchor rides the spec, one director left."""
 
-    def angle(self, theta: Angle) -> PathOnArc: ...
-    def toward(self, dx: float, dy: float) -> PathOnArc: ...
+    def angle(self, theta: Angle) -> PathDirectedPoint: ...
+    def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
 
 class PathViaArrivalStart:
     """A `Via` arrival that CLOSES: one director left, at the entry."""
@@ -431,7 +457,7 @@ class PathPoint:
     @overload
     def arc_fillet_arc(
         self, spec: _PointLeg, radius: Length, spec2: Center[_Pt]
-    ) -> PathOnArc: ...
+    ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
         self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
@@ -460,7 +486,7 @@ class PathDirectedPoint:
     def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathOnArc: ...
+    def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
     @overload
@@ -479,26 +505,26 @@ class PathDirectedPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
-    def arc_fillet(self, spec: _PointLeg, radius: Length) -> PathOpen: ...
+    def arc_fillet(self, spec: _LegEndIncoming, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Center[_Pt]
-    ) -> PathOnArc: ...
+        self, spec: _LegEndIncoming, radius: Length, spec2: Center[_Pt]
+    ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
+        self, spec: _LegEndIncoming, radius: Length, spec2: Center[StartToken]
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Radius
+        self, spec: _LegEndIncoming, radius: Length, spec2: Radius
     ) -> PathRadiusArrival: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Via[_Pt]
+        self, spec: _LegEndIncoming, radius: Length, spec2: Via[_Pt]
     ) -> PathViaArrival: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Via[StartToken]
+        self, spec: _LegEndIncoming, radius: Length, spec2: Via[StartToken]
     ) -> PathViaArrivalStart: ...
 
 class PathDirected:
@@ -508,7 +534,7 @@ class PathDirected:
     def line(self, len: Length) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathOnArc: ...
+    def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
     @overload
@@ -524,7 +550,7 @@ class PathDirected:
     @overload
     def arc_fillet_arc(
         self, spec: _Tangent, radius: Length, spec2: Center[_Pt]
-    ) -> PathOnArc: ...
+    ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
         self, spec: _Tangent, radius: Length, spec2: Center[StartToken]
@@ -559,13 +585,13 @@ def circle_split(
 # --- document ---------------------------------------------------------
 
 class NodeId:
-    """A recipe node's identity. NOT an arena key (§L3)."""
+    """A recipe node's identity. NOT an arena key."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
 class BooleanOp:
-    """The DOCUMENT-layer Boolean operator."""
+    """The regularized Boolean operator."""
 
     Union: Final[BooleanOp]
     Intersect: Final[BooleanOp]
@@ -613,6 +639,108 @@ class SketchPlane:
     # Equality is BIT-exact — Rust's `SketchPlane::bit_eq`, crossing
     # unchanged. A sketch plane carries no epsilon, so `-0.0` keeps its
     # own identity rather than being folded into `0.0`.
+
+class Frame:
+    """An ABSOLUTE placement: a linear part and a translation.
+
+    The value `PatternKind.explicit` lists and `Node.placed_union_at`
+    places a prototype at. It is authored through constructors rather
+    than field by field — a linear part is a MATRIX, and that is how a
+    mirror or a shear arrives by accident. Improper frames
+    (determinant <= 0) are refused at the edit door, not admitted.
+
+    Rigidity is not claimed here: the edit door checks that the
+    coordinates are finite and the determinant positive, and the
+    kernel's placement door owns the rest.
+    """
+
+    @staticmethod
+    def translation(v: tuple[Length, Length, Length]) -> Frame: ...
+    @staticmethod
+    def rotate_then_translate(
+        axis: tuple[float, float, float],
+        angle: Angle,
+        v: tuple[Length, Length, Length],
+    ) -> Frame:
+        """Rotate about `axis` through the WORLD ORIGIN, THEN
+        translate — `Node.transform`'s own order, so a placement and a
+        modeled transform of the same part agree BIT FOR BIT. A
+        zero-length axis yields a non-finite frame, refused typed at
+        the edit door."""
+
+    @staticmethod
+    def point_at(
+        eye: tuple[Length, Length, Length],
+        target: tuple[Length, Length, Length],
+        roll_reference: tuple[float, float, float],
+    ) -> Frame:
+        """The frame at `eye` whose local +Z aims at `target`, rolled
+        by `roll_reference`. A reference parallel to the aim, or a
+        zero-length aim, raises FrameError."""
+
+    @staticmethod
+    def path_start_frame(
+        origin: tuple[Length, Length, Length],
+        tangent: tuple[float, float, float],
+    ) -> Frame:
+        """The frame at `origin` whose local +Z is `tangent`, so the
+        local XY plane is a swept profile's plane. The roll comes from
+        a stated ladder (world +Z, then world +X); if neither is
+        definitely off the tangent line it raises FrameError."""
+
+    @staticmethod
+    def mirror_across_plane(
+        point: tuple[Length, Length, Length],
+        normal: tuple[float, float, float],
+    ) -> Frame:
+        """Reflection across the plane through `point` — an IMPROPER
+        frame (determinant -1). Constructible as a value; NOT
+        placeable, since the edit door refuses a mirror placement."""
+
+    @property
+    def columns(self) -> tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]: ...
+    @property
+    def origin(self) -> tuple[Length, Length, Length]:
+        """The image of the coordinate origin — the Rust value's
+        `translation` field. Spelled `origin` because `translation` is
+        already this class's pure-translation constructor."""
+
+    @property
+    def determinant(self) -> float: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+    # Equality is BIT-exact — Rust's `Frame::bit_eq`, crossing
+    # unchanged: a frame carries no epsilon, so `-0.0` keeps its own
+    # identity rather than being folded into `0.0`.
+
+class PatternKind:
+    """A pattern's replication rule: how a prototype's placements are
+    generated.
+
+    Three rules and no fourth. The two PARAMETRIC ones step and take
+    their count from the node's structural slot; the EXPLICIT one
+    lists absolute frames, and the list IS the count — which is why
+    `Node.placed_union_at` takes no count at all.
+    """
+
+    @staticmethod
+    def linear(
+        direction: tuple[float, float, float], spacing: Length
+    ) -> PatternKind: ...
+    @staticmethod
+    def circular(axis: NodeId, step: Angle) -> PatternKind:
+        """Stepped around `axis`, an upstream `datum_axis` node."""
+
+    @staticmethod
+    def explicit(frames: list[Frame]) -> PatternKind:
+        """Instances at the frames listed, in order — the index is
+        what a name's instance segment carries. An empty list raises
+        EditError (`empty_placement_list`) at insert."""
 
 class Node:
     """A recipe node, before insertion."""
@@ -699,6 +827,32 @@ class Node:
         detects (the ruled no-fusion boundary), and an empty list
         raises EditError (`no_findings`)."""
 
+    @staticmethod
+    def placed_union(input: NodeId, count: int, kind: PatternKind) -> Node:
+        """The group boolean over a PARAMETRIC rule: one prototype,
+        `count` placements stepped by `kind`, ONE body out.
+
+        The value is an ordinary body, so every downstream door
+        consumes it with no new arms — which is exactly what a
+        pattern's plural payload cannot do. `count` is a plain `int`,
+        the structural-slot exception to the typed-quantity rule
+        (`Node.loft`'s `v_degree` precedent): a Count is an integer in
+        the kernel's own expression language, not a measurement.
+
+        Disjointness is CERTIFIED: overlapping placements raise
+        EvaluationError (`placements_uncertified`) naming the pair,
+        and the certificate is sufficient-not-necessary, so a
+        touching-but-disjoint arrangement refuses too. An `explicit`
+        rule raises EditError (`placement_rule_mismatch`) here — it
+        carries its own count, and `placed_union_at` is its door."""
+
+    @staticmethod
+    def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:
+        """The group boolean over LISTED absolute frames. No count
+        argument, because the list IS the count. An empty list, a
+        non-finite frame, or an improper one raises EditError at
+        insert."""
+
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
     key: the same plain name the recipe's expressions reference."""
@@ -732,7 +886,8 @@ class DocParam:
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
 class DocEdit:
-    """A single edit — the G1 edit vocabulary (§L3)."""
+    """A single edit — the one edit vocabulary the GUI, the bindings and
+    headless tests all speak."""
 
     @staticmethod
     def insert_node(node: Node) -> DocEdit: ...
@@ -742,11 +897,36 @@ class DocEdit:
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
+    @staticmethod
+    def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
+        """Bind `node`'s STRUCTURAL count slot to the document
+        parameter `name`, so one `set_doc_param` re-counts the
+        placements and recomputes exactly what is downstream.
+
+        Deliberately narrow: the slot is the count and the expression
+        is a parameter reference, so no expression algebra crosses and
+        the edit cannot be aimed at a continuous slot. The edit's own
+        refusals stay live — a node with no count slot, an unknown
+        parameter, a parameter of the wrong dimension."""
 
 class Doc:
     """A parametric document: the recipe, not the geometry."""
 
-    def __init__(self) -> None: ...
+    def __init__(self, label: Optional[str] = None) -> None:
+        """An empty document.
+
+        `Doc()` mints a FRESH random identity, so two documents
+        authored here are two parts and one workspace holds both.
+        `Doc(label)` derives the id from the label instead — same
+        label, same id, on every platform, which makes it the
+        reproducible spelling and, deliberately, the one that makes
+        two same-label documents the SAME part. Raises IdentityError
+        if the OS entropy source refuses."""
+    @property
+    def id(self) -> str:
+        """This document's identity as 32 lowercase hex digits — the
+        save file's `id:` header, and the workspace store's key.
+        Identity survives every edit; it is not a content hash."""
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     def insert(self, node: Node) -> NodeId: ...
     def declare(self, finding: FlushFinding) -> NodeId:
@@ -770,7 +950,7 @@ class Doc:
 
 class Loaded:
     """A loaded document: snapshot, replayed current state, and the
-    replayed edit count (LIB-DOORS F1)."""
+    replayed edit count."""
 
     @property
     def doc(self) -> Doc: ...
@@ -784,7 +964,7 @@ def load(text: str) -> Loaded:
     PersistError, typed."""
 
 # --- selectors --------------------------------------------------------
-# The narrowing language (LIB-PYSEL, audit G13). Patterns and
+# The narrowing language. Patterns and
 # predicates are VALUES built here and evaluated in Rust by
 # `Evaluation.select` / `select_where`; nothing on this side reads
 # geometry or name text. The builder verbs return NEW values (Rust's
@@ -1028,15 +1208,15 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
-# --- detect / declare (LIB-PYG5, audit G5) ---------------------------
+# --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
 # caller inspects, and `Node.declare` / `Doc.declare` /
 # `Doc.declare_all` turn inspected findings into the `Declare` node
 # `Node.boolean`'s `declare=` consumes. The same value rides the
 # boolean's refusal menu (`EvaluationError.finding`). Detection and
-# declaration are separate doors ON PURPOSE (no fused
-# detect-and-declare exists, by ruling).
+# declaration are separate doors ON PURPOSE: no fused
+# detect-and-declare door exists.
 
 class PlaneRelation:
     """The verify door's relation verdict: `SameOpposite` = resting
@@ -1049,7 +1229,7 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The C4 contact class a declaration asserts. v1 carries `Rest`
+    """The contact class a declaration asserts. v1 carries `Rest`
     (coincident planes) — the only demand-evidenced detector."""
 
     Rest: Final[ContactClass]

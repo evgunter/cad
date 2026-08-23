@@ -16,7 +16,7 @@ them.
 | `atan` | `geom-brep/src/edge_geometry.rs:148`; `profile/src/validate.rs:1129`; `sweep/src/revolve/mod.rs:585` + `sweep/src/extrude.rs:484` (`arc_span`: angle from bulge); `sweep/src/revolve/axis.rs:321` |
 | `atan2` | `profile/src/sugar.rs:62,91,92` (turn angles); `editor-core/src/expr.rs:679` |
 | `sqrt` | pervasive (norms, `linalg`, residuals) — exact-family, not transcendental, but part of the enclosure surface |
-| `powi` | pervasive; **load-bearing for soundness**: interval squares of zero-straddling quantities MUST route through `powi(2)`, never `x*x` (memories/interval-square-poison.md) |
+| `powi` | pervasive; **load-bearing for soundness**: interval squares of zero-straddling quantities MUST route through `powi(2)`, never `x*x`; gated by ci.yml's "interval-square powi(2) allowlist" |
 | `pi()` / `tau()` constants | `Real` trait constants; used by revolve/validate angle logic |
 
 ## On the trait, implemented by `Interval`, but with NO generic call site today
@@ -30,12 +30,40 @@ them.
 
 ## Exact (non-transcendental) `Real` surface the interval scalar also needs
 
-`+ − × ÷ neg abs min max floor copysign from_f64 zero one lo hi` — provided
-in this crate too (an adoptable scalar needs them), with 1-ulp outward pads
-on `+ − × ÷` (we cannot set the rounding mode from portable Rust; inari's
+`+ − × ÷ neg abs min max floor from_f64 zero one lo hi` — provided in this
+crate too (an adoptable scalar needs them), with 1-ulp outward pads on
+`+ − × ÷` (we cannot set the rounding mode from portable Rust; inari's
 correctly-rounded arithmetic is tighter by ≤1 ulp per op — documented
-tightness gap, not a soundness gap). `abs/min/max/floor/copysign/neg` are
+tightness gap, not a soundness gap). `abs/min/max/floor/neg` are
 endpoint-exact.
+
+**`copysign` is on the `Real` surface but NOT in this crate.** Sign
+transfer on an interval is not endpoint selection — a `sign` operand
+containing zero has no sign to transfer, and the result is a hull of
+`±|self|` with the decoration capped at `Def` — so the implementation
+lives with the trait impl, `crates/geom-core/src/interval.rs`, built out
+of `abs`, `hull` and negation from here. It is listed in this section
+because it is part of the exact surface an adopting kernel gets; it is
+called out because for a while both this list and `src/ops.rs`' header
+promised it as code in `src/`, which it never was. Where it should
+ultimately live is part of the open `RingInterval`-vs-`Interval`
+question, not a thing this document settles.
+
+## Set operations — inventoried separately, and not on `Real`
+
+`hull` and `intersection`. Neither is a `Real` method and neither is a
+function evaluation, which is why they are not in the census above and
+why the crate's scope sentence names them apart from it.
+
+| Entry point | Callers |
+|---|---|
+| `hull` | `crates/geom-core/src/interval.rs`'s `copysign`/`min`/`max` tangent-hull paths |
+| `intersection` | none today; it is the 1788-strict reference point that `docs/semantics-diffs.md` §D7 defines `hull`'s deliberate divergence AGAINST, and its `Trv` cap and empty/NaI taxonomy are pinned by a unit test in `src/ops.rs` |
+
+An earlier reading of this document convicted `intersection` of being
+out of scope, on the strength of its absence here. The absence was this
+document's defect: `hull` is absent by the same test and is
+unquestionably used. Both are inventoried now.
 
 ## Explicitly NOT built (nobody calls them)
 

@@ -30,38 +30,47 @@ cost — measured, not vibed ("with actual random numbers").
   of prose per MAJOR; "silent" = silent spec deviation only;
   record who ran the fix pass. Full text in the log's protocol
   section.
-- **Blinding vs merge-only collision (2026-08-02, ruled)**: the
-  harness's Co-Authored-By trailer NAMES THE MODEL — in an
-  implementer lane that breaks blinding. Implementer briefs say "NO
-  Co-Authored-By trailer in lane commits (blinding overrides the
-  harness convention); if a model mention lands in a PUSHED commit,
-  STOP and report to the orchestrator — never rewrite history
-  yourself." Orchestrator commits keep the trailer (the
-  orchestrator is not blinded). **Reviewer probe commits are a
-  ruled exception (2026-08-09, twice: #288's ca6ba904, #301's
-  32a95363)**: a reviewer's own pushed probe commit may carry the
-  trailer — reviews are protocol-fable (public knowledge), so
-  authorship-preserving adoption into the implementation branch
-  does NOT break blinding once the unit's reviews are delivered;
-  implementers still correctly STOP-and-report it, and the ruling
-  is recorded no-action in the A/B row.
+- **Blinding vs merge-only collision**: the harness's
+  Co-Authored-By trailer NAMES THE MODEL, which in an implementer
+  lane breaks blinding. Implementer briefs say "NO Co-Authored-By
+  trailer in lane commits (blinding overrides the harness
+  convention); if one lands in a PUSHED commit, note it in the PR
+  body and CARRY ON — never rewrite history, and never stop the
+  unit over it." Orchestrator commits keep the trailer (the
+  orchestrator is not blinded), and so may a reviewer's own probe
+  commits: reviews are protocol-fable, so authorship-preserving
+  adoption into the implementation branch does not break blinding.
 
 - **Protocol v4 (Evan, 2026-08-11)** — four amendments, full text
   in the log: (1) STOPPING RULE — the DUAL-REVIEW
   experiment (only) ends at the 6th dual where ≥1 reviewer
   found a MAJOR — the implementation A/B continues, and the recording
-  orchestrator MUST notify Evan explicitly (tally maintained in
-  the log; 3/6 at amendment time — the M8 long-turn dual verified in); (2) standardized 4-term
+  orchestrator MUST notify Evan explicitly (the tally lives in the
+  log, never here); (2) standardized 4-term
   verdict ladder (APPROVE / APPROVE-WITH-FIXES /
   NOT-MERGEABLE-AS-IS / REJECT; MERGEABLE+PASS retired; seam
   noted — pre-v4 verdict strings not comparable; findings
   reliable, labels noisy — weight findings); (3) half of duals
   become cross-model pilots (R2 = opus) in randomized blocks of
   two — every PR still gets a fable review; reviewer model
-  recorded per row; (4) implementer blocks are now size 4
-  {opus×3, fable}, byte mod 4, reject ≥252. Dual sample numbers
-  follow ORDINALS (#398-thread ratification, 2026-08-11:
-  ASM-2K@24 = #8, long-turn@27 = #9).
+  recorded per row; (4) implementer blocks are size 4
+  {opus×3, fable}, byte mod 4. Dual sample numbers
+  follow ORDINALS (#398-thread ratification).
+
+- **Protocol v5 (Evan, 2026-08-18)** — full text in the log:
+  reviews gain a STYLE LANE alongside the claims to falsify
+  (brief text: `docs/prompts/reviewer-style-lane.md`, which dispatches point at
+  by path rather than pasting), and a disclosed deviation that is not an improvement
+  owes a concretely scheduled followup before merge. **Seam: review
+  figures are not comparable across 2026-08-18** — the instrument
+  changed, so expect findings counts to rise without any change in
+  implementation quality; a readout spanning the boundary reports the
+  two eras separately.
+
+**Every live number of this experiment — block, slot, ordinal,
+dual tally — is claimed from `docs/MODEL-AB-LOG.md` ON MAIN at
+dispatch.** No copy lives in this memory, in a plan, or in an
+M-log; a second copy is stale the moment it is written.
 
 **Readouts — deliberately NOT summarised here, and not in the log
 either** (standing rule, Evan 2026-08-11). Both files are read by

@@ -20,11 +20,6 @@ interval = ["geom-core/interval"]
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).
 probe = ["geom-core/probe"]
-# The BANISHED raw builder (PROFILES-V2 §V6 amendment): `LoopBuilder` is
-# test-support, not API, enabled only by this crate's own dev-dependency
-# below. It survives for ONE shape class the §2c lattice cannot author —
-# see src/test_support.rs's header for the measured reason.
-test-support = []
 
 [dependencies]
 geom-core = { path = "../geom-core" }
@@ -35,15 +30,12 @@ geom-core = { path = "../geom-core" }
 # named by [dev-dependencies] only, here and everywhere else — which is
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
-# Self dev-dependency: the ONE mechanism that lets `tests/` see the
-# `test-support` feature while the published surface never does.
-profile = { path = ".", features = ["test-support"] }
 proptest = { workspace = true }
 # The promoted M2 PR 2 reviewer consumer suite
 # (tests/review_m2_pr2_consumers.rs) is the PR 4/PR 3 composition
-# dry-run: it lowers validated arc segments onto geom-curves Circle
-# carriers; geom-curves is acyclic here (it does not depend on profile).
-geom-curves = { path = "../geom-curves" }
+# dry-run: it lowers validated arc segments onto `geom` Circle
+# carriers; geom is acyclic here (it does not depend on profile).
+geom = { path = "../geom" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
