@@ -152,6 +152,29 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
                 .unwrap()
                 .volume;
             assert_eq!(vol, 16.0, "exactly-additive volume (closed form)");
+            // The surviving rim arcs sit between two COPLANAR planar
+            // faces (plate cap × peg cap): the surfaces under-
+            // determine the locus, so the D6 pass re-describes the
+            // stale intersection citations CONVENTIONALLY on the
+            // unchanged circle carriers — the arrival the curved
+            // smooth-seam `JoinDesync` door demands (the red half of
+            // this row was the measured refusal before the
+            // conventional-arc lane existed).
+            let mut rims = 0;
+            for (_, e) in b.body.edges() {
+                let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    continue;
+                };
+                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+                    rims += 1;
+                    assert!(
+                        matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_)),
+                        "a coplanar-adjacent rim is conventionally described: {:?}",
+                        c.description()
+                    );
+                }
+            }
+            assert_eq!(rims, 6, "two rim circles of three arcs each survive");
         }
         Ok(BooleanResult::Empty) => panic!("a filled plate cannot be empty"),
         // PR-B: the zip's band closure landed — the union SUCCEEDS

@@ -7,8 +7,8 @@
 //!   pierce-ring consumption in the pierced face;
 //! - the contradiction row: a false REST declaration refuses
 //!   `DeclarationContradicted` at the lane, never a silent no-op;
-//! - the honest sub-frontier refusal: an annular (ringed-patch)
-//!   contact refuses `RestZipUnsupported`, typed;
+//! - the annular (ringed-patch) contact UNIONS exactly additively
+//!   (M9-3's ring-capable zip retired the old sub-frontier refusal);
 //! - ∖/∩ disposition rows on the PINNED REST fixtures (crosslap,
 //!   corner-flush): classification resolves them structurally
 //!   (operand A / typed Empty) without reaching a join door. NOT a

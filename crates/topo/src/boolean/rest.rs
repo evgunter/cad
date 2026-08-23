@@ -4,14 +4,18 @@
 //! A *pure REST contact* is a mate whose interiors are DISJOINT and
 //! whose shared geometry lies entirely on both operands' boundaries:
 //! the contact region R is a union of coincident opposite-oriented
-//! face patches, and its boundary ∂R — the seam — runs along operand
-//! edges or across single faces, never through material. The chord
-//! joining ([`super::join`]) cannot complete such seams: at a REST
-//! site a germ direction lies in FOUR coincident planes (two per
-//! solid, coplanar via the declared rung), the two end records of one
-//! segment can resolve that ambiguity onto different face pairs, and
-//! the germ-identity match (face pairs agree) then never fires —
-//! today's typed `Join(UnpairedLooseEnds)` / `JoinDesync` refusals.
+//! face patches — on ANY carrier the ladder certifies (plane, sphere,
+//! cylinder; the C4 `Rest` inventory) — and its boundary ∂R — the
+//! seam — runs along operand edges or across single faces, never
+//! through material. The chord joining ([`super::join`]) cannot
+//! complete such seams: at a REST site a germ direction lies in FOUR
+//! coincident tangent planes (two per solid, cosurface via the
+//! declared rung), the two end records of one segment can resolve
+//! that ambiguity onto different face pairs, and the germ-identity
+//! match (face pairs agree) then never fires — the typed
+//! `Join(UnpairedLooseEnds)` / `JoinDesync` refusals (and, for
+//! curved-adjacent seams the join has no section arm for, its typed
+//! per-kind refusal).
 //!
 //! This lane replaces the chord/null-face machinery for exactly that
 //! frontier, **union only**, reached ONLY when (a) the op carries
