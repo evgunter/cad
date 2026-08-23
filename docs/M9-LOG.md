@@ -493,3 +493,28 @@ shadowing attempted with fallback-to-issue; m5_s1 baseline move
 orchestrator-adjudicated CORRECT with the spec's list amended by
 adjudication). Census fix pass also running (its #973 filed).
 Row records at merge with both rubrics per the dual convention.
+
+## CENSUS-REST MERGED (#969 at 35a966c1, merge 0062baaa, 2026-08-23) — gap 1 closed; gap 2 dispatched
+
+The at-rest census now consults the mate's own PatchContact for
+the events its seat induces: #943's flush seat measured moving
+hard-AtRest → Uncertified with the residual pinned by kind+count
+as gap 2's re-bless hook. Row CREST at ordinal 71 recorded at
+merge (#976, merged b9b9bf66). Review calibration worth keeping:
+the single fable review EXECUTED all eight claims, refuted the
+implementer's supporting lemma with a built non-convex
+counterexample while the ratified strength held (the exact
+falsification Evan's "less sure but ok" bought), and measured a
+test-coverage claim false; the fix pass took all items,
+independently re-measured before restating, adopted all four
+probes authorship-preserving, and filed #973 (the crossing-kind
+"categorically undeclarable" premises + the ef consult — the
+same boolean-lane premise shape D4 just shed, one lane over).
+GAP 2 DISPATCHED on this merge: the world-carrier Door 2 for
+declared planar pairs (ratified U-R2) + the C3/C4 revision + the
+Refuted-arm wiring + row3_b re-bless + the SEAT retirement —
+block M9-16 slot 3 = OPUS, M / STRUCTURAL pre-logged, branch
+m9/census-xid, lane m9-c2; fenced off contain.rs and the boolean
+join-lane files (both concurrently owned by the M9-3 fix pass).
+Board: M9-3 fix pass running (ordinal-72 union); gap-2
+implementing; M9-5 queued on M9-3's merge.
