@@ -1247,3 +1247,33 @@ flagged as a judgement call; the A5 clause evidenced by the
 disjoint arm because F2 — the census structural-chart-identity
 gap, the KNOWN #591-thread steer — blocks the mated one), plus
 11 library findings gap-commented at sites. Row at merge.
+TESS-SPLIT review ordinal fixed at dispatch (2026-08-23, PR #951
+open, frozen head 8dbbb542): claimed through 63 (ASM-DEMO's dual)
++ 1 = **64 → SINGLE** (66 is the next third — cross-model per
+#572; 8th pair pending at 63). Reviewer fable, v5 instrument.
+Pre-draw fields were logged at spec time: M / NUMERIC
+(docs/TESS-SPLIT-SPEC.md). Implementer report: 9 deviations ALL
+reported (headline: the two D-1a-executed sliver refusals —
+lily_leaf_a 41·δ and s_duct 25·δ at the new selection — fixed by
+generalizing the shipped snap: every band judged, snap = exact
+patch-count projection run to a dilation fixpoint; both claimed
+improvement-by-execution, adjudication at the review); #950
+filed for the residual rim-bound off-lattice class; #782
+diagnosed (TESS-SPAN's snap EXONERATED by the SAFE_ASPECT=1e30
+experiment — the drift is per-band ceil cost) and re-pinned.
+Row at merge.
+**Ordinal correction (2026-08-23, ASM orchestrator, per the VERBS
+orchestrator's #952 comment — verified against main)**: ASM's two
+claims above collided with VERBS rows whose recording reached
+main late (#940): SSIFLAT = 63 (dual cross-model, sample #20,
+the EIGHTH pair), ARMS1 = 64, RING = 65 in flight. Dispatch
+order governs (#398-thread ratification), so: **ASM-DEMO = 66**
+— still a third, the dual stands exactly as dispatched (same
+frozen head ded405c9, R1 fable + R2 opus), re-labeled **sample
+#21, the NINTH pair**; **TESS-SPLIT = 67** — still SINGLE (69 is
+the next third after 66). No dispatch changes; rows at merge
+carry the corrected ordinals. Discipline adopted both ends per
+the #952 thread: fetch main immediately before writing a claim
+PR, and an in-flight claim recorded in ANY program's log on main
+counts as claimed without waiting for its table row.
+| ASM-DEMO | 2026-08-23 | the R2 exit demo (PR #938): demos/tour/src/assembly.rs — two parametric part docs in a Workspace on disk, the mated bench-stand (3 instances, 2-mate constructive chain, declarations minted, A5 gate at the declared frontier) + the flat-pack bench-layout (pattern ×4, disjoint, gate Ok), both rendered montage cells with STL+STEP export; 4-refusal typed walk with recourse; split/inline acceptance incl. the composed-node-map name identity; A13 update door end-to-end; schema v14 round-trip UNCHANGED; 11 library findings gap-commented; the A5 gate joined the pncad façade in the fix pass (export-guard roster corrected honestly) | M / STRUCTURAL (pre-logged at the slot-3 claim) | OPUS (block ASM-4 slot 3) | **DUAL (ordinal 66 — corrected from 63 per the #952 collision; sample #21, CROSS-MODEL, the NINTH pair; R1 fable + R2 opus, concurrent frozen ded405c9, v5)**: R1 AWF 0/3/4 rubric 5/4/4; R2 AWF 3/5/3 rubric 4/3/3. LABELS DIVERGED (0 vs 3 MAJOR) on CONVERGED substance — both found the same three headline defects (the stale patterned-post gap comment the run itself disproves; "both directions" name identity actually cardinality-only on the inline side; "minted" printing findings.len() from an arm whose variant carries no minted list), both executed the gating plant (eps-pin RED all three rows), both reproduced F3's flush-seat refusal, both verified F1's façade absence by sweep. DISJOINT: R2 alone the vacuous declines-only assert (provable from the constructor) + the F2 door-attribution gap + the at_rest harness narrowing; R1 alone the translation-only pose pin's structural half and the refusal-(4) hand-forge with its natural-path mitigation. R2's deviation-2 adjudication (re-export belongs in this PR) ADOPTED over R1's defer | union basis 2 silent (the stale comment — fixed post-freeze pre-verdict at 34a18f46, the implementer's own catch; the inline narrowing) — 6 deviations reported all verified honest | 5/4 | 4/3 | 4/3 | IMPLEMENTER-INHERITED, substantial: the composed-map identity loop EXPOSED that inline mints fresh host ids (A4 name-resolution identity through split∘inline maps, crossed==26 pinned, cluster frame bit-equal); typed AtRestVerdict replacing the per-arm tuple; rotation pin; façade re-export + NOT_CARRIED 90→83 with the wrong-family paragraph corrected; F3 REFRAMED on Evan's steer (census closure reuse, not mate vocabulary) into #943; #944-#948 filed (F4, F6+the A11-rule-4 drift for Evan, F7, F8+recourse-sentence gap, F9) and cited at sites | MERGED #938 all-green at 4b82c7a2 (merge e02b215d; run 32616151618, draw eps=1e-12 default; render drift neutral per PR posture, main re-blesses) — THE EXIT DEMO EXISTS: assemblies author, mate, verify, refactor, update and round-trip through the façade as a rendered, CI-gated tour stop | impl ~390k + fix ~90k / R1 ~150k / R2 ~185k | impl ~1.4h + fix ~1.2h (0.5h CI wait) / R1 ~35m / R2 ~55m |

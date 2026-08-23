@@ -41,7 +41,27 @@ use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
-/// (the module-doc convention; the sweep traverses reversed chains).
+/// (the module-doc convention; the sweep traverses reversed chains —
+/// a hole loop's stored clockwise chain traversed FORWARD, see
+/// `revolve`).
+///
+/// **Holed profiles** (the ratified O4 definition): the result is
+/// DEFINED as `revolve(outer) − revolve(hole-as-outer)` and executed
+/// as the degenerate no-crossing arm. The outer loop builds exactly
+/// as before (lamina or wire); each hole loop then builds as its own
+/// closed solid of revolution through the same lamina path — the
+/// per-hole seam surgery is the ordinary kfmrh + loopglue zip on the
+/// hole's own body — and its reversed boundary is inserted as a
+/// cavity shell through the shared void-insertion door
+/// ([`topo::insert_void`]). Containment evidence is CARRIED from the
+/// profile's own validation: loops 1.. are canonical hole loops, each
+/// decided strictly inside the outer loop (the containment forest's
+/// parity decision plus the simplicity pass's definite clearance
+/// margins), and revolution about the shared axis maps 2-D strict
+/// containment to 3-D strict containment verbatim — so the carried
+/// sign is `Positive` by the validation's own decisions, and no 3-D
+/// containment test (box or probe) runs here at all. No SSI, no
+/// crossing pipeline: the door is a structural insertion.
 pub(super) fn build_full<T: Decide>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],
@@ -50,21 +70,97 @@ pub(super) fn build_full<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
-    if loops.len() > 1 {
-        return Err(RevolveError::FullRevolveHoles);
-    }
     let segs = &loops[0];
     let cls = &classes[0];
     let run = super::axis::analyze_contact(segs, cls, 0)?;
-    match run {
-        None => build_lamina(frame, segs, cls, theta, band, tol),
+    let mut out = match run {
+        None => build_lamina(frame, 0, segs, cls, theta, band, tol),
         Some(run) => build_wire(frame, segs, cls, run, theta, band, tol),
+    }?;
+
+    for (li, (segs, cls)) in loops.iter().zip(classes).enumerate().skip(1) {
+        // A hole touching the axis contradicts its validated strict
+        // containment (interior points of an `r ≥ 0` region are
+        // strictly off-axis) — reachable only through a tolerance
+        // disagreement between validation and this run; refused typed.
+        if cls.verts.iter().any(|v| v.pinned) {
+            return Err(RevolveError::HoleTouchesAxis { loop_index: li });
+        }
+        let hole = build_lamina(frame, li, segs, cls, theta, band, tol)?;
+        let evidence = topo::VoidEvidence {
+            shells: vec![(
+                hole.shell,
+                // The profile validation's strict-containment decision,
+                // carried verbatim (fn docs).
+                topo::VoidContainment::Carried {
+                    sign: Sign::Positive,
+                },
+            )],
+        };
+        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence, tol)
+            .map_err(|source| RevolveError::VoidInsertion {
+                loop_index: li,
+                source,
+            })?;
+        // Re-key the hole's handles into the result body (the graft's
+        // bridge is the ONLY bridge; a miss is graft corruption).
+        let desync = |_| RevolveError::VoidInsertion {
+            loop_index: li,
+            source: topo::VoidInsertError::Corrupt {
+                what: "hole handle missing from the void graft bridge",
+            },
+        };
+        let n = segs.len();
+        let RevolvedKind::Full {
+            meridians: hole_mer,
+            ..
+        } = &hole.kind
+        else {
+            unreachable!("build_lamina answers with RevolvedKind::Full")
+        };
+        let mut walls_c = vec![None; n];
+        let mut rims_c = vec![None; n];
+        let mut mer_c = vec![None; n];
+        for j in 0..n {
+            if let Some(f) = hole.walls[0][j] {
+                walls_c[j] = Some(inserted.face(f).ok_or(()).map_err(desync)?);
+            }
+            if let Some(e) = hole.rims[0][j] {
+                rims_c[j] = Some(inserted.edge(e).ok_or(()).map_err(desync)?);
+            }
+            if let Some(e) = hole_mer[0][j] {
+                mer_c[j] = Some(inserted.edge(e).ok_or(()).map_err(desync)?);
+            }
+        }
+        out.cavities
+            .push(inserted.shell(hole.shell).ok_or(()).map_err(desync)?);
+        out.walls.push(walls_c);
+        out.rims.push(rims_c);
+        out.poles.push(vec![None; n]);
+        let RevolvedKind::Full { meridians, .. } = &mut out.kind else {
+            unreachable!("build_full's outer arm answers with RevolvedKind::Full")
+        };
+        meridians.push(mer_c);
     }
+
+    #[cfg(debug_assertions)]
+    if loops.len() > 1 {
+        debug_assert_eq!(
+            topo::validate_closed(&out.body),
+            Ok(()),
+            "revolve (full, holed) postcondition: cavity insertion broke tier 2 (kernel bug)",
+        );
+    }
+    Ok(out)
 }
 
-/// The lamina case (file docs): closed profile, no axis contact.
+/// The lamina case (file docs): closed loop, no axis contact — the
+/// outer loop of an off-axis profile, or (with `loop_index > 0`, for
+/// error attribution) one hole loop building as its own
+/// hole-as-outer solid of revolution before the door reverses it.
 fn build_lamina<T: Decide>(
     frame: &AxisFrame<T>,
+    loop_index: usize,
     segs: &[SweptSeg<T>],
     cls: &LoopClasses<T>,
     theta: T,
@@ -98,7 +194,8 @@ fn build_lamina<T: Decide>(
     // and the original placement — full period is the identity). ----
     let axis_c = turn_axis(Sign::Positive, frame.a3);
     let swept = sweep_loop(
-        &mut body, 0, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3, band, tol,
+        &mut body, loop_index, segs, cls, &hes, &qs, &qs, frame, theta, axis_c, place, frame.n3,
+        band, tol,
     )?;
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
@@ -188,13 +285,14 @@ fn build_lamina<T: Decide>(
         body,
         solid: seed.solid,
         shell: seed.shell,
+        cavities: Vec::new(),
         walls: vec![walls_c],
         rims: vec![rims_c],
         // The lamina case is the no-axis-contact case: no profile
         // vertex is on-axis, so there are no poles.
         poles: vec![vec![None; n]],
         kind: RevolvedKind::Full {
-            meridians: mer_c,
+            meridians: vec![mer_c],
             pi_walls: vec![None; n],
             pi_meridians: vec![None; n],
             pi_rims: vec![None; n],
@@ -512,11 +610,12 @@ fn build_wire<T: Decide>(
         body,
         solid: seed.solid,
         shell: seed.shell,
+        cavities: Vec::new(),
         walls: vec![walls_c],
         rims: vec![rims_c],
         poles: vec![poles_c],
         kind: RevolvedKind::Full {
-            meridians: mer_c,
+            meridians: vec![mer_c],
             pi_walls,
             pi_meridians: pi_mer,
             pi_rims,

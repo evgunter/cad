@@ -121,18 +121,9 @@ fn two_axis_runs_in_full_revolve_are_typed() {
     assert!(matches!(e, RevolveError::MultipleAxisRuns { .. }), "{e:?}");
 }
 
-#[test]
-fn holed_full_revolve_is_typed() {
-    let hole = ProfileLoop::polygon([
-        p2(1.25, 0.25),
-        p2(1.75, 0.25),
-        p2(1.75, 0.75),
-        p2(1.25, 0.75),
-    ]);
-    let vp = validated(vec![washer(), hole]);
-    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
-    assert!(matches!(e, RevolveError::FullRevolveHoles), "{e:?}");
-}
+// A full revolve of a holed profile no longer refuses: it builds the
+// hollow ring through the void-insertion door — `revolve_ring.rs` is
+// the acceptance suite (the washer-with-hole fixture lives there).
 
 #[test]
 fn axis_crossing_tube_is_an_unsupported_toroid() {

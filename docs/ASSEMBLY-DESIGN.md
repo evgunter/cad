@@ -454,10 +454,33 @@ inspection, no numerics beyond decided predicates. Five rules:
    declaring mates mint their records like any declaration (A3)
    after verification.
 
+**Member vocabulary (rider, ratified 2026-08-23 — Evan's
+approval in-session; the #945 conversation)**: a mate reference
+head is a live `InstantiatePart` OR a pattern-placed instance —
+the Pattern node with its `Instance(i)` qualifier. A
+pattern-placed member's frame is its pattern-derived pose (rule
+3), and rules 3–4 bind as written: gauge-ineligible, never a
+tree child, so a mate never gives a pattern instance a pose
+apart from its siblings. Rule 1's combination is unchanged — the
+member frame is an ordinary frame conjugated through the derived
+offset. Under rule 2 a mate to `Instance(i)` joins the other
+member into the pattern's cluster; a second tree mate from a
+sibling instance closes a loop and is therefore non-tree —
+declaring, verified (the stud-stack behavior rule 4 already
+promises). Two pins: **mates never solve pattern parameters** —
+a seat satisfiable only at a different spacing is CONTRADICTORY
+with the measured clash, recourse = edit the parameter
+(parameter back-solve is rung (c)); and **the canonical spelling
+is `Instance(i)` heads** — the pattern consumed its master's
+root (A10), so the master's faces are `Vanished` and a mate
+naming them refuses honestly.
+
 Named v1 losses, honest and banked by A1: cross-edge cancellation
 (UNDER tree edges whose composition would determine) refuses to
 rung (c); loop CERTIFICATION beyond the C2 verification tables
 (e.g. in-band closures) escalates per C4 rather than resolving.
+The member-vocabulary rider is ratified ahead of its
+implementation, which is banked (#945).
 
 ## A13 — Update granularity (discharges AQ2)
 

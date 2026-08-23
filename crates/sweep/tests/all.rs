@@ -193,8 +193,12 @@ mod revolve_errors;
 mod revolve_interval;
 #[path = "revolve_partial.rs"]
 mod revolve_partial;
+#[path = "revolve_ring.rs"]
+mod revolve_ring;
 #[path = "revolve_washer.rs"]
 mod revolve_washer;
+#[path = "ring_r1_probes.rs"]
+mod ring_r1_probes;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]

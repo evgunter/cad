@@ -556,7 +556,7 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// before any margin and reported with their own
 /// [`CornerConfig`] tag; each tag names the run-out policy that would
 /// handle it ([`RunOutPolicy`]) and nothing more — zero constructor
-/// surface, the `FullRevolveHoles` precedent.
+/// surface, refusal-payload vocabulary only.
 ///
 /// # Errors
 ///

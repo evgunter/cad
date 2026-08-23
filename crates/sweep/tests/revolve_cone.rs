@@ -59,6 +59,7 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     // The base rim (canonical vertex 1, the profile corner (1, 0)) is
     // two half-period Intersections; the pole/apex vertices have none.
     let rim = t.rims[0][1].expect("base rim, first half");

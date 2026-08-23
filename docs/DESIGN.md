@@ -256,7 +256,30 @@ component-aware E–P form found and corrected in M1 PR 4).**
    residual certification, plus the **material wedge-angle
    predicate** — at every edge the material wedge ∈ (0, 2π), bounded
    away from the ends by the derived threshold θ = ε/r; wedge = π is
-   the legal smooth-seam case (ratified in PR #15's conversation).
+   the legal smooth-seam case (ratified in PR #15's conversation);
+   and the ends carry a **declared second-order arm** (ratified with
+   Evan 2026-08-23, closing #131): wedge = 0 (a cusp — two kissing
+   cylinders with one side cut away) and wedge = 2π (a knife slit,
+   the cusp's `revert` image — revert is an involution, so the two
+   are legal together or not at all) are legal iff the tangency is
+   **declared** (the C7 `Tangent` contact vocabulary — never
+   inferred from values, per the coincidence ladder) and
+   **jet-determinate**: quadratic transverse separation with κ_rel
+   bounded away from zero — `TangentIntersection`'s own margin, so
+   the declaration verifies against the same second-order schedule
+   and the cusp edge's honest description IS `TangentIntersection`.
+   In-band κ_rel (osculation) escalates; an undeclared cusp refuses.
+   The arm admits no laminae — conformal contact over a patch fails
+   the curve-locus condition, so zero-volume bodies stay geometric
+   defects and the PR #15 rationale for the bound is untouched. A
+   doubled cusp (two material wedges on one tangent line — the
+   kissing union, a slit interior to material) is not one 4-face
+   edge but F2's coincident-distinct-edges class, each edge
+   classifying separately under this rule. Consumers with no
+   wedge-0/2π answer (fillet, offset, mesh sizing, sector
+   classification, …) refuse typed at the consumer. Implementation
+   is banked at #941; the deferred material-side check adopts this
+   verdict table when built.
    M2 classifies the tangent-plane wedge; the 0-vs-2π lamina side
    distinction needs pcurves (M3+). Also at tier 3 (M2 additions):
    **prefer-intrinsic enforcement** (definitely-transverse edges must
@@ -354,9 +377,10 @@ component-aware E–P form found and corrected in M1 PR 4).**
   the degenerate no-crossing arm); and the full revolve of a holed
   profile, DEFINED as `revolve(outer) − revolve(hole-as-outer)` and
   executed through the same degenerate arm — the hole's swept
-  boundary provably touches nothing. `FullRevolveHoles` retires when
-  that unit lands (VERBS-PLAN's RING row); until then its error text
-  points at the explicit composition. Recipe-layer sugar may wrap any
+  boundary provably touches nothing. `FullRevolveHoles` retired when
+  that unit landed (VERBS-PLAN's RING row, 2026-08-22): the door is
+  `topo::insert_void`, the boolean fallback and the holed full
+  revolve are its two live producers. Recipe-layer sugar may wrap any
   of these — sugar above the kernel; the door stays the one
   birthplace. (`UnsupportedToroid` is likewise permanent: a D3
   ring-torus boundary — spindle tori have no representation — not a
@@ -456,14 +480,18 @@ component-aware E–P form found and corrected in M1 PR 4).**
   result DAG (GQ2) wants a value; disjoint unions and voids are
   tier-2-legal multi-shell bodies (the M2 single-shell *sweep*
   invariant is untouched). A∖B with B strictly inside A births the
-  first legitimate voids, exactly as the voids-only-from-booleans
-  ratification anticipated. **The sweeps-vs-voids invariant
-  (ratified): sweeps produce genus, never voids; voids are
-  boolean-born; the extrude/full-revolve hole asymmetry is an
-  instance of the invariant, not an inconsistency** — extruded holes
-  are cap-to-cap tunnels (one shell, genus); full-revolve holes would
-  be closed inner shells (voids); partial revolve is extrude-shaped
-  and already supports holes. A void's inner shell carries zero
+  first legitimate voids. **The cavity invariant, as refined at #907
+  (see the M2 bullet above): every cavity is born through the shared
+  void-insertion door, with caller-certified containment** — the
+  boolean fallback supplies its probe verdicts, the holed full
+  revolve carries the profile's validated 2-D margins (its holes ARE
+  closed inner shells, inserted through the door since VERBS-RING),
+  and `shell`'s sealed hollow will carry its offset margin. The
+  extrude/full-revolve hole asymmetry is structural, not an
+  inconsistency: extruded holes are cap-to-cap tunnels (one shell,
+  genus); full-revolve holes are cavities (a second shell, through
+  the door); partial revolve is extrude-shaped and carries holes in
+  its one shell. A void's inner shell carries zero
   coincidences and is census-invisible at tier 3′ — a valid void, not
   an undetected contact.
 - **The envelope (typed refusals on record, never silent gaps;

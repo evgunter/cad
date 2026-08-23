@@ -967,6 +967,11 @@ fn epsilon_reaches_only_the_uncertainty_record() {
 /// curved-export blocker — is the `SINGLE-SHELL` block of the corpus
 /// row (retired name:
 /// `single_shell_curved_solids_never_reach_the_classifier`).
+///
+/// Since VERBS-RING the two-stub complement is no longer the only
+/// reachable body in the class: the one-call hollow ring is a REAL
+/// two-shell curved solid, pinned on the same gate below
+/// ([`hollow_ring_hits_the_curved_shell_gate`]).
 #[test]
 fn curved_multi_shell_refuses_at_both_tolerances() {
     let stubs = common::two_stub_complement();
@@ -992,6 +997,42 @@ fn curved_multi_shell_refuses_at_both_tolerances() {
             }
             other => panic!("expected CurvedShellClassification at {eps}, got {other:?}"),
         }
+    }
+}
+
+/// **The standing gate, on the shape that made it real** (VERBS-RING;
+/// OFFSET-DESIGN O6's demo-gates list): the one-call hollow ring — a
+/// full revolve of an annulus, outer torus + toroidal cavity — builds
+/// tier-valid but cannot leave as STEP, because the outward/void
+/// shell classifier has closed forms for planar faces only. Recorded
+/// as a pin, not worked around; retiring it is the classifier's own
+/// unit, not a ring change.
+#[test]
+fn hollow_ring_hits_the_curved_shell_gate() {
+    use geom_core::{Point2, Vec2};
+    let tol = Tol::witness();
+    let outer = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).unwrap();
+    let inner = profile::circle(Point2::new(5.0, 0.0), 0.35, tol).unwrap();
+    let vp = profile::Profile::new(profile::SketchPlane::xy(), vec![outer.into(), inner.into()])
+        .validate(tol)
+        .unwrap();
+    let ring = sweep::revolve::<f64>(
+        &vp,
+        sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        sweep::Revolution::Full,
+        tol,
+    )
+    .unwrap();
+    assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
+    match step_string(&ring.body, &StepOptions::default(), tol) {
+        Err(StepExportError::CurvedShellClassification { kind, .. }) => {
+            // The classifier meets the torus wall's surface first.
+            assert_eq!(kind, "torus");
+        }
+        other => panic!("expected the standing curved-shell gate, got {other:?}"),
     }
 }
 
