@@ -50,6 +50,7 @@ mod paths;
 #[cfg(feature = "probe")]
 mod probe;
 mod projectbox;
+mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
@@ -83,6 +84,10 @@ struct SceneBody {
     /// shape whose point is what happens INSIDE it (a neck entering a
     /// body wall) cannot be read from an opaque render at any camera.
     transparency: u8,
+    /// `Some(retire)` when the SCENE declares this body to be past the
+    /// STEP writer's named subset frontier. See
+    /// [`SceneBody::step_at_frontier`].
+    step_frontier: Option<&'static str>,
 }
 
 impl SceneBody {
@@ -97,6 +102,7 @@ impl SceneBody {
             at_rest: false,
             color,
             transparency: 0,
+            step_frontier: None,
         }
     }
 
@@ -105,6 +111,32 @@ impl SceneBody {
     /// inside its own body wall is the founding case.
     fn transparent(mut self, t: u8) -> Self {
         self.transparency = t;
+        self
+    }
+
+    /// **The scene DECLARES this body past the STEP writer's named
+    /// subset frontier**, and takes on the obligation that goes with
+    /// saying so.
+    ///
+    /// The STEP arm below refuses to drop a body from the manifest on
+    /// a frontier refusal, on the grounds that a scene which
+    /// legitimately enters that class has to say so where it is built.
+    /// This is that door, and it is a PROBE in the `walls` sense, not
+    /// a suppression: the export still runs on every pass, the pinned
+    /// refusal is the only outcome that passes quietly, a DIFFERENT
+    /// refusal fails the tour (the frontier moved under the
+    /// declaration), and SUCCESS fails it too — `retire` then says
+    /// what to do with the scene, exactly as a wall probe's does.
+    ///
+    /// Its manifest entry carries a null `step`. That is a legitimate
+    /// value of the format (`demos/manifest.py`), and the readers that
+    /// take it are named there: the kernel lane never reads the field,
+    /// and the FreeCAD lane — whose whole subject is OCC re-tessellating
+    /// OUR STEP — has nothing to import for such a body and says so
+    /// rather than drawing it from the mesh, because a cell drawn from
+    /// the STL in that lane would look like OCC evidence and be none.
+    fn step_at_frontier(mut self, retire: &'static str) -> Self {
+        self.step_frontier = Some(retire);
         self
     }
 
@@ -127,6 +159,7 @@ impl SceneBody {
             at_rest: false,
             color,
             transparency: 0,
+            step_frontier: None,
         }
     }
 
@@ -162,6 +195,7 @@ impl SceneBody {
             at_rest: true,
             color,
             transparency: 0,
+            step_frontier: None,
         }
     }
 }
@@ -206,16 +240,22 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 
 /// A body entry for the scene manifest: file stems + render color.
 ///
-/// Both stems are unconditional here. Every tour body exports STL and
-/// STEP — [`run_body`] fails the tour on any refusal rather than
-/// emitting a body without one — so neither is optional on this side.
-/// A null `step` is still a legitimate manifest value: the wild-corpus
-/// generator writes one for every cell, because its STEP is an input
-/// fixture rather than something it exported. `demos/manifest.py` is
-/// where that fact is stated for both readers.
+/// The STL stem is unconditional: every tour body tessellates and
+/// exports one, and [`run_body`] fails the tour on any refusal rather
+/// than emitting a body without it. The STEP stem is not, and there
+/// are two ways a null gets here — kept distinct because they say
+/// different things. The wild-corpus generator writes one for every
+/// cell, because its STEP is an input FIXTURE rather than something it
+/// exported; a tour body writes one only when its scene DECLARED the
+/// writer's named subset frontier ([`SceneBody::step_at_frontier`]),
+/// which is a probed refusal, not a skipped export.
+/// `demos/manifest.py` is where the field's nullability is stated for
+/// both readers.
 struct ManifestBody {
     stl: String,
-    step: String,
+    /// `None` for a body whose scene declared the writer's frontier
+    /// (`SceneBody::step_at_frontier`) — serialized as a null.
+    step: Option<String>,
     color: [f64; 3],
     transparency: u8,
 }
@@ -324,38 +364,69 @@ fn run_body(
     // a refusal anywhere here is now a regression rather than a
     // narrated frontier.
     let step_name = format!("{label}.step");
-    let step = match pncad::step_export::step_string(
+    let step_result = pncad::step_export::step_string(
         &sb.body,
         &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()
         },
         tol,
-    ) {
-        Ok(doc) => {
+    );
+    let frontier = |e: &pncad::step_export::StepExportError| {
+        matches!(
+            e,
+            pncad::step_export::StepExportError::UnsupportedSurface { .. }
+                | pncad::step_export::StepExportError::UnsupportedCurve { .. }
+                | pncad::step_export::StepExportError::CurvedShellClassification { .. }
+        )
+    };
+    let step = match (step_result, sb.step_frontier) {
+        // The ordinary body: exported, and its stem goes in the
+        // manifest.
+        (Ok(doc), None) => {
             std::fs::write(format!("{outdir}/{step_name}"), doc).expect("write step");
             println!("   [{label}] exported {stl} + {step_name}");
-            step_name
+            Some(step_name)
         }
-        // Every tour body is inside the writer's analytic subset, so
-        // any refusal here fails the tour. The named subset frontier
-        // (a multi-shell curved solid, which the outward/void
-        // classifier cannot sign) is still spelled out as its own arm
-        // because it says something different: reaching it means a
-        // tour SCENE grew past the writer, not that the writer broke.
+        // A DECLARED frontier body whose export succeeded: the writer
+        // grew the arm this declaration was waiting on, so the
+        // declaration is now a lie about the kernel. Same posture as a
+        // wall probe that stops refusing.
+        (Ok(_), Some(retire)) => panic!(
+            "{label}: STEP export NO LONGER REFUSES — the writer covers this body \
+             now. Retire the scene's `step_at_frontier` declaration and {retire}"
+        ),
+        // The declared frontier, reached: narrate it and carry a null
+        // `step`. The refusal is the evidence, so it is printed like
+        // an export rather than swallowed.
+        (Err(e), Some(_)) if frontier(&e) => {
+            println!(
+                "   [{label}] exported {stl}; STEP REFUSED TYPED at the writer's named \
+                 subset frontier ({e:?}) — declared by the scene, manifest step = null"
+            );
+            None
+        }
+        // A declared body refusing for a DIFFERENT reason: the
+        // declaration describes the wrong frontier.
+        (Err(other), Some(_)) => panic!(
+            "{label}: the scene declared the STEP writer's named subset frontier, but \
+             the export refused OUTSIDE that class ({other:?}) — the frontier moved \
+             under the declaration"
+        ),
+        // Every OTHER tour body is inside the writer's analytic
+        // subset, so any refusal here fails the tour. The named subset
+        // frontier is still spelled out as its own arm because it says
+        // something different: reaching it undeclared means a tour
+        // SCENE grew past the writer, not that the writer broke.
         // Either way the body does not go silently into the manifest
         // without its STEP.
-        Err(
-            e @ (pncad::step_export::StepExportError::UnsupportedSurface { .. }
-            | pncad::step_export::StepExportError::UnsupportedCurve { .. }
-            | pncad::step_export::StepExportError::CurvedShellClassification { .. }),
-        ) => panic!(
+        (Err(e), None) if frontier(&e) => panic!(
             "{label}: STEP refused typed at the writer's named subset \
-             frontier ({e:?}). No tour body is in that class; a scene that \
-             legitimately enters it needs the tour to say so at the scene, \
-             not a body dropped from the manifest here"
+             frontier ({e:?}). A scene that legitimately enters that class says so \
+             where it is built — `SceneBody::step_at_frontier` — rather than having \
+             a body dropped from the manifest here"
         ),
-        Err(other) => panic!(
+        (Err(other), None) => panic!(
             "{label}: STEP export failed OUTSIDE the analytic-subset \
              refusal class: {other:?}"
         ),
@@ -435,9 +506,20 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
         .iter()
         .map(|b| {
             format!(
-                "{{\"stl\": \"{}\", \"step\": \"{}\", \"color\": [{}, {}, {}], \
+                "{{\"stl\": \"{}\", \"step\": {}, \"color\": [{}, {}, {}], \
                  \"transparency\": {}}}",
-                b.stl, b.step, b.color[0], b.color[1], b.color[2], b.transparency
+                b.stl,
+                // A null, not the string "null": the frontier bodies'
+                // entry is the format's own nullable `step`, which
+                // `demos/manifest.py` reads without a default.
+                match &b.step {
+                    Some(stem) => format!("\"{stem}\""),
+                    None => "null".to_string(),
+                },
+                b.color[0],
+                b.color[1],
+                b.color[2],
+                b.transparency
             )
         })
         .collect();
@@ -527,6 +609,11 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!("\n-- the tube door (M6-3 Leg F: a torus from its INTENT parameters) --");
     for stop in tube::stops(tol) {
+        visit(&stop);
+    }
+
+    println!("\n-- the one-call hollow ring (VERBS-RING: a holed profile, fully revolved) --");
+    for stop in ring::stops(tol) {
         visit(&stop);
     }
 

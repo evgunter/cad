@@ -1,0 +1,214 @@
+//! **The one-call hollow ring** — a holed profile, fully revolved.
+//!
+//! An annulus swept a full turn about an axis it does not touch: a
+//! tube bent into a closed circle, hollow all the way round. Two
+//! concentric circles go in; a **two-shell solid** comes out — the
+//! outer torus and, inside it, a toroidal CAVITY that is the tube's
+//! bore, inserted as a reversed shell through the boolean's shared
+//! void-insertion door. One `revolve` call, no boolean, no assembly of
+//! halves.
+//!
+//! This is the shape the Klein bottle scene wanted and could not have.
+//! Its findings entry 6 still stands — `tube_along_arc`, the door that
+//! stores a torus's INTENT parameters bit-exactly, is solid-only, so a
+//! hollow tube cannot use it — and its entry 7 is what this scene
+//! renders: the ring BUILDS, and its remaining wall is the STEP export
+//! (below). The tour therefore says the hollow tube twice: as the
+//! parameter door's missing wall thickness, and as the profile door's
+//! one-call answer.
+//!
+//! # Why it is drawn see-through
+//!
+//! The subject of this scene is a cavity, and a cavity is invisible in
+//! an opaque render at every camera — the same reason the Klein
+//! bottle's loop tubes are drawn at 45 (`SceneBody::transparent`'s
+//! founding case). At 45 the bore's silhouette reads through the tube
+//! wall and the ring is legible as hollow rather than as a plain
+//! torus, which is the only difference between this panel and the
+//! sheave's groove.
+//!
+//! # The hollowness evidence, printed rather than asserted by eye
+//!
+//! A translucent render is suggestive, not conclusive, so the scene
+//! prints what the body actually is:
+//!
+//! - **two shells, one cavity** — `Revolved::cavities` names it, and
+//!   the shell count is 2 in one solid;
+//! - **the census and genus** the tour prints for every body: each
+//!   shell is a torus, so the pair carries genus 2 across two shells;
+//! - **mass properties against the closed forms**, which is where
+//!   hollowness becomes a number: `V = 2π²·R·(rₒ² − rᵢ²)` and
+//!   `A = 4π²·R·(rₒ + rᵢ)` are the torus forms, and the volume the
+//!   kernel certifies is the SOLID torus's less the bore's. A body
+//!   that had quietly built as a plain torus would miss the volume by
+//!   the bore and the area by the inner wall, and the assertions
+//!   below would fail rather than the picture looking slightly wrong.
+//! - the tour's own mesh ribbon closes it: `check_mesh` is watertight
+//!   over BOTH shells, and the mesh's signed volume tracks the exact
+//!   one.
+//!
+//! # The standing gate this scene declares
+//!
+//! **The ring cannot leave as STEP.** The writer's outward/void shell
+//! classifier has closed forms for planar faces only, so a multi-shell
+//! CURVED solid refuses `CurvedShellClassification` — the known
+//! standing gate of OFFSET-DESIGN O6's demo-gates list, pinned as
+//! klein's wall 6. This scene is the first tour body to reach it while
+//! being RENDERED, so it declares the frontier at the scene
+//! (`SceneBody::step_at_frontier`), which runs the export every pass
+//! and fails the tour if the refusal ever changes or stops. Its
+//! manifest entry carries a null `step`, and the FreeCAD lane — whose
+//! subject is OCC re-tessellating our STEP — skips the body and says
+//! so rather than drawing it from the mesh.
+//!
+//! # Findings this scene records (the demo-purpose rule)
+//!
+//! 1. **The one-call ring has no recipe node either.** `revolve` takes
+//!    a holed `Profile` and answers a two-shell body, but
+//!    `Node::Revolve` takes a `ProfileProgram`, and a program's loop
+//!    list is where a hole would have to be said. The scene is
+//!    authored on the plain sweep door for that reason — the same
+//!    shape of gap `diechamfer` records for the chamfer, hit from the
+//!    other side: there the verb is missing from the recipe, here the
+//!    verb is in the recipe and what is missing is the hole reaching
+//!    it. Both cost a real model its document.
+//! 2. **`Revolved::cavities` is the only handle on the cavity**, and
+//!    it is a `ShellKey` — so a consumer that wants to ask anything
+//!    ABOUT the bore (its area, its own mass contribution, a selector
+//!    over its faces) has a key and no door to spend it at. This scene
+//!    can state the cavity exists and can state the whole body's mass
+//!    properties; it cannot state the cavity's, and closed forms are
+//!    doing that work below instead.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use core::f64::consts::PI;
+
+use pncad::authoring::{p2, validated};
+use pncad::geom_core::{Tol, Vec2};
+use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::sweep::{Revolution, RevolveAxis, revolve};
+
+use crate::{SceneBody, Stop, View};
+
+/// The ring's mean radius: axis to tube centre.
+const R: f64 = 0.30;
+/// The tube's outer radius.
+const RO: f64 = 0.07;
+/// The tube's bore radius. `RO - RI` is the 20 mm wall.
+const RI: f64 = 0.05;
+
+/// One concentric circle of the section, centred on the tube axis.
+fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
+    pncad::profile::circle(p2(R, 0.0), radius, tol)
+        .expect("a positive section radius")
+        .into()
+}
+
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    // The whole model: an annulus, and a full turn. The hole is a
+    // second loop of the same profile — the ring is not assembled from
+    // anything, and nothing here mentions a cavity.
+    let annulus = validated(
+        SketchPlane::xy(),
+        vec![section(RO, tol), section(RI, tol)],
+        tol,
+    )
+    .expect("the annulus validates: a hole strictly inside its outer");
+    let ring = revolve(
+        &annulus,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol,
+    )
+    .expect("a holed profile fully revolves in one call");
+
+    // Hollowness, stated three ways. First structurally: the hole came
+    // back as its own shell, not as a tunnel through the outer one.
+    assert_eq!(
+        ring.body.shells().count(),
+        2,
+        "outer torus + toroidal cavity, in ONE solid"
+    );
+    assert_eq!(ring.cavities.len(), 1, "one cavity per hole loop");
+    assert_ne!(ring.cavities[0], ring.shell, "the cavity is not the outer");
+    assert_eq!(
+        ring.body
+            .get_shell(ring.cavities[0])
+            .expect("the cavity shell")
+            .solid,
+        ring.solid,
+        "the cavity belongs to the ring's own solid"
+    );
+
+    // Then numerically, against the torus closed forms — outer minus
+    // bore. This is the assertion a body that had built as a plain
+    // torus would fail.
+    let props = pncad::topo::mass_properties(&ring.body, tol).expect("mass properties");
+    let v_solid = 2.0 * PI * PI * R * RO * RO;
+    let v_want = 2.0 * PI * PI * R * (RO * RO - RI * RI);
+    let a_want = 4.0 * PI * PI * R * (RO + RI);
+    assert!(
+        ((props.volume - v_want) / v_want).abs() < 1e-12,
+        "V = {} vs the closed form {v_want}",
+        props.volume
+    );
+    assert!(
+        ((props.surface_area - a_want) / a_want).abs() < 1e-12,
+        "A = {} vs the closed form {a_want}",
+        props.surface_area
+    );
+    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+
+    let bore = v_solid - v_want;
+    let (v, e, f) = (
+        ring.body.vertices().count(),
+        ring.body.edges().count(),
+        ring.body.faces().count(),
+    );
+
+    vec![Stop {
+        name: "hollowring",
+        caption: "THE ONE-CALL HOLLOW RING (a holed profile, fully revolved)".to_string(),
+        montage: true,
+        story: "a tube bent into a closed circle, hollow the whole way round — two \
+                concentric circles and a full turn, in ONE revolve call",
+        ops: "revolve(annulus, axis, Revolution::Full): the outer circle sweeps the \
+              torus, the hole sweeps its own solid of revolution and enters as a \
+              REVERSED cavity shell through the shared void-insertion door — the \
+              degenerate no-crossing arm, so no boolean crossing machinery runs",
+        delta: 2e-3,
+        note: Some(format!(
+            "{v} vertices, {e} edges, {f} faces over TWO shells in one solid — the outer \
+             torus and the bore, which `Revolved::cavities` names. Hollow as a number, not \
+             as a picture: V = {:.6} m³ against the closed form 2π²R(rₒ²−rᵢ²), where the \
+             SOLID torus of the same outer radius would be {v_solid:.6} — the bore is \
+             {bore:.6} m³, {:.1}% of it — and A = {:.6} m² = 4π²R(rₒ+rᵢ), which counts the \
+             inner wall. Both at zero enclosure pad. Drawn see-through at 45 for the same \
+             reason the bottle's loop tubes are: a cavity cannot be read from an opaque \
+             render at any camera. The shape's remaining wall is its STEP export — the \
+             writer's outward/void classifier has closed forms for planar faces only, so \
+             this multi-shell CURVED solid refuses CurvedShellClassification, declared at \
+             the scene and probed every pass",
+            props.volume,
+            100.0 * bore / v_solid,
+            props.surface_area
+        )),
+        view: View {
+            elev: 24.0,
+            azim: -55.0,
+            up: 'y',
+        },
+        bodies: vec![
+            SceneBody::plain("hollowring", [0.42, 0.66, 0.74], ring.body)
+                .transparent(45)
+                .step_at_frontier(
+                    "say so in klein's findings entry 7 and retire its wall-6 probe, \
+                     which pins the same refusal",
+                ),
+        ],
+    }]
+}

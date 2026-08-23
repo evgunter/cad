@@ -184,16 +184,24 @@ def import_bodies(doc, scenes, outdir, use_step):
         for body in scene.bodies:
             before = set(o.Name for o in doc.Objects)
             if use_step:
-                # No `step is None` guard, deliberately. `step` is
-                # nullable in the format and `manifest` says so, but
-                # this file's producer is the TOUR (the docstring
-                # above says so, and `render.sh` is the only thing
-                # that drives it), and the tour fails rather than emit
-                # a body without a STEP export. The wild generator's
-                # null-STEP manifests are drawn by `render.py`, which
-                # never reads the field at all. Guarding here would be
-                # a guard against a state this reader's producer
-                # cannot emit.
+                # `step` is nullable in the format, and since the tour
+                # grew `SceneBody::step_at_frontier` its producer CAN
+                # emit one: a body past the STEP writer's named subset
+                # frontier (a multi-shell curved solid, whose
+                # outward/void classifier has closed forms for planar
+                # faces only) has no STEP to import. This lane's whole
+                # subject is OCC re-tessellating OUR STEP, so there is
+                # nothing here for it to say about such a body, and
+                # substituting the STL would put a cell in this
+                # montage that LOOKS like OCC evidence and is none.
+                # So the body is skipped and named; its scene still
+                # renders, from whatever else it carries.
+                if body.step is None:
+                    print(
+                        f"skipped {body.stl} in scene {scene.name!r}: "
+                        "no STEP (the writer's named subset frontier)"
+                    )
+                    continue
                 Part.insert(str(outdir / body.step), doc.Name)
             else:
                 Mesh.insert(str(outdir / body.stl), doc.Name)
