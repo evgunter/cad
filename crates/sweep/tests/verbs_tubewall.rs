@@ -313,12 +313,7 @@ fn hollow_wall_and_shared_refusal_doors() {
         )
     };
     assert!(matches!(
-        frame(
-            Vec3::unit_y() * 1.5,
-            Vec3::unit_x(),
-            TubeWindow::Full,
-            R
-        ),
+        frame(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full, R),
         Err(TubeError::NonUnitAxis)
     ));
     assert!(matches!(
