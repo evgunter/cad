@@ -283,6 +283,104 @@ pub(super) fn side_code<T: Decide>(
     }
 }
 
+/// The **second-order lump** of a declared-`Tangent` sector pair
+/// (CONTACT-DESIGN C7/C12.2 at the boolean lump sites): first-order
+/// data ties along a tangency by definition, so the side a
+/// geometrically-ON sector is treated on descends one order — which
+/// side does the sector's face CURVE to, relative to the other face's
+/// material?
+///
+/// The margin is the existing second-order sector trilean's
+/// (`tangent_sector_order2{,_arm}`, [`enters_material_order2`]): the
+/// relative transverse curvature of the two carriers — the departing
+/// transverse curve's acceleration on the sector's carrier measured
+/// RELATIVE to the other carrier's own curving, signed against the
+/// other face's outward normal — as the displacement it induces at
+/// the sector's lever arm. Against a plane the partner curvature is
+/// zero and the margin is the departure's own normal curvature (the
+/// trilean's documented planar reading, reached bit-identically).
+/// The transverse direction comes from the DEV-1 closed-form locus
+/// ([`super::rest::tangent_locus`], the same rows the door's witness
+/// derivation runs): the descent exists exactly where the witness
+/// lane reaches, and nowhere else.
+///
+/// Verdicts: definitely curving into the other body's material ⇒
+/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is the
+/// isolated osculating point whose residue the verified declaration
+/// bridges (C4's #175 clause) — the pair is locally conformal to
+/// every order the kernel measures, and the declaration's verified
+/// opposed material sides make that the Eq. 15.3 ⁻ lump; an in-band
+/// margin escalates (an osculating pair is a sliver at this ε — F6).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn tangent_lump<T: Decide>(
+    sector_surface: &geom::Surface<T>,
+    other_surface: &geom::Surface<T>,
+    other_outward: OutwardNormal<T>,
+    p: geom_core::Point3<T>,
+    op: super::BooleanOp,
+    on_side: Operand,
+    sector_face: FaceKey,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
+    let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
+        Ok(TangentLocus::Line { dir, .. }) => dir,
+        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+        // The sector pair read geometrically ON while the carriers are
+        // definitely apart or crossing: the same self-contradiction
+        // family as a coplanar sector with definitely-distinct planes.
+        Err(TangentLocusError::NotTangent { .. }) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "declared-Tangent sector pair with definitely non-tangent carriers",
+            });
+        }
+        // Outside the DEV-1 closed-form lane no witness exists and no
+        // descent does either — the C5 typed refusal, same as every
+        // unopened arm.
+        Err(TangentLocusError::Unsupported { .. }) => {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: on_side,
+                face: sector_face,
+                kind: geom_brep::SurfaceKind::of(sector_surface),
+            });
+        }
+    };
+    let n_ref = other_outward.vec();
+    // Transverse in-tangent-plane direction (the jet family's d̂ =
+    // n̂ × τ̂; quadratic consumption, so τ̂'s sign is immaterial).
+    let d_hat = n_ref.cross(locus_dir).normalize();
+    // The graph-over-the-shared-tangent-plane acceleration of each
+    // carrier along d̂, signed against n̂_ref: differentiating
+    // F(x, z(x)) = 0 twice gives z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref) — the
+    // denominator carries the orientation, exactly the jet chain's
+    // own construction ([`geom_brep::tangent_jet`]).
+    let graph_accel = |s: &geom::Surface<T>| {
+        let g = geom_brep::implicit_gradient(s, p);
+        T::zero() - geom_brep::implicit_hessian_form(s, p, d_hat) / g.dot(n_ref)
+    };
+    let rel_accel = graph_accel(sector_surface) - graph_accel(other_surface);
+    match geom_brep::enters_material_order2(
+        n_ref * rel_accel,
+        T::one(),
+        geom_brep::ReferenceNormal::of_face_outward(other_outward),
+        arm,
+        band,
+    ) {
+        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
+        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
+        // The exact-zero osculating residue, bridged by the verified
+        // declaration (doc above): locally conformal with verified
+        // opposed senses IS the Eq. 15.3 ⁻ posture.
+        Ok(EntersMaterial::Tangent) => Ok(super::tables::eq15_3_lump(
+            op,
+            on_side,
+            super::plane_eq::PlaneRelation::SameOpposite,
+        )),
+        Err(diag) => Err(BooleanError::Escalated { diag }),
+    }
+}
+
 /// One potentially-intersecting sector pair with its four side codes
 /// (the `sectors[]` record, typed).
 #[derive(Clone, Copy, Debug)]

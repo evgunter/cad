@@ -456,11 +456,12 @@ fn face_tree<T: Decide + Bounds>(
     Ok(bvh::Bvh::build(&face_boxes))
 }
 
-#[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, sinks, band, strategy, plant, trace)
+#[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
 pub(super) fn sweep_direction<T: Decide + Bounds>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
+    declared: &super::DeclaredPairs,
     contacts: &mut ContactAcc,
     band: Band,
     strategy: SweepStrategy,
@@ -539,7 +540,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
             let Some(plane) = face_plane(y, face) else {
-                curved_face_arm(x, y, x_is, edge_key, &edge, face, pu, pv, band)?;
+                let hit = curved_face_arm(
+                    x, y, x_is, edge_key, &edge, u, v, face, pu, pv, declared, contacts, band, tol,
+                )?;
+                if hit && let Some(tr) = trace.as_deref_mut() {
+                    tr.accepted.push((edge_key, face));
+                }
                 continue;
             };
             // Conic carriers against a plane (M5 PR 9): crossing
@@ -731,18 +737,39 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// in-band clearance escalates (F6, the same margin's other half).
 /// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
 /// silent fallback.
+///
+/// **The declared-cosurface rung** (CONTACT-DESIGN C8 at the crossing
+/// layer): an ON-CARRIER incidence — the zero-clearance circle, the
+/// both-endpoints-on line — whose edge has a parent face declared
+/// `Rest` against `face` lies on the declared shared carrier (exactly
+/// the claim the carrier ladder verified at the door), and takes the
+/// planar sweep's coplanar posture instead of the frontier door:
+/// endpoint treatment producing the same v-v record family, through
+/// the boundary pre-pass rows
+/// ([`super::contain::curved_boundary_containment`]). An endpoint
+/// those rows do not decide keeps the typed frontier refusal, and
+/// UNDECLARED incidences keep both frontier doors untouched — the
+/// door only widens what a verified declaration unlocks.
+///
+/// Returns whether the exact predicates ACCEPTED an event (the
+/// differential suite's accepted-pair channel).
 #[allow(clippy::too_many_arguments)]
 fn curved_face_arm<T: Decide>(
     x: &Body<T>,
-    y: &Body<T>,
+    y: &mut Body<T>,
     x_is: Operand,
     edge_key: EdgeKey,
     edge: &crate::entity::Edge,
+    u: VertexKey,
+    v: VertexKey,
     face: FaceKey,
     pu: Point3<T>,
     pv: Point3<T>,
+    declared: &super::DeclaredPairs,
+    contacts: &mut ContactAcc,
     band: Band,
-) -> Result<(), BooleanError> {
+    tol: Tol,
+) -> Result<bool, BooleanError> {
     let surface = y
         .get_face(face)
         .and_then(|f| y.get_surface(f.surface))
@@ -755,6 +782,21 @@ fn curved_face_arm<T: Decide>(
         face,
         edge: edge_key,
         band,
+    };
+    // The declared-cosurface cover (docs above): one of the edge's
+    // parent faces is declared `Rest` against `face`, so the edge —
+    // a boundary of a face ON the verified shared carrier — lies on
+    // that carrier structurally.
+    let covered = {
+        let parent = |he| {
+            x.get_half_edge(he)
+                .and_then(|h| x.get_loop(h.parent_loop))
+                .map(|l| l.face)
+        };
+        [parent(edge.he_plus), parent(edge.he_minus)]
+            .into_iter()
+            .flatten()
+            .any(|f| declared.declares_rest(x_is, f, x_is.other(), face))
     };
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
@@ -813,7 +855,19 @@ fn curved_face_arm<T: Decide>(
             };
             let margin = Margin::of(lo.max(-hi));
             return match decide("bool_circle_curved_clearance", margin, band) {
-                Ok(Sign::Positive) => Ok(()),
+                Ok(Sign::Positive) => Ok(false),
+                // The declared-cosurface rung: a covered on-carrier
+                // circle takes the coplanar posture — endpoint
+                // treatment only, exactly as the planar sweep treats
+                // a coplanar pair. Uncovered keeps the frontier door.
+                Ok(Sign::Zero) if covered => {
+                    let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                    let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                    // An endpoint the boundary rows cannot decide keeps
+                    // the frontier door: the containment it names still
+                    // does not exist.
+                    if hu && hv { Ok(true) } else { Err(frontier()) }
+                }
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
                 Err(diag) => Err(BooleanError::Escalated { diag }),
             };
@@ -830,13 +884,25 @@ fn curved_face_arm<T: Decide>(
     let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
     let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
     match (s1, s2) {
+        // The declared-cosurface rung: a covered line with BOTH
+        // endpoints on the carrier takes the coplanar posture —
+        // endpoint treatment only, exactly as the planar sweep's
+        // `(Zero, Zero)` branch. Uncovered keeps the frontier door.
+        (Sign::Zero, Sign::Zero) if covered => {
+            let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+            let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+            // An endpoint the boundary rows cannot decide keeps the
+            // frontier door: the containment it names still does not
+            // exist.
+            if hu && hv { Ok(true) } else { Err(frontier()) }
+        }
         // A vertex ON the curved surface: the v-on-curved-face door.
         (Sign::Zero, _) | (_, Sign::Zero) => Err(frontier()),
         // A definite surface crossing: the pierce door.
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => Err(frontier()),
         // Both inside: the residual along a line is convex, so its
         // maximum is at an endpoint — definitely no wall crossing.
-        (Sign::Negative, Sign::Negative) => Ok(()),
+        (Sign::Negative, Sign::Negative) => Ok(false),
         // Both outside: clear through a DIVISION-FREE lower bound on
         // the span minimum of the convex residual (fix pass: the old
         // parabola-vertex formula divided by the transverse direction
@@ -871,11 +937,48 @@ fn curved_face_arm<T: Decide>(
             let r_v = geom_brep::implicit_residual(&surface, pv);
             let min_bound = Margin::of(r_u.min(r_v) - dip);
             match decide("bool_line_cylinder_clearance", min_bound, band) {
-                Ok(Sign::Positive) => Ok(()),
+                Ok(Sign::Positive) => Ok(false),
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
                 Err(diag) => Err(BooleanError::Escalated { diag }),
             }
         }
+    }
+}
+
+/// The declared-cosurface rung's endpoint treatment: classify an
+/// on-carrier vertex of `x` against the CURVED face's boundary
+/// through the pre-pass rows and record the planar posture's contact
+/// kinds — `OnVertex` ⇒ v-v, `OnEdge` ⇒ split `y`'s boundary edge at
+/// the (bitwise-shared) point and pair the minted vertex, exactly as
+/// [`vertex_on_face`] does on a plane. Returns `false` when the
+/// boundary rows decide nothing (the caller's typed frontier door —
+/// interior containment on a curved chart does not exist here).
+#[allow(clippy::too_many_arguments)]
+fn vertex_on_curved_face<T: Decide>(
+    x_is: Operand,
+    y: &mut Body<T>,
+    vx: VertexKey,
+    px: Point3<T>,
+    face: FaceKey,
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<bool, BooleanError> {
+    match super::contain::curved_boundary_containment(y, face, px, band)
+        .map_err(|e| esc(e, x_is.other()))?
+    {
+        Some(FaceContainment::OnVertex(vy)) => {
+            push_vv(contacts, x_is, vx, vy);
+            Ok(true)
+        }
+        Some(FaceContainment::OnEdge(ey)) => {
+            let wy = split_other_at_point(y, x_is.other(), ey, px, tol)?;
+            push_vv(contacts, x_is, vx, wy);
+            Ok(true)
+        }
+        // The boundary walk never answers In/Out (its contract);
+        // anything undecided falls back to the caller's typed door.
+        Some(FaceContainment::In | FaceContainment::Out) | None => Ok(false),
     }
 }
 

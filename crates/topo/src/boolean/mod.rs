@@ -83,7 +83,8 @@ pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Real, Tol,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Point3, Real,
+    Tol,
 };
 
 use crate::body::Body;
@@ -676,12 +677,14 @@ pub enum BooleanError {
         /// named remedy (AQ6's designed-clearance arm).
         steer: Option<&'static str>,
     },
-    /// A declaration names a contact class this op's classification
-    /// does not implement (today: anything but
-    /// [`ContactClass::Rest`]). Refused at the door rather than
-    /// carried into stages that would ignore it — the vocabulary is
-    /// wider than this op's envelope, and the gap is typed, not
-    /// silent.
+    /// A declaration names a contact class in a configuration this
+    /// op's classification cannot act on: a `Tangent` pair outside
+    /// the DEV-1 closed-form witness lane (plane×cylinder along a
+    /// ruling, parallel cylinders) — no witness locus derives, so no
+    /// verification can run and no arm can consume the claim. Refused
+    /// at the door rather than carried into stages that would ignore
+    /// it — the vocabulary is wider than this op's envelope, and the
+    /// gap is typed, not silent.
     UnsupportedDeclarationClass {
         /// The class that was declared.
         class: ContactClass,
@@ -1101,9 +1104,11 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
                 f,
-                "boolean op: a declared contact of class {} was threaded into an op whose \
-                 classification acts on Rest declarations only — the class is refused at \
-                 the door rather than ignored inside",
+                "boolean op: a declared contact of class {} lies outside the envelope this \
+                 op's classification acts on (Rest on the plane/sphere/cylinder carrier \
+                 inventory; Tangent where the closed-form witness lane reaches — \
+                 plane×cylinder along a ruling, parallel cylinders) — the declaration is \
+                 refused at the door rather than ignored inside",
                 class.name()
             ),
             Self::InvalidDeclaration { operand, what } => write!(
@@ -1299,6 +1304,9 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
+    // The suite's door takes no declarations: the traced sweep runs
+    // the undeclared posture, where the frontier doors are verbatim.
+    let declared = DeclaredPairs::default();
     let mut ab = SweepTrace::default();
     let mut ba = SweepTrace::default();
     let ab_knobs = reduce::SweepKnobs {
@@ -1315,6 +1323,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         &mut a,
         &mut b,
         Operand::A,
+        &declared,
         &mut acc,
         band,
         strategy,
@@ -1326,6 +1335,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         &mut b,
         &mut a,
         Operand::B,
+        &declared,
         &mut acc,
         band,
         strategy,
@@ -1367,6 +1377,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         &mut a,
         &mut b,
         Operand::A,
+        &declared,
         &mut acc,
         band,
         strategy,
@@ -1378,6 +1389,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         &mut b,
         &mut a,
         Operand::B,
+        &declared,
         &mut acc,
         band,
         strategy,
@@ -1467,12 +1479,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 
 /// Fail-loud validation of a [`BooleanDeclarations`] payload against
 /// the operands (M4 PR 5): every referenced key must resolve in its
-/// operand, and declared faces must be planes. A dangling declaration
-/// is a caller bug refused before any classification runs — never a
+/// operand, and declared faces must sit on carriers in the certified
+/// inventory (plane, sphere, cylinder). A dangling declaration is a
+/// caller bug refused before any classification runs — never a
 /// silent drop (F5's no-silent-drop contract).
 /// **C4's verify-at-use, at the door**: EVERY declared pair is checked
 /// against the geometry before the op runs — not only the pairs the
-/// classification happens to walk past.
+/// classification happens to walk past — per class: `Rest` down the
+/// carrier ladder, `Tangent` down the DEV-1 witness lane
+/// ([`verify_tangent_declaration`]).
 ///
 /// This closes the gap C4 names by name: "a declaration that never
 /// meets geometry is a silent no-op at the op". A pair naming two
@@ -1501,39 +1516,235 @@ fn verify_declared_contacts<T: Decide>(
         class,
     } in &decls.coincident_faces
     {
-        // A carrier kind the ladder cannot describe: `validate_
-        // declarations` has already had its say about which kinds this
-        // op accepts, so there is nothing left to add here.
-        let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
-            continue;
-        };
+        match class {
+            ContactClass::Rest => verify_rest_declaration(a, fa, b, fb, band)?,
+            ContactClass::Tangent => verify_tangent_declaration(a, fa, b, fb, band)?,
+        }
+    }
+    Ok(())
+}
+
+/// The `Rest` half of [`verify_declared_contacts`]: the carrier
+/// ladder in its declared posture — a definitely-different carrier
+/// contradicts, an in-band residue is bridged (C4), a sliver
+/// escalates.
+fn verify_rest_declaration<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<(), BooleanError> {
+    // A carrier kind the ladder cannot describe: `validate_
+    // declarations` has already had its say about which kinds this
+    // op accepts, so there is nothing left to add here.
+    let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
+        return Ok(());
+    };
+    match outcome {
+        Ok(_) => Ok(()),
+        Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
+            Err(BooleanError::ContactContradicted {
+                declaration: crate::contact::DeclaredContact {
+                    a: fa,
+                    b: fb,
+                    class: ContactClass::Rest,
+                },
+                steer: contact_verify::fit_steer(&diag),
+                margin: diag,
+            })
+        }
+        Err(carrier_eq::CarrierEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
+        // Unreachable with `declared: true`; refuse loudly anyway.
+        Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
+            Err(BooleanError::UndeclaredCoincidence {
+                diag,
+                pair: [(Operand::A, fa), (Operand::B, fb)],
+                relation,
+            })
+        }
+    }
+}
+
+/// The `Tangent` half of [`verify_declared_contacts`] — admitted
+/// exactly where the DEV-1 closed-form witness lane reaches
+/// ([`rest::tangent_locus`]: plane×cylinder along a ruling, parallel
+/// cylinders), and refused typed everywhere else:
+///
+/// 1. **The conformal screen.** The carrier ladder runs first in its
+///    DETECTOR posture: a pair it can call one carrier — structurally
+///    (rung 1) or geometrically (rung 4's coincidence refusal) — is
+///    `Rest`-shaped, and a `Tangent` claim on a conformal pair is
+///    CONTRADICTED, not class-refused (a flush pair declared Tangent
+///    is the wrong class, and the geometry says so).
+/// 2. **The witness.** The closed-form locus derives, or the class is
+///    refused typed ([`BooleanError::UnsupportedDeclarationClass`] —
+///    outside the witness lane no verification can run, so no
+///    declaration is admitted). A definitely-apart or
+///    definitely-crossing pair is CONTRADICTED (the deciding row is
+///    the locus lane's own `tangent_locus_gap`).
+/// 3. **The C4 `Tangent` table** ([`contact_verify`]) along the
+///    witness, over the pair's honest extent (both faces' boundary
+///    vertices projected onto the locus).
+fn verify_tangent_declaration<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let declaration = crate::contact::DeclaredContact {
+        a: fa,
+        b: fb,
+        class: ContactClass::Tangent,
+    };
+    // 1. The conformal screen (detector posture).
+    if let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, false, band) {
         match outcome {
-            Ok(_) => {}
-            Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
+            Ok(CarrierRelation::Distinct) => {}
+            // One carrier, structurally: conformal contact is Rest.
+            Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
                 return Err(BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact {
-                        a: fa,
-                        b: fb,
-                        class,
+                    declaration,
+                    steer: None,
+                    margin: Indeterminate {
+                        margin: MarginDiag::Invalid,
+                        band,
+                        predicate: Some("contact_tangent_conformal"),
                     },
-                    steer: contact_verify::fit_steer(&diag),
+                });
+            }
+            // One carrier, geometrically (the detector's coincidence
+            // refusal): the diag carries the margins that decided.
+            Err(carrier_eq::CarrierEqError::Undeclared { diag, .. }) => {
+                return Err(BooleanError::ContactContradicted {
+                    declaration,
+                    steer: None,
                     margin: diag,
                 });
             }
             Err(carrier_eq::CarrierEqError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
             }
-            // Unreachable with `declared: true`; refuse loudly anyway.
-            Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(Operand::A, fa), (Operand::B, fb)],
-                    relation,
-                });
+            // Unreachable with `declared: false`; refuse loudly anyway.
+            Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
+                return Err(BooleanError::Escalated { diag });
             }
         }
     }
-    Ok(())
+    // 2. The DEV-1 witness locus.
+    let surface_of = |body: &Body<T>, f: FaceKey, operand| {
+        body.get_face(f)
+            .and_then(|face| body.get_surface(face.surface))
+            .cloned()
+            .ok_or(BooleanError::InvalidDeclaration {
+                operand,
+                what: "declared face lost its surface",
+            })
+    };
+    let sa = surface_of(a, fa, Operand::A)?;
+    let sb = surface_of(b, fb, Operand::B)?;
+    let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
+        Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
+        Err(rest::TangentLocusError::Escalated(diag)) => {
+            return Err(BooleanError::Escalated { diag });
+        }
+        Err(rest::TangentLocusError::NotTangent { .. }) => {
+            return Err(BooleanError::ContactContradicted {
+                declaration,
+                steer: None,
+                margin: Indeterminate {
+                    margin: MarginDiag::Invalid,
+                    band,
+                    predicate: Some("tangent_locus_gap"),
+                },
+            });
+        }
+        Err(rest::TangentLocusError::Unsupported { .. }) => {
+            return Err(BooleanError::UnsupportedDeclarationClass {
+                class: ContactClass::Tangent,
+            });
+        }
+    };
+    // 3. The C4 table along the witness, over the pair's extent.
+    let mut t_lo: Option<T> = None;
+    let mut t_hi: Option<T> = None;
+    for (body, f, operand) in [(a, fa, Operand::A), (b, fb, Operand::B)] {
+        for p in face_boundary_points(body, f, operand)? {
+            let t = (p - origin).dot(dir);
+            t_lo = Some(t_lo.map_or(t, |lo| t.min(lo)));
+            t_hi = Some(t_hi.map_or(t, |hi| t.max(hi)));
+        }
+    }
+    let (Some(t0), Some(t1)) = (t_lo, t_hi) else {
+        return Err(BooleanError::InvalidDeclaration {
+            operand: Operand::A,
+            what: "declared face pair has no boundary vertex to meter the tangent witness",
+        });
+    };
+    let carrier = geom::Curve3::Line { origin, dir };
+    match contact_verify::contact_pair_verdict(
+        a,
+        fa,
+        b,
+        fb,
+        ContactClass::Tangent,
+        Some((&carrier, t0, t1)),
+        band,
+    ) {
+        Ok(_) => Ok(()),
+        Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
+            Err(BooleanError::ContactContradicted {
+                declaration,
+                steer,
+                margin: diag,
+            })
+        }
+        Err(crate::contact::ContactRefusal::Escalated { diag })
+        | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
+            Err(BooleanError::Escalated { diag })
+        }
+        Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
+            Err(BooleanError::UnsupportedDeclarationClass {
+                class: ContactClass::Tangent,
+            })
+        }
+    }
+}
+
+/// The face's boundary vertex positions (outer loop then rings, cycle
+/// order; an empty loop contributes its lone vertex) — the witness-
+/// extent datum of [`verify_tangent_declaration`].
+fn face_boundary_points<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    operand: Operand,
+) -> Result<Vec<Point3<T>>, BooleanError> {
+    let bad = || BooleanError::InvalidDeclaration {
+        operand,
+        what: "declared face's boundary is unwalkable",
+    };
+    let f = body.get_face(face).ok_or_else(bad)?;
+    let mut out = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let l = body.get_loop(lk).ok_or_else(bad)?;
+        let vertex_point = |vk| -> Result<Point3<T>, BooleanError> {
+            body.get_vertex(vk)
+                .and_then(|v| body.get_point(v.point))
+                .copied()
+                .ok_or_else(bad)
+        };
+        match l.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
+            crate::entity::LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first).ok_or_else(bad)? {
+                    let start = body.get_half_edge(he).ok_or_else(bad)?.start;
+                    out.push(vertex_point(start)?);
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn validate_declarations<T: Decide>(
@@ -1542,13 +1753,29 @@ fn validate_declarations<T: Decide>(
     decls: &BooleanDeclarations,
 ) -> Result<(), BooleanError> {
     let bad = |operand, what| BooleanError::InvalidDeclaration { operand, what };
-    let planar_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
+    // THE C8 boundary, stated once: a declared face must sit on a
+    // carrier the classification's certified ladder describes —
+    // plane, sphere or cylinder (`carrier_eq`'s inventory). Kinds
+    // outside it (cone, torus, NURBS) refuse typed at this door;
+    // undeclared touching refuses forever at the classification
+    // frontiers — the door only widens what a VERIFIED declaration
+    // can unlock. Per-class geometric admission (the `Tangent`
+    // witness lane) is `verify_declared_contacts`' half of the door.
+    let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let face = body
             .get_face(f)
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         match body.get_surface(face.surface) {
-            Some(geom::Surface::Plane { .. }) => Ok(()),
-            Some(_) => Err(bad(operand, "declared face is not a plane")),
+            Some(
+                geom::Surface::Plane { .. }
+                | geom::Surface::Sphere { .. }
+                | geom::Surface::Cylinder { .. },
+            ) => Ok(()),
+            Some(_) => Err(bad(
+                operand,
+                "declared face's carrier is outside the certified inventory \
+                 (plane, sphere, cylinder)",
+            )),
             None => Err(bad(operand, "declared face lost its surface")),
         }
     };
@@ -1558,22 +1785,10 @@ fn validate_declarations<T: Decide>(
         class,
     } in &decls.coincident_faces
     {
-        // The OP's envelope, not the vocabulary's: `carrier_eq` now
-        // verifies sphere and cylinder `Rest` pairs, but this op's
-        // classification stages are planar, and a declaration whose
-        // class the consuming stages cannot act on refuses at the door
-        // rather than being carried into stages that would silently
-        // ignore it. Its OWN variant, not `InvalidDeclaration`: a
-        // class the op does not implement is not a caller key bug, and
-        // it belongs to the declaration rather than to one operand, so
-        // there is no honest operand to tag it with.
-        if class != ContactClass::Rest {
-            return Err(BooleanError::UnsupportedDeclarationClass { class });
-        }
         // A pair declared twice under DIFFERENT classes is a caller bug
         // refused here — the check the `DeclaredPairs` map's
-        // last-write-wins build would otherwise resolve silently the
-        // day this op grows a second class arm.
+        // last-write-wins build would otherwise resolve silently now
+        // that the op holds two class arms.
         if decls
             .coincident_faces
             .iter()
@@ -1584,8 +1799,8 @@ fn validate_declarations<T: Decide>(
                 "one face pair is declared twice under different contact classes",
             ));
         }
-        planar_face(a, fa, Operand::A)?;
-        planar_face(b, fb, Operand::B)?;
+        inventory_face(a, fa, Operand::A)?;
+        inventory_face(b, fb, Operand::B)?;
     }
     let carried = |body: &Body<T>, c: &CarriedContacts, operand| -> Result<(), BooleanError> {
         for carried in &c.vv {
