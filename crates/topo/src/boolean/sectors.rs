@@ -727,15 +727,19 @@ mod tests {
                 b,
             )
         };
-        // sagitta = kappa_rel * arm^2 / 2 = arm^2 (kappa_rel = 2 here).
+        // sagitta = kappa_rel * arm^2 / 2 = arm^2 (kappa_rel = 2
+        // here), so the arms are derived from the run's band and the
+        // three rows hold at every sampled ε.
         assert_eq!(run(0.5).unwrap(), SideCode::Out);
-        match run(5e-5) {
+        let inband_arm = (b.zero() * b.escalate()).sqrt().sqrt();
+        match run(inband_arm) {
             Err(BooleanError::Escalated { diag }) => {
                 assert_eq!(diag.predicate, Some("tangent_sector_order2"));
             }
             other => panic!("an in-band sagitta must escalate: {other:?}"),
         }
-        assert_eq!(run(3e-5).unwrap(), SideCode::In);
+        let zero_arm = (b.zero() * 0.5).sqrt();
+        assert_eq!(run(zero_arm).unwrap(), SideCode::In);
     }
 
     /// The self-contradiction and out-of-lane arms stay typed: a

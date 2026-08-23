@@ -275,10 +275,12 @@ fn tangent_door_contradicts_escalates_and_admits() {
         matches!(err, BooleanError::ContactContradicted { .. }),
         "{err:?}"
     );
-    // An in-band gap (3e-9 at the witness ε): ESCALATES — the sliver
-    // is a sliver whether or not intent is declared (C4's
+    // An in-band gap (the geometric mean of the run's band, so the
+    // row holds at every sampled ε): ESCALATES — the sliver is a
+    // sliver whether or not intent is declared (C4's
     // must-verify-DEFINITE list is never bridged).
-    let grazing = lying_cyl(1.5 + 3e-9);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let grazing = lying_cyl(1.5 + (band.zero() * band.escalate()).sqrt());
     let err = topo::union_with(
         &a,
         &grazing,
