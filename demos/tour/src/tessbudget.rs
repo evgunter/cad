@@ -80,6 +80,12 @@ pub fn run(path: Option<String>, deviation: bool, tol: Tol) {
                 );
             }
         },
+        // The sweep writes a CSV, not a scene directory, so it has no
+        // outdir to hand the assembly stop its document store. A
+        // scratch directory is the honest answer: the store is an
+        // INPUT to the tour, and this mode only measures the meshes
+        // that come out.
+        &std::env::temp_dir().join("pncad-tess-budget-assembly"),
         tol,
     );
     println!("tess-budget: {faces} face rows, {triangles} triangles total");

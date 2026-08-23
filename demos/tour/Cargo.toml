@@ -58,6 +58,22 @@ tess-meter = { path = "../../tools/tess-meter" }
 # overlooked; it goes when the lattice grows the verb.
 profile = { path = "../../crates/profile" }
 
+# The SECOND exception, and it is the same KIND of thing: a named gap
+# in the curated document surface, stated in the dependency graph
+# where it cannot be overlooked. `pncad::document` exposes the whole
+# assembly authoring vocabulary — `InstantiatePart`, `Pattern`,
+# `Mate`, `split`/`inline`, `update_references`, `Frame` — and does
+# NOT expose the door that VALIDATES the result: `assemble` (the A5
+# at-rest gate) with `Assembly`, `AssemblyError`, `AtRestFinding`,
+# `Attribution`, `MintedDeclaration`, and the `product_recorded`
+# gather it is built on. A façade-only consumer can therefore author
+# an assembly and evaluate it, but cannot run its validity gate, see
+# what its mates minted, or tell the declared direction's frontier
+# from a refusal. One scene needs it, and it is the scene the
+# assembly program exists for: `assembly.rs`. This entry IS that gap;
+# it goes when the façade re-exports the assembly door.
+editor-core = { path = "../../crates/editor-core" }
+
 # The tour is the ONLY release build of the kernel in CI (the ten
 # nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`
 # in ci.yml, which leaves cargo's dev default of debug-assertions ON, so

@@ -31,6 +31,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod assembly;
 mod az;
 mod bodies;
 mod bool_bodies;
@@ -69,6 +70,10 @@ struct SceneBody {
     name: String,
     body: Body<f64>,
     contacts: Option<ContactRecords>,
+    /// Whether this body is an ASSEMBLY at rest, whose tier-3′ verdict
+    /// was taken at the assembly door rather than here. See
+    /// [`SceneBody::at_rest`].
+    at_rest: bool,
     /// Base RGB for the render manifest.
     color: [f64; 3],
     /// Render transparency, 0–100 (0 = opaque, the default). Carried
@@ -88,6 +93,7 @@ impl SceneBody {
             name: name.into(),
             body,
             contacts: None,
+            at_rest: false,
             color,
             transparency: 0,
         }
@@ -117,6 +123,33 @@ impl SceneBody {
             name: name.into(),
             body,
             contacts: Some(contacts),
+            at_rest: false,
+            color,
+            transparency: 0,
+        }
+    }
+
+    /// An ASSEMBLY at rest: a multi-solid product whose declared
+    /// contacts are the mates' minted records (A5's at-rest door).
+    ///
+    /// Its tier-3′ verdict is taken where the declarations can be
+    /// ATTRIBUTED — `editor_core::assemble`, in the scene — because
+    /// attribution is what separates a finding against the document
+    /// from the declared direction's frontier, and the plain
+    /// `validate_pseudomanifold` call below cannot see it. So this
+    /// door REPORTS what the un-attributed gate said and leaves the
+    /// verdict to the scene, which asserts it.
+    fn at_rest(
+        name: impl Into<String>,
+        color: [f64; 3],
+        body: Body<f64>,
+        contacts: ContactRecords,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            body,
+            contacts: Some(contacts),
+            at_rest: true,
             color,
             transparency: 0,
         }
@@ -196,6 +229,16 @@ fn run_body(
     // op's declared contacts (3′); everything else through the plain
     // geometric gate (on contact-free bodies the two gates agree).
     match &sb.contacts {
+        Some(contacts) if sb.at_rest => {
+            match pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol) {
+                Ok(()) => println!("   [{label}] tier-3' at rest: every declaration certified"),
+                Err(e) => println!(
+                    "   [{label}] tier-3' at rest: {} finding(s), attributed at the assembly \
+                     door (the scene asserts the verdict)",
+                    e.len()
+                ),
+            }
+        }
         Some(contacts) => {
             pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol).unwrap_or_else(|e| {
                 panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
@@ -211,10 +254,10 @@ fn run_body(
     println!(
         "   [{label}] topology: {v} vertices, {e} edges, {f} faces, {r} rings, \
          {s} shell(s) -> genus {genus}; validation: {}",
-        if sb.contacts.is_some() {
-            "tiers 1-2 + 3' on the RESULT body with its declared contacts"
-        } else {
-            "tiers 1-3 (structural, closed-solid census, geometric/+V)"
+        match (sb.contacts.is_some(), sb.at_rest) {
+            (true, true) => "tiers 1-2 + 3' AT REST, against the mates' minted declarations",
+            (true, false) => "tiers 1-2 + 3' on the RESULT body with its declared contacts",
+            (false, _) => "tiers 1-3 (structural, closed-solid census, geometric/+V)",
         }
     );
 
@@ -416,7 +459,14 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// detached from the stops it belongs to. Building each group as it is
 /// reached also keeps one group's bodies alive at a time, and lets the
 /// project box hand its body to the cutaway exactly as it always has.
-fn walk_tour(visit: &mut dyn FnMut(&Stop), tol: Tol) {
+/// `work` is a directory the assembly stop uses as its document STORE.
+/// It is the one thing a tour scene had never needed: every other
+/// scene is one document built in memory, so `stops(tol)` was the
+/// whole scene contract. An assembly is a document that REFERENCES
+/// other documents, and the seam it crosses is a workspace on disk —
+/// so the contract grew a path. Recorded rather than hidden: the tour
+/// harness assumed single-document scenes.
+fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     for stop in bodies::stops(tol) {
         visit(&stop);
     }
@@ -499,6 +549,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), tol: Tol) {
     for stop in heatsink::stops(tol) {
         visit(&stop);
     }
+
+    println!(
+        "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
+         split/inline, the update door) --"
+    );
+    for stop in assembly::stops(work, tol) {
+        visit(&stop);
+    }
 }
 
 fn main() {
@@ -572,7 +630,11 @@ fn main() {
 
     println!("B-rep kernel demo tour — sweeps, booleans, split, and the M4 recipe layer");
     println!("==========================================================================");
-    walk_tour(&mut run, tol);
+    // The assembly stop's document store, beside the exports it
+    // belongs with: a reader can open `assembly/*.pncad` next to the
+    // STL and STEP the same run wrote.
+    let work = std::path::Path::new(&outdir).join("assembly");
+    walk_tour(&mut run, &work, tol);
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
