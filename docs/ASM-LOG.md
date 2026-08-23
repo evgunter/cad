@@ -424,3 +424,11 @@ orchestrator work once the demo lands; the walk PR is a design
 conversation — Evan's sign-off closes the program, no self-merge.
 Reviews queue behind both PRs (ordinals claimed from main at each
 review dispatch; 63 = the next third, dual cross-model).
+
+### Seam correction (2026-08-23): ordinals renumbered 63→66, 64→67
+
+The VERBS collision (#952 comment; SSIFLAT/ARMS1/RING recorded
+late via #940, dispatched earlier). ASM-DEMO's dual = ordinal 66,
+sample #21, ninth cross-model pair; TESS-SPLIT's single = 67.
+Dispatches unchanged; the correction entry in MODEL-AB-LOG is
+normative.

@@ -1262,3 +1262,17 @@ filed for the residual rim-bound off-lattice class; #782
 diagnosed (TESS-SPAN's snap EXONERATED by the SAFE_ASPECT=1e30
 experiment — the drift is per-band ceil cost) and re-pinned.
 Row at merge.
+**Ordinal correction (2026-08-23, ASM orchestrator, per the VERBS
+orchestrator's #952 comment — verified against main)**: ASM's two
+claims above collided with VERBS rows whose recording reached
+main late (#940): SSIFLAT = 63 (dual cross-model, sample #20,
+the EIGHTH pair), ARMS1 = 64, RING = 65 in flight. Dispatch
+order governs (#398-thread ratification), so: **ASM-DEMO = 66**
+— still a third, the dual stands exactly as dispatched (same
+frozen head ded405c9, R1 fable + R2 opus), re-labeled **sample
+#21, the NINTH pair**; **TESS-SPLIT = 67** — still SINGLE (69 is
+the next third after 66). No dispatch changes; rows at merge
+carry the corrected ordinals. Discipline adopted both ends per
+the #952 thread: fetch main immediately before writing a claim
+PR, and an in-flight claim recorded in ANY program's log on main
+counts as claimed without waiting for its table row.
