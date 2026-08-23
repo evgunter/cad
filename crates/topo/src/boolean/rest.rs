@@ -256,6 +256,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     };
 
     let mut vertex_merges: Vec<(VertexKey, VertexKey)> = Vec::new();
+    let mut interior: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
@@ -267,14 +268,23 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         };
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
+        for &e in &rep.interior_edges {
+            interior.insert(e, ());
+        }
     }
 
     // The surviving seam: the A-side per-segment edges (the A arena IS
-    // the result arena; every ∂R segment survives the glue — only
-    // R-INTERIOR edges die, and those are never segments).
+    // the result arena). A segment INTERIOR to the contact region —
+    // an already-fused run a later glue consumed, e.g. the meridian
+    // seams of a closed cosurface band — legitimately dies with R's
+    // interior and is dropped here; a segment that died any other way
+    // is a lane desync.
     let mut seam_edges: Vec<EdgeKey> = Vec::new();
     for &e in &a_seam.per_segment {
         if body.get_edge(e).is_none() {
+            if interior.contains_key(e) {
+                continue;
+            }
             return Err(desync("REST lane: a seam segment edge did not survive"));
         }
         seam_edges.push(e);
@@ -1466,14 +1476,26 @@ fn shared_run<T: Decide>(
     Ok(ea.into_iter().filter(|e| eb_set.contains_key(*e)).collect())
 }
 
-/// Glues one patch pair adjacent along a single contiguous already-
-/// fused seam run: the run edges die (they are interior to R), the
+/// Glues one patch pair adjacent along ALREADY-FUSED seam runs: the
+/// run edges die (they are interior to the contact region R), the
 /// remaining coincident edge pairs fuse to the surviving A copies,
 /// the remaining coincident vertex pairs fuse, both faces die. The
 /// same loopglue scaffolding discipline as [`zip_seam`] (self-loop
 /// scaffolding edges between bitwise-coincident vertices, `kev`
 /// fusions, `kef` retirements), driven along the folded loop the run
 /// kef leaves behind.
+///
+/// **Multiple disjoint runs are the band-closure case** (a closed
+/// cosurface band's last panel shares a run on each side): the first
+/// run folds the mate in through `kef`; each later run's edges then
+/// lie WITHIN the folded face's own loops and are killed by the
+/// configuration each is found in — dangling (`kev`), doubled in one
+/// cycle (`kemr`, which mints a ring), or spanning two loops of the
+/// one face (`mfkrh`-then-`kef`, the kernel's own prescription for
+/// that shape). Every ring the kills leave behind is promoted to its
+/// own transient face (`mfkrh`) and zipped by the same folded-loop
+/// zipper that finishes the outer cycle — the genus drop of closing a
+/// band lives in those promotions, never in ad-hoc surgery.
 fn slit_zip<T: Decide>(
     body: &mut Body<T>,
     fa: FaceKey,
@@ -1503,21 +1525,12 @@ fn slit_zip<T: Decide>(
         body.loop_cycle(first)
             .ok_or_else(|| desync("REST lane: slit loop not walkable"))
     };
-    let edge_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<EdgeKey, BooleanError> {
-        Ok(body
-            .get_half_edge(he)
-            .ok_or_else(|| desync("REST lane: slit half no longer resolves"))?
-            .edge)
-    };
     let oa = cycle_halves(body, fa)?;
     let ob = cycle_halves(body, fb)?;
     if oa.len() != ob.len() {
         return Err(corr("slit-zip cycles differ in length"));
     }
     let shared_set: SecondaryMap<EdgeKey, ()> = shared.iter().map(|&e| (e, ())).collect();
-    // Single contiguous run in the fa cycle (and, symmetrically, fb —
-    // the same edge set, so contiguity there follows from the
-    // congruence the pairing verified).
     let flags: Vec<bool> = oa
         .iter()
         .map(|&he| Ok(shared_set.contains_key(edge_of(body, he)?)))
@@ -1527,17 +1540,28 @@ fn slit_zip<T: Decide>(
         return Err(unsupported("patch pair shares its whole boundary"));
     }
     let n = flags.len();
-    // Rotate so the run occupies a prefix: find i with flags[i] &&
-    // !flags[(i+n-1)%n].
+    // Rotate so a run occupies a prefix: find i with flags[i] &&
+    // !flags[(i+n-1)%n], then collect every maximal run in cycle
+    // order from there (deterministic — D9).
     let Some(start) = (0..n).find(|&i| flags[i] && !flags[(i + n - 1) % n]) else {
         return Err(unsupported("patch pair shares its whole boundary"));
     };
-    if (0..k).any(|t| !flags[(start + t) % n]) {
-        return Err(unsupported(
-            "patch pair shares a non-contiguous seam run with the glued set",
-        ));
+    let mut runs: Vec<Vec<HalfEdgeKey>> = Vec::new();
+    let mut t = 0;
+    while t < n {
+        let i = (start + t) % n;
+        if flags[i] {
+            let mut run = vec![oa[i]];
+            t += 1;
+            while t < n && flags[(start + t) % n] {
+                run.push(oa[(start + t) % n]);
+                t += 1;
+            }
+            runs.push(run);
+        } else {
+            t += 1;
+        }
     }
-    let run: Vec<HalfEdgeKey> = (0..k).map(|t| oa[(start + t) % n]).collect();
 
     let a_edges: SecondaryMap<EdgeKey, ()> = oa
         .iter()
@@ -1548,12 +1572,14 @@ fn slit_zip<T: Decide>(
         .map(|&he| Ok((edge_of(body, he)?, ())))
         .collect::<Result<_, BooleanError>>()?;
 
-    // ---- Kill the run: kef the first run edge from the fb side
+    // ---- Kill the first run: kef the first run edge from the fb side
     // (kills fb, merges the cycles into fa's folded loop); each
     // further run edge then dangles at a dead run-interior vertex —
     // kev it (the interior vertex dies with it, as R-interior
     // structure must). ----
+    let run = &runs[0];
     let first_run_edge = edge_of(body, run[0])?;
+    report.interior_edges.push(first_run_edge);
     let fb_half = {
         let ed = body
             .get_edge(first_run_edge)
@@ -1571,6 +1597,7 @@ fn slit_zip<T: Decide>(
         // The shared vertex with the previous (now dead) run edge is
         // this half's START (run halves run start→end along fa's
         // cycle; the previous edge ended where this one starts).
+        report.interior_edges.push(edge_of(body, he)?);
         let hd = body
             .get_half_edge(he)
             .ok_or_else(|| desync("REST lane: run half no longer resolves"))?;
@@ -1596,17 +1623,149 @@ fn slit_zip<T: Decide>(
             .map_err(|_| desync("REST lane: run kev refused"))?;
     }
 
-    // ---- The zipper along the folded loop, from the run's start
-    // fold vertex. ----
+    // ---- Later runs (the band closure): every edge now lies within
+    // the folded face's own loop set; kill each by the configuration
+    // it is found in. ----
+    for run in runs.iter().skip(1) {
+        for &he in run {
+            let e = edge_of(body, he)?;
+            report.interior_edges.push(e);
+            let ed = body
+                .get_edge(e)
+                .ok_or_else(|| desync("REST lane: band run edge no longer resolves"))?
+                .clone();
+            let (h, m) = (ed.he_plus, ed.he_minus);
+            let loop_of = |body: &Body<T>, half| -> Result<LoopKey, BooleanError> {
+                Ok(body
+                    .get_half_edge(half)
+                    .ok_or_else(|| desync("REST lane: band run half no longer resolves"))?
+                    .parent_loop)
+            };
+            let (lh, lm) = (loop_of(body, h)?, loop_of(body, m)?);
+            if lh == lm {
+                // Dangling (a valence-1 end) → kev that half; doubled
+                // deeper in the cycle → kemr (the split-off side
+                // becomes a ring, disposed below).
+                let dangle_half = {
+                    let valence = |body: &Body<T>, half| -> Result<usize, BooleanError> {
+                        let end = body
+                            .half_edge_end(half)
+                            .ok_or_else(|| desync("REST lane: band run half has no end"))?;
+                        let anchor = body
+                            .get_vertex(end)
+                            .and_then(|vd| vd.emanating)
+                            .ok_or_else(|| desync("REST lane: band run vertex lost its fan"))?;
+                        Ok(body
+                            .vertex_orbit(anchor)
+                            .ok_or_else(|| desync("REST lane: band run orbit not walkable"))?
+                            .len())
+                    };
+                    if valence(body, h)? == 1 {
+                        Some(h)
+                    } else if valence(body, m)? == 1 {
+                        Some(m)
+                    } else {
+                        None
+                    }
+                };
+                match dangle_half {
+                    Some(dh) => {
+                        body.kev(dh)
+                            .map_err(|_| desync("REST lane: band run kev refused"))?;
+                    }
+                    None => {
+                        body.kemr(h, m)
+                            .map_err(|_| desync("REST lane: band run kemr refused"))?;
+                    }
+                }
+            } else {
+                // Two loops of the ONE folded face: the kernel's own
+                // prescription — promote the ring, then kef from the
+                // promoted side (the remnant merges into the other
+                // loop; the transient face dies with the edge).
+                let fd = body
+                    .get_face(fa)
+                    .ok_or_else(|| desync("REST lane: folded face vanished"))?;
+                let ring_half = if fd.rings.contains(&lh) {
+                    h
+                } else if fd.rings.contains(&lm) {
+                    m
+                } else {
+                    return Err(unsupported(
+                        "band-closure run edge outside the folded face's loops",
+                    ));
+                };
+                let ring = loop_of(body, ring_half)?;
+                body.mfkrh(ring, FaceSurface::Inherit)
+                    .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
+                body.kef(ring_half)
+                    .map_err(|_| desync("REST lane: band run kef refused"))?;
+            }
+        }
+    }
+
+    // ---- Dispose the rings the band kills left behind: promote each
+    // to a transient face and zip it with the same folded-loop zipper
+    // that finishes the outer cycle. ----
+    loop {
+        let ring = body
+            .get_face(fa)
+            .ok_or_else(|| desync("REST lane: folded face vanished"))?
+            .rings
+            .first()
+            .copied();
+        let Some(ring) = ring else { break };
+        let created = body
+            .mfkrh(ring, FaceSurface::Inherit)
+            .map_err(|_| desync("REST lane: band ring mfkrh refused"))?;
+        zip_folded(
+            body,
+            created.face,
+            &a_edges,
+            &b_edges,
+            vmap,
+            &mut report,
+            tol,
+        )?;
+    }
+    zip_folded(body, fa, &a_edges, &b_edges, vmap, &mut report, tol)?;
+    Ok(report)
+}
+
+/// The edge of a half-edge (shared lookup for the zip family).
+fn edge_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, BooleanError> {
+    Ok(body
+        .get_half_edge(he)
+        .ok_or_else(|| desync("REST lane: slit half no longer resolves"))?
+        .edge)
+}
+
+/// The folded-loop zipper (the slit zip's finishing walk, shared with
+/// the band closure's promoted transient faces): the face's outer
+/// cycle holds interleaved a-side (surviving) and b-side (dying)
+/// copies; per fold one scaffolding `mef` + `kev` fuses the vertex
+/// pair and a `kef` retires the b copy, and the final coincident pair
+/// retires face and b copy together (the a copy survives as a seam
+/// edge, absorbed by the b-side neighbor's loop).
+fn zip_folded<T: Decide>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    a_edges: &SecondaryMap<EdgeKey, ()>,
+    b_edges: &SecondaryMap<EdgeKey, ()>,
+    vmap: &SecondaryMap<VertexKey, VertexKey>,
+    report: &mut ZipReport,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
     let mut steps = 0usize;
-    let cap = oa.len() + ob.len() + 2;
+    let cap = 2 * (a_edges.len() + b_edges.len()) + 2;
     loop {
         steps += 1;
         if steps > cap {
             return Err(desync("REST lane: slit zipper did not terminate"));
         }
         let fd = body
-            .get_face(fa)
+            .get_face(face)
             .ok_or_else(|| desync("REST lane: slit face vanished mid-zip"))?;
         let LoopBoundary::Cycle { first } = body
             .get_loop(fd.outer)
@@ -1619,8 +1778,9 @@ fn slit_zip<T: Decide>(
             .loop_cycle(first)
             .ok_or_else(|| desync("REST lane: slit loop not walkable mid-zip"))?;
         if cycle.len() == 2 {
-            // The last coincident pair: kef the b copy from inside fa
-            // (fa dies with it; the a copy survives as the seam edge).
+            // The last coincident pair: kef the b copy from inside the
+            // face (the face dies with it; the a copy survives as the
+            // seam edge).
             let (e0, e1) = (edge_of(body, cycle[0])?, edge_of(body, cycle[1])?);
             let b_half = if b_edges.contains_key(e0) && a_edges.contains_key(e1) {
                 cycle[0]
@@ -1690,5 +1850,5 @@ fn slit_zip<T: Decide>(
         body.kef(hb)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
-    Ok(report)
+    Ok(())
 }

@@ -959,10 +959,9 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 // its two adjacent faces' surfaces would violate D2
                 // adjacency coherence at tier 3 — the glue its
                 // description anticipated was skipped (or the merge
-                // re-homed its neighbors). Re-describe as the
-                // conventional chord line: coplanar surfaces
-                // under-determine the locus (D2's split), so the
-                // line's own data is the honest description.
+                // re-homed its neighbors, or the zip fused it between
+                // new faces). Re-describe conventionally where the
+                // surfaces under-determine the locus (D2's split).
                 let stale = match *body
                     .get_curve_geom(edge_data.curve)
                     .and_then(crate::null::CurveGeom::certified)
@@ -982,21 +981,101 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                     geom_brep::EdgeGeometry::MappedCurve(_) => false,
                 };
-                if stale {
-                    if curved {
-                        // A curved smooth seam whose description went
-                        // stale has no honest conventional line form —
-                        // refuse rather than replace an arc with its
-                        // chord (M5 PR 9: no silent geometric rewrite).
-                        return Err(BooleanError::JoinDesync {
-                            what: "stale CURVED smooth-seam description (no conventional \
-                                   re-description lane exists for arcs)",
-                        });
+                // The D6 smooth ladder (M9-3): a definitely-smooth
+                // CURVED seam descends one order, exactly as the
+                // tier-3 contact mark does — the jet's second-order
+                // margin at the same interior schedule (rows
+                // `tangent_second_order`, reused). Determinate at
+                // every sample ⇒ the surfaces DETERMINE the locus and
+                // the intrinsic `TangentIntersection` is minted (the
+                // must-carry's own regime); a zero-side or in-band
+                // sample keeps the CONVENTIONAL posture (tier 3's
+                // ratified `SmoothUnderdetermined` stance — the weaker
+                // description is never a lie, and ε-tightening never
+                // flips a valid body through this choice).
+                let jet_determinate = if curved {
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    let (t0, t1) = c.params();
+                    let mut det = true;
+                    for i in 1..(geom_brep::CERT_SAMPLES - 1) {
+                        let t = geom_brep::sample_param(t0, t1, i);
+                        let p = c.carrier().eval(t);
+                        let jet = geom_brep::tangent_jet(surf1, surf2, p, c.carrier().deriv(t));
+                        let arm = geom_brep::curvature_lever_arm(surf1, p)
+                            .min(geom_brep::curvature_lever_arm(surf2, p))
+                            .min(extent);
+                        match decide(
+                            "tangent_second_order",
+                            Margin::sagitta(jet.kappa_rel.abs(), arm),
+                            band,
+                        ) {
+                            Ok(Sign::Positive) => {}
+                            _ => {
+                                det = false;
+                                break;
+                            }
+                        }
                     }
-                    body.set_edge_curve(edge, geom_brep::EdgeCurveSpec::line_between(p0, p1), tol)
+                    det
+                } else {
+                    false
+                };
+                if jet_determinate {
+                    // Mint the intrinsic tangency on the existing
+                    // carrier (U2: today's taxonomy, 1:1 onto
+                    // (surface, exact-lane pcurve)) — this also
+                    // refreshes a stale citation, since the minted
+                    // surfaces are the CURRENT adjacency.
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    let (t0, t1) = c.params();
+                    let spec = geom_brep::EdgeCurveSpec {
+                        description: geom_brep::EdgeGeometry::TangentIntersection {
+                            s1,
+                            s2,
+                            witness,
+                        },
+                        carrier: c.carrier().clone(),
+                        param_start: t0,
+                        param_end: t1,
+                    };
+                    body.set_edge_curve(edge, spec, tol)
+                        .map_err(|_| BooleanError::JoinDesync {
+                            what: "tangent-seam description failed certification",
+                        })?;
+                } else if stale {
+                    if curved {
+                        // The conventional re-description for an arc
+                        // the adjacent surfaces under-determine: the
+                        // same pushforward posture as the planar chord
+                        // lane, on the UNCHANGED carrier (no silent
+                        // geometric rewrite — only the description
+                        // moves). Carrier kinds with no conventional
+                        // pushforward keep the typed refusal.
+                        let c = existing.as_ref().ok_or_else(corrupt)?;
+                        let (t0, t1) = c.params();
+                        let Some(spec) =
+                            geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
+                        else {
+                            return Err(BooleanError::JoinDesync {
+                                what: "stale CURVED smooth-seam description (no conventional \
+                                       re-description lane exists for this carrier kind)",
+                            });
+                        };
+                        body.set_edge_curve(edge, spec, tol).map_err(|_| {
+                            BooleanError::JoinDesync {
+                                what: "stale arc description failed re-certification",
+                            }
+                        })?;
+                    } else {
+                        body.set_edge_curve(
+                            edge,
+                            geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                            tol,
+                        )
                         .map_err(|_| BooleanError::JoinDesync {
                             what: "stale in-plane description failed re-certification",
                         })?;
+                    }
                 }
             }
             Err(diag) => return Err(BooleanError::Escalated { diag }),

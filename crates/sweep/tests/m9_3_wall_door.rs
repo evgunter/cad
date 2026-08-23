@@ -154,20 +154,10 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
             assert_eq!(vol, 16.0, "exactly-additive volume (closed form)");
         }
         Ok(BooleanResult::Empty) => panic!("a filled plate cannot be empty"),
-        Err(err) => {
-            // PR-A's measured opening state: classification completes
-            // and the refusal comes from INSIDE `try_rest_union` — the
-            // zip's own typed sub-frontier (seam-run contiguity), which
-            // is exactly PR-B's work order. Never the door, the sweep
-            // frontier, either wall site, or an untyped invariant.
-            // PR-B flips this arm to the Ok arm above; the volume
-            // oracle is already waiting there.
-            assert!(
-                matches!(err, BooleanError::RestZipUnsupported { .. }),
-                "the declared two-peg union must fail DOWNSTREAM of classification \
-                 (or succeed), never at the wall this PR removes: {err:?}"
-            );
-        }
+        // PR-B: the zip's band closure landed — the union SUCCEEDS
+        // (the Ok arm above carries the closed-form volume oracle);
+        // any refusal is a regression of the opened lane.
+        Err(err) => panic!("the declared exactly-filling union must succeed: {err:?}"),
     }
 }
 
