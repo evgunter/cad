@@ -47,8 +47,13 @@ use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
-const L: f64 = 1.0;
-const R: f64 = 0.12;
+/// The die's side, shared by both dice (`diechamfer` closes its volume
+/// form over it).
+pub const L: f64 = 1.0;
+/// The blend size, shared by both dice: `diechamfer` sets its SETBACK
+/// to this same number, which is what makes the two montage panels a
+/// comparison of verbs rather than of parameters.
+pub const R: f64 = 0.12;
 /// The pip-rim blend radius (the composed stop's second call).
 const RIM_R: f64 = 0.02;
 const PIP_R: f64 = 0.09;
@@ -167,55 +172,51 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
 }
 
-/// Builds the die document, materializing each blend's edge set
-/// against the evaluation of the recipe SO FAR — evaluate, select,
-/// store, which is the whole authoring loop the document layer has.
-///
-/// The selections are frozen at authoring time on purpose: a stored
-/// "every plane–sphere rim" that re-ran on every edit would silently
-/// grow under an upstream change, which is the staleness the freeze
-/// exists to prevent (`pncad::select` module docs).
-fn build(tol: Tol) -> Die {
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die", tol);
-    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("insert mints an id")
-    };
-    // Every geometric selection in this file runs over EDGES.
-    let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
+fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    *doc = applied.doc;
+    applied.record.minted.expect("insert mints an id")
+}
 
+/// **The die's SOURCE SOLID**, as recipe nodes: the sharp cube, and
+/// the cube with its 21 pips cut. Everything above the blends —
+/// which is the stage BOTH dice start from, this scene's filleted one
+/// and `diechamfer`'s chamfered one — so the two panels differ in the
+/// verb and in nothing else.
+fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     // ---- the sharp cube, [0, L]³ ----
     let cube_p = insert(
-        &mut doc,
+        doc,
         Node::Profile(ProfileProgram {
             plane: SketchPlane::xy(),
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
         }),
+        tol,
     );
-    let cube = insert(
-        &mut doc,
+    insert(
+        doc,
         Node::Extrude {
             profile: cube_p,
             distance: len(L),
         },
-    );
+        tol,
+    )
+}
 
-    // ---- the blank: EVERY edge of the cube, at one radius ----
-    // No predicate needed — "all of them" has its own door.
-    let all_twelve = all_edges(&eval(&doc, tol), cube);
-    let blank = insert(&mut doc, Node::fillet(cube, len(R), all_twelve));
-
+/// The 21 pips, cut from `cube` in one certified group operation —
+/// the second half of the shared source solid.
+fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     // ---- the master ball, poled along +Z ----
     let axis = insert(
-        &mut doc,
+        doc,
         Node::Datum(Datum::Axis {
             origin: [len(0.0), len(0.0), len(0.0)],
             direction: [scl(0.0), scl(0.0), scl(1.0)],
         }),
+        tol,
     );
     let ball_p = insert(
-        &mut doc,
+        doc,
         Node::Profile(ProfileProgram {
             // u = +X, v = +Z: the sketch's revolve axis lands on the
             // world +Z axis, which is the pole `placements` rotates.
@@ -226,14 +227,16 @@ fn build(tol: Tol) -> Die {
             ),
             loops: vec![half_disc()],
         }),
+        tol,
     );
     let ball = insert(
-        &mut doc,
+        doc,
         Node::Revolve {
             profile: ball_p,
             axis,
             angle: ang(TAU),
         },
+        tol,
     );
 
     // ---- 21 placements, unioned into ONE cutting tool ----
@@ -251,36 +254,77 @@ fn build(tol: Tol) -> Die {
     let mut tool: Option<RecipeNodeId> = None;
     for p in placements() {
         let pip = insert(
-            &mut doc,
+            doc,
             Node::Transform {
                 input: ball,
                 translation: p.centre.map(len),
                 rotation_axis: p.axis.map(scl),
                 rotation_angle: ang(p.angle),
             },
+            tol,
         );
         tool = Some(match tool {
             None => pip,
             Some(acc) => insert(
-                &mut doc,
+                doc,
                 Node::Boolean {
                     op: BooleanOp::Union,
                     a: acc,
                     b: pip,
                     declare: None,
                 },
+                tol,
             ),
         });
     }
-    let pipped = insert(
-        &mut doc,
+    insert(
+        doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: cube,
             b: tool.expect("21 pips"),
             declare: None,
         },
-    );
+        tol,
+    )
+}
+
+/// **The source solid as BODIES** — `(sharp cube, pipped cube)` off
+/// one evaluation of the shared recipe above.
+///
+/// `diechamfer` starts here: its verb has no recipe node to be
+/// (`Node::fillet` has no chamfer sibling), so it cannot continue this
+/// document and takes the source out as geometry instead. What it can
+/// share is the model above the blends, and this is that door.
+pub fn source_bodies(tol: Tol) -> (Body<f64>, Body<f64>) {
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die-source", tol);
+    let cube = cube_node(&mut doc, tol);
+    let pipped = pipped_node(&mut doc, cube, tol);
+    let ev = eval(&doc, tol);
+    (body_at(&ev, cube), body_at(&ev, pipped))
+}
+
+/// Builds the die document, materializing each blend's edge set
+/// against the evaluation of the recipe SO FAR — evaluate, select,
+/// store, which is the whole authoring loop the document layer has.
+///
+/// The selections are frozen at authoring time on purpose: a stored
+/// "every plane–sphere rim" that re-ran on every edit would silently
+/// grow under an upstream change, which is the staleness the freeze
+/// exists to prevent (`pncad::select` module docs).
+fn build(tol: Tol) -> Die {
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die", tol);
+    // Every geometric selection in this file runs over EDGES.
+    let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
+
+    let cube = cube_node(&mut doc, tol);
+
+    // ---- the blank: EVERY edge of the cube, at one radius ----
+    // No predicate needed — "all of them" has its own door.
+    let all_twelve = all_edges(&eval(&doc, tol), cube);
+    let blank = insert(&mut doc, Node::fillet(cube, len(R), all_twelve), tol);
+
+    let pipped = pipped_node(&mut doc, cube, tol);
 
     // ---- the surgery, both blends selected GEOMETRICALLY ----
     //
@@ -302,7 +346,11 @@ fn build(tol: Tol) -> Die {
         tol,
     )
     .expect("EXACT atoms are total");
-    let blanked = insert(&mut doc, Node::fillet(pipped, len(R), box_edges.clone()));
+    let blanked = insert(
+        &mut doc,
+        Node::fillet(pipped, len(R), box_edges.clone()),
+        tol,
+    );
 
     // The 21 pip rims: plane against sphere, UNORDERED across the edge
     // (the atom takes two SETS, not a left and a right). What this
@@ -324,7 +372,11 @@ fn build(tol: Tol) -> Die {
         tol,
     )
     .expect("EXACT atoms are total");
-    let composed = insert(&mut doc, Node::fillet(blanked, len(RIM_R), rims.clone()));
+    let composed = insert(
+        &mut doc,
+        Node::fillet(blanked, len(RIM_R), rims.clone()),
+        tol,
+    );
 
     Die {
         doc,
