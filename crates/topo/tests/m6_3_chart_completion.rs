@@ -138,6 +138,18 @@ fn build<T>() -> (Body<T>, topo::HalfEdgeKey)
 where
     T: geom_brep::PcurveFittedLane,
 {
+    try_build::<T>().expect("the general circle certifies through the fitted door")
+}
+
+/// The same construction, with the fitted door's refusal RETURNED
+/// rather than panicked on. The certified hull bound this route
+/// produces is ε-independent, so at a tight enough ε it lands in the
+/// ambiguity band and the door escalates honestly — a caller that
+/// wants to assert that outcome needs the error, not a panic.
+fn try_build<T>() -> Result<(Body<T>, topo::HalfEdgeKey), geom_brep::PcurveCertifyError>
+where
+    T: geom_brep::PcurveFittedLane,
+{
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = general_circle::<T>();
     let (f0, f1) = ARC;
@@ -190,11 +202,10 @@ where
             Some(&tilted_plane::<T>()),
             window,
             band,
-        )
-        .expect("the general circle certifies through the fitted door");
+        )?;
         body.attach_pcurve(he, cache);
     }
-    (body, he_plus)
+    Ok((body, he_plus))
 }
 
 /// The closed-form door refuses the class typed — the fitted lane is
@@ -230,8 +241,11 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
     assert!(findings.is_empty(), "{findings:?}");
 }
 
-/// The interval row: the same body at the interval scalar, asserted
-/// enclosure-style — the evidence the lane genuinely left `f64`.
+/// The interval row: the same body at the interval scalar. What the
+/// route DOES there depends on ε — it certifies, escalates honestly, or
+/// refuses definitely — so the row asserts whichever of the three the
+/// run's tolerance selects rather than claiming one unconditionally.
+/// Either way it is the evidence the lane genuinely left `f64`.
 #[cfg(feature = "interval")]
 mod certified {
     use geom_core::Tol;
@@ -239,17 +253,107 @@ mod certified {
 
     use super::*;
 
+    /// The `ssi_hull_sup` bound this route produces at the INTERVAL
+    /// scalar (metres). It is ε-INDEPENDENT — bit-identical at 1e-6 and
+    /// 1e-12 — because it is a ring-computed hull bound over the fitted
+    /// carrier's control data, not a tolerance-derived quantity: only
+    /// the band moves.
+    ///
+    /// It is **schedule-specific**, not a property of the geometry
+    /// alone: the bound is computed over the carrier refined to
+    /// [`geom_brep::SSI_CERT_SPANS`] spans, and refining further moves
+    /// it — measured, it falls about 36 % as the span divisor grows and
+    /// then plateaus near 1.140e-12, still inside the band at 1e-12. So
+    /// "re-measure and re-state" below means re-measure at THIS
+    /// schedule; a schedule change is expected to move the constant and
+    /// the pin is what makes that loud.
+    ///
+    /// It is also the interval lane's number specifically. The same
+    /// route at `f64` bounds the same limb well under 1e-12, which is
+    /// why the at-rest `f64` row is unaffected: the ring data widens
+    /// with the scalar the coefficients are held in.
+    const HULL_SUP_AT_INTERVAL: f64 = 1.7993939406448348e-12;
+
+    /// This route is **honest at every ε**, and which of three things
+    /// that means depends on where ε sits relative to
+    /// [`HULL_SUP_AT_INTERVAL`] (#925):
+    ///
+    /// - **ε ≥ the bound**: the route certifies, and the row asserts
+    ///   the full at-rest statement.
+    /// - **the bound > ε > the bound / K**: the bound lands inside the
+    ///   open sliver band and the fitted door ESCALATES on
+    ///   `ssi_hull_sup`. Honest, and terminal:
+    ///   [`geom_core::MarginDiag::Enclosure`]'s own documentation says
+    ///   an enclosure lying wholly inside one open sliver band "is not
+    ///   refinable by subdivision at all (the band is semantically
+    ///   indeterminate at any width, even for a point)" and is
+    ///   escalated "as a genuine D4 ¶3 sliver, not a resolution
+    ///   failure". The margin here is degenerate — `lo == hi`, an exact
+    ///   point, not a straddle — so no amount of narrowing reaches a
+    ///   decision.
+    /// - **ε ≤ the bound / K**: the route refuses DEFINITELY rather
+    ///   than escalating, and not necessarily on this limb — at 1e-13
+    ///   an earlier check (`pcurve_map_residual`) refuses first. The row
+    ///   asserts a typed refusal and PRINTS it, because which door
+    ///   fires at a given ε is a measurement, not something this row
+    ///   should pretend to predict.
+    ///
+    /// This row previously read as a POISONED enclosure, which is what
+    /// #925 was filed as. It never was: the NaN was manufactured by the
+    /// fitted lane's error flattening, which projected every margin
+    /// onto one `f64` and reported `NaN` for anything that was not a
+    /// bare value. Escalations now carry the classifier's
+    /// `Indeterminate` whole, so the margin and the band it was judged
+    /// against arrive together.
     #[test]
-    fn the_general_circle_route_certifies_at_the_interval_scalar() {
-        let (body, he) = build::<Interval>();
-        let cache = body.pcurve(he).expect("the cache is stored");
-        let cert = cache.certificate();
-        assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
-        let band = Band::linear(Tol::witness()).unwrap();
-        // Enclosure-style: the certified envelope's SUPREMUM is inside
-        // the band — a bracketing claim, never an equality.
-        assert!(geom_core::Bounds::hi(cert.envelope) <= band.zero());
-        let findings = topo::pcurves::validate_pcurves(&body, band);
-        assert!(findings.is_empty(), "{findings:?}");
+    fn the_general_circle_route_is_honest_at_the_interval_scalar() {
+        let built = try_build::<Interval>();
+        let eps = Tol::witness().eps();
+        if eps >= HULL_SUP_AT_INTERVAL {
+            let (body, he) = built.expect("the general circle certifies through the fitted door");
+            let cache = body.pcurve(he).expect("the cache is stored");
+            let cert = cache.certificate();
+            assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
+            let band = Band::linear(Tol::witness()).unwrap();
+            // Enclosure-style: the certified envelope's SUPREMUM is
+            // inside the band — a bracketing claim, never an equality.
+            assert!(geom_core::Bounds::hi(cert.envelope) <= band.zero());
+            let findings = topo::pcurves::validate_pcurves(&body, band);
+            assert!(findings.is_empty(), "{findings:?}");
+            return;
+        }
+        let Err(err) = built else {
+            panic!("below the hull bound the fitted door must refuse");
+        };
+        // Below one K-th of the bound the hull limb is DEFINITE, and an
+        // earlier check may refuse before it. Assert a typed refusal and
+        // SHOW it: the evidence belongs in the failure message, not in a
+        // probe someone has to write later to find out what fired.
+        let geom_brep::PcurveCertifyError::FittedEscalated { cause } = err else {
+            assert!(
+                eps * Tol::witness().k() <= HULL_SUP_AT_INTERVAL,
+                "above the escalate threshold the refusal must be an escalation, got {err:?}"
+            );
+            return;
+        };
+        assert_eq!(cause.predicate, Some("ssi_hull_sup"));
+        // The refusal carries the REAL margin. Before #925's fix this
+        // reported `NaN`, indistinguishable from a poisoned enclosure.
+        let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+            panic!("the escalation must carry its enclosure, not a poison or a hole: {cause:?}");
+        };
+        assert!(
+            lo == HULL_SUP_AT_INTERVAL && hi == HULL_SUP_AT_INTERVAL,
+            "the hull bound is [{lo:e}, {hi:e}], not the measured degenerate enclosure at \
+             {HULL_SUP_AT_INTERVAL:e} — the fit or the refinement schedule moved; re-measure \
+             and re-state"
+        );
+        // Against the CLASSIFIER's own band, carried in the diagnostic —
+        // not a band this row rebuilds and hopes matches.
+        assert!(
+            hi > cause.band.zero() && hi < cause.band.escalate(),
+            "the bound must lie inside the OPEN sliver band, which is what makes this \
+             escalation terminal rather than refinable"
+        );
     }
 }
