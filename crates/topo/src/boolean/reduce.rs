@@ -969,17 +969,52 @@ fn vertex_on_curved_face<T: Decide>(
     {
         Some(FaceContainment::OnVertex(vy)) => {
             push_vv(contacts, x_is, vx, vy);
-            Ok(true)
+            return Ok(true);
         }
         Some(FaceContainment::OnEdge(ey)) => {
             let wy = split_other_at_point(y, x_is.other(), ey, px, tol)?;
             push_vv(contacts, x_is, vx, wy);
-            Ok(true)
+            return Ok(true);
         }
-        // The boundary walk never answers In/Out (its contract);
-        // anything undecided falls back to the caller's typed door.
-        Some(FaceContainment::In | FaceContainment::Out) | None => Ok(false),
+        // The boundary walk never answers In/Out (its contract); fall
+        // through to the face-free question below.
+        Some(FaceContainment::In | FaceContainment::Out) | None => {}
     }
+    // Not on THIS face's boundary. One face-free question is still
+    // decidable by the same row: coincidence with a vertex of `y`
+    // anywhere (arena order, D9). An on-carrier edge is a candidate
+    // against EVERY face sharing the carrier, and against the faces
+    // whose trim does not hold the endpoint the honest answer is "the
+    // event belongs elsewhere": a valid body's vertices lie on face
+    // boundaries, never interior to a face, so a vertex hit certifies
+    // the endpoint is a boundary site — and the v-v record is
+    // face-free, so it is the SAME record the holding face's pair
+    // produces (the accumulator dedups). No hit anywhere leaves the
+    // interior/exterior question, which does not exist on a curved
+    // chart — the caller's typed door.
+    for (vy, vertex) in y.vertices() {
+        let Some(py) = y.get_point(vertex.point).copied() else {
+            continue;
+        };
+        match decide("bool_contact_vertex", Margin::norm3(px - py), band) {
+            Ok(Sign::Zero) => {
+                push_vv(contacts, x_is, vx, vy);
+                return Ok(true);
+            }
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Negative) => {
+                return Err(BooleanError::Escalated {
+                    diag: geom_core::Indeterminate {
+                        margin: geom_core::MarginDiag::Invalid,
+                        band,
+                        predicate: Some("bool_contact_vertex"),
+                    },
+                });
+            }
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
+        }
+    }
+    Ok(false)
 }
 
 fn esc(e: ContainError, operand: Operand) -> BooleanError {
