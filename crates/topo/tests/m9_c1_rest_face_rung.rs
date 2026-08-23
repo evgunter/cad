@@ -107,10 +107,10 @@ fn line_contact_seat() -> (Body<f64>, FaceKey, FaceKey) {
     )
 }
 
-/// The residue a declared face pair leaves at this door whatever the
-/// geometry: the pair's own confirmation, which the cross-key chart
-/// door declines rather than answering. Read in ONE place, so the day
-/// that door answers, every row here moves together.
+/// The residue a declared face pair leaves when its two trims share no
+/// AREA: the confirm door refuses the pair typed. A boundary touch is
+/// not an overlap the area machinery decides in either direction, and
+/// the door says so rather than certifying or refuting.
 fn pair_declined(errors: &[ValidationError], face_a: FaceKey) {
     assert_eq!(
         errors,
@@ -126,6 +126,11 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey) {
 /// INVARIANT: a declared face pair backs every event its own seat
 /// induces, vertex-on-edge and the edge-edge overlap those events
 /// bound included. Nothing about the seat is a hard finding.
+///
+/// And the pair itself certifies: the two faces are one carrier by the
+/// declaration the ladder verified, their trims overlap in definite
+/// area on it, and the whole seat therefore leaves NO residue at all —
+/// the census's verdict on #943's document is `Ok`.
 #[test]
 fn a_declared_flush_seat_leaves_no_undeclared_contact() {
     let (body, post_top, shelf_bottom) = flush_seat();
@@ -135,7 +140,10 @@ fn a_declared_flush_seat_leaves_no_undeclared_contact() {
         "the seat's own induced events are backed by the pair that \
          declared it: {errors:?}"
     );
-    pair_declined(&errors, post_top);
+    assert!(
+        errors.is_empty(),
+        "the declared seat certifies whole — no residue: {errors:?}"
+    );
 }
 
 /// INVARIANT (the scan-to-bless ban, F1): the rung consults

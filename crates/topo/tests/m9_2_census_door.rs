@@ -263,14 +263,21 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
 // ---------------------------------------------------------------------
 
 /// R1 probe (claim 3): the face-granularity backing rung is indexed
-/// from the RAW records, before confirmation — a bogus patch record
-/// naming the two interface faces silences the corner v-v findings.
-/// The two-directional certification must still refuse the body
-/// through the record's own confirmation; if this ever answers Ok the
-/// backing rung has silently glued a contact on an unconfirmed record.
+/// from the RAW records, before confirmation — a FABRICATED patch
+/// record silences the v-v findings its two faces hold. The
+/// two-directional certification must still refuse the body through
+/// the record's own confirmation; if this ever answers Ok the backing
+/// rung has silently glued a contact on an unconfirmed record.
+///
+/// The fabrication is a pair that is COPLANAR and touches the record's
+/// held vertices, but whose trims share no area: the second instance
+/// is set beside the first rather than on it, so the two z = 1 faces
+/// meet along one edge and nothing more. A record claiming a
+/// conformal patch there is false about the geometry — which is what
+/// makes the probe's question a question.
 #[test]
 fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
-    let (body, _) = stacked();
+    let body = assembly(&cube_at(0.0, 0.0, 0.0), &cube_at(1.0, 0.0, 1.0));
     // The two z = 1 planar faces (A's top, B's bottom).
     let mut ifaces: Vec<_> = body
         .faces()

@@ -54,18 +54,24 @@ fn probe_nested_instance_overlap_at_three_prime() {
     );
 }
 
-/// PROBE (claim 3): a bogus PATCH record naming the two touching
-/// coplanar faces of a stacked-cube assembly. The face-granularity
-/// backing rung will treat the corner v-v events as SUBORDINATE to the
+/// PROBE (claim 3): a FABRICATED patch record naming two coplanar
+/// faces of a two-instance assembly. The face-granularity backing rung
+/// will treat the v-v events those faces hold as SUBORDINATE to the
 /// record — the probe checks the record itself cannot silently bless
 /// the assembly (its own confirm must refuse somehow: contradicted,
 /// stale, escalated, or unsupported).
+///
+/// The fabrication is what makes the question a question: the second
+/// instance stands BESIDE the first, so the two z = 1 faces are one
+/// carrier that meets along a single edge and shares no area, and a
+/// record claiming a conformal patch there is false about the
+/// geometry.
 #[test]
 fn probe_bogus_planar_patch_record_never_silently_blesses() {
     let a = cube_scaled_at(1.0, 0.0, 0.0, 0.0);
-    let b = cube_scaled_at(1.0, 0.0, 0.0, 1.0);
+    let b = cube_scaled_at(1.0, 1.0, 0.0, 1.0);
     let body = assembly(&a, &b);
-    // The touching pair: A's top face (z = 1, outward +z) and B's
+    // The declared pair: A's top face (z = 1, outward +z) and B's
     // bottom face (z = 1, outward -z).
     let mut top = None;
     let mut bottom = None;

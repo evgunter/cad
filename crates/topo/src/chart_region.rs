@@ -16,12 +16,24 @@
 //!   [`crate::GeomSource`] — the N6 retirement theorem gives
 //!   bit-identical descriptions, hence the identical chart.
 //!
-//! **Rung-3 (declared) pairs ESCALATE as [`ChartRegionError::ChartDivergence`]**:
-//! C2's own caveat says two descriptions of one locus may differ as
-//! charts (`u_ref`, seam), so "exact in chart space" is unachievable
-//! across a declared pair — the honest posture is a typed escalation
+//! **Rung-3 (declared) pairs have one further authority, and only
+//! one**: the shared WORLD CARRIER of a PLANAR pair
+//! ([`declared_pair_overlap`]). A declaration verified through the
+//! carrier ladder is what makes two independently authored
+//! descriptions one carrier (C4), and a plane's world embedding is a
+//! chart both of them agree on as a locus — it carries no `u_ref`/seam
+//! parameter for them to disagree about — so both trims are read on
+//! that one carrier from their edges' WORLD curves and the overlap is
+//! decided there by the machinery below, exactly, on the same F5
+//! subset. Every other declared pair escalates
+//! [`ChartRegionError::ChartDivergence`]: C2's caveat that two
+//! descriptions of one locus may differ as charts (`u_ref`, seam) is
+//! REAL for the curved kinds, so "exact in chart space" is
+//! unachievable there — the honest posture is a typed escalation
 //! naming the divergence, not a margined pseudo-exact test in
-//! whichever chart we happened to pick.
+//! whichever chart we happened to pick. The closure that fits a curved
+//! carrier is a certified everywhere-within-ε overlap enclosure on it,
+//! a different shape from either.
 //!
 //! # The planar trim inventory, defined structurally (C6)
 //!
@@ -271,6 +283,18 @@ pub trait ChartRegionLane: Decide {
         face_b: FaceKey,
         band: Band,
     ) -> Option<Result<ChartOverlap, ChartRegionError>>;
+
+    /// The same door for a pair whose carrier identity is a VERIFIED
+    /// DECLARATION — [`declared_pair_overlap`], which adds the shared
+    /// world carrier's planar arm below the structural rung. `None`
+    /// carries the same meaning: no certified lane at this scalar.
+    fn declared_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>>;
 }
 
 impl ChartRegionLane for f64 {
@@ -282,6 +306,16 @@ impl ChartRegionLane for f64 {
         band: Band,
     ) -> Option<Result<ChartOverlap, ChartRegionError>> {
         Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
+    }
+
+    fn declared_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(declared_pair_overlap(body_a, face_a, body_b, face_b, band))
     }
 }
 
@@ -296,6 +330,16 @@ impl ChartRegionLane for geom_core::Probe {
     ) -> Option<Result<ChartOverlap, ChartRegionError>> {
         Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
     }
+
+    fn declared_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(declared_pair_overlap(body_a, face_a, body_b, face_b, band))
+    }
 }
 
 #[cfg(feature = "interval")]
@@ -309,6 +353,16 @@ impl ChartRegionLane for geom_core::interval::Interval {
     ) -> Option<Result<ChartOverlap, ChartRegionError>> {
         Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
     }
+
+    fn declared_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(declared_pair_overlap(body_a, face_a, body_b, face_b, band))
+    }
 }
 
 /// The dual lane: statically no chart-region predicate (trait docs).
@@ -317,6 +371,16 @@ where
     geom_core::Dual<T>: Decide,
 {
     fn chart_overlap(
+        _body_a: &Body<Self>,
+        _face_a: FaceKey,
+        _body_b: &Body<Self>,
+        _face_b: FaceKey,
+        _band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        None
+    }
+
+    fn declared_overlap(
         _body_a: &Body<Self>,
         _face_a: FaceKey,
         _body_b: &Body<Self>,
@@ -388,21 +452,253 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     // 1. Chart identity (fixed gate order, D9: identity → inventory →
     //    arms → seam → machinery).
     let surface = same_chart(body_a, face_a, body_b, face_b)?;
+    overlap_on(
+        body_a,
+        face_a,
+        body_b,
+        face_b,
+        &surface,
+        ChartRead::Minted,
+        band,
+    )
+}
 
+/// **The declared pair's overlap door** — what a `PatchContact` whose
+/// carrier identity is a VERIFIED DECLARATION (rung 3) certifies
+/// through, in the fixed order structural-identity-first.
+///
+/// The two rungs answer the same question on two different chart
+/// authorities:
+///
+/// - [`same_chart`] — the pair's descriptions are structurally ONE
+///   chart (shared key / same `GeomSource`), so the trims are read in
+///   it directly. Stronger, so it is asked first.
+/// - the **shared world carrier**, PLANAR pairs only: the declaration
+///   verified through the carrier ladder is what makes the two
+///   descriptions one carrier (C4), and a plane's world embedding is a
+///   chart both descriptions agree on as a locus — it carries no
+///   `u_ref`/seam parameter for them to disagree about. Both trims are
+///   read on that one carrier from their edges' WORLD curves and the
+///   overlap is decided there, exactly, by the same F5 machinery.
+///
+/// A pair with neither authority keeps [`same_chart`]'s typed
+/// divergence — including a declared CURVED cross-instance pair, whose
+/// `u_ref`/seam divergence is real and whose closure is a certified
+/// everywhere-within-ε overlap enclosure on the shared curved carrier
+/// (CONTACT-DESIGN C3), not this arm.
+///
+/// # Errors
+///
+/// [`ChartRegionError`], as [`chart_region_overlap`].
+pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<ChartOverlap, ChartRegionError> {
+    match same_chart(body_a, face_a, body_b, face_b) {
+        Ok(surface) => overlap_on(
+            body_a,
+            face_a,
+            body_b,
+            face_b,
+            &surface,
+            ChartRead::Minted,
+            band,
+        ),
+        Err(divergence) => {
+            let carrier = world_carrier(body_a, face_a, body_b, face_b, divergence)?;
+            let uv_a = extract_face_uv(body_a, face_a, &carrier, ChartRead::WorldCarrier, band)?;
+            let uv_b = extract_face_uv(body_b, face_b, &carrier, ChartRead::WorldCarrier, band)?;
+            match overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band) {
+                // A SHARED BOUNDARY is what a seat flush with an edge
+                // is made of, and it is not by itself an undecidable
+                // area: the boundary walk cannot build intersection
+                // pieces across a collinear overlap, but a point
+                // certified strictly interior to BOTH trims proves the
+                // intersection contains a disc of definitely-positive
+                // radius, which is the positive claim itself. The rung
+                // only ever turns a REFUSAL into a proof — it can
+                // neither contradict a decided answer nor manufacture
+                // an `Empty`.
+                Err(ChartRegionError::TouchingBoundary)
+                    if interior_witness(
+                        body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band,
+                    ) =>
+                {
+                    Ok(ChartOverlap::PositiveArea)
+                }
+                other => other,
+            }
+        }
+    }
+}
+
+/// **The interior-witness rung** (the census's own `contfp`, run in
+/// world space on the shared carrier): `true` when the fixed candidate
+/// schedule exhibits a point strictly inside BOTH faces.
+///
+/// The schedule is each outer trim's vertex centroid then its ear
+/// midpoints `(v[i-1] + v[i+1])/2`, face A's trim then face B's, in
+/// cycle order — a plane chart's coordinates are metres, so each
+/// candidate maps to the carrier by the frame identity
+/// `o + u·u_ref + v·v_ref` and lands ON the carrier exactly.
+///
+/// Every verdict but `In` — a boundary coincidence, an exterior point,
+/// an in-band containment, an exhausted ray schedule — means THIS
+/// candidate proves nothing, so the walk moves to the next one; the
+/// rung's whole output is a proof or its absence, and its absence
+/// leaves the region walk's typed refusal standing. A candidate is
+/// never counted from one face alone: `contfp` reads each face's own
+/// rings, so a point in a hole of either is `Out` of that face.
+fn interior_witness<T: Decide + Bounds>(
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    carrier: &Surface<T>,
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+    band: Band,
+) -> bool {
+    let Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = *carrier
+    else {
+        return false;
+    };
+    let v_ref = normal.cross(u_ref);
+    let Some(normal_b) = face_normal(body_b, face_b) else {
+        return false;
+    };
+    let inside = |body: &Body<T>, face: FaceKey, n, q| {
+        matches!(
+            crate::boolean::contfp(body, face, n, q, band),
+            Ok(crate::boolean::FaceContainment::In)
+        )
+    };
+    for poly in [&uv_a.outer, &uv_b.outer] {
+        for c in candidate_points(poly) {
+            let q = origin + u_ref * c.x + v_ref * c.y;
+            if inside(body_a, face_a, normal, q) && inside(body_b, face_b, normal_b, q) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// A face's own plane normal (the carrier description's, sense-free:
+/// [`crate::splitting::point_in_loop`]'s verdict is blind to the sign).
+fn face_normal<T: Decide + Bounds>(body: &Body<T>, face: FaceKey) -> Option<geom_core::Vec3<T>> {
+    let key = body.get_face(face)?.surface;
+    match body.get_surface(key)? {
+        Surface::Plane { normal, .. } => Some(*normal),
+        _ => None,
+    }
+}
+
+/// The witness schedule of one trim polygon (fixed order, D9): its
+/// vertex centroid, then each ear midpoint in cycle order.
+fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
+    let n = poly.len();
+    if n < 3 {
+        return Vec::new();
+    }
+    let half = T::one() / (T::one() + T::one());
+    let mut sum = Point2::new(T::zero(), T::zero());
+    for p in poly {
+        sum = Point2::new(sum.x + p.x, sum.y + p.y);
+    }
+    let count = T::from_f64(n as f64);
+    let mut out = vec![Point2::new(sum.x / count, sum.y / count)];
+    for i in 0..n {
+        let prev = poly[(i + n - 1) % n];
+        let next = poly[(i + 1) % n];
+        out.push(Point2::new(
+            (prev.x + next.x) * half,
+            (prev.y + next.y) * half,
+        ));
+    }
+    out
+}
+
+/// The shared world carrier of a declared PLANAR pair: face A's plane
+/// as an embedded locus, which is the chart both faces are read in.
+///
+/// Planar because that is the whole of what a carrier's world
+/// embedding decides without a parameter convention. Any other kind
+/// keeps the divergence it arrived with — the charts of two
+/// independently authored curved descriptions of one locus differ in
+/// `u_ref` and seam, and no world embedding arbitrates that.
+fn world_carrier<T: Decide + Bounds>(
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    divergence: ChartRegionError,
+) -> Result<Surface<T>, ChartRegionError> {
+    let surface_of = |body: &Body<T>, face: FaceKey| -> Result<Surface<T>, ChartRegionError> {
+        let key = body
+            .get_face(face)
+            .ok_or(ChartRegionError::Corrupt)?
+            .surface;
+        body.get_surface(key)
+            .cloned()
+            .ok_or(ChartRegionError::Corrupt)
+    };
+    let s_a = surface_of(body_a, face_a)?;
+    let s_b = surface_of(body_b, face_b)?;
+    if matches!(s_a, Surface::Plane { .. }) && matches!(s_b, Surface::Plane { .. }) {
+        Ok(s_a)
+    } else {
+        Err(divergence)
+    }
+}
+
+/// The pipeline below the chart-authority gate (fixed order, D9:
+/// identity → inventory → arms → seam → machinery), run on whichever
+/// chart the authority produced.
+fn overlap_on<T: Decide + Bounds>(
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    surface: &Surface<T>,
+    read: ChartRead,
+    band: Band,
+) -> Result<ChartOverlap, ChartRegionError> {
     // 2. UV loop extraction, variant-gated (face A then face B, outer
     //    then rings, cycle order).
-    let uv_a = extract_face_uv(body_a, face_a, &surface, band)?;
-    let uv_b = extract_face_uv(body_b, face_b, &surface, band)?;
+    let uv_a = extract_face_uv(body_a, face_a, surface, read, band)?;
+    let uv_b = extract_face_uv(body_b, face_b, surface, read, band)?;
+    overlap_of_uv(body_a, face_a, body_b, face_b, surface, &uv_a, &uv_b, band)
+}
 
+/// The pipeline below the loop extraction: arms, seam, machinery.
+#[allow(clippy::too_many_arguments)] // the pipeline's whole state, no less
+fn overlap_of_uv<T: Decide + Bounds>(
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    surface: &Surface<T>,
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+    band: Band,
+) -> Result<ChartOverlap, ChartRegionError> {
     // 3. Exact constant arms or a typed refusal.
-    let (arm_u, arm_v) = exact_arms(&surface)?;
+    let (arm_u, arm_v) = exact_arms(surface)?;
 
     // 4. Seam-branch gate (periodic charts).
-    seam_gate(&surface, &uv_a, &uv_b, band)?;
+    seam_gate(surface, uv_a, uv_b, band)?;
 
     // 5. Chart-space machinery on metred coordinates.
-    let a = ScaledFace::build(body_a, face_a, &uv_a, arm_u, arm_v, band)?;
-    let b = ScaledFace::build(body_b, face_b, &uv_b, arm_u, arm_v, band)?;
+    let a = ScaledFace::build(body_a, face_a, uv_a, arm_u, arm_v, band)?;
+    let b = ScaledFace::build(body_b, face_b, uv_b, arm_u, arm_v, band)?;
     let same_face = core::ptr::eq(body_a, body_b) && face_a == face_b;
     overlap_of_regions(&a, &b, same_face, band)
 }
@@ -637,14 +933,34 @@ fn pcurve_entry<T: Decide + Bounds>(
     }
 }
 
+/// Which chart image a loop walk reads.
+///
+/// The distinction is which description the polygon is a picture OF: a
+/// face's own minting chart, where its stored cache IS that chart's
+/// image; or a carrier chart the face does not itself describe, where
+/// the only honest image is the one derived from the WORLD carrier of
+/// each boundary edge. A stored cache read against a foreign chart
+/// would be a picture of the wrong description.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ChartRead {
+    /// The face's own chart: stored cache, else the plane
+    /// derive-on-demand image.
+    Minted,
+    /// A shared world carrier: every boundary edge's world curve read
+    /// into THIS chart, caches never consulted (plane charts only —
+    /// the affine image is exact and branchless).
+    WorldCarrier,
+}
+
 /// Walks one loop into its chart polygon: per half-edge, the stored
 /// cache (minting charts) or the derive-on-demand affine image (plane
-/// charts only), then the variant-gated entry vertex.
+/// charts), then the variant-gated entry vertex.
 fn loop_uv_polygon<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     lk: LoopKey,
     surface: &Surface<T>,
+    read: ChartRead,
     band: Band,
 ) -> Result<Vec<Point2<T>>, ChartRegionError> {
     let loop_data = body.get_loop(lk).ok_or(ChartRegionError::Corrupt)?;
@@ -663,7 +979,10 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let entry = if let Some(cache) = body.pcurve(he) {
+        let cache = (read == ChartRead::Minted)
+            .then(|| body.pcurve(he))
+            .flatten();
+        let entry = if let Some(cache) = cache {
             let (t0, t1) = cache.params();
             pcurve_entry(cache.pcurve(), t0, t1, forward).map_err(refuse)?
         } else if matches!(surface, Surface::Plane { .. }) {
@@ -693,13 +1012,14 @@ fn extract_face_uv<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
     surface: &Surface<T>,
+    read: ChartRead,
     band: Band,
 ) -> Result<FaceUv<T>, ChartRegionError> {
     let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    let outer = loop_uv_polygon(body, face, face_data.outer, surface, band)?;
+    let outer = loop_uv_polygon(body, face, face_data.outer, surface, read, band)?;
     let mut rings = Vec::with_capacity(face_data.rings.len());
     for &rk in &face_data.rings {
-        rings.push(loop_uv_polygon(body, face, rk, surface, band)?);
+        rings.push(loop_uv_polygon(body, face, rk, surface, read, band)?);
     }
     Ok(FaceUv { outer, rings })
 }

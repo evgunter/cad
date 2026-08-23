@@ -1927,12 +1927,22 @@ fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
 /// carrier/sense door (`contact_pair_verdict` — carrier identity
 /// through the kind ladder with the record standing as the
 /// declaration, senses opposed, aligned coincidence contradicted) and
-/// the chart-region overlap predicate (region overlap in the shared
-/// chart with definitely-positive area). Overlap `Empty` ⇒ the record
-/// is STALE (C3's letter); an in-band overlap escalates; a pair the
-/// predicate refuses typed (no exact-constant-arm chart, seam-branch
-/// divergence, non-planar trims) is unsupported inventory — refused,
-/// never sampled, never blessed.
+/// the region-overlap predicate on the VERIFIED CARRIER (overlap with
+/// definitely-positive area, read either in a structurally shared
+/// chart or — Door 1 having verified the declaration — on the shared
+/// world carrier of a PLANAR pair, which is the only carrier two
+/// independently authored descriptions agree on without agreeing on a
+/// chart parameter). Overlap `Empty` ⇒ the record is STALE (C3's
+/// letter); an in-band overlap escalates; a pair the predicate refuses
+/// typed (no exact-constant-arm chart, seam-branch divergence,
+/// non-planar trims, and a declared CURVED pair whose descriptions
+/// diverge as charts) is unsupported inventory — refused, never
+/// sampled, never blessed.
+///
+/// The world-carrier arm is what lets an ASSEMBLY's contacts certify
+/// at all: a mate's pair is two instances' faces by construction, so
+/// it never has structural chart identity, and its declaration is the
+/// authority that replaces it.
 ///
 /// ASM R2-b consumes exactly this pass (ASM-R2-SPEC-DRAFT:39-58): a
 /// mate's declaration lands in the product body's `ContactRecords` —
@@ -2048,9 +2058,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 continue;
             }
         }
-        // Door 2 — region overlap in the shared chart, definitely
-        // positive (the PR-1 predicate through the per-scalar lane).
-        match T::chart_overlap(body, c.face_a, body, c.face_b, band) {
+        // Door 2 — region overlap on the pair's verified carrier,
+        // definitely positive: structural chart identity where the
+        // pair has it, and otherwise — Door 1 having verified the
+        // declaration — the shared WORLD carrier of a PLANAR pair,
+        // which is the record's own authority for being one carrier
+        // at all. A declared CURVED cross-instance pair has neither
+        // and refuses typed below.
+        match T::declared_overlap(body, c.face_a, body, c.face_b, band) {
             None => {
                 errors.push(ValidationError::CensusUnsupported {
                     entity: EntityId::Face(c.face_a),
