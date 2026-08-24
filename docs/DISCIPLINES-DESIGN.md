@@ -2,7 +2,10 @@
 
 **Status: DRAFT — design conversation, awaiting Evan's sign-off.**
 (Born in the 2026-08-24 configurable-checks conversation; proposals
-DS1–DS8, open questions DS-Q1–DS-Q4.) This doc schedules **no
+DS1–DS8, open questions DS-Q1–DS-Q6. Round 2 revised DS2 and DS7 per
+Evan's pushback: the mandatory criterion is identification, not
+"an op forks"; the permissive mode is a recording dial with a viable
+middle position, not a rejected monolith.) This doc schedules **no
 implementation** and changes **no behavior** — every mandatory check
 named below keeps its current force whether or not this is ratified.
 What it ratifies, if accepted, is a *classification* and a *pattern*:
@@ -42,8 +45,12 @@ machinery; they differ in everything upstream of it.
   certified where the geometry supports it, honest heuristics where
   it doesn't, labeled as such, never silently mixed.
 - **The run-global configuration posture** (D4): one value per run,
-  never per-entity; and D9 — bodies are never persisted, they
-  re-derive from recipes.
+  never per-entity; K as the one strictness knob (`Tolerance.k`,
+  ratified default K = 10, `docs/K-REPORT.md`); and D9 — bodies are
+  never persisted, they re-derive from recipes.
+- **No value-inferred merging** (F7): booleans precondition maximal
+  faces and refuse typed; `merge_coplanar_faces` glues on the
+  structural and declared rungs only.
 - **Equivariance** (engineering convention 4): kernel constructions
   and selection rules privilege no absolute frame.
 - **The reach goal** (M10): a model is evaluated over a parameter
@@ -59,7 +66,9 @@ Every shipped discipline is the same five-part shape:
    κ_rel for `TangentIntersection`, order ∞/structural for
    conformality — the C1 pattern);
 2. a **declaration vocabulary** (recipe data by stable name:
-   `tangent_joints`, `Node::Declare { pairs, class }`);
+   `tangent_joints`, `Node::Declare { pairs, class }`), each record
+   carrying a **provenance** (DS7's ladder: constructor-authored /
+   user-stated / auto-recorded);
 3. a **verify table** (must-verify-definite / contradiction triggers
    / bridged residue);
 4. a **detector** that is the verifier in candidate-generation mode
@@ -79,76 +88,113 @@ where its geometry lives (the C4 tables in `topo`, the joint
 classifier in `profile`), exactly as `ContactClass` is defined lowest
 and re-exported upward today.
 
-## DS2 — The fork criterion: which disciplines are mandatory
+## DS2 — The identification criterion: which disciplines admit no knob
 
-**A discipline is mandatory iff some kernel operation forks on its
-stratum** — the op must answer "on or off" to build anything at all.
-Sector classification at a touching edge forks on tangency; the
-one-carrier-or-two decision forks on carrier identity; the
-declared-REST zip forks on contact. For these, "off" has no
-semantics: the op either has no answer at a fork it must take, or
-takes the answer from value proximity — which is the EPS snapping
-the ladder exists to kill. All three shipped disciplines are
-mandatory by this criterion, which is why none of them carries a
-switch today and none acquires one under this design.
+**A discipline is irreducibly mandatory iff its declaration licenses
+an identification** — a quotient that merges independently-authored
+entities into one (a single carrier from two descriptions, the
+declared-REST zip, a blessed conformal patch), so that the *built
+solid itself* depends on whether the bless happens. Value evidence
+cannot substitute for the declaration there even when definite, as a
+matter of principle rather than posture: bit-equality at nominal is
+a fact about a **point** in parameter space; identity is a claim
+about the **family** (equal under every assignment the M10
+distribution explores). Only intent can assert the family-level
+claim, and gluing on the point-fact makes topology a function of a
+coincidence nobody stated. Carrier equality and declared contact are
+identification-grade; they carry no switch today and none under this
+design.
 
-The criterion is *checkable*, not a judgment call: name the op and
-the fork, or the discipline is not mandatory. It also gives the
-honest answer to "why is tangency mandatory but draft angle isn't" —
-the asymmetry is not an accident of history; one stratum has
-construction forks and the other has none.
+**Classification-grade disciplines are everything else**: the
+stratum verdict tunes edge descriptions, legality, and messages, but
+whenever a body builds it is the same body — the fork downstream
+consumes the *geometric verdict*, which exists whether or not anyone
+declared, and the declaration only gates passage. Profile tangency
+is classification-grade (reclassified in round 2 per Evan's
+collinear-segments observation): two consecutive collinear segments
+refuse both ways today (undeclared → `UndeclaredTangency`; declared →
+the `same_carrier: true` identity refusal) and are never auto-joined;
+were they passed through un-merged, the extrusion's topology equals
+the slightly-off case's, and the difference downstream is pure
+acceptance (F7's `NonMaximalFaces` at the boolean doors), never a
+different solid. Likewise the smooth-vs-transverse fork (MappedCurve
+vs Intersection descriptions, wedge legality, prefer-intrinsic)
+resolves from sampled geometry, not from the declaration.
+Classification-grade disciplines therefore satisfy DS3's severity
+invariant and are dial-eligible (DS7) **in principle**; profile
+tangency stays at the strictest dial position as the ratified thesis
+default, and its declarations have non-check consumers regardless of
+dial (`ValidatedLoop::blend_arcs` — the structural
+fillet-identification API — and loft joint carriage), so PATHS
+constructors keep authoring them at every position.
 
-## DS3 — The severity invariant: what makes a switch legal
+The criterion is checkable, not a judgment call: name the merge the
+declaration licenses, or the discipline is classification-grade.
 
-A registry entry may carry a severity knob — **off / warn / error** —
-iff it can hold this invariant:
+## DS3 — The severity invariant: what makes any knob legal
 
-> **No severity level ever changes the evaluated solid.** All levels
-> build the same body or refuse; `error` is a refusal at the
-> recipe-validation door, never a fork inside an operation.
+A registry entry may carry a configuration knob iff it can hold this
+invariant:
+
+> **No knob position ever changes the evaluated solid.** Whenever a
+> body builds, it is the same body at every position; positions
+> differ only in what is *accepted* — a refusal at the
+> recipe-validation door, a finding, or silence.
 
 Consequences, each load-bearing:
 
-- **Monotone strictness.** Raising severity only shrinks the accepted
-  set. No configuration change can silently alter geometry — the
-  failure mode of cross-config document exchange is exactly one:
+- **Monotone strictness.** Tightening only shrinks the accepted set.
+  No configuration change can silently alter geometry — the failure
+  mode of cross-config document exchange is exactly one:
   refuse-on-load with the finding and its menu.
-- **Cheap reconfiguration.** Unlike ε, a severity change requires
+- **Cheap reconfiguration.** Unlike ε, a knob change requires
   re-*validation* only, never re-evaluation — no geometry re-derives.
-- **No per-body state.** Severity configuration is run-global (the
-  D4 posture). Bodies are never persisted (D9), so there is no
-  at-rest bitmask to stamp; a document carries its declarations,
-  which are meaningful at every severity level.
+- **No per-body state.** Knob configuration is run-global (the D4
+  posture). Bodies are never persisted (D9), so there is no at-rest
+  bitmask to stamp; a document carries its declarations, which are
+  meaningful at every position.
 
-This invariant is the sharp boundary of the whole design: anything
-that can hold it is *lint-grade* and gets the knob; anything that
-cannot (because an op forks on the answer — DS2) is *kernel-grade*
-and does not. The severity plumbing itself is trivial (a level enum
-consulted at the finding sink); the design content is the invariant,
-not the mechanism.
+This invariant is the sharp boundary of the design: anything that
+can hold it is knob-eligible; the identification disciplines (DS2)
+cannot, and are not. The knob mechanics themselves are trivial (a
+level enum consulted at the finding sink — one macro's worth); the
+design content is the invariant, not the mechanism.
 
-## DS4 — Grade 2: configurable geometric disciplines
+Two knob shapes, by kind. **Checks** (no declarations) carry
+**off / warn / error**. **Disciplines** carry the **recording dial**
+of DS7 — **ignore / auto-record / require** — because for a
+discipline the meaningful middle position is not a bare warning but
+a *recorded* one: recording is the acknowledgment mechanism, the
+diff basis that separates a known coincidence from a new one. A
+warn-without-record position would re-flag every known coincidence
+on every validation forever, or never distinguish new from known;
+it is deliberately absent.
+
+## DS4 — Grade 2: classification geometric disciplines
 
 Full discipline shape (declarations in the recipe, verified never
-trusted, in-band escalates at `error`) — but no op forks on the
-stratum, so the severity knob is legal. The declaration's value is
-intent and robustness, not constructability.
+trusted, in-band escalates at `require`) — knob-eligible by DS2/DS3.
+Residents:
 
-**First named resident: declared right angles.** Perpendicularity is
-intent-only by construction: convention 4 makes the kernel
-equivariant, so no boolean, sector table, or classification can ever
-consume "these faces are exactly perpendicular" — an undeclared right
-angle is just a transverse crossing. What the declaration buys is the
-stratum: under M10 a perpendicularity that holds by accident of
-nominal values is a point property, destroyed by perturbation; a
-declared one is a recorded design intent the stackup can hold the
-model to. Verify table: definite = normal orthogonality at the
-derived angular threshold (lever arm named per site, D4); contradicted
-by definite non-orthogonality; bridged = the in-band residue between
-independently-authored faces. **Reserved, not built** (the GS-Q2
-convexity posture): no corpus site demands it yet; the vocabulary
-slot is named so the first demand lands as a registry entry, not a
-milestone.
+- **Profile tangency (built; dial at `require` as the ratified
+  default).** Reclassified here from the mandatory grade by DS2's
+  criterion; nothing about its current behavior changes, and moving
+  its default is a design conversation this doc does not open.
+- **Declared right angles (reserved, not built** — the GS-Q2
+  convexity posture**).** Perpendicularity is intent-only by
+  construction: convention 4 makes the kernel equivariant, so no
+  boolean, sector table, or classification can ever consume "these
+  faces are exactly perpendicular" — an undeclared right angle is
+  just a transverse crossing. What the declaration buys is the
+  stratum: under M10 a perpendicularity holding by accident of
+  nominal values is a point property, destroyed by perturbation; a
+  declared one is recorded design intent the stackup can hold the
+  model to. Verify table: definite = normal orthogonality at the
+  derived angular threshold (lever arm named per site, D4);
+  contradicted by definite non-orthogonality; bridged = the in-band
+  residue between independently-authored faces. No corpus site
+  demands it yet; the vocabulary slot is named so the first demand
+  lands as a registry entry, not a milestone.
 
 ## DS5 — Grade 3: recipe-layer disciplines (parameter-space strata)
 
@@ -167,23 +213,25 @@ the diagonal {pᵢ = pⱼ}. Rungs:
 - **declared-distinct** — an explicit disavowal: "equal by
   coincidence, keep independent." New vocabulary — the geometric
   disciplines have no anti-declaration, but here both menu arms
-  record intent, which is what makes `error` livable;
+  record intent, which is what makes `require` livable;
 - **refusing** — DAG-disjoint expressions, definitely-equal values,
   no declaration either way: the finding.
 
 For literal operands the equality test is exact — no ε anywhere; for
 derived values it is the ordinary Q1 definite-equality trilean.
 Scope: **named parameters only**, not raw coordinate literals —
-base-rate control is what keeps the finding a signal (models live on
-grids; parameters colliding at equal values is rare and
-informative). The consumer that makes the declaration meaningful is
-M10: same variable = the pair comoves under the distribution;
-declared-distinct = independent marginals. The lint is the
-completeness condition for a tolerance stackup being well-posed over
-the definitely-equal pairs — and it catches the one classic
-parametric defect no geometric check can see: the copy-pasted
-dimension that was meant to be shared, where both models are
-bit-identical at nominal and differ only in parameter space.
+base-rate control is what keeps the finding a signal. The consumer
+that makes the declaration meaningful is M10: same variable = the
+pair comoves under the distribution; declared-distinct = independent
+marginals. The lint is the completeness condition for a tolerance
+stackup being well-posed over the definitely-equal pairs — and it
+catches the one classic parametric defect no geometric check can
+see: the copy-pasted dimension that was meant to be shared, where
+both models are bit-identical at nominal and differ only in
+parameter space. At the dial's `auto-record` position the recorded
+object is the acknowledged observation (the pair, not a chosen arm —
+the machine cannot pick unify-vs-distinct; upgrading to either arm
+is the user's review).
 
 The frame-coincidence variant (a vertical line authored as two
 points rather than direction + origin + length) is recorded as a
@@ -204,89 +252,123 @@ by the LONGTERM-IDEAS process note (milestone plan + sign-off), not
 by this doc; what this doc fixes is the shape they graduate *into*.
 
 **Recommendation, refining I1's warn-never-refuse at the severity
-knob**: a **certified** check (connectedness — exact; moldability —
-certified normal enclosures) may offer `error`, holding DS3's
-invariant like any lint; a **labeled-heuristic** check
-(machinability, the sliver threshold) caps at `warn` permanently — a
-heuristic must never refuse. This gives I1's honest-labeling rule
-teeth: the certified/heuristic label is not just message text, it
-bounds the check's maximum force.
+knob**: a **certified** check — one whose finding is a theorem about
+the geometry (connectedness: exact/combinatorial; moldability:
+hull bounds on normal enclosures) — may offer `error`, holding DS3's
+invariant like any lint. A **labeled-heuristic** check — one whose
+finding is a judgment that can be wrong in both directions (the
+sliver lint's display-distinguishability threshold; machinability
+rules, I1(d)'s "explicitly the labeled-heuristic class") — caps at
+`warn` permanently: what cannot prove its finding may never refuse.
+This gives I1's honest-labeling rule teeth: the label is not message
+text, it bounds the check's maximum force.
 
-## DS7 — Rejected: the auto-bless mode
+## DS7 — The permissive spectrum: provenance and the recording dial
 
-Considered and rejected: a run-global permissive mode in which a
-*definite* coincidence verdict at a discipline's op site is taken as
-intended and recorded, in place of the undeclared refusal (in-band
-escalating in every mode — bridging in-band without intent is value
-gluing, never on the table). The mode is coherent and cheap — the
-refusal sites already sit on computed verdicts, and the record
-carriage works unchanged with auto-minted records — and it is
-rejected on three grounds:
+**The provenance ladder.** Every declaration record carries how it
+came to exist, and the framework treats the rungs differently only
+in review affordances, never in verification (C4 verifies geometry,
+not sincerity):
 
-1. **It relieves only the cheap cases.** In-band still escalates, so
-   the mode is stricter than industry kernels where they are
-   permissive, while the exact-coincidence cases it does relieve are
-   the ones `declare_all(find_*())` already reduces to an accept.
-2. **"Assume the result was intended" is only valid at authoring
-   time.** A declaration records intent about a configuration the
-   author looked at, and is edit-robust in both directions
-   (`ContactContradicted`, `StaleContactDeclaration`). A mode records
-   a policy, and blesses coincidences that did not exist when the
-   choice was made — a later parameter edit that lands two features
-   exactly tangent sails through with the alarm off precisely in the
-   accidental-tangency scenario the discipline exists for.
-3. **It erases the stratum intent M10 consumes.** An auto-blessed
-   contact definite at nominal f64 is indeterminate over the
-   parameter box; interval replay escalates with no declared intent
-   to bridge. Auto-blessed models are point-defined; declared models
-   are germ-defined — and the reach goal shapes the architecture
-   even while deferred.
+- **constructor-authored** — intent structural in the verb (PATHS
+  `.fillet(r)` declaring the tangency it constructs; shipped
+  precedent). Present at every dial position.
+- **user-stated** — `Node::Declare`, `tangent_joints`, the
+  detect/declare sugar; findings passed through user-visible hands
+  as values (GS-Q3).
+- **auto-recorded** — machine-written at a definite finding's first
+  appearance, tagged as such, upgradeable to user-stated on review.
 
-Structurally, the mode is GS-Q3's forbidden fused detect-and-declare
-door promoted to a global. Its honest cousin is in scope instead: a
-batch **bless-current-findings** authoring affordance that *writes
-the declarations* — the same zero-thought UX at authoring time, with
-the findings passing through user-visible hands as values and the
-artifact keeping the intent.
+**The recording dial**, per classification-grade discipline
+(identification-grade disciplines have no dial at any position, DS2):
+
+- **require** — undeclared definite coincidence refuses; the
+  strictest position and the ratified default posture.
+- **auto-record** — a definite coincidence arising where the author
+  is currently working is recorded with `auto` provenance;
+  subsequent evaluations diff the definite findings against the
+  recorded set, and **changes complain**: a recorded coincidence now
+  contradicted or stale fires the existing C4 alarms
+  (`ContactContradicted`, `StaleContactDeclaration`) exactly as for
+  user declarations, and a new finding outside the author's current
+  edit surfaces as a finding rather than auto-recording. The batch
+  bless-current-findings affordance is this position's one-shot
+  form, and the review door for accumulated auto-records.
+- **ignore** — nothing recorded, nothing diffed.
+
+**The in-band family is already dialed elsewhere.** The escalation
+band is governed by K (`Tolerance.k`, D4) — collapsing it toward the
+precision floor is an existing per-run mechanism, not new machinery,
+and its ratified default (K = 10, K-REPORT) is untouched here. Noted
+because a "permissive profile" composes the two knobs — and because
+of what the composition still is not: at K = 1 a near-coincidence
+resolves to *definitely apart* and the kernel honestly builds the
+sliver. Nothing ever glues by value at any dial or any K —
+identification stays intent-only (DS2). The permissive end of this
+kernel trusts values razor-thin; it never snaps them together, which
+is the industry behavior this design forecloses permanently.
+
+**What each position honestly costs.** `require`: the declaration
+interaction, made cheap by detectors and constructive verbs.
+`auto-record`: **blind at birth** — an accident present from the
+first evaluation (a radius typed equal to a wall thickness at
+authoring time) is recorded as intent with no alarm; `require`
+surfaces exactly that case. Recipes also accrete unreviewed intent —
+mitigated by provenance tags and the review door, but the recipe is
+no longer purely a record of stated intent. `ignore`: no diff basis,
+so *edits* bless silently too — the accidental-coincidence alarm
+never rings — and no recorded stratum intent exists for M10 to
+bridge: interval/dual replay of a coincidence that was definite at
+nominal f64 is honestly indeterminate over the parameter box and
+escalates un-bridged. `ignore`-position models are point-defined;
+`auto-record` keeps them germ-defined mechanically (the machine
+declaration bridges), losing only human confirmation; `require`
+keeps intent human-stated. The default posture stays `require`; the
+dial exists so the trade is a stated choice, not a fork of the
+kernel.
 
 ## DS8 — Sequencing, sizing, and the no-speculative-registry rule
 
 This doc is design-only. The registry machinery lands with its
 **first configurable resident**, not before — building reviewed
 framework with no caller is the dead-code pattern the M5 reviews
-punished, and today every implemented member of the family is
-mandatory-grade and already built. The three shipped disciplines are
-**not refactored onto the registry** for organization's sake; they
-adopt shared machinery only where a second consumer makes the
-sharing real (the finding/menu/severity sink at the document layer is
-the plausible first such seam — `refusal_menu` in
+punished, and today every implemented member of the family sits at
+its strictest position. The shipped disciplines are **not
+refactored onto the registry** for organization's sake; they adopt
+shared machinery only where a second consumer makes the sharing real
+(the finding/menu/severity sink at the document layer is the
+plausible first such seam — `refusal_menu` in
 `editor-core/src/eval/wire.rs` already renders discipline refusals
 through one door). Likely first implementation pressure, in order:
 the connectedness lint (exact, data already computed), the
 parameter-coincidence lint (Expr-layer only, no kernel contact), the
-moldability checker (rides with the draft verb per DR6).
+moldability checker (rides with the draft verb per DR6). The
+recording dial ships, if ever, with its first discipline whose
+default is not `require` — a dial with one used position is dead
+code with a settings page.
 
 ## The grade table
 
-| Grade | Kind | Fork? | Severity knob | Residents (built / named) |
+| Grade | Kind | Placement criterion | Knob | Residents (built / named) |
 |---|---|---|---|---|
-| 1 | mandatory discipline | yes | none, ever | profile tangency, carrier equality, declared contact (all built) |
-| 2 | geometric discipline | no | off/warn/error | right angles (reserved) |
-| 3 | recipe-layer discipline | no (kernel never sees it) | off/warn/error | parameter coincidence (named) |
-| 4 | advisory check | no | certified: off/warn/error; heuristic: off/warn | connectedness, sliver, moldability, machinability (I1, parked) |
+| 1 | identification discipline | declaration licenses a quotient (DS2) | none, ever | carrier equality, declared contact (built) |
+| 2 | classification discipline | same solid whenever it builds (DS3) | ignore / auto-record / require | profile tangency (built, `require`); right angles (reserved) |
+| 3 | recipe-layer discipline | parameter-space stratum; kernel never sees it | ignore / auto-record / require | parameter coincidence (named) |
+| 4 | advisory check | pure analysis, findings only | certified: off/warn/error; heuristic: off/warn | connectedness, sliver, moldability, machinability (I1, parked) |
 
 One pattern (DS1), two derivable placement criteria (DS2, DS3), one
-shared sink. A proposed new rule is placed by answering two
-questions — *does an op fork on it? can it hold the severity
-invariant?* — neither of which is a matter of taste.
+shared sink, one provenance ladder (DS7). A proposed new rule is
+placed by answering two questions — *does its declaration license an
+identification? can it hold the severity invariant?* — neither of
+which is a matter of taste.
 
 ## Open questions
 
-- **DS-Q1 — Document-demanded strictness.** Severity is run-global;
-  should a document be able to *demand* a minimum severity for
-  itself ("this recipe requires parameter-coincidence at error"), so
-  a strict author's model refuses under a lax reader's config? Cheap
-  either way; the monotonicity of DS3 means the pragma can only
+- **DS-Q1 — Document-demanded strictness.** Knobs are run-global;
+  should a document be able to *demand* a minimum position for
+  itself ("this recipe requires parameter-coincidence at require"),
+  so a strict author's model refuses under a lax reader's config?
+  Cheap either way; DS3's monotonicity means the pragma can only
   refuse, never change geometry. Lean: yes, later, with the first
   grade-3 resident.
 - **DS-Q2 — The symbolic middle rung.** `width/2` vs `0.5*width`:
@@ -301,6 +383,25 @@ invariant?* — neither of which is a matter of taste.
   precedent), exact rungs do not — presumed, needs confirming
   against the #214 ledger discipline when the first resident lands.
 - **DS-Q4 — Naming.** "Discipline" vs "lint" vs "check" as the public
-  vocabulary; this doc uses discipline/check with severity as the
-  cross-cutting knob. Bikeshed deliberately deferred to the first
-  implementing PR.
+  vocabulary; this doc uses discipline/check with the knob shapes as
+  the cross-cutting axis. Bikeshed deliberately deferred to the
+  first implementing PR.
+- **DS-Q5 — The auto-record boundary.** `auto-record` distinguishes
+  "arising where the author is currently working" (record) from
+  "appearing elsewhere under an edit" (complain). That boundary is
+  an editor/document-layer notion (the node being authored vs.
+  everything downstream), not a kernel one — evaluation is pure —
+  and drawing it wrong in either direction re-opens a cost: too wide
+  auto-blesses the classic in-node accident (radius = thickness
+  typed into the edited node); too narrow nags on every authoring
+  stroke. Needs its own small design pass with the first dialed
+  discipline; findings must be keyed by stable name for the diff to
+  survive edits at all.
+- **DS-Q6 — Profile tangency's dial.** DS2 reclassifies it as
+  dial-eligible; whether to actually expose its dial (vs. leaving it
+  pinned at `require` as thesis) is deliberately not proposed here.
+  Its declarations feed non-check consumers (`blend_arcs`, loft
+  carriage) and constructors author them at every position, so the
+  dial degrades those queries' coverage rather than their
+  correctness — recorded so the exposure decision is made with that
+  cost named.
