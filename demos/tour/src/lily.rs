@@ -2463,3 +2463,119 @@ mod review_probes {
         }
     }
 }
+
+#[cfg(test)]
+mod verbs_gate_r1_probes {
+    //! Reviewer probes (PR #1001 r1): the wall-7 steering correction,
+    //! measured with the reviewer's own arithmetic rather than the
+    //! kernel's boxes.
+
+    use super::*;
+    use pncad::topo::Surface;
+
+    /// The wall-7 finding, re-derived: the lantern's CONE (pucker)
+    /// locus — the exact frustum, not the kernel's slab box — must
+    /// reach the carving ball's box, and the finding's contrast with
+    /// the sphere zone is measured rather than assumed: whether the
+    /// ZONE also meets the ball is printed and pinned, because the
+    /// wall text says the pucker "is what the carving ball's box may
+    /// meet" and a reader will hear "and the zone does not".
+    #[test]
+    fn wall7_the_pucker_frustum_genuinely_reaches_the_carving_ball() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let lant = &pieces
+            .iter()
+            .find(|p| p.name == "lily_lantern")
+            .expect("lantern piece")
+            .body;
+        // The carving ball of wall 7, in its own numbers.
+        let (bc, br) = (Point3::new(-2.80, 0.0, 0.90), 0.16);
+        let mut cone_hit = false;
+        let mut zone_hit = false;
+        let mut zone_ball_gap = f64::INFINITY;
+        for (_, f) in lant.faces() {
+            match lant.get_surface(f.surface) {
+                Some(&Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    ..
+                }) => {
+                    // The trim's axial range from the boundary
+                    // vertices: a full-revolve cone face is a
+                    // frustum, its rims are circles about the axis,
+                    // and every rim vertex sits ON a rim, so the
+                    // vertex axial range IS the frustum's.
+                    let mut v_lo = f64::INFINITY;
+                    let mut v_hi = f64::NEG_INFINITY;
+                    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                        let Some(l) = lant.get_loop(lk) else { continue };
+                        let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
+                            continue;
+                        };
+                        for he in lant.loop_cycle(first).expect("walkable lantern loop") {
+                            let v = lant.get_half_edge(he).expect("half-edge").start;
+                            let p = *lant
+                                .get_vertex(v)
+                                .and_then(|vd| lant.get_point(vd.point))
+                                .expect("vertex point");
+                            let h = (p - apex).dot(axis);
+                            v_lo = v_lo.min(h);
+                            v_hi = v_hi.max(h);
+                        }
+                    }
+                    // Distance from the ball centre to the frustum
+                    // (full revolution surface), computed in the
+                    // (axial, radial) half-plane: the surface is the
+                    // segment from (v_lo, |v_lo| tan a .. ) — as a
+                    // cone about the axis, a point at axial h has
+                    // radius |h|·tan(half_angle) for h in [v_lo, v_hi]
+                    // (cos-normalized: h here is v·cos a, radius
+                    // v·sin a = h·tan a).
+                    let w = bc - apex;
+                    let h = w.dot(axis);
+                    let rad = (w - axis * h).norm();
+                    let seg = |h0: f64, r0: f64, h1: f64, r1: f64| -> f64 {
+                        // distance from (h, rad) to segment
+                        // (h0, r0)-(h1, r1) in the half-plane.
+                        let (dx, dy) = (h1 - h0, r1 - r0);
+                        let t = (((h - h0) * dx + (rad - r0) * dy) / (dx * dx + dy * dy))
+                            .clamp(0.0, 1.0);
+                        let (px, py) = (h0 + t * dx, r0 + t * dy);
+                        ((h - px).powi(2) + (rad - py).powi(2)).sqrt()
+                    };
+                    let ta = half_angle.tan();
+                    let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta);
+                    if d <= br {
+                        cone_hit = true;
+                    }
+                }
+                Some(&Surface::Sphere { center, radius, .. }) => {
+                    // The zone rides the whole globe; exact
+                    // sphere-to-ball-surface gap.
+                    let gap = ((center - bc).norm() - radius).abs() - br;
+                    zone_ball_gap = zone_ball_gap.min(gap);
+                    if (center - bc).norm() <= radius + br
+                        && (center - bc).norm() + br >= radius
+                    {
+                        zone_hit = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            cone_hit,
+            "the wall-7 refusal names the cone pucker, but the pucker's exact \
+             frustum does not even reach the carving ball — the finding would \
+             then be a box artifact, not geometry"
+        );
+        // Not an assertion the PR makes anywhere, but the wall text
+        // invites the reading; measure it so the report can say which.
+        println!(
+            "wall-7 probe: pucker frustum reaches ball = {cone_hit}; \
+             sphere zone carrier meets ball = {zone_hit} (surface gap {zone_ball_gap:.4})"
+        );
+    }
+}
