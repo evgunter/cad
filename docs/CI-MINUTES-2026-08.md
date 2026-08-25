@@ -573,23 +573,38 @@ measured, and the largest line is not the one you would guess:
 
 | nightly job | billed | note |
 |---|---|---|
-| `demoted` | ~11 | TWO workspace builds — the gate-side listing and the `--cfg nightly_suite` one — then ~64 s of tests |
+| `demoted` | ~0 today | TWO workspace builds — the gate-side listing and the `--cfg nightly_suite` one — then ~64 s of tests, but **only once a test is demoted**: the markers were reverted (`bbdaebf`), so the job short-circuits. ~11 when the population is non-empty |
 | `watertight` | ~2 | |
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
-| `opt-level` | ~2 | arm A only; **+~10-15 one night a week** when arm B runs |
-| **an ordinary night** | **~19** | **~30 on a calibration night** |
+| `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than
 sloppy**: the selection is a difference between two listings, and a
 listing is a build. The gate-side one is therefore taken at **opt-0** —
 nothing is executed from it, and the selection reads test NAMES and
 `ignored` FLAGS, neither of which an optimisation level can move — which
-is ~130 s against the ~430 s the opt-2 build costs (this document's own
-F-numbers). The run itself keeps opt-2, because the demotion reasons
-written at each test quote their cost *at CI's opt-2 settings* and a
-nightly measuring a different profile would be answering a different
-question.
+is ~130 s against the ~430 s the opt-2 build cost (this document's own
+F-numbers).
+
+**The run itself tracks the gate** — opt-2 until 2026-08-25, opt-1 since.
+A demoted test is one the gate would otherwise run, so what this job has
+to answer is whether it still passes, and what it costs, *in the
+configuration we actually use*. Pinning it to a level the gate has
+stopped running would answer a question nobody has (Evan, 2026-08-25): a
+cost measured in a configuration we do not use is not a cost anyone can
+act on. That also shrinks the gate-side listing's saving rather than
+removing it — against opt-1 the gap is ~164 s on a 4-core sweep (143 s →
+307 s) instead of ~300 s against opt-2, and the hosted opt-1 build figure
+is what the `opt-level` lane's free arm now produces on every nightly.
+
+**And this lane currently selects nothing.** The seven demotion markers
+were reverted in `bbdaebf` ("the nightly job is net negative until the
+opt-0 flip is real"), so the job short-circuits on its
+`are any tests demoted at all?` step and the ~11 billed minutes in the
+table above are what it *would* cost once a test is demoted again, not
+what it bills today.
 
 It runs **only on days main actually moved**, and nothing on it gates a
 merge. Against a repo doing ~13 code-tier runs an hour during active
@@ -759,7 +774,11 @@ everything above and is the larger lever of the two.
   run leg now sits directly behind the only build job on the critical
   path, with nothing to hide behind. One minute of ~60 against ~9-14% of
   wall clock is the wrong side of the trade.
-* **opt-level 2 stays.** Re-asked because the verdict rested on
+* **opt-level 2 stays** — *superseded 2026-08-25: the tree is at opt-level 1.
+  See the block at the foot of item 4 in the ranked list below, and `ci.yml`'s
+  OPT LEVEL note for the decision itself. The bullet is kept as written
+  because the reasoning it records is what the flip had to answer.* Re-asked
+  because the verdict rested on
   amortising one compile over ten run legs and a sampled run has one.
   Writing E for the row's opt-2 execution and r for the opt-0/opt-2
   ratio, opt-2 wins while `E > (archive_2 - archive_0) / (r - 1)`:
@@ -894,12 +913,65 @@ not a saving, it is a hole.
    flip**: a ratio does not transfer between machines and the census box
    is not CI's 2-vCPU runner. It is actionable as *the number has never
    been measured where CI runs*. `nightly.yml`'s `opt-level calibration`
-   job measures it: arm A (opt-2) read free from recent gate runs' step
-   durations, arm B (opt-0) measured deliberately, weekly plus a >20%
+   job measures it: the arm at the tree's own level read free from recent
+   gate runs' step durations, the other levels measured deliberately (opt-2
+   and opt-0 as of the 2026-08-25 flip), weekly plus a >20%
    drift trigger, verdict by direct comparison (`a2 + E2 < a0 + E0`) with
    no model. Reporting only. The history is
    `docs/perf-data/opt-level/`. **Read the first few samples before
    quoting either figure again** — including the ones in this document.
+
+   > **THREE ARMS SINCE 2026-08-25**, and the added one is `opt-level = 1`,
+   > which nothing in this repository had ever measured, proposed or
+   > rejected. Every artifact above compares 0 against 2 and stops — but
+   > `a + E` is minimised over a knob with four settings, the two arms sit
+   > at opposite extremes of *both* terms, and the build penalty opt-2
+   > swallows (`a2 - a0` = 499 s in the 2026-08-25 sample) is more than
+   > twice the margin it wins by (220 s). A three-arm sweep on a 4-core
+   > AVX-512 guest — the same class as the census box, *not* the runner —
+   > found opt-1 within 3% of opt-2's execution for 58% of its build
+   > penalty, winning outright at 367 s against opt-0's 432 s and opt-2's
+   > 485 s. That is why arm C is wired up; it is **not** evidence about
+   > CI, and only arm C's own samples can be. **The doubled cost is the
+   > `opt-level` row in the budget table above** — the second measured arm
+   > is the whole of it, since arm A stays free.
+   >
+   > Wiring it up also uncovered that the same-suite cross-check those
+   > samples advertise had never run: nextest colourises on a hosted
+   > runner and the SGR escapes around the count defeated the extraction,
+   > which is why both schema-1 samples read `"tests": "unknown"`. The
+   > measured arms now pass `--color never`. The free arm still reports
+   > `n/a` — the jobs API gives durations, not test counts — so what the
+   > check compares is the measured arms against each other.
+   >
+   > **AND THEN THE TREE MOVED (Evan, 2026-08-25): `ci.yml`'s two archive
+   > jobs are at `opt-level = 1`.** Made on the sweep above, i.e. on
+   > evidence from a box this lane explicitly distrusts, before a single
+   > runner sample of opt-1 existed — deliberately, because *the fastest
+   > way to get runner data on opt-1 is to run the gate on opt-1*. Every
+   > PR now produces a real opt-1 archive step and a real opt-1 test row,
+   > and the lane reads exactly those durations for free.
+   >
+   > **The flip forced a redesign of the lane, and the reason is worth
+   > keeping.** The free arm is free only because the gate already runs
+   > it, so it is whatever level the gate is set to. The letters had the
+   > level welded in (`arm_a.a2`); flipping the tree without schema 3
+   > would have left the free read filling `a2`/`E2` with opt-1 durations
+   > while a measured arm took opt-1 again — one sample carrying opt-1
+   > twice, once mislabelled, verdict computed off it, nothing red.
+   > Arms are keyed by level now, `tree_opt_level` is recorded, and a
+   > guard step refuses to run unless the free and measured levels
+   > partition {0,1,2}. The measured arms are opt-0 and opt-2, so
+   > reverting stays a measured decision.
+   >
+   > **Read the first post-flip samples with suspicion**: the knob change
+   > rotates ci.yml's rust-cache key, and the lane's opt-2 arm builds
+   > against a brand-new key of its own. Both buy one cold rebuild.
+   >
+   > **The billed-minutes effect on the PR side is not yet measured** and
+   > deliberately not estimated here — the gate's own runs are now the
+   > measurement, and the budget table above still carries the opt-2
+   > figures until there is something real to replace them with.
 5. **`k-lint`'s cache, at its new size.** The lever is not wrong, just
    proportionally smaller: it now applies to whichever single unification
    a run drew. Unmeasured, and worth less than it was.
