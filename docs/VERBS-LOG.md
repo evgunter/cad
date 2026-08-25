@@ -914,3 +914,13 @@ windowed consumers). The TUBEWALL realized-radius lesson is a
 planted red at radius 1e16. **Ordinal 73 claimed at dispatch**
 (ledger through 72 = M9-3's dual on main at claim; 73 not a third)
 — single fable review, frozen 11d955f1ecd8f48e9f07b95f397e5daf354e77b8.
+
+## OFF-A MERGED (#994, 2026-08-25) — Wave 3's substrate begins
+
+Row OFFA (ordinal 73) in MODEL-AB-LOG. The analytic offset mint
+exists with door-owned refusals and echo payloads; the apex-window
+predicate is scheduled into OFF-C/D (plan + OFFSET-DESIGN
+annotated). Next: the OFF-B spec — the two meters (certified
+lower bound on ‖S_u×S_v‖; d vs 1/κ_max collapse) + the A9.4/A9.10
+fit + the two-limb certificate — Wave 3's hardest unit. GATE
+still implementing.
