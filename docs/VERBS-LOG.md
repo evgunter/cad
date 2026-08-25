@@ -750,3 +750,21 @@ closed-form family. Block VERBS-2 fully consumed. Remaining for
 Wave 1: the TUBEWALL fix pass (CI in flight) and ARMS-3's design
 conversation. Seam sweep: verbs-arms2 + verbs-arms2-r1 lanes after
 the state-sync.
+
+## WAVE 3 OPENS: OFF-A spec committed (2026-08-25)
+
+Evan's rulings at the seam: Wave 3 stays under THIS orchestrator
+(the context argument — the survey, both ratification rounds, the
+door seam — beat the handoff; a remote orchestrator's build
+parallelism noted as the one advantage forgone, with
+remote-implementer dispatch as the adaptation if wall-clock ever
+binds). The build mutex stays width 1 — this box measured at
+9GB/8-core, the same envelope the width was measured for. The Q8
+substrate survey is now durable (docs/Q8-SUBSTRATE-2026-08-21.md,
+snapshot-caveated). OFF-A spec committed (the O1 mint table +
+door-owned refusals; the TUBEWALL realized-radius lesson and the
+ARMS-2 never-meter-a-non-question lesson both folded in);
+difficulty S logged pre-dispatch; consumes block VERBS-3 slot 2.
+Interleave plan: OFF-A + Wave 2's GATE spec next, OFF-B (meters +
+fit + certificate, L) after OFF-A lands, ARMS-3's conversation
+draft at the TUBEWALL merge seam.
