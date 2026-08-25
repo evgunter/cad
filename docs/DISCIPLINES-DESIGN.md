@@ -1,6 +1,10 @@
 # Disciplines and checks — the registry design conversation
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off.**
+**Status: WIP — provisionally accepted (Evan, 2026-08-25, in the
+origin conversation: merge as idea-WIP, provisionally accepted).**
+Not yet RATIFIED: the classification and pattern are the accepted
+working frame; full ratification (and a DESIGN.md companion-table
+row) waits for the first implementing unit's conversation.
 (Born in the 2026-08-24 configurable-checks conversation; proposals
 DS1–DS8, open questions DS-Q1–DS-Q6. Round 2 revised DS2 and DS7 per
 Evan's pushback: the mandatory criterion is identification, not
