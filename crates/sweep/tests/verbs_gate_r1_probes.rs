@@ -40,14 +40,11 @@ fn vol(body: &Body<f64>) -> f64 {
 
 /// A brick `[x0,x1] × [y0,y1] × [z0,z1]` via extrude.
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        p2(x.0, y.0),
-        p2(x.1, y.0),
-        p2(x.1, y.1),
-        p2(x.0, y.1),
-    ]);
+    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
     let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp]).validate(Tol::witness()).unwrap();
+    let profile = Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
     extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
         .unwrap()
         .body
@@ -85,10 +82,8 @@ fn vase() -> Body<f64> {
 fn the_vase_fixture_actually_carries_a_torus_face() {
     let v = vase();
     assert!(
-        v.faces().any(|(_, f)| matches!(
-            v.get_surface(f.surface),
-            Some(geom::Surface::Torus { .. })
-        )),
+        v.faces()
+            .any(|(_, f)| matches!(v.get_surface(f.surface), Some(geom::Surface::Torus { .. }))),
         "the fixture must carry a real torus band"
     );
 }
@@ -163,7 +158,10 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
     let a = vase();
     let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
     match topo::union(&a, &b, Tol::witness()) {
-        Err(BooleanError::CurvedPairUnsupported { .. } | BooleanError::CurvedBooleanUnsupported { .. }) => {
+        Err(
+            BooleanError::CurvedPairUnsupported { .. }
+            | BooleanError::CurvedBooleanUnsupported { .. },
+        ) => {
             panic!(
                 "the torus band clears a body five units away — the pair-scoped \
                  gate must not refuse this"
@@ -181,8 +179,7 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
             // If this ever succeeds, it must be the honest assembly.
             let body = &out.body().expect("a non-empty union").body;
             let got = vol(body);
-            let bulge =
-                2.0 * PI * (0.5 + 4.0 * 0.25 / (3.0 * PI)) * (PI * 0.25 * 0.25 / 2.0);
+            let bulge = 2.0 * PI * (0.5 + 4.0 * 0.25 / (3.0 * PI)) * (PI * 0.25 * 0.25 / 2.0);
             let want = PI * 0.25 * 1.0 + PI * 0.25 * 0.5 + bulge + 1.0;
             assert!(
                 (got - want).abs() < 1e-6,
@@ -208,7 +205,8 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the brick has an x = 3 face");
-    b.set_face_surface(face, topo::FaceSurface::New(surface)).unwrap();
+    b.set_face_surface(face, topo::FaceSurface::New(surface))
+        .unwrap();
     b
 }
 

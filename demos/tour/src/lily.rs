@@ -2556,9 +2556,7 @@ mod verbs_gate_r1_probes {
                     // sphere-to-ball-surface gap.
                     let gap = ((center - bc).norm() - radius).abs() - br;
                     zone_ball_gap = zone_ball_gap.min(gap);
-                    if (center - bc).norm() <= radius + br
-                        && (center - bc).norm() + br >= radius
-                    {
+                    if (center - bc).norm() <= radius + br && (center - bc).norm() + br >= radius {
                         zone_hit = true;
                     }
                 }
