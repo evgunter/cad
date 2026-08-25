@@ -55,7 +55,7 @@ fn boxy() -> Body<f64> {
 }
 
 /// A **toroidal spool**: an annular meridian whose outer wall is an
-/// off-axis quarter ARC, revolved about the sketch y-axis. That wall is
+/// off-axis 60° ARC, revolved about the sketch y-axis. That wall is
 /// a TORUS, and a torus support is outside every analytic arm's table —
 /// the canal-surface lane's front door, where the rolling ball's spine
 /// is neither a line nor a circle.

@@ -2,10 +2,12 @@
 //!
 //! The lantern a lily bud is built from is a solid of revolution whose
 //! meridian is a sphere zone, a conical pucker and a lip disk on a bored
-//! base — so its walls meet in four CLOSED latitude rims, three of which
-//! are curved-support pairs the kernel refused until this unit:
-//! cylinder×plane at the bore, sphere×cone at the MOUTH, cone×plane at
-//! the lip. `fillet_edges` on the mouth rim alone is #319's coaxial half,
+//! base — five walls meeting in FIVE closed latitude rims, three of
+//! which are curved-support pairs the kernel refused until this unit:
+//! sphere×cone at the MOUTH, cone×plane at the lip, and cylinder×plane
+//! at the bore's base (the bore's top rim is the fourth such pair, the
+//! same arm at the other end; the fifth rim, plane×sphere at the base
+//! annulus, is ARMS-1's). `fillet_edges` on the mouth rim alone is #319's coaxial half,
 //! end to end.
 //!
 //! (The demo's own `lily::wall_probes` wall 6 asks for EVERY lantern edge
@@ -36,13 +38,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Band, Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::fillet::FilletError;
+use sweep::fillet::battery::{FilletRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceSurface, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -349,25 +352,74 @@ fn the_filleted_bud_removes_material_and_stays_closed_form() {
     );
 }
 
-/// **A pair that is NOT coaxial still refuses.** Two spheres with
-/// different centres meet in a circle, but the pair is ARMS-3's; a cone
-/// whose axis is not the rim's is the canal family. Either way the front
-/// door must name the missing unit rather than mint a torus that is not
-/// one.
+/// **A pair that IS the arm's kinds but does NOT share an axis refuses
+/// `SpineUnsupported`.** The kinds alone never decide: a sphere and a
+/// cone whose axes disagree have a spine that is neither a line nor a
+/// circle — the canal family — and this is the row that runs
+/// `fillet3_support_coaxiality`'s refusing branch.
+///
+/// The pair is PLANTED, because no door in this kernel mints one: the
+/// bud's own cone wall keeps its apex and half-angle and takes a TILTED
+/// axis. The body is then geometrically incoherent, which is exactly
+/// why the battery — a pre-construction pass over STORED data — is the
+/// right consumer for it, and why nothing is constructed here.
+///
+/// Red if the coaxiality margin stops being decided, or if the refusal
+/// starts advertising the arm roster (which would say the kinds were
+/// the problem) instead of the shared-axis hypothesis.
 #[test]
-fn a_non_coaxial_curved_pair_refuses_spine_unsupported() {
-    // A tilted bud: revolve the same meridian, then ask for the mouth of
-    // a body whose walls DO share an axis — the coaxial case — and
-    // contrast with the sphere-sphere pair the arm table does not carry.
-    let source = bud();
+fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
+    let mut source = bud();
     let mouth = closed_rim(&source, 0.8);
-    fillet_edges(&source, &[mouth], R, band(), tol()).expect("the coaxial mouth is built");
-    // The roster names what IS covered, and sphere–sphere is not in it.
-    let roster = sweep::fillet::battery::arm_roster();
-    assert!(
-        !roster.contains("sphere–sphere"),
-        "sphere-sphere is ARMS-3's arm, not this unit's: {roster}"
-    );
+    // Baseline: coaxial, and the battery passes.
+    let req = FilletRequest {
+        body: &source,
+        edges: vec![mouth],
+        radius: R,
+    };
+    run_battery(&req, band()).expect("the coaxial mouth passes the battery");
+
+    // Plant the tilt on the cone wall, apex and half-angle verbatim.
+    let (cone_face, apex, half_angle) = source
+        .faces()
+        .find_map(|(k, _)| {
+            let fd = source.get_face(k)?;
+            match *source.get_surface(fd.surface)? {
+                Surface::Cone {
+                    apex, half_angle, ..
+                } => Some((k, apex, half_angle)),
+                _ => None,
+            }
+        })
+        .expect("the bud carries one cone wall");
+    let tilt = 0.05f64;
+    source
+        .set_face_surface(
+            cone_face,
+            FaceSurface::New(Surface::Cone {
+                apex,
+                axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
+                half_angle,
+                u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
+            }),
+        )
+        .expect("planting a surface certifies nothing");
+
+    let req = FilletRequest {
+        body: &source,
+        edges: vec![mouth],
+        radius: R,
+    };
+    match run_battery(&req, band()) {
+        Err(e @ FilletError::SpineUnsupported { .. }) => {
+            let text = format!("{e}");
+            assert!(
+                text.contains("do not share one axis of revolution"),
+                "the refusal must name the hypothesis that failed, not the kinds: {text}"
+            );
+        }
+        other => panic!("a non-coaxial sphere-cone pair must refuse, got {other:?}"),
+    }
 }
 
 /// **The partial revolve of the same profile refuses** — the differential

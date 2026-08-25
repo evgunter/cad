@@ -514,15 +514,31 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
 /// a `&'static str`, so the roster is hand-written; this row is what
 /// makes it a checked claim rather than a stale one.
 #[test]
-fn the_refusal_roster_names_every_arm() {
+fn the_refusal_roster_names_every_arm_and_nothing_else() {
     let roster = sweep::fillet::battery::arm_roster();
-    for arm in BlendArm::ALL {
-        // The roster lists PAIRS, so the pair half of each name must be
-        // there; the chamfer's strip shares the plane–plane row.
-        let pair = arm.name().split(" →").next().unwrap();
-        assert!(
-            roster.contains(pair),
-            "the SpineUnsupported roster does not name the {pair} arm: {roster}"
-        );
-    }
+    // The roster lists PAIRS, so the pair half of each arm's name is
+    // what must appear; the chamfer's strip shares the plane–plane row.
+    let mut want: Vec<&str> = BlendArm::ALL
+        .iter()
+        .map(|a| a.name().split(" →").next().unwrap())
+        .collect();
+    want.sort_unstable();
+    want.dedup();
+    // The roster's own rows, read back out of the payload text: the
+    // parenthesised list, split on the separator it is written with.
+    let inner = roster
+        .split_once('(')
+        .and_then(|(_, rest)| rest.rsplit_once(')'))
+        .map(|(inner, _)| inner)
+        .expect("the roster payload is a parenthesised list");
+    let mut have: Vec<&str> = inner.split('/').map(str::trim).collect();
+    have.sort_unstable();
+    have.dedup();
+    // BOTH directions: a new arm that is not advertised reds, and a
+    // roster row whose arm has been retired reds too.
+    assert_eq!(
+        have, want,
+        "the SpineUnsupported roster and the arm table disagree: roster {have:?}, arms \
+         {want:?}"
+    );
 }

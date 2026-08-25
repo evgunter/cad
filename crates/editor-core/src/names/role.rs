@@ -224,9 +224,16 @@ pub enum Qualifier {
 )]
 #[serde(deny_unknown_fields)]
 pub enum RimSupport {
-    /// The planar support — the face carrying the rim as a ring.
+    /// The HOST support — the planar one wherever the rim has one (on a
+    /// ladder rim, the face carrying the rim as a ring).
     Plane,
-    /// The curved support — the cap the rim bounds.
+    /// The MATE support — the cap the rim bounds on a ladder rim.
+    ///
+    /// A rim between two CURVED walls has no planar side, and this
+    /// two-value alphabet cannot say so: the two trim arcs still take
+    /// DIFFERENT variants, so names stay unique, but one of them reads
+    /// `Plane` for a curved support. Widening the alphabet is a change
+    /// to a persisted, versioned vocabulary — tracked as #961.
     Curved,
 }
 

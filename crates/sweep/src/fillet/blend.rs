@@ -149,10 +149,12 @@ pub enum BlendArm {
     /// Cylinder–plane(⊥ axis) coaxial rim → torus patch, circular spine.
     CylinderPlaneTorus,
     /// Two parallel cylinders meeting along a common ruling → cylinder
-    /// patch, straight spine.
+    /// patch, straight spine. The arm is exact; no surgery carves its
+    /// band yet (the terminations are the run-out taxonomy — #987).
     CylinderCylinderCylinder,
     /// Cylinder and a plane containing its axis direction, meeting
-    /// along a ruling → cylinder patch, straight spine.
+    /// along a ruling → cylinder patch, straight spine. Same standing
+    /// as the row above: exact arm, uncarved band (#987).
     CylinderPlaneCylinder,
 }
 
@@ -317,6 +319,17 @@ pub fn plane_plane_blend<T: Real>(
 ///   SIGN is that same configuration bit: a pocket's blend widens the
 ///   hole (`s > a` — what makes it eat into the flat face rather than
 ///   into the pocket), a convex sphere's shrinks the plane's boundary.
+///
+/// **The setback convention, stated once, HERE, because this is where
+/// the two spellings diverge.** This arm returns a SIGNED setback on the
+/// plane; the shared sheet reduction ([`Meridian::blend`],
+/// [`Ruling::blend`]) returns the unsigned Euclidean displacement of the
+/// trimline from the rim, on both supports. Predicate 2 consumes them
+/// identically, as `gap − setback − setback`, so the unsigned form is
+/// the CONSERVATIVE one — it can only shrink the margin, never widen
+/// it — and the two agree in magnitude everywhere (pinned by
+/// `verbs_arms2_arms::the_shared_reduction_agrees_with_the_plane_sphere_arm`,
+/// which compares `|signed|` against the unsigned and says why).
 ///
 /// **Neither degenerate case is gated here**, and they are two
 /// different cases, not one:
@@ -501,6 +514,17 @@ impl<T: Real> SupportTrace<T> {
 ///
 /// Total arithmetic in, classification at the caller: nothing is gated
 /// here, exactly as [`plane_sphere_blend`] gates nothing.
+///
+/// **Where the poison goes differs by family, and only one of the two
+/// paths is predicate 3's.** A COAXIAL pair carries the poison into the
+/// spine radius `s` and so into `spine_curvature = 1/s`, which predicate
+/// 3 escalates. A RULED pair has a straight spine and
+/// [`Ruling::blend`] stores `spine_curvature = 0` unconditionally, so
+/// predicate 3 saturates and cannot see it; there the poisoned centre
+/// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
+/// arrives one step later — at the open-chain admission door today
+/// (a ruled pair meets along an open edge, which the surgery does not
+/// carve), and at the certification of any band that door ever mints.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,
@@ -797,6 +821,10 @@ impl<T: Real> Ruling<T> {
     ///
     /// `spine_curvature` is zero — a straight spine never folds, so
     /// predicate 3 saturates exactly as it does on [`plane_plane_blend`].
+    /// That is also why a degenerate ruled crossing does NOT reach
+    /// predicate 3: the zero is unconditional, so poison from
+    /// [`sheet_center`] rides the cylinder's `origin` and `u_ref`
+    /// instead (see that function's family note).
     #[must_use]
     pub fn blend(&self, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> EdgeBlend<T> {
         let center = sheet_center(self.rim, self.tau, a, b, radius);

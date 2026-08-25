@@ -60,10 +60,11 @@
 //! each profile segment as one face whose single cycle carries two
 //! closed latitude rims and a doubly-traversed seam meridian — and the
 //! band is minted as one more wall of that same shape: two seam splits
-//! (the plane's takes the strut `mev`'s place), one closed-edge `mef`
+//! (the HOST's takes the strut `mev`'s place), one closed-edge `mef`
 //! per support carving its strip, one rim `kef` merging the strips,
 //! and the ladder's own closure `kev` retiring the rim vertex and
-//! fan-merging the sphere seam's remnant into the slit.
+//! fan-merging the MATE seam's remnant into the slit. Neither support's
+//! KIND enters: the shape is what the six moves need.
 //!
 //! # What decides, and what does not
 //!
@@ -83,8 +84,8 @@
 //!
 //! Multi-link open chains (junction carry-through), concave chains
 //! (material-adding blends), partially-requested corners (run-outs),
-//! closed rims that are neither a circle-carried ring of a plane
-//! against a sphere cap nor a one-edge rim between two revolution
+//! closed rims that are neither a circle-carried ring of a PLANE
+//! against ring-free caps nor a one-edge rim between two revolution
 //! walls, and two closed rims sharing one support in ONE call (the
 //! second band's plan would name a seam the first consumed —
 //! [`shared_support_gate`], whose recourse is sequential calls) — each
@@ -792,7 +793,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
                 ));
             }
         };
-        if !is_plane(p).unwrap_or(false) {
+        // A support that does not RESOLVE is a broken body, not a
+        // frontier: the two answers are different rows and the absent
+        // one never borrows the refusal of the unbuilt one.
+        let planar = is_plane(p)
+            .ok_or_else(|| not_intact(EntityId::Face(p), "a rim link's second support"))?;
+        if !planar {
             return Err(unbuilt_chain(
                 link.edge,
                 "a multi-link closed chain has no planar support; the quad-ladder band \
@@ -981,8 +987,8 @@ fn resolve_annulus<T: Decide + Bounds>(
     let host_seam = wall_seam(body, host_loop, link0.edge, vertex)?;
     let mate_seam = wall_seam(body, mate_loop, link0.edge, vertex)?;
     // The rim vertex carries the rim and the two seams and nothing else:
-    // the band's slit is minted from the sphere seam's rim-side piece
-    // and the plane seam's rim-side piece dies with this vertex, so a
+    // the band's slit is minted from the MATE seam's rim-side piece
+    // and the HOST seam's rim-side piece dies with this vertex, so a
     // third incident edge would be left behind by both.
     let mut incident = vertex_edges_of(body, vertex)
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
@@ -2348,7 +2354,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // piece fan-merges onto the host foot, becoming the band's SLIT —
     // a double-traversed torus meridian. Its carrier is re-described
     // below (the `kev` leaves it spanning foot → split point with a
-    // stale sphere-seam carrier; nothing validates in between). ----
+    // stale mate-seam carrier; nothing validates in between). ----
     let Some((hp, hm)) = halves_of(body, host_rim_side) else {
         unreachable!(
             "annulus band: the host seam's rim-side piece came out of this phase's own \
@@ -2375,7 +2381,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     };
     let Some(band_face) = face_of_half(body, ts.he_minus) else {
         unreachable!(
-            "annulus band: the sphere trim's minus half bounds the strip `mef` minted for \
+            "annulus band: the mate trim's minus half bounds the strip `mef` minted for \
              it, and the `kef` above killed the HOST strip"
         )
     };
