@@ -13,7 +13,12 @@ middle position, not a rejected monolith. Round 3 corrected DS2's
 collinear example against the code (undeclared same-carrier joints
 pass `validate` today; #433 is the open authoring-gate/data-gate
 divergence), replaced DS6's severity cap with the waiver rule, and
-sharpened DS7's snap/fuse statement into its three layers.) This doc schedules **no
+sharpened DS7's snap/fuse statement into its three layers. Round 4
+is the first implementing unit's contact with reality: the registry
+and the connectedness resident shipped, I1(0b)'s exactness claim
+narrowed to the count, the staleness direction proved non-optional
+within one review cycle, DS-Q3 is answered for grade 4, and DS-Q4
+carries its first-PR position.) This doc schedules **no
 implementation** and changes **no behavior** — every mandatory check
 named below keeps its current force whether or not this is ratified.
 What it ratifies, if accepted, is a *classification* and a *pattern*:
@@ -178,6 +183,14 @@ Consequences, each load-bearing:
   posture). Bodies are never persisted (D9), so there is no at-rest
   bitmask to stamp; a document carries its declarations, which are
   meaningful at every position.
+  *As built (round 4), the v1 realization is stronger than
+  run-global*: `ChecksConfig` is a value passed to the `run_checks`
+  door — no global state, no initialization, no persistence.
+  "Run-global" survives as the semantic posture (one config governs
+  a run's report, nothing per-body), not as storage. Persisting
+  expectations (an AppearanceMap-shaped, StableName-keyed store) is
+  a named later unit priced at a schema bump; DS-Q1's
+  document-demanded strictness rides with it.
 
 This invariant is the sharp boundary of the design: anything that
 can hold it is knob-eligible; the identification disciplines (DS2)
@@ -275,6 +288,43 @@ a pure analysis over an evaluation producing findings with margins,
 rendered through the same sink as discipline findings. They graduate
 by the LONGTERM-IDEAS process note (milestone plan + sign-off), not
 by this doc; what this doc fixes is the shape they graduate *into*.
+
+**First resident SHIPPED (round 4): the connectedness check.**
+`editor_core::checks::run_checks` / `enforce_checks` (exported via
+`pncad::document`, mixed_pins' reports-never-gates posture), resident
+`CheckId::Connectedness`, kind Certified, default Warn; components =
+count of `Outer` shells per (root, output) subject via
+`topo::classify_shells`; the expected-components input is the
+resident's acknowledgment mechanism (no generic waiver machinery
+shipped — the waiver vocabulary above stays paper until a resident
+needs it). Two corrections earned on contact:
+
+- **I1(0b)'s "exact/combinatorial" narrowed to the COUNT.** The void
+  exclusion (a cavity is not a component) is a decided orientation
+  read — per-shell signed volume at one named funnel site
+  (`chk_shell_volume_sign`, comparand V_shell/A_shell, an honest
+  length), sharing tier-3 check 7's flux walk (one implementation).
+  The check stays fully certified — in-band or zero-volume shells
+  refuse typed into the report, and a count over a partial
+  classification is a guess, so one unclassifiable shell poisons the
+  whole subject's count — but it is not predicate-free. The
+  structural alternative (marking void shells at birth in
+  `insert_void`, the one ratified cavity door) was considered and
+  deferred: a stored mark must be maintained across
+  revert/regroup/graft; the derived read needs no maintenance and
+  inherits check 7's refusal posture wholesale.
+- **The staleness direction is not optional polish.** The first
+  review found the two halves of one hole: an annihilated boolean
+  (∅ — F8's typed success) yields zero subjects and would have
+  reported clean under an explicitly stated expectation, and an
+  expectation keyed at a dead root was silently ignored — a stale
+  acknowledgment reading as "checked and fine". The fix is the
+  census's two-directional pattern verbatim: every stated
+  expectation must be consumed by a subject; an unconsumed entry is
+  a typed `StaleExpectation` finding; default expectations bind only
+  existing subjects, so a legitimate ∅ with nothing stated stays
+  clean. The waiver rule's staleness clause above is thereby
+  confirmed by its first resident within one review cycle.
 
 **Recommendation, refining I1's warn-never-refuse at the severity
 knob (round 3, per Evan: blocking is fine if exceptions are
@@ -399,9 +449,10 @@ shared machinery only where a second consumer makes the sharing real
 (the finding/menu/severity sink at the document layer is the
 plausible first such seam — `refusal_menu` in
 `editor-core/src/eval/wire.rs` already renders discipline refusals
-through one door). Likely first implementation pressure, in order:
-the connectedness lint (exact, data already computed), the
-parameter-coincidence lint (Expr-layer only, no kernel contact), the
+through one door). The first resident (connectedness) SHIPPED at
+round 4 with the registry's finding/severity/report plumbing; next
+in the named order: the parameter-coincidence lint (Expr-layer only,
+no kernel contact — the first discipline-shaped resident), then the
 moldability checker (rides with the draft verb per DR6). The
 recording dial ships, if ever, with its first discipline whose
 default is not `require` — a dial with one used position is dead
@@ -414,7 +465,7 @@ code with a settings page.
 | 1 | identification discipline | declaration licenses a quotient (DS2) | none, ever | carrier equality, declared contact (built) |
 | 2 | classification discipline | same solid whenever it builds (DS3) | ignore / auto-record / require | profile tangency (built, `require`); right angles (reserved) |
 | 3 | recipe-layer discipline | parameter-space stratum; kernel never sees it | ignore / auto-record / require | parameter coincidence (named) |
-| 4 | advisory check | pure analysis, findings only | certified: off/warn/error; heuristic: off/warn | connectedness, sliver, moldability, machinability (I1, parked) |
+| 4 | advisory check | pure analysis, findings only | off/warn/error; error requires a waiver door (DS6) | connectedness (built, Warn); sliver, moldability, machinability (I1, parked) |
 
 One pattern (DS1), two derivable placement criteria (DS2, DS3), one
 shared sink, one provenance ladder (DS7). A proposed new rule is
@@ -438,14 +489,22 @@ which is a matter of taste.
   "unify" as the menu arm? Lean: refusing rung in v1 — normalization
   is a rabbit hole and the menu arm is the honest repair — but the
   question is recorded so v1's choice is a choice.
-- **DS-Q3 — Funnel participation.** Grade-2/3 decided predicates go
-  through `k_stats::decide` with their own site prefix (the `sel_*`
-  precedent), exact rungs do not — presumed, needs confirming
-  against the #214 ledger discipline when the first resident lands.
+- **DS-Q3 — Funnel participation. ANSWERED for grade 4 (round 4);
+  grades 2/3 stay open.** The first resident's one decided predicate
+  went through `k_stats::decide` at a prefix-named site (`chk_*`),
+  exact rungs did not, the comparand was an honest length (no
+  `decide_flagged`, no ledger row). One wrinkle absorbed: "one
+  decided predicate" means one SITE — a padded bracket is read at
+  both ends (Outer needs the low end definitely positive, Void the
+  high end definitely negative), so quadrature bodies may log up to
+  two verdicts per shell at the site; closed-form shells log exactly
+  one.
 - **DS-Q4 — Naming.** "Discipline" vs "lint" vs "check" as the public
   vocabulary; this doc uses discipline/check with the knob shapes as
-  the cross-cutting axis. Bikeshed deliberately deferred to the
-  first implementing PR.
+  the cross-cutting axis. *First-PR position (round 4)*: shipped
+  vocabulary is "check" (`CheckId`, `CheckKind`, `Severity`,
+  `run_checks`, `enforce_checks`), funnel prefix `chk_`; the doc
+  keeps "discipline" for the declaration-bearing family. Reversible.
 - **DS-Q5 — The auto-record boundary.** `auto-record` distinguishes
   "arising where the author is currently working" (record) from
   "appearing elsewhere under an edit" (complain). That boundary is
