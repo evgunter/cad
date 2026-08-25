@@ -285,7 +285,7 @@ fn nurbs_chord_count(
 /// ```
 ///
 /// Per span (after the fixed
-/// [`crate::nurbs_cert::RATIONAL_CERT_SPLITS`] refinement), each
+/// [`geom_brep::patch_bound::RATIONAL_CERT_SPLITS`] refinement), each
 /// ingredient is an active-window hull on the homogeneous nets:
 /// `sup|C − c| ≤ max_active |P − c|` (positive weights — the licence
 /// the caller checked — make the rational basis a nonnegative
@@ -304,7 +304,7 @@ fn rational_carrier_m_bound(
     ek: EdgeKey,
 ) -> Result<f64, TessellateError> {
     let refined = n
-        .refine_knots(&crate::nurbs_cert::rational_split_points(n.knots()))
+        .refine_knots(&geom_brep::patch_bound::rational_split_points(n.knots()))
         .map_err(|_| TessellateError::UnsupportedCurve {
             edge: ek,
             note: "rational B-spline carrier whose refinement fails to materialise — \
@@ -996,7 +996,7 @@ mod tests {
         // p − 1 = 2: inside the inventory, and it presents an empty span.
         let n = mult_cubic(2);
         let refined = n
-            .refine_knots(&crate::nurbs_cert::rational_split_points(n.knots()))
+            .refine_knots(&geom_brep::patch_bound::rational_split_points(n.knots()))
             .expect("refinement materialises");
         let rkv = refined.knots();
         assert!(
