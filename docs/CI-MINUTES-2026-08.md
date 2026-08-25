@@ -759,7 +759,11 @@ everything above and is the larger lever of the two.
   run leg now sits directly behind the only build job on the critical
   path, with nothing to hide behind. One minute of ~60 against ~9-14% of
   wall clock is the wrong side of the trade.
-* **opt-level 2 stays.** Re-asked because the verdict rested on
+* **opt-level 2 stays** — *superseded 2026-08-25: the tree is at opt-level 1.
+  See the block at the foot of item 4 in the ranked list below, and `ci.yml`'s
+  OPT LEVEL note for the decision itself. The bullet is kept as written
+  because the reasoning it records is what the flip had to answer.* Re-asked
+  because the verdict rested on
   amortising one compile over ten run legs and a sampled run has one.
   Writing E for the row's opt-2 execution and r for the opt-0/opt-2
   ratio, opt-2 wins while `E > (archive_2 - archive_0) / (r - 1)`:
@@ -920,9 +924,38 @@ not a saving, it is a hole.
    > samples advertise had never run: nextest colourises on a hosted
    > runner and the SGR escapes around the count defeated the extraction,
    > which is why both schema-1 samples read `"tests": "unknown"`. The
-   > measured arms now pass `--color never`. Arm A still reports `n/a` —
-   > the jobs API gives durations, not test counts — so what the check
-   > compares is arm B against arm C.
+   > measured arms now pass `--color never`. The free arm still reports
+   > `n/a` — the jobs API gives durations, not test counts — so what the
+   > check compares is the measured arms against each other.
+   >
+   > **AND THEN THE TREE MOVED (Evan, 2026-08-25): `ci.yml`'s two archive
+   > jobs are at `opt-level = 1`.** Made on the sweep above, i.e. on
+   > evidence from a box this lane explicitly distrusts, before a single
+   > runner sample of opt-1 existed — deliberately, because *the fastest
+   > way to get runner data on opt-1 is to run the gate on opt-1*. Every
+   > PR now produces a real opt-1 archive step and a real opt-1 test row,
+   > and the lane reads exactly those durations for free.
+   >
+   > **The flip forced a redesign of the lane, and the reason is worth
+   > keeping.** The free arm is free only because the gate already runs
+   > it, so it is whatever level the gate is set to. The letters had the
+   > level welded in (`arm_a.a2`); flipping the tree without schema 3
+   > would have left the free read filling `a2`/`E2` with opt-1 durations
+   > while a measured arm took opt-1 again — one sample carrying opt-1
+   > twice, once mislabelled, verdict computed off it, nothing red.
+   > Arms are keyed by level now, `tree_opt_level` is recorded, and a
+   > guard step refuses to run unless the free and measured levels
+   > partition {0,1,2}. The measured arms are opt-0 and opt-2, so
+   > reverting stays a measured decision.
+   >
+   > **Read the first post-flip samples with suspicion**: the knob change
+   > rotates ci.yml's rust-cache key, and the lane's opt-2 arm builds
+   > against a brand-new key of its own. Both buy one cold rebuild.
+   >
+   > **The billed-minutes effect on the PR side is not yet measured** and
+   > deliberately not estimated here — the gate's own runs are now the
+   > measurement, and the budget table above still carries the opt-2
+   > figures until there is something real to replace them with.
 5. **`k-lint`'s cache, at its new size.** The lever is not wrong, just
    proportionally smaller: it now applies to whichever single unification
    a run drew. Unmeasured, and worth less than it was.
