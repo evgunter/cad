@@ -80,6 +80,10 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
                  carry-through, which is not implemented",
             ));
         }
+        // The two RULED arms reach here with an exact cylinder band and
+        // straight trimlines, and still refuse: what is missing is the
+        // carve, whose terminations are OQ6's reserved run-out taxonomy
+        // (tracked as #987), not the arm.
         if !link.arm.is_plane_plane() {
             return Err(unbuilt_chain(
                 link.edge,

@@ -1,8 +1,11 @@
-//! Body-level mass properties over the **exact** B-rep (M2 PR 7):
-//! volume and surface area assembled from `geom-brep`'s closed-form
-//! per-face contributions ([`geom_brep::props`] — divergence-theorem
-//! flux split against per-surface anchors; Mäntylä §13.3 generalized
-//! off the polyhedral case).
+//! Mass properties over the **exact** B-rep (M2 PR 7): volume and
+//! surface area assembled from `geom-brep`'s closed-form per-face
+//! contributions ([`geom_brep::props`] — divergence-theorem flux split
+//! against per-surface anchors; Mäntylä §13.3 generalized off the
+//! polyhedral case) — at two granularities over ONE per-face walk:
+//! whole-body ([`mass_properties`]) and per-shell
+//! ([`classify_shells`], which also decides each shell's outer/void
+//! role from its volume's sign).
 //!
 //! This is the exact-geometry counterpart of the mesh oracle
 //! (`mesh::validate::signed_volume`): no tessellation, no sampling, no
@@ -27,10 +30,10 @@ use core::fmt;
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
-use geom_core::{Band, BandError, Decide, Real, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
 
 /// Exact-B-rep integral properties of a body.
 ///
@@ -203,80 +206,129 @@ fn mass_properties_impl<T: Decide>(
     let mut area = T::zero();
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
-    for (face_key, face) in body.faces.iter() {
-        let Some(surface) = body.surfaces.get(face.surface) else {
-            return Err(MassPropsError::Corrupt {
-                what: "face surface key does not resolve",
-            });
-        };
-        let wrap = |source| MassPropsError::Face {
-            face: face_key,
-            source,
-        };
-        let contribution: FaceContribution<T> = match *surface {
-            Surface::Plane { origin, .. } => {
-                let mut loops = Vec::with_capacity(1 + face.rings.len());
-                for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-                    loops.push(loop_edges(body, lk)?.0);
-                }
-                planar_face(origin, &loops).map_err(wrap)?
-            }
-            _ => {
-                if !face.rings.is_empty() {
-                    return Err(MassPropsError::RingOnCurvedFace { face: face_key });
-                }
-                let (outer, hes) = loop_edges(body, face.outer)?;
-                // Structural dispatch (C5: on the carrier KIND, never a
-                // runtime fallback): a conic/NURBS trim carrier routes
-                // the face to the PR 11 certified-quadrature lane; an
-                // iso boundary keeps its closed form. The S10 sense bit
-                // does NOT enter the quadrature lane: its Green form is
-                // winding-derived end to end (the signed UV area IS
-                // s_f·|Ω| through the stored loop traversal), exactly
-                // the class the S10 module docs keep bit-free.
-                let is_trimmed = outer.iter().any(|e| {
-                    matches!(
-                        e.carrier,
-                        geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)
-                    )
-                });
-                // A described NURBS face ALWAYS takes the quadrature
-                // lane (M6-3): its flux has no closed form regardless
-                // of what bounds it, and the patch engine reads the
-                // stored iso pcurves rather than the carriers.
-                let quad_out = if is_trimmed || matches!(surface, Surface::Nurbs(_)) {
-                    quad(body, surface, &outer, &hes, band, tol).map_err(wrap)?
-                } else {
-                    None
-                };
-                match quad_out {
-                    Some(bounds) => {
-                        let (fc, fp) = quad_lane::mid_pad(bounds.flux);
-                        let (ac, ap) = quad_lane::mid_pad(bounds.area);
-                        flux_pad += fp;
-                        area_pad += ap;
-                        FaceContribution {
-                            flux: T::from_f64(fc),
-                            area: T::from_f64(ac),
-                        }
-                    }
-                    // Either an iso boundary (the closed forms — the
-                    // face's S10 sense entering at `curved_face`'s one
-                    // sanctioned site, the rimless sphere band) or a
-                    // scalar with NO certified lane (the dual arm of
-                    // [`PropsQuadLane`]) — whose honest outcome on a
-                    // trimmed face is the closed form's typed refusal.
-                    None => curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?,
-                }
-            }
-        };
+    for (face_key, _) in body.faces.iter() {
+        let contribution = face_flux(body, face_key, band, &quad, tol)?;
         flux = flux + contribution.flux;
         area = area + contribution.area;
+        flux_pad += contribution.flux_pad;
+        area_pad += contribution.area_pad;
     }
     Ok(MassProperties {
         volume: flux / T::from_f64(3.0),
         surface_area: area,
         volume_pad: flux_pad / 3.0,
+        area_pad,
+    })
+}
+
+/// One face's divergence-theorem contribution, with the certified
+/// quadrature half-widths it carries (`0.0` for closed-form faces).
+/// The unit shared by the whole-body walk ([`mass_properties_impl`])
+/// and the per-shell walk ([`classify_shells`]) — one flux
+/// implementation, restricted by choosing which faces to visit, never
+/// re-derived.
+struct FaceFlux<T> {
+    flux: T,
+    area: T,
+    flux_pad: f64,
+    area_pad: f64,
+}
+
+/// The per-face body of the flux walk (module docs): resolve the
+/// surface, flatten the loops, dispatch closed form vs certified
+/// quadrature. Every refusal is a typed [`MassPropsError`].
+#[allow(clippy::type_complexity)]
+fn face_flux<T: Decide>(
+    body: &Body<T>,
+    face_key: FaceKey,
+    band: Band,
+    quad: &impl Fn(
+        &Body<T>,
+        &Surface<T>,
+        &[LoopEdge<T>],
+        &[HalfEdgeKey],
+        Band,
+        Tol,
+    ) -> Result<Option<FaceCutBounds>, PropsError>,
+    tol: Tol,
+) -> Result<FaceFlux<T>, MassPropsError> {
+    let Some(face) = body.faces.get(face_key) else {
+        return Err(MassPropsError::Corrupt {
+            what: "face key does not resolve",
+        });
+    };
+    let Some(surface) = body.surfaces.get(face.surface) else {
+        return Err(MassPropsError::Corrupt {
+            what: "face surface key does not resolve",
+        });
+    };
+    let wrap = |source| MassPropsError::Face {
+        face: face_key,
+        source,
+    };
+    let mut flux_pad = 0.0f64;
+    let mut area_pad = 0.0f64;
+    let contribution: FaceContribution<T> = match *surface {
+        Surface::Plane { origin, .. } => {
+            let mut loops = Vec::with_capacity(1 + face.rings.len());
+            for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+                loops.push(loop_edges(body, lk)?.0);
+            }
+            planar_face(origin, &loops).map_err(wrap)?
+        }
+        _ => {
+            if !face.rings.is_empty() {
+                return Err(MassPropsError::RingOnCurvedFace { face: face_key });
+            }
+            let (outer, hes) = loop_edges(body, face.outer)?;
+            // Structural dispatch (C5: on the carrier KIND, never a
+            // runtime fallback): a conic/NURBS trim carrier routes
+            // the face to the PR 11 certified-quadrature lane; an
+            // iso boundary keeps its closed form. The S10 sense bit
+            // does NOT enter the quadrature lane: its Green form is
+            // winding-derived end to end (the signed UV area IS
+            // s_f·|Ω| through the stored loop traversal), exactly
+            // the class the S10 module docs keep bit-free.
+            let is_trimmed = outer.iter().any(|e| {
+                matches!(
+                    e.carrier,
+                    geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)
+                )
+            });
+            // A described NURBS face ALWAYS takes the quadrature
+            // lane (M6-3): its flux has no closed form regardless
+            // of what bounds it, and the patch engine reads the
+            // stored iso pcurves rather than the carriers.
+            let quad_out = if is_trimmed || matches!(surface, Surface::Nurbs(_)) {
+                quad(body, surface, &outer, &hes, band, tol).map_err(wrap)?
+            } else {
+                None
+            };
+            match quad_out {
+                Some(bounds) => {
+                    let (fc, fp) = quad_lane::mid_pad(bounds.flux);
+                    let (ac, ap) = quad_lane::mid_pad(bounds.area);
+                    flux_pad += fp;
+                    area_pad += ap;
+                    FaceContribution {
+                        flux: T::from_f64(fc),
+                        area: T::from_f64(ac),
+                    }
+                }
+                // Either an iso boundary (the closed forms — the
+                // face's S10 sense entering at `curved_face`'s one
+                // sanctioned site, the rimless sphere band) or a
+                // scalar with NO certified lane (the dual arm of
+                // [`PropsQuadLane`]) — whose honest outcome on a
+                // trimmed face is the closed form's typed refusal.
+                None => curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?,
+            }
+        }
+    };
+    Ok(FaceFlux {
+        flux: contribution.flux,
+        area: contribution.area,
+        flux_pad,
         area_pad,
     })
 }
@@ -339,6 +391,216 @@ pub(crate) fn loop_edges<T: Decide>(
         });
     }
     Ok((edges, hes))
+}
+
+/// The derived outer/void designation of one shell. The shell list
+/// stores no such designation ([`crate::entity::Solid`]'s documented
+/// invariant): the role IS the sign of the shell's signed volume —
+/// a shell's loops wind about the outward normal, so a boundary that
+/// bounds material from outside integrates positive and a cavity wall
+/// integrates negative.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShellRole {
+    /// Definitely-positive signed volume: the shell is the outer
+    /// boundary of one connected component of material.
+    Outer,
+    /// Definitely-negative signed volume: the shell bounds an internal
+    /// cavity.
+    Void,
+}
+
+/// One shell's flux-derived properties and its decided role.
+///
+/// `volume` is the shell's SIGNED enclosed volume (divergence theorem
+/// over exactly this shell's faces — the same per-face closed
+/// forms/quadrature the whole-body [`mass_properties`] sums, so the
+/// per-shell volumes of a body sum to its body volume and the pads to
+/// its pad). For quadrature faces the value is the certified
+/// enclosure's midpoint and the bracket is `± volume_pad`
+/// ([`MassProperties`]' convention).
+#[derive(Clone, Copy, Debug)]
+pub struct ShellClassification<T: Real> {
+    /// The classified shell.
+    pub shell: ShellKey,
+    /// The solid owning it ([`crate::entity::Shell::solid`]).
+    pub solid: SolidKey,
+    /// The shell's signed enclosed volume (midpoint; bracket
+    /// `± volume_pad`).
+    pub volume: T,
+    /// Certified half-width of the volume bracket (m³); `0.0` when
+    /// every face of the shell is closed-form.
+    pub volume_pad: f64,
+    /// The shell's surface area (midpoint; bracket `± area_pad`).
+    pub surface_area: T,
+    /// Certified half-width of the area bracket (m²).
+    pub area_pad: f64,
+    /// The decided role.
+    pub role: ShellRole,
+}
+
+/// Typed refusal of [`classify_shells`] (closed enum, D4 ¶3). Never a
+/// silent skip: a shell this door cannot classify refuses with the
+/// shell named, exactly as tier 3's check 7 refuses a body whose flux
+/// the props inventory cannot compute.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ShellClassifyError {
+    /// The run's tolerance cannot form a band.
+    Band {
+        /// The band construction failure.
+        error: BandError,
+    },
+    /// A face of this shell refused in the flux inventory — the
+    /// [`MassPropsError`] posture inherited unaltered (rational walls,
+    /// out-of-inventory boundaries, corrupt structure).
+    Props {
+        /// The shell whose face refused.
+        shell: ShellKey,
+        /// The per-face/per-body failure.
+        source: MassPropsError,
+    },
+    /// The sign read escalated: the shell's `V/A` margin sits inside
+    /// the ambiguity band. F6: an in-band orientation is never
+    /// guessed to a side.
+    Escalated {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+        /// The named escalation from the funnel.
+        source: Indeterminate,
+    },
+    /// The signed volume is definitely zero, or its certified bracket
+    /// definitely straddles zero — there is no side to classify to.
+    ZeroVolume {
+        /// The unclassifiable shell.
+        shell: ShellKey,
+    },
+}
+
+impl fmt::Display for ShellClassifyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Band { error } => write!(f, "shell classification: {error}"),
+            Self::Props { shell, source } => {
+                write!(f, "shell classification: shell {shell:?}: {source}")
+            }
+            Self::Escalated { shell, source } => {
+                write!(f, "shell classification: shell {shell:?}: {source}")
+            }
+            Self::ZeroVolume { shell } => write!(
+                f,
+                "shell classification: shell {shell:?}'s signed volume is \
+                 definitely zero (or its certified bracket straddles zero) — \
+                 no outer/void side exists to classify to"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ShellClassifyError {}
+
+/// Per-shell signed volume and outer/void role for every shell of
+/// `body`, in shell-arena slot order (deterministic per D9).
+///
+/// The flux machinery is tier-3 check 7's, SHARED (engineering
+/// convention 2): each shell sums the same per-face contributions the
+/// whole-body [`mass_properties`] sums, restricted to that shell's
+/// face list — never a second flux implementation. The sign is a
+/// decided predicate through the crate funnel (`chk_shell_volume_sign`)
+/// with check 7's margin convention: the comparand is `V/A`, the mean
+/// boundary displacement the volume corresponds to — a length. For
+/// quadrature faces the read is bracket-honest: `Outer` requires the
+/// bracket's LOW end definitely positive, `Void` its HIGH end
+/// definitely negative; anything else refuses typed
+/// ([`ShellClassifyError::Escalated`] / [`ShellClassifyError::ZeroVolume`]),
+/// never a guess.
+///
+/// # Errors
+///
+/// [`ShellClassifyError`] — the first shell that cannot be classified
+/// refuses the call: an inherited flux refusal, an in-band sign, or a
+/// definite zero. (A component count over a partial classification
+/// would be a guess; the caller gets the refusal instead.)
+pub fn classify_shells<T: PropsQuadLane>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+    let band = Band::linear(tol).map_err(|error| ShellClassifyError::Band { error })?;
+    let mut out = Vec::new();
+    for (shell_key, shell) in body.shells.iter() {
+        let mut flux = T::zero();
+        let mut area = T::zero();
+        let mut flux_pad = 0.0f64;
+        let mut area_pad = 0.0f64;
+        for &face_key in &shell.faces {
+            let contribution =
+                face_flux(body, face_key, band, &T::quad_cut_face, tol).map_err(|source| {
+                    ShellClassifyError::Props {
+                        shell: shell_key,
+                        source,
+                    }
+                })?;
+            flux = flux + contribution.flux;
+            area = area + contribution.area;
+            flux_pad += contribution.flux_pad;
+            area_pad += contribution.area_pad;
+        }
+        let volume = flux / T::from_f64(3.0);
+        let volume_pad = flux_pad / 3.0;
+        // The named sign read — ONE funnel site, evaluated at a
+        // bracket end. `V/A` is a length (check 7's margin
+        // convention): the mean displacement of this shell's boundary
+        // that the volume defect corresponds to.
+        let sign_at = |end: T| {
+            crate::validate::decide("chk_shell_volume_sign", Margin::over_lever(end, area), band)
+        };
+        let lo = sign_at(volume - T::from_f64(volume_pad));
+        let role = if matches!(lo, Ok(Sign::Positive)) {
+            // Even the bracket's low end is definitely positive.
+            ShellRole::Outer
+        } else {
+            // Closed-form shells (pad = 0) reuse the one verdict; a
+            // padded bracket reads its own high end.
+            let hi = if volume_pad == 0.0 {
+                lo
+            } else {
+                sign_at(volume + T::from_f64(volume_pad))
+            };
+            match hi {
+                Ok(Sign::Negative) => ShellRole::Void,
+                Err(source) => {
+                    return Err(ShellClassifyError::Escalated {
+                        shell: shell_key,
+                        source,
+                    });
+                }
+                Ok(Sign::Zero) => {
+                    return Err(ShellClassifyError::ZeroVolume { shell: shell_key });
+                }
+                // High end definitely positive while the low end was
+                // not: either the low end escalated (surface that
+                // escalation) or the certified bracket definitely
+                // straddles zero.
+                Ok(Sign::Positive) => match lo {
+                    Err(source) => {
+                        return Err(ShellClassifyError::Escalated {
+                            shell: shell_key,
+                            source,
+                        });
+                    }
+                    _ => return Err(ShellClassifyError::ZeroVolume { shell: shell_key }),
+                },
+            }
+        };
+        out.push(ShellClassification {
+            shell: shell_key,
+            solid: shell.solid,
+            volume,
+            volume_pad,
+            surface_area: area,
+            area_pad,
+            role,
+        });
+    }
+    Ok(out)
 }
 
 /// The certified-quadrature **lane split** (M5 PR 11; Evan's ruling at

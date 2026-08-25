@@ -1062,9 +1062,12 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
-    /// A vertex on an edge's interior — never declarable: reduction
-    /// refines every such contact into v-v records before records are
-    /// emitted (module docs, D4), so at rest this is always a defect.
+    /// A vertex on an edge's interior. No VERTEX-granularity record
+    /// names it — the boolean lane refines every such contact into v-v
+    /// records before records are emitted — so at rest it is
+    /// certifiable through the face rung alone: a declared face pair
+    /// holding the vertex on one boundary and the edge on the other
+    /// (census module docs, D4). Unbacked, it is a defect.
     VertexOnEdge {
         /// The resting vertex.
         vertex: VertexKey,

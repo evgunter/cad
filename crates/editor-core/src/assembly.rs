@@ -158,6 +158,59 @@ impl Attribution {
     }
 }
 
+// The finding-subject vocabulary ([`crate::finding`]): what a rendered
+// at-rest finding is ABOUT — the mate a user can act on and the
+// relation the kernel's arm decided — never the enum's guts. The
+// kernel's own finding is the STORY and rides separately
+// ([`AtRestFinding`]'s `Display`).
+impl core::fmt::Display for Attribution {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Refuted(m) => write!(
+                f,
+                "mate {}'s declared {} contact, refuted",
+                m.mate.0,
+                m.class.name()
+            ),
+            Self::Declined(m) => write!(
+                f,
+                "mate {}'s declared {} contact, uncertified",
+                m.mate.0,
+                m.class.name()
+            ),
+            Self::Unattributed => f.write_str("no declaration answers for this finding"),
+        }
+    }
+}
+
+// One at-rest finding through the document layer's one sink
+// ([`crate::finding`]): the attribution is the subject, the kernel's
+// finding — FORWARDED verbatim through its own `Display`, never
+// restated — is the story, and the recourse is `""` because the
+// kernel's tier-3′ messages already end in their own (the contact
+// arms carry `topo`'s two-armed menu; the structural arms carry their
+// own levers). Appending a document-layer sentence on top would
+// render two recourses, or a generic one — both forbidden.
+impl crate::finding::Finding for AtRestFinding {
+    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.attribution)
+    }
+
+    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.error)
+    }
+
+    fn recourse(&self) -> &str {
+        ""
+    }
+}
+
+impl core::fmt::Display for AtRestFinding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::finding::compose(f, self)
+    }
+}
+
 /// One at-rest refusal: the kernel's finding, and what it says about
 /// what the mates declared.
 #[derive(Debug, Clone, PartialEq)]
@@ -241,6 +294,26 @@ pub enum AssemblyError {
     },
 }
 
+// Why a mate reference did not resolve, in prose — the WHY clause of
+// [`AssemblyError::Reference`]'s message; the typed variant stays the
+// machine contract.
+impl core::fmt::Display for RefusedRef {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NodeGone => f.write_str("its minting node is not in this document"),
+            Self::Vanished => f.write_str("no entity of the product answers to it"),
+            Self::Ambiguous { width } => write!(
+                f,
+                "{width} entities answer to it — a mate declaration names ONE face, and \
+                 a tie is never broken by picking"
+            ),
+            Self::NotAFace { kind } => {
+                write!(f, "it names a {}, not a face", kind.noun())
+            }
+        }
+    }
+}
+
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -252,10 +325,12 @@ impl core::fmt::Display for AssemblyError {
                 why,
             } => write!(
                 f,
-                "assembly: mate {}'s {} reference {name:?} does not name a face \
-                 of the product: {why:?}",
+                "assembly: mate {}'s {} reference (a {} name minted by node {}) does \
+                 not name a face of the product: {why}",
                 mate.0,
-                side.name()
+                side.name(),
+                name.kind.noun(),
+                name.node.0
             ),
             Self::NoAtRestRecord { mate, class, why } => write!(
                 f,
@@ -267,10 +342,10 @@ impl core::fmt::Display for AssemblyError {
             Self::AtRest { findings } => {
                 write!(
                     f,
-                    "assembly: the at-rest gate refused ({} findings)",
+                    "assembly: the at-rest gate refused ({} finding(s))",
                     findings.len()
                 )?;
-                render(f, findings)
+                crate::finding::render_list(f, findings)
             }
             Self::Uncertified { findings, .. } => {
                 write!(
@@ -282,38 +357,10 @@ impl core::fmt::Display for AssemblyError {
                      document)",
                     findings.len()
                 )?;
-                render(f, findings)
+                crate::finding::render_list(f, findings)
             }
         }
     }
-}
-
-/// Every finding, each naming the declaration it speaks about.
-fn render(f: &mut core::fmt::Formatter<'_>, findings: &[AtRestFinding]) -> core::fmt::Result {
-    for finding in findings {
-        match &finding.attribution {
-            Attribution::Refuted(m) => write!(
-                f,
-                "; refuted mate {} ({:?} ~ {:?}, {}): {:?}",
-                m.mate.0,
-                m.a,
-                m.b,
-                m.class.name(),
-                finding.error
-            )?,
-            Attribution::Declined(m) => write!(
-                f,
-                "; declined mate {} ({:?} ~ {:?}, {}): {:?}",
-                m.mate.0,
-                m.a,
-                m.b,
-                m.class.name(),
-                finding.error
-            )?,
-            Attribution::Unattributed => write!(f, "; unattributed: {:?}", finding.error)?,
-        }
-    }
-    Ok(())
 }
 
 impl core::error::Error for AssemblyError {}

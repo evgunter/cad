@@ -133,6 +133,8 @@ mod mass_props_interval;
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
+#[path = "review_arms2_r1_probes.rs"]
+mod review_arms2_r1_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
@@ -207,6 +209,10 @@ mod s49_census_jurisdiction;
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]
 mod verbs_arms1_r1_probes;
+#[path = "verbs_arms2_arms.rs"]
+mod verbs_arms2_arms;
+#[path = "verbs_arms2_bud.rs"]
+mod verbs_arms2_bud;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]
@@ -257,6 +263,9 @@ mod m8_4_intersection_iso;
 
 #[path = "m9_2_chart_region_loft.rs"]
 mod m9_2_chart_region_loft;
+
+#[path = "m9_3_wall_door.rs"]
+mod m9_3_wall_door;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

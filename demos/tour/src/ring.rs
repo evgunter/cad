@@ -81,15 +81,13 @@
 //!    scene: the chamfer has no node, so THAT die has no document.
 //!    The two verbs are not in the same position, and saying they were
 //!    would have been a finding invented from symmetry.
-//! 2. **The cavity has a key and no PROPS door.**
-//!    [`pncad::topo::Body::get_shell`] spends a `ShellKey` perfectly
-//!    well — the scene uses it below to check the cavity's solid — so
-//!    the cavity is reachable as topology. What has no door is its
-//!    MASS: `mass_properties` takes a whole body, and there is no
-//!    per-shell form of it, so a consumer wanting the bore's own
-//!    volume or area (a coolant capacity, a fill weight) cannot ask.
-//!    The closed forms below are doing that work instead, which is
-//!    fine for a torus and no help at all on a shape without one.
+//! 2. **The cavity's props door is [`pncad::topo::classify_shells`]**
+//!    (this finding used to record its absence; the checks unit built
+//!    it). A consumer wanting the bore's own volume or area (a coolant
+//!    capacity, a fill weight) asks per shell and reads the cavity's
+//!    entry — the `Void`-role shell, its signed volume negative by the
+//!    orientation convention. The closed forms below still stand as
+//!    this scene's independent oracle for a torus.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -239,6 +237,26 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ((props.surface_area - a_want) / a_want).abs() < 1e-12,
         "A = {} vs the closed form {a_want}",
         props.surface_area
+    );
+
+    // And per shell (finding 2 above, executed): the `Void`-role shell
+    // IS the named cavity, and its signed volume is the bore's closed
+    // form, negated — the bore's own capacity, asked for directly.
+    let classes = pncad::topo::classify_shells(&ring.body, tol).expect("per-shell classification");
+    let voids: Vec<_> = classes
+        .iter()
+        .filter(|c| c.role == pncad::topo::ShellRole::Void)
+        .collect();
+    assert_eq!(voids.len(), 1, "one cavity, one Void shell");
+    assert_eq!(
+        voids[0].shell, ring.cavities[0],
+        "the Void shell is the named cavity"
+    );
+    let v_bore = 2.0 * PI * PI * R * RI * RI;
+    assert!(
+        ((voids[0].volume + v_bore) / v_bore).abs() < 1e-12,
+        "bore volume {} vs the closed form -{v_bore}",
+        voids[0].volume
     );
     assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
 

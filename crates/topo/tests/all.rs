@@ -90,6 +90,10 @@ mod m9_1_contact_vocabulary;
 mod m9_2_census_door;
 #[path = "m9_2b_r2_probes.rs"]
 mod m9_2b_r2_probes;
+#[path = "m9_c1_r1_probes.rs"]
+mod m9_c1_r1_probes;
+#[path = "m9_c1_rest_face_rung.rs"]
+mod m9_c1_rest_face_rung;
 #[path = "merge_skip.rs"]
 mod merge_skip;
 #[path = "review_m1_pr5.rs"]
@@ -142,6 +146,8 @@ mod review_ssiflat_r2_probes;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "shell_roles.rs"]
+mod shell_roles;
 #[path = "void_door.rs"]
 mod void_door;
 

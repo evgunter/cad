@@ -50,6 +50,19 @@ pub enum EntityKind {
     Vertex,
 }
 
+impl EntityKind {
+    /// The kind as a prose noun — the one spelling every user-facing
+    /// message uses, so a rendered kind never leans on `Debug`.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Body => "body",
+            Self::Face => "face",
+            Self::Edge => "edge",
+            Self::Vertex => "vertex",
+        }
+    }
+}
+
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).
@@ -211,9 +224,16 @@ pub enum Qualifier {
 )]
 #[serde(deny_unknown_fields)]
 pub enum RimSupport {
-    /// The planar support — the face carrying the rim as a ring.
+    /// The HOST support — the planar one wherever the rim has one (on a
+    /// ladder rim, the face carrying the rim as a ring).
     Plane,
-    /// The curved support — the cap the rim bounds.
+    /// The MATE support — the cap the rim bounds on a ladder rim.
+    ///
+    /// A rim between two CURVED walls has no planar side, and this
+    /// two-value alphabet cannot say so: the two trim arcs still take
+    /// DIFFERENT variants, so names stay unique, but one of them reads
+    /// `Plane` for a curved support. Widening the alphabet is a change
+    /// to a persisted, versioned vocabulary — tracked as #961.
     Curved,
 }
 

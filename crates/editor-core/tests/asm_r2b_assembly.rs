@@ -1375,3 +1375,271 @@ fn the_crossing_refusal_is_a_named_node_error() {
     let msg = e.to_string();
     assert!(msg.contains("re-verify"), "{msg}");
 }
+
+// ---------------------------------------------------------------------
+// The flush seat: a part seated so the two mated faces SHARE a
+// boundary — the obvious way to draw a post under the end of a shelf,
+// and the configuration that induces vertex-on-edge and edge-edge
+// events the seat's own declaration must answer for.
+// ---------------------------------------------------------------------
+
+/// A one-block part document with an arbitrary footprint. Its extrude
+/// is node 1, as every part here.
+fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> ProfileDoc {
+    let (doc, _) = block(
+        ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
+        x,
+        y,
+        0.0,
+        dz,
+    );
+    doc
+}
+
+/// The seat: a post standing under a shelf, mated top-cap to
+/// underside, with the shelf's END plane and the post's cap sharing the
+/// line x = 0. The post is inset in y, so the flush end is the whole
+/// of the shared boundary.
+///
+/// One physical scene, stated independently at three layers: here at
+/// the assembly gate, at census granularity (`flush_seat` in
+/// `topo/tests/m9_c1_rest_face_rung.rs`), and as a user's document
+/// (the bench-stand dimensions in `demos/tour/src/assembly.rs`). The
+/// numbers agree by construction and are deliberately not shared —
+/// each layer's fixture reads as the thing that layer is about.
+fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
+    let mut store = StubStore::default();
+    let post = store.insert(
+        slab_part(&format!("{label}-post"), (0.0, 0.12), (0.09, 0.21), 0.5),
+        Tol::witness(),
+    );
+    let shelf = store.insert(
+        slab_part(&format!("{label}-shelf"), (0.0, 0.9), (0.0, 0.30), 0.04),
+        Tol::witness(),
+    );
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, post_id) = insert(doc, Node::instantiate_part(post));
+    let (doc, shelf_id) = insert(doc, Node::instantiate_part(shelf));
+    let (doc, mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Node::Mate {
+                a: in_part(post_id, CapEnd::Top),
+                b: in_part(shelf_id, CapEnd::Bottom),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
+                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Aligned,
+                    clocking: None,
+                },
+            },
+        },
+    );
+    (doc, mate.expect("the mate mints"), store)
+}
+
+/// INVARIANT: a seat whose mated faces share a boundary is answered by
+/// the declaration the seat's own mate mints. The events that seat
+/// induces — a cap corner on the shelf edge's interior, the collinear
+/// overlap they bound — are backed by the declared face pair, so the
+/// gate's verdict is the DECLARED direction's frontier and not a
+/// finding against the document.
+///
+/// The residue is asserted by kind AND count, not merely by arm: the
+/// only thing left unanswered is the declared pair's own confirmation,
+/// which the census declines for every cross-instance pair. When that
+/// door starts answering, this row goes red at the count and is
+/// re-blessed deliberately.
+#[test]
+fn a_flush_seat_is_the_declared_frontier_not_a_finding_against_the_document() {
+    let (doc, mate, store) = flush_seat("asm-r2b-flush");
+    let ev = run(&doc, &opts(store));
+    let result = assemble(&doc, &ev, Tol::witness());
+    let (contacts, declined) = declared_frontier(&result);
+    assert_eq!(
+        contacts.patches.len(),
+        1,
+        "the seat is declared once, at face granularity"
+    );
+    assert_eq!(
+        relations(declined),
+        vec![(mate, "declined")],
+        "the seat's induced events are backed; what remains is the \
+         declared pair's own confirmation: {:?}",
+        findings(&result)
+    );
+    assert!(
+        declined.iter().all(|f| matches!(
+            f.error,
+            topo::ValidationError::CensusUnsupported {
+                entity: topo::EntityId::Face(_)
+            }
+        )),
+        "the residue is the cross-instance chart decline, by kind: {:?}",
+        findings(&result)
+    );
+}
+
+/// INVARIANT (the scan-to-bless ban, F1): the backing consults the
+/// DECLARATION, never the geometry's agreement with itself. The same
+/// flush seat with its mate removed is the hard error — the events
+/// nothing declared are `UndeclaredContact`, unattributed.
+#[test]
+fn the_same_flush_seat_undeclared_is_the_hard_error() {
+    let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
+    let ev = run(&doc, &opts(store));
+    let errors = findings(&assemble(&doc, &ev, Tol::witness()));
+    assert!(
+        errors.iter().any(|e| e.contains("VertexOnEdge")),
+        "the seat's induced vertex-on-edge event has no declaration to \
+         back it: {errors:?}"
+    );
+    assert!(
+        errors.iter().all(|e| e.contains("UndeclaredContact")),
+        "and every finding is that hard error: {errors:?}"
+    );
+}
+
+/// **The refusal's rendering composes through the finding sink**: each
+/// finding is `subject: story` — the attribution (the mate a user can
+/// act on, and the relation) before the colon, the kernel's own
+/// finding forwarded verbatim after it, and never a `Debug` dump of
+/// either. The kernel's tier-3′ messages end in their own recourse,
+/// so the document layer appends none — exactly one recourse per
+/// finding, no generic tail.
+#[test]
+fn the_refusal_renders_attribution_prose_never_debug_guts() {
+    use editor_core::{AtRestFinding, Attribution, MintedDeclaration};
+
+    let minted = MintedDeclaration {
+        mate: RecipeNodeId(4),
+        a: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::Cap(CapEnd::Top)],
+        },
+        b: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(2),
+            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+        },
+        class: ContactClass::Rest,
+        faces: (topo::FaceKey::default(), topo::FaceKey::default()),
+    };
+    let finding = |attribution| AtRestFinding {
+        attribution,
+        error: topo::ValidationError::NegativeVolume,
+    };
+    let msg = AssemblyError::AtRest {
+        findings: vec![
+            finding(Attribution::Refuted(minted.clone())),
+            finding(Attribution::Declined(minted)),
+            finding(Attribution::Unattributed),
+        ],
+    }
+    .to_string();
+    // The header, then one composed line per finding.
+    assert!(
+        msg.contains("the at-rest gate refused (3 finding(s))"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("mate 4's declared Rest contact, refuted:"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("mate 4's declared Rest contact, uncertified:"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("no declaration answers for this finding:"),
+        "{msg}"
+    );
+    // The kernel's story rides each line, forwarded through its own
+    // `Display`.
+    assert!(
+        msg.contains("signed volume is definitely negative"),
+        "{msg}"
+    );
+    // The negative pin class: prose, never Debug — no struct braces,
+    // no variant or type name, no Debug-formatted payload.
+    for guts in [
+        "{",
+        "Refuted",
+        "Declined",
+        "Unattributed",
+        "NegativeVolume",
+        "AtRestFinding",
+        "StableName",
+        "ValidationError",
+    ] {
+        assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+    }
+}
+
+/// **The gather's own refusals render as prose too** — `ProductError`
+/// forwards its payloads' `Display`s (the kernel refusal, each
+/// validity finding on its own indented line, names as kind + minting
+/// node), and `AssemblyError::Product` forwards the whole rendering,
+/// so the assembly surface leaks no `Debug` structure through this
+/// arm either.
+#[test]
+fn the_gather_refusals_render_prose_never_debug_guts() {
+    use editor_core::ProductError;
+
+    let cases = vec![
+        ProductError::SolidInvalid {
+            node: RecipeNodeId(3),
+            errors: vec![
+                topo::ValidationError::NegativeVolume,
+                topo::ValidationError::NegativeVolume,
+            ],
+        },
+        ProductError::Naming {
+            node: RecipeNodeId(2),
+            name: Box::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::Top)],
+            }),
+        },
+        ProductError::Graft {
+            node: RecipeNodeId(5),
+            source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
+                zero: 1.0,
+                escalate: 0.5,
+            })),
+        },
+    ];
+    let expected: [&[&str]; 3] = [
+        &[
+            "root 3's solid is not valid at rest (2 finding(s)):",
+            "\n  the body's exact-B-rep signed volume is definitely negative",
+        ],
+        &["root 2's face name (minted by node 1) collides"],
+        &["grafting root 5 refused: boolean_reduce: invalid band:"],
+    ];
+    for (error, needles) in cases.into_iter().zip(expected) {
+        // Through the assembly surface, exactly as a caller sees it.
+        let msg = AssemblyError::Product(Box::new(error)).to_string();
+        assert!(msg.starts_with("assembly: product:"), "{msg}");
+        for needle in needles {
+            assert!(msg.contains(needle), "{needle:?} not in: {msg}");
+        }
+        for guts in [
+            "{",
+            "SolidInvalid",
+            "NegativeVolume",
+            "ProductError",
+            "ValidationError",
+            "BooleanError",
+            "StableName",
+            "RecipeNodeId",
+        ] {
+            assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+        }
+    }
+}
