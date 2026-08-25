@@ -619,7 +619,6 @@ checked every pass). Renders re-baseline on this merge. Seam
 sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
 TUBEWALL dual (69), ARMS-2 review (70).
 
-<<<<<<< HEAD
 ## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
 
 The session hit the model usage limit mid-wave: both in-flight
@@ -682,7 +681,7 @@ ruled-family poison prose. Fix pass out with the union; the
 reviewer's two-sphere-waist differential likely BECOMES the MAJOR
 fix at adoption. Both Wave-1 closers now in fix passes
 concurrently (TUBEWALL + ARMS-2).
-=======
+
 ## ARMS-2 — the coaxial revolution arms (2026-08-23, `verbs/arms2`)
 
 **#319's coaxial half closes.** Eight new arms land as ONE derivation
@@ -741,7 +740,6 @@ folded into one helper, and the plane/sphere vocabulary swept at every
 site the review named (prose only; the name-alphabet mechanism stays
 #961's). Reviewer probe branch adopted authorship-preserving:
 `verbs/arms2-r1-probes`.
->>>>>>> origin/main
 
 ## ARMS-2 MERGED (#962, 2026-08-25) — #319's coaxial half CLOSED
 
