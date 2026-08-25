@@ -653,6 +653,11 @@ pub enum NodeErrorKind {
 /// the recourse is the two-armed menu (SELECT-DESIGN §3d, the #256
 /// ruling applied to contact: declare the finding or move the
 /// geometry — no absorb arm).
+///
+/// The subject is SENTENCE-shaped ("the Boolean refused an undeclared
+/// contact") rather than a bare attribution: the phrase is pinned
+/// across the bindings and predates the sink, so this impl preserves
+/// it verbatim rather than bending the pin to the subject style.
 struct UndeclaredContactFinding<'a> {
     /// The candidate declaration, in the detector's value shape.
     finding: &'a crate::names::FlushFinding,
@@ -666,6 +671,11 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The MARGIN-PAYLOAD view of the diagnostic (name + numbers),
+        // not its full `Display`: the funnel's generic three-arm menu
+        // ends that rendering, and a contact refusal deliberately has
+        // no "lower the tolerance" arm (`topo::CONTACT_RECOURSE`'s doc
+        // comment) — the one menu here is this finding's recourse.
         write!(
             f,
             "a face pair of its operands is {} without a shared source or declared \
@@ -678,7 +688,7 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
                 // Never constructed on a finding; rendered honestly anyway.
                 topo::PlaneRelation::Distinct => "reported coincident",
             },
-            self.diag
+            self.diag.payload()
         )
     }
 
@@ -863,7 +873,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "the fillet selection is empty — an unfinished recipe, not the identity",
             ),
             Self::WitnessBifurcation(refusal) => {
-                write!(f, "the sketch's branch selection refused: {refusal}")
+                write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
             Self::Part { doc_ref, fault } => {
                 write!(f, "instantiating {doc_ref}: {fault}")

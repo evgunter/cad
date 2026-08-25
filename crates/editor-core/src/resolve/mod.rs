@@ -224,9 +224,14 @@ impl core::fmt::Display for Diagnosis {
                  {param:?})",
                 node.0
             ),
-            Self::RecipeEdit { edit } => {
-                write!(f, "a recipe edit touched the derivation path ({edit})")
-            }
+            // A SITE of difference, not a claim that an edit happened
+            // (module docs: the total fallback arm reaches this on a
+            // never-edited document pair).
+            Self::RecipeEdit { edit } => write!(
+                f,
+                "the recorded reference disagrees with the recipe as it stands on the \
+                 derivation path ({edit})"
+            ),
             Self::Cascade { through } => write!(
                 f,
                 "the upstream {} name minted by node {} vanished first; its own \
@@ -235,7 +240,7 @@ impl core::fmt::Display for Diagnosis {
                 through.node.0
             ),
             Self::WitnessBifurcation(refusal) => {
-                write!(f, "the sketch's branch selection refused: {refusal}")
+                write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
         }
     }
@@ -280,7 +285,9 @@ impl core::fmt::Display for RecipeEditRef {
         match self {
             Self::NodeDeleted { node } => write!(f, "node {} was deleted", node.0),
             Self::NodeInserted { node } => write!(f, "node {} was inserted", node.0),
-            Self::NodeChanged { node } => write!(f, "node {}'s payload changed", node.0),
+            // A difference statement, not an edit claim — this arm is
+            // the diff fallback's site vocabulary.
+            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node.0),
             Self::ForeignNode { node } => {
                 write!(f, "node {} was never minted by this document", node.0)
             }

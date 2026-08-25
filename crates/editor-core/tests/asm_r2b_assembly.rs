@@ -1543,7 +1543,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     .to_string();
     // The header, then one composed line per finding.
     assert!(
-        msg.contains("the at-rest gate refused (3 findings)"),
+        msg.contains("the at-rest gate refused (3 finding(s))"),
         "{msg}"
     );
     assert!(
@@ -1577,5 +1577,69 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "ValidationError",
     ] {
         assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+    }
+}
+
+/// **The gather's own refusals render as prose too** — `ProductError`
+/// forwards its payloads' `Display`s (the kernel refusal, each
+/// validity finding on its own indented line, names as kind + minting
+/// node), and `AssemblyError::Product` forwards the whole rendering,
+/// so the assembly surface leaks no `Debug` structure through this
+/// arm either.
+#[test]
+fn the_gather_refusals_render_prose_never_debug_guts() {
+    use editor_core::ProductError;
+
+    let cases = vec![
+        ProductError::SolidInvalid {
+            node: RecipeNodeId(3),
+            errors: vec![
+                topo::ValidationError::NegativeVolume,
+                topo::ValidationError::NegativeVolume,
+            ],
+        },
+        ProductError::Naming {
+            node: RecipeNodeId(2),
+            name: Box::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::Top)],
+            }),
+        },
+        ProductError::Graft {
+            node: RecipeNodeId(5),
+            source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
+                zero: 1.0,
+                escalate: 0.5,
+            })),
+        },
+    ];
+    let expected: [&[&str]; 3] = [
+        &[
+            "root 3's solid is not valid at rest (2 finding(s)):",
+            "\n  the body's exact-B-rep signed volume is definitely negative",
+        ],
+        &["root 2's face name (minted by node 1) collides"],
+        &["grafting root 5 refused: boolean_reduce: invalid band:"],
+    ];
+    for (error, needles) in cases.into_iter().zip(expected) {
+        // Through the assembly surface, exactly as a caller sees it.
+        let msg = AssemblyError::Product(Box::new(error)).to_string();
+        assert!(msg.starts_with("assembly: product:"), "{msg}");
+        for needle in needles {
+            assert!(msg.contains(needle), "{needle:?} not in: {msg}");
+        }
+        for guts in [
+            "{",
+            "SolidInvalid",
+            "NegativeVolume",
+            "ProductError",
+            "ValidationError",
+            "BooleanError",
+            "StableName",
+            "RecipeNodeId",
+        ] {
+            assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+        }
     }
 }

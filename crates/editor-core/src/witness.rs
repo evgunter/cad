@@ -166,3 +166,15 @@ impl core::fmt::Display for WitnessBifurcation {
         )
     }
 }
+
+/// The one composing clause for this refusal — every layer that names
+/// it as a WHY clause (`NodeErrorKind`'s arm, N5's `Diagnosis` arm)
+/// renders THIS wrapper, so the sentence has a single home and no
+/// verbatim twin.
+pub(crate) struct BranchSelectionRefused<'a>(pub(crate) &'a WitnessBifurcation);
+
+impl core::fmt::Display for BranchSelectionRefused<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "the sketch's branch selection refused: {}", self.0)
+    }
+}

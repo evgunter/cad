@@ -342,7 +342,7 @@ impl core::fmt::Display for AssemblyError {
             Self::AtRest { findings } => {
                 write!(
                     f,
-                    "assembly: the at-rest gate refused ({} findings)",
+                    "assembly: the at-rest gate refused ({} finding(s))",
                     findings.len()
                 )?;
                 crate::finding::render_list(f, findings)

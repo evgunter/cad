@@ -1,8 +1,9 @@
 //! **The document layer's finding sink** (DISCIPLINES-DESIGN DS8;
-//! #981 part 1): one composition and one list rendering for every
-//! user-facing finding this layer produces, so a new finding kind
-//! plugs into a shared shape instead of hand-rolling a fourth
-//! renderer.
+//! #981 part 1): one composition and one list rendering for the
+//! layer's finding surfaces — the checks report and refusal, the
+//! undeclared-contact refusal, and the assembly at-rest gate — so a
+//! new finding kind plugs into a shared shape instead of hand-rolling
+//! another renderer.
 //!
 //! The sink unifies the *rendering around* the findings, not the
 //! findings: payloads stay per-site, evidence types stay where their
