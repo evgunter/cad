@@ -877,3 +877,28 @@ units the wave surfaced). Remaining Wave-1 item: ARMS-3's
 design conversation (OQ6 run-out taxonomy — Evan-gated), drafting
 next. Wave 3 opened concurrently (OFF-A implementing). Seam
 sweep: verbs-tubewall + both reviewer lanes.
+
+## ARMS-3 conversation OPEN (#992, 2026-08-25)
+
+The last Wave-1 item is now a design conversation awaiting Evan:
+A3-2's substantive claim is that the valence-4 seam-vertex
+"corner" is NOT a corner (the surface is smooth through it; the
+shipped vocabulary misdescribes it) — recommend the SeamVertex
+refusal with the request-the-full-rim recourse, machinery-free;
+A3-3 parks the genuine mid-curve run-out pair consumer-gated with
+the ball-cap named presumptive. Board: OFF-A implementing (Wave
+3); #992 with Evan; Wave 2's GATE spec is the next orchestrator
+work item.
+
+## WAVE 2 OPENS: GATE spec committed (2026-08-25)
+
+docs/VERBS-GATE-SPEC.md: the operand gate goes pair-scoped with
+box-level conservatism as the ruled "genuinely intersects" (over-
+approximation refuses in the safe direction; the payload names the
+pair, stated as a may-intersect); #862's two box defects and
+#700's sibling dedup ride as the precision the gate rests on.
+Acceptance: klein wall 3 flips (or re-pins honestly — build, don't
+assume), wall 4 stays pair-scoped-refused, lily wall 7's refusal
+becomes true (its retirement still waits on SPHSPH per Evan's
+steering). Difficulty M logged pre-dispatch; consumes VERBS-3
+slot 3. Two lanes now: OFF-A (Wave 3) + GATE (Wave 2).
