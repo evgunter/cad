@@ -117,7 +117,7 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{Body, BooleanError, Operand, TransformError};
+use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
 use profile::RawLoop;
 
 use crate::scalar::Scalar;
@@ -1560,17 +1560,28 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // 7. The lantern is THREE tepals fused, and their seams are
-    //    longitudinal grooves. Carving one means a sphere-on-sphere
-    //    subtract — the curved-on-curved boolean.
+    //    longitudinal grooves. Carving one is a sphere-on-sphere
+    //    subtract — but that is not what the kernel names when asked,
+    //    and the difference is the point of a live probe. The
+    //    refusal is PAIR-scoped, and the pair it finds first is
+    //    (Cone, Sphere): the lantern's conical PUCKER, not its
+    //    spherical zone, is what the carving ball's box may meet. So
+    //    the wall retires on the cone germ lane and the sphere×sphere
+    //    one together — or on the pucker moving out of the ball's
+    //    reach, which is a modelling answer rather than a kernel one.
     wall(
         7,
-        "carve a tepal seam into the lantern (sphere x sphere subtract)",
+        "carve a tepal seam into the lantern (asked as sphere x sphere; the pucker \
+         answers first)",
         pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
         |e| {
             matches!(
                 e,
-                BooleanError::FallbackExtentUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
                     operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Sphere,
                     ..
                 }
             )

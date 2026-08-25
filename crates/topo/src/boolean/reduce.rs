@@ -324,7 +324,10 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
 /// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers,
 /// and the faces whose surface key does not resolve (no description,
 /// so no box and no pair to name).
-fn gate_operand_body_scoped<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
+fn gate_operand_body_scoped<T: Decide>(
+    body: &Body<T>,
+    operand: Operand,
+) -> Result<(), BooleanError> {
     for (face_key, face) in body.faces() {
         if body.get_surface(face.surface).is_none() {
             return Err(BooleanError::CurvedBooleanUnsupported {

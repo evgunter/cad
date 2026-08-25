@@ -101,13 +101,21 @@
 //!    improvement rather than a workaround (Evan, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
-//! 4. **No boolean may touch a Cone or a Torus face** (walls 3, 4).
-//!    The operand gate is per-FACE-KIND and it rejects the whole
-//!    body: `union` refuses `CurvedBooleanUnsupported { kind: Torus }`
-//!    and `subtract` refuses `CurvedOpUnsupported` before either
-//!    reaches a pair. So the bottle cannot be one body, and the
-//!    self-intersection — the neck piercing the bulb, the one place a
-//!    Klein bottle MUST cross itself in 3-space — cannot be trimmed.
+//! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
+//!    THE OTHER OPERAND** (walls 3, 4). The operand gate is
+//!    pair-scoped: a kind with no wired arm disqualifies an operation
+//!    only where its BOX may meet a face of the other body, so both
+//!    refusals now name the germ PAIR and both faces. `union` refuses
+//!    `CurvedPairUnsupported { kind: Cone, other_kind: Plane }` — the
+//!    flare against a plane of the loop, and NOT the coincident
+//!    annular mate the model cares about — and `subtract` the same
+//!    way under `Subtract`. Box overlap is a MAY, not a DOES: the
+//!    kernel cannot rule the meeting out, which is a weaker claim
+//!    than that they meet. So the bottle still cannot be one body,
+//!    and the self-intersection — the neck piercing the bulb, the one
+//!    place a Klein bottle MUST cross itself in 3-space — still
+//!    cannot be trimmed; what changed is that the reason is a pair
+//!    the reader can look at.
 //! 5. **`sweep_body` cannot carry a section around a U-turn**
 //!    (wall 5). The loop's whole spine is one path and would be ONE
 //!    body, but the loft's stacking trilean compares only the LAST
@@ -797,7 +805,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its three bodies meet on
     // coincident annular faces — the declared REST mate — and the
-    // union refuses before it ever looks at them.
+    // union refuses at a pair that is NOT that mate: the bulb's
+    // CONE (the flare) against a plane of the loop. The gate is
+    // pair-scoped now, so the refusal names the two faces whose
+    // boxes may meet, and this is the first such pair in arena
+    // order. It is a MAY: box overlap over-approximates, and the
+    // flare's own slab is what reaches.
     crate::walls::wall(
         "bottle",
         3,
@@ -809,7 +822,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
