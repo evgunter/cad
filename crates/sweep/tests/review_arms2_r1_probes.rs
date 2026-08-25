@@ -124,8 +124,7 @@ fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
     let mouth = closed_rim_at(&source, 0.6, 0.8);
     let out = fillet_edges(&source, &[mouth], R1, band(), tol())
         .unwrap_or_else(|e| panic!("the 2:1 pucker's sphere-cone seam fillets, got {e:?}"));
-    validate_geometric(&out.body, tol())
-        .unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     // Cone direction (−2, 1)/√5, outward normal (1, 2)/√5.
     let s5 = 5.0f64.sqrt();
     let (cx, cy) = mouth_centre(0.6, 0.8, 1.0 / s5, 2.0 / s5, R1);
