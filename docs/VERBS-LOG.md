@@ -660,3 +660,24 @@ sentence corrected, the log contradiction fixed, both probe
 suites adopted, main re-merged (the outage delta). Also noted:
 classify_shells on main answers DEMO finding 6 and the RING
 winding-oracle caveat — a future unit's wiring, not this PR's.
+
+## Ordinal-70 returned; ARMS-2 fix pass out (2026-08-25)
+
+The resumed reviewer delivered: AWF 1/4/4 + style. The geometry
+held completely — all three sheet-center closed forms re-derived
+(the sign-carrying stable quadratic root confirmed branch-free
+both directions), four-fixture bit-identity byte-verified, klein's
+RadiusHeadroom margin computed exactly (−0.1 m against the inner
+neck wall — the meridian-authoring reading sharpened, as claimed),
+the C8 correction verified against #930's flagged wording, and the
+f64 lane (which BOTH hosted draws missed) clean at 63/63 × two ε.
+The pre-outage anomaly resolved as suspected: stale-binary base
+runs; redone isolated, the probe rows red at base. The MAJOR is a
+vacuous test row (the non-coaxial refusal test never builds a
+non-coaxial pair); MINORs: the refusing branch has zero consumers
+and the new metered name zero probe coverage (K-REPORT's 0-sampled
+class), one unscheduled deviation, a missing-face conflation, and
+ruled-family poison prose. Fix pass out with the union; the
+reviewer's two-sphere-waist differential likely BECOMES the MAJOR
+fix at adoption. Both Wave-1 closers now in fix passes
+concurrently (TUBEWALL + ARMS-2).
