@@ -1164,10 +1164,10 @@ pub(crate) fn face_reach<T: Decide>(
                 // arm falls out at its in-band refusal having
                 // compared no geometry at all, and the typed
                 // "unclaimable extent" refusal below never fires.
-                // `None` is what this closure's contract already
-                // says an unboxable kind answers, and a
-                // placeholder is the unboxable case par
-                // excellence: it is "no description yet".
+                // `None` is what this function's contract already
+                // says a description with no claim in it answers,
+                // and a placeholder is that case par excellence:
+                // it is "no description yet".
                 //
                 // NOT an exclusion. Dropping the face from a
                 // solid's reach would UNDER-claim the container

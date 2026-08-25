@@ -734,8 +734,7 @@ pub enum BooleanError {
         source: EulerOpError,
     },
     /// **A germ PAIR with no boolean seam lane**, refused at the
-    /// operand gate (M5 PR 9 → narrowed per class in M5 S12 →
-    /// narrowed to the pair in VERBS-GATE).
+    /// operand gate.
     ///
     /// The gate asks two questions and both have to answer yes: does
     /// this face's KIND have a wired arm, and can this face REACH the

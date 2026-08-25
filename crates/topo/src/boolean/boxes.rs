@@ -304,9 +304,17 @@ pub(crate) fn axial_range<T: Real>(
 /// `radius` there claimed a slab longer than the face.
 ///
 /// `axis_i²` is bounded BELOW ([`Span::abs_min`]) so the perpendicular
-/// factor is bounded above, which is the sound direction; a
-/// non-unit or poisoned axis reads as more perpendicular room, never
-/// less.
+/// factor is bounded above, which is the sound direction; an axis
+/// bracket that does not pin the direction reads as more
+/// perpendicular room, never less, and a poisoned one poisons the box.
+///
+/// **The premise is a UNIT axis**, which is what [`Surface`]'s own
+/// conic descriptions promise and what `h` is a length in. It is a
+/// premise of the CONSTRUCTION, not of the widening: with `|axis| ≠ 1`
+/// the axis segment `origin + h·axis` is off by `|axis|²` before any
+/// radius is added, so nothing here could rescue such a description
+/// and this arm does not pretend to. State the premise if you add a
+/// constructor that does not hold it.
 pub(crate) fn slab_extent<T: Real>(
     origin: &SpanBox<T>,
     axis: &SpanBox<T>,
@@ -340,7 +348,9 @@ pub(crate) fn ball_extent<T: Real>(center: &SpanBox<T>, radius: T) -> SpanBox<T>
 /// `(R + r)·√(1 − axis_i²) + r·|axis_i|` from the centre — the
 /// perpendicular room of [`slab_extent`] for the in-plane part plus
 /// the tube's own reach along the axis. For an axis-aligned torus
-/// that is exactly the true box.
+/// that is exactly the true box. Same UNIT-axis premise as
+/// [`slab_extent`], and here it is the widening's own: `|axis| > 1`
+/// would claim less perpendicular room than a unit `û` can take.
 pub(crate) fn torus_extent<T: Real>(
     center: &SpanBox<T>,
     axis: &SpanBox<T>,

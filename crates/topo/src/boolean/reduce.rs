@@ -306,7 +306,7 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand_edges(body, operand)?;
+        gate_operand_body_scoped(body, operand)?;
     }
     if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists)? {
         return Err(BooleanError::CurvedPairUnsupported {
@@ -321,10 +321,10 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     Ok(())
 }
 
-/// The body-scoped half of [`gate_operand_pairs`]: the edge carriers,
+/// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers,
 /// and the faces whose surface key does not resolve (no description,
 /// so no box and no pair to name).
-fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
+fn gate_operand_body_scoped<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (face_key, face) in body.faces() {
         if body.get_surface(face.surface).is_none() {
             return Err(BooleanError::CurvedBooleanUnsupported {
