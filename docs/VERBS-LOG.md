@@ -902,3 +902,15 @@ assume), wall 4 stays pair-scoped-refused, lily wall 7's refusal
 becomes true (its retirement still waits on SPHSPH per Evan's
 steering). Difficulty M logged pre-dispatch; consumes VERBS-3
 slot 3. Two lanes now: OFF-A (Wave 3) + GATE (Wave 2).
+
+## OFF-A up (#994); ordinal 73 claimed at dispatch (2026-08-25)
+
+OFF-A complete at first pass, no deviations: the cone-slide sign
+derived from the stored normal's axial coefficient (no numeric
+branch), and the cone refusal DERIVED TO BE A NON-QUESTION and
+dropped with the argument (nothing stored approaches a validity
+edge — the parameterization-shift question belongs to OFF-C/D's
+windowed consumers). The TUBEWALL realized-radius lesson is a
+planted red at radius 1e16. **Ordinal 73 claimed at dispatch**
+(ledger through 72 = M9-3's dual on main at claim; 73 not a third)
+— single fable review, frozen 11d955f1ecd8f48e9f07b95f397e5daf354e77b8.
