@@ -71,6 +71,8 @@ mod m5_pr12_die_body;
 mod m5_pr12_fix_pass;
 #[path = "m5_pr12_refusals.rs"]
 mod m5_pr12_refusals;
+#[path = "offb_r1_loft_probes.rs"]
+mod offb_r1_loft_probes;
 #[path = "m5_pr5_tilted_cut.rs"]
 mod m5_pr5_tilted_cut;
 #[path = "m5_pr6_pcurves.rs"]
