@@ -117,7 +117,7 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
+use pncad::topo::{Body, BooleanError, Operand, TransformError};
 use profile::RawLoop;
 
 use crate::scalar::Scalar;
@@ -1428,7 +1428,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Torus,
                     ..
@@ -1448,7 +1449,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
                     ..
@@ -1567,8 +1569,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedOpUnsupported {
-                    op: BooleanOp::Subtract,
+                BooleanError::FallbackExtentUnsupported {
                     operand: Operand::A,
                     ..
                 }

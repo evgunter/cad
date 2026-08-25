@@ -202,7 +202,7 @@ use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
 use pncad::sweep::fillet::{FilletError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, BooleanError, EdgeKey, Operand};
+use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -806,7 +806,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Torus,
                     ..
@@ -824,7 +825,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         4,
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &into, tol),
-        |e| matches!(e, BooleanError::CurvedOpUnsupported { .. }),
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
+                    ..
+                }
+            )
+        },
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 

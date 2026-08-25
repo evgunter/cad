@@ -65,17 +65,18 @@
 //! pair at the sweep's door (its derivation below).
 //!
 //! [`FaceBoxRule`] is the ONE statement of which surface kinds have a
-//! cheap sound box and by what construction, and [`face_box`] is its
-//! `f64`-bracket instantiation. `census`'s `reach_box` reads the same
-//! rule and re-derives the ARITHMETIC in the scalar lane — **and
-//! nothing compares the two derivations.** Why the duplication
-//! survives is an OPEN question, not a settled one: the argument that
-//! module used to carry (the census validates `Dual` bodies and
-//! `Dual` has no bracket, so that lane cannot join the allowlist)
-//! lapsed at the D1 ruling, its own comment says so in as many words,
-//! and what is left is the allowlist gate itself. **#700 is where
-//! that is decided** — read the census comment as the open question
-//! it records, not as this module's justification.
+//! cheap sound box and by what construction; [`face_box`] is its
+//! `f64`-bracket instantiation and `census`'s `reach_box` is its
+//! instantiation at the census's own scalar. **Neither re-derives an
+//! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
+//! [`ball_extent`], [`torus_extent`] and [`conic_extent`], written
+//! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
+//! off it can both enter it — the first with `[lo(), hi()]`
+//! brackets at `f64`, the second with degenerate spans at its own
+//! `T`. What the census still owns is its arena WALK and its answer
+//! for a description with no claim in it (`None`, versus the poison
+//! box here); neither is arithmetic, and the census comment states
+//! both.
 //!
 //! An allowlisted [`geom_core::Bounds`] seam (ratified 2026-07-29 —
 //! see geom-core `real.rs`, Bounds scope rule; the C10 tree is the
@@ -1613,8 +1614,8 @@ mod tests {
     ///   into `FallbackExtentUnsupported`.
     /// - `separation.rs` — the placement certificate. **Refuses**:
     ///   non-overlap IS the grant.
-    /// - `census.rs` — `reach_box` and `edge_reach`, which read the
-    ///   RULES here and re-derive the arithmetic (#700). **Refuses**:
+    /// - `census.rs` — `reach_box` and `edge_reach`, this module's
+    ///   extents entered at the census's own scalar. **Refuses**:
     ///   arm 2 clears only on a definitely negative margin against a
     ///   CONTAINING box, so over-width is a false `CensusUndecidable`.
     ///
@@ -1918,6 +1919,70 @@ mod tests {
                     },
                     major,
                     &format!("the torus arm (R = {major}, r = {minor}, axis {axis:?})"),
+                );
+            }
+        }
+    }
+
+    /// **The two box lanes, side by side on one body** — what #700
+    /// asked for and nothing did.
+    ///
+    /// The extents are shared now, so this row is not guarding
+    /// arithmetic: it guards what is NOT shared, the census's own
+    /// arena walk of a face's boundary against this module's. Those
+    /// two walks can drift — a loop order, an isolated-vertex loop, a
+    /// half-edge's edge — and a divergence between the census's boxes
+    /// and the boolean sweep's is exactly the shape that produces a
+    /// wrong census verdict with both halves looking correct on their
+    /// own.
+    ///
+    /// Compared at `pad = 0`, where the only difference the module
+    /// admits is [`Aabb::padded`]'s outward ulp.
+    #[test]
+    fn the_two_box_lanes_agree_face_for_face() {
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.45, -0.3, 0.15),
+            radius: 1.5,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let tilt = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let torus = Surface::Torus {
+            center: Point3::new(0.4, -0.3, 0.2),
+            axis: tilt,
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: tilt.orthonormal_basis().0,
+        };
+        let relabelled = |s: Surface<f64>| {
+            let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
+            body.set_face_surface(face, FaceSurface::New(s)).unwrap();
+            (body, face)
+        };
+        let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();
+        let cases: Vec<(&str, (Body<f64>, FaceKey))> = vec![
+            ("plane", arc_sector(2.0, 2.3)),
+            ("cylinder", cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25)),
+            ("cone", cone_wall(0.5, 0.0, 2.4, 0.4, 1.0)),
+            ("sphere", relabelled(sphere)),
+            ("torus", relabelled(torus)),
+            ("nurbs", (nurbs_body, nurbs_face)),
+        ];
+        for (what, (body, face)) in cases {
+            let boxed = face_box(&body, face, 0.0).unwrap();
+            let (lo, hi) = crate::census::face_reach(&body, face)
+                .unwrap_or_else(|| panic!("{what}: the census lane claims nothing"));
+            for (name, g, w) in [
+                ("min_x", boxed.min_x, lo.x),
+                ("min_y", boxed.min_y, lo.y),
+                ("min_z", boxed.min_z, lo.z),
+                ("max_x", boxed.max_x, hi.x),
+                ("max_y", boxed.max_y, hi.y),
+                ("max_z", boxed.max_z, hi.z),
+            ] {
+                assert!(
+                    (g - w).abs() <= 4.0 * f64::EPSILON * (1.0 + w.abs()),
+                    "{what}: the two lanes disagree at {name}: boolean {g}, census {w}"
                 );
             }
         }
