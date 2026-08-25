@@ -166,6 +166,11 @@ area-and-thickness verb). The teapot demo will meet #757/#758/#759/
 header panic on plausible part names) — demo findings, recorded not
 dodged, per the demo-purpose rule.
 
+OFF-C/D carry the **apex-window predicate** (ordinal-73 review's
+named residue): before treating a cone mint as a face's offset,
+decide `inf(v-window) + d·cot α > 0` (slant meters) — a shifted
+window crossing the apex silently reads mirror-nappe geometry.
+
 ## Design conversations (Evan-paced; open as info firms up)
 
 - **Q8 offset/shell elaboration** — first; gates Wave 3.
