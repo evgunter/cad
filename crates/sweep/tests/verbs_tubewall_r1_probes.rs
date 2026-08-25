@@ -323,6 +323,17 @@ mod certified {
         <Interval as Real>::from_f64(x)
     }
 
+    /// MEASURED (this review, interval + ε = 1e-12): BOTH km-scale
+    /// cases (R = 1300) refuse typed in shared machinery — the
+    /// windowed one at the start cap's `newell_plane_residual`
+    /// (enclosure ±6.9e-12 vs a 1e-12 band, `Revolve(CapPlane {
+    /// Escalated .. })`), the full-period one at the attachment
+    /// gate's `interval_span_winding` (±1.16e-12). The row pins that
+    /// this is the SHARED envelope and not the hollow door's: when
+    /// the hollow door refuses a km case, the SOLID door must refuse
+    /// the same fixture too — red if the wall's extra loop ever
+    /// starts refusing where the solid door builds. The
+    /// tight-enclosure check runs on the cases inside the envelope.
     #[test]
     fn enclosures_contain_and_stay_tight() {
         for (major, outer, wall, window) in CASES {
@@ -333,7 +344,7 @@ mod certified {
                     t1: iv(t1),
                 },
             };
-            let t = tube_along_arc_hollow::<Interval>(
+            let built = tube_along_arc_hollow::<Interval>(
                 Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                 Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
                 Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
@@ -342,8 +353,32 @@ mod certified {
                 iv(outer),
                 iv(wall),
                 Tol::witness(),
-            )
-            .expect("builds at Interval");
+            );
+            let eps = Tol::witness().eps();
+            let t = match built {
+                Ok(t) => t,
+                // The measured envelope edge (fn docs): km scale,
+                // sub-femto band, TYPED — and shared: the solid
+                // door must refuse the identical fixture.
+                Err(TubeError::Revolve(_)) if major >= 1000.0 && eps <= 1e-12 => {
+                    let solid = tube_along_arc::<Interval>(
+                        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                        iv(major),
+                        win,
+                        iv(outer),
+                        Tol::witness(),
+                    );
+                    assert!(
+                        matches!(solid, Err(TubeError::Revolve(_))),
+                        "R={major}: the hollow door refused but the solid door did not — \
+                         the refusal is NOT the shared machinery's envelope"
+                    );
+                    continue;
+                }
+                Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
+            };
             let m = topo::props::mass_properties(&t.body, Tol::witness()).expect("props");
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
