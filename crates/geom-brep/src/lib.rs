@@ -22,6 +22,11 @@
 //! certificate and the in-op exhaustiveness subdivision that makes
 //! "every branch found" a theorem or a typed refusal.
 //!
+//! [`offset_surface`] is the analytic offset mint: the analytic kinds
+//! close under normal offset by struct-update on public fields, with
+//! the door-owned degeneracy refusals (the realized-radius floor, the
+//! torus ring convention) decided before any mint — see [`offset`].
+//!
 //! The geometry-arena key types ([`PointKey`], [`CurveKey`],
 //! [`SurfaceKey`]) are defined here (descriptions reference surfaces by
 //! arena key) and re-exported by `topo` for its `Body<T>` arenas —
@@ -47,6 +52,7 @@ pub mod intersect;
 pub mod keys;
 pub mod newell;
 pub mod nurbs_iso;
+pub mod offset;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
@@ -75,6 +81,7 @@ pub use intersect::{
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
+pub use offset::{OffsetError, offset_surface};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
