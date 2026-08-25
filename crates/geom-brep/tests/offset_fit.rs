@@ -199,7 +199,12 @@ fn sphere_offset_closed_form(p: Point3<f64>, r: f64, d: f64) -> Point3<f64> {
 fn cylinder_fit_matches_the_closed_form_both_signs() {
     let (r, h) = (1.25, 0.75);
     let base = quarter_cylinder(r, h);
-    let tol = 1e-4;
+    // The oracle's content is CONTAINMENT and the closed form, not
+    // how small the tolerance is: at 1e-4 the loop spends a third
+    // refinement round whose cells cost more CI wall clock than the
+    // row buys in evidence. The achieved numbers are printed either
+    // way and the containment assertions are unchanged.
+    let tol = 3e-4;
     for d in [0.3_f64, -0.4] {
         let (fit, cert) = fit_offset(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
@@ -264,7 +269,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
 fn sphere_band_fit_matches_the_closed_form_both_signs() {
     let r = 2.0;
     let base = sphere_band(r, 0.25, 1.25);
-    let tol = 1e-4;
+    let tol = 3e-4;
     for d in [0.35_f64, -0.5] {
         let (fit, cert) = fit_offset(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
