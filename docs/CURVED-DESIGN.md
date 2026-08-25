@@ -485,8 +485,16 @@ practice, p. 343).
   edge → cylinder patch; edges with a straight-line spine → cylinder;
   circular-arc spine with fixed profile orientation → torus patch;
   vertex ball → sphere patch; cone cases → cone/torus per
-  configuration. Where the spine is a general curve, the blend is a
-  canal surface, NOT exactly NURBS-representable in general (same
+  configuration (**the cone half of that last row belongs to the
+  VARIABLE-radius family, not the constant-radius one**: a
+  constant-radius rolling ball is the envelope of EQUAL spheres, whose
+  envelope over a line spine is a cylinder and over a circle spine a
+  torus; a cone is the envelope of spheres whose radius varies
+  linearly, i.e. the canal/frontier-(f) family below — or the
+  chamfer's ruled strip. Every constant-radius arm the kernel ships
+  mints a torus or a cylinder; VERBS-ARMS-2's coaxial-revolution
+  derivation is the check). Where the spine is a general curve, the
+  blend is a canal surface, NOT exactly NURBS-representable in general (same
   square-root obstruction as offsets — Q8's canonical case; Hoffmann
   §6.3.3's envelope formulation, Eqs. 6.7–6.9 p. 225, is the
   defining system: S = 0, ∂S/∂α₁ = 0, ∂S/∂α₂ = 0 over the

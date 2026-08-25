@@ -320,6 +320,19 @@ pub fn run(out: Option<String>, tol: Tol) {
         },
         tol,
     );
+    // The curved-support fillet arms' own K row, and the ONLY scene that
+    // reaches `fillet3_support_coaxiality`: every other filleted or
+    // chamfered body in this corpus has plane supports, and that
+    // predicate is metered only on a CURVED pair. The `spacer`
+    // precedent, one verb over.
+    sweep(
+        s,
+        t,
+        u,
+        "budrim",
+        || vec![plain("budrim", bodies::bud_rim(tol))],
+        tol,
+    );
     // Refusal-path samples again (the M2 K report's standing gap): the
     // lily's seven walls all refuse, and their margins record here.
     sweep(

@@ -712,3 +712,154 @@ record-current-behavior rows amended rather than deleted: one now
 pins the corrected door naming, the other inverts to require that
 every collapsed bore is named by a wall door. PR: verbs/tubewall
 (#960).
+
+
+## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
+
+The session hit the model usage limit mid-wave: both in-flight
+reviewers (TUBEWALL R1, ARMS-2 R1) terminated mid-review and the
+orchestrator loop froze ~2 days. On resume: #960/#962 still open
+and untouched, reviewer lanes intact, main moved only with other
+programs' work. Both reviewers RESUMED from transcript (their
+context held unreported findings — resume over fresh per the
+death-recovery rule): TUBEWALL R1 had verified C1's bit-identity
+half and owes the interval run + report; ARMS-2 R1 was mid-anomaly
+(base probe rows passing unexpectedly — told to suspect a stale
+target serving head binaries before trusting any base run).
+TUBEWALL R2's report arrived BEFORE the outage and is severe:
+AWF 3 MAJOR — the metering rewrite silently DELETED the
+WallBelowResolution guard its own first commit had (M1: the
+realized-gap collapse class, 218 configurations measured at
+1e-12, never refused by a wall door — and the Carried{Positive}
+evidence is false for them); the PR's merit sentence is backwards
+(M2); the ratified log entry contradicts the code and the gate
+(M3). Adjudication of the 69 union waits on R1.
+
+## Ordinal-69 dual complete; TUBEWALL fix pass out (2026-08-25)
+
+R1 fable AWF 0/3/3 (resumed post-outage; upheld the metering
+deviation both halves, verified at ε-scale walls; found the
+VERBS-LOG Decide+Bounds contradiction independently). R2 opus AWF
+3/4/7+ (pre-outage): the complementary regime — the realized gap
+`minor − wall` is never decided, so at km-scale radii the
+subtraction rounds the bore onto the outer wall and the refusal
+comes from downstream certification by luck, with the
+Carried{Positive} evidence FALSE for that class; the branch's own
+first commit had the guard and the metering rewrite silently
+deleted it (the one silent deviation, and exactly what the
+dispatch asked adjudicated). Labels converged, substance
+PARTITIONED BY REGIME — each reviewer's fixtures covered what the
+other's missed, the dual earning its cost cleanly. Union fix
+dispatched: the third decide (tube_wall_gap), the backwards merit
+sentence corrected, the log contradiction fixed, both probe
+suites adopted, main re-merged (the outage delta). Also noted:
+classify_shells on main answers DEMO finding 6 and the RING
+winding-oracle caveat — a future unit's wiring, not this PR's.
+
+## Ordinal-70 returned; ARMS-2 fix pass out (2026-08-25)
+
+The resumed reviewer delivered: AWF 1/4/4 + style. The geometry
+held completely — all three sheet-center closed forms re-derived
+(the sign-carrying stable quadratic root confirmed branch-free
+both directions), four-fixture bit-identity byte-verified, klein's
+RadiusHeadroom margin computed exactly (−0.1 m against the inner
+neck wall — the meridian-authoring reading sharpened, as claimed),
+the C8 correction verified against #930's flagged wording, and the
+f64 lane (which BOTH hosted draws missed) clean at 63/63 × two ε.
+The pre-outage anomaly resolved as suspected: stale-binary base
+runs; redone isolated, the probe rows red at base. The MAJOR is a
+vacuous test row (the non-coaxial refusal test never builds a
+non-coaxial pair); MINORs: the refusing branch has zero consumers
+and the new metered name zero probe coverage (K-REPORT's 0-sampled
+class), one unscheduled deviation, a missing-face conflation, and
+ruled-family poison prose. Fix pass out with the union; the
+reviewer's two-sphere-waist differential likely BECOMES the MAJOR
+fix at adoption. Both Wave-1 closers now in fix passes
+concurrently (TUBEWALL + ARMS-2).
+
+## ARMS-2 — the coaxial revolution arms (2026-08-23, `verbs/arms2`)
+
+**#319's coaxial half closes.** Eight new arms land as ONE derivation
+plus eight reductions. Whenever a support pair carries a symmetry the
+rolling ball inherits — a common axis of revolution, or a common
+ruling — the ball centre is confined to a SHEET (the meridian
+half-plane through the rim; the cross-section normal to the ruling).
+Both supports cut that sheet in a line or a circle, and the centre is
+the crossing of the two OFFSET traces: three closed forms
+(line×line, line×circle, circle×circle), each written so the branch it
+takes is the one that returns the RIM as `r → 0` — the structural
+answer to "which of the two circles the offsets meet in is my edge",
+and branch-free (the `√` carries the sign of a stored quantity, and
+poisons exactly at a tangential pair).
+
+Coaxial six (circular spine → TORUS): sphere×cone, cone×plane(⊥),
+cone×cone, cylinder×cone, cylinder×sphere, cylinder×plane(⊥). Ruled
+two (straight spine → CYLINDER): cylinder×cylinder(∥),
+cylinder×plane(∥). No arm mints a cone — the C8 prose correction
+(`docs/CURVED-DESIGN.md`, flagged on #930) lands with them.
+
+The surgery half was real scope: `resolve_rim`'s gates are now split
+by SHAPE rather than by KIND — the annulus asks only that both
+supports be revolution walls, the ladder keeps every ring-and-half-cap
+gate it had. One new routing decision, `fillet3_support_coaxiality`
+(the departure from the shared-axis hypothesis, meters at the rim's
+own lever arm), refuses `SpineUnsupported` on a definite miss. The
+tangent certificate's circle arm grew a CONE row in `geom-brep`
+(without it a sphere×cone band cannot be described at rest).
+
+Acceptance: the calochortus bud's MOUTH RIM alone — a sphere zone
+meeting a conical pucker along a closed latitude circle — fillets to a
+tier-3-valid solid with a pinned census and closed-form trim circles;
+its lip (cone×plane) and its bore's base (cylinder×plane) fillet too.
+ARMS-3 keeps sphere×sphere and the valence-4 corner run-out.
+
+**R1 fix pass** (APPROVE-WITH-FIXES, 1 MAJOR / 4 MINOR / 4 NOTE): the
+geometry held — all three sheet-centre forms re-derived independently,
+the four-fixture bit-identity byte-verified across the merge base, the
+klein `RadiusHeadroom` margin confirmed at exactly −0.1 m, the C8
+correction checked against the ratified wording, and the f64 lane the
+hosted draws missed clean at 63/63 on both ε. The MAJOR was a VACUOUS
+row: the "non-coaxial refuses" test filleted the coaxial mouth and
+grepped a roster string. It is replaced by a PLANTED construction — the
+bud's own cone wall keeps its apex and half-angle and takes a tilted
+axis, and the battery must refuse naming the shared-axis hypothesis
+rather than the kinds — which is also `fillet3_support_coaxiality`'s
+first test consumer. That name now has probe-lane coverage too: a
+curved-rim fillet joins the K sweep as `budrim`, the CHAMFER `spacer`
+precedent one verb over, and the only scene in the corpus that reaches a
+CURVED support pair. The uncarved ruled arms got their schedule (#987,
+behind ARMS-3 — a ruling's terminations ARE the run-out taxonomy), the
+absent-support path got `BodyNotIntact` back, the poison prose got the
+ruled family's actual path, `tangent.rs`'s twice-spelled √g ladder
+folded into one helper, and the plane/sphere vocabulary swept at every
+site the review named (prose only; the name-alphabet mechanism stays
+#961's). Reviewer probe branch adopted authorship-preserving:
+`verbs/arms2-r1-probes`.
+
+## ARMS-2 MERGED (#962, 2026-08-25) — #319's coaxial half CLOSED
+
+Row ARMS2 (ordinal 70) in MODEL-AB-LOG. Curved-support fillets
+exist: the bud's mouth rim (sphere×cone), lip (cone×plane), and
+bore base (cylinder×plane) all fillet end to end through one
+closed-form family. Block VERBS-2 fully consumed. Remaining for
+Wave 1: the TUBEWALL fix pass (CI in flight) and ARMS-3's design
+conversation. Seam sweep: verbs-arms2 + verbs-arms2-r1 lanes after
+the state-sync.
+
+## WAVE 3 OPENS: OFF-A spec committed (2026-08-25)
+
+Evan's rulings at the seam: Wave 3 stays under THIS orchestrator
+(the context argument — the survey, both ratification rounds, the
+door seam — beat the handoff; a remote orchestrator's build
+parallelism noted as the one advantage forgone, with
+remote-implementer dispatch as the adaptation if wall-clock ever
+binds). The build mutex stays width 1 — this box measured at
+9GB/8-core, the same envelope the width was measured for. The Q8
+substrate survey is now durable (docs/Q8-SUBSTRATE-2026-08-21.md,
+snapshot-caveated). OFF-A spec committed (the O1 mint table +
+door-owned refusals; the TUBEWALL realized-radius lesson and the
+ARMS-2 never-meter-a-non-question lesson both folded in);
+difficulty S logged pre-dispatch; consumes block VERBS-3 slot 2.
+Interleave plan: OFF-A + Wave 2's GATE spec next, OFF-B (meters +
+fit + certificate, L) after OFF-A lands, ARMS-3's conversation
+draft at the TUBEWALL merge seam.
