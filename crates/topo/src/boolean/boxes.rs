@@ -1597,8 +1597,8 @@ mod tests {
     /// crate's two readers — pinned per file.
     ///
     /// **Both rules, not just the face one.** The header's claim is
-    /// about *a box*, and [`EdgeBoxRule`]'s conic arm is where the
-    /// sharper of the two over-widths lives (#862). A walk that
+    /// about *a box*, and every face box that hulls a boundary is
+    /// [`EdgeBoxRule`]'s answer one dimension down. A walk that
     /// matched only `face_box` would attribute that arm's cost to a
     /// door list computed for a different function, and an
     /// edge-box-only door would land green.

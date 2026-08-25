@@ -25,9 +25,9 @@
 //! The two counter-rows — the ones that keep the row above from
 //! passing by refusing everything — separate in **x** and in **z**.
 //! Both directions are needed and neither is decorative: the cylinder
-//! arm widens the reach box radially by construction and axially by
-//! over-width (#862), so a rule that lost the axial extent, or grew
-//! it without bound, would keep an x-only file green.
+//! arm widens the reach box radially by construction and not at all
+//! along its axis, so a rule that lost the axial extent, or grew it,
+//! would keep an x-only file green.
 //!
 //! # 2. The NURBS extent re-gate's blocker
 //!
@@ -181,31 +181,30 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
 /// rule that loses the containing solid's axial extent, and for any
 /// that unbounds it.
 ///
-/// **How far over, and why not closer.** The cylinder arm widens the
-/// reach box by a full radius along its own axis (**#862**), so this
-/// solid's arm-2 extent runs to `z = 1.5` rather than to `z = 1.0`,
-/// and a probe in `z in (1.0, 1.5]` — genuinely above the solid and
-/// touching nothing — is refused as `CensusUndecidable` today. That
-/// witness belongs on #862, not here: a style pass does not fix a
-/// correctness defect, and a row calibrated to the over-width would
-/// assert it is acceptable. The offset below is clear of it, so this
-/// row pins what the arm gets right without ruling on what it gets
-/// wrong. **When #862 lands, the near case becomes assertable and
-/// belongs here.**
+/// **How far over, swept from touching to far.** The cylinder tops out
+/// at `z = 1` and its reach box now stops there: the radius widens the
+/// slab PERPENDICULAR to its own axis and not along it. So the whole
+/// range a full-radius axial over-claim used to swallow — `z` just
+/// above 1, where the probe is genuinely above the solid and touching
+/// nothing — is assertable, and this row sweeps it rather than
+/// standing clear of it. Any rule that widens the containing solid's
+/// axial extent reds the near offsets; any that loses it reds the far
+/// ones (the pair stops being clearable at all).
 #[test]
 fn a_body_above_the_cylinder_is_still_cleared_by_containment() {
     let outer = cylinder();
-    // z in [2.0, 2.4]; the cylinder tops out at z = 1, and its
-    // over-wide axial reach at z = 1.5.
     // Half-width 0.2 against radius 0.5: radially inside the wall, so
-    // no x or y separation exists to clear the pair instead.
-    let above = small_box(0.0, 0.2, 2.0);
-    let body = assembly(&outer, &above);
-    let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
-    assert!(
-        verdict.is_ok(),
-        "a pair separated in z alone must validate cleanly, not refuse: {verdict:?}"
-    );
+    // `z` is the only axis that can clear any of these pairs.
+    for &z0 in &[1.01, 1.1, 1.25, 1.5, 2.0] {
+        let above = small_box(0.0, 0.2, z0);
+        let body = assembly(&outer, &above);
+        let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
+        assert!(
+            verdict.is_ok(),
+            "a pair separated in z alone (probe at z0 = {z0}, solid tops out at 1.0) \
+             must validate cleanly, not refuse: {verdict:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
