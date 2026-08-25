@@ -596,12 +596,13 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // PROPAGATE: `Aabb::hull` carries NaN, and a NaN projection
     // reaches the poison box rather than being dropped by an
     // `f64::min` that ignores it.
-    let slab_boundary = |axis: Vec3<T>| -> Result<Option<(SpanBox<f64>, SpanBox<f64>)>, BooleanError> {
-        let Some(bnd) = boundary_hull(body, f)? else {
-            return Ok(None);
+    let slab_boundary =
+        |axis: Vec3<T>| -> Result<Option<(SpanBox<f64>, SpanBox<f64>)>, BooleanError> {
+            let Some(bnd) = boundary_hull(body, f)? else {
+                return Ok(None);
+            };
+            Ok(Some((span_of(bnd), bracket_vector(axis))))
         };
-        Ok(Some((span_of(bnd), bracket_vector(axis))))
-    };
     let boxed = match face_box_rule(surface) {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
