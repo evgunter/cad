@@ -62,6 +62,16 @@ use geom_core::Tol;
 /// sign is `Positive` by the validation's own decisions, and no 3-D
 /// containment test (box or probe) runs here at all. No SSI, no
 /// crossing pipeline: the door is a structural insertion.
+///
+/// **A validated profile is not the only source of that evidence.**
+/// `tube_along_arc_hollow` reaches this path with hand-built
+/// concentric circle loops and no profile at all; what stands in for
+/// the validation is the tube door's own wall funnel, which decides
+/// the thickness, the bore, AND the realized gap between the two
+/// radii the walls will store definitely positive before anything is
+/// minted. Any caller of this path owes an equivalent: a decided
+/// strict-containment fact about the SKETCH loops, not about the
+/// numbers a caller wrote.
 pub(super) fn build_full<T: Decide>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],

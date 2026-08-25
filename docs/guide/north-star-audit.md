@@ -212,7 +212,7 @@ blockers stay named in the last column.
 | 16 | `twisted_duct` | NO | G2 | same `SWEEP_FRONTIER` bank; a non-planar spine also needs the 3-D-path tail (U4/LQ3) |
 | 17 | `twisted_duct_shadow_z` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
 | 18 | `twisted_duct_shadow_y` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
-| 19 | `tube_along_arc` | NO | G2 | no `Node::Tube` at all: a new node kind is a SCHEMA-VERSION break, so it has to be sequenced against whatever bump is in flight |
+| 19 | `tube_along_arc` | NO | G2 | no `Node::Tube` at all: a new node kind is a SCHEMA-VERSION break, so it has to be sequenced against whatever bump is in flight. **Widened by VERBS-TUBEWALL:** the door now has a hollow sibling (`tube_along_arc_hollow`, outer minor radius + wall), so the missing node has to carry the wall too — one node kind, not two, and the same bump |
 | 20 | `die` | **YES** | — | — |
 | 21 | `table` | **YES** | — | — |
 | 22 | `silhouette` | **YES** | — | — |

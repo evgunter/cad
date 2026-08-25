@@ -7,7 +7,10 @@
 //! subtraction's containment fallback (A∖B with B strictly inside A),
 //! the full revolve of a holed profile (`revolve(outer) −
 //! revolve(hole-as-outer)`, executed as the degenerate no-crossing
-//! arm), and `shell`'s sealed hollow (`docs/OFFSET-DESIGN.md` O4).
+//! arm — `tube_along_arc_hollow`'s full period reaches the same path
+//! with hand-built concentric circles and its own wall funnel as the
+//! evidence), and `shell`'s sealed hollow
+//! (`docs/OFFSET-DESIGN.md` O4).
 //!
 //! # Contract
 //!
@@ -27,8 +30,10 @@
 //! two no-crossing producers each hold a certification the door could
 //! not reconstruct — the boolean fallback holds `point_in_solid`
 //! verdicts under its boundary-disjointness certificate, and the
-//! revolve holds the profile's own validated 2-D margins, carried to
-//! 3-D verbatim by revolution about the shared axis. Deriving
+//! revolve holds a decided 2-D strict-containment margin (a validated
+//! profile's hole-loop clearance, or the tube door's wall/bore/gap
+//! verdicts on its hand-built circles), carried to 3-D verbatim by
+//! revolution about the shared axis. Deriving
 //! containment here (e.g. by extent boxes) would re-import the
 //! box-coarseness that refuses non-convex containers (#750).
 //!
@@ -79,8 +84,13 @@ pub enum VoidContainment {
     /// carries to 3-D verbatim: a validated profile's hole loop —
     /// strictly inside its outer loop, with the profile validation's
     /// decided clearance and containment margins — revolved about the
-    /// same axis as the outer (the holed full revolve), or an inward
-    /// offset's d-vs-reach margin (`shell`, OFFSET-DESIGN O4). Strict
+    /// same axis as the outer (the holed full revolve), the tube
+    /// door's own wall funnel deciding a hand-built inner circle
+    /// strictly inside its outer one — thickness, bore and the
+    /// realized gap between the two STORED radii — before that pair
+    /// is revolved about the same axis (`tube_along_arc_hollow`), or
+    /// an inward offset's d-vs-reach margin (`shell`, OFFSET-DESIGN
+    /// O4). Strict
     /// containment is exactly [`Sign::Positive`]; `Zero` (touching)
     /// and `Negative` (escaped) refuse.
     Carried {

@@ -101,6 +101,7 @@ pub use sweep::chamfer::{Chamfered, chamfer_edges};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
+    tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
