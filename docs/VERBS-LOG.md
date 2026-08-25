@@ -619,6 +619,69 @@ checked every pass). Renders re-baseline on this merge. Seam
 sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
 TUBEWALL dual (69), ARMS-2 review (70).
 
+## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
+
+The session hit the model usage limit mid-wave: both in-flight
+reviewers (TUBEWALL R1, ARMS-2 R1) terminated mid-review and the
+orchestrator loop froze ~2 days. On resume: #960/#962 still open
+and untouched, reviewer lanes intact, main moved only with other
+programs' work. Both reviewers RESUMED from transcript (their
+context held unreported findings — resume over fresh per the
+death-recovery rule): TUBEWALL R1 had verified C1's bit-identity
+half and owes the interval run + report; ARMS-2 R1 was mid-anomaly
+(base probe rows passing unexpectedly — told to suspect a stale
+target serving head binaries before trusting any base run).
+TUBEWALL R2's report arrived BEFORE the outage and is severe:
+AWF 3 MAJOR — the metering rewrite silently DELETED the
+WallBelowResolution guard its own first commit had (M1: the
+realized-gap collapse class, 218 configurations measured at
+1e-12, never refused by a wall door — and the Carried{Positive}
+evidence is false for them); the PR's merit sentence is backwards
+(M2); the ratified log entry contradicts the code and the gate
+(M3). Adjudication of the 69 union waits on R1.
+
+## Ordinal-69 dual complete; TUBEWALL fix pass out (2026-08-25)
+
+R1 fable AWF 0/3/3 (resumed post-outage; upheld the metering
+deviation both halves, verified at ε-scale walls; found the
+VERBS-LOG Decide+Bounds contradiction independently). R2 opus AWF
+3/4/7+ (pre-outage): the complementary regime — the realized gap
+`minor − wall` is never decided, so at km-scale radii the
+subtraction rounds the bore onto the outer wall and the refusal
+comes from downstream certification by luck, with the
+Carried{Positive} evidence FALSE for that class; the branch's own
+first commit had the guard and the metering rewrite silently
+deleted it (the one silent deviation, and exactly what the
+dispatch asked adjudicated). Labels converged, substance
+PARTITIONED BY REGIME — each reviewer's fixtures covered what the
+other's missed, the dual earning its cost cleanly. Union fix
+dispatched: the third decide (tube_wall_gap), the backwards merit
+sentence corrected, the log contradiction fixed, both probe
+suites adopted, main re-merged (the outage delta). Also noted:
+classify_shells on main answers DEMO finding 6 and the RING
+winding-oracle caveat — a future unit's wiring, not this PR's.
+
+## Ordinal-70 returned; ARMS-2 fix pass out (2026-08-25)
+
+The resumed reviewer delivered: AWF 1/4/4 + style. The geometry
+held completely — all three sheet-center closed forms re-derived
+(the sign-carrying stable quadratic root confirmed branch-free
+both directions), four-fixture bit-identity byte-verified, klein's
+RadiusHeadroom margin computed exactly (−0.1 m against the inner
+neck wall — the meridian-authoring reading sharpened, as claimed),
+the C8 correction verified against #930's flagged wording, and the
+f64 lane (which BOTH hosted draws missed) clean at 63/63 × two ε.
+The pre-outage anomaly resolved as suspected: stale-binary base
+runs; redone isolated, the probe rows red at base. The MAJOR is a
+vacuous test row (the non-coaxial refusal test never builds a
+non-coaxial pair); MINORs: the refusing branch has zero consumers
+and the new metered name zero probe coverage (K-REPORT's 0-sampled
+class), one unscheduled deviation, a missing-face conflation, and
+ruled-family poison prose. Fix pass out with the union; the
+reviewer's two-sphere-waist differential likely BECOMES the MAJOR
+fix at adoption. Both Wave-1 closers now in fix passes
+concurrently (TUBEWALL + ARMS-2).
+
 ## ARMS-2 — the coaxial revolution arms (2026-08-23, `verbs/arms2`)
 
 **#319's coaxial half closes.** Eight new arms land as ONE derivation
@@ -677,3 +740,13 @@ folded into one helper, and the plane/sphere vocabulary swept at every
 site the review named (prose only; the name-alphabet mechanism stays
 #961's). Reviewer probe branch adopted authorship-preserving:
 `verbs/arms2-r1-probes`.
+
+## ARMS-2 MERGED (#962, 2026-08-25) — #319's coaxial half CLOSED
+
+Row ARMS2 (ordinal 70) in MODEL-AB-LOG. Curved-support fillets
+exist: the bud's mouth rim (sphere×cone), lip (cone×plane), and
+bore base (cylinder×plane) all fillet end to end through one
+closed-form family. Block VERBS-2 fully consumed. Remaining for
+Wave 1: the TUBEWALL fix pass (CI in flight) and ARMS-3's design
+conversation. Seam sweep: verbs-arms2 + verbs-arms2-r1 lanes after
+the state-sync.
