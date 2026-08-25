@@ -36,8 +36,11 @@
 //! using the library is actually like. Each of these is commented at
 //! the site that meets it and filed where it can be fixed:
 //!
-//! - **#943** — a mate declares a FACE PAIR, so a flush seat's
-//!   induced edge contacts are undeclarable and refuse (`SEAT_A`).
+//! - **#943** — a mate declares a FACE PAIR, and the census backs the
+//!   vertex-on-edge and edge-edge events a flush seat induces from
+//!   that one declaration; what a declared CROSS-INSTANCE seat still
+//!   stops at is the chart-identity door, flush or inset alike
+//!   (`SEAT_A`).
 //! - **#944** — nothing mints a mate's alignment frame from a
 //!   selected face, so the frame and the geometry drift apart
 //!   silently (`stops`, `update_door`).
@@ -82,6 +85,12 @@ use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_
 use crate::{SceneBody, Stop, View};
 
 // ---- The model's dimensions, in metres ----
+//
+// The kernel's own seat fixtures restate these numbers rather than
+// importing them (`topo/tests/m9_c1_rest_face_rung.rs` and
+// `editor-core/tests/asm_r2b_assembly.rs`, both `flush_seat`): a demo
+// is evidence about the library, so nothing in the library may depend
+// on what this scene happens to measure.
 
 /// The post's square section and its length.
 const POST_SECTION: f64 = 0.12;
@@ -95,20 +104,18 @@ const SHELF_THICKNESS: f64 = 0.04;
 /// — the two seating points the stand's mates are authored against.
 ///
 /// Both are INSET from the shelf's edges, by more than half a post
-/// section. That is how legs are set under a top anyway, and it is
-/// also what keeps the seated faces from sharing an edge.
+/// section: that is how legs are set under a top, and it is the only
+/// reason they are inset here.
 ///
-/// A flush seat refuses (#943), and the mate is not what is missing:
-/// the declaration says the right thing once, and the boolean lane
-/// already has the rule that a declared FACE pair backs the
-/// lower-dimensional events its own seat induces
-/// (`vv_face_backed` / `vf_face_backed`, census D3). What does not
-/// reach rest is that closure — the census's D4 sentence makes a
-/// vertex on an edge interior undeclarable "by design", on the
-/// strength of reduction refining every such event into a v-v record
-/// first, and at rest nothing refines. So the induced events arrive
-/// raw, with no backing path, and the minted face pair is never
-/// consulted. Insetting sidesteps it; #943 is where it gets fixed.
+/// It is NOT a workaround for the gate. A flush seat — the post's cap
+/// sharing a boundary line with the shelf's underside — reaches the
+/// same verdict as this one: the mate's face-pair declaration backs
+/// the vertex-on-edge and edge-edge events such a seat induces (the
+/// census's face rung, module docs D3/D4), so the seat is never a
+/// finding against the document. What both seats stop at is the
+/// frontier [`at_rest`] describes: a declared CROSS-INSTANCE pair is
+/// declined at the census's chart-identity door, whether its faces
+/// share a boundary or not.
 const SEAT_A: [f64; 3] = [0.10, 0.15, 0.0];
 const SEAT_B: [f64; 3] = [0.80, 0.15, 0.0];
 

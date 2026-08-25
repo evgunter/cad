@@ -179,21 +179,32 @@ def import_bodies(doc, scenes, outdir, use_step):
     Returns {scene name: [objects]}.
     """
     by_scene = {}
+    skipped = {}
     for scene in scenes:
         objs = []
         for body in scene.bodies:
             before = set(o.Name for o in doc.Objects)
             if use_step:
-                # No `step is None` guard, deliberately. `step` is
-                # nullable in the format and `manifest` says so, but
-                # this file's producer is the TOUR (the docstring
-                # above says so, and `render.sh` is the only thing
-                # that drives it), and the tour fails rather than emit
-                # a body without a STEP export. The wild generator's
-                # null-STEP manifests are drawn by `render.py`, which
-                # never reads the field at all. Guarding here would be
-                # a guard against a state this reader's producer
-                # cannot emit.
+                # `step` is nullable in the format, and since the tour
+                # grew `SceneBody::step_at_frontier` its producer CAN
+                # emit one: a body past the STEP writer's named subset
+                # frontier (a multi-shell curved solid, whose
+                # outward/void classifier has closed forms for planar
+                # faces only) has no STEP to import. This lane's whole
+                # subject is OCC re-tessellating OUR STEP, so there is
+                # nothing here for it to say about such a body, and
+                # substituting the STL would put a cell in this
+                # montage that LOOKS like OCC evidence and is none.
+                # So the body is skipped and named; its scene still
+                # renders, from whatever else it carries.
+                if body.step is None:
+                    print(
+                        f"skipped {body.stl} in scene {scene.name!r}: "
+                        "no STEP (the writer's named subset frontier)"
+                    )
+                    skipped.setdefault(scene.name, 0)
+                    skipped[scene.name] += 1
+                    continue
                 Part.insert(str(outdir / body.step), doc.Name)
             else:
                 Mesh.insert(str(outdir / body.stl), doc.Name)
@@ -211,7 +222,7 @@ def import_bodies(doc, scenes, outdir, use_step):
         by_scene[scene.name] = objs
     doc.recompute()
     Gui.updateGui()
-    return by_scene
+    return by_scene, skipped
 
 
 def render_scene(scene, objs, view, renderdir):
@@ -258,7 +269,19 @@ def main():
         if unknown:
             raise SystemExit(f"unknown scene(s): {', '.join(unknown)}")
     doc = App.newDocument("scenes")
-    by_scene = import_bodies(doc, scenes, outdir, use_step)
+    by_scene, skipped = import_bodies(doc, scenes, outdir, use_step)
+    # A scene every one of whose bodies was skipped renders BLANK, and a
+    # blank cell is this lane's known crash signature. So it gets a
+    # sidecar note, the same way a missing render gets a `.fail.txt`,
+    # and `compose_montage` stamps the cell neutrally: a declared gate
+    # must not be indistinguishable from a wedge.
+    for name, n in skipped.items():
+        if not by_scene[name]:
+            (renderdir / f"{name}.note.txt").write_text(
+                "no STEP — declared writer frontier\n"
+                if n == 1
+                else f"no STEP for any of {n} bodies — declared writer frontier\n"
+            )
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")
     done = []

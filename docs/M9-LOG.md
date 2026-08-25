@@ -262,3 +262,38 @@ dispatch
 PR-A with the standard brief lines → M9-5 spec (dependency
 discharged in code, baseline pointer still owed — see the
 caveat above) → the M9 exit walk.
+
+## M9-3 SPEC BINDING (2026-08-23) — spike run, ruling fixed, block M9-16 drawn; new orchestrator online
+
+New M9 orchestrator (remote-session harness — no tmux monitors or
+away-channel scripts; PR watching via subscriptions and scheduled
+self check-ins instead). Resume executed per #607: the salvaged
+spike was finished (API drift only — Tol threading, the SEAL
+loop/vertex doors, `geom::Surface`), run, and pushed
+(`m9/3-spike-wip` @ c0d7ddf2, still never-merge). Measured, in
+three steps: the front door refuses first; past it, reduction's
+`curved_face_arm` (reduce.rs:753 frontier) refuses declared-
+cosurface incidences typed `CurvedPierceUnsupported` WITHOUT
+consulting declarations — germ/v-v records never form, the rest
+lane is unreachable; with those incidences skipped recl.rs:40's
+untyped invariant fires on the v-v lane, reached through the
+planar cap coincidences. Bonus probe: `contact_pair_verdict` =
+`Definite` on all nine cross-authored bore×peg pairs — the
+verification dependency is sound. RULING: the split stands,
+PR-A ABSORBS the reduction rung (spec item 2, new); PR-A
+difficulty amended M → M-L pre-draw. Spec is BINDING; DRAFT
+dropped. Block M9-16 drawn v4 (byte 80 → fable's position = slot
+1): **M9-3 = FABLE**; slots 2–4 opus.
+
+Cross-program state folded at this seam: TESS-SPLIT MERGED (#951,
+2026-08-23) and ASM's program CLOSED at its ratified exit walk —
+**M9-5's fresh-state pointer now EXISTS** (ASM-LOG tail: the
+shipped selection is `split_steps` + the fixpoint snap, baseline
+re-cut at 31f052d2), so M9-5's spec consumes that directly; the
+wait-or-derive fork in the pause entry is MOOT. Census-owned
+items steered to M9 while paused: the #591-thread Door-2
+cross-instance chart-identity gap and #943 (at-rest boundary-
+flush closure, the F1/Door-2 sibling) — both M9-2-machinery
+design work, neither blocking M9-3 (the join lane is the boolean
+lane, where reduction refines). Board: PR-A dispatching on this
+seam's merge.

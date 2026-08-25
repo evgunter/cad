@@ -745,16 +745,22 @@ impl core::fmt::Display for EditError {
                  place",
                 node.0
             ),
+            // The two rule-shaped arms FORWARD the fault set's one
+            // prose vocabulary (`PlacementRuleFault`'s `Display`); the
+            // two frame-shaped arms below keep their own prose because
+            // their subject is a single cluster frame, which has no
+            // index in a rule's placement list.
             Self::EmptyPlacementList { node } => write!(
                 f,
-                "edit: node {}'s placement list is empty — a group needs at least one placement",
-                node.0
+                "edit: node {}: {}",
+                node.0,
+                PlacementRuleFault::NoPlacements
             ),
             Self::PlacementRuleMismatch { node } => write!(
                 f,
-                "edit: node {}'s placement rule and count slot would answer \"how many \
-                 placements\" two different ways",
-                node.0
+                "edit: node {}: {}",
+                node.0,
+                PlacementRuleFault::CountSpelling
             ),
             Self::ImproperPlacement { node, determinant } => write!(
                 f,

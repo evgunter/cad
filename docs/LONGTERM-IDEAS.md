@@ -26,7 +26,11 @@ mixed). Named instances Evan wants eventually:
   a heuristic threshold). #89's kernel half — the K value itself —
   is CLOSED separately: K = 10 permanent (docs/K-REPORT.md).
 - **(0b) The connectedness lint (Evan, 2026-08-10, #328 — born from
-  the assembly-design conversation).** Warn when a body at rest has
+  the assembly-design conversation). SHIPPED 2026-08-25** as the
+  checks registry's first resident (`editor_core::checks`,
+  DISCIPLINES-DESIGN DS6 round 4 — which also narrows this entry's
+  "no heuristic threshold anywhere": the count is combinatorial, the
+  void exclusion is a certified decided orientation read). Warn when a body at rest has
   more disconnected components than expected — a stray solid usually
   means a boolean that didn't reach its operand or an instance placed
   nowhere. Unlike the rest of this lane it is *exact*: connectivity
