@@ -49,11 +49,17 @@
 //! **The complete-locus fine print**: the chart normal negates across
 //! the apex, so the pushforward along the per-point chart normal would
 //! split the double cone. The door offsets along the continuous
-//! extension of the `v > 0` nappe's normal field: the minted cone's
-//! `v > 0` nappe is the base's `v > 0` nappe offset by `+d`, and its
-//! mirror nappe is the base's mirror nappe offset by `−d`. Kernel
-//! faces bound a single nappe by their vertices, so the bounded-region
-//! reading is the plain one.
+//! extension of the `v > 0` nappe's normal field, under which the
+//! pushforward is the pure parameter shift `v ↦ v′ = v + d·cos α/sin α`
+//! — so nappe attribution follows the SHIFT, not nappe-to-nappe: for
+//! `d > 0` the minted `v > 0` nappe's apex band `0 < v′ < d·cos α/sin α`
+//! is the image of the base's MIRROR nappe (and symmetrically for
+//! `d < 0`, whose band `−|d|·cos α/sin α < v′ < 0` on the minted mirror
+//! nappe images the base's `v > 0` nappe); only beyond the band does
+//! each minted nappe image its namesake. Kernel faces bound a single
+//! nappe by their vertices, so a consumer replacing a face whose
+//! `v`-window reaches the band is exactly the consumer that owns the
+//! window question below.
 //!
 //! # Refusals (door-owned, decided BEFORE any mint)
 //!
@@ -97,10 +103,14 @@ use geom::Surface;
 use geom_core::{Band, Indeterminate, Margin, Sign};
 
 use crate::dihedral::decide;
+use crate::intersect::SurfaceKind;
 
-/// Typed refusal of the offset door (D4 ¶3).
+/// Typed refusal of the offset door (D4 ¶3). Scalar payloads echo the
+/// classified margin's ingredients — data, not a decision (the
+/// [`Margin::value`] diagnostics blessing; the `PathError` payload
+/// precedent).
 #[derive(Clone, Debug)]
-pub enum OffsetError {
+pub enum OffsetError<T: geom_core::Real> {
     /// The realized offset radius (`radius + d` for a cylinder or
     /// sphere, `minor_radius + d` for a torus) is certifiably at or
     /// below zero: the inward offset collapses the surface onto its
@@ -108,11 +118,21 @@ pub enum OffsetError {
     /// metered margin is the realized stored value itself, so a
     /// large-scale sum that rounds to collapse refuses here rather
     /// than minting a degenerate radius.
-    RadiusFloor,
+    RadiusFloor {
+        /// The refusing surface's kind (cylinder, sphere, or torus).
+        kind: SurfaceKind,
+        /// The realized radius the floor metered — the very value the
+        /// mint would have stored, echoed as data.
+        realized: T,
+    },
     /// The offset torus leaves the ring convention `R > r`: the
     /// realized minor radius `minor + d` reaches the major radius, so
     /// the mint would be a spindle/horn self-intersecting torus.
-    TorusRing,
+    TorusRing {
+        /// The realized minor radius the ring margin folded against
+        /// the stored major radius, echoed as data.
+        realized_minor: T,
+    },
     /// The offset of a NURBS surface is not a NURBS (normalizing the
     /// chart normal introduces the square root that breaks
     /// rationality), so this door cannot close over it. The coming
@@ -128,19 +148,20 @@ pub enum OffsetError {
     },
 }
 
-impl core::fmt::Display for OffsetError {
+impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::RadiusFloor => write!(
+            Self::RadiusFloor { kind, realized } => write!(
                 f,
-                "offset_surface: the realized offset radius is at or below zero — the \
-                 inward offset collapses the surface, so nothing is minted"
+                "offset_surface: the realized offset radius of the {kind:?} \
+                 ({realized:?} m) is at or below zero — the inward offset collapses \
+                 the surface, so nothing is minted"
             ),
-            Self::TorusRing => write!(
+            Self::TorusRing { realized_minor } => write!(
                 f,
                 "offset_surface: the offset torus leaves the ring convention R > r — the \
-                 realized minor radius reaches the major radius, so the mint would \
-                 self-intersect"
+                 realized minor radius ({realized_minor:?} m) reaches the major radius, \
+                 so the mint would self-intersect"
             ),
             Self::NotClosedUnderOffset => write!(
                 f,
@@ -154,7 +175,7 @@ impl core::fmt::Display for OffsetError {
     }
 }
 
-impl std::error::Error for OffsetError {}
+impl<T: geom_core::Real> std::error::Error for OffsetError<T> {}
 
 /// The analytic offset mint (module docs): the surface at signed
 /// distance `d` along the chart normal, as the same analytic kind with
@@ -170,15 +191,16 @@ pub fn offset_surface<T: geom_core::Decide>(
     surface: &Surface<T>,
     d: T,
     band: Band,
-) -> Result<Surface<T>, OffsetError> {
+) -> Result<Surface<T>, OffsetError<T>> {
     let esc = |source| OffsetError::Escalated { source };
     // The realized-radius floor: the margin IS the float the mint
     // would store (module docs — no separate exact-real spelling that
-    // could disagree with the stored sum at scale).
-    let floor = |realized: T| -> Result<(), OffsetError> {
+    // could disagree with the stored sum at scale). A refusal echoes
+    // the metered value and the refusing kind as data.
+    let floor = |kind: SurfaceKind, realized: T| -> Result<(), OffsetError<T>> {
         match decide("offset_radius_floor", Margin::of(realized), band).map_err(esc)? {
             Sign::Positive => Ok(()),
-            Sign::Zero | Sign::Negative => Err(OffsetError::RadiusFloor),
+            Sign::Zero | Sign::Negative => Err(OffsetError::RadiusFloor { kind, realized }),
         }
     };
     match surface {
@@ -198,7 +220,7 @@ pub fn offset_surface<T: geom_core::Decide>(
             u_ref,
         } => {
             let realized = *radius + d;
-            floor(realized)?;
+            floor(SurfaceKind::Cylinder, realized)?;
             Ok(Surface::Cylinder {
                 origin: *origin,
                 axis: *axis,
@@ -216,9 +238,10 @@ pub fn offset_surface<T: geom_core::Decide>(
             // the chart normal's axial coefficient `−sin α` (module
             // docs — stored structure, no numeric branch). The reverse
             // offset negates the slide exactly ((−d)/s = −(d/s) and
-            // the per-component products negate exactly), so a
-            // round trip's only slack is the apex coordinate
-            // addition/subtraction pair.
+            // the per-component products negate exactly), so a round
+            // trip's only slack is one rounded operation per leg (two
+            // per round trip): the apex coordinate addition here and
+            // the matching subtraction on the way back.
             let slide = d / half_angle.sin();
             Ok(Surface::Cone {
                 apex: *apex - *axis * slide,
@@ -234,7 +257,7 @@ pub fn offset_surface<T: geom_core::Decide>(
             u_ref,
         } => {
             let realized = *radius + d;
-            floor(realized)?;
+            floor(SurfaceKind::Sphere, realized)?;
             Ok(Surface::Sphere {
                 center: *center,
                 radius: realized,
@@ -250,11 +273,15 @@ pub fn offset_surface<T: geom_core::Decide>(
             u_ref,
         } => {
             let realized = *minor_radius + d;
-            floor(realized)?;
+            floor(SurfaceKind::Torus, realized)?;
             let ring = Margin::of(*major_radius - realized);
             match decide("offset_torus_ring", ring, band).map_err(esc)? {
                 Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(OffsetError::TorusRing),
+                Sign::Zero | Sign::Negative => {
+                    return Err(OffsetError::TorusRing {
+                        realized_minor: realized,
+                    });
+                }
             }
             Ok(Surface::Torus {
                 center: *center,

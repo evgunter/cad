@@ -126,7 +126,7 @@ fn realized_floor_at_scale_sphere_torus_and_negative_exact() {
     };
     assert!(matches!(
         offset_surface(&sphere, d, band()),
-        Err(OffsetError::RadiusFloor)
+        Err(OffsetError::RadiusFloor { .. })
     ));
     let torus = Surface::Torus {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -137,7 +137,7 @@ fn realized_floor_at_scale_sphere_torus_and_negative_exact() {
     };
     assert!(matches!(
         offset_surface(&torus, d, band()),
-        Err(OffsetError::RadiusFloor)
+        Err(OffsetError::RadiusFloor { .. })
     ));
     // Exact-real margin −0.5 m, realized 0.0: still a refusal (the
     // coincident-with-zero arm), never a mint.
@@ -145,7 +145,7 @@ fn realized_floor_at_scale_sphere_torus_and_negative_exact() {
     assert_eq!(d_neg, -1.0e16, "fixture rounding premise");
     assert!(matches!(
         offset_surface(&zcyl(1.0e16), d_neg, band()),
-        Err(OffsetError::RadiusFloor)
+        Err(OffsetError::RadiusFloor { .. })
     ));
 }
 
@@ -166,7 +166,7 @@ fn ring_meters_the_realized_minor_at_scale() {
     let d_cross = 1.0e16 - 2.0;
     assert!(matches!(
         offset_surface(&torus(), d_cross, band()),
-        Err(OffsetError::TorusRing)
+        Err(OffsetError::TorusRing { .. })
     ));
     let d_under = 1.0e16 - 4.0;
     let minted = offset_surface(&torus(), d_under, band()).unwrap();
@@ -288,7 +288,7 @@ fn band_edges_track_run_tolerance() {
     assert_eq!(radius.to_bits(), (1.0f64 - (1.0 - definite)).to_bits());
     assert!(matches!(
         offset_surface(&zcyl(1.0), -(1.0 + definite), band()),
-        Err(OffsetError::RadiusFloor)
+        Err(OffsetError::RadiusFloor { .. })
     ));
 }
 
@@ -415,7 +415,7 @@ mod interval {
         }
         assert!(matches!(
             offset_surface(&torus, Interval::from_f64(1.5), band()),
-            Err(OffsetError::TorusRing)
+            Err(OffsetError::TorusRing { .. })
         ));
     }
 
@@ -427,7 +427,7 @@ mod interval {
         let d = Interval::from_f64(-(1.0e16 - 0.5)); // −1e16 after f64 rounding
         assert!(matches!(
             offset_surface(&icyl(Interval::from_f64(1.0e16)), d, band()),
-            Err(OffsetError::RadiusFloor)
+            Err(OffsetError::RadiusFloor { .. })
         ));
     }
 }

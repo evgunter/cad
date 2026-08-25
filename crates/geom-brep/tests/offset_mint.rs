@@ -7,11 +7,11 @@
 //!   bit-exactly at dyadic fixtures for plane/cylinder/sphere/torus
 //!   (the mint is pure parameter arithmetic both ways, so bit identity
 //!   holds exactly where IEEE addition is exact — the fixtures are
-//!   chosen dyadic to make it so), and for the cone to the stated one
-//!   IEEE operation: the apex coordinate add/subtract pair
-//!   `fl(fl(a − t) + t)` (the slide `t` itself is bit-identical both
-//!   ways, since `(−d)/sin α = −(d/sin α)` and per-component products
-//!   negate exactly).
+//!   chosen dyadic to make it so), and for the cone to one rounded
+//!   operation per leg (two per round trip): the apex coordinate
+//!   add/subtract pair `fl(fl(a − t) + t)` (the slide `t` itself is
+//!   bit-identical both ways, since `(−d)/sin α = −(d/sin α)` and
+//!   per-component products negate exactly).
 //! - **Defining-equation rows** — independent per-kind closed-form
 //!   signed-distance spellings (never the mint's algebra): the normal
 //!   pushforward of the base lands ON the minted locus, and sampled
@@ -30,7 +30,7 @@
 use core::f64::consts::{FRAC_PI_6, PI};
 
 use geom::Surface;
-use geom_brep::{OffsetError, offset_surface};
+use geom_brep::{OffsetError, SurfaceKind, offset_surface};
 use geom_core::{Band, Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -323,11 +323,11 @@ fn cone_round_trip_bit_exact_at_zero_apex_height() {
 }
 
 /// Cone round trip, generic apex: every carried field is bit-exact;
-/// the apex is reproduced to the ONE IEEE operation the round trip
-/// rounds — the apex coordinate add/subtract pair `fl(fl(a − t) + t)`
-/// with the same `t` both ways. Both slide signs.
+/// the apex is reproduced to one rounded operation per leg (two per
+/// round trip) — the apex coordinate add/subtract pair
+/// `fl(fl(a − t) + t)` with the same `t` both ways. Both slide signs.
 #[test]
-fn cone_round_trip_generic_apex_one_ieee_op() {
+fn cone_round_trip_generic_apex_rounds_once_per_leg() {
     let base = Surface::Cone {
         apex: Point3::new(0.5, -2.0, 1.25),
         axis: Vec3::unit_z(),
@@ -499,7 +499,10 @@ fn radius_floor_refuses_at_and_below_zero() {
     ];
     for (name, s, d) in rows {
         assert!(
-            matches!(offset_surface(&s, d, band()), Err(OffsetError::RadiusFloor)),
+            matches!(
+                offset_surface(&s, d, band()),
+                Err(OffsetError::RadiusFloor { .. })
+            ),
             "{name} (d = {d}) must refuse on the radius floor"
         );
     }
@@ -520,13 +523,16 @@ fn radius_floor_meters_the_realized_radius_at_scale() {
         (-1.0e16f64).to_bits(),
         "the fixture's rounding premise"
     );
-    assert!(
-        matches!(
-            offset_surface(&cyl(1.0e16), d, band()),
-            Err(OffsetError::RadiusFloor)
-        ),
-        "the realized radius is 0.0 — the large-scale collapse must refuse"
-    );
+    match offset_surface(&cyl(1.0e16), d, band()) {
+        Err(OffsetError::RadiusFloor { kind, realized }) => {
+            // The echo payload carries the refusing kind and the very
+            // float the floor metered: the collapsed 0.0, not the
+            // exact-real +0.5 m.
+            assert_eq!(kind, SurfaceKind::Cylinder);
+            assert_eq!(realized.to_bits(), 0.0f64.to_bits());
+        }
+        other => panic!("the large-scale collapse must refuse on the floor, got {other:?}"),
+    }
     // The nearby offset whose realized radius is honestly positive
     // still mints, and stores exactly the metered float.
     let d2 = -(1.0e16 - 8.0);
@@ -544,13 +550,14 @@ fn radius_floor_meters_the_realized_radius_at_scale() {
 #[test]
 fn torus_ring_refuses_spindle_crossing() {
     for d in [1.0, 1.5] {
-        assert!(
-            matches!(
-                offset_surface(&torus(2.0, 1.0), d, band()),
-                Err(OffsetError::TorusRing)
-            ),
-            "torus d = {d} must refuse on the ring convention"
-        );
+        match offset_surface(&torus(2.0, 1.0), d, band()) {
+            Err(OffsetError::TorusRing { realized_minor }) => {
+                // The echo payload is the realized minor the ring
+                // margin folded against R.
+                assert_eq!(realized_minor.to_bits(), (1.0 + d).to_bits());
+            }
+            other => panic!("torus d = {d} must refuse on the ring convention, got {other:?}"),
+        }
     }
     // Well inside both margins, the mint carries R and updates r.
     let minted = offset_surface(&torus(2.0, 1.0), 0.5, band()).unwrap();
@@ -696,7 +703,7 @@ mod interval {
         assert!(
             matches!(
                 offset_surface(&mk(Interval::from_f64(0.5)), d, band()),
-                Err(OffsetError::RadiusFloor)
+                Err(OffsetError::RadiusFloor { .. })
             ),
             "a definitely collapsed enclosure still refuses typed"
         );
