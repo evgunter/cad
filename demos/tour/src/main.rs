@@ -37,6 +37,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod checks;
 mod crosslap;
 mod curvedcut;
 mod cutaway;
@@ -684,6 +685,12 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     for stop in heatsink::stops(tol) {
         visit(&stop);
     }
+
+    println!(
+        "\n-- the checks door (DISCIPLINES DS6: run_checks over an evaluated document; \
+         a cavity is not a component) --"
+    );
+    checks::narration(tol);
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \

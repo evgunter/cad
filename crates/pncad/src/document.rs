@@ -180,6 +180,19 @@ pub use editor_core::{
 // pin from disk is `workspace::update_to_store`.
 pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 
+// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its first
+// resident, the connectedness check. `run_checks` REPORTS, never
+// gates (the `mixed_pins` posture: nothing calls it from apply, load,
+// or evaluation); `enforce_checks` is the one refusing path, and the
+// CALLER chooses where to gate on it. Deliberately NOT in the prelude
+// (prelude membership is corpus-measured).
+// `subject_body` resolves a finding's (root, output_ix) attribution
+// back to the flagged body in the same evaluation.
+pub use editor_core::{
+    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
+    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+};
+
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,

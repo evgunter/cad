@@ -301,7 +301,10 @@ pub use instance::{
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
-pub use props::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
+pub use props::{
+    MassProperties, MassPropsError, PropsQuadLane, ShellClassification, ShellClassifyError,
+    ShellRole, classify_shells, mass_properties,
+};
 pub use provenance::Provenance;
 pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use revert::RevertError;
