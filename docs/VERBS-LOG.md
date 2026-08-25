@@ -877,3 +877,15 @@ units the wave surfaced). Remaining Wave-1 item: ARMS-3's
 design conversation (OQ6 run-out taxonomy — Evan-gated), drafting
 next. Wave 3 opened concurrently (OFF-A implementing). Seam
 sweep: verbs-tubewall + both reviewer lanes.
+
+## ARMS-3 conversation OPEN (#992, 2026-08-25)
+
+The last Wave-1 item is now a design conversation awaiting Evan:
+A3-2's substantive claim is that the valence-4 seam-vertex
+"corner" is NOT a corner (the surface is smooth through it; the
+shipped vocabulary misdescribes it) — recommend the SeamVertex
+refusal with the request-the-full-rim recourse, machinery-free;
+A3-3 parks the genuine mid-curve run-out pair consumer-gated with
+the ball-cap named presumptive. Board: OFF-A implementing (Wave
+3); #992 with Evan; Wave 2's GATE spec is the next orchestrator
+work item.
