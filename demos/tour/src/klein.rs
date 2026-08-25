@@ -105,11 +105,15 @@
 //!    THE OTHER OPERAND** (walls 3, 4). The operand gate is
 //!    pair-scoped: a kind with no wired arm disqualifies an operation
 //!    only where its BOX may meet a face of the other body, so both
-//!    refusals now name the germ PAIR and both faces. `union` refuses
+//!    refusals now name the germ PAIR and both faces, and they are
+//!    DIFFERENT pairs. `union` refuses
 //!    `CurvedPairUnsupported { kind: Cone, other_kind: Plane }` — the
 //!    flare against a plane of the loop, and NOT the coincident
-//!    annular mate the model cares about — and `subtract` the same
-//!    way under `Subtract`. Box overlap is a MAY, not a DOES: the
+//!    annular mate the model cares about. `subtract` refuses
+//!    `{ op: Some(Subtract), kind: Torus, other_kind: Torus }` — the
+//!    bulb's own tube wall against the descending neck's, which IS
+//!    the crossing the model is asking to trim. Box overlap is a MAY,
+//!    not a DOES: the
 //!    kernel cannot rule the meeting out, which is a weaker claim
 //!    than that they meet. So the bottle still cannot be one body,
 //!    and the self-intersection — the neck piercing the bulb, the one
