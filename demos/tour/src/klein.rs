@@ -844,10 +844,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &into, tol),
         |e| {
+            // Reviewer pin (r1 probes): the PR body and finding 4
+            // claim this pair is (Torus, Torus); the shipped matcher
+            // pins only the op.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: Some(BooleanOp::Subtract),
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             )

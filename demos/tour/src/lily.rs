@@ -1426,12 +1426,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // The KIND is the claim: the refusal names a TORUS face, i.e.
         // the tangent tube walls, not the coincident planar discs.
         |e| {
+            // Reviewer pin (r1 probes): PR body claims (Torus, Plane).
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -1447,12 +1449,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "weld the lantern onto the arch (torus tube x sphere zone)",
         pncad::topo::union(lant, arch, tol),
         |e| {
+            // Reviewer pin (r1 probes): PR body claims (Cone, Torus).
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             )
