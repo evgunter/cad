@@ -577,8 +577,8 @@ measured, and the largest line is not the one you would guess:
 | `watertight` | ~2 | |
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
-| `opt-level` | ~2 | arm A only; **+~10-15 one night a week** when arm B runs |
-| **an ordinary night** | **~19** | **~30 on a calibration night** |
+| `opt-level` | ~2 | arm A only; **+~25-30 one night a week** when arms B and C run |
+| **an ordinary night** | **~19** | **~45 on a calibration night** |
 
 **`demoted` is over half of it, and the reason is structural rather than
 sloppy**: the selection is a difference between two listings, and a
@@ -900,6 +900,29 @@ not a saving, it is a hole.
    no model. Reporting only. The history is
    `docs/perf-data/opt-level/`. **Read the first few samples before
    quoting either figure again** — including the ones in this document.
+
+   > **THREE ARMS SINCE 2026-08-25**, and the added one is `opt-level = 1`,
+   > which nothing in this repository had ever measured, proposed or
+   > rejected. Every artifact above compares 0 against 2 and stops — but
+   > `a + E` is minimised over a knob with four settings, the two arms sit
+   > at opposite extremes of *both* terms, and the build penalty opt-2
+   > swallows (`a2 - a0` = 499 s in the 2026-08-25 sample) is more than
+   > twice the margin it wins by (220 s). A three-arm sweep on a 4-core
+   > AVX-512 guest — the same class as the census box, *not* the runner —
+   > found opt-1 within 3% of opt-2's execution for 58% of its build
+   > penalty, winning outright at 367 s against opt-0's 432 s and opt-2's
+   > 485 s. That is why arm C is wired up; it is **not** evidence about
+   > CI, and only arm C's own samples can be. **The doubled cost is the
+   > `opt-level` row in the budget table above** — the second measured arm
+   > is the whole of it, since arm A stays free.
+   >
+   > Wiring it up also uncovered that the same-suite cross-check those
+   > samples advertise had never run: nextest colourises on a hosted
+   > runner and the SGR escapes around the count defeated the extraction,
+   > which is why both schema-1 samples read `"tests": "unknown"`. The
+   > measured arms now pass `--color never`. Arm A still reports `n/a` —
+   > the jobs API gives durations, not test counts — so what the check
+   > compares is arm B against arm C.
 5. **`k-lint`'s cache, at its new size.** The lever is not wrong, just
    proportionally smaller: it now applies to whichever single unification
    a run drew. Unmeasured, and worth less than it was.

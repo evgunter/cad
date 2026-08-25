@@ -382,12 +382,38 @@ jobs:
   # get right are stated here because getting either wrong produces a
   # confident wrong answer rather than a failure.
   #
-  # ONE: ARM B RUNS THE GATE'S TEST POPULATION. No `--cfg nightly_suite`
-  # anywhere in this job. With it, `E0` would be computed over the suite
-  # PLUS the demoted tests while `E2` — read from real gate runs — is
-  # computed over the suite alone, and the comparison would silently be
-  # between two different questions. The recorded sample carries each arm's
-  # test count so a reader can check the two match.
+  # THREE ARMS SINCE 2026-08-25. Arm A is opt-2 and free; arm B is opt-0 and
+  # measured; ARM C IS opt-1 AND MEASURED, and it is here because the pair was
+  # the wrong shape of question. Nothing in this repository had ever measured,
+  # proposed or rejected `opt-level = 1`: every artifact in the decision's
+  # history (#52/#53, #449, the census, ci.yml's OPT LEVEL note, this lane's
+  # first two samples) compares 0 against 2 and stops. But `a + E` is being
+  # minimised over a knob with four settings, the two arms sit at opposite
+  # extremes of BOTH terms, and in the 2026-08-25 sample the build penalty
+  # opt-2 swallows to buy its execution win (`a2 - a0` = 499 s) is more than
+  # twice the margin it wins by (220 s). An interior point has room.
+  #
+  # A three-arm sweep on a 4-core AVX-512 guest (2026-08-25, 3489 tests, all
+  # three arms green) says the shape is real: opt-0 143 + 289 = 432 s, opt-1
+  # 307 + 60 = 367 s, opt-2 427 + 58 = 485 s. opt-1 came within 3% of opt-2's
+  # execution for 58% of its build penalty and won outright — on a box where
+  # opt-2 LOSES to opt-0, which is the census result this lane was built to
+  # chase. THAT BOX IS NOT THIS BOX. Its ratio is exactly the number the NO
+  # LOCAL MIRROR note below says this lane exists to distrust, so the sweep is
+  # the reason arm C is wired up and is not evidence for anything else. Only
+  # arm C's own samples can say what the 2-vCPU runner does.
+  #
+  # ONE: EVERY MEASURED ARM RUNS THE GATE'S TEST POPULATION. No `--cfg
+  # nightly_suite` anywhere in this job. With it, `E0`/`E1` would be computed
+  # over the suite PLUS the demoted tests while `E2` — read from real gate
+  # runs — is computed over the suite alone, and the comparison would silently
+  # be between two different questions. The recorded sample carries each arm's
+  # test count so a reader can check they match, and `--color never` on the
+  # measured runs is what makes that count READABLE: nextest colourises on a
+  # hosted runner, and the escape codes around the number defeated the
+  # extraction that reads it — which is why every sample committed before
+  # 2026-08-25 carries `"tests": "unknown"` and the cross-check those samples
+  # advertise was, in fact, checking nothing.
   #
   # TWO: THE ARMS SHARE A CACHE POSTURE, NOT A CACHE.
   # docs/GENERICS-BUILD-COST.md records a cache trap that "nearly produced a
@@ -395,9 +421,18 @@ jobs:
   # would invert this verdict outright. Arm A is read from gate runs, which
   # run with a warm dependency cache and cold WORKSPACE crates (rust-cache
   # evicts workspace members before saving — ci.yml's cache header says so).
-  # Arm B is given the same posture and a key of its OWN: opt-0 fingerprints
-  # differ from opt-2's, so no artifact can cross between the arms, and the
-  # target directory this job builds into holds nothing from any other lane.
+  # Arms B and C are each given that same posture and a key of their OWN:
+  # opt-0, opt-1 and opt-2 fingerprints all differ, so no artifact can cross
+  # between the arms.
+  #
+  # AND EACH MEASURED ARM GETS ITS OWN TARGET DIRECTORY, which is not
+  # fastidiousness — it is what keeps the two caches from cross-contaminating.
+  # rust-cache saves in a POST-JOB hook, so two instances pointed at one
+  # directory would both save whatever that directory held at the END of the
+  # job: arm C's artifacts would land under arm B's opt-0 key and the next
+  # night's arm B would restore them. Separate `CARGO_TARGET_DIR` values, each
+  # named in its own `workspaces:` mapping, make the two stores disjoint. The
+  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree.
   #
   # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
   # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's
@@ -417,7 +452,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    timeout-minutes: 90
+    # 90 -> 120 WITH THE THIRD ARM. Two measured arms on the nights the
+    # cadence fires, and arm C's first run builds its dependencies cold
+    # against a brand-new cache key. The ceiling is a runaway guard, not a
+    # budget: on the nights nothing is re-measured this job is arm A alone
+    # and costs ~2 minutes.
+    timeout-minutes: 120
     permissions:
       # `actions: read` for the jobs API (arm A); `contents: write` for the
       # append-only sample, on main only.
@@ -462,7 +502,11 @@ jobs:
       # more than ~20% since the last sample (Evan's ask). Asking costs
       # nothing, which is the point — a quiet week does not let the verdict
       # go stale between calendar dates.
-      - name: does arm B have to run tonight
+      # BOTH MEASURED ARMS RUN TOGETHER OR NOT AT ALL: arms taken on
+      # different nights are arms taken on different trees, and comparing
+      # those is the mistake this lane exists to avoid. One decision, emitted
+      # under two names (`run_arm_b`, `run_arm_c`) so each step reads its own.
+      - name: do the measured arms have to run tonight
         id: cadence
         run: |
           scripts/opt-level-calibrate.py decide \
@@ -470,13 +514,21 @@ jobs:
             --history docs/perf-data/opt-level
       - uses: dtolnay/rust-toolchain@stable
         if: steps.cadence.outputs.run_arm_b == 'true'
-      # A KEY OF ITS OWN — see the header. opt-0 artifacts share no
-      # fingerprint with the gate's opt-2 ones, so this never restores or
-      # pollutes another lane's entry.
+      # A KEY AND A TARGET DIRECTORY OF ITS OWN, one per measured arm — see
+      # the header's cache note. opt-0, opt-1 and opt-2 artifacts share no
+      # fingerprint, so no arm can restore or pollute another's entry, and the
+      # separate `workspaces:` mappings keep the two POST-JOB saves from
+      # writing each other's store.
       - uses: Swatinem/rust-cache@v2
         if: steps.cadence.outputs.run_arm_b == 'true'
         with:
           key: opt-level-calibration-opt0
+          workspaces: ". -> target-opt0"
+      - uses: Swatinem/rust-cache@v2
+        if: steps.cadence.outputs.run_arm_c == 'true'
+        with:
+          key: opt-level-calibration-opt1
+          workspaces: ". -> target-opt1"
       # The pinned nextest version is NOT restated here. ci.yml declares
       # itself the single source of truth for it, so this reads it from
       # there: two pins would be two versions the day someone bumps one.
@@ -504,6 +556,8 @@ jobs:
       - name: arm B (opt-0), one clean build and one full-suite run
         id: armb
         if: steps.cadence.outputs.run_arm_b == 'true'
+        env:
+          CARGO_TARGET_DIR: target-opt0
         run: |
           set -uo pipefail
           a0_start=$SECONDS
@@ -518,9 +572,20 @@ jobs:
           # `2>&1`, and it is not cosmetic: nextest writes its progress AND
           # its `Summary [...] N tests run` line to STDERR, and that line is
           # where the test COUNT recorded beside the sample comes from — the
-          # one figure a reader checks to see that the two arms measured the
-          # same suite.
-          cargo nextest run --archive-file "$RUNNER_TEMP/opt0.tar.zst" --workspace-remap . \
+          # one figure a reader checks to see that the arms measured the same
+          # suite.
+          #
+          # `--color never`, AND IT IS ALSO NOT COSMETIC. nextest colourises
+          # on a hosted runner even into a pipe, and it wraps the count in SGR
+          # escapes: `\e[1m3489\e[0m tests run`. The extraction below reads
+          # `\([0-9]*\) tests run`, which then matches the EMPTY string
+          # between the escape and the space and yields `unknown` — silently,
+          # because a missing count is not an error. That is why every sample
+          # committed before 2026-08-25 carries `"tests": "unknown"`: the
+          # same-suite cross-check the history's README advertises had never
+          # once run. Verified against real nextest output, both ways.
+          cargo nextest run --color never --archive-file "$RUNNER_TEMP/opt0.tar.zst" \
+            --workspace-remap . \
             > "$RUNNER_TEMP/opt0-run.log" 2>&1 && run_rc=0 || run_rc=$?
           e0=$((SECONDS - e0_start))
           tail -40 "$RUNNER_TEMP/opt0-run.log"
@@ -534,16 +599,78 @@ jobs:
             echo "measured=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           tests="$(sed -n 's/.*Summary.*\[[^]]*\] *\([0-9]*\) tests run.*/\1/p' "$RUNNER_TEMP/opt0-run.log" | tail -1)"
-          printf '{"a0": %s, "E0": %s, "tests": "%s"}\n' "$a0" "$e0" "${tests:-unknown}" \
-            > "$RUNNER_TEMP/arm-b.json"
+          printf '{"a0": %s, "E0": %s, "tests": "%s", "opt_level": 0}\n' \
+            "$a0" "$e0" "${tests:-unknown}" > "$RUNNER_TEMP/arm-b.json"
           cat "$RUNNER_TEMP/arm-b.json"
+          # The archive is ~1 GB and nothing reads it again. Two measured arms
+          # share one runner disk, so each drops its own before the next runs.
+          rm -f "$RUNNER_TEMP/opt0.tar.zst"
           echo "measured=true" >> "$GITHUB_OUTPUT"
+
+      # ARM C. THE SAME TWO COMMANDS AGAIN, at opt-level 1, and deliberately
+      # a copy rather than a matrix: arm B is the one arm whose failure modes
+      # are documented at each line above, and a matrix would put those lines
+      # one indirection away from both arms while saving nothing a reader
+      # wants. What differs from arm B is exactly three things — the opt-level
+      # pair, the target directory, and the file it writes.
+      #
+      # ITS FIRST RUN WILL BE PESSIMISTIC and no conclusion should be drawn
+      # from it. `opt-level-calibration-opt1` is a brand-new cache key, so
+      # that run builds dependencies cold while arms A and B are read/measured
+      # warm, and `a1` comes back inflated. ci.yml's OPT LEVEL note makes the
+      # same warning about its own knob change ("a single run cannot settle
+      # it"); here the lane simply re-runs weekly and the second sample
+      # onwards is the steady state.
+      # GATED ON ARM B HAVING LANDED, not just on the cadence. Arm B is what
+      # makes a sample and arm C only enriches one, so if arm B did not
+      # produce a comparable number there is nothing for an opt-1 row to join
+      # and this would spend ten minutes on a measurement the record step is
+      # already going to skip.
+      - name: arm C (opt-1), one clean build and one full-suite run
+        id: armc
+        if: steps.cadence.outputs.run_arm_c == 'true' && steps.armb.outputs.measured == 'true'
+        env:
+          CARGO_TARGET_DIR: target-opt1
+          CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+          CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+        run: |
+          set -uo pipefail
+          a1_start=$SECONDS
+          cargo nextest archive --workspace --archive-file "$RUNNER_TEMP/opt1.tar.zst" || {
+            echo "::warning::arm C: the opt-1 archive did not build; no opt-1 arm this run"
+            echo "measured=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          a1=$((SECONDS - a1_start))
+          e1_start=$SECONDS
+          cargo nextest run --color never --archive-file "$RUNNER_TEMP/opt1.tar.zst" \
+            --workspace-remap . \
+            > "$RUNNER_TEMP/opt1-run.log" 2>&1 && run_rc=0 || run_rc=$?
+          e1=$((SECONDS - e1_start))
+          tail -40 "$RUNNER_TEMP/opt1-run.log"
+          # A RED SUITE IS NOT A CALIBRATION — arm B's reasoning exactly. The
+          # difference is what gets dropped: arm C is OPTIONAL, so losing it
+          # costs the opt-1 row and leaves the opt-0/opt-2 sample intact,
+          # which is why this returns `measured=false` rather than failing.
+          if [ "$run_rc" -ne 0 ]; then
+            echo "::warning::arm C: the opt-1 suite exited ${run_rc}; E1 is not comparable with a green E2, so no opt-1 arm this run"
+            echo "measured=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          tests="$(sed -n 's/.*Summary.*\[[^]]*\] *\([0-9]*\) tests run.*/\1/p' "$RUNNER_TEMP/opt1-run.log" | tail -1)"
+          printf '{"a1": %s, "E1": %s, "tests": "%s", "opt_level": 1}\n' \
+            "$a1" "$e1" "${tests:-unknown}" > "$RUNNER_TEMP/arm-c.json"
+          cat "$RUNNER_TEMP/arm-c.json"
+          rm -f "$RUNNER_TEMP/opt1.tar.zst"
+          echo "measured=true" >> "$GITHUB_OUTPUT"
+      # ARM B IS WHAT MAKES A SAMPLE, arm C only enriches one: `--arm-c`
+      # names a file that need not exist, and the script omits the arm rather
+      # than nulling it when it does not. So an opt-1 arm that failed to build
+      # costs the opt-1 row and nothing else.
       - name: the verdict, and the inputs it rests on
         if: steps.armb.outputs.measured == 'true'
         run: |
           scripts/opt-level-calibrate.py record \
             --arm-a "$RUNNER_TEMP/arm-a.json" \
             --arm-b "$RUNNER_TEMP/arm-b.json" \
+            --arm-c "$RUNNER_TEMP/arm-c.json" \
             --history docs/perf-data/opt-level \
             --sha "${{ github.sha }}" \
             --summary "$GITHUB_STEP_SUMMARY"
@@ -576,16 +703,16 @@ jobs:
           done
           echo "could not land the sample after 4 attempts" >&2
           exit 1
-      - name: why arm B did not run
+      - name: why the measured arms did not run
         if: steps.cadence.outputs.run_arm_b != 'true'
         run: |
           {
-            echo "### opt-level calibration — arm B skipped"
+            echo "### opt-level calibration — arms B and C skipped"
             echo
             echo "${{ steps.cadence.outputs.reason }}"
             echo
             echo "Arm A is read free on every nightly, so the drift trigger is asked"
-            echo "even on the nights the expensive arm does not run."
+            echo "even on the nights the expensive arms do not run."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # THE DEMOTED TESTS. Evan, 2026-08-22: the scheduled job runs ONLY the

@@ -19,15 +19,35 @@ earlier opt-0 verdict (#52/#53) whose premises went stale. A bare
 `opt-level = 2` in a workflow tells the next reader nothing about when it
 stopped being true.
 
-THE VERDICT NEEDS NO MODEL. Both arms are a build plus a run, and the run
-executes what the build produced:
+THE VERDICT NEEDS NO MODEL. Every arm is a build plus a run, and the run
+executes what the build produced, so the verdict is an argmin and nothing more:
 
-    opt-2 wins  iff  a2 + E2  <  a0 + E0
+    the winner is  argmin over the measured levels of  (a + E)
 
 where `a` is the archive/build step and `E` the suite's execution. Nothing is
 extrapolated, no ratio is projected onto anything, and `r = E0/E2` is recorded
 as a DERIVED figure — the thing to compare against the 6.46/7.08 the note
 quotes — rather than as an input to the decision.
+
+THREE ARMS SINCE 2026-08-25, AND WHY THE PAIR WAS THE WRONG SHAPE. Every
+artifact in this decision's history — #52/#53, #449, the census, the note in
+ci.yml, this lane's first two samples — compares opt-0 against opt-2 and
+nothing else. `opt-level = 1` had never been measured, proposed or rejected
+anywhere in the repository. That is not a considered omission, it is the
+question never having been asked: `a + E` is being minimised over a knob with
+four settings, the two arms sit at opposite extremes of BOTH terms, and the
+build penalty opt-2 swallows to buy its execution win (`a2 - a0`, 499 s in the
+2026-08-25 sample) is more than twice the margin it wins by (220 s). An
+interior point has room, and arm C is that point.
+
+A three-arm sweep on a 4-core AVX-512 guest (2026-08-25, 3489 tests, all three
+green) says the shape is real: opt-0 143 + 289 = 432 s, opt-1 307 + 60 =
+**367 s**, opt-2 427 + 58 = 485 s. opt-1 came within 3% of opt-2's execution
+for 58% of its build penalty, and won outright. THAT BOX IS NOT THIS LANE'S
+BOX — it is the same 4-core class the census used, and its own ratio is
+precisely the number `scripts/check-ci-mirror-parity.py` declares this lane
+exists to distrust. The sweep is why arm C is here; only arm C's own samples,
+taken on the runner, can say what the runner does.
 
 ASYMMETRIC, BECAUSE HALF OF IT IS ALREADY FREE. Arm A (opt-2) is not re-run:
 every code-tier gate run already builds that archive and executes that suite,
@@ -53,7 +73,7 @@ margin that narrowed is a note for whoever reads next.
     opt-level-calibrate.py read-arm-a --out <json> [--runs N] [--window N]
     opt-level-calibrate.py decide --arm-a <json> --history <dir>
                                   [--max-age-days N] [--drift F]
-    opt-level-calibrate.py record --arm-a <json> --arm-b <json>
+    opt-level-calibrate.py record --arm-a <json> --arm-b <json> [--arm-c <json>]
                                   --history <dir> --sha <sha> [--summary <path>]
     opt-level-calibrate.py --selftest
 """
@@ -103,7 +123,13 @@ DEFAULT_WINDOW = 60
 MAX_AGE_DAYS = 7.0
 DRIFT = 0.20
 
-SCHEMA = 1
+# SCHEMA 2 (2026-08-25) ADDED THE THIRD ARM. A schema-1 sample has `arm_a`
+# and `arm_b` only, and `derived.verdict` there was a choice between two
+# settings; from 2 it is an argmin over every arm the sample carries, and
+# `margin_s`/`margin_ratio` are the winner against the RUNNER-UP rather than
+# always opt-0 against opt-2. The historical orientation is kept beside them
+# as `pair_opt0_over_opt2_ratio`, so nothing a schema-1 reader wanted is gone.
+SCHEMA = 2
 
 
 # --------------------------------------------------------------- the API half
@@ -295,8 +321,15 @@ def environment() -> dict:
         # Every CARGO_PROFILE_* knob in scope, not a hand-picked few: the
         # opt-level pair is the subject, and the debug/strip ones move the
         # archive step too.
+        #
+        # READ THE OPT-LEVEL PAIR HERE AS THE JOB'S BASELINE, NOT AS THE
+        # SAMPLE'S. This runs in the record step, so it sees the job-level
+        # environment — which is arm B's. Each arm carries its own
+        # `opt_level`, and that is the field to read: a three-arm sample whose
+        # `cargo_profile` says 0 has still measured 0, 1 and 2.
         "cargo_profile": {k: v for k, v in sorted(os.environ.items())
                           if k.startswith("CARGO_PROFILE_")},
+        "opt_level_varied_per_arm": True,
         # dev/test default debug-assertions ON and nothing here turns them
         # off; recorded as what it is rather than assumed by a reader.
         "debug_assertions": os.environ.get("CARGO_PROFILE_TEST_DEBUG_ASSERTIONS", "default(on)"),
@@ -305,18 +338,27 @@ def environment() -> dict:
     }
 
 
-def derive(arm_a: dict, arm_b: dict) -> dict:
+def derive(arm_a: dict, arm_b: dict, arm_c: dict | None = None) -> dict:
+    """The verdict, as an ARGMIN over the arms this sample carries.
+
+    WHY IT IS NOT A PAIR ANY MORE (2026-08-25). The two-arm version could only
+    answer "opt-2 or opt-0", and nobody had ever checked that this was the
+    right question: `a + E` is being minimised over a knob with more than two
+    settings, and the two arms sat at opposite extremes of BOTH terms. opt-1
+    is the interior point — rustc's optimiser on, its most expensive passes
+    off — and it had never appeared in any measurement, note or decision in
+    this repository.
+
+    Arm C is OPTIONAL. A sample carrying only the original pair derives what
+    it always derived, including the tie (a dead heat still reads opt-0, the
+    cheaper thing to build), so the two committed schema-1 samples stay
+    readable against this code."""
     a2, e2 = float(arm_a["a2"]), float(arm_a["E2"])
     a0, e0 = float(arm_b["a0"]), float(arm_b["E0"])
     total2, total0 = a2 + e2, a0 + e0
-    return {
+    out = {
         "total_opt2_s": total2,
         "total_opt0_s": total0,
-        "verdict": "opt-2" if total2 < total0 else "opt-0",
-        # The margin as the reader wants it BOTH ways: seconds say how much
-        # slack there is, the ratio says how far the inputs would have to move.
-        "margin_s": abs(total0 - total2),
-        "margin_ratio": (total0 / total2) if total2 else None,
         # THE INPUTS, kept beside the verdict so the next reader can tell when
         # the conclusion expired rather than inheriting a bare `opt-level = 2`.
         "r_execution_ratio": (e0 / e2) if e2 else None,
@@ -326,10 +368,52 @@ def derive(arm_a: dict, arm_b: dict) -> dict:
         # The figure ci.yml's OPT LEVEL note quotes for this lane. Written
         # here so a diff of two samples shows the drift against it directly.
         "r_quoted_by_ci_yml_default_lane": 6.46,
+        # The historical orientation of `margin_ratio` (opt-0 over opt-2),
+        # kept under its own name now that `margin_ratio` means winner over
+        # runner-up: a schema-1 reader diffing samples across the bump wants
+        # the series it was already reading, not a silently re-pointed one.
+        "pair_opt0_over_opt2_ratio": (total0 / total2) if total2 else None,
     }
+    # INSERTION ORDER IS THE TIE-BREAK, and it is deliberate: `sorted` is
+    # stable, so an exact dead heat resolves to whichever arm is listed first
+    # — opt-0, then opt-2, then opt-1. That reproduces the two-arm rule this
+    # replaces (`opt-2 if total2 < total0 else opt-0`) exactly.
+    totals = {"opt-0": total0, "opt-2": total2}
+    if arm_c:
+        a1, e1 = float(arm_c["a1"]), float(arm_c["E1"])
+        total1 = a1 + e1
+        totals["opt-1"] = total1
+        out.update({
+            "total_opt1_s": total1,
+            # Both ratios a reader of the opt-1 arm wants: what it recovers of
+            # the execution win (against opt-0) and what it costs to build.
+            "r_execution_ratio_opt1": (e0 / e1) if e1 else None,
+            "archive_delta_opt1_s": a1 - a0,
+            "L_over_T_opt1": (a1 / total1) if total1 else None,
+            # THE TWO NUMBERS THE THIRD ARM EXISTS TO PRODUCE. opt-1 is worth
+            # having exactly when it keeps opt-2's execution while refusing
+            # opt-2's build cost, so both are recorded as fractions rather
+            # than left for a reader to divide out of the table:
+            #   ~1.0 execution_kept  = opt-1 runs as fast as opt-2
+            #   <1.0 build_penalty_kept = opt-1 pays less than opt-2 to get it
+            "execution_kept_vs_opt2": (e2 / e1) if e1 else None,
+            "build_penalty_kept_vs_opt2": ((a1 - a0) / (a2 - a0)) if (a2 - a0) else None,
+        })
+    ranked = sorted(totals.items(), key=lambda kv: kv[1])
+    out["totals_s"] = totals
+    out["verdict"] = ranked[0][0]
+    out["runner_up"] = ranked[1][0]
+    # The margin as the reader wants it BOTH ways: seconds say how much slack
+    # there is, the ratio says how far the inputs would have to move. Against
+    # the RUNNER-UP since schema 2 — with two arms that is the same pair of
+    # numbers as before, and with three it is the one that decides anything.
+    out["margin_s"] = ranked[1][1] - ranked[0][1]
+    out["margin_ratio"] = (ranked[1][1] / ranked[0][1]) if ranked[0][1] else None
+    return out
 
 
-def record(arm_a: dict, arm_b: dict, history: str, sha: str) -> tuple[dict, str, str]:
+def record(arm_a: dict, arm_b: dict, history: str, sha: str,
+           arm_c: dict | None = None) -> tuple[dict, str, str]:
     now = int(time.time())
     sample = {
         "schema": SCHEMA,
@@ -338,15 +422,21 @@ def record(arm_a: dict, arm_b: dict, history: str, sha: str) -> tuple[dict, str,
         "measured_at_utc": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(),
         "arm_a": {k: v for k, v in arm_a.items()},
         "arm_b": arm_b,
-        "derived": derive(arm_a, arm_b),
+        "derived": derive(arm_a, arm_b, arm_c),
         "environment": environment(),
         "method": (
             "arm A (opt-2) READ from the step durations of recent code-tier gate runs via the "
-            "jobs API — real gate data, never re-run; arm B (opt-0) measured here on one clean "
-            "target directory, in the GATE test population (NO --cfg nightly_suite). Verdict is "
-            "the direct comparison a2+E2 < a0+E0; REPORTING ONLY, never a gate."
+            "jobs API — real gate data, never re-run; arms B (opt-0) and C (opt-1) measured "
+            "here, each on its own clean target directory, in the GATE test population (NO "
+            "--cfg nightly_suite). Verdict is the direct argmin of a+E over the arms present; "
+            "REPORTING ONLY, never a gate."
         ),
     }
+    # OMITTED, NOT NULLED, when the third arm did not run: a `null` arm_c
+    # would read as "opt-1 was measured and came back empty", which is the
+    # one thing it must never be mistaken for.
+    if arm_c:
+        sample["arm_c"] = arm_c
     name = f"{now}-{sha[:7]}.json"
     os.makedirs(history, exist_ok=True)
     dest = os.path.join(history, name)
@@ -358,13 +448,23 @@ def record(arm_a: dict, arm_b: dict, history: str, sha: str) -> tuple[dict, str,
 
 def summary(sample: dict) -> str:
     d, a, b = sample["derived"], sample["arm_a"], sample["arm_b"]
+    c = sample.get("arm_c")
     tree = os.environ.get("CI_TREE_OPT_LEVEL", "2")
     flip = d["verdict"] != f"opt-{tree}"
+    rows = [
+        f"| opt-2 (arm A, read from {a.get('n', 0)} gate runs) | {a['a2']:.0f} s | {a['E2']:.0f} s "
+        f"| {d['total_opt2_s']:.0f} s |",
+        f"| opt-0 (arm B, measured here) | {b['a0']:.0f} s | {b['E0']:.0f} s "
+        f"| {d['total_opt0_s']:.0f} s |",
+    ]
+    if c:
+        rows.append(f"| **opt-1 (arm C, measured here)** | {c['a1']:.0f} s | {c['E1']:.0f} s "
+                    f"| **{d['total_opt1_s']:.0f} s** |")
     out = [
         "### opt-level calibration",
         "",
         f"**Verdict: {d['verdict']} wins** — {d['margin_s']:.0f} s of margin "
-        f"({d['margin_ratio']:.2f}x). The tree is set to opt-level {tree}.",
+        f"({d['margin_ratio']:.2f}x) over {d['runner_up']}. The tree is set to opt-level {tree}.",
         "",
         ("> **THIS IS A FLIP.** The tree's setting and this measurement disagree. That is the "
          "rare actionable event this lane exists for — read the inputs below, then "
@@ -374,18 +474,27 @@ def summary(sample: dict) -> str:
         "",
         "| | archive (a) | execution (E) | total |",
         "|---|---|---|---|",
-        f"| opt-2 (arm A, read from {a.get('n', 0)} gate runs) | {a['a2']:.0f} s | {a['E2']:.0f} s "
-        f"| {d['total_opt2_s']:.0f} s |",
-        f"| opt-0 (arm B, measured here) | {b['a0']:.0f} s | {b['E0']:.0f} s "
-        f"| {d['total_opt0_s']:.0f} s |",
+        *rows,
         "",
         f"* `r` (opt-0/opt-2 execution ratio) = **{d['r_execution_ratio']:.2f}** — "
         f"ci.yml's OPT LEVEL note quotes {d['r_quoted_by_ci_yml_default_lane']} for this lane.",
         f"* `a2 - a0` (what opt-2 costs to build) = **{d['archive_delta_s']:.0f} s**.",
         f"* build share of the total: {d['L_over_T_opt2'] * 100:.0f}% at opt-2, "
-        f"{d['L_over_T_opt0'] * 100:.0f}% at opt-0.",
-        f"* tests executed: {a.get('tests', 'n/a')} (arm A) / {b.get('tests', 'n/a')} (arm B) — "
-        "these must match, or the two arms measured different suites.",
+        f"{d['L_over_T_opt0'] * 100:.0f}% at opt-0"
+        + (f", {d['L_over_T_opt1'] * 100:.0f}% at opt-1." if c else "."),
+    ]
+    if c:
+        out += [
+            f"* **the third arm's two numbers**: opt-1 keeps "
+            f"**{d['execution_kept_vs_opt2'] * 100:.0f}%** of opt-2's execution speed for "
+            f"**{d['build_penalty_kept_vs_opt2'] * 100:.0f}%** of opt-2's build penalty "
+            f"(`a1 - a0` = {d['archive_delta_opt1_s']:.0f} s against "
+            f"`a2 - a0` = {d['archive_delta_s']:.0f} s).",
+        ]
+    out += [
+        f"* tests executed: {a.get('tests', 'n/a')} (arm A) / {b.get('tests', 'n/a')} (arm B)"
+        + (f" / {c.get('tests', 'n/a')} (arm C)" if c else "")
+        + " — these must match, or the arms measured different suites.",
         "",
     ]
     return "\n".join(out)
@@ -451,6 +560,41 @@ def selftest() -> None:
         assert abs(sample["derived"]["r_execution_ratio"] - 4.0) < 0.01
         assert os.path.basename(dest).endswith("-0123456.json")
         assert "opt-2 wins" in text and "| opt-0 (arm B" in text
+        # TWO ARMS STILL DERIVE THE TWO-ARM ANSWER. `margin_s` is the pair's
+        # gap, the historical ratio is kept under its own name, and no arm_c
+        # key is invented — the two committed schema-1 samples must stay
+        # readable against this code.
+        assert "arm_c" not in sample and "total_opt1_s" not in sample["derived"]
+        assert abs(sample["derived"]["margin_s"] - abs(603.0 - 551.0)) < 0.01
+        assert abs(sample["derived"]["pair_opt0_over_opt2_ratio"] - 603.0 / 551.0) < 0.01
+        assert sample["derived"]["runner_up"] == "opt-0"
+        # A DEAD HEAT READS opt-0, exactly as the two-arm rule it replaces did
+        # (`opt-2 if total2 < total0 else opt-0`). Measure-zero, and pinned so
+        # that a refactor of the ranking cannot quietly re-point it.
+        tied = derive(arm_a, {"a0": 0.0, "E0": 551.0})
+        assert tied["verdict"] == "opt-0", tied
+
+        # ---------------------------------------------------------- ARM C.
+        # THE SHAPE THE THIRD ARM EXISTS TO CATCH: opt-1 within a hair of
+        # opt-2's execution for a fraction of its build. Both two-arm answers
+        # are wrong here — opt-2 beats opt-0, and opt-1 beats them both — and
+        # that is the whole argument for measuring a third point.
+        arm_c = {"a1": 260.0, "E1": 124.0, "tests": 2791}
+        three, _, text3 = record(arm_a, arm_b, t, "c" * 40, arm_c)
+        d3 = three["derived"]
+        assert d3["verdict"] == "opt-1" and d3["runner_up"] == "opt-2", d3
+        assert abs(d3["total_opt1_s"] - 384.0) < 0.01
+        assert abs(d3["margin_s"] - (551.0 - 384.0)) < 0.01
+        # opt-1 keeps 119/124 of opt-2's execution speed for (260-127)/(432-127)
+        # of its build penalty. These two fractions ARE the finding.
+        assert abs(d3["execution_kept_vs_opt2"] - 119.0 / 124.0) < 0.01
+        assert abs(d3["build_penalty_kept_vs_opt2"] - 133.0 / 305.0) < 0.01
+        assert three["arm_c"] == arm_c
+        assert "opt-1 (arm C" in text3 and "THIS IS A FLIP" in text3
+        # AND IT MUST NOT WIN BY DEFAULT. A slow, expensive opt-1 loses, and
+        # the pair's own answer survives untouched.
+        loser, _, _ = record(arm_a, arm_b, t, "d" * 40, {"a1": 400.0, "E1": 400.0})
+        assert loser["derived"]["verdict"] == "opt-2", loser["derived"]
 
         # FRESH HISTORY: neither trigger fires.
         run, why = decide(arm_a, t, MAX_AGE_DAYS, DRIFT)
@@ -481,10 +625,12 @@ def selftest() -> None:
 
     print("opt-level-calibrate selftest OK: a run's arm-A sample is read from the archive step "
           "and the summed shards; a docs-tier run, a cancelled shard and a renamed step are "
-          "SKIPS rather than zeroes; the verdict is the direct a+E comparison; the cadence "
-          "fires on a first sample, on the calendar and on >20% drift in the free half, and "
-          "holds otherwise; no arm A means arm B is not spent; and a flip is reported loudly "
-          "without failing anything")
+          "SKIPS rather than zeroes; the verdict is the direct a+E argmin over the arms "
+          "present, which for two arms is the two-arm answer it replaced (ties included); the "
+          "optional third arm wins only when it earns it and is OMITTED rather than nulled "
+          "when it did not run; the cadence fires on a first sample, on the calendar and on "
+          ">20% drift in the free half, and holds otherwise; no arm A means no measured arm "
+          "is spent; and a flip is reported loudly without failing anything")
 
 
 def main() -> int:
@@ -494,6 +640,8 @@ def main() -> int:
     ap.add_argument("--out")
     ap.add_argument("--arm-a")
     ap.add_argument("--arm-b")
+    ap.add_argument("--arm-c", help="the opt-1 arm, if it was measured; the sample "
+                                    "omits arm C entirely when this is absent")
     ap.add_argument("--history", default="docs/perf-data/opt-level")
     ap.add_argument("--sha", default="")
     ap.add_argument("--summary")
@@ -527,12 +675,21 @@ def main() -> int:
         if out:
             with open(out, "a", encoding="utf-8") as fh:
                 fh.write(f"run_arm_b={'true' if run else 'false'}\n")
+                # THE SAME DECISION, UNDER THE NAME THE THIRD ARM'S STEP READS.
+                # Both measured arms run together or not at all: two arms taken
+                # on different nights are two different trees, and comparing
+                # them is the mistake this whole lane is built to avoid.
+                fh.write(f"run_arm_c={'true' if run else 'false'}\n")
                 fh.write(f"reason={why}\n")
         return 0
 
     with open(args.arm_b, encoding="utf-8") as fh:
         arm_b = json.load(fh)
-    _, dest, text = record(arm_a, arm_b, args.history, args.sha)
+    arm_c = None
+    if args.arm_c and os.path.exists(args.arm_c):
+        with open(args.arm_c, encoding="utf-8") as fh:
+            arm_c = json.load(fh)
+    _, dest, text = record(arm_a, arm_b, args.history, args.sha, arm_c)
     print(f"wrote {dest}")
     print(text)
     if args.summary:
