@@ -135,8 +135,12 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     // hull limb is the deciding one.
     let tol = true_residual * 2.0;
     match certify_offset(&base, &warped, d, tol, band()) {
-        Err(_) => {} // refusing an out-of-model input is sound
+        Err(e) => eprintln!("rational fit refused (sound): {e}"),
         Ok(cert) => {
+            eprintln!(
+                "rational fit ACCEPTED: hull_sup={:.3e} on_locus={:.3e} true residual={true_residual:.3e}",
+                cert.hull_sup, cert.on_locus_max
+            );
             assert!(
                 cert.hull_sup >= true_residual,
                 "certify_offset accepted a rational fit and its hull limb \
