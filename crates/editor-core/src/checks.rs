@@ -28,11 +28,12 @@
 //! site that must learn about it. There is no dynamic registration.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use core::fmt;
 
 use geom_core::{BandError, Decide, Tol};
-use topo::{PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
+use topo::{Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -161,6 +162,18 @@ pub enum CheckEvidence {
         /// The typed refusal from the shell door.
         source: ShellClassifyError,
     },
+    /// An expectation with no subject: `expected_components` carries
+    /// an entry at this `(root, output_ix)` and no evaluated subject
+    /// consumed it — the body vanished (a boolean may have consumed
+    /// the whole part) or the key names no root output. Expectations
+    /// are two-directional: an entry that binds nothing is stale, not
+    /// silently ignored. (The DEFAULT expectation — no entry — binds
+    /// only existing subjects: a root that legitimately denotes zero
+    /// bodies with nothing stated about it stays clean.)
+    StaleExpectation {
+        /// The entry's stated component count.
+        expected: u32,
+    },
 }
 
 /// One finding of one check on one subject — a body-denoting root
@@ -181,8 +194,14 @@ pub struct CheckFinding {
 
 // One story, one recourse, in one place (the eval/mod.rs D54 lesson:
 // a payload with no Display forces every consumer to invent its own
-// second vocabulary). Arms holding a typed payload FORWARD its
-// Display rather than re-stating it.
+// second vocabulary). The Unsupported arm FORWARDS its payload's
+// Display; the Escalated arm deliberately does NOT — the funnel's
+// generic coincidence recourse ("declare the coincidence / move the
+// geometry") is meaningless for a shell-volume sign, and a kernel
+// arena key names nothing a document user can act on, so this arm
+// renders the margin-payload view (name + numbers, no recourse tail,
+// no key) and states the check's own recourse. The subject is named
+// by the finding's (root, output) attribution above.
 impl fmt::Display for CheckFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -198,13 +217,37 @@ impl fmt::Display for CheckFinding {
                  instance placed nowhere; if the disjoint body is deliberate, state the \
                  expected count for this root output in ChecksConfig::expected_components"
             ),
-            CheckEvidence::Escalated { source } => write!(
-                f,
-                "the component count is unknowable at this tolerance: {source}"
-            ),
+            CheckEvidence::Escalated { source } => {
+                f.write_str("the component count is unknowable at this tolerance: ")?;
+                match source {
+                    ShellClassifyError::Escalated { source, .. } => {
+                        write!(f, "{}", source.payload())?;
+                    }
+                    ShellClassifyError::ZeroVolume { .. } => f.write_str(
+                        "a shell's signed volume is definitely zero (or its certified \
+                         bracket straddles zero)",
+                    )?,
+                    // run_checks routes only the two sign-read arms
+                    // here; any other source forwards its own story.
+                    other => write!(f, "{other}")?,
+                }
+                write!(
+                    f,
+                    " — a shell's volume is too close to zero for a certified outer/void \
+                     orientation read; thicken or remove the degenerate geometry, or lower \
+                     the tolerance"
+                )
+            }
             CheckEvidence::Unsupported { source } => write!(
                 f,
                 "the component count cannot be computed for this body: {source}"
+            ),
+            CheckEvidence::StaleExpectation { expected } => write!(
+                f,
+                "an expectation of {expected} component(s) has no subject — the body \
+                 vanished (a boolean may have consumed the whole part) or the key names \
+                 no root output; remove the ChecksConfig::expected_components entry or \
+                 fix the root"
             ),
         }
     }
@@ -319,6 +362,16 @@ impl core::error::Error for CheckRefusal {}
 /// as its own typed finding ([`CheckEvidence::Escalated`] /
 /// [`CheckEvidence::Unsupported`]), never as a silent skip.
 ///
+/// Expectations are TWO-DIRECTIONAL: every
+/// [`ChecksConfig::expected_components`] entry must be consumed by a
+/// subject, and an entry no subject consumed — a vanished body (a
+/// boolean's honest ∅ result denotes zero subjects), a dead root, a
+/// mistyped key — is its own finding
+/// ([`CheckEvidence::StaleExpectation`], appended after the subject
+/// findings in key order). The DEFAULT expectation binds only
+/// existing subjects: a legitimately empty result with nothing stated
+/// about it stays clean.
+///
 /// # Errors
 ///
 /// [`ChecksError`] — a root without a value in `ev`, or a band the
@@ -335,6 +388,9 @@ pub fn run_checks<P, T: Decide + PropsQuadLane>(
         report.skipped.push(CheckId::Connectedness);
         return Ok(report);
     }
+    // Entries not yet consumed by a subject; whatever remains after
+    // the walk is stale (an expectation with no subject).
+    let mut unconsumed = cfg.expected_components.clone();
     for &root in doc.roots() {
         let Some(value) = ev.value(root) else {
             return Err(ChecksError::Root { node: root });
@@ -345,15 +401,17 @@ pub fn run_checks<P, T: Decide + PropsQuadLane>(
             continue;
         };
         for (output_ix, body, _contacts) in sources {
+            unconsumed.remove(&(root, output_ix));
             match classify_shells(body.as_ref(), tol) {
                 Ok(classes) => {
-                    let actual = u32::try_from(
-                        classes
-                            .iter()
-                            .filter(|c| c.role == ShellRole::Outer)
-                            .count(),
-                    )
-                    .unwrap_or(u32::MAX);
+                    let outer = classes
+                        .iter()
+                        .filter(|c| c.role == ShellRole::Outer)
+                        .count();
+                    // A shell count past u32 is a kernel-bug state
+                    // (no input reaches it), not an input state.
+                    let actual = u32::try_from(outer)
+                        .unwrap_or_else(|_| unreachable!("shell count {outer} exceeds u32"));
                     let expected = cfg
                         .expected_components
                         .get(&(root, output_ix))
@@ -393,7 +451,36 @@ pub fn run_checks<P, T: Decide + PropsQuadLane>(
             }
         }
     }
+    // The reverse direction: every stated expectation must have found
+    // its subject. BTreeMap iteration = key order (deterministic, D9).
+    for ((root, output_ix), expected) in unconsumed {
+        report.findings.push(CheckFinding {
+            check: CheckId::Connectedness,
+            root,
+            output_ix,
+            evidence: CheckEvidence::StaleExpectation { expected },
+        });
+    }
     Ok(report)
+}
+
+/// The door from a finding's attribution back to its subject: the body
+/// at `(root, output_ix)` in this evaluation — the same enumeration
+/// [`run_checks`] walks, so a [`CheckFinding`]'s attribution always
+/// resolves against the evaluation it was produced from. `None` when
+/// the root has no value, denotes no body, or has no output at that
+/// index (exactly the attributions a [`CheckEvidence::StaleExpectation`]
+/// finding names).
+pub fn subject_body<T: Decide>(
+    ev: &Evaluation<T>,
+    root: RecipeNodeId,
+    output_ix: u32,
+) -> Option<Arc<Body<T>>> {
+    let sources = product::sources_of(ev.value(root)?)?;
+    sources
+        .into_iter()
+        .find(|(ix, _, _)| *ix == output_ix)
+        .map(|(_, body, _)| body)
 }
 
 /// The ONE refusing path of the registry: refuses iff `report` carries

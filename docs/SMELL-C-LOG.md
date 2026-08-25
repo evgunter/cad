@@ -413,7 +413,9 @@ and it overlaps Track C at three points that must not be rediscovered:
 immediate cause is that `topo::props` exposes only body-scoped
 `mass_properties` while the exporter needs *per-shell* volume, so closing it
 means a new door in `props/` — which is A2's file set. It joins C3's `props/`
-work and inherits **C-m**'s gate on A2 / #649.
+work and inherits **C-m**'s gate on A2 / #649. *(2026-08-25: the door exists —
+`topo::props::classify_shells`, landed with the checks unit; the exporter
+pickup remains unscheduled.)*
 
 ---
 

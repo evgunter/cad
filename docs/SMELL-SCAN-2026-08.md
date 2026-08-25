@@ -1655,6 +1655,9 @@ be unified."
   `topo::props` exposes only body-scoped `mass_properties`. **NEVER FLAGGED as
   duplication** — the module has been repeatedly revisited and each pass
   *documented* the divergence rather than closing it.
+  *(2026-08-25: the prerequisite closed — `topo::props::classify_shells` is the
+  per-shell door, landed with the checks unit; the exporter pickup itself
+  remains unscheduled.)*
   *Lesson: a module that keeps being edited to explain how it differs from the
   canonical one is a duplication signal the process has no rule for reading.*
 - **Deep-snapshot helper ≥4** — **policy, not drift**, and **FLAGGED AND

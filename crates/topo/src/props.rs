@@ -1,8 +1,11 @@
-//! Body-level mass properties over the **exact** B-rep (M2 PR 7):
-//! volume and surface area assembled from `geom-brep`'s closed-form
-//! per-face contributions ([`geom_brep::props`] — divergence-theorem
-//! flux split against per-surface anchors; Mäntylä §13.3 generalized
-//! off the polyhedral case).
+//! Mass properties over the **exact** B-rep (M2 PR 7): volume and
+//! surface area assembled from `geom-brep`'s closed-form per-face
+//! contributions ([`geom_brep::props`] — divergence-theorem flux split
+//! against per-surface anchors; Mäntylä §13.3 generalized off the
+//! polyhedral case) — at two granularities over ONE per-face walk:
+//! whole-body ([`mass_properties`]) and per-shell
+//! ([`classify_shells`], which also decides each shell's outer/void
+//! role from its volume's sign).
 //!
 //! This is the exact-geometry counterpart of the mesh oracle
 //! (`mesh::validate::signed_volume`): no tessellation, no sampling, no

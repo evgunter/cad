@@ -186,9 +186,11 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
+// `subject_body` resolves a finding's (root, output_ix) attribution
+// back to the flagged body in the same evaluation.
 pub use editor_core::{
     CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
-    ChecksReport, Severity, enforce_checks, run_checks,
+    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
 };
 
 // The profile description node type and its document alias.
