@@ -222,21 +222,21 @@ impl core::fmt::Display for TubeError {
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "tube_along_arc_hollow: the wall thickness is not definitely positive at \
+                "{door}: the wall thickness is not definitely positive at \
                  tolerance (metered at tube_wall; the run's threshold is {eps} m) — a wall \
                  thinner than that is not a wall. Supply a thicker one, or call \
                  tube_along_arc for the solid tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
-                "tube_along_arc_hollow: minor_radius - wall is not a definitely positive \
+                "{door}: minor_radius - wall is not a definitely positive \
                  inner radius at tolerance (metered at tube_wall_bore; the run's threshold \
                  is {eps} m), so there is no bore and no annulus to revolve — supply a \
                  thinner wall, or call tube_along_arc for the solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
-                "tube_along_arc_hollow: the wall is positive and the bore is positive, but \
+                "{door}: the wall is positive and the bore is positive, but \
                  the gap between the two radii the body would STORE is not (metered at \
                  tube_wall_gap; the run's threshold is {eps} m) — at this outer radius the \
                  subtraction minor_radius - wall rounds back onto minor_radius, so the two \
