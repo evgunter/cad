@@ -5,7 +5,11 @@
 DS1–DS8, open questions DS-Q1–DS-Q6. Round 2 revised DS2 and DS7 per
 Evan's pushback: the mandatory criterion is identification, not
 "an op forks"; the permissive mode is a recording dial with a viable
-middle position, not a rejected monolith.) This doc schedules **no
+middle position, not a rejected monolith. Round 3 corrected DS2's
+collinear example against the code (undeclared same-carrier joints
+pass `validate` today; #433 is the open authoring-gate/data-gate
+divergence), replaced DS6's severity cap with the waiver rule, and
+sharpened DS7's snap/fuse statement into its three layers.) This doc schedules **no
 implementation** and changes **no behavior** — every mandatory check
 named below keeps its current force whether or not this is ratified.
 What it ratifies, if accepted, is a *classification* and a *pattern*:
@@ -111,15 +115,32 @@ whenever a body builds it is the same body — the fork downstream
 consumes the *geometric verdict*, which exists whether or not anyone
 declared, and the declaration only gates passage. Profile tangency
 is classification-grade (reclassified in round 2 per Evan's
-collinear-segments observation): two consecutive collinear segments
-refuse both ways today (undeclared → `UndeclaredTangency`; declared →
-the `same_carrier: true` identity refusal) and are never auto-joined;
-were they passed through un-merged, the extrusion's topology equals
-the slightly-off case's, and the difference downstream is pure
-acceptance (F7's `NonMaximalFaces` at the boolean doors), never a
-different solid. Likewise the smooth-vs-transverse fork (MappedCurve
-vs Intersection descriptions, wedge legality, prefer-intrinsic)
-resolves from sampled geometry, not from the declaration.
+collinear-segments observation; the example corrected in round 3
+against the code). The collinear case, precisely: two consecutive
+collinear segments classify as `JointClass::SameCarrier` — not
+tangency — and an **undeclared** same-carrier joint *passes*
+`validate` today (a straight run subdivided at an interior vertex is
+well-formed loop data, the shape STEP import and raw authored loops
+routinely produce). What refuses is (a) the **declared-tangent**
+same-carrier joint (`TangencyContradicted { same_carrier: true }` —
+identity misdeclared as tangency, a category error the verify table
+catches: tangency is a relation between distinct carriers), and
+(b) the PATHS **authoring lattice's** zero-turn junction check
+(§4 invariant 1 — an authoring-act gate, "what did you mean by this
+corner?", with the post-fillet continuation exempt because it
+extends the leg rather than minting a collinear neighbor). Nothing
+auto-joins at any layer, consistent with the §2c axiom (verbs cannot
+consult carrier identity; the junction check is the chain's own
+emission-layer bookkeeping). So the undeclared-collinear body
+demonstrably builds, with the same topology as the slightly-off
+case; the discipline's verdicts move *acceptance* (and F7's
+`NonMaximalFaces` door downstream), never the solid. The
+lattice/`validate` divergence on exact collinearity is OPEN as
+**#433** (disposition Evan's) — a live in-repo instance of exactly
+this grade's authoring-gate vs data-gate structure. Likewise the
+smooth-vs-transverse fork (MappedCurve vs Intersection descriptions,
+wedge legality, prefer-intrinsic) resolves from sampled geometry,
+not from the declaration.
 Classification-grade disciplines therefore satisfy DS3's severity
 invariant and are dial-eligible (DS7) **in principle**; profile
 tangency stays at the strictest dial position as the ratified thesis
@@ -252,16 +273,28 @@ by the LONGTERM-IDEAS process note (milestone plan + sign-off), not
 by this doc; what this doc fixes is the shape they graduate *into*.
 
 **Recommendation, refining I1's warn-never-refuse at the severity
-knob**: a **certified** check — one whose finding is a theorem about
-the geometry (connectedness: exact/combinatorial; moldability:
-hull bounds on normal enclosures) — may offer `error`, holding DS3's
-invariant like any lint. A **labeled-heuristic** check — one whose
-finding is a judgment that can be wrong in both directions (the
-sliver lint's display-distinguishability threshold; machinability
-rules, I1(d)'s "explicitly the labeled-heuristic class") — caps at
-`warn` permanently: what cannot prove its finding may never refuse.
-This gives I1's honest-labeling rule teeth: the label is not message
-text, it bounds the check's maximum force.
+knob (round 3, per Evan: blocking is fine if exceptions are
+declarable).** Any check — certified or labeled-heuristic — may
+offer `error` **iff it ships a waiver vocabulary**: a per-finding,
+stable-name-keyed acknowledgment record ("the 2 µm step is
+deliberate" — the sliver lint's own confirmation sentence from I1,
+made data), carried with provenance like any declaration and with a
+staleness direction (a waiver whose finding no longer exists is
+flagged for cleanup — the `StaleContactDeclaration` shape, at warn).
+A waiver is the check-side analogue of the parameter lint's
+declared-distinct arm: it records intent *about a finding* rather
+than making a geometric claim, so there is nothing to verify — only
+to match, and to stale. The certified/heuristic label (certified:
+the finding is a theorem — connectedness, moldability's hull bounds;
+heuristic: a judgment that can be wrong in both directions — the
+sliver threshold, machinability rules) is then honesty of language
+and a default level, not a force cap: waiving a certified finding
+accepts a theorem ("yes, this part is not moldable — it is not
+molded"); waiving a heuristic finding overrides a judgment; the
+label keeps a message from dressing the second as the first. What
+stays banned is narrower than before: a check refusing **without a
+waiver door** — what cannot be answered except by changing geometry
+must not block on a verdict that might be wrong.
 
 ## DS7 — The permissive spectrum: provenance and the recording dial
 
@@ -278,6 +311,13 @@ not sincerity):
   as values (GS-Q3).
 - **auto-recorded** — machine-written at a definite finding's first
   appearance, tagged as such, upgradeable to user-stated on review.
+
+The user-stated/auto-recorded distinction is held loosely (round 3):
+verification treats every provenance identically — C4 verifies
+geometry, not sincerity — so the tag buys only review affordances
+and honest blame in messages. Collapsing those two rungs is a cheap
+simplification if the review door proves unwanted; the
+constructor-authored rung is structural and stays either way.
 
 **The recording dial**, per classification-grade discipline
 (identification-grade disciplines have no dial at any position, DS2):
@@ -300,13 +340,29 @@ not sincerity):
 band is governed by K (`Tolerance.k`, D4) — collapsing it toward the
 precision floor is an existing per-run mechanism, not new machinery,
 and its ratified default (K = 10, K-REPORT) is untouched here. Noted
-because a "permissive profile" composes the two knobs — and because
-of what the composition still is not: at K = 1 a near-coincidence
-resolves to *definitely apart* and the kernel honestly builds the
-sliver. Nothing ever glues by value at any dial or any K —
-identification stays intent-only (DS2). The permissive end of this
-kernel trusts values razor-thin; it never snaps them together, which
-is the industry behavior this design forecloses permanently.
+because a "permissive profile" composes the two knobs, and because
+the composition's semantics deserve stating in three separate layers
+(round 3):
+
+- **the verdict** — below ε a separation claim is not even
+  representable, so a sub-ε pair honestly classifies coincident.
+  That is forced by precision, not a snap, and a verdict alone glues
+  nothing;
+- **identification** — merging entities takes a structural or
+  declared rung (or the dial's auto-record) at every K; no verdict
+  reaches topology without one;
+- **the data** — nothing is ever rewritten: no vertex moves, no
+  per-entity tolerance grows; a declaration bridges the sub-ε
+  residue semantically while both stored descriptions keep their
+  exact values.
+
+K governs none of these three. It governs only the guard band over
+*distinguishable* values (ε to Kε — representable differences too
+small to trust as design intent), so K = 1 means "any representable
+difference is a trusted difference" and the kernel honestly builds
+the sliver. Industry snapping is value proximity at a fat tolerance
+driving identification and data rewrite at once; here the third
+layer never happens and the second never happens by value.
 
 **What each position honestly costs.** `require`: the declaration
 interaction, made cheap by detectors and constructive verbs.
