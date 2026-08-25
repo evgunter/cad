@@ -18,7 +18,9 @@ is the first implementing unit's contact with reality: the registry
 and the connectedness resident shipped, I1(0b)'s exactness claim
 narrowed to the count, the staleness direction proved non-optional
 within one review cycle, DS-Q3 is answered for grade 4, and DS-Q4
-carries its first-PR position.) This doc schedules **no
+carries its first-PR position. Round 5 opens the registry to
+out-of-tree checks — DS9, three rulings from Evan plus one
+recommendation awaiting reaction.) This doc schedules **no
 implementation** and changes **no behavior** — every mandatory check
 named below keeps its current force whether or not this is ratified.
 What it ratifies, if accepted, is a *classification* and a *pattern*:
@@ -457,6 +459,56 @@ moldability checker (rides with the draft verb per DR6). The
 recording dial ships, if ever, with its first discipline whose
 default is not `require` — a dial with one used position is dead
 code with a settings page.
+
+## DS9 — Out-of-tree checks (round 5)
+
+The registry opens to third-party checks. Three rulings (Evan,
+2026-08-25, the origin conversation's continuation):
+
+- **Extensibility wins over gatekeeping.** No earned-certified rule:
+  the `CheckKind` label is the author's claim, and a user who
+  installs a check trusts its author — the kernel does not police
+  the label.
+- **First-class over protective caps.** Registered third-party
+  checks get the full machinery — the severity range, `error`,
+  waivers — rather than being saved from their own defects. What
+  keeps this safe is DS3, not vetting: no check, in-tree or out, can
+  change an evaluated solid, so a bad check's blast radius is its
+  own findings. The same ground scopes D9: reports are never
+  persisted and enter no content keys, so a nondeterministic
+  third-party check degrades only its own report; determinism
+  remains an obligation on in-tree checks, a quality bar for
+  external ones.
+- **The kernel never learns Python exists.** Language bindings enter
+  through one adapter, dependencies pointing upward only:
+  editor-core defines the check trait; `pncad-py` ships a single
+  Rust adapter check whose implementation invokes a registered
+  Python callable and translates its output into the shared finding
+  vocabulary. One adapter serves every Python check.
+
+Consequences, binding on the implementing unit when it comes:
+
+- Registration becomes a document-layer API over a dyn check trait;
+  check identity becomes a namespaced id with the in-tree residents
+  in a reserved namespace (the v1 closed enum was the right first
+  shape and is superseded by this ruling when registration lands —
+  the D3 closed-enum argument never bound here: checks are unary
+  over an evaluation, no pairwise dispatch table exists).
+- DS6's waiver rule moves from per-check obligation to **framework
+  provision**: the report machinery supplies finding-keyed
+  acknowledgment records generically, so "error requires a waiver
+  door" holds by construction for every registered check.
+- **Funnel participation (RECOMMENDED — the one arm not yet ruled).**
+  The plugin API exposes `decide`-with-`Margin` as the sanctioned
+  comparison path, so a plugin inherits the escalation band,
+  multi-ε behavior, and verdict-log testability instead of
+  hand-rolled float compares; plugin sites carry a namespace prefix
+  and are excluded by default from the k-lint roster, the #214
+  dimensional audit, and the K census — those are repo-scoped
+  instruments (enforced by scanning source and pinned by rosters),
+  and plugin verdicts entering the K evidence base would contaminate
+  any future re-derivation of K. Aggregating namespaced plugin
+  verdicts separately stays possible if ever wanted.
 
 ## The grade table
 
