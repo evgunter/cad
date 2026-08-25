@@ -24,6 +24,7 @@ pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+mod finding;
 pub mod ident;
 pub mod mate;
 pub mod meta;

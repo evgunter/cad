@@ -50,6 +50,19 @@ pub enum EntityKind {
     Vertex,
 }
 
+impl EntityKind {
+    /// The kind as a prose noun — the one spelling every user-facing
+    /// message uses, so a rendered kind never leans on `Debug`.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Body => "body",
+            Self::Face => "face",
+            Self::Edge => "edge",
+            Self::Vertex => "vertex",
+        }
+    }
+}
+
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).

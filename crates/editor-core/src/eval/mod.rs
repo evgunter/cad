@@ -647,6 +647,48 @@ pub enum NodeErrorKind {
     },
 }
 
+/// The undeclared-contact refusal as a document-layer finding
+/// ([`crate::finding`]): the refusing op is the subject, the story
+/// states the relation and forwards the ladder's own diagnostic, and
+/// the recourse is the two-armed menu (SELECT-DESIGN §3d, the #256
+/// ruling applied to contact: declare the finding or move the
+/// geometry — no absorb arm).
+struct UndeclaredContactFinding<'a> {
+    /// The candidate declaration, in the detector's value shape.
+    finding: &'a crate::names::FlushFinding,
+    /// The refusing predicate's diagnostics.
+    diag: &'a Indeterminate,
+}
+
+impl crate::finding::Finding for UndeclaredContactFinding<'_> {
+    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("the Boolean refused an undeclared contact")
+    }
+
+    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a face pair of its operands is {} without a shared source or declared \
+             intent; the coincidence ladder reports: {}",
+            match self.finding.evidence.relation {
+                topo::PlaneRelation::SameOpposite =>
+                    "coincident with opposed orientations (resting contact)",
+                topo::PlaneRelation::SameOriented =>
+                    "coincident with the same orientation (flush walls)",
+                // Never constructed on a finding; rendered honestly anyway.
+                topo::PlaneRelation::Distinct => "reported coincident",
+            },
+            self.diag
+        )
+    }
+
+    fn recourse(&self) -> &str {
+        "the refusal carries the candidate declaration (the pair, by stable name, \
+         with its relation); declare that finding and wire it into the Boolean's \
+         declare input, or move the geometry"
+    }
+}
+
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
 // and then FORWARDS its payload's own `Display` — the kernel refusal
@@ -660,20 +702,21 @@ pub enum NodeErrorKind {
 // the right to drop the payload: `UndeclaredContact` states its
 // two-armed menu (F6) AND renders its diagnostic.
 //
-// Five arms render prose over a payload and forward nothing, for ONE
-// reason between them — the payload is an editor-core type with no
-// `Display` to forward. `Expr` holds an `EvalError`, `DeclareResolve`
-// and `FilletSelectionResolve` a `resolve::ResolveError`,
-// `WitnessBifurcation` its own type, and `PlacementRule` a
-// `PlacementRuleFault` it hand-expands variant by variant — the second
-// prose vocabulary that fault set has, `edit.rs`'s four `EditError`
-// arms being the first. Four missing `Display` impls, one list; it is
-// **D54**, and this list and that row are the same list.
+// Every payload-holding arm forwards its payload's own `Display`;
+// the exception list is EMPTY — `EvalError`, `resolve::ResolveError`,
+// `WitnessBifurcation` and `PlacementRuleFault` (D54's four) all
+// carry one, and `PlacementRuleFault`'s is that fault set's ONE prose
+// vocabulary (the edit door's rule arms forward the same impl).
+// `UndeclaredContact` composes through the document layer's finding
+// sink ([`crate::finding`]): subject, story, its two-armed recourse.
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Expr { slot, .. } => {
-                write!(f, "the expression at slot {slot:?} failed to evaluate")
+            Self::Expr { slot, source } => {
+                write!(
+                    f,
+                    "the expression at slot {slot:?} failed to evaluate: {source}"
+                )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
             Self::ProfileReplay { loop_, error } => {
@@ -693,10 +736,14 @@ impl core::fmt::Display for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "instance {}'s seam declaration from mate {} names {name:?}, which \
-                 the pinned part's product does not name — the crossing does not \
-                 re-verify against this version of the part",
-                instance.0, mate.0
+                "instance {}'s seam declaration from mate {} names a {} of the part \
+                 (minted by its node {}), which the pinned part's product does not \
+                 name — the crossing does not re-verify against this version of the \
+                 part",
+                instance.0,
+                mate.0,
+                name.kind.noun(),
+                name.node.0
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -767,23 +814,9 @@ impl core::fmt::Display for NodeErrorKind {
                 "placements {i} and {j} are not certified disjoint — their conservative boxes meet, \
                  so the group union cannot be lowered through the disjoint-graft door"
             ),
-            Self::PlacementRule(fault) => match fault {
-                crate::node::PlacementRuleFault::CountSpelling => f.write_str(
-                    "the placement rule and the count slot disagree about how many placements \
-                     there are",
-                ),
-                crate::node::PlacementRuleFault::NoPlacements => f.write_str(
-                    "the placement list is empty — a group needs at least one placement, exactly \
-                     as a stepped rule needs a count of at least 1",
-                ),
-                crate::node::PlacementRuleFault::NonFiniteFrame { index } => {
-                    write!(f, "placement {index} has a non-finite coordinate")
-                }
-                crate::node::PlacementRuleFault::ImproperFrame { index, determinant } => write!(
-                    f,
-                    "placement {index} is improper (mirroring): determinant {determinant}"
-                ),
-            },
+            Self::PlacementRule(fault) => {
+                write!(f, "the node's placement rule is unusable: {fault}")
+            }
             Self::UnschedulableCycle => {
                 f.write_str("the node is in, or downstream of, a dependency cycle")
             }
@@ -791,49 +824,47 @@ impl core::fmt::Display for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {e}"),
-            Self::DeclareResolve { .. } => {
-                f.write_str("a declared name failed to resolve through the operands' tables")
-            }
+            Self::DeclareResolve { error } => write!(
+                f,
+                "a declared name failed to resolve through the operands' tables: {error}"
+            ),
             Self::DeclareBothOperands { name } => write!(
                 f,
-                "declared name {name:?} resolves in BOTH operands — the declaration cannot pick a side"
+                "the declared {} name minted by node {} resolves in BOTH operands — the \
+                 declaration cannot pick a side",
+                name.kind.noun(),
+                name.node.0
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
-                "declare pair {kinds:?} is outside the v1 threading vocabulary"
+                "declare pair ({}, {}) is outside the v1 threading vocabulary",
+                kinds.0.noun(),
+                kinds.1.noun()
             ),
             // The menu is what this arm owns and the payload cannot
-            // spell, so the prose stays — but the prose is an ADDITION
-            // to the diagnostic, not a replacement for it: the ladder's
-            // own account of what it measured rides out after the two
-            // levers, exactly as `Escalated` carries the same type.
-            Self::UndeclaredContact { finding, diag } => write!(
-                f,
-                "the Boolean refused an undeclared contact: a face pair of its operands \
-                 is {} without a shared source or declared intent — the refusal carries \
-                 the candidate declaration (the pair, by stable name, with its relation); \
-                 declare that finding and wire it into the Boolean's declare input, or \
-                 move the geometry. The coincidence ladder reports: {diag}",
-                match finding.evidence.relation {
-                    topo::PlaneRelation::SameOpposite =>
-                        "coincident with opposed orientations (resting contact)",
-                    topo::PlaneRelation::SameOriented =>
-                        "coincident with the same orientation (flush walls)",
-                    // Never constructed on a finding; rendered honestly anyway.
-                    topo::PlaneRelation::Distinct => "reported coincident",
-                }
-            ),
-            Self::FilletSelectionResolve { .. } => {
-                f.write_str("a fillet selection name failed to resolve")
+            // spell — stated through the finding sink as the arm's
+            // recourse, an ADDITION to the diagnostic rather than a
+            // replacement for it: the ladder's own account of what it
+            // measured rides the story, exactly as `Escalated` carries
+            // the same type.
+            Self::UndeclaredContact { finding, diag } => {
+                crate::finding::compose(f, &UndeclaredContactFinding { finding, diag })
+            }
+            Self::FilletSelectionResolve { error } => {
+                write!(f, "a fillet selection name failed to resolve: {error}")
             }
             Self::FilletSelectionKind { name, found } => write!(
                 f,
-                "fillet selection {name:?} denotes a {found:?}, not an edge"
+                "the fillet selection name minted by node {} denotes a {}, not an edge",
+                name.node.0,
+                found.noun()
             ),
             Self::FilletSelectionEmpty => f.write_str(
                 "the fillet selection is empty — an unfinished recipe, not the identity",
             ),
-            Self::WitnessBifurcation(_) => f.write_str("the sketch's branch selection refused"),
+            Self::WitnessBifurcation(refusal) => {
+                write!(f, "the sketch's branch selection refused: {refusal}")
+            }
             Self::Part { doc_ref, fault } => {
                 write!(f, "instantiating {doc_ref}: {fault}")
             }

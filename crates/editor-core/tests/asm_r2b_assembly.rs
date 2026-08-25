@@ -1502,3 +1502,80 @@ fn the_same_flush_seat_undeclared_is_the_hard_error() {
         "and every finding is that hard error: {errors:?}"
     );
 }
+
+/// **The refusal's rendering composes through the finding sink**: each
+/// finding is `subject: story` — the attribution (the mate a user can
+/// act on, and the relation) before the colon, the kernel's own
+/// finding forwarded verbatim after it, and never a `Debug` dump of
+/// either. The kernel's tier-3′ messages end in their own recourse,
+/// so the document layer appends none — exactly one recourse per
+/// finding, no generic tail.
+#[test]
+fn the_refusal_renders_attribution_prose_never_debug_guts() {
+    use editor_core::{AtRestFinding, Attribution, MintedDeclaration};
+
+    let minted = MintedDeclaration {
+        mate: RecipeNodeId(4),
+        a: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::Cap(CapEnd::Top)],
+        },
+        b: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(2),
+            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+        },
+        class: ContactClass::Rest,
+        faces: (topo::FaceKey::default(), topo::FaceKey::default()),
+    };
+    let finding = |attribution| AtRestFinding {
+        attribution,
+        error: topo::ValidationError::NegativeVolume,
+    };
+    let msg = AssemblyError::AtRest {
+        findings: vec![
+            finding(Attribution::Refuted(minted.clone())),
+            finding(Attribution::Declined(minted)),
+            finding(Attribution::Unattributed),
+        ],
+    }
+    .to_string();
+    // The header, then one composed line per finding.
+    assert!(
+        msg.contains("the at-rest gate refused (3 findings)"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("mate 4's declared Rest contact, refuted:"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("mate 4's declared Rest contact, uncertified:"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("no declaration answers for this finding:"),
+        "{msg}"
+    );
+    // The kernel's story rides each line, forwarded through its own
+    // `Display`.
+    assert!(
+        msg.contains("signed volume is definitely negative"),
+        "{msg}"
+    );
+    // The negative pin class: prose, never Debug — no struct braces,
+    // no variant or type name, no Debug-formatted payload.
+    for guts in [
+        "{",
+        "Refuted",
+        "Declined",
+        "Unattributed",
+        "NegativeVolume",
+        "AtRestFinding",
+        "StableName",
+        "ValidationError",
+    ] {
+        assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+    }
+}

@@ -255,8 +255,50 @@ fn refusals_render_as_prose_not_debug_guts() {
 /// roster and a fixture that holds one should hold the other.
 fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
     use editor_core::NodeErrorKind as K;
+    let name = |kind| editor_core::StableName {
+        kind,
+        node: RecipeNodeId(3),
+        path: vec![editor_core::RoleSeg::OutputBody],
+    };
     vec![
         K::Profile(profile::ProfileError::EmptyProfile),
+        K::Expr {
+            slot: editor_core::SlotId::Distance,
+            source: editor_core::EvalError::NonFiniteResult,
+        },
+        K::DeclareResolve {
+            error: Box::new(editor_core::ResolveError::NodeGone {
+                name: name(editor_core::EntityKind::Face),
+                edit: editor_core::RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(3),
+                },
+            }),
+        },
+        K::FilletSelectionResolve {
+            error: Box::new(editor_core::ResolveError::Ambiguous {
+                name: name(editor_core::EntityKind::Edge),
+                candidates: vec![],
+                tie: editor_core::TieWitness {
+                    node: RecipeNodeId(3),
+                    at: name(editor_core::EntityKind::Edge),
+                    width: 2,
+                },
+            }),
+        },
+        K::WitnessBifurcation(editor_core::WitnessBifurcation {
+            kind: editor_core::BifurcationKind::FoldProximity,
+            margin: editor_core::BranchMarginEvidence {
+                margin: 2e-10,
+                band_zero: 1e-9,
+                band_escalate: 1e-8,
+            },
+            implicated: vec![editor_core::Implicated::Constraint(1)],
+            witness_age: editor_core::WitnessAge {
+                solved_under: vec![],
+                at_solve: vec![],
+            },
+        }),
+        K::PlacementRule(editor_core::PlacementRuleFault::NonFiniteFrame { index: 3 }),
         K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
         K::Revolve(sweep::RevolveError::DegenerateAxis),
         K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
@@ -295,6 +337,11 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
         let rendered = kind.to_string();
         let payload = match &kind {
             K::Profile(e) => e.to_string(),
+            K::Expr { source, .. } => source.to_string(),
+            K::DeclareResolve { error } => error.to_string(),
+            K::FilletSelectionResolve { error } => error.to_string(),
+            K::WitnessBifurcation(e) => e.to_string(),
+            K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),
             K::Revolve(e) => e.to_string(),
             K::Skin(e) => e.to_string(),
@@ -312,5 +359,135 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             rendered.len() > payload.len(),
             "the arm must still name the failing op: {rendered:?}"
         );
+    }
+}
+
+/// **The document layer's own payload types render their own story**
+/// (the D54 set: `EvalError`, `ResolveError`, `WitnessBifurcation`,
+/// `PlacementRuleFault`) — each message states the problem in prose,
+/// carries its one recourse where the fault has one, and none of them
+/// leaks `Debug` structure. One case per `Display`, plus the arms
+/// whose recourse phrasing is load-bearing.
+#[test]
+fn the_document_layers_own_payloads_render_their_own_stories() {
+    use editor_core::{
+        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError, ParamName,
+        PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
+        WitnessBifurcation,
+    };
+
+    let name = |kind| StableName {
+        kind,
+        node: RecipeNodeId(5),
+        path: vec![RoleSeg::OutputBody],
+    };
+    let cases: Vec<(String, &[&str])> = vec![
+        (
+            EvalError::UnknownParam(ParamName::new("width")).to_string(),
+            &[
+                "\"width\"",
+                "has no binding",
+                "declare the document parameter",
+            ],
+        ),
+        (
+            EvalError::NonFiniteResult.to_string(),
+            &["not finite", "pole"],
+        ),
+        (
+            ResolveError::Vanished {
+                name: name(EntityKind::Face),
+                diagnosis: Diagnosis::PredicateFlip {
+                    predicate: "coincidence",
+                    from: geom_core::Sign::Zero,
+                    to: geom_core::Sign::Positive,
+                },
+                last_good: None,
+            }
+            .to_string(),
+            &[
+                "face name minted by node 5",
+                "no longer resolves",
+                "predicate coincidence flipped",
+            ],
+        ),
+        (
+            ResolveError::NodeGone {
+                name: name(EntityKind::Vertex),
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(5),
+                },
+            }
+            .to_string(),
+            &["vertex name", "node 5 was deleted", "explicit rebind"],
+        ),
+        (
+            WitnessBifurcation {
+                kind: BifurcationKind::AmbiguousBasin,
+                margin: BranchMarginEvidence {
+                    margin: 2e-10,
+                    band_zero: 1e-9,
+                    band_escalate: 1e-8,
+                },
+                implicated: vec![],
+                witness_age: WitnessAge {
+                    solved_under: vec![],
+                    at_solve: vec![],
+                },
+            }
+            .to_string(),
+            &[
+                "well-separated solution basins",
+                "margin 2e-10",
+                "re-solve to record a fresh witness",
+            ],
+        ),
+        (
+            PlacementRuleFault::CountSpelling.to_string(),
+            &["disagree about how many placements"],
+        ),
+        (
+            PlacementRuleFault::ImproperFrame {
+                index: 2,
+                determinant: -1.0,
+            }
+            .to_string(),
+            &["placement 2 is improper (mirroring)"],
+        ),
+    ];
+    for (rendered, expected) in cases {
+        for needle in expected {
+            assert!(rendered.contains(needle), "{needle:?} not in: {rendered}");
+        }
+        // The negative pin class: prose, never a Debug dump — no
+        // struct braces, no variant name.
+        for guts in [
+            "{",
+            "UnknownParam",
+            "NodeGone",
+            "PredicateFlip",
+            "AmbiguousBasin",
+        ] {
+            assert!(!rendered.contains(guts), "Debug guts leaked: {rendered}");
+        }
+    }
+    // The W3 layer-2 vocabulary ban, pinned on the rendering: the
+    // refusal is a certificate outcome, never a DOF slogan.
+    let refused = WitnessBifurcation {
+        kind: BifurcationKind::ResidualFailure,
+        margin: BranchMarginEvidence {
+            margin: 0.0,
+            band_zero: 1e-9,
+            band_escalate: 1e-8,
+        },
+        implicated: vec![],
+        witness_age: WitnessAge {
+            solved_under: vec![],
+            at_solve: vec![],
+        },
+    }
+    .to_string();
+    for banned in ["over-constrained", "under-constrained", "converge"] {
+        assert!(!refused.contains(banned), "W3 banned phrase: {refused}");
     }
 }
