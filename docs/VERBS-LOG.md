@@ -863,3 +863,17 @@ difficulty S logged pre-dispatch; consumes block VERBS-3 slot 2.
 Interleave plan: OFF-A + Wave 2's GATE spec next, OFF-B (meters +
 fit + certificate, L) after OFF-A lands, ARMS-3's conversation
 draft at the TUBEWALL merge seam.
+
+## TUBEWALL MERGED (#960, 2026-08-25) — WAVE 1 IMPLEMENTATION COMPLETE
+
+Row TUBEWALL (ordinal 69, sample #22, the TENTH cross-model pair —
+two from the twelve-pair target) in MODEL-AB-LOG. The hollow tube
+door lands with the three-decide wall family; the seam-rule
+posture gap met twice in the unit is filed as #990 (a design
+question for Evan); the tour scene is #986. **Every implementation
+row of Wave 1 is now MERGED**: RIM, CHAMFER, ARMS-1, ARMS-2,
+TUBEWALL, RING, DEMO (plus the unplanned ARCEVAL/SSIFLAT defect
+units the wave surfaced). Remaining Wave-1 item: ARMS-3's
+design conversation (OQ6 run-out taxonomy — Evan-gated), drafting
+next. Wave 3 opened concurrently (OFF-A implementing). Seam
+sweep: verbs-tubewall + both reviewer lanes.
