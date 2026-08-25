@@ -33,7 +33,7 @@ fn section(z: f64, a: f64, phi: f64) -> NurbsCurve3<f64> {
         })
         .collect();
     let knots = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0],
+        vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.0, 1.0, 1.0],
         3,
     )
     .unwrap();
