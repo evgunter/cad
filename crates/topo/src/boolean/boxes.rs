@@ -323,7 +323,7 @@ pub(crate) fn slab_extent<T: Real>(
 ) -> SpanBox<T> {
     let perp = |a: Span<T>| {
         let a_lo = a.abs_min();
-        radius * (T::one() - a_lo * a_lo).max(T::zero()).sqrt()
+        radius * (T::one() - a_lo.powi(2)).max(T::zero()).sqrt()
     };
     SpanBox {
         x: origin.x.add(h.mul(axis.x)).widen(perp(axis.x)),
@@ -359,7 +359,7 @@ pub(crate) fn torus_extent<T: Real>(
 ) -> SpanBox<T> {
     let reach = |a: Span<T>| {
         let a_lo = a.abs_min();
-        (major + minor) * (T::one() - a_lo * a_lo).max(T::zero()).sqrt() + minor * a.abs_max()
+        (major + minor) * (T::one() - a_lo.powi(2)).max(T::zero()).sqrt() + minor * a.abs_max()
     };
     SpanBox {
         x: center.x.widen(reach(axis.x)),
@@ -388,7 +388,7 @@ pub(crate) fn conic_extent<T: Real>(
 ) -> SpanBox<T> {
     let reach = |u: Span<T>, v: Span<T>| {
         let (a, b) = (u.abs_max() * semi_u, v.abs_max() * semi_v);
-        (a * a + b * b).sqrt()
+        (a.powi(2) + b.powi(2)).sqrt()
     };
     SpanBox {
         x: center.x.widen(reach(u_ref.x, v_ref.x)),
@@ -405,7 +405,7 @@ pub(crate) fn conic_extent<T: Real>(
 pub(crate) fn max_reach<T: Real>(from: &SpanBox<T>, bnd: &SpanBox<T>) -> T {
     let d = bnd.map(*from, Span::sub);
     let (dx, dy, dz) = (d.x.abs_max(), d.y.abs_max(), d.z.abs_max());
-    (dx * dx + dy * dy + dz * dz).sqrt()
+    (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt()
 }
 
 /// **The one soundness rule for a face's box**, stated per surface
@@ -611,13 +611,9 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // PROPAGATE: `Aabb::hull` carries NaN, and a NaN projection
     // reaches the poison box rather than being dropped by an
     // `f64::min` that ignores it.
-    let slab_boundary =
-        |axis: Vec3<T>| -> Result<Option<(SpanBox<f64>, SpanBox<f64>)>, BooleanError> {
-            let Some(bnd) = boundary_hull(body, f)? else {
-                return Ok(None);
-            };
-            Ok(Some((span_of(bnd), bracket_vector(axis))))
-        };
+    let slab_boundary = || -> Result<Option<SpanBox<f64>>, BooleanError> {
+        Ok(boundary_hull(body, f)?.map(span_of))
+    };
     let boxed = match face_box_rule(surface) {
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         FaceBoxRule::WholeBall { center, radius } => {
@@ -639,9 +635,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             axis,
             radius,
         } => {
-            let Some((bnd, axis_span)) = slab_boundary(axis)? else {
+            let Some(bnd) = slab_boundary()? else {
                 return Ok(Aabb::poison());
             };
+            let axis_span = bracket_vector(axis);
             let origin = bracket_point(origin);
             let h = axial_range(&origin, &axis_span, &bnd);
             aabb_of(slab_extent(&origin, &axis_span, h, radius.hi()))
@@ -651,9 +648,10 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             axis,
             half_angle,
         } => {
-            let Some((bnd, axis_span)) = slab_boundary(axis)? else {
+            let Some(bnd) = slab_boundary()? else {
                 return Ok(Aabb::poison());
             };
+            let axis_span = bracket_vector(axis);
             let apex = bracket_point(apex);
             let h = axial_range(&apex, &axis_span, &bnd);
             // ρ = |v|·sin α, with |v| the generator length the

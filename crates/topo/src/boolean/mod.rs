@@ -751,7 +751,7 @@ pub enum BooleanError {
     /// rule the meeting out, and that if they do meet it has no arm
     /// for the pair.
     ///
-    /// [`Self::op`] carries the op when the kind is admitted for
+    /// The `op` field carries the op when the kind is admitted for
     /// OTHERS and refused for this one — `Nurbs` under ∖ and ∩ — and
     /// is `None` when no op has an arm for the kind.
     ///
