@@ -57,6 +57,8 @@ mod m5_pr9_tangent;
 mod m7_8_plane_nurbs_edge;
 #[path = "m8_f67_r1_probes.rs"]
 mod m8_f67_r1_probes;
+#[path = "offa_r1_probes.rs"]
+mod offa_r1_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
