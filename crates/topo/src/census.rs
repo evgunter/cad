@@ -1325,36 +1325,37 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
         Some((lo, hi))
     };
-    // **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated in
-    // this lane's arithmetic.** The rules — which kinds have a cheap
-    // sound superset, and by what construction — are read from there;
-    // only the min/max is re-derived. An unboxable kind is `None` here
-    // and poison there — refuse without a distance test, versus never
-    // prune. Both loud.
+    // **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated at
+    // this lane's scalar.** Both the rules — which kinds have a cheap
+    // sound superset, and by what construction — AND the min/max
+    // arithmetic that realizes them come from there: the per-kind
+    // extents are written once, against `boxes::Span`, and this lane
+    // enters them with degenerate spans (`lo == hi`) at its own `T`
+    // while the boolean lane enters them with `[lo(), hi()]` brackets
+    // at `f64`. Neither takes a bound the other cannot, and nothing
+    // here re-derives an extent.
     //
-    // "Unboxable" is a property of the DESCRIPTION, not only of the
-    // surface kind, and the two lanes part company on it. A NURBS
+    // What this lane still owns is its ARENA WALK (`boundary_reach`
+    // reads `body.loops`/`body.half_edges` directly rather than
+    // through the `Body` accessors the `Bounds`-allowlisted lane uses)
+    // and its answer for a description with no claim in it: `None`,
+    // versus the poison box there. Neither is arithmetic. A NURBS
     // placeholder has a poison control net: `face_box` folding it to a
-    // poison box is correct there, because poison never prunes. Folding
-    // it here would produce `Some((NaN, NaN))`, which is neither a claim
-    // nor a refusal — every margin against it decides NEITHER sign — so
-    // `reach_box` answers `None` for it, which is what the sentence above
-    // promises. That is the one place this instantiation must diverge
-    // from the `f64` one rather than merely re-derive its arithmetic.
-    //
-    // **The reason for the duplication has LAPSED, and its replacement is
-    // weaker.** It used to read: `face_box` reads `[lo(), hi()]` under a
-    // per-file `Bounds` allowlist (geom-core `real.rs`) that this lane is
-    // not on "and cannot join, because the census validates `Dual` bodies
-    // and `Dual` has no bracket". Since the D1 ruling (2026-08-19) `Dual`
-    // HAS a bracket — the value channel's — so that impossibility is
-    // gone. What is left is the discipline rule itself: `census.rs` is
-    // not allowlisted, so writing `T: Decide + Bounds` here fires
-    // `scripts/gates/bounds-allowlist.sh` until the seam is ratified.
-    // That is a process reason, not a type one, and it does not by itself
-    // justify carrying two derivations of the same min/max that can
-    // silently diverge, with no differential row between them. Filed as
-    // issue #700 rather than left as prose in a merged PR body.
+    // poison box is correct there, because poison never prunes.
+    // Folding it here would produce `Some((NaN, NaN))`, which is
+    // neither a claim nor a refusal — every margin against it decides
+    // NEITHER sign — so `reach_box` answers `None`.
+    let span_pts = |s: crate::boolean::boxes::SpanBox<T>| {
+        (
+            Point3::new(s.x.lo, s.y.lo, s.z.lo),
+            Point3::new(s.x.hi, s.y.hi, s.z.hi),
+        )
+    };
+    let span_box = |(lo, hi): (Point3<T>, Point3<T>)| crate::boolean::boxes::SpanBox {
+        x: crate::boolean::boxes::Span { lo: lo.x, hi: hi.x },
+        y: crate::boolean::boxes::Span { lo: lo.y, hi: hi.y },
+        z: crate::boolean::boxes::Span { lo: lo.z, hi: hi.z },
+    };
     let edge_reach = |ek: crate::entity::EdgeKey| -> Option<(Point3<T>, Point3<T>)> {
         let e = body.edges.get(ek)?;
         let end = |he| -> Option<Point3<T>> {
@@ -1383,22 +1384,23 @@ fn sweep_cross_solid_backstop<T: Decide>(
                 u_ref,
             } => {
                 let v_ref = axis.cross(u_ref);
-                let reach = |ui: T, vi: T| ui.abs() * semi_u + vi.abs() * semi_v;
-                let (rx, ry, rz) = (
-                    reach(u_ref.x, v_ref.x),
-                    reach(u_ref.y, v_ref.y),
-                    reach(u_ref.z, v_ref.z),
-                );
+                let (flo, fhi) = span_pts(crate::boolean::boxes::conic_extent(
+                    &crate::boolean::boxes::SpanBox::point(center),
+                    &crate::boolean::boxes::SpanBox::vector(u_ref),
+                    &crate::boolean::boxes::SpanBox::vector(v_ref),
+                    semi_u,
+                    semi_v,
+                ));
                 Some((
                     Point3::new(
-                        (center.x - rx).min(chord.0.x),
-                        (center.y - ry).min(chord.0.y),
-                        (center.z - rz).min(chord.0.z),
+                        flo.x.min(chord.0.x),
+                        flo.y.min(chord.0.y),
+                        flo.z.min(chord.0.z),
                     ),
                     Point3::new(
-                        (center.x + rx).max(chord.1.x),
-                        (center.y + ry).max(chord.1.y),
-                        (center.z + rz).max(chord.1.z),
+                        fhi.x.max(chord.1.x),
+                        fhi.y.max(chord.1.y),
+                        fhi.z.max(chord.1.z),
                     ),
                 ))
             }
@@ -1442,7 +1444,6 @@ fn sweep_cross_solid_backstop<T: Decide>(
             .get_face(f)
             .and_then(|d| body.surfaces.get(d.surface))?;
         match crate::boolean::boxes::face_box_rule(surface) {
-            crate::boolean::boxes::FaceBoxRule::NoSoundBox => None,
             crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(f),
             crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
                 if patch.is_placeholder() {
@@ -1477,10 +1478,23 @@ fn sweep_cross_solid_backstop<T: Decide>(
                 }
                 Some((lo, hi))
             }
-            crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => Some((
-                Point3::new(center.x - radius, center.y - radius, center.z - radius),
-                Point3::new(center.x + radius, center.y + radius, center.z + radius),
-            )),
+            crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => {
+                Some(span_pts(crate::boolean::boxes::ball_extent(
+                    &crate::boolean::boxes::SpanBox::point(center),
+                    radius,
+                )))
+            }
+            crate::boolean::boxes::FaceBoxRule::WholeTorus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+            } => Some(span_pts(crate::boolean::boxes::torus_extent(
+                &crate::boolean::boxes::SpanBox::point(center),
+                &crate::boolean::boxes::SpanBox::vector(axis),
+                major_radius,
+                minor_radius,
+            ))),
             crate::boolean::boxes::FaceBoxRule::CylinderSlab {
                 origin,
                 axis,
@@ -1491,37 +1505,27 @@ fn sweep_cross_solid_backstop<T: Decide>(
                 // linear along the surface, so the face's axial
                 // extremes lie ON the boundary — but not necessarily
                 // at a boundary VERTEX.
-                let (blo, bhi) = boundary_reach(f)?;
-                let corners = [
-                    Point3::new(blo.x, blo.y, blo.z),
-                    Point3::new(bhi.x, bhi.y, bhi.z),
-                    Point3::new(blo.x, blo.y, bhi.z),
-                    Point3::new(blo.x, bhi.y, blo.z),
-                    Point3::new(bhi.x, blo.y, blo.z),
-                    Point3::new(blo.x, bhi.y, bhi.z),
-                    Point3::new(bhi.x, blo.y, bhi.z),
-                    Point3::new(bhi.x, bhi.y, blo.z),
-                ];
-                let proj = |p: Point3<T>| {
-                    (p.x - origin.x) * axis.x
-                        + (p.y - origin.y) * axis.y
-                        + (p.z - origin.z) * axis.z
-                };
-                let mut it = corners.iter();
-                let h0 = proj(*it.next()?);
-                let (mut h_min, mut h_max) = (h0, h0);
-                for p in it {
-                    let h = proj(*p);
-                    h_min = h_min.min(h);
-                    h_max = h_max.max(h);
-                }
-                let a = origin + axis * h_min;
-                let b = origin + axis * h_max;
-                let r = radius;
-                Some((
-                    Point3::new(a.x.min(b.x) - r, a.y.min(b.y) - r, a.z.min(b.z) - r),
-                    Point3::new(a.x.max(b.x) + r, a.y.max(b.y) + r, a.z.max(b.z) + r),
-                ))
+                let bnd = span_box(boundary_reach(f)?);
+                let origin = crate::boolean::boxes::SpanBox::point(origin);
+                let axis = crate::boolean::boxes::SpanBox::vector(axis);
+                let h = crate::boolean::boxes::axial_range(&origin, &axis, &bnd);
+                Some(span_pts(crate::boolean::boxes::slab_extent(
+                    &origin, &axis, h, radius,
+                )))
+            }
+            crate::boolean::boxes::FaceBoxRule::ConeSlab {
+                apex,
+                axis,
+                half_angle,
+            } => {
+                let bnd = span_box(boundary_reach(f)?);
+                let apex = crate::boolean::boxes::SpanBox::point(apex);
+                let axis = crate::boolean::boxes::SpanBox::vector(axis);
+                let h = crate::boolean::boxes::axial_range(&apex, &axis, &bnd);
+                let radius = crate::boolean::boxes::max_reach(&apex, &bnd) * half_angle.sin();
+                Some(span_pts(crate::boolean::boxes::slab_extent(
+                    &apex, &axis, h, radius,
+                )))
             }
         }
     };
