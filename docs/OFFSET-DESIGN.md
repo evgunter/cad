@@ -29,7 +29,12 @@ What is genuinely new is the refusal set, owned by the offset door
 itself (today's degeneracy gates live at call sites, e.g. the
 ring-torus refusal in the fillet battery): `r − d ≤ 0` for
 cylinder/sphere/torus-minor inward offsets, the torus crossing
-`minor ≥ major` (spindle), the cone offset crossing its apex. Each
+`minor ≥ major` (spindle), the cone offset crossing its apex
+*(the cone item resolved at OFF-A per this spec's own
+derive-and-drop rule: nothing STORED degenerates — the apex
+translates finitely — so no door predicate exists; the real
+question is the consumer-side v-window crossing the shifted apex,
+scheduled as the OFF-C/D window predicate)*. Each
 is a named margined Q1 predicate over the INPUTS, evaluated before
 construction — DESIGN.md:1823 already ratifies this stance for
 shell/offset ("same principle applies"); O1 just instantiates it.

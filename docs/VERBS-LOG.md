@@ -902,3 +902,37 @@ assume), wall 4 stays pair-scoped-refused, lily wall 7's refusal
 becomes true (its retirement still waits on SPHSPH per Evan's
 steering). Difficulty M logged pre-dispatch; consumes VERBS-3
 slot 3. Two lanes now: OFF-A (Wave 3) + GATE (Wave 2).
+
+## OFF-A up (#994); ordinal 73 claimed at dispatch (2026-08-25)
+
+OFF-A complete at first pass, no deviations: the cone-slide sign
+derived from the stored normal's axial coefficient (no numeric
+branch), and the cone refusal DERIVED TO BE A NON-QUESTION and
+dropped with the argument (nothing stored approaches a validity
+edge — the parameterization-shift question belongs to OFF-C/D's
+windowed consumers). The TUBEWALL realized-radius lesson is a
+planted red at radius 1e16. **Ordinal 73 claimed at dispatch**
+(ledger through 72 = M9-3's dual on main at claim; 73 not a third)
+— single fable review, frozen 11d955f1ecd8f48e9f07b95f397e5daf354e77b8.
+
+## OFF-A MERGED (#994, 2026-08-25) — Wave 3's substrate begins
+
+Row OFFA (ordinal 73) in MODEL-AB-LOG. The analytic offset mint
+exists with door-owned refusals and echo payloads; the apex-window
+predicate is scheduled into OFF-C/D (plan + OFFSET-DESIGN
+annotated). Next: the OFF-B spec — the two meters (certified
+lower bound on ‖S_u×S_v‖; d vs 1/κ_max collapse) + the A9.4/A9.10
+fit + the two-limb certificate — Wave 3's hardest unit. GATE
+still implementing.
+
+## OFF-B spec committed (2026-08-25)
+
+The program's hardest unit: the two meters (the tree's first
+inf-side surface bound — #528's shared shape named; the collapse
+meter as radius-headroom one dimension up), the Book's A9.4/A9.10
+fit stack in-house, and the C8 two-limb certificate with the
+regularity floor making the normalized normal boundable. Machinery
+only — Surface::Approx and all storage/validator wiring stay
+OFF-C's. The analytic oracle (cylinder/sphere as exact rational
+NURBS vs OFF-A's closed forms) is the acceptance spine. Difficulty
+L logged pre-dispatch; consumes block VERBS-3 slot 4.

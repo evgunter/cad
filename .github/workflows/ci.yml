@@ -1081,6 +1081,10 @@ jobs:
     # always claimed. Anyone reading interval-vs-f64 runtime off an opt-0
     # CI leg is reading a flattered number.
     #
+    # (The three lines below still describe the opt-0/opt-2 pair, which is
+    # what they were measured for; see the 2026-08-25 block at the foot of
+    # this note for the level this job actually sets today.)
+    #
     # NOTE these supersede local-scripts/test-fast.sh's "75 s -> 4.9 s"
     # (15x, 2026-07-21, 807 tests) — the suite has since grown to 2791
     # tests and the ones added are less compute-bound, so that header is
@@ -1132,6 +1136,75 @@ jobs:
     # rust-cache key and buys one cold rebuild, so a single run cannot
     # settle it (the same trap this note's own header warns about).
     #
+    # ============================================================
+    # NOW opt-level 1, NOT 2 (Evan, 2026-08-25). EVERYTHING ABOVE THIS LINE
+    # IS THE HISTORY OF A TWO-POINT COMPARISON, and the two points were the
+    # wrong ones.
+    #
+    # The whole argument above minimises `a + E` over a knob with four
+    # settings while only ever evaluating two of them, and those two sit at
+    # opposite extremes of BOTH terms. Nothing in this repository — #52/#53,
+    # #449, the census, this note, the calibration lane's first two samples —
+    # had ever measured, proposed or rejected `opt-level = 1`. It was not a
+    # considered omission; the question had not been asked. And the room was
+    # visible in the lane's own numbers: in the 2026-08-25 sample the build
+    # penalty opt-2 swallowed to buy its execution win (`a2 - a0` = 499 s) was
+    # more than twice the margin it won by (220 s).
+    #
+    # A three-arm sweep, each arm a clean build plus a full-suite run in this
+    # job's own environment (2026-08-25, 3489 tests, ALL THREE ARMS GREEN):
+    #
+    #   opt-0   build 143 s + execute 289 s = 432 s
+    #   opt-1   build 307 s + execute  60 s = 367 s      <- adopted
+    #   opt-2   build 427 s + execute  58 s = 485 s
+    #
+    # opt-1 keeps 97% of opt-2's execution speed (60 s against 58 s) for 58%
+    # of its build penalty (+164 s against +284 s over opt-0), and wins
+    # outright. Derived `r` = E0/E2 = 4.98, which reproduces the census's
+    # 4.95/4.99 almost exactly.
+    #
+    # AND THE SUITE IS GREEN AT THE LEVEL THIS NOW SETS, which is the only
+    # part of the above that is a correctness question rather than a cost
+    # one. All three arms above were green at 3489/3489; the flip was then
+    # re-checked on main as merged (3515 tests by then): 3515/3515 passed at
+    # opt-1, build 313 s, execute 62 s. That is expected rather than lucky —
+    # debug-assertions and overflow-checks do not move with opt-level and
+    # rustc does not enable fast-math at any of them — but "expected" is not
+    # evidence, so it was run.
+    #
+    # THE HONEST CAVEAT, AND IT IS THE SAME ONE THIS NOTE HAS MADE TWICE
+    # ALREADY: that sweep was taken on a 4-core AVX-512 guest, the same class
+    # as the census box and NOT this 2-vCPU runner. A ratio does not transfer
+    # between machines — the figures above are themselves a demonstration
+    # (3.24x local against 4.58x hosted; 2.29x local against 7.1x hosted). So
+    # this flip is made on evidence from a box the calibration lane explicitly
+    # distrusts, before a single opt-1 sample from the runner existed. That is
+    # a deliberate choice and the reason for it is that THE FASTEST WAY TO GET
+    # RUNNER DATA ON opt-1 IS TO RUN THE GATE ON opt-1: every PR now produces
+    # a real opt-1 archive step and a real opt-1 test row, and
+    # nightly.yml's calibration lane reads exactly those durations for free.
+    # The lane's measured arms are now opt-0 and opt-2, so reverting stays
+    # a measured decision rather than a guess.
+    #
+    # WHAT WOULD REVERSE IT: the lane reporting `opt-0` or `opt-2` on the
+    # runner, with margin, across more than one sample. Read
+    # docs/perf-data/opt-level/ before acting on any single one — the FIRST
+    # samples after this change are the least trustworthy, because this knob
+    # change rotates the rust-cache key here and the lane's opt-2 arm is
+    # building against a brand-new key of its own. Both of those buy one cold
+    # rebuild, which is the exact trap the paragraph directly above warns
+    # about.
+    #
+    # UNCHANGED BY THE FLIP: debug-assertions and overflow-checks are
+    # opt-level-independent, so fail-loud postconditions keep their teeth at 1
+    # exactly as at 2; the D9 bit-exactness pins hold at any opt level (the
+    # python-suite job's note says so — opt never moves rounding); k-lint
+    # still does NOT get this env, so the committed K sweep baselines keep the
+    # configuration they were produced under; and Cargo.toml's per-package
+    # opt-2 overrides for spade + mesh are untouched, since they cover the
+    # `cargo test`-driven jobs that do not set this env at all.
+    # ============================================================
+    #
     # Cargo.toml's per-package opt-2 overrides (spade + mesh) stay: they
     # cover the `cargo test`-driven jobs that do NOT set this env.
     #
@@ -1146,8 +1219,8 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
       # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
       # repo variable SCCACHE set to "0"; unset means enabled, so the
       # trial runs without a variable needing to exist.
@@ -1307,7 +1380,9 @@ jobs:
   # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
   # RELEASE semantics; the archive matrix above is the dev profile at
-  # opt-2 with debug-assertions ON, so it cannot be what runs them.
+  # opt-1 with debug-assertions ON, so it cannot be what runs them. (The
+  # level moved from 2 on 2026-08-25; the point is unaffected, because what
+  # disqualifies the matrix is debug-assertions, which no opt level moves.)
   # `review_m1_pr2::release_corruption` splits its expectations on
   # `cfg(debug_assertions)` outright, so no single profile covers the
   # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
@@ -1463,13 +1538,13 @@ jobs:
     # OPT LEVEL notes there. This job is the run's critical path (its
     # archive feeds the longest test leg in the run), so it is the one
     # that most wants them: the interval lane's slowest leg was 828 s of
-    # pure execution, and opt-2 is aimed squarely at that.
+    # pure execution, and the opt-level knob is aimed squarely at that.
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
       # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
       # repo variable SCCACHE set to "0"; unset means enabled, so the
       # trial runs without a variable needing to exist.
@@ -1561,8 +1636,8 @@ jobs:
   #
   # Deliberately NOT inheriting build-interval's env: this job links no
   # test binaries, so mold buys nothing and its ~12 s apt install would
-  # cost more than it saves, and opt-level 2 would slow the compile with
-  # nothing executing at scale to pay it back. It keeps only the
+  # cost more than it saves, and the archive jobs' opt level would slow the
+  # compile with nothing executing at scale to pay it back. It keeps only the
   # debuginfo knobs, which are pure win. Its own rust-cache key follows
   # from the no-shared-key rule documented on build-interval.
   lint-interval:
@@ -1604,7 +1679,11 @@ jobs:
   # gate. So the overlap comes back deliberately: ~234 s of execution
   # (2 x the 117 s the pre-selection lane measured per shard at opt-2)
   # against the ~22 billed minutes of default-lane build, test and clippy
-  # that the draw skipped.
+  # that the draw skipped. (That 117 s is an opt-2 reading and the tree moved
+  # to opt-1 on 2026-08-25. It is left as taken: the sweep behind that flip
+  # measured opt-1 execution within 3% of opt-2's, so the term this sentence
+  # weighs does not move enough to change what it concludes — and a figure
+  # re-stated without being re-taken is worse than a dated one.)
   #
   # `scripts/interval-only-selection.py` is NOT deleted: local-scripts/
   # ci-local.sh still runs both lanes on one tree, where the overlap is the
