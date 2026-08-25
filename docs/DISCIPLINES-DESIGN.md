@@ -20,7 +20,9 @@ narrowed to the count, the staleness direction proved non-optional
 within one review cycle, DS-Q3 is answered for grade 4, and DS-Q4
 carries its first-PR position. Round 5 opens the registry to
 out-of-tree checks — DS9, three rulings from Evan plus one
-recommendation awaiting reaction.) This doc schedules **no
+recommendation awaiting reaction. Round 6 ruled that arm: the funnel
+is exposed to plugins, with verdict-producer provenance replacing
+default exclusion; and the machinery unification is planned, #981.) This doc schedules **no
 implementation** and changes **no behavior** — every mandatory check
 named below keeps its current force whether or not this is ratified.
 What it ratifies, if accepted, is a *classification* and a *pattern*:
@@ -449,9 +451,12 @@ its strictest position. The shipped disciplines are **not
 refactored onto the registry** for organization's sake; they adopt
 shared machinery only where a second consumer makes the sharing real
 (the finding/menu/severity sink at the document layer is the
-plausible first such seam — `refusal_menu` in
+first such seam — `refusal_menu` in
 `editor-core/src/eval/wire.rs` already renders discipline refusals
-through one door). The first resident (connectedness) SHIPPED at
+through one door). The unification is PLANNED as of round 6 — #981:
+the sink first, then the DS1 discipline scaffolding materializing
+with the parameter-coincidence unit; the predicates themselves stay
+in their geometry homes per DS1. The first resident (connectedness) SHIPPED at
 round 4 with the registry's finding/severity/report plumbing; next
 in the named order: the parameter-coincidence lint (Expr-layer only,
 no kernel contact — the first discipline-shaped resident), then the
@@ -498,17 +503,22 @@ Consequences, binding on the implementing unit when it comes:
   provision**: the report machinery supplies finding-keyed
   acknowledgment records generically, so "error requires a waiver
   door" holds by construction for every registered check.
-- **Funnel participation (RECOMMENDED — the one arm not yet ruled).**
-  The plugin API exposes `decide`-with-`Margin` as the sanctioned
-  comparison path, so a plugin inherits the escalation band,
-  multi-ε behavior, and verdict-log testability instead of
-  hand-rolled float compares; plugin sites carry a namespace prefix
-  and are excluded by default from the k-lint roster, the #214
-  dimensional audit, and the K census — those are repo-scoped
-  instruments (enforced by scanning source and pinned by rosters),
-  and plugin verdicts entering the K evidence base would contaminate
-  any future re-derivation of K. Aggregating namespaced plugin
-  verdicts separately stays possible if ever wanted.
+- **Funnel participation (RULED, round 6 — Evan: expose it, and
+  record provenance rather than excluding).** The plugin API exposes
+  `decide`-with-`Margin` as the sanctioned comparison path, so a
+  plugin inherits the escalation band, multi-ε behavior, and
+  verdict-log testability instead of hand-rolled float compares.
+  Verdict recording gains **producer provenance**: every recorded
+  decision carries which check/discipline (kernel subsystem, check
+  id, or plugin id) produced it, namespaced plugin sites included —
+  one census stream, filtered by its consumers. A K re-derivation
+  filters to kernel-origin sites, so third-party verdicts flow
+  through the same funnel with no contamination of the K evidence
+  base and no second-class channel. The provenance field is a small
+  `k_stats` unit and a prerequisite of opening registration. The
+  k-lint roster and the #214 dimensional audit remain repo-scoped
+  regardless — they scan source, a physical limit rather than a
+  policy.
 
 ## The grade table
 
