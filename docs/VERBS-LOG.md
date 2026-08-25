@@ -639,3 +639,24 @@ realized-gap collapse class, 218 configurations measured at
 evidence is false for them); the PR's merit sentence is backwards
 (M2); the ratified log entry contradicts the code and the gate
 (M3). Adjudication of the 69 union waits on R1.
+
+## Ordinal-69 dual complete; TUBEWALL fix pass out (2026-08-25)
+
+R1 fable AWF 0/3/3 (resumed post-outage; upheld the metering
+deviation both halves, verified at ε-scale walls; found the
+VERBS-LOG Decide+Bounds contradiction independently). R2 opus AWF
+3/4/7+ (pre-outage): the complementary regime — the realized gap
+`minor − wall` is never decided, so at km-scale radii the
+subtraction rounds the bore onto the outer wall and the refusal
+comes from downstream certification by luck, with the
+Carried{Positive} evidence FALSE for that class; the branch's own
+first commit had the guard and the metering rewrite silently
+deleted it (the one silent deviation, and exactly what the
+dispatch asked adjudicated). Labels converged, substance
+PARTITIONED BY REGIME — each reviewer's fixtures covered what the
+other's missed, the dual earning its cost cleanly. Union fix
+dispatched: the third decide (tube_wall_gap), the backwards merit
+sentence corrected, the log contradiction fixed, both probe
+suites adopted, main re-merged (the outage delta). Also noted:
+classify_shells on main answers DEMO finding 6 and the RING
+winding-oracle caveat — a future unit's wiring, not this PR's.
