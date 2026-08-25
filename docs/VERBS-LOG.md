@@ -618,6 +618,101 @@ assertion (the recipe ring and the direct ring agree bit-exactly,
 checked every pass). Renders re-baseline on this merge. Seam
 sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
 TUBEWALL dual (69), ARMS-2 review (70).
+## VERBS-TUBEWALL implemented (2026-08-23, lane verbs/tubewall)
+
+The door: `tube_along_arc_hollow(center, axis, u_ref, major_radius,
+window, minor_radius, wall, tol)` — a SIBLING, not a widened
+signature, so the solid door keeps its signature and its suite is
+untouched. BOTH doors take `T: Decide` — no bracket read anywhere on
+the path, see the wall-validation paragraph below. Both doors are one
+private `build` with `wall: Option<T>`; the hand-written
+`swept_segments` involution came out as `circle_traversal(center,
+radius, turn, reversed)` with the three combinations the doors use
+named in its docs. That is the whole elaboration: the hollow form is
+one MORE loop through the same revolve machinery — the outer circle
+as before, the inner circle as the revolve's hole loop, in the
+traversal each construction expects (forward/clockwise for a full
+period, where the hole builds as its own hole-as-outer solid;
+reversed/counterclockwise for a window, where it is an ordinary ring
+in the start cap). No new geometry code and no second construction.
+
+Full-period policy, mirrored from the solid door honestly: the solid
+door supports `TubeWindow::Full`, so the hollow one does, and its
+inner wall closes into a CAVITY — `build_full`'s existing holed path
+inserts it through `topo::insert_void` with `Carried { Positive }`,
+the VERBS-RING route unchanged. The evidence that carries: the two
+circles are concentric and the door has already decided the
+thickness, the bore AND the realized gap between the two stored radii
+definitely positive, so the inner circle is strictly inside the outer
+in the sketch and revolution about the shared axis maps that to 3-D
+verbatim. Both `full.rs`'s and `voids.rs`'s Carried-evidence prose
+gained this third source, which was previously written as if a
+validated profile were the only one. A window is an ordinary open
+elbow of annular section — one shell, two annular wedge caps.
+
+Wall validation went the other way from the brief's suggested
+posture, and the reason is worth recording. The brief asked for a
+plain bracket-read check (the chamfer `NonpositiveSize` precedent);
+that spelling needs `T: Decide + Bounds`, which the ratified
+compound-`Bounds` scope rule allows only in named seams
+(`scripts/gates/bounds-allowlist.sh` — the discipline job caught it
+on the first push, correctly). Rather than ratify a new seam for an S
+unit, the checks went through the door's OWN funnel: plain LINEAR
+margins in meters (unlike this door's levered angular window/frame
+margins), the posture this door already uses for its caller-supplied
+window (`tube_window_span`).
+
+**The merit claim, stated correctly after the ordinal-69 dual — the
+first version of this paragraph was wrong by omission and is
+corrected here rather than left standing.** The two regimes come
+apart and each spelling wins one:
+
+- **ε-scale walls** (R1's fixtures): metering is better. A 1e-20 m
+  wall is not positive at any run tolerance, so the metered form
+  refuses it and escalates an in-band one, where a bracket read
+  accepts both and builds a sliver.
+- **The collapse regime** (R2's finding, the one R1's fixtures never
+  reached): the bracket read was better, and the metering rewrite
+  SILENTLY DELETED the guard that covered it. The branch's own first
+  commit (c56c77d5) had `WallBelowResolution`, a check on the
+  realized separation of the two stored radii; the rewrite dropped it
+  along with the bracket reads it was written in. At large radii —
+  measured, 218 configurations at ε=1e-12 from `minor_radius` ≈
+  5.24e5 m up — a thickness far above ε still falls under that
+  radius's own ulp, both surviving decides answer Positive, and
+  `minor_radius - wall` rounds onto `minor_radius`. Nothing built,
+  but the refusals came from the pcurve mint and the cap-plane Newell
+  fit AFTER everything was classified, i.e. by luck rather than by a
+  wall door — and the cavity's `Carried { Positive }` was by then a
+  FALSE certificate over two coincident circles.
+
+The fix pass covers both with a THIRD decide in the accepted metered
+posture: `tube_wall_gap` on `Margin::of(minor_radius - inner)` — the
+difference of the two numbers the walls will store, not of the two
+the caller wrote. Three arms: `NonpositiveWall`, `WallExceedsRadius`,
+`WallGapCollapsed`, each carrying the run's threshold (not the
+caller's value: with `T: Decide` alone there is no f64 door out of a
+`T`, which is the same seam rule again). The lesson worth keeping:
+a rewrite that changes the *spelling* of a check can silently drop a
+*case* the old spelling covered, and neither the suite nor the gate
+said so — only a reviewer whose fixtures reached the other regime.
+
+Exactness posture: outer wall bit-identical to the solid door's;
+inner wall stores `minor_radius - wall`, one IEEE subtraction of the
+caller's own numbers, pinned with `==` on the bits. Refusal messages
+now name the door honestly: a hollow-only predicate escalation says
+`tube_along_arc_hollow`, and the arms both doors share say `tube
+door` rather than claiming the solid one. KERNEL-VERBS register row
+retired to the present (bound stated: one concentric constant wall,
+nothing eccentric or varying; the STEP claim SOFTENED to "expected" —
+nothing runs the hollow tube through the writer today, and the tour
+scene that would pin it is issue #986). north-star row 19 widened.
+Both review probe branches adopted whole (r1 + r2), with the two
+record-current-behavior rows amended rather than deleted: one now
+pins the corrected door naming, the other inverts to require that
+every collapsed bore is named by a wall door. PR: verbs/tubewall
+(#960).
+
 
 ## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
 
