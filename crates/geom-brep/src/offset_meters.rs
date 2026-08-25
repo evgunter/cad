@@ -38,6 +38,13 @@
 //!   to rounding, so the projection is divided by a certified upper
 //!   bound on `‖d̂‖`). This is the assembly that survives a cell where
 //!   every component straddles but the vector does not.
+//! - **The Gram determinant**: Lagrange's identity
+//!   `‖S_u × S_v‖² = EG − F²`, evaluated on the first fundamental
+//!   form's own enclosures. `E` and `G` are DEPENDENT squares — no
+//!   cancellation to lose — so on a near-orthogonal chart (`F ≈ 0`)
+//!   this is far tighter than either cross-product assembly, whose
+//!   three components each carry the full width of two factors. It is
+//!   also the only assembly that tightens the SUP side.
 //!
 //! ## Conservatism direction, stated
 //!
@@ -91,21 +98,21 @@
 //! critical distance on the folding side.
 //!
 //! `κ` is bounded through the two fundamental forms, both read off the
-//! same cell enclosures:
+//! same cell enclosures, in the **closed form** rather than as a
+//! quotient of separately bounded quadratic forms
+//! (`cell_curvature` carries the derivation and the measured reason):
 //!
 //! ```text
-//! II(a,b) = L a² + 2M ab + N b²   L = n·S_uu,  M = n·S_uv,  N = n·S_vv
-//! I(a,b)  = E a² + 2F ab + G b²   E = S_u·S_u, F = S_u·S_v, G = S_v·S_v
-//! λ_min(I) ≥ det(I)/tr(I) = ‖S_u × S_v‖² / (E + G) ≥ floor²/(E+G)
+//! II: L = n·S_uu,  M = n·S_uv,  N = n·S_vv
+//! I:  E = S_u·S_u, F = S_u·S_v, G = S_v·S_v
+//! A = EG − F² = ‖S_u × S_v‖²   B = LG − 2MF + NE   C = LN − M²
+//! κ± = H ± √(H² − K),   H = B/2A,   K = C/A
 //! ```
 //!
-//! so over `a² + b² = 1`, `min(lo L, lo N) − |M| ≤ II ≤
-//! max(hi L, hi N) + |M|` and `κ = II/I` is bounded by dividing by
-//! `λ_min` (for the same-signed side) or by `tr(I)` (for the
-//! opposite-signed side, where the larger denominator is the
-//! conservative one). **This is the one place the two meters compose**:
-//! the normal `n` in `II` is the normalized normal, enclosed as
-//! `M_c / [floor, sup]` — meter 1's floor is what makes it exist.
+//! **This is the one place the two meters compose**: the normal `n` in
+//! `II` is the normalized normal, enclosed as `M_c / [floor, sup]`,
+//! and `A` is taken as `[floor², sup²]` — meter 1's floor is what
+//! makes both exist.
 //!
 //! This is the fillet battery's radius-headroom shape one dimension
 //! up: there, a blend radius against a spine's curvature; here, an
@@ -115,7 +122,26 @@ use geom_core::ring_interval::RingInterval;
 use geom_core::{Band, Indeterminate, Margin, Sign};
 
 use crate::dihedral::decide;
-use crate::patch_bound::PatchCell;
+use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
+
+/// The refinement ladder the door walks, coarsest first (D9: a fixed
+/// geometric sequence in a fixed order — no value branch chooses it).
+/// The first rung on which BOTH meters certify wins; if none does,
+/// the finest rung's refusal is the answer.
+///
+/// A ladder rather than one fixed schedule because the cost is real
+/// and the need is not uniform: a cylinder certifies at the first
+/// rung and pays nothing more, while an exactly-umbilic patch (a
+/// sphere band) needs the second before its certified curvature range
+/// is inside a factor of two of the single value the surface actually
+/// has — see [`patch_cells_refined`] for why the widths shrink only
+/// linearly in the span size.
+///
+/// Two rungs and not more because a rung costs `splits²` cells: the
+/// second already answers every fixture measured, and a third is a
+/// decision for the first consumer that meets a patch needing it —
+/// the refusal names the numbers, so that consumer will know.
+pub const OFFSET_METER_LADDER: [usize; 2] = [16, 64];
 
 /// A typed refusal of one of the two offset meters (D4 ¶3). Scalar
 /// payloads echo the classified margin's ingredients — data, not a
@@ -226,10 +252,16 @@ fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
     ]
 }
 
+/// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
+/// a component straddling zero cannot drag the lower end negative
+/// (`x·x` treats its factors as independent; `x.sqr()` does not).
+fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
+    v[0].sqr() + v[1].sqr() + v[2].sqr()
+}
+
 /// A certified upper bound on `‖v‖` for a componentwise enclosure.
 fn norm_sup(v: &[RingInterval; 3]) -> f64 {
-    let s = v[0].sqr() + v[1].sqr() + v[2].sqr();
-    sqrt_up(s.hi())
+    sqrt_up(norm_sq(v).hi())
 }
 
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
@@ -270,10 +302,21 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     } else {
         0.0
     };
+    // Assembly C: the Gram determinant, `‖m‖² = EG − F²` (Lagrange's
+    // identity). It bounds BOTH ends, and on a chart whose parameter
+    // directions are near-orthogonal it is dramatically tighter than
+    // either cross-product assembly — `E` and `G` are DEPENDENT
+    // squares with no cancellation to lose, while the cross product's
+    // three components each carry the full width of two factors. On
+    // the sphere-band fixture it is the assembly that moves the
+    // certified curvature range from tens to fractions.
+    let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
+    let c = sqrt_down(gram.lo());
+    let floor = if a > b { a } else { b };
     CellNormal {
         m,
-        floor: if a > b { a } else { b },
-        sup: norm_sup(&m),
+        floor: if floor > c { floor } else { c },
+        sup: norm_sup(&m).min(sqrt_up(gram.hi())),
     }
 }
 
@@ -378,8 +421,48 @@ pub struct PatchCollapse {
 /// One cell's certified principal-curvature range, or `None` when its
 /// normal could not be bounded away from zero (meter 1's refusal is
 /// the caller's, and it fires first).
+///
+/// The principal curvatures are the eigenvalues of the shape operator
+/// `W = I⁻¹·II`, equivalently the roots of `det(II − κ·I) = 0`, i.e.
+/// `κ² A − κ B + C = 0` with
+///
+/// ```text
+/// A = EG − F² = ‖S_u × S_v‖²      B = L G − 2 M F + N E      C = L N − M²
+/// H = B / 2A   (mean)             K = C / A   (Gaussian)
+/// κ± = H ± √(H² − K)
+/// ```
+///
+/// **TWO sound assemblies, the tighter end of each winning** — the
+/// regularity floor's join, one level up. Neither alone is good
+/// enough, and the reason is instructive:
+///
+/// - The closed form's `√(H² − K)` is a **square root of a
+///   cancellation**. On an umbilic patch `H² − K` is identically
+///   zero, so its enclosure is pure interval slack `δ` and the root
+///   contributes `√δ` — an amplifier, not an attenuator. Measured on
+///   the sphere-band fixture it alone reported `κ ∈ [−11.6, 6.4]`
+///   where the surface has the single value `−0.5`.
+/// - Gershgorin on the shape operator has no root at all: its radius
+///   is `|W₁₂|`, which for an umbilic patch is a two-term
+///   cancellation (`GM − FN = 0`) whose enclosure is `O(δ)`, linear.
+///   That is what brings the same fixture inside a factor of three.
+///
+/// The closed form still wins where the off-diagonal entries are
+/// genuinely large and the discriminant genuinely positive (a patch
+/// with well-separated principal curvatures in a skew chart), so both
+/// run and the intersection is taken.
+///
+/// A quadratic-form estimate — `|II| ≤ max(L, N) + |M|` over
+/// `λ_min(I) ≥ det/tr` — is worse than either: it throws away every
+/// correlation between the two forms at once.
+///
+/// `A` is taken from meter 1's own bounds (`[floor², sup²]`) rather
+/// than re-derived as `E·G − F·F`, because that difference does not
+/// cancel in interval arithmetic and the floor is the tighter — and
+/// already certified — fact.
 fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let n = cell_normal(cell);
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(n.floor > 0.0) || !n.sup.is_finite() {
         return None;
     }
@@ -388,39 +471,42 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     // this division legal (the ring refuses a zero-touching divisor).
     let mag = RingInterval::from_bounds(n.floor, n.sup);
     let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
-    let ii_l = dot(&unit, &cell.s_uu);
-    let ii_m = dot(&unit, &cell.s_uv);
-    let ii_n = dot(&unit, &cell.s_vv);
-    let e = dot(&cell.s_u, &cell.s_u);
-    let g = dot(&cell.s_v, &cell.s_v);
-    let trace_hi = e.hi() + g.hi();
-    if !(trace_hi > 0.0) || !trace_hi.is_finite() {
+    let (l, m, nn) = (
+        dot(&unit, &cell.s_uu),
+        dot(&unit, &cell.s_uv),
+        dot(&unit, &cell.s_vv),
+    );
+    let e = norm_sq(&cell.s_u);
+    let f = dot(&cell.s_u, &cell.s_v);
+    let g = norm_sq(&cell.s_v);
+    let two = RingInterval::point(2.0);
+    let a = RingInterval::from_bounds(n.floor, n.sup).sqr();
+    // Assembly A — the closed form `κ± = H ± √(H² − K)`.
+    let b = l * g - two * m * f + nn * e;
+    let c = l * nn - m.sqr();
+    let h = b / (two * a);
+    let k = c / a;
+    // `H² − K` is nonnegative at every real point (the principal
+    // curvatures are real), so an enclosure whose upper end is
+    // negative is rounding, not geometry: the root is zero there.
+    let root = sqrt_up((h.sqr() - k).hi().max(0.0));
+    let (a_hi, a_lo) = (h.hi() + root, h.lo() - root);
+    // Assembly B — Gershgorin on the shape operator `W = I⁻¹·II`,
+    // `I⁻¹ = (1/A)·[[G, −F], [−F, E]]`. Its eigenvalues ARE the
+    // principal curvatures (real, since `W` is similar to a symmetric
+    // matrix), so every one lies within `|W₁₂|` of `W₁₁` or within
+    // `|W₂₁|` of `W₂₂`.
+    let w11 = (g * l - f * m) / a;
+    let w12 = (g * m - f * nn) / a;
+    let w21 = (e * m - f * l) / a;
+    let w22 = (e * nn - f * m) / a;
+    let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());
+    let b_lo = (w11.lo() - w12.mag()).min(w22.lo() - w21.mag());
+    // Both assemblies are sound, so the tighter end of each wins.
+    let (k_hi, k_lo) = (a_hi.min(b_hi), a_lo.max(b_lo));
+    if !k_hi.is_finite() || !k_lo.is_finite() {
         return None;
     }
-    // λ_min(I) ≥ det/tr = ‖m‖²/(E + G) ≥ floor²/(E + G).
-    let lambda_lo = (n.floor * n.floor / trace_hi).next_down();
-    if !(lambda_lo > 0.0) {
-        return None;
-    }
-    let mag_m = ii_m.mag();
-    let hi = ii_l.hi().max(ii_n.hi()) + mag_m;
-    let lo = ii_l.lo().min(ii_n.lo()) - mag_m;
-    if !hi.is_finite() || !lo.is_finite() {
-        return None;
-    }
-    // Dividing a nonnegative II-bound by the SMALLEST admissible
-    // `I` is the conservative direction; a negative one divides by
-    // the largest (`tr(I) ≥ λ_max`).
-    let k_hi = if hi >= 0.0 {
-        (hi / lambda_lo).next_up()
-    } else {
-        (hi / trace_hi).next_up()
-    };
-    let k_lo = if lo <= 0.0 {
-        (lo / lambda_lo).next_down()
-    } else {
-        (lo / trace_hi).next_down()
-    };
     Some((k_lo, k_hi))
 }
 
@@ -468,6 +554,52 @@ pub fn patch_collapse(cells: &[PatchCell], d: f64) -> PatchCollapse {
         reach,
         headroom: reach - d.abs(),
     }
+}
+
+/// Both door meters, over the refinement ladder (module docs): the
+/// first rung on which BOTH certify wins, and its readings are what
+/// the certificate carries. A rung that fails escalates to the next;
+/// the finest rung's refusal is returned as the door's.
+///
+/// # Errors
+///
+/// [`MeterError`] from the finest rung tried, or the patch-bound
+/// assembly's own refusal.
+pub fn meter_patch(
+    base: &geom::surfaces::NurbsSurface<f64>,
+    d: f64,
+    band: Band,
+) -> Result<(PatchRegularity, PatchCollapse), MeterResult> {
+    let mut last: Option<MeterError> = None;
+    for splits in OFFSET_METER_LADDER {
+        let cells = patch_cells_refined(base, splits).map_err(MeterResult::PatchBound)?;
+        let reg = patch_regularity(&cells);
+        let coll = patch_collapse(&cells, d);
+        match offset_normal_floor(&reg, d, band).and_then(|()| {
+            offset_curvature_headroom(&coll, band)?;
+            Ok(())
+        }) {
+            Ok(()) => return Ok((reg, coll)),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(MeterResult::Meter(last.unwrap_or(
+        MeterError::NormalFloor {
+            floor: 0.0,
+            sine_floor: 0.0,
+            lever: d.abs(),
+        },
+    )))
+}
+
+/// What [`meter_patch`] refuses with: a meter's own verdict, or the
+/// patch-bound assembly's structural refusal underneath it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MeterResult {
+    /// A meter refused (or escalated) at the finest rung tried.
+    Meter(MeterError),
+    /// The per-cell assembly could not be built at all.
+    PatchBound(PatchBoundError),
 }
 
 /// **`offset_curvature_headroom`** — the collapse predicate (module

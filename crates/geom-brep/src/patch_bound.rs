@@ -223,9 +223,46 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
     check_direction(n.knots_u())?;
     check_direction(n.knots_v())?;
     if is_rational(n) {
-        rational_cells(n)
+        rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
         integral_cells(n)
+    }
+}
+
+/// [`patch_cells`] on an EXPLICIT refinement schedule: every nonempty
+/// span of every direction is cut into `splits` equal pieces first,
+/// in **both** arms.
+///
+/// Why a consumer would ask for more than [`patch_cells`] gives: a
+/// B-spline coefficient hull over one knot span covers the whole
+/// `(p + 1)`-span support of the basis functions active there, so its
+/// width shrinks only LINEARLY in the span size, with a constant
+/// `p + 1` times the cell. A sup-side consumer barely notices; an
+/// inf-side one does, because the width is subtracted from the
+/// quantity it is trying to prove positive. The measured case is the
+/// exactly-umbilic sphere band: at 16 splits the first fundamental
+/// form's own `F` — identically zero on an orthogonal chart —
+/// encloses as `[−0.82, 0.81]`, and the certified curvature range
+/// comes out twenty times wider than the surface's single value.
+/// Refinement is exact in ℝ, so this buys tightness and nothing else.
+///
+/// # Errors
+///
+/// As [`patch_cells`], plus [`PatchBoundError::RefinementFailed`].
+pub fn patch_cells_refined(
+    n: &NurbsSurface<f64>,
+    splits: usize,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
+    check_direction(n.knots_u())?;
+    check_direction(n.knots_v())?;
+    if is_rational(n) {
+        rational_cells(n, splits)
+    } else {
+        let refined = n
+            .refine_knots_u(&split_points(n.knots_u(), splits))
+            .and_then(|r| r.refine_knots_v(&split_points(r.knots_v(), splits)))
+            .map_err(|_| PatchBoundError::RefinementFailed)?;
+        integral_cells(&refined)
     }
 }
 
@@ -273,6 +310,14 @@ pub fn derived_knots(kv: &KnotVector) -> Result<KnotVector, PatchBoundError> {
 /// collapses onto a span end — refinement is a tightening, never a
 /// correctness condition.
 pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
+    split_points(kv, RATIONAL_CERT_SPLITS)
+}
+
+/// The interior split points that cut every nonempty span of `kv`
+/// into `splits` equal pieces, skipping any point floating point
+/// collapses onto a span end — refinement is a tightening, never a
+/// correctness condition (the speed meter's rule, verbatim).
+pub fn split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
     let mut add = Vec::new();
     for span in kv.first_span()..=kv.last_span() {
         if !kv.span_is_nonempty(span) {
@@ -281,9 +326,9 @@ pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
         let (Some(&lo), Some(&hi)) = (kv.knots().get(span), kv.knots().get(span + 1)) else {
             continue;
         };
-        for k in 1..RATIONAL_CERT_SPLITS {
+        for k in 1..splits {
             #[allow(clippy::cast_precision_loss)]
-            let f = k as f64 / RATIONAL_CERT_SPLITS as f64;
+            let f = k as f64 / splits as f64;
             let u = lo + (hi - lo) * f;
             if u > lo && u < hi {
                 add.push(u);
@@ -580,7 +625,7 @@ fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
 /// nets, on the cells of the fixed [`RATIONAL_CERT_SPLITS`]
 /// refinement (module docs).
 #[allow(clippy::too_many_lines)]
-fn rational_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
+fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>, PatchBoundError> {
     // The convex-combination licence, on f64 STRUCTURE. `!(w > 0.0)`
     // catches NaN. (`NurbsSurface::new` refuses these at the door;
     // re-checked here so THIS bound never divides by an unproven
@@ -590,8 +635,8 @@ fn rational_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
         return Err(PatchBoundError::NonPositiveWeight);
     }
     let refined = n
-        .refine_knots_u(&rational_split_points(n.knots_u()))
-        .and_then(|r| r.refine_knots_v(&rational_split_points(r.knots_v())))
+        .refine_knots_u(&split_points(n.knots_u(), splits))
+        .and_then(|r| r.refine_knots_v(&split_points(r.knots_v(), splits)))
         .map_err(|_| PatchBoundError::RefinementFailed)?;
     let r = &refined;
     // Positivity survives insertion in ℝ (convex combinations); this

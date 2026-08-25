@@ -52,6 +52,7 @@
 use super::knots::{KnotVector, SplineError, find_span_in};
 use crate::ring_interval::RingInterval;
 
+pub mod patch;
 pub mod tensor;
 
 /// A typed compose refusal (entry-point structure validation).
@@ -428,14 +429,35 @@ const BINOM_EXACT_MAX: usize = 54;
 /// unconditionally, which would break the rehearsal's ratified
 /// bit-identity pin for the exact small-degree cases.)
 fn binom_row(n: usize) -> Vec<f64> {
-    if n > BINOM_EXACT_MAX {
-        return vec![f64::NAN; n + 1];
-    }
-    let mut row = vec![1.0f64; n + 1];
-    for k in 1..=n {
-        row[k] = row[k - 1] * ((n - k + 1) as f64) / (k as f64);
-    }
-    row
+    binom_table()
+        .get(n)
+        .cloned()
+        .unwrap_or_else(|| vec![f64::NAN; n + 1])
+}
+
+/// The binomial rows `0 ..= BINOM_EXACT_MAX`, built once. A memo, not
+/// a second spelling: the rows are exactly the recurrence
+/// [`binom_row`] used to run inline, bit for bit. It exists because
+/// the tensor composites ask for the same few rows hundreds of
+/// thousands of times per bound.
+fn binom_table() -> &'static [Vec<f64>] {
+    static TABLE: std::sync::OnceLock<Vec<Vec<f64>>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        (0..=BINOM_EXACT_MAX)
+            .map(|n| {
+                let mut row = vec![1.0f64; n + 1];
+                for k in 1..=n {
+                    // The association is the original's, exactly:
+                    // `(row[k−1] · (n−k+1)) / k`, NOT
+                    // `row[k−1] · ((n−k+1)/k)`. The two differ in
+                    // rounding, and these rows feed bounds with
+                    // bit-identity pins.
+                    row[k] = row[k - 1] * ((n - k + 1) as f64) / (k as f64);
+                }
+                row
+            })
+            .collect()
+    })
 }
 
 /// Bernstein product of two coefficient rows (degrees from lengths):

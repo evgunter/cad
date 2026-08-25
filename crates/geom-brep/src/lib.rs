@@ -27,6 +27,17 @@
 //! the door-owned degeneracy refusals (the realized-radius floor, the
 //! torus ring convention) decided before any mint — see [`offset`].
 //!
+//! [`offset_fit`] is the approximating half that [`offset`]'s NURBS
+//! arm refuses into: the Book's §9.4 grid interpolation plus a
+//! refine-until-certified loop, and the two-limb certificate of
+//! `sup ‖S_fit − (S + d·n)‖`. It stands on two meters
+//! ([`offset_meters`]) — a certified LOWER bound on `‖S_u × S_v‖`
+//! (the tree's first inf-side surface bound; the offset is undefined
+//! where the normal degenerates) and the collapse headroom `|d|`
+//! against the patch's certified curvature reach — both read off
+//! [`patch_bound`]'s per-cell control-hull enclosures, which are also
+//! what `mesh`'s tessellation deviation certificate consumes.
+//!
 //! The geometry-arena key types ([`PointKey`], [`CurveKey`],
 //! [`SurfaceKey`]) are defined here (descriptions reference surfaces by
 //! arena key) and re-exported by `topo` for its `Body<T>` arenas —
