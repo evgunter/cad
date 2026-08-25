@@ -25,7 +25,11 @@ fn section(z: f64, a: f64, phi: f64) -> NurbsCurve3<f64> {
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let t = i as f64 / (n - 1) as f64;
-            Point3::new(2.0 * t, a * (3.0 * t + phi).sin(), z + 0.15 * (2.0 * t + phi).cos())
+            Point3::new(
+                2.0 * t,
+                a * (3.0 * t + phi).sin(),
+                z + 0.15 * (2.0 * t + phi).cos(),
+            )
         })
         .collect();
     let knots = KnotVector::clamped(
