@@ -290,7 +290,7 @@ impl fmt::Display for ChecksReport {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChecksError {
     /// A root produced no value in this evaluation (failed, poisoned,
-    /// or past a cancelation's prefix) — the [`crate::product`]
+    /// or past a cancelation's prefix) — the [`crate::product()`]
     /// posture: checks are defined over roots that evaluated, and a
     /// report over a partial evaluation would claim more than was
     /// checked.
