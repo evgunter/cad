@@ -956,3 +956,23 @@ carrier-graze candidates the over-width kept alive) — courtesy
 note owed to M9. **Ordinal 74 claimed at dispatch** (ledger
 through 73 on main; not a third) — single fable review, frozen
 b2a8bad1.
+
+## OFF-B up (#1003); ordinal 75 claimed at dispatch (2026-08-25)
+
+The program's hardest unit landed green: the three-bound
+regularity floor (mignitude / fixed-projection / Gram determinant,
+conservatism direction stated and pinned), the collapse meter, the
+A9.4 fit with its ONE forced deviation (the Book's chord-length
+parameters would leave no pointwise claim to certify — the
+ratified O3 claim forced the chart's own parameters), the
+insert-and-recertify refinement (A9.10's shape; the compression
+half scheduled), and the two-limb certificate whose sup limb rides
+ALGEBRAIC RATIONALIZATION (X = Ẽ·Ẽ − d²w², Y = Ẽ×M̃ — coefficients
+cancel to the residual's scale where separate hulls would need
+millions of cells). Oracle: bound/sample 3-5x across five rows.
+The mesh hull assembly LIFTED (not called — layering) with mesh's
+numbers unmoved 91/91. Both hosted draws were interval —
+the default compile mode is the dual's unique signal. **Ordinal 75
+claimed at dispatch → a third → DUAL CROSS-MODEL (sample #24, the
+ELEVENTH pair — one from the twelve-pair notification threshold)**:
+R1 fable + R2 opus, frozen db2580f9.
