@@ -509,3 +509,86 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 // AUTHORS — the lattice's junction checks are local and all four
 // corners are sharp — and `Profile::validate` refuses it typed, never
 // Ok) and pins the error variant the demo only printed.
+
+/// **A bud's mouth rim, filleted** — the curved-support fillet verb
+/// from an outside consumer's seat, and #319's own consumer shape: a
+/// sphere zone meeting a conical pucker on a bored base, revolved
+/// FULL, with a rolling ball run along the sphere×cone latitude circle
+/// where they meet.
+///
+/// The pair is COAXIAL, so its blend is a torus and the arm is exact —
+/// no fitted band anywhere on the part. It is a probe-only body: it
+/// carries no stop and no montage cell, and it exists so the
+/// curved-support half of the `fillet3_*` family (in particular
+/// `fillet3_support_coaxiality`, which no plane-supported scene can
+/// reach) records margins in the K corpus, exactly as `spacer` does for
+/// the chamfer.
+///
+/// # Panics
+///
+/// If the profile does not validate, the revolve fails, the mouth rim
+/// is not the one closed latitude circle of radius `0.8`, or the fillet
+/// refuses — each of which would be a frontier that moved.
+pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
+    // The sphere zone rides the UNIT circle about the origin from its
+    // equator to the 3-4-5 point (0.8, 0.6), where the pucker takes
+    // over; the via point is that arc's own midpoint.
+    let lp: ProfileLoop<S> = Open
+        .at(p2(0.2, 0.0))
+        .line_to(p2(1.0, 0.0), tol)
+        .expect("bud base annulus")
+        .arc_to(
+            Via {
+                q: p2(0.948_683_298_050_513_8, 0.316_227_766_016_837_9),
+                p: p2(0.8, 0.6),
+            },
+            tol,
+        )
+        .expect("bud belly rides the unit sphere")
+        .line_to(p2(0.35, 0.75), tol)
+        .expect("bud conical pucker")
+        .line_to(p2(0.2, 0.75), tol)
+        .expect("bud lip disk")
+        .line_to(Start, tol)
+        .expect("bud bore")
+        .into();
+    let body = revolve(
+        &validated(SketchPlane::xy(), vec![lp], tol).expect("bud profile validation"),
+        axis_y(),
+        Revolution::Full,
+        tol,
+    )
+    .expect("revolve bud")
+    .body;
+    // The mouth: the one CLOSED latitude rim of radius 0.8. Selected by
+    // the analytically known radius, the way every rim fixture is.
+    let mouth: Vec<pncad::topo::EdgeKey> = body
+        .edges()
+        .filter(|(_, e)| {
+            let closed =
+                body.get_half_edge(e.he_plus).map(|h| h.start) == body.half_edge_end(e.he_plus);
+            // The radius is read through `Bounds`, not compared as a
+            // scalar: `Scalar` is the recording lane too, where a bare
+            // `<` is not available and would not mean what it says.
+            let r = body
+                .get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .and_then(|c| match *c.carrier() {
+                    pncad::geom::Curve3::Circle { radius, .. } => Some(radius),
+                    _ => None,
+                });
+            closed && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
+    pncad::sweep::fillet::fillet_edges(
+        &body,
+        &mouth,
+        S::from_f64(0.05),
+        pncad::geom_core::Band::linear(tol).expect("the run's band"),
+        tol,
+    )
+    .expect("the sphere-cone mouth rim fillets")
+    .body
+}

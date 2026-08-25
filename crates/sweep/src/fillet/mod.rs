@@ -26,6 +26,18 @@
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`
 //!
+//! Beside them sits one **routing** decision, which is not a validity
+//! predicate and is named apart for that reason:
+//! `fillet3_support_coaxiality`, the departure of a CURVED support pair
+//! from the shared axis (or shared ruling) its arm's spine is derived
+//! from, in meters at the link's own lever arm. Every other fact a
+//! curved arm needs — the surface kinds, the nappe, the material side —
+//! is read structurally off stored data; "these two stored axes are the
+//! same axis" is the one that is placed geometry and cannot be. A
+//! definite miss refuses [`FilletError::SpineUnsupported`], because a
+//! pair that is not coaxial has a spine that is neither line nor circle
+//! and belongs to the canal unit.
+//!
 //! # Why `fillet3_*` and not S2's `fillet_*`
 //!
 //! S2's seven `fillet_*` predicates are a **profile-plane**
