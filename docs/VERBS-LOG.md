@@ -618,3 +618,24 @@ assertion (the recipe ring and the direct ring agree bit-exactly,
 checked every pass). Renders re-baseline on this merge. Seam
 sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
 TUBEWALL dual (69), ARMS-2 review (70).
+
+## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
+
+The session hit the model usage limit mid-wave: both in-flight
+reviewers (TUBEWALL R1, ARMS-2 R1) terminated mid-review and the
+orchestrator loop froze ~2 days. On resume: #960/#962 still open
+and untouched, reviewer lanes intact, main moved only with other
+programs' work. Both reviewers RESUMED from transcript (their
+context held unreported findings — resume over fresh per the
+death-recovery rule): TUBEWALL R1 had verified C1's bit-identity
+half and owes the interval run + report; ARMS-2 R1 was mid-anomaly
+(base probe rows passing unexpectedly — told to suspect a stale
+target serving head binaries before trusting any base run).
+TUBEWALL R2's report arrived BEFORE the outage and is severe:
+AWF 3 MAJOR — the metering rewrite silently DELETED the
+WallBelowResolution guard its own first commit had (M1: the
+realized-gap collapse class, 218 configurations measured at
+1e-12, never refused by a wall door — and the Carried{Positive}
+evidence is false for them); the PR's merit sentence is backwards
+(M2); the ratified log entry contradicts the code and the gate
+(M3). Adjudication of the 69 union waits on R1.
