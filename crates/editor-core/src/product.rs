@@ -194,7 +194,7 @@ impl core::error::Error for ProductError {}
 /// (the `BooleanBody` contract, which predates the channel), every
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
-fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
+pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
     match &value.payload {
@@ -434,7 +434,7 @@ type Source<T> = (
 
 /// One body-denoting source as [`sources_of`] hands it back: output
 /// index, body, and the records keyed in that body's arena.
-type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
+pub(crate) type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
 
 /// Re-keys one grafted body's contact records onto the aggregate,
 /// through the graft's DESCENDANT MAP (`product_recorded`'s contacts
