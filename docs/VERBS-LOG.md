@@ -924,3 +924,15 @@ annotated). Next: the OFF-B spec — the two meters (certified
 lower bound on ‖S_u×S_v‖; d vs 1/κ_max collapse) + the A9.4/A9.10
 fit + the two-limb certificate — Wave 3's hardest unit. GATE
 still implementing.
+
+## OFF-B spec committed (2026-08-25)
+
+The program's hardest unit: the two meters (the tree's first
+inf-side surface bound — #528's shared shape named; the collapse
+meter as radius-headroom one dimension up), the Book's A9.4/A9.10
+fit stack in-house, and the C8 two-limb certificate with the
+regularity floor making the normalized normal boundable. Machinery
+only — Surface::Approx and all storage/validator wiring stay
+OFF-C's. The analytic oracle (cylinder/sphere as exact rational
+NURBS vs OFF-A's closed forms) is the acceptance spine. Difficulty
+L logged pre-dispatch; consumes block VERBS-3 slot 4.
