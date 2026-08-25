@@ -152,48 +152,186 @@ impl ContactAcc {
     }
 }
 
-/// The per-arm operand gate (M5 PR 9, C12.1 — the F5 planar-only gate
-/// retires PER C5 TABLE ARM, never wholesale). It is named for the
-/// kinds it admits, which are no longer only planar ones. Face kinds with at
-/// least one wired boolean arm pass here — `Plane`, `Cylinder` (the
-/// PR 5 conic arms), `Sphere` (the PR 7 cylinder×sphere SSI arm,
-/// structurally routed), and `Nurbs` (the plane×NURBS arm, routed
-/// structurally so PR 7b's flag flip alone makes it live) — and the
-/// pair-level refusals move to the sites that EXERCISE an arm (the
-/// sweep's crossing lanes, the join's section table), where they cite
-/// the C5 routing. Kinds with no wired arm at all (`Cone`, `Torus`)
-/// keep the gate refusal. Edge carriers: `Line`/`Circle`/`Ellipse`
-/// pass this gate (the crossing lanes handle all three; the both-split
-/// point lane still needs a `Line`, and says so where it refuses);
-/// `Nurbs` operand edges refuse typed — a rung-3 INPUT operand is
-/// outside the supported envelope, rung-3 edges being what the zip
-/// MINTS rather than what it consumes.
-pub(super) fn gate_operand_kinds<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
+/// **The face kinds with at least one wired boolean arm** — `Plane`,
+/// `Cylinder` (the PR 5 conic arms), `Sphere` (the PR 7
+/// cylinder×sphere SSI arm, structurally routed) and `Nurbs` (the
+/// plane×NURBS arm, routed structurally so PR 7b's flag flip alone
+/// makes it live). Pair-level refusals fire at the sites that
+/// EXERCISE an arm (the sweep's crossing lanes, the join's section
+/// table), citing the C5 routing; kinds with no wired arm at all
+/// (`Cone`, `Torus`) are what [`gate_operand_pairs`] tests boxes for.
+pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
+    matches!(
+        surface,
+        geom::Surface::Plane { .. }
+            | geom::Surface::Cylinder { .. }
+            | geom::Surface::Sphere { .. }
+            | geom::Surface::Nurbs(_)
+    )
+}
+
+/// One unsupported-kind face and the face of the other operand whose
+/// box it may meet — [`first_unsupported_pair`]'s finding, and the
+/// payload of the refusals built from it.
+pub(super) struct UnsupportedPair {
+    /// The operand carrying the unsupported-kind face.
+    pub operand: Operand,
+    /// That face.
+    pub face: FaceKey,
+    /// Its kind — the half of the germ pair with no arm.
+    pub kind: geom_brep::SurfaceKind,
+    /// The other operand's face whose box overlaps it.
+    pub other_face: FaceKey,
+    /// That face's kind — the other half of the germ pair.
+    pub other_kind: geom_brep::SurfaceKind,
+}
+
+/// **The pair-scoped operand scan: the first face whose KIND has no
+/// wired arm AND whose box may meet the other operand.**
+///
+/// A face kind is a property of a face, but an OPERATION is a
+/// property of a pair, so a kind can only disqualify an operation
+/// through a pair it could enter. Boxes decide that, at box-level
+/// conservatism:
+///
+/// - **Non-overlap is a certificate.** Every box here is a superset
+///   of its face's locus (`boxes` module contract), so two boxes that
+///   do not overlap bound two loci that do not meet, and a face that
+///   meets nothing of the other operand cannot enter any crossing,
+///   any section, or any germ pair. Its kind is then irrelevant to
+///   the operation and the gate has nothing to say about it.
+/// - **Overlap is a MAY, not a DOES.** Boxes over-approximate, so
+///   this scan still finds pairs that exact geometry would separate.
+///   That is conservative in the correct direction — it never admits
+///   a pair the crossing pipeline cannot handle — and the refusals
+///   built from it say "may intersect" rather than claiming a
+///   meeting the kernel has not computed.
+///
+/// The pad is the sweep's own ([`super::boxes::sweep_pad`]), so the
+/// gate's boxes are the same boxes candidate generation reads: the
+/// gate cannot admit a pair the sweep would then prune, nor refuse
+/// one it would examine.
+///
+/// **Only cross-operand pairs are examined**, and that is the whole
+/// inventory rather than an omission: the boolean pipeline crosses
+/// A's edges against B's faces and B's against A's, never a body
+/// against itself — a self-intersecting operand is outside the
+/// supported envelope on every kind, planar included, and is a
+/// precondition rather than something this gate could decide. So a
+/// cone and a torus on the SAME body do not gate each other here.
+///
+/// A face whose surface key does not RESOLVE is not a pair question:
+/// there is no description to bound, so the caller refuses it
+/// body-scoped rather than naming a partner for it.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] when a face's topology
+/// is corrupt (`boxes::face_box`).
+pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+    supported: impl Fn(&geom::Surface<T>) -> bool,
+) -> Result<Option<UnsupportedPair>, BooleanError> {
+    let pad = super::boxes::sweep_pad(band);
+    for (operand, body, other) in [(Operand::A, a, b), (Operand::B, b, a)] {
+        // Arena order both ways, and no box is built for an operand
+        // that carries no unsupported kind at all — the common case
+        // pays nothing for this gate.
+        let offenders: Vec<(FaceKey, geom_brep::SurfaceKind)> = body
+            .faces()
+            .filter_map(|(key, f)| {
+                let s = body.get_surface(f.surface)?;
+                (!supported(s)).then(|| (key, geom_brep::SurfaceKind::of(s)))
+            })
+            .collect();
+        if offenders.is_empty() {
+            continue;
+        }
+        let others: Vec<(FaceKey, geom_brep::SurfaceKind, bvh::Aabb)> = other
+            .faces()
+            .map(|(key, f)| {
+                let kind = other
+                    .get_surface(f.surface)
+                    .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                Ok((key, kind, super::boxes::face_box(other, key, pad)?))
+            })
+            .collect::<Result<_, BooleanError>>()?;
+        for (face, kind) in offenders {
+            let boxed = super::boxes::face_box(body, face, pad)?;
+            for &(other_face, other_kind, ref other_box) in &others {
+                if boxed.overlaps(other_box) {
+                    return Ok(Some(UnsupportedPair {
+                        operand,
+                        face,
+                        kind,
+                        other_face,
+                        other_kind,
+                    }));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// **The operand gate, pair-scoped** (M5 PR 9, C12.1 — the F5
+/// planar-only gate retires PER C5 TABLE ARM, never wholesale).
+///
+/// Two rules, and they have different scopes on purpose:
+///
+/// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
+///   disqualifies the operation only through a PAIR it could enter
+///   ([`first_unsupported_pair`]). A torus wall whose box clears the
+///   other operand does not gate anything.
+/// - **Edges**: body-scoped. `Line`/`Circle`/`Ellipse` pass (the
+///   crossing lanes handle all three; the both-split point lane still
+///   needs a `Line`, and says so where it refuses); a `Nurbs` operand
+///   edge refuses typed wherever it sits — a rung-3 INPUT operand is
+///   outside the supported envelope, rung-3 edges being what the zip
+///   MINTS rather than what it consumes, and that is a claim about
+///   the operand rather than about a pair.
+///
+/// # Errors
+///
+/// [`BooleanError::CurvedPairUnsupported`] for a germ pair with no
+/// arm; [`BooleanError::CurvedEdgeUnsupported`] /
+/// [`BooleanError::ScaffoldingOperand`] per operand;
+/// [`BooleanError::CurvedBooleanUnsupported`] for a face whose
+/// surface key does not resolve.
+pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
 ) -> Result<(), BooleanError> {
+    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
+        gate_operand_edges(body, operand)?;
+    }
+    if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists)? {
+        return Err(BooleanError::CurvedPairUnsupported {
+            op: None,
+            operand: p.operand,
+            face: p.face,
+            kind: p.kind,
+            other_face: p.other_face,
+            other_kind: p.other_kind,
+        });
+    }
+    Ok(())
+}
+
+/// The body-scoped half of [`gate_operand_pairs`]: the edge carriers,
+/// and the faces whose surface key does not resolve (no description,
+/// so no box and no pair to name).
+fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (face_key, face) in body.faces() {
-        match body.get_surface(face.surface) {
-            Some(
-                geom::Surface::Plane { .. }
-                | geom::Surface::Cylinder { .. }
-                | geom::Surface::Sphere { .. }
-                | geom::Surface::Nurbs(_),
-            ) => {}
-            Some(s) => {
-                return Err(BooleanError::CurvedBooleanUnsupported {
-                    operand,
-                    face: face_key,
-                    kind: geom_brep::SurfaceKind::of(s),
-                });
-            }
-            None => {
-                return Err(BooleanError::CurvedBooleanUnsupported {
-                    operand,
-                    face: face_key,
-                    kind: geom_brep::SurfaceKind::Nurbs,
-                });
-            }
+        if body.get_surface(face.surface).is_none() {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face: face_key,
+                kind: geom_brep::SurfaceKind::Nurbs,
+            });
         }
     }
     for (edge_key, edge) in body.edges() {

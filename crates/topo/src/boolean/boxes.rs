@@ -30,12 +30,16 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **one** of the four doors that read a box from
-//! here; at the other three, box NON-overlap is the answer being
+//! PRUNES. That is **one** of the five doors that read a box from
+//! here; at the other four, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
+//! - `boolean::reduce`'s operand GATE grants on non-overlap: an
+//!   unsupported-kind face whose box clears the other operand cannot
+//!   enter a pair, so the operation runs. A bigger box refuses an
+//!   operation whose faces never meet.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
@@ -49,7 +53,7 @@
 //!   interference class.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The four are not
+//! about a door, and the door has to be named. The five are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a fifth door cannot land unargued. **It pins WHERE the doors are
@@ -1650,7 +1654,7 @@ mod tests {
     fn every_door_that_reads_a_box_is_inventoried() {
         const PINNED: [(&str, usize); 4] = [
             ("boolean/ops.rs", 2),
-            ("boolean/reduce.rs", 3),
+            ("boolean/reduce.rs", 5),
             ("census.rs", 2),
             ("separation.rs", 1),
         ];

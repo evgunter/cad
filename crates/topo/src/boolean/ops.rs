@@ -410,22 +410,29 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     // extent scan covers the sphere class only (everything else it
     // meets refuses typed there — the second door).
     //
-    // Structural, exact and up front: an arena scan of surface kinds, no
-    // reduction work before it, operands untouched.
+    // Up front and PAIR-SCOPED: the kinds are read exactly, and the
+    // question of whether a kind can matter to this operation is
+    // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
+    // is a certificate, overlap is a may). Operands untouched, no
+    // reduction work before it.
     if !matches!(op, BooleanOp::Union) {
-        for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-            for (face, fd) in body.faces() {
-                if !matches!(
-                    body.get_surface(fd.surface),
-                    Some(
-                        geom::Surface::Plane { .. }
-                            | geom::Surface::Cylinder { .. }
-                            | geom::Surface::Sphere { .. }
-                    )
-                ) {
-                    return Err(BooleanError::CurvedOpUnsupported { op, operand, face });
-                }
-            }
+        let band = Band::linear(tol)?;
+        if let Some(p) = super::reduce::first_unsupported_pair(a, b, band, |s| {
+            matches!(
+                s,
+                geom::Surface::Plane { .. }
+                    | geom::Surface::Cylinder { .. }
+                    | geom::Surface::Sphere { .. }
+            )
+        })? {
+            return Err(BooleanError::CurvedPairUnsupported {
+                op: Some(op),
+                operand: p.operand,
+                face: p.face,
+                kind: p.kind,
+                other_face: p.other_face,
+                other_kind: p.other_kind,
+            });
         }
     }
     boolean_op_recut(op, a, b, decls, strategy, true, tol)

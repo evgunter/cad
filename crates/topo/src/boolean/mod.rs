@@ -733,26 +733,30 @@ pub enum BooleanError {
         /// The underlying Euler refusal.
         source: EulerOpError,
     },
-    /// Subtract/intersect met a surface class with **no boolean seam
-    /// lane** (M5 PR 9 → narrowed per class in M5 S12).
+    /// **A germ PAIR with no boolean seam lane**, refused at the
+    /// operand gate (M5 PR 9 → narrowed per class in M5 S12 →
+    /// narrowed to the pair in VERBS-GATE).
     ///
-    /// **What it used to be.** A wholesale gate: any non-plane face on
-    /// either operand refused ∖ and ∩ before a single reduction step,
-    /// because both ops route regions through `revert`
-    /// (A∖B ≡ A∩revert(B), §15.9) and the revert lane was planar-only.
-    /// M5 PR 9c executed that lane and returned it as a ratified-
-    /// representation question rather than an implementation task.
+    /// The gate asks two questions and both have to answer yes: does
+    /// this face's KIND have a wired arm, and can this face REACH the
+    /// other operand at all. The second is decided at box-level
+    /// conservatism (`reduce::first_unsupported_pair`), which is why
+    /// the payload names a pair rather than a body: a cone or a torus
+    /// whose box clears every face of the other operand cannot enter
+    /// a crossing, a section or a germ pair, so the operation does
+    /// not depend on its kind and the gate says nothing about it.
     ///
-    /// **That question is ratified and shipped.** S10 landed
-    /// [`crate::entity::Face::sense`] with the outward-normal consumer
-    /// audit; S11 made the constructors' bits honest (a concave or
-    /// inward wall reads `false`); S12 wired `revert` to flip them and
-    /// made splitting's `mef` re-mints inherit the parent bit. So
-    /// plane×**cylinder** ∖ and ∩ are LIVE — blind holes, through
-    /// holes, two-shell results, mixed-sense splits — with exact
-    /// closed-form volumes at tier 3 in both sweep strategies.
+    /// **The overlap that DID fire is a may, not a does.** Boxes are
+    /// supersets, so the two faces named here may in exact geometry
+    /// be disjoint; the refusal claims only that the kernel cannot
+    /// rule the meeting out, and that if they do meet it has no arm
+    /// for the pair.
     ///
-    /// **What still refuses, per class, and why it refuses HERE.** The
+    /// [`Self::op`] carries the op when the kind is admitted for
+    /// OTHERS and refused for this one — `Nurbs` under ∖ and ∩ — and
+    /// is `None` when no op has an arm for the kind.
+    ///
+    /// **What refuses, per class, and why it refuses HERE.** The
     /// blocker left is a JOIN lane, not `revert`:
     ///
     /// - **Sphere**: LIVE since M5 S13 — the `(Plane, Sphere)` germ
@@ -784,13 +788,20 @@ pub enum BooleanError {
     /// (a revert-wiring unit is the wrong place to re-cut the
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
-    CurvedOpUnsupported {
-        /// The refused op (never `Union`).
-        op: BooleanOp,
-        /// The operand carrying the curved face.
+    CurvedPairUnsupported {
+        /// The op this refusal is specific to (never `Union`), or
+        /// `None` when the kind has no arm under any op.
+        op: Option<BooleanOp>,
+        /// The operand carrying the face whose kind has no arm.
         operand: Operand,
-        /// The first curved face met (face-arena order).
+        /// That face — the first such in face-arena order.
         face: FaceKey,
+        /// Its kind: the half of the germ pair with no arm.
+        kind: geom_brep::SurfaceKind,
+        /// The other operand's face whose box it may meet.
+        other_face: FaceKey,
+        /// That face's kind: the other half of the germ pair.
+        other_kind: geom_brep::SurfaceKind,
     },
     /// The containment fallback's curved-EXTENT scan (M5 S13) met a
     /// NURBS face. The extent test is UNWRITABLE for the kind with
@@ -996,23 +1007,41 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
                  {edge:?} (not maximal-faced); run merge_coplanar_faces explicitly first"
             ),
-            Self::CurvedOpUnsupported { op, operand, face } => write!(
+            Self::CurvedPairUnsupported {
+                op,
+                operand,
+                face,
+                kind,
+                other_face,
+                other_kind,
+            } => write!(
                 f,
-                "boolean: {op:?} met a surface class with no seam lane (operand \
-                 {operand:?}, first such face {face:?}). The refusal is PER CLASS: \
+                "boolean: face {face:?} of operand {operand:?} is a {} and its box MAY \
+                 INTERSECT face {other_face:?} ({}) of operand {:?}{}. Box overlap is a \
+                 MAY, not a DOES: both boxes are supersets of their faces, so the two \
+                 may in exact geometry be disjoint — what the kernel cannot do is rule \
+                 the meeting out, and it has no seam lane for the ({}, {}) germ pair if \
+                 they do meet. A face of this kind whose box CLEARS the other operand \
+                 does not gate the operation at all. The refusal is PER PAIR: \
                  plane×CYLINDER and plane×SPHERE subtract and intersect are live \
                  (blind and through holes, exact closed-form volumes, tier 3, both \
-                 sweep strategies). What is still refused is blocked on a JOIN \
-                 lane, not on revert: a cone or torus germ pair has no seam lane at \
-                 all — the germ-pair dispatch wires (Plane, Cylinder) and \
-                 (Plane, Sphere) only, and a cyl×sphere fitted-chord window has no \
-                 window analog to read — and a NURBS face has no crossing layer. \
-                 The refusal is UP FRONT and structural because the downstream \
-                 failure is SILENT, not typed: with no crossings found the \
-                 pipeline falls through to vertex-probed containment, and a curved \
-                 face leaves the other solid between its vertices with no vertex \
-                 noticing. Recourse: express the cut with cylindrical or spherical \
-                 tooling, or wait on the join lane"
+                 sweep strategies). What is still refused is blocked on a JOIN lane, \
+                 not on revert: a cone or torus germ pair has no seam lane at all — the \
+                 germ-pair dispatch wires (Plane, Cylinder) and (Plane, Sphere) only, \
+                 and a cyl×sphere fitted-chord window has no window analog to read — \
+                 and a NURBS face has no crossing layer. The refusal is UP FRONT and \
+                 structural because the downstream failure is SILENT, not typed: with \
+                 no crossings found the pipeline falls through to vertex-probed \
+                 containment, and a curved face leaves the other solid between its \
+                 vertices with no vertex noticing. Recourse: move the two apart, or \
+                 express the cut with cylindrical or spherical tooling, or wait on the \
+                 join lane",
+                kind.name(),
+                other_kind.name(),
+                operand.other(),
+                op.map_or(String::new(), |op| format!(" under {op:?}")),
+                kind.name(),
+                other_kind.name(),
             ),
             Self::NurbsExtentUnsupported { operand, face } => write!(
                 f,
@@ -1296,8 +1325,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    reduce::gate_operand_kinds(a_operand, Operand::A)?;
-    reduce::gate_operand_kinds(b_operand, Operand::B)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -1362,8 +1390,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
-    reduce::gate_operand_kinds(a_operand, Operand::A)?;
-    reduce::gate_operand_kinds(b_operand, Operand::B)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
