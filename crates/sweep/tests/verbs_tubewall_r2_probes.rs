@@ -203,7 +203,7 @@ fn r2_the_wall_has_a_nonempty_escalating_zone() {
     let mut w = 1e-300_f64;
     while w < 1e-2 {
         let z = match build(2.0, TubeWindow::Full, 0.5, w) {
-            Err(TubeError::NonpositiveWall) => "refuse",
+            Err(TubeError::NonpositiveWall { .. }) => "refuse",
             Err(TubeError::Escalated { .. }) => "escalate",
             Ok(_) => "build",
             other => panic!("unexpected verdict for wall {w}: {other:?}"),
@@ -239,7 +239,7 @@ fn r2_the_bore_has_a_nonempty_escalating_zone() {
     let mut gap = 1e-2_f64;
     while gap > 1e-300 {
         let z = match build(2.0, TubeWindow::Full, minor, minor - gap) {
-            Err(TubeError::WallExceedsRadius) => "refuse",
+            Err(TubeError::WallExceedsRadius { .. }) => "refuse",
             Err(TubeError::Escalated { .. }) => "escalate",
             Ok(_) => "build",
             other => panic!("unexpected verdict for gap {gap}: {other:?}"),
@@ -257,25 +257,49 @@ fn r2_the_bore_has_a_nonempty_escalating_zone() {
     assert_eq!(zones.last(), Some(&"refuse"));
 }
 
-/// The escalation the two WALL predicates raise names the door that
-/// raised it. `NonpositiveWall`/`WallExceedsRadius` say
-/// `tube_along_arc_hollow`; `Escalated` — which ONLY the hollow door
-/// can reach through `tube_wall`/`tube_wall_bore` — says
-/// `tube_along_arc`. This row records that mismatch as a fact.
+/// **AMENDED at the fix pass** (disclosed): this row was written to
+/// record a mismatch as a fact — `Escalated` from a wall predicate
+/// opened with the SOLID door's name even though only the hollow door
+/// can reach `tube_wall`/`tube_wall_bore`/`tube_wall_gap`. The finding
+/// was accepted and fixed, so the row is amended to pin the CORRECTED
+/// naming rather than deleted: an escalation carrying a hollow-only
+/// predicate name says `tube_along_arc_hollow`, and the arms both
+/// doors share say `tube door` rather than picking one.
 #[test]
-fn r2_escalation_from_a_wall_predicate_reports_the_solid_doors_name() {
+fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let err = build(2.0, TubeWindow::Full, 0.5, f64::NAN).expect_err("a poisoned wall refuses");
     let msg = err.to_string();
     assert!(matches!(err, TubeError::Escalated { .. }), "{msg}");
-    // FACT, not an endorsement: the message opens with the SOLID
-    // door's name even though only the hollow door can get here.
+    let TubeError::Escalated { source } = &err else {
+        unreachable!()
+    };
     assert!(
-        msg.starts_with("tube_along_arc escalated:"),
-        "message shape changed: {msg}"
+        matches!(source.predicate, Some("tube_wall")),
+        "the poisoned wall escalates at tube_wall, got {:?}",
+        source.predicate
     );
     assert!(
-        !msg.contains("tube_along_arc_hollow"),
-        "if this row goes red the name was fixed — delete the probe: {msg}"
+        msg.starts_with("tube_along_arc_hollow escalated:"),
+        "a hollow-only predicate must name the hollow door: {msg}"
+    );
+    // And the shared arms do NOT claim either door: a non-unit axis
+    // is raised identically by both.
+    let shared = build(2.0, TubeWindow::Full, 0.5, 0.125);
+    let _ = shared;
+    let frame = tube_along_arc_hollow::<f64>(
+        c(),
+        Vec3::unit_y() * 1.5,
+        Vec3::unit_x(),
+        2.0,
+        TubeWindow::Full,
+        0.5,
+        0.125,
+        Tol::witness(),
+    )
+    .expect_err("a non-unit axis refuses");
+    assert!(
+        frame.to_string().starts_with("tube door: "),
+        "a shared arm names neither door: {frame}"
     );
 }
 
@@ -296,7 +320,10 @@ fn r2_escalation_from_a_wall_predicate_reports_the_solid_doors_name() {
 ///   `A = 4π²R(ro+ri)`.
 #[test]
 fn r2_closed_forms_over_varied_radii_walls_and_windows() {
-    let cases: [(f64, f64, f64, Option<(f64, f64)>); 10] = [
+    /// Major radius, outer minor radius, wall, and the window as
+    /// `(t0, t1)` or `None` for a full period.
+    type Case = (f64, f64, f64, Option<(f64, f64)>);
+    let cases: [Case; 10] = [
         (2.0, 0.5, 0.125, None),
         (2.0, 0.5, 0.125, Some((0.25, 1.75))),
         (2.0, 0.3, 0.1, Some((0.0, 0.5))),
@@ -469,7 +496,7 @@ fn r2_the_thinnest_accepted_wall_still_validates() {
     let built = loop {
         match build(2.0, TubeWindow::Full, minor, w) {
             Ok(t) => break (w, t),
-            Err(TubeError::NonpositiveWall | TubeError::Escalated { .. }) => w *= 1.05,
+            Err(TubeError::NonpositiveWall { .. } | TubeError::Escalated { .. }) => w *= 1.05,
             Err(e) => panic!("unexpected {e}"),
         }
         assert!(w < 1.0, "no wall was ever accepted");
@@ -589,8 +616,17 @@ fn r2_stored_inner_and_outer_radii_are_always_distinct() {
 /// as an opaque `TubeError::Revolve`. This row records that, densely,
 /// across BOTH windows: for every collapsed configuration it reports
 /// which door refused, and fails if any of them BUILDS.
+///
+/// **AMENDED at the fix pass** (disclosed): the FACT half below was
+/// written to record that no wall door named this class — the
+/// refusals arrived from downstream geometry gates by luck. The
+/// finding was accepted and fixed by a third decide,
+/// `tube_wall_gap` on the REALIZED gap `minor_radius - inner`, so
+/// the assertion is INVERTED rather than deleted: every collapsed
+/// configuration must now be named by a wall door, and specifically
+/// by `WallGapCollapsed`. It goes red if that decide is removed.
 #[test]
-fn r2_collapsed_bore_never_builds_but_never_names_the_wall() {
+fn r2_collapsed_bore_is_refused_by_a_wall_door() {
     let eps = Tol::witness().eps();
     let mut rows: Vec<String> = Vec::new();
     let mut built: Vec<String> = Vec::new();
@@ -617,11 +653,14 @@ fn r2_collapsed_bore_never_builds_but_never_names_the_wall() {
                             .collect::<std::collections::BTreeSet<_>>()
                             .len()
                     )),
-                    Err(TubeError::NonpositiveWall) => {
+                    Err(TubeError::NonpositiveWall { .. }) => {
                         rows.push(format!("{what}: NonpositiveWall"))
                     }
-                    Err(TubeError::WallExceedsRadius) => {
+                    Err(TubeError::WallExceedsRadius { .. }) => {
                         rows.push(format!("{what}: WallExceedsRadius"));
+                    }
+                    Err(TubeError::WallGapCollapsed { .. }) => {
+                        rows.push(format!("{what}: WallGapCollapsed"));
                     }
                     Err(TubeError::Escalated { .. }) => rows.push(format!("{what}: Escalated")),
                     Err(e) => rows.push(format!("{what}: {}", short(&e))),
@@ -641,21 +680,16 @@ fn r2_collapsed_bore_never_builds_but_never_names_the_wall() {
         !rows.is_empty(),
         "the probe found no collapsed configuration at eps {eps} — its arithmetic is stale"
     );
-    // THE FACT HALF, recorded rather than endorsed: not one of these
-    // refusals comes from a wall door. Every one arrives from the
-    // revolve's downstream geometry gates (the pcurve/attachment
-    // certification for a full period, the cap-plane Newell fit for a
-    // window) AFTER the frame, both classifications and the mint have
-    // run — so the wall funnel's "decided FIRST, before anything is
-    // minted" posture does not cover this input class, and neither
-    // does the `Carried { Positive }` containment evidence it
-    // supplies. This row goes RED when a wall-side guard returns (the
-    // branch's own first commit had one, `WallBelowResolution`), at
-    // which point it should be deleted.
+    // THE ATTRIBUTION HALF, inverted at the fix pass: every collapsed
+    // configuration is now named by the wall funnel, before the
+    // frame, both classifications and the mint run — so the "decided
+    // FIRST, before anything is minted" posture covers this input
+    // class too, and the `Carried { Positive }` containment evidence
+    // is never supplied for a pair of coincident circles. Red the day
+    // the `tube_wall_gap` decide is removed.
     assert!(
-        rows.iter().all(|r| !r.contains("Wall")),
-        "a wall door now names the collapsed bore — the guard is back; delete this \
-         probe. Rows: {rows:#?}"
+        rows.iter().all(|r| r.contains("WallGapCollapsed")),
+        "every collapsed bore must be named by the realized-gap wall door. Rows: {rows:#?}"
     );
 }
 
@@ -683,7 +717,7 @@ fn r2_wall_verdicts_preempt_the_frame_verdicts() {
     )
     .expect_err("refuses");
     assert!(
-        matches!(e, TubeError::NonpositiveWall),
+        matches!(e, TubeError::NonpositiveWall { .. }),
         "the wall is decided first: {e}"
     );
 }
@@ -781,11 +815,11 @@ mod certified {
     fn r2_interval_wall_still_refuses_and_escalates() {
         assert!(matches!(
             hollow_iv(2.0, TubeWindow::Full, 0.5, 0.0),
-            Err(TubeError::NonpositiveWall)
+            Err(TubeError::NonpositiveWall { .. })
         ));
         assert!(matches!(
             hollow_iv(2.0, TubeWindow::Full, 0.5, 0.6),
-            Err(TubeError::WallExceedsRadius)
+            Err(TubeError::WallExceedsRadius { .. })
         ));
         let mut saw_escalate = false;
         let mut w = 1e-300_f64;

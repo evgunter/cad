@@ -48,10 +48,11 @@
 //! ([`topo::insert_void`]) by the revolve's own holed-profile path,
 //! never by a second construction here. The containment evidence
 //! that path carries is the annulus's own: the two circles are
-//! concentric, and the door decides `wall` and `minor_radius - wall`
-//! definitely positive at the run's band before anything is minted,
-//! so the inner circle is strictly inside the outer in the sketch —
-//! and revolution about the shared axis maps that to 3-D verbatim.
+//! concentric, and the door decides the thickness, the bore AND the
+//! realized gap between the two radii the walls will store definitely
+//! positive at the run's band before anything is minted, so the inner
+//! circle is strictly inside the outer in the sketch — and revolution
+//! about the shared axis maps that to 3-D verbatim.
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
@@ -102,12 +103,54 @@ pub enum TubeError {
     /// [`tube_along_arc_hollow`] only: the wall thickness is not
     /// definitely positive at tolerance — a wall thinner than the
     /// run's ε is not a wall.
-    NonpositiveWall,
+    ///
+    /// The payload is the floor the thickness had to clear, not the
+    /// thickness itself: under this door's `T: Decide` bound there is
+    /// no f64 door out of a `T` (that is `Bounds`, and the
+    /// compound-`Bounds` seam rule keeps it out of this file), so the
+    /// arm reports the number it CAN state exactly. The chamfer's
+    /// `NonpositiveSize` reports the caller's value because its file
+    /// is an allowlisted seam.
+    NonpositiveWall {
+        /// The run's coincidence threshold, meters: a thickness at or
+        /// under this is not a wall.
+        eps: f64,
+    },
     /// [`tube_along_arc_hollow`] only: `minor_radius - wall` is not a
     /// definitely positive inner radius, so there is no bore and no
     /// annulus to revolve.
-    WallExceedsRadius,
-    /// A frame/window classification escalated.
+    ///
+    /// Payload as [`TubeError::NonpositiveWall`]: the floor, not the
+    /// value.
+    WallExceedsRadius {
+        /// The run's coincidence threshold, meters: an inner radius
+        /// at or under this is not a bore.
+        eps: f64,
+    },
+    /// [`tube_along_arc_hollow`] only: the wall is a wall and the bore
+    /// is a bore, yet the REALIZED gap between the two stored radii —
+    /// `minor_radius - (minor_radius - wall)` — is not definitely
+    /// positive.
+    ///
+    /// The requested wall and the wall the body would store are not
+    /// the same number: at large `minor_radius` a thickness above ε
+    /// can still fall under that radius's own ulp, so the subtraction
+    /// rounds the inner radius back ONTO the outer and the two
+    /// circles would be stored as one. Deciding `wall` and the bore
+    /// separately cannot see it — only the difference of the two
+    /// STORED radii can, which is what this arm meters
+    /// (`tube_wall_gap`). It is also what the full period's cavity
+    /// evidence rests on: without it `Carried { Positive }` would be
+    /// carried for a pair of coincident circles.
+    ///
+    /// Payload as [`TubeError::NonpositiveWall`]: the floor, not the
+    /// value.
+    WallGapCollapsed {
+        /// The run's coincidence threshold, meters: the realized gap
+        /// between the two stored radii did not clear it.
+        eps: f64,
+    },
+    /// A frame/window/wall classification escalated.
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
@@ -118,50 +161,90 @@ pub enum TubeError {
     Revolve(RevolveError),
 }
 
+/// The `k_stats` names only [`tube_along_arc_hollow`] can reach. An
+/// escalation carrying one of these came from the hollow door, and
+/// its message must say so — the solid door cannot produce it.
+const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_gap"];
+
+/// Which door a refusal belongs to, as far as the refusal itself can
+/// honestly say.
+///
+/// A wall escalation names the hollow door outright. Everything else
+/// on this enum is reachable through BOTH doors — the band is the
+/// run's, the frame and window predicates are shared verbatim, and
+/// the revolve machinery is one body of code — so those arms say
+/// "tube door" rather than picking one and being wrong half the time.
+/// (The alternative, threading a hollow flag onto every arm, would
+/// put the door's identity in the payload of refusals that do not
+/// depend on it.)
+fn door(e: &TubeError) -> &'static str {
+    match e {
+        TubeError::Escalated { source } => match source.predicate {
+            Some(p) if HOLLOW_PREDICATES.contains(&p) => "tube_along_arc_hollow",
+            _ => "tube door",
+        },
+        TubeError::NonpositiveWall { .. }
+        | TubeError::WallExceedsRadius { .. }
+        | TubeError::WallGapCollapsed { .. } => "tube_along_arc_hollow",
+        _ => "tube door",
+    }
+}
+
 impl core::fmt::Display for TubeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let door = door(self);
         match self {
-            Self::Band(e) => write!(f, "tube_along_arc: {e}"),
+            Self::Band(e) => write!(f, "{door}: {e}"),
             Self::NonUnitAxis => write!(
                 f,
-                "tube_along_arc: the spine axis is not unit length at tolerance — inputs \
+                "{door}: the spine axis is not unit length at tolerance — inputs \
                  are stored exactly, so the door refuses rather than normalizing"
             ),
             Self::NonUnitURef => write!(
                 f,
-                "tube_along_arc: the reference direction is not unit length at tolerance \
+                "{door}: the reference direction is not unit length at tolerance \
                  — inputs are stored exactly, so the door refuses rather than normalizing"
             ),
             Self::FrameNotOrthogonal => write!(
                 f,
-                "tube_along_arc: axis and reference direction are not perpendicular at \
+                "{door}: axis and reference direction are not perpendicular at \
                  tolerance — no honest chart frame stores both exactly"
             ),
             Self::DegenerateWindow => write!(
                 f,
-                "tube_along_arc: the arc window is degenerate or reversed (t1 must \
+                "{door}: the arc window is degenerate or reversed (t1 must \
                  definitely exceed t0, metered at the outer-equator arm)"
             ),
             Self::FullRangeWindow => write!(
                 f,
-                "tube_along_arc: the arc window reaches one full period — an exactly \
+                "{door}: the arc window reaches one full period — an exactly \
                  full tube says TubeWindow::Full"
             ),
-            Self::NonpositiveWall => write!(
+            Self::NonpositiveWall { eps } => write!(
                 f,
                 "tube_along_arc_hollow: the wall thickness is not definitely positive at \
-                 tolerance (metered at tube_wall) — a wall thinner than the run's ε is \
-                 not a wall. Supply a thicker one, or call tube_along_arc for the solid tube"
-            ),
-            Self::WallExceedsRadius => write!(
-                f,
-                "tube_along_arc_hollow: minor_radius - wall is not a definitely positive \
-                 inner radius at tolerance (metered at tube_wall_bore), so there is no \
-                 bore and no annulus to revolve — supply a thinner wall, or call \
+                 tolerance (metered at tube_wall; the run's threshold is {eps} m) — a wall \
+                 thinner than that is not a wall. Supply a thicker one, or call \
                  tube_along_arc for the solid tube"
             ),
-            Self::Escalated { source } => write!(f, "tube_along_arc escalated: {source}"),
-            Self::Revolve(e) => write!(f, "tube_along_arc: {e}"),
+            Self::WallExceedsRadius { eps } => write!(
+                f,
+                "tube_along_arc_hollow: minor_radius - wall is not a definitely positive \
+                 inner radius at tolerance (metered at tube_wall_bore; the run's threshold \
+                 is {eps} m), so there is no bore and no annulus to revolve — supply a \
+                 thinner wall, or call tube_along_arc for the solid tube"
+            ),
+            Self::WallGapCollapsed { eps } => write!(
+                f,
+                "tube_along_arc_hollow: the wall is positive and the bore is positive, but \
+                 the gap between the two radii the body would STORE is not (metered at \
+                 tube_wall_gap; the run's threshold is {eps} m) — at this outer radius the \
+                 subtraction minor_radius - wall rounds back onto minor_radius, so the two \
+                 circles would be stored as one. Supply a thicker wall, or a smaller outer \
+                 radius"
+            ),
+            Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
+            Self::Revolve(e) => write!(f, "{door}: {e}"),
         }
     }
 }
@@ -174,7 +257,7 @@ impl std::error::Error for TubeError {}
 ///
 /// # Errors
 ///
-/// [`TubeError`] — every door named on the enum except the two wall
+/// [`TubeError`] — every door named on the enum except the three wall
 /// arms, which only [`tube_along_arc_hollow`] can raise; the
 /// ring-torus convention (`R > r > 0`) refuses through the shared
 /// `axis_arc_clearance`/`axis_vertex_radius` decides as
@@ -211,11 +294,11 @@ pub fn tube_along_arc<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`TubeError`] — every door named on the enum. The two wall arms
-/// ([`TubeError::NonpositiveWall`], [`TubeError::WallExceedsRadius`])
-/// are decided FIRST, before anything is minted, and their verdicts
-/// are what the full period's cavity insertion carries as its
-/// containment evidence.
+/// [`TubeError`] — every door named on the enum. The three wall arms
+/// ([`TubeError::NonpositiveWall`], [`TubeError::WallExceedsRadius`],
+/// [`TubeError::WallGapCollapsed`]) are decided FIRST, before
+/// anything is minted, and their verdicts are what the full period's
+/// cavity insertion carries as its containment evidence.
 // The solid door's seven intent parameters plus the wall — the list
 // IS the door, and bundling any subset of it into a struct would hide
 // which numbers the body stores verbatim.
@@ -270,21 +353,45 @@ fn build<T: Decide>(
     // thickness is not a mere request flag — `minor_radius - wall` is
     // the inner wall's stored radius, a geometric quantity of the
     // body, and "is the inner circle strictly inside the outer" is
-    // exactly the kind of fact the funnel exists to decide. It also
-    // buys the right answers a raw comparison cannot: a wall of
-    // 1e-20 m is not "positive" at any run tolerance, and an in-band
-    // one escalates with a margin instead of building a sliver. ----
+    // exactly the kind of fact the funnel exists to decide.
+    //
+    // THREE decides, not two, and the third is not redundant: `wall`
+    // and the bore are facts about the numbers the caller supplied,
+    // while `tube_wall_gap` is a fact about the two radii the body
+    // would STORE. They come apart — at a large outer radius a
+    // thickness well above ε still falls under that radius's own ulp,
+    // both of the first two decide Positive, and the subtraction
+    // rounds the inner radius onto the outer. Nothing downstream may
+    // be relied on to catch it: the observed refusals for that class
+    // come from the pcurve mint and the cap-plane Newell fit, AFTER
+    // the frame, both classifications and the mint have run, and the
+    // cavity's `Carried { Positive }` would by then have been carried
+    // for a pair of coincident circles. ----
+    let eps = band.zero();
     let inner_radius = match wall {
         None => None,
         Some(wall) => {
             match decide("tube_wall", Margin::of(wall), band).map_err(esc)? {
                 Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(TubeError::NonpositiveWall),
+                Sign::Zero | Sign::Negative => {
+                    return Err(TubeError::NonpositiveWall { eps });
+                }
             }
             let inner = minor_radius - wall;
             match decide("tube_wall_bore", Margin::of(inner), band).map_err(esc)? {
                 Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(TubeError::WallExceedsRadius),
+                Sign::Zero | Sign::Negative => {
+                    return Err(TubeError::WallExceedsRadius { eps });
+                }
+            }
+            // The REALIZED gap: `minor_radius - inner`, the difference
+            // of the two numbers the walls will store, not of the two
+            // the caller wrote.
+            match decide("tube_wall_gap", Margin::of(minor_radius - inner), band).map_err(esc)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => {
+                    return Err(TubeError::WallGapCollapsed { eps });
+                }
             }
             Some(inner)
         }

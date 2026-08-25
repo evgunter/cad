@@ -16,9 +16,11 @@
 //!   the frame are the caller's numbers bit for bit, exactly as the
 //!   solid door; the inner wall's is `minor_radius - wall`, the one
 //!   subtraction the caller can repeat, also bit for bit;
-//! - the **wall's two refusals**, decided through the door's own
-//!   funnel before anything is minted, and that everything the solid
-//!   door refuses the hollow door refuses identically.
+//! - the **wall's three refusals** — the thickness, the bore, and the
+//!   REALIZED gap between the two radii the body would store — all
+//!   decided through the door's own funnel before anything is minted,
+//!   with a RED-able collapse-class row; and that everything the
+//!   solid door refuses the hollow door refuses identically.
 //!
 //! The solid door's own suite (`m6_tube`) is untouched: the hollow
 //! form is one more loop through the same machinery, not a fork.
@@ -80,9 +82,10 @@ fn assert_close(got: f64, want: f64, what: &str) {
 }
 
 /// The windowed hollow tube: an ordinary open elbow whose section is
-/// an annulus. Four faces (two torus walls + two annular caps), one
-/// shell, no cavity — a window has open ends, so nothing is enclosed.
-/// Mass properties by Pappus on the annulus.
+/// an annulus. Six faces (each circle's wall is two half-circle torus
+/// faces, plus two annular caps), one shell, no cavity — a window has
+/// open ends, so nothing is enclosed. Mass properties by Pappus on
+/// the annulus.
 #[test]
 fn hollow_elbow_is_valid_with_pappus_mass_properties() {
     let t = hollow(TubeWindow::Arc { t0: T0, t1: T1 });
@@ -255,7 +258,7 @@ fn hollow_intent_parameters_are_stored_bit_exact() {
     }
 }
 
-/// The wall's two refusals — decided FIRST, before anything is
+/// The wall's three refusals — decided FIRST, before anything is
 /// minted, through the door's own funnel — and the shared refusals
 /// the solid door already owns, raised identically by the hollow
 /// door.
@@ -273,10 +276,13 @@ fn hollow_wall_and_shared_refusal_doors() {
             Tol::witness(),
         )
     };
-    assert!(matches!(build(OUTER, 0.0), Err(TubeError::NonpositiveWall)));
+    assert!(matches!(
+        build(OUTER, 0.0),
+        Err(TubeError::NonpositiveWall { .. })
+    ));
     assert!(matches!(
         build(OUTER, -0.1),
-        Err(TubeError::NonpositiveWall)
+        Err(TubeError::NonpositiveWall { .. })
     ));
     // A poisoned thickness does not decide positive either — it
     // escalates with the margin diagnostic rather than passing.
@@ -286,22 +292,69 @@ fn hollow_wall_and_shared_refusal_doors() {
     ));
     assert!(matches!(
         build(OUTER, OUTER),
-        Err(TubeError::WallExceedsRadius)
+        Err(TubeError::WallExceedsRadius { .. })
     ));
     assert!(matches!(
         build(OUTER, OUTER * 2.0),
-        Err(TubeError::WallExceedsRadius)
+        Err(TubeError::WallExceedsRadius { .. })
     ));
     // A wall of 1e-300 m is not a wall at any run tolerance: it
     // refuses at the same door a zero one does, rather than building
     // an inner circle that rounds onto the outer.
     assert!(matches!(
         build(OUTER, 1e-300),
-        Err(TubeError::NonpositiveWall)
+        Err(TubeError::NonpositiveWall { .. })
     ));
 
+    // THE COLLAPSE CLASS, and this row is RED-able: at a large outer
+    // radius a thickness far above ε still falls under that radius's
+    // own ulp, so `wall` and the bore both decide Positive and the
+    // subtraction rounds the inner radius onto the outer. Only the
+    // realized-gap decide sees it. Delete the `tube_wall_gap` decide
+    // and this goes red — the body builds (or refuses downstream by
+    // luck, from the pcurve mint or the cap-plane fit) with a
+    // `Carried { Positive }` cavity certificate over two coincident
+    // circles.
+    let eps = Tol::witness().eps();
+    let mut collapsed = 0usize;
+    let mut big = 1.0_f64;
+    while big < 1e17 {
+        let ulp = f64::from_bits(big.to_bits() + 1) - big;
+        let wall = ulp / 4.0;
+        if wall > 20.0 * eps && (big - wall).to_bits() == big.to_bits() {
+            collapsed += 1;
+            for window in [TubeWindow::Full, TubeWindow::Arc { t0: T0, t1: T1 }] {
+                let e = tube_along_arc_hollow::<f64>(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::unit_y(),
+                    Vec3::unit_x(),
+                    big * 2.0,
+                    window,
+                    big,
+                    wall,
+                    Tol::witness(),
+                )
+                .expect_err("a collapsed bore must refuse");
+                assert!(
+                    matches!(e, TubeError::WallGapCollapsed { .. }),
+                    "minor {big:e} wall {wall:e}: a wall door must name the collapsed \
+                     gap, got {e}"
+                );
+            }
+        }
+        big *= 2.0;
+    }
+    assert!(
+        collapsed > 0,
+        "the collapse sweep found no configuration at eps {eps} — its arithmetic is stale"
+    );
+
     // Every message names the door it belongs to.
-    for e in [TubeError::NonpositiveWall, TubeError::WallExceedsRadius] {
+    for e in [
+        TubeError::NonpositiveWall { eps: 1e-9 },
+        TubeError::WallExceedsRadius { eps: 1e-9 },
+        TubeError::WallGapCollapsed { eps: 1e-9 },
+    ] {
         let msg = e.to_string();
         assert!(msg.starts_with("tube_along_arc_hollow: "), "{msg}");
     }
@@ -325,7 +378,10 @@ fn hollow_wall_and_shared_refusal_doors() {
     ));
     assert!(matches!(
         frame(Vec3::unit_y(), Vec3::unit_y(), TubeWindow::Full, R),
-        Err(TubeError::NonUnitURef | TubeError::FrameNotOrthogonal)
+        // `unit_y` IS unit length, so only the orthogonality arm is
+        // reachable here — the or-pattern the shipped suite carried
+        // asserted a door this fixture cannot open.
+        Err(TubeError::FrameNotOrthogonal)
     ));
     assert!(matches!(
         frame(

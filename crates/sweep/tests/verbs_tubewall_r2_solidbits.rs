@@ -17,7 +17,10 @@ use sweep::{TubeWindow, tube_along_arc};
 /// output.
 #[test]
 fn r2_solid_door_bits_dump() {
-    let cases: [(f64, f64, Option<(f64, f64)>); 6] = [
+    /// Major radius, minor radius, and the window as `(t0, t1)` or
+    /// `None` for a full period.
+    type Case = (f64, f64, Option<(f64, f64)>);
+    let cases: [Case; 6] = [
         (2.0, 0.5, None),
         (2.0, 0.5, Some((0.25, 1.75))),
         (2.0, 0.3, None),

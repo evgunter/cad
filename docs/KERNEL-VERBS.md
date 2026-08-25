@@ -136,21 +136,30 @@ the table.
   period is a torus SHELL whose cavity is born through the shared
   void-insertion door by the revolve's own holed path — the
   VERBS-RING precedent, with the annulus's concentric-circle
-  containment carried as the evidence. The two `wall` refusals are
+  containment carried as the evidence. The three `wall` refusals are
   decided FIRST, before anything is minted, through the door's own
-  funnel (`tube_wall`, `tube_wall_bore` — plain linear margins in
-  meters, unlike this door's levered angular ones), which is also
-  where that containment evidence comes from; everything the solid
-  door refuses the hollow door refuses identically, through the same
-  shared decides. `crates/sweep/tests/verbs_tubewall.rs`.
+  funnel (`tube_wall`, `tube_wall_bore`, `tube_wall_gap` — plain
+  linear margins in meters, unlike this door's levered angular ones),
+  which is also where that containment evidence comes from. The third
+  is the one worth naming: it meters the REALIZED gap between the two
+  radii the walls will store, because a thickness far above ε can
+  still fall under a large outer radius's own ulp and round the inner
+  radius back onto the outer — a class the first two decides cannot
+  see. Everything the solid door refuses the hollow door refuses
+  identically, through the same shared decides.
+  `crates/sweep/tests/verbs_tubewall.rs`.
 
   **The bound on that, stated:** a hollow tube's cross-section is an
   ANNULUS about the spine and nothing else — one wall thickness,
   concentric, constant along the arc. An eccentric bore, a varying
   wall, or a non-circular section is still a profile-side job, and
   the `revolve`/`sweep_body` doors remain where those are said. And
-  the full-period form is a multi-shell curved solid, so it joins the
-  STEP row below rather than escaping it.
+  the full-period form is a multi-shell curved solid, so it is
+  EXPECTED to join the STEP row below rather than escape it — stated
+  as an expectation, not a receipt: unlike the hollow ring, which
+  `klein::wall_probes` pins in place, nothing in the tree runs the
+  hollow tube through the STEP writer today. The tour scene that
+  would pin it is issue #986.
 - **A hollow ring cannot leave as STEP.** The one-call hollow ring
   itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the

@@ -47,9 +47,13 @@ use geom_core::{Point3, Tol, Vec3};
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
-/// (major, outer minor, wall, window) — none of them the unit
-/// fixture's, spanning ~5 decades of scale and a thin wall.
-const CASES: [(f64, f64, f64, Option<(f64, f64)>); 6] = [
+/// One case: major radius, outer minor radius, wall, and the window
+/// as `(t0, t1)` or `None` for a full period.
+type Case = (f64, f64, f64, Option<(f64, f64)>);
+
+/// None of them the unit fixture's, spanning ~5 decades of scale and
+/// a thin wall.
+const CASES: [Case; 6] = [
     (3.7, 0.9, 0.31, Some((-0.4, 2.9))),
     (0.02, 0.004, 0.0015, Some((0.1, 0.35))),
     (1300.0, 2.5, 0.001, Some((1.0, 5.0))),
@@ -252,10 +256,13 @@ fn the_metered_wall_refuses_what_a_bracket_read_would_pass() {
         )
     };
     // Sub-ε: a sliver a comparison would build.
-    assert!(matches!(build(0.5, 1e-20), Err(TubeError::NonpositiveWall)));
+    assert!(matches!(
+        build(0.5, 1e-20),
+        Err(TubeError::NonpositiveWall { .. })
+    ));
     assert!(matches!(
         build(0.5, eps * 0.5),
-        Err(TubeError::NonpositiveWall)
+        Err(TubeError::NonpositiveWall { .. })
     ));
     // In the ambiguity band: escalates with its margin.
     assert!(matches!(
@@ -272,7 +279,7 @@ fn the_metered_wall_refuses_what_a_bracket_read_would_pass() {
     // And a bore of half an ε is no bore at all.
     assert!(matches!(
         build(outer, outer - eps * 0.5),
-        Err(TubeError::WallExceedsRadius)
+        Err(TubeError::WallExceedsRadius { .. })
     ));
 }
 
