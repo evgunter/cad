@@ -573,23 +573,38 @@ measured, and the largest line is not the one you would guess:
 
 | nightly job | billed | note |
 |---|---|---|
-| `demoted` | ~11 | TWO workspace builds — the gate-side listing and the `--cfg nightly_suite` one — then ~64 s of tests |
+| `demoted` | ~0 today | TWO workspace builds — the gate-side listing and the `--cfg nightly_suite` one — then ~64 s of tests, but **only once a test is demoted**: the markers were reverted (`bbdaebf`), so the job short-circuits. ~11 when the population is non-empty |
 | `watertight` | ~2 | |
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
-| `opt-level` | ~2 | arm A only; **+~25-30 one night a week** when arms B and C run |
-| **an ordinary night** | **~19** | **~45 on a calibration night** |
+| `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than
 sloppy**: the selection is a difference between two listings, and a
 listing is a build. The gate-side one is therefore taken at **opt-0** —
 nothing is executed from it, and the selection reads test NAMES and
 `ignored` FLAGS, neither of which an optimisation level can move — which
-is ~130 s against the ~430 s the opt-2 build costs (this document's own
-F-numbers). The run itself keeps opt-2, because the demotion reasons
-written at each test quote their cost *at CI's opt-2 settings* and a
-nightly measuring a different profile would be answering a different
-question.
+is ~130 s against the ~430 s the opt-2 build cost (this document's own
+F-numbers).
+
+**The run itself tracks the gate** — opt-2 until 2026-08-25, opt-1 since.
+A demoted test is one the gate would otherwise run, so what this job has
+to answer is whether it still passes, and what it costs, *in the
+configuration we actually use*. Pinning it to a level the gate has
+stopped running would answer a question nobody has (Evan, 2026-08-25): a
+cost measured in a configuration we do not use is not a cost anyone can
+act on. That also shrinks the gate-side listing's saving rather than
+removing it — against opt-1 the gap is ~164 s on a 4-core sweep (143 s →
+307 s) instead of ~300 s against opt-2, and the hosted opt-1 build figure
+is what the `opt-level` lane's free arm now produces on every nightly.
+
+**And this lane currently selects nothing.** The seven demotion markers
+were reverted in `bbdaebf` ("the nightly job is net negative until the
+opt-0 flip is real"), so the job short-circuits on its
+`are any tests demoted at all?` step and the ~11 billed minutes in the
+table above are what it *would* cost once a test is demoted again, not
+what it bills today.
 
 It runs **only on days main actually moved**, and nothing on it gates a
 merge. Against a repo doing ~13 code-tier runs an hour during active
@@ -898,8 +913,9 @@ not a saving, it is a hole.
    flip**: a ratio does not transfer between machines and the census box
    is not CI's 2-vCPU runner. It is actionable as *the number has never
    been measured where CI runs*. `nightly.yml`'s `opt-level calibration`
-   job measures it: arm A (opt-2) read free from recent gate runs' step
-   durations, arm B (opt-0) measured deliberately, weekly plus a >20%
+   job measures it: the arm at the tree's own level read free from recent
+   gate runs' step durations, the other levels measured deliberately (opt-2
+   and opt-0 as of the 2026-08-25 flip), weekly plus a >20%
    drift trigger, verdict by direct comparison (`a2 + E2 < a0 + E0`) with
    no model. Reporting only. The history is
    `docs/perf-data/opt-level/`. **Read the first few samples before

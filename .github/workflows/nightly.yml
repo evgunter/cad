@@ -417,9 +417,9 @@ jobs:
   # decision and what would reverse it.
   #
   # ONE: EVERY MEASURED ARM RUNS THE GATE'S TEST POPULATION. No `--cfg
-  # nightly_suite` anywhere in this job. With it, `E0`/`E1` would be computed
-  # over the suite PLUS the demoted tests while `E2` — read from real gate
-  # runs — is computed over the suite alone, and the comparison would silently
+  # nightly_suite` anywhere in this job. With it, a measured arm's `E` would
+  # be computed over the suite PLUS the demoted tests while the FREE arm's —
+  # read from real gate runs, which never carry the flag — is computed over the suite alone, and the comparison would silently
   # be between two different questions. The recorded sample carries each arm's
   # test count so a reader can check they match, and `--color never` on the
   # measured runs is what makes that count READABLE: nextest colourises on a
@@ -442,8 +442,9 @@ jobs:
   # fastidiousness — it is what keeps the two caches from cross-contaminating.
   # rust-cache saves in a POST-JOB hook, so two instances pointed at one
   # directory would both save whatever that directory held at the END of the
-  # job: arm C's artifacts would land under arm B's opt-0 key and the next
-  # night's arm B would restore them. Separate `CARGO_TARGET_DIR` values, each
+  # job: the opt-2 arm's artifacts would land under the opt-0 arm's key and
+  # the next night's opt-0 arm would restore them. Separate
+  # `CARGO_TARGET_DIR` values, each
   # named in its own `workspaces:` mapping, make the two stores disjoint. The
   # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree.
   #
@@ -451,29 +452,30 @@ jobs:
   # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's
   # `CARGO_PROFILE_*_OPT_LEVEL` — is printed loudly in the job summary and is
   # the rare actionable event; it changes nothing by itself. It has flipped
-  # once already: opt-2 (#449) reversed an earlier opt-0 verdict (#52/#53)
-  # whose premises expired, which is exactly why the sample records its
-  # INPUTS (`r`, `E2`, `a2 - a0`, the build/total split) beside the verdict.
+  # TWICE already: opt-2 (#449) reversed an earlier opt-0 verdict (#52/#53)
+  # whose premises expired, and opt-1 (2026-08-25) reversed that one in turn.
+  # Which is exactly why the sample records its INPUTS (`r`, the per-level
+  # totals, `a2 - a0`, the build/total split) beside the verdict.
   #
   # NO LOCAL MIRROR: it reads this repository's own hosted run history through
-  # the Actions jobs API to get its free arm, and measures the other arm on the
-  # 2-vCPU runner class whose numbers are the entire question. A developer box
-  # can run neither half meaningfully — its own ratio is the measurement this
-  # lane exists to distrust.
+  # the Actions jobs API to get its free arm, and measures the other two on
+  # the 2-vCPU runner class whose numbers are the entire question. A developer
+  # box can run neither half meaningfully — its own ratio is the measurement
+  # this lane exists to distrust.
   opt-level:
     name: opt-level calibration
     runs-on: ubuntu-latest
     needs: gate
     if: needs.gate.outputs.run == 'true'
     # 90 -> 120 WITH THE THIRD ARM. Two measured arms on the nights the
-    # cadence fires, and arm C's first run builds its dependencies cold
-    # against a brand-new cache key. The ceiling is a runaway guard, not a
-    # budget: on the nights nothing is re-measured this job is arm A alone
-    # and costs ~2 minutes.
+    # cadence fires, and after an opt-level change one of them builds its
+    # dependencies cold against a brand-new cache key. The ceiling is a
+    # runaway guard, not a budget: on the nights nothing is re-measured this
+    # job is the free arm alone and costs ~2 minutes.
     timeout-minutes: 120
     permissions:
-      # `actions: read` for the jobs API (arm A); `contents: write` for the
-      # append-only sample, on main only.
+      # `actions: read` for the jobs API (the free arm); `contents: write`
+      # for the append-only sample, on main only.
       actions: read
       contents: write
     env:
@@ -831,11 +833,13 @@ jobs:
   # unexecuted here too) held by construction rather than by a list. Adding
   # the flag would sweep in that whole population and break the ruling.
   #
-  # AND THE `opt-level` JOB ABOVE STILL MUST NOT GAIN THIS FLAG. Its arm B
-  # measures the GATE's test population; with `--cfg nightly_suite` it would
-  # compute E0 over a bigger suite than the E2 it is compared against, which
-  # is the one mistake that produces a confident wrong answer rather than a
-  # failure. The flag is set HERE, on this job, and nowhere else in this file.
+  # AND THE `opt-level` JOB ABOVE STILL MUST NOT GAIN THIS FLAG. Its measured
+  # arms run the GATE's test population; with `--cfg nightly_suite` they would
+  # compute their `E` over a bigger suite than the free arm they are compared
+  # against — the free arm being read from real gate runs, which never carry
+  # the flag. That is the one mistake that produces a confident wrong answer
+  # rather than a failure. The flag is set HERE, on this job, and nowhere
+  # else in this file.
   #
   # NO LOCAL MIRROR is NOT claimed: `local-scripts/ci-local.sh` carries this
   # row, behind its `--nightly` flag, and cites the run step below.
@@ -848,11 +852,17 @@ jobs:
   #     16 plain `#[ignore]` tests ignored under BOTH builds -> not selected
   #     `cargo nextest run -E <selection>` -> 7 tests run: 7 passed
   #
-  # Seven is exactly the seven `nightly-only:` markers in the tree, and the 16
-  # is Evan's constraint holding on the real population rather than on a
-  # three-test probe. (Those timings were taken at this tree's opt-0 dev
-  # profile — 191 s, against the ~64 s the markers' own reasons quote at CI's
-  # opt-2 settings — which is the measurement behind the `env:` block below.)
+  # Seven was exactly the seven `nightly-only:` markers in the tree at the
+  # time, and the 16 is Evan's constraint holding on the real population
+  # rather than on a three-test probe.
+  #
+  # THOSE SEVEN MARKERS WERE THEN REVERTED (bbdaebf, "the nightly job is net
+  # negative until the opt-0 flip is real"), so THIS TREE HAS NO DEMOTED
+  # TESTS AT ALL and this job's `are any tests demoted at all?` step short-
+  # circuits it to nothing. That is the legitimate empty case, not a broken
+  # rig — the selection script tells the two apart from the SOURCE, and the
+  # verification above is kept because it is the record of the MECHANISM
+  # working on a real population, which is what a future demotion inherits.
   demoted:
     name: nightly-only tests (demoted)
     runs-on: ubuntu-latest
@@ -860,22 +870,29 @@ jobs:
     if: needs.gate.outputs.run == 'true'
     timeout-minutes: 90
     env:
-      # PINNED AT opt-2, AND SINCE 2026-08-25 THAT IS NO LONGER "the gate's
-      # environment" — it is the environment the DEMOTIONS WERE ARGUED IN.
-      # The reason written at each demoted test quotes a wall-clock cost "at
-      # CI's opt-2 settings"; ci.yml moved to opt-1 that day, so copying the
-      # gate would now measure a different thing from the one every marker in
-      # the tree cites. Same argument k-lint makes for staying on the exact
-      # configuration its committed K baselines were produced under.
+      # THE GATE'S OWN BUILD ENVIRONMENT, copied from ci.yml's `build` job,
+      # and it TRACKS whatever that job sets — opt-2 until 2026-08-25, opt-1
+      # since. A demoted test is one the gate would otherwise run, so the
+      # question this job answers is "does it still pass, and what does it
+      # cost, IN THE CONFIGURATION WE ACTUALLY USE". Pinning it to a level
+      # the gate has stopped running would answer a question nobody has: a
+      # cost measured in a configuration we do not use is not a cost anyone
+      # can act on (Evan, 2026-08-25).
       #
-      # WHAT WOULD MOVE IT: re-taking those per-test costs at opt-1 and
-      # rewriting the markers' reasons to quote the new figure. Until someone
-      # does both, this stays at 2 and the mismatch is deliberate.
+      # THIS IS NOT THE k-lint CASE, and the difference is worth stating
+      # because a previous revision of this comment got it wrong. k-lint
+      # pins its configuration because it DIFFS fresh output against
+      # committed baselines, so the two must have been produced the same
+      # way. Nothing here is diffed against a committed artefact; the
+      # demotion reasons quote a wall-clock cost, and a wall-clock cost is
+      # exactly the kind of number that should follow the gate rather than
+      # outlive it. When a demotion reason quotes a figure, it should quote
+      # one taken here, at whatever this job currently runs.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -936,13 +953,18 @@ jobs:
             echo "no demoted tests in this tree -- skipping two workspace builds" \
               >> "$GITHUB_STEP_SUMMARY"
           fi
-      # THE GATE-SIDE LISTING, AT opt-0 ON PURPOSE. Nothing is executed from
-      # this build: the selection reads test NAMES and their `ignored` flags,
-      # and no optimisation level can move either. So this pays the cheap
-      # compile (~130 s hosted, against ~430 s at opt-2 — the figures in
-      # ci.yml's OPT LEVEL note) for a listing whose only job is to say which
-      # tests the gate skips. The build below, which actually RUNS things,
-      # keeps the job's opt-2 environment.
+      # THE GATE-SIDE LISTING, AT opt-0 ON PURPOSE, AND THE FLIP DOES NOT
+      # TOUCH THE ARGUMENT. Nothing is executed from this build: the
+      # selection reads test NAMES and their `ignored` flags, and no
+      # optimisation level can move either. So this pays the cheapest compile
+      # there is (~130 s hosted at opt-0 — ci.yml's OPT LEVEL note) for a
+      # listing whose only job is to say which tests the gate skips. The
+      # saving shrank with the flip rather than vanishing: against opt-2 it
+      # was ~300 s, against opt-1 the 4-core sweep puts the gap at ~164 s
+      # (143 s -> 307 s), and the hosted opt-1 build figure is precisely what
+      # the `opt-level` job's free arm now produces on every nightly. The
+      # build below, which actually RUNS things, keeps the job's opt-1
+      # environment.
       - name: list the suite as the GATE builds it (names and ignore flags)
         if: steps.markers.outputs.present == 'yes'
         env:
