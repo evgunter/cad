@@ -115,7 +115,13 @@ already removed the storage half. Each lane its own unit:
    non-union kind gate ops.rs:415-427 before the cut is attempted —
    waits on THIS item plus item 9; its probe's retirement text
    executes when both land. docs/M9-5-SPEC.md seam K2 carries the
-   measured detail.)*
+   measured detail. EMPIRICAL CORRECTION at VERBS-GATE (#1001,
+   2026-08-25): the pair-scoped gate answers `(Cone, Sphere)` —
+   the lantern's conical PUCKER, not its spherical zone, is what
+   the carving ball's box may meet — so wall 7 additionally waits
+   on the CONE germ lane (row 10), or on the pucker moving out of
+   reach (a modelling answer). The steering's intent stands; the
+   blocker set grew.)*
 7. **VERBS-CYLCYL (L)** — cylinder×cylinder germ lane. Promoted into
    the wave by the scan: #347 is the strongest live demand signal
    (two `circle`-derived cylinders refuse to union AT ALL;

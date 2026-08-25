@@ -936,3 +936,23 @@ only — Surface::Approx and all storage/validator wiring stay
 OFF-C's. The analytic oracle (cylinder/sphere as exact rational
 NURBS vs OFF-A's closed forms) is the acceptance spine. Difficulty
 L logged pre-dispatch; consumes block VERBS-3 slot 4.
+
+## GATE up (#1001); ordinal 74 claimed at dispatch (2026-08-25)
+
+The pair-scoped gate as built: one pair scan reading the same
+boxes candidate generation does; CurvedPairUnsupported payloads
+honest about box conservatism ("MAY, not DOES"); cone and torus
+ACQUIRED boxes (no NoSoundBox arm exists — a poison box would have
+made the re-scope inert); #862's two defects fixed plus a third of
+the same class found by shape-sweep, all extents rewritten against
+one Span interval type — which IS #700's dedup (option 1, no
+allowlist amendment) with a face-for-face differential row
+guarding the residue. Two empirical corrections: klein wall 3
+still refuses — honestly, on (Cone, Plane) — and lily wall 7's
+blocker adds the cone germ lane (plan row 6 corrected; the
+steering's intent stands, the blocker set grew). One M9-owned test
+row moved with the sweep's documented one-way divergence (the
+carrier-graze candidates the over-width kept alive) — courtesy
+note owed to M9. **Ordinal 74 claimed at dispatch** (ledger
+through 73 on main; not a third) — single fable review, frozen
+b2a8bad1.
