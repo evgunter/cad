@@ -62,6 +62,21 @@ positionally keyed and can silently re-point after a same-slot edit
 (expr.rs:840-848), and profile-program slots resolve at the f64 pin.
 v1 ships nothing there.
 
+**Designed for future Expr sharing (Evan, 2026-08-25: sharing is
+presumed coming; the design anticipates it).** When shared subterms
+land (Arc/interned exprs), the v2 arm's rung ladder is already
+shaped for them: a **shared node** is the structural rung — one
+term, intent by construction, the PATHS-constructor analog — and
+**equal-but-unshared copies** become the reporting rung with *share
+the subterm* as the unify-analog menu arm (today's copies are
+family-equal, so M10 is indifferent; the desync risk under editing
+is what the arm repairs). Nothing in v1 keys on tree identity, so
+sharing changes no v1 behavior: named parameters remain the
+declared marginals and the M10 leaves after sharing exactly as
+before (a shared subterm is an anonymous comoving intermediate, not
+a marginal), and `DistinctRecord`'s `ParamName` keying is
+sharing-proof.
+
 ## PL2 — Predicates and rungs (all exact; no funnel site in v1)
 
 Candidate pairs: unordered pairs of distinct `ParamName`s of the
