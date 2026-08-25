@@ -654,3 +654,26 @@ meeting a conical pucker along a closed latitude circle — fillets to a
 tier-3-valid solid with a pinned census and closed-form trim circles;
 its lip (cone×plane) and its bore's base (cylinder×plane) fillet too.
 ARMS-3 keeps sphere×sphere and the valence-4 corner run-out.
+
+**R1 fix pass** (APPROVE-WITH-FIXES, 1 MAJOR / 4 MINOR / 4 NOTE): the
+geometry held — all three sheet-centre forms re-derived independently,
+the four-fixture bit-identity byte-verified across the merge base, the
+klein `RadiusHeadroom` margin confirmed at exactly −0.1 m, the C8
+correction checked against the ratified wording, and the f64 lane the
+hosted draws missed clean at 63/63 on both ε. The MAJOR was a VACUOUS
+row: the "non-coaxial refuses" test filleted the coaxial mouth and
+grepped a roster string. It is replaced by a PLANTED construction — the
+bud's own cone wall keeps its apex and half-angle and takes a tilted
+axis, and the battery must refuse naming the shared-axis hypothesis
+rather than the kinds — which is also `fillet3_support_coaxiality`'s
+first test consumer. That name now has probe-lane coverage too: a
+curved-rim fillet joins the K sweep as `budrim`, the CHAMFER `spacer`
+precedent one verb over, and the only scene in the corpus that reaches a
+CURVED support pair. The uncarved ruled arms got their schedule (#987,
+behind ARMS-3 — a ruling's terminations ARE the run-out taxonomy), the
+absent-support path got `BodyNotIntact` back, the poison prose got the
+ruled family's actual path, `tangent.rs`'s twice-spelled √g ladder
+folded into one helper, and the plane/sphere vocabulary swept at every
+site the review named (prose only; the name-alphabet mechanism stays
+#961's). Reviewer probe branch adopted authorship-preserving:
+`verbs/arms2-r1-probes`.
