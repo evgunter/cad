@@ -133,6 +133,8 @@ mod mass_props_interval;
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
+#[path = "review_arms2_r1_probes.rs"]
+mod review_arms2_r1_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
