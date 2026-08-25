@@ -889,3 +889,16 @@ A3-3 parks the genuine mid-curve run-out pair consumer-gated with
 the ball-cap named presumptive. Board: OFF-A implementing (Wave
 3); #992 with Evan; Wave 2's GATE spec is the next orchestrator
 work item.
+
+## WAVE 2 OPENS: GATE spec committed (2026-08-25)
+
+docs/VERBS-GATE-SPEC.md: the operand gate goes pair-scoped with
+box-level conservatism as the ruled "genuinely intersects" (over-
+approximation refuses in the safe direction; the payload names the
+pair, stated as a may-intersect); #862's two box defects and
+#700's sibling dedup ride as the precision the gate rests on.
+Acceptance: klein wall 3 flips (or re-pins honestly — build, don't
+assume), wall 4 stays pair-scoped-refused, lily wall 7's refusal
+becomes true (its retirement still waits on SPHSPH per Evan's
+steering). Difficulty M logged pre-dispatch; consumes VERBS-3
+slot 3. Two lanes now: OFF-A (Wave 3) + GATE (Wave 2).
