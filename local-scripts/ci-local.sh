@@ -80,17 +80,26 @@
 # on purpose to keep its warm target/ from re-fingerprinting. See the
 # LINK/DEBUGINFO note at the top of ci.yml for the measurement.
 #
-# ALSO NOT MIRRORED (2026-08-12): those jobs now set
-# CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=2. This one deserves a sharper note
-# than the knobs above, because opt-level is the one setting here that
-# COULD in principle change a test outcome rather than just its cost.
-# Measured both ways on the same tree the day it landed — opt-0 2791/2791
-# and 3001/3001 (interval) green, opt-2 identical counts, all green — so
-# the two configurations agree today, and this gate keeps proving the
-# cheap-to-compile one. debug-assertions and overflow-checks are ON at
-# both levels (cargo defaults them for dev/test), so nothing about
-# fail-loud changes. To reproduce the hosted configuration locally, use
-# local-scripts/test-fast.sh, which sets exactly these two variables.
+# ALSO NOT MIRRORED (2026-08-12): those jobs set
+# CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL — 2 then, and 1 since 2026-08-25.
+# This one deserves a sharper note than the knobs above, because
+# opt-level is the one setting here that COULD in principle change a test
+# outcome rather than just its cost.
+#
+# SO IT IS MEASURED EVERY TIME IT MOVES, and the local gate stays at
+# opt-0 only because the levels agree:
+#   2026-08-12 (opt-2 landing) — opt-0 2791/2791 and 3001/3001 (interval)
+#     green; opt-2 identical counts, all green.
+#   2026-08-25 (opt-1 landing) — the gate's own two commands, three-arm
+#     sweep at 5bf264c: 3489/3489 green at EACH of opt-0, opt-1 and
+#     opt-2, same count every arm. Re-checked at opt-1 on main after the
+#     merge (a24b2db, 3515 tests by then): 3515/3515 green.
+# debug-assertions and overflow-checks are ON at every level (cargo
+# defaults them for dev/test), so nothing about fail-loud changes, and
+# the D9 bit-exactness pins hold at any opt level — opt never moves
+# rounding. This gate keeps proving the cheap-to-compile configuration.
+# To reproduce the hosted one locally, use local-scripts/test-fast.sh,
+# which sets exactly these two variables and tracks whatever ci.yml sets.
 #
 # Merge-gate runs go through local-scripts/gate.sh (serialized, warm runner —
 # see its header for the caching guidance and RUSTFLAGS hazard).
