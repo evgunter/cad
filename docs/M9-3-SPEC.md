@@ -1,13 +1,13 @@
 # M9-3 — the join lane (spec)
 
-**STATUS: DRAFT — NOT DISPATCHED, NOT BINDING YET.** One
-ruling is deliberately left open (the PR-boundary question in
-"Process" below, which the germ-reachability spike was running to
-answer when this thread paused); the block M9-16 draw has NOT
-been made, so no implementer arm is assigned and no ordinal is
-claimed. Everything else here is the orchestrator's considered
-work order and can be taken as written by the resuming session.
-Resume pointer: the issue filed against this document.
+**STATUS: BINDING (2026-08-23).** The germ-reachability spike ran
+(finished at `m9/3-spike-wip` @ c0d7ddf2 — still never-merge); the
+PR-boundary ruling is FIXED below on its measurements: the two-PR
+split stands, with **PR-A absorbing the reduction rung** the spike
+surfaced. Block M9-16 drawn at this seam (v4, byte 80 → mod 4 = 0
+→ fable's position is the block's first slot): **M9-3 = slot 1 =
+FABLE**, difficulty pre-logged PR-A M-L / unit L (the rung grew
+PR-A's scope; amended pre-draw), task-class STRUCTURAL.
 
 Orchestrator work order for M9-PLAN item 4 with item 6 (the M9-4
 mark-wiring) folded in per the M9-D/U2 ratification. Substrate:
@@ -21,7 +21,15 @@ substrate lane; file:line refs below are from it, against main @
   by signature) and the chart-overlap door (`T::chart_overlap`,
   chart_region.rs:252) — and never re-runs the census. The
   boolean's at-use verification calls the same doors per declared
-  pair; no second verification vocabulary is minted.
+  pair; no second verification vocabulary is minted. Measured
+  sound on the canonical fixture (spike, 2026-08-23): Door 1
+  returns `Definite` on all nine cross-authored bore×peg wall
+  pairs — the carrier ladder absorbs the different sketch-plane
+  origins; no bit-identity caveat at the carrier rung. (The
+  cross-INSTANCE chart-identity gap and the at-rest boundary-flush
+  closure — #591's Door-2 thread and #943 — are census-owned M9
+  items, NOT this unit's: the join lane is the boolean lane, where
+  reduction refines.)
 - **The U2 emission-shape constraint (PCURVE-UNIFY-DESIGN,
   ratified)**: every edge description this unit mints stays within
   today's taxonomy AND maps 1:1 onto (surface, exact-lane pcurve)
@@ -51,7 +59,25 @@ this unit untouched).
    not a plane" prose retires here; the door remains the single
    auditable C8 statement (undeclared touching refuses FOREVER —
    the door only widens what a VERIFIED declaration can unlock).
-2. **The Rest (cosurface) descent is a type-level no-op — keep it
+2. **The reduction rung (the spike's finding, absorbed here).**
+   `boolean_reduce`'s curved-face sweep arm (`curved_face_arm`,
+   the reduce.rs:753 frontier closure) never consults
+   declarations: on the two-peg body a bore rim circle ON the peg
+   carrier decides `bool_circle_curved_clearance` = Zero →
+   `CurvedPierceUnsupported`, and a seam line with both endpoints
+   on the carrier takes the v-on-curved-face door the same way —
+   so germ/v-v records never form and the rest lane is
+   unreachable. Under a VERIFIED declared `Rest` pair covering the
+   incidence (the edge lies on the declared shared carrier —
+   exact-zero is precisely what the carrier ladder certifies), the
+   arm must take the planar path's coplanar posture: endpoint
+   treatment producing the same v-v / v-on-f record family, never
+   the frontier door. UNDECLARED pairs keep both frontier doors
+   VERBATIM (C8 — the door only widens what a verified declaration
+   unlocks). The existing metered rows decide the sides; if
+   endpoint containment on the curved chart genuinely needs a new
+   named row, STOP and report per the binding default below.
+3. **The Rest (cosurface) descent is a type-level no-op — keep it
    one.** For declared-Rest same-carrier sectors at the coplanar-
    lump sites, swap `face_plane` + `oriented_plane_eq` for
    `face_carrier` (rest.rs:510) + `carrier_eq` (carrier_eq.rs:167)
@@ -65,7 +91,7 @@ this unit untouched).
    v-v sites, so the recl swap is load-bearing, not symmetry
    polish. Structural/declared rungs only; nothing numeric is
    added to the Rest path (C12.5's never-numeric rule).
-3. **The Tangent descent reuses the existing trilean — mint no
+4. **The Tangent descent reuses the existing trilean — mint no
    predicate.** For declared-Tangent (distinct-carrier) pairs the
    lump verdict comes from the second-order sector trilean that
    already exists and is already metered:
@@ -79,7 +105,7 @@ this unit untouched).
    existing rows' derivation, STOP and report — a named row plus
    its predicate-dimension audit entry is an orchestrator ruling,
    never a silent mint (k-lint discipline).
-4. **C8 invariant rows (acceptance-grade, in this PR):** an
+5. **C8 invariant rows (acceptance-grade, in this PR):** an
    UNDECLARED touching curved pair still refuses (same types, same
    geometry — before/after pinned); a declared pair with DEFINITE
    counter-evidence still contradicts; an in-band/osculating pair
@@ -154,27 +180,38 @@ this unit untouched).
    not open (torus/cone/NURBS gates, join.rs section-arm,
    ops.rs extent-scan) keep their texts VERBATIM.
 
-## The one OPEN ruling — the PR boundary
+## The PR boundary — RULED (2026-08-23, spike executed)
 
-The two-PR split above is the substrate's recommendation and the
-orchestrator's default, but it rests on an unverified assumption:
-that curved germ / vertex-vertex records REACH the rest lane's
-segment discovery (rest.rs:149-266) on a two-peg-shaped body
-today. If they do not — if reduction upstream refuses or drops
-them first — PR-B inherits reduction work it is not scoped for,
-and the split moves (the likely re-shape: a reduction-reachability
-PR ahead of the zip, or the wall PR absorbing it).
+The question was: do curved germ / vertex-vertex records REACH the
+rest lane's segment discovery (rest.rs:149-266) on a two-peg-shaped
+body today? **Measured: NO — reduction refuses upstream**, and the
+inherited work lands in PR-A (the same classification stage as its
+door and wall), so the two-PR split STANDS with PR-A's scope grown
+by item 2 above. The spike (branch `m9/3-spike-wip` @ c0d7ddf2,
+crates/sweep/tests/spike_peg.rs — **still never merge**; its
+kernel patches are the record of what was stepped past, not
+proposals) measured, in order:
 
-**The spike that answers this was authored and never run** (the
-substrate agent died at a model usage limit mid-authorship). Its
-partial fixture is preserved on branch `m9/3-spike-wip`
-(crates/sweep/tests/spike_peg.rs — plate + radius-0.5 peg sharing
-the bore carrier, declared Rest, driving the union path so
-`try_rest_union` is reached via ops.rs:478). **NEVER merge that
-branch**; finish the fixture, run it, read where the pipeline
-stops, then fix this section's ruling and drop the DRAFT status.
-The verdict needed is one line: does PR-B inherit reduction work,
-YES or NO — and if YES, roughly what.
+1. The front door refuses first (`InvalidDeclaration` "declared
+   face is not a plane") — item 1's scope, as written.
+2. Door stepped past (spike-local): `curved_face_arm` refuses
+   typed `CurvedPierceUnsupported` on every declared-cosurface
+   incidence — the bore rim circles decide
+   `bool_circle_curved_clearance` = Zero, the seam lines hit the
+   v-on-curved-face door — without ever consulting declarations.
+   No germ/v-v records form; `try_rest_union` is unreachable.
+3. Zero-clearance incidences skipped (spike-local, NO records
+   produced): classification proceeds to the vertex-vertex lane —
+   reached through the PLANAR cap coincidences — and dies at
+   recl.rs:40's UNTYPED `ClassificationInvariant "sector face lost
+   its plane"`. The substrate's second wall site is confirmed
+   on-path, and the v-v lane runs even with no curved records, so
+   the reduction rung must PRODUCE records (item 2), not merely
+   suppress the refusal — the fixture's planar-provided v-v
+   records are a coincidence of flush caps, not a guarantee.
+4. `contact_pair_verdict` returns `Ok(Definite)` on all nine
+   cross-authored bore×peg pairs — the verification dependency is
+   sound (see the dependency bullet).
 
 ## Substrate evidence (the anchors this spec was written against)
 
@@ -221,14 +258,27 @@ lane gets swept; refs are against main @ 97fdd75e.
   (lily.rs:1422-1460 — wall 1 pins the OPERAND-GATE torus refusal,
   reduce.rs:168-186, which this unit does NOT open).
 - Two-peg: demos/README.md:569-585, CONTACT-DESIGN.md:523-533.
+- Spike anchors (2026-08-23, against main @ 15a57ba5; branch
+  `m9/3-spike-wip` @ c0d7ddf2): the frontier closure
+  reduce.rs:753 inside `curved_face_arm` (circle arm decides
+  `bool_circle_curved_clearance`; line arm decides
+  `bool_vertex_face_side` per endpoint — Zero → frontier, both
+  metered rows existing); the planar coplanar posture the rung
+  mirrors is the `(Zero, Zero)` endpoint-treatment branch of the
+  planar sweep (reduce.rs, `dovertexonface` steps) feeding
+  `vertex_on_face` / `push_vv`; Door-1 probe =
+  `topo::boolean::contact_pair_verdict` with `Band::linear`.
 
 ## Process
 
 Unit protocol: ONE implementer arm for the unit = **block M9-16
-slot 1** (v4 draw recorded at this spec's seam PR; blocked
+slot 1** (v4 draw EXECUTED 2026-08-23 at this seam: blocked
 randomization {opus×3, fable}, one urandom byte, reject ≥252,
-byte mod 4 = fable's slot). Difficulty pre-logged at the draw:
-**PR-A M, unit L**; task-class **STRUCTURAL** (the decided
+byte 80 → mod 4 = 0 → fable's position is the block's FIRST slot
+— **M9-3 = FABLE**; slots 2–4 of M9-16 are opus). Difficulty
+pre-logged at the draw: **PR-A M-L, unit L** (M-L amended from M
+pre-draw when the ruling grew PR-A by the reduction rung);
+task-class **STRUCTURAL** (the decided
 predicates are reused as-is — carrier_eq's ladder and the
 existing second-order rows; no new numeric decision is taken by
 this unit; reasoning above). One blinded adversarial reviewer +

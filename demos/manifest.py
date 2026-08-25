@@ -144,13 +144,18 @@ class Body:
     def __init__(self, d, where):
         self.stl = _field(d, "stl", where)
         # `step` is the one manifest field whose VALUE is genuinely
-        # optional: the tour writes a stem for every body (it fails
-        # rather than emit one without a STEP export), the wild
-        # generator writes null for every cell, because a wild cell's
-        # STEP is an input fixture and not something this pipeline
-        # exported. The key is always present; a consumer that imports
-        # STEP has to know which producer it is reading, and says so
-        # where it reads this.
+        # optional, and BOTH producers can leave it null -- for
+        # reasons that are not the same, so a consumer has to know
+        # which it is reading. The wild generator writes null for
+        # every cell, because a wild cell's STEP is an input fixture
+        # and not something this pipeline exported. The tour writes a
+        # stem for every body except one it has DECLARED past the STEP
+        # writer's named subset frontier (`SceneBody::step_at_frontier`
+        # pins the refusal and fails the tour if it ever changes or
+        # stops); an undeclared refusal still fails the tour rather
+        # than arriving here as a null. The key is always present, and
+        # a consumer that imports STEP says where it reads this which
+        # producer it is reading.
         self.step = _field(d, "step", where)
         self.color = tuple(_field(d, "color", where))
         # Read, not defaulted. Both producers write `transparency`

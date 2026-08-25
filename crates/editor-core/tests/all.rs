@@ -59,6 +59,8 @@ mod asm_upd_pin_update;
 mod asm_upd_schema_v10;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "dsc_checks.rs"]
+mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
 #[path = "lbret_schema_v8.rs"]

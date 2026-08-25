@@ -420,6 +420,32 @@ pub enum PlacementRuleFault {
     },
 }
 
+// The ONE prose vocabulary for this fault set — every door that
+// renders a `PlacementRuleFault` (the evaluation backstop, the edit
+// door's rule arms) FORWARDS this rendering rather than restating the
+// fault in its own words.
+impl core::fmt::Display for PlacementRuleFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CountSpelling => f.write_str(
+                "the placement rule and the count slot disagree about how many placements \
+                 there are",
+            ),
+            Self::NoPlacements => f.write_str(
+                "the placement list is empty — a group needs at least one placement, exactly \
+                 as a stepped rule needs a count of at least 1",
+            ),
+            Self::NonFiniteFrame { index } => {
+                write!(f, "placement {index} has a non-finite coordinate")
+            }
+            Self::ImproperFrame { index, determinant } => write!(
+                f,
+                "placement {index} is improper (mirroring): determinant {determinant}"
+            ),
+        }
+    }
+}
+
 impl PatternKind {
     /// The listed placements when this rule carries its own, `None` for
     /// the parametric rules (whose count is the structural slot).

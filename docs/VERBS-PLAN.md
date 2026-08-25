@@ -109,6 +109,13 @@ already removed the storage half. Each lane its own unit:
    live wrong answer: #862's axial-slab over-widening (37% measured)
    feeding false `CensusUndecidable`, with #700's lapsed-premise
    duplicate. Dispatch after Wave 1 lands evidence.
+   *(Steered demand signal — Evan's ruling on #966, 2026-08-23,
+   recorded by the M9 orchestrator: lily wall 7, the tepal seam —
+   `lily.rs:1563`, a sphere×sphere SUBTRACT refused at the
+   non-union kind gate ops.rs:415-427 before the cut is attempted —
+   waits on THIS item plus item 9; its probe's retirement text
+   executes when both land. docs/M9-5-SPEC.md seam K2 carries the
+   measured detail.)*
 7. **VERBS-CYLCYL (L)** — cylinder×cylinder germ lane. Promoted into
    the wave by the scan: #347 is the strongest live demand signal
    (two `circle`-derived cylinders refuse to union AT ALL;
@@ -122,6 +129,9 @@ already removed the storage half. Each lane its own unit:
    certified volume through a pole-crossing meridian arc; #893
    near-polar lever collapse) — a lane minting sphere faces with
    polar rims must not treat `props_rim_level` as a closed premise.
+   *(Steered demand signal — Evan on #966, 2026-08-23, recorded by
+   the M9 orchestrator: lily wall 7 waits on this item plus item
+   6's gate re-scope; see item 6's note.)*
 10. **VERBS-CONE (L)** — cone (and torus) operand lanes, sequenced
     on what 6–9 learn. #226 residual 1 (conic-trimmed cylinder walls
     slip both sense gates) is the known trap; #685 (cone-wedge grid
