@@ -1218,7 +1218,7 @@ fn integral_face_bound(
 /// index, differenced ONCE against `kv` — the first-fundamental-form
 /// sup the split selection's aspect cap reads, by the same convexity
 /// fact as the second-derivative hulls. Needs only degree ≥ 1, which
-/// [`check_direction`] guarantees.
+/// `patch_bound::check_direction` guarantees.
 fn first_derivative_hull(
     kv: &KnotVector,
     rows: &[Vec<RingInterval>],
@@ -1270,7 +1270,7 @@ fn second_derivative_hull(
 /// `kv_u` (per `u_rows` row, i.e. per fixed v index), then once along
 /// `kv_v` across the resulting net (module docs — one application per
 /// direction, so only degree ≥ 1 is needed on each, which
-/// [`check_direction`] guarantees).
+/// `patch_bound::check_direction` guarantees).
 fn mixed_derivative_hull(
     kv_u: &KnotVector,
     kv_v: &KnotVector,

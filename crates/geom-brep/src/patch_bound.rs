@@ -515,25 +515,22 @@ struct CellWindows {
     v_d2: Option<RangeInclusive<usize>>,
 }
 
-/// Assembles a cell from five signed componentwise enclosures.
+/// Assembles a cell from the two readings: the five signed
+/// componentwise enclosures (`S_u, S_v, S_uu, S_uv, S_vv`, in that
+/// order) and the five magnitude squared-sums (`uu, uv, vv, u, v`).
 fn cell_from(
-    u: (f64, f64),
-    v: (f64, f64),
-    s_u: [RingInterval; 3],
-    s_v: [RingInterval; 3],
-    s_uu: [RingInterval; 3],
-    s_uv: [RingInterval; 3],
-    s_vv: [RingInterval; 3],
+    uv: ((f64, f64), (f64, f64)),
+    signed: [[RingInterval; 3]; 5],
     sq: [RingInterval; 5],
 ) -> PatchCell {
     PatchCell {
-        u,
-        v,
-        s_u,
-        s_v,
-        s_uu,
-        s_uv,
-        s_vv,
+        u: uv.0,
+        v: uv.1,
+        s_u: signed[0],
+        s_v: signed[1],
+        s_uu: signed[2],
+        s_uv: signed[3],
+        s_vv: signed[4],
         sq_uu: sq[0],
         sq_uv: sq[1],
         sq_vv: sq[2],
@@ -607,13 +604,8 @@ fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
                 sq[4] = sq[4] + g01.sqr();
             }
             cells.push(cell_from(
-                span_extent(kv_u, su),
-                span_extent(kv_v, sv),
-                s_u,
-                s_v,
-                s_uu,
-                s_uv,
-                s_vv,
+                (span_extent(kv_u, su), span_extent(kv_v, sv)),
+                [s_u, s_v, s_uu, s_uv, s_vv],
                 sq,
             ));
         }
@@ -798,13 +790,8 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 sq[4] = sq[4] + m1v.sqr();
             }
             cells.push(cell_from(
-                span_extent(kv_u, su),
-                span_extent(kv_v, sv),
-                s_u,
-                s_v,
-                s_uu,
-                s_uv,
-                s_vv,
+                (span_extent(kv_u, su), span_extent(kv_v, sv)),
+                [s_u, s_v, s_uu, s_uv, s_vv],
                 sq,
             ));
         }
