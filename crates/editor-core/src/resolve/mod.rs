@@ -124,6 +124,46 @@ pub enum ResolveError {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in prose — the name by its kind and minting node (a
+// stable name is a derivation path, and the node is the half a user
+// can act on), the WHY forwarded from the payload's own rendering.
+// Composing layers (`NodeErrorKind`'s two resolve arms) FORWARD this
+// rather than re-stating it.
+impl core::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Vanished {
+                name, diagnosis, ..
+            } => write!(
+                f,
+                "the {} name minted by node {} no longer resolves in this evaluation: \
+                 {diagnosis}",
+                name.kind.noun(),
+                name.node.0
+            ),
+            Self::Ambiguous { name, tie, .. } => write!(
+                f,
+                "the {} name minted by node {} is tie-marked: {} equally-admissible \
+                 candidates at its recorded site — a tie is never broken by picking; \
+                 refine the reference until one candidate remains",
+                name.kind.noun(),
+                name.node.0,
+                tie.width
+            ),
+            Self::NodeGone { name, edit } => write!(
+                f,
+                "the {} name's minting node {} is no longer in the document ({edit}) — \
+                 the repair is an explicit rebind",
+                name.kind.noun(),
+                name.node.0
+            ),
+        }
+    }
+}
+
+impl core::error::Error for ResolveError {}
+
 /// Why a name vanished — N5 verbatim plus the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3; constructed by the M6
 /// solver).
@@ -163,6 +203,49 @@ pub enum Diagnosis {
     WitnessBifurcation(Box<WitnessBifurcation>),
 }
 
+// Rendered as the WHY clause of [`ResolveError::Vanished`]'s message:
+// each arm states its cause; payload-holding arms forward the
+// payload's own rendering.
+impl core::fmt::Display for Diagnosis {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PredicateFlip {
+                predicate,
+                from,
+                to,
+            } => write!(
+                f,
+                "predicate {predicate} flipped from {from:?} to {to:?} on the name's \
+                 derivation path"
+            ),
+            Self::StructuralParam { node, param } => write!(
+                f,
+                "a structural parameter changed on the derivation path (node {}, slot \
+                 {param:?})",
+                node.0
+            ),
+            // A SITE of difference, not a claim that an edit happened
+            // (module docs: the total fallback arm reaches this on a
+            // never-edited document pair).
+            Self::RecipeEdit { edit } => write!(
+                f,
+                "the recorded reference disagrees with the recipe as it stands on the \
+                 derivation path ({edit})"
+            ),
+            Self::Cascade { through } => write!(
+                f,
+                "the upstream {} name minted by node {} vanished first; its own \
+                 resolution failure carries the root cause",
+                through.kind.noun(),
+                through.node.0
+            ),
+            Self::WitnessBifurcation(refusal) => {
+                write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
+            }
+        }
+    }
+}
+
 /// A recipe edit, referenced by its structural effect on the node it
 /// touched (N5's `RecipeEditRef`, concrete shape reported: edits are
 /// not logged inside `Doc`, so the reference is derived from the
@@ -193,6 +276,23 @@ pub enum RecipeEditRef {
         /// The unknown id.
         node: RecipeNodeId,
     },
+}
+
+// Prose for the edit-reference parentheticals in [`ResolveError`]'s
+// and [`Diagnosis`]'s messages.
+impl core::fmt::Display for RecipeEditRef {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node.0),
+            Self::NodeInserted { node } => write!(f, "node {} was inserted", node.0),
+            // A difference statement, not an edit claim — this arm is
+            // the diff fallback's site vocabulary.
+            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node.0),
+            Self::ForeignNode { node } => {
+                write!(f, "node {} was never minted by this document", node.0)
+            }
+        }
+    }
 }
 
 /// The recorded tie a reference ran into (N2's tie mark, as evidence).

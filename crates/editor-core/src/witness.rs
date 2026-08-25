@@ -130,3 +130,51 @@ pub struct WitnessBifurcation {
     /// The stale-witness evidence.
     pub witness_age: WitnessAge,
 }
+
+// The human-readable rendering (LIB-DOORS F6 shape). The story is
+// W3's layer-2 vocabulary — which way the certificate refused, with
+// the certified margin against its band — NEVER "over-constrained" /
+// "under-constrained" and never "didn't converge". One recourse, two
+// arms, both changing geometry or recording fresh intent: move the
+// sketch off the near-singular configuration, or re-solve to record
+// a fresh witness. Composing layers (`NodeErrorKind`'s arm, N5's
+// `Diagnosis` arm) FORWARD this rendering rather than re-stating it.
+impl core::fmt::Display for WitnessBifurcation {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.kind {
+            BifurcationKind::FoldProximity => f.write_str(
+                "the interval Jacobian's regularity margin entered the sliver band — \
+                 genuine bifurcation proximity",
+            )?,
+            BifurcationKind::AmbiguousBasin => f.write_str(
+                "the recorded witness sits between well-separated solution basins, so \
+                 the branch selection is genuinely ambiguous",
+            )?,
+            BifurcationKind::ResidualFailure => {
+                f.write_str("the committed assignment's residuals failed \u{3b5}-certification")?
+            }
+        }
+        write!(
+            f,
+            " (margin {:e} against band zero {:e} / escalate {:e}; {} implicated \
+             element(s)) — move the sketch off the near-singular configuration, or \
+             re-solve to record a fresh witness",
+            self.margin.margin,
+            self.margin.band_zero,
+            self.margin.band_escalate,
+            self.implicated.len()
+        )
+    }
+}
+
+/// The one composing clause for this refusal — every layer that names
+/// it as a WHY clause (`NodeErrorKind`'s arm, N5's `Diagnosis` arm)
+/// renders THIS wrapper, so the sentence has a single home and no
+/// verbatim twin.
+pub(crate) struct BranchSelectionRefused<'a>(pub(crate) &'a WitnessBifurcation);
+
+impl core::fmt::Display for BranchSelectionRefused<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "the sketch's branch selection refused: {}", self.0)
+    }
+}

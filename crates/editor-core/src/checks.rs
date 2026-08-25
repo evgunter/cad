@@ -192,51 +192,50 @@ pub struct CheckFinding {
     pub evidence: CheckEvidence,
 }
 
-// One story, one recourse, in one place (the eval/mod.rs D54 lesson:
-// a payload with no Display forces every consumer to invent its own
-// second vocabulary). The Unsupported arm FORWARDS its payload's
-// Display; the Escalated arm deliberately does NOT — the funnel's
-// generic coincidence recourse ("declare the coincidence / move the
-// geometry") is meaningless for a shell-volume sign, and a kernel
-// arena key names nothing a document user can act on, so this arm
-// renders the margin-payload view (name + numbers, no recourse tail,
-// no key) and states the check's own recourse. The subject is named
-// by the finding's (root, output) attribution above.
-impl fmt::Display for CheckFinding {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+// One story, one recourse, in one place, through the document
+// layer's one sink ([`crate::finding`]; the eval/mod.rs one-vocabulary
+// lesson: a payload with no Display forces every consumer to invent
+// its own second vocabulary). The Unsupported arm FORWARDS its
+// payload's Display — the payload's own recourse rides the story, so
+// `recourse` answers "" there ("already told"). The Escalated arm
+// deliberately does NOT forward the funnel's generic coincidence
+// recourse ("declare the coincidence / move the geometry") — it is
+// meaningless for a shell-volume sign, and a kernel arena key names
+// nothing a document user can act on — so that arm renders the
+// margin-payload view (name + numbers, no recourse tail, no key) and
+// states the check's own recourse. StaleExpectation's recourse is
+// pinned prose riding the story's own "; " joint, so it too answers
+// "" rather than growing a second tail. The subject is the finding's
+// (root, output) attribution.
+impl crate::finding::Finding for CheckFinding {
+    fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "check {}: root {} output {}: ",
+            "check {}: root {} output {}",
             self.check, self.root.0, self.output_ix
-        )?;
+        )
+    }
+
+    fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.evidence {
             CheckEvidence::Connectedness { actual, expected } => write!(
                 f,
-                "{actual} disconnected component(s) where {expected} was expected — a stray \
-                 component usually means a boolean that did not reach its operand or an \
-                 instance placed nowhere; if the disjoint body is deliberate, state the \
-                 expected count for this root output in ChecksConfig::expected_components"
+                "{actual} disconnected component(s) where {expected} was expected"
             ),
             CheckEvidence::Escalated { source } => {
                 f.write_str("the component count is unknowable at this tolerance: ")?;
                 match source {
                     ShellClassifyError::Escalated { source, .. } => {
-                        write!(f, "{}", source.payload())?;
+                        write!(f, "{}", source.payload())
                     }
                     ShellClassifyError::ZeroVolume { .. } => f.write_str(
                         "a shell's signed volume is definitely zero (or its certified \
                          bracket straddles zero)",
-                    )?,
+                    ),
                     // run_checks routes only the two sign-read arms
                     // here; any other source forwards its own story.
-                    other => write!(f, "{other}")?,
+                    other => write!(f, "{other}"),
                 }
-                write!(
-                    f,
-                    " — a shell's volume is too close to zero for a certified outer/void \
-                     orientation read; thicken or remove the degenerate geometry, or lower \
-                     the tolerance"
-                )
             }
             CheckEvidence::Unsupported { source } => write!(
                 f,
@@ -250,6 +249,28 @@ impl fmt::Display for CheckFinding {
                  fix the root"
             ),
         }
+    }
+
+    fn recourse(&self) -> &str {
+        match &self.evidence {
+            CheckEvidence::Connectedness { .. } => {
+                "a stray component usually means a boolean that did not reach its operand \
+                 or an instance placed nowhere; if the disjoint body is deliberate, state \
+                 the expected count for this root output in ChecksConfig::expected_components"
+            }
+            CheckEvidence::Escalated { .. } => {
+                "a shell's volume is too close to zero for a certified outer/void \
+                 orientation read; thicken or remove the degenerate geometry, or lower \
+                 the tolerance"
+            }
+            CheckEvidence::Unsupported { .. } | CheckEvidence::StaleExpectation { .. } => "",
+        }
+    }
+}
+
+impl fmt::Display for CheckFinding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        crate::finding::compose(f, self)
     }
 }
 
@@ -270,9 +291,7 @@ impl fmt::Display for ChecksReport {
             write!(f, "checks: no findings")?;
         } else {
             write!(f, "checks: {} finding(s)", self.findings.len())?;
-            for finding in &self.findings {
-                write!(f, "\n  {finding}")?;
-            }
+            crate::finding::render_list(f, &self.findings)?;
         }
         if !self.skipped.is_empty() {
             write!(f, "\nchecks skipped (severity Off):")?;
@@ -337,10 +356,7 @@ impl fmt::Display for CheckRefusal {
             "{} check finding(s) at Error severity:",
             self.findings.len()
         )?;
-        for finding in &self.findings {
-            write!(f, "\n  {finding}")?;
-        }
-        Ok(())
+        crate::finding::render_list(f, &self.findings)
     }
 }
 
