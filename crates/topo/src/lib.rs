@@ -202,6 +202,7 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
+pub mod shell;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod source;
@@ -311,6 +312,7 @@ pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation};
+pub use shell::{ShellError, shell, shell_open};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{

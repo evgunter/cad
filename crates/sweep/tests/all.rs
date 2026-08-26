@@ -45,6 +45,8 @@ mod offd_r1_probes;
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
 mod verbs_offd;
+#[path = "verbs_shell.rs"]
+mod verbs_shell;
 
 #[path = "bitdump.rs"]
 mod bitdump;
