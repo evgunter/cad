@@ -1124,3 +1124,21 @@ blesses the escalate-on-tightening consequence). The reviewer's
 empirical sharpening for OFF-D: on curved fits the seam carrier
 needs KNOT REFINEMENT, not degree elevation alone (the fit
 refines past the seed grid even at d = 5e-10). Fix pass out.
+
+## THE 12-PAIR TARGET IS MET — Evan notified (#1016, 2026-08-26)
+
+The M9 orchestrator (resumed cad-m8 session) determined ordinal
+72's dual COMPLETED — both arms attested by #974/#975's own
+citations of R1/R2 findings, per-arm figures unrecoverable
+(outage-window session loss; recorded attested-but-unscored). So
+72 = the eleventh pair and OFF-B/75 = the TWELFTH; my row-75
+label corrected with a dated note. The pre-registered explicit
+notification to Evan filed as #1016 with the full tally, the
+pair-11 caveat, and the disposition recommendation (dual sampling
+SUSPENDS pending Evan's readout — the reversible direction; a
+missed dual can run late on a frozen head, an extra one cannot be
+un-spent). Cross-program credit: cad-m8's sweep caught both the
+pair double-booking and the abandoned #971 close-out (which they
+have taken back — the GATE re-merge and wall-7 final form handed
+over). Also corrected on their side: their "72-claim not on main"
+finding withdrew under the ancestry check.
