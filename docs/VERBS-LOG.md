@@ -1330,3 +1330,24 @@ question decides). The instrument chain is now four links long
 correction by a better instrument — the attribution lesson's
 third confirmation. M9-5's PR carries the lily text; plan row 6
 corrected; #1031 owns the gap.
+
+## ARMS-3 up (#1028); ordinal 78 claimed at dispatch (2026-08-26)
+
+The sphere×sphere arm landed as the table's one
+condition-free row (coaxial BY CONSTRUCTION — the axis is the
+centre line), the whole implementation one variant + one row; the
+snowman self-corrected to a LENTIL consumer (the snowman's valley
+is concave — the arm now correctly refuses on convexity, a
+better outcome than the fixture assumption); the #319 witness
+reproduced (pole-touching profiles split every wall) and the
+misdescribing NEdgeVertex{4} became SeamVertex with
+policy: None — plus a latent policy disagreement fixed
+(surgery hardcoded StopAtVertex for every tag). **A3-2's ratified
+recourse premise measured FALSE** (the annulus door cannot carve
+the seam-split rim the recourse promises; #1022 is the missing
+door) — a dominant-argument correction recorded in the design doc
+and flagged for Evan's retroactive review per the self-merge
+escalation, the C8-cone pattern. The lane's #1029 handling was
+the comparison protocol end to end. **Ordinal 78 claimed at
+dispatch** (through 77 on main; duals suspended per #1016) —
+single fable review, frozen b7227242.
