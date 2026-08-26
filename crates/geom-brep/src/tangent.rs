@@ -238,9 +238,10 @@ pub fn tangent_span_bounds<T: Real>(
             // No closed second-fundamental-form bound for a spline
             // stand-in, so no tangent span bound — `Approx` declines
             // with the rest, and the caller keeps its own door.
-            Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-                None
-            }
+            Surface::Cone { .. }
+            | Surface::Torus { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => None,
         }
     };
     let (f2a, da) = bounds_of(s1)?;

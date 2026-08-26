@@ -67,9 +67,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::azimuth;
-pub use approx::{
-    ApproxSurface, ChartWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec,
-};
+pub use approx::{ApproxSurface, ChartWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
 pub use nurbs::{NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 

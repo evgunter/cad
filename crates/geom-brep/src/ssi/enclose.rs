@@ -302,10 +302,9 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
         }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
-        Surface::Cone { .. }
-        | Surface::Torus { .. }
-        | Surface::Nurbs(_)
-        | Surface::Approx(_) => RingInterval::poison(),
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            RingInterval::poison()
+        }
     }
 }
 
