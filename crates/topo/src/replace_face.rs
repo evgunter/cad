@@ -989,78 +989,77 @@ fn plan_edge<T: Decide>(
         },
         Surface::Approx(approx),
     ) = (&description, new_surface)
+        && *surface == old_key
     {
-        if *surface == old_key {
-            // The seam this row carries is shared with whatever face
-            // sits on the other side. If THAT face is a bounded chart
-            // too, it would have to move with this one to keep holding
-            // the edge — which is a body-wide offset, not a
-            // face-replacement, and this door says so rather than
-            // storing a row the neighbour's own lane will reject.
-            let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
-            let other = if fa == face { fb } else { fa };
-            if other != face
-                && matches!(
-                    body.get_surface(
-                        body.get_face(other)
-                            .ok_or(ReplaceFaceError::Corrupt)?
-                            .surface
-                    ),
-                    Some(Surface::Nurbs(_) | Surface::Approx(_))
-                )
-            {
-                return Err(ReplaceFaceError::FittedBoundaryUnsupported {
-                    edge,
-                    what: "a seam shared with another bounded chart",
-                });
-            }
-            let fit = approx.fit();
-            let (fu0, fu1) = fit.knots_u().domain();
-            let at = |edge_param: T, domain: f64| -> Result<bool, ReplaceFaceError<T>> {
-                Ok(matches!(
-                    decide(
-                        "offset_iso_boundary_row",
-                        Margin::of(edge_param - T::from_f64(domain)),
-                        band,
-                    )
-                    .map_err(|source| ReplaceFaceError::Escalated { source })?,
-                    Sign::Zero
-                ))
-            };
-            let end_flag = if at(*u, fu0)? {
-                false
-            } else if at(*u, fu1)? {
-                true
-            } else {
-                return Err(ReplaceFaceError::CarrierLaneUnsupported {
-                    edge,
-                    what: "an interior iso-curve of a fitted chart (only boundary rows extract)",
-                });
-            };
-            let row = geom_brep::nurbs_iso::boundary_iso_u(fit, end_flag)
-                .map_err(|error| ReplaceFaceError::Structure { edge, error })?;
-            let carrier = Curve3::Nurbs(Arc::new(row));
-            let p_start = carrier.eval(*v0);
-            let p_end = carrier.eval(*v1);
-            return Ok(EdgePlan {
+        // The seam this row carries is shared with whatever face
+        // sits on the other side. If THAT face is a bounded chart
+        // too, it would have to move with this one to keep holding
+        // the edge — which is a body-wide offset, not a
+        // face-replacement, and this door says so rather than
+        // storing a row the neighbour's own lane will reject.
+        let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+        let other = if fa == face { fb } else { fa };
+        if other != face
+            && matches!(
+                body.get_surface(
+                    body.get_face(other)
+                        .ok_or(ReplaceFaceError::Corrupt)?
+                        .surface
+                ),
+                Some(Surface::Nurbs(_) | Surface::Approx(_))
+            )
+        {
+            return Err(ReplaceFaceError::FittedBoundaryUnsupported {
                 edge,
-                spec: EdgeCurveSpec {
-                    description: EdgeGeometry::IsoCurve {
-                        surface: old_key,
-                        u: T::from_f64(if end_flag { fu1 } else { fu0 }),
-                        v0: *v0,
-                        v1: *v1,
-                    },
-                    carrier,
-                    param_start: *v0,
-                    param_end: *v1,
-                },
-                start,
-                end,
-                p_start,
-                p_end,
+                what: "a seam shared with another bounded chart",
             });
         }
+        let fit = approx.fit();
+        let (fu0, fu1) = fit.knots_u().domain();
+        let at = |edge_param: T, domain: f64| -> Result<bool, ReplaceFaceError<T>> {
+            Ok(matches!(
+                decide(
+                    "offset_iso_boundary_row",
+                    Margin::of(edge_param - T::from_f64(domain)),
+                    band,
+                )
+                .map_err(|source| ReplaceFaceError::Escalated { source })?,
+                Sign::Zero
+            ))
+        };
+        let end_flag = if at(*u, fu0)? {
+            false
+        } else if at(*u, fu1)? {
+            true
+        } else {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "an interior iso-curve of a fitted chart (only boundary rows extract)",
+            });
+        };
+        let row = geom_brep::nurbs_iso::boundary_iso_u(fit, end_flag)
+            .map_err(|error| ReplaceFaceError::Structure { edge, error })?;
+        let carrier = Curve3::Nurbs(Arc::new(row));
+        let p_start = carrier.eval(*v0);
+        let p_end = carrier.eval(*v1);
+        return Ok(EdgePlan {
+            edge,
+            spec: EdgeCurveSpec {
+                description: EdgeGeometry::IsoCurve {
+                    surface: old_key,
+                    u: T::from_f64(if end_flag { fu1 } else { fu0 }),
+                    v0: *v0,
+                    v1: *v1,
+                },
+                carrier,
+                param_start: *v0,
+                param_end: *v1,
+            },
+            start,
+            end,
+            p_start,
+            p_end,
+        });
     }
 
     // Past the fit's own rows, a fitted face's boundary has nowhere to
@@ -1091,6 +1090,9 @@ fn plan_edge<T: Decide>(
     let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
 
     let new_description = match description {
+        // A seam names a surface and nothing else — no parameter to
+        // shift, unlike an iso-curve's `v` on a cone. Stated rather
+        // than left to the fall-through so the contrast is on the page.
         EdgeGeometry::Seam { surface } if surface == old_key => {
             EdgeGeometry::Seam { surface: old_key }
         }
