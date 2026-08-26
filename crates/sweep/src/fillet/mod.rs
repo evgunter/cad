@@ -487,8 +487,8 @@ pub enum FilletError {
         policy: Option<RunOutPolicy>,
     },
     /// The link's support pair has no analytic blend arm in the
-    /// battery's table (only plane–plane and plane–sphere are
-    /// implemented). The refusal is minted from the PAIR, not from
+    /// battery's table (whose rows the payload's own roster names).
+    /// The refusal is minted from the PAIR, not from
     /// the spine the pair would trace — a coaxial curved pair's spine
     /// can be a perfectly good circle and still land here. The
     /// general lane is the canal-surface approximating blend, banked
