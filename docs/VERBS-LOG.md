@@ -1102,3 +1102,11 @@ refusal now germ-pair-shaped). **Ordinal 76 claimed at dispatch**
 (through 75 on main; not a third) — single fable review, frozen
 597acdb6. The hosted draws were both interval again; the default
 mode is the reviewer's unique signal.
+
+## Correction (2026-08-26): the ARMS-3 dispatch entry above was premature
+
+The lane was created and the log written, but the implementer
+launch was skipped when the session interleaved — caught at the
+next hourly tick (the branch sat at main's head). Actually
+dispatched ~1h later than the entry claims. The tick sweep is what
+caught it; recorded per the no-unverified-claims rule.
