@@ -105,7 +105,7 @@
 //! boolean intersection polygons are in general non-planar (§15.7);
 //! degenerate results are netted at the component stage instead.
 
-use geom_core::{Band, Decide, Margin};
+use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
 use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
@@ -524,7 +524,6 @@ fn find_match<T: Decide>(
     sb: &SolidJoin,
     band: Band,
 ) -> Result<Option<Match>, BooleanError> {
-    use geom_core::Sign;
     let desync = |what| BooleanError::JoinDesync { what };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = red
@@ -681,10 +680,12 @@ pub(super) enum FrameError {
 ///
 /// `Ok(None)` means the locus is STRAIGHT and is only ever returned by
 /// an arm that PROVED it: the plane×plane pair (a line by
-/// construction) and the two degenerate plane×cylinder outcomes whose
-/// loci are lines. A kind pair with no arm is [`FrameError::NoArm`] —
-/// never `None`, because the caller reads `None` as "run the
-/// straight-chord facing test" and would mint a wrong chord from it.
+/// construction), the two degenerate plane×cylinder outcomes whose loci
+/// are lines, and a cylinder pair whose AXES are parallel (its
+/// intersection is rulings, whatever the radii). A kind pair with no
+/// arm is [`FrameError::NoArm`] — never `None`, because the caller
+/// reads `None` as "run the straight-chord facing test" and would mint
+/// a wrong chord from it.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
@@ -730,6 +731,40 @@ pub(super) fn pair_section_frame<T: Decide>(
         // The ONE structurally straight pair: a plane×plane section is
         // a line, so "no frame" is a proof here rather than a default.
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
+        // **Cylinder×cylinder, and only its straight half.** Two walls
+        // with PARALLEL axes meet in rulings — lines — whatever their
+        // radii, so `None` here is proven by the axes alone and needs
+        // neither radius evidence nor a constructed section: the
+        // declared tangent-ruling pair the zip lane rests on is exactly
+        // this case. A non-parallel pair's locus is a space quartic (or
+        // the equal-radius bisector ellipses), never straight, so it
+        // has no frame this dispatch can name and takes the refusal.
+        //
+        // Metered at the larger radius: a bigger lever makes the
+        // parallelism margin harder to call Zero, so the error runs
+        // toward the refusal, never toward a wrong straight chord.
+        (
+            Sf::Cylinder {
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            Sf::Cylinder {
+                axis: a2,
+                radius: r2,
+                ..
+            },
+        ) => {
+            return match decide(
+                "bool_germ_frame_axes_parallel",
+                Margin::levered(a1.cross(*a2).norm(), r1.max(*r2)),
+                band,
+            ) {
+                Ok(Sign::Zero) => Ok(None),
+                Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
+                Err(diag) => Err(FrameError::Escalated(diag)),
+            };
+        }
         _ => return Err(FrameError::NoArm),
     };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, radius, band) {
@@ -776,7 +811,6 @@ fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    use geom_core::Sign;
     let escalate = |diag| BooleanError::Escalated { diag };
     match frame {
         None => {
@@ -827,7 +861,6 @@ fn loose_partners<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
-    use geom_core::Sign;
     let desync = |what| BooleanError::JoinDesync { what };
     let escalate = |diag| BooleanError::Escalated { diag };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
@@ -1642,9 +1675,15 @@ mod frame_dispatch_tests {
     #[test]
     fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
         let curved_pairs = [
+            // Crossing axes: the locus is a space quartic (or, at equal
+            // radii, the bisector ellipses) — never a line.
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder(Vec3::new(1.0, 0.0, 0.0)),
+            ),
+            (
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                cylinder(Vec3::new(0.0, 1.0, 1.0).normalize()),
             ),
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere()),
             (sphere(), sphere()),
@@ -1689,6 +1728,20 @@ mod frame_dispatch_tests {
         assert!(
             matches!(pair_section_frame(&plane(), &sphere(), band()), Ok(Some(_))),
             "plane×sphere names its circle frame"
+        );
+        // Two walls with parallel axes meet in RULINGS, so the straight
+        // answer is proven by the axes alone — the declared
+        // tangent-ruling germ pair the zip lane rests on.
+        assert!(
+            matches!(
+                pair_section_frame(
+                    &cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                    &cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                    band()
+                ),
+                Ok(None)
+            ),
+            "a parallel-axis cylinder pair is a PROVEN straight locus"
         );
     }
 }

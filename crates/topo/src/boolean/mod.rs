@@ -842,13 +842,15 @@ pub enum BooleanError {
     /// matcher asks each germ pair for the LOCUS its germ line rides,
     /// and the answer drives which facing test runs: a straight locus
     /// takes the chord test, a conic locus the rotational-sense test.
-    /// "No frame" therefore MEANS "the locus is straight", and only a
-    /// PLANE×PLANE pair earns that answer structurally — its section
-    /// is a line by construction. Every other pair either has a
-    /// section arm that names its conic, or has no arm at all; the
-    /// second case is refused here rather than defaulting into the
-    /// straight-chord test, which would mint a wrong chord silently
-    /// the moment the germ-pair dispatch widens.
+    /// "No frame" therefore MEANS "the locus is straight", and a pair
+    /// EARNS that answer only by proof: a plane×plane section is a line
+    /// by construction, a plane×cylinder one is a line where the C5
+    /// table says so, and a cylinder pair's is rulings exactly when its
+    /// axes are parallel. Every other pair either has a section arm
+    /// that names its conic, or has no arm at all; the second case is
+    /// refused here rather than defaulting into the straight-chord
+    /// test, which would mint a wrong chord silently the moment the
+    /// germ-pair dispatch widens.
     GermFrameUnsupported {
         /// The A-side germ face.
         a_face: FaceKey,
@@ -1098,10 +1100,10 @@ impl core::fmt::Display for BooleanError {
                 "boolean join: the germ pair (face {a_face:?} of A, a {}; face \
                  {b_face:?} of B, a {}) has no section-frame arm, so the locus its \
                  germ line rides is unknown. A missing frame MEANS a straight locus \
-                 and selects the chord facing test — an answer only a plane×plane \
-                 pair earns structurally — so a pair without an arm is refused here \
-                 rather than defaulted into it. Recourse: wire the pair's section \
-                 arm, or express the cut with tooling whose germ pairs are wired",
+                 and selects the chord facing test, an answer a pair earns only by \
+                 proof, so a pair without an arm is refused here rather than \
+                 defaulted into it. Recourse: wire the pair's section arm, or \
+                 express the cut with tooling whose germ pairs are wired",
                 a_kind.name(),
                 b_kind.name(),
             ),

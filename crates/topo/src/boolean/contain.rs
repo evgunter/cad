@@ -264,7 +264,7 @@ fn boundary_pre_pass<T: Decide>(
 /// [`super::solid_contain::point_on_wall_in_face`] and shared by all
 /// three of its sites.
 #[allow(clippy::too_many_arguments)] // one arc datum, each argument named
-fn point_on_arc<T: Decide>(
+pub(super) fn point_on_arc<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,
     axis: Vec3<T>,

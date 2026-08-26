@@ -738,18 +738,39 @@ mod arc_clearance_tests {
 
     use super::*;
 
+    /// One (surface, circle) pair the rows below sample.
+    struct Case {
+        name: &'static str,
+        surface: Surface<f64>,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+    }
+
+    fn case(
+        name: &'static str,
+        surface: Surface<f64>,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+    ) -> Case {
+        Case {
+            name,
+            surface,
+            center,
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+
     /// A spread of (surface, circle) pairs whose composed residual
     /// exercises BOTH harmonics: the cylinder rows tilt the circle
     /// against the wall axis, which is the only way `A₂` is nonzero,
     /// and the plane/sphere rows pin the first-harmonic-only arms.
-    fn cases() -> Vec<(
-        &'static str,
-        Surface<f64>,
-        Point3<f64>,
-        Vec3<f64>,
-        f64,
-        Vec3<f64>,
-    )> {
+    fn cases() -> Vec<Case> {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
         // A circle whose axis is tilted 45° from the wall's: the
@@ -758,7 +779,7 @@ mod arc_clearance_tests {
         let tilt_u = Vec3::new(1.0, 0.0, 0.0);
         let steep = Vec3::new(0.0, 3.0, 1.0).normalize();
         vec![
-            (
+            case(
                 "cylinder, tilted circle (A2 large)",
                 Surface::Cylinder {
                     origin: Point3::new(-1.0, 0.0, 0.0),
@@ -771,7 +792,7 @@ mod arc_clearance_tests {
                 1.0,
                 tilt_u,
             ),
-            (
+            case(
                 "cylinder, steeply tilted circle",
                 Surface::Cylinder {
                     origin: Point3::new(0.4, -0.3, 0.0),
@@ -784,7 +805,7 @@ mod arc_clearance_tests {
                 1.3,
                 tilt_u,
             ),
-            (
+            case(
                 "cylinder, coaxial circle (A2 = 0)",
                 Surface::Cylinder {
                     origin: Point3::new(-1.0, 0.0, 0.0),
@@ -797,7 +818,7 @@ mod arc_clearance_tests {
                 1.0,
                 x,
             ),
-            (
+            case(
                 "sphere",
                 Surface::Sphere {
                     center: Point3::new(-1.0, 0.0, 0.0),
@@ -810,7 +831,7 @@ mod arc_clearance_tests {
                 1.0,
                 x,
             ),
-            (
+            case(
                 "plane",
                 Surface::Plane {
                     origin: Point3::new(0.0, 0.0, 0.1),
@@ -852,7 +873,15 @@ mod arc_clearance_tests {
     #[test]
     fn the_curvature_bound_encloses_the_sampled_second_derivative() {
         const N: usize = 4096;
-        for (name, s, c, axis, r, u) in cases() {
+        for Case {
+            name,
+            surface: s,
+            center: c,
+            axis,
+            radius: r,
+            u_ref: u,
+        } in cases()
+        {
             let bound = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
             let h = TAU / N as f64;
             let mut worst: f64 = 0.0;
@@ -883,7 +912,15 @@ mod arc_clearance_tests {
     #[test]
     fn the_chord_dip_bound_never_exceeds_the_arcs_true_minimum() {
         const N: usize = 512;
-        for (name, s, c, axis, r, u) in cases() {
+        for Case {
+            name,
+            surface: s,
+            center: c,
+            axis,
+            radius: r,
+            u_ref: u,
+        } in cases()
+        {
             let f2 = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
             for span_steps in 1..=16 {
                 let span = TAU * f64::from(span_steps) / 16.0;
