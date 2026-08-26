@@ -1585,3 +1585,13 @@ commit vs landing commit) and hollowring's relative-only census
 pin. Fix pass dispatched (incl. adopting the reviewer's
 rederivation probe row, which pins the audit's analytic half
 in-tree). Reviewer lane swept post-report.
+
+## TESSFOLD MERGED (#1045, 2026-08-26) — ordinal-81 row; the gate's eyes are open
+
+Row TESSF in MODEL-AB-LOG. The five scenes' 146 rows are covered
+verified-not-blessed; #1038 stays open for the gate's class fix.
+The fix pass surfaced a wild instance of a new operational law
+(now in lane-ops memory): a CONFLICTING PR gets no CI run,
+silently, and none retroactively — force one via push or
+close/reopen after resolving. Lane swept. In flight: ordinal 80
+(#1044's review), OFF-D PR-2 (shell).

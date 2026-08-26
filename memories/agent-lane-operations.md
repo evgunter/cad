@@ -69,6 +69,13 @@ self-acquire; wrap raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
+- **A CONFLICTING PR gets NO CI run — silently, and none retroactively
+  once resolved.** GitHub skips the pull_request trigger while a PR is
+  CONFLICTING; pushes during that window produce nothing, and merging
+  main afterwards doesn't fire one either. After resolving, force a
+  run: push a new commit or close/reopen the PR (the `reopened`
+  trigger). Always CONFIRM a run started after any push that followed
+  a main-moved conflict. (TESSFOLD fix pass, 2026-08-26.)
 - **A finished agent with orphaned detached timers re-wakes forever** —
   each expiry resumes it for a no-op "stale timer" turn, burning tokens
   and notification spam. Once its report is final, the orchestrator
