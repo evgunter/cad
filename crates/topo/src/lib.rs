@@ -202,9 +202,9 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
-pub mod shell;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
