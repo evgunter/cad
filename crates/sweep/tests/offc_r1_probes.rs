@@ -52,7 +52,10 @@ fn twisted_loft() -> Body<f64> {
         let (s, c) = theta.sin_cos();
         let rv = move |x: f64, y: f64| {
             let (dx, dy) = (x - 1.0, y - 1.0);
-            ProfileVertex::new(Point2::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy), 0.0)
+            ProfileVertex::new(
+                Point2::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy),
+                0.0,
+            )
         };
         vec![ProfileLoop::new(vec![
             rv(0.0, 0.0),
@@ -176,11 +179,9 @@ fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
 /// net over `[0,1]²` with a bump — nothing about it is planar or
 /// ruled.
 fn skinned_base() -> NurbsSurface<f64> {
-    let kv = geom_core::spline::KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
-        3,
-    )
-    .unwrap();
+    let kv =
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+            .unwrap();
     let mut control = Vec::new();
     for i in 0..4 {
         for j in 0..4 {
@@ -418,7 +419,9 @@ fn diag_spline_spaces() {
             let base = Arc::new(pulled_back(p, D));
             let approx = geom_brep::approx_offset_surface(Arc::clone(&base), D, FIT_TOL, band())
                 .expect("fit");
-            let Surface::Approx(a) = &approx else { panic!() };
+            let Surface::Approx(a) = &approx else {
+                panic!()
+            };
             println!(
                 "face {fk:?}: wall ku={:?} kv={:?} | fit ku={:?} kv={:?}",
                 p.knots_u().knots(),
@@ -430,7 +433,9 @@ fn diag_spline_spaces() {
         }
     }
     for (ek, edge) in body.edges() {
-        if let Some(c) = body.get_curve_geom(edge.curve).and_then(CurveGeom::certified)
+        if let Some(c) = body
+            .get_curve_geom(edge.curve)
+            .and_then(CurveGeom::certified)
             && let Curve3::Nurbs(n) = c.carrier()
         {
             println!(
