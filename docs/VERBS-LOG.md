@@ -1451,3 +1451,105 @@ OFF-D, TESSFOLD, the demo round 2. For Evan at the merge sync:
 the A3-2 correction's retroactive 👍 (the ratified recourse
 premise measured impossible; the appended correction is the
 C8-cone pattern's sibling).
+
+## CYLCYL PR-B SCOPE CORRECTION (adjudicated 2026-08-26)
+
+The PR-B lane's opening measurement (all four cases doored, table
+in its report) falsified the arms' premise: the cylinder-union
+refusals are the CROSSING layer's — `CurvedPierceUnsupported` (no
+pierce-event path for a rim circle definitely crossing the
+partner wall) and `PointSplitCarrierUnsupported` (Circle-edge
+split at an event point is unwired) — so "route the section
+through the dispatch" builds a join for crossings that cannot yet
+exist. The conservatism half, meanwhile, turned out to be #347's
+whole first demand: the three fixes alone (arc-scoped conic edge
+box — the carrier-slab diagnosis one level down, a banked class
+finding; boundary-clipped cylinder face box; segment-clamped
+line-clearance vertex) make the bracket round at 6 mm, pinned at
+closed-form volumes r ∈ {3,4,5,6}. Ruling: PR-B ships as the
+conservatism unit alone; #347 NARROWS (first demand closes, the
+union demand stays open); the arms move behind a new shared
+substrate unit — the curved pierce/split door — which every germ
+lane's arms consume (SPHSPH included), spec to be cut. Addendum
+in VERBS-CYLCYL-SPEC. Lane also banked the `| tail`-buffering
+slot finding (now in agent-lane-operations memory).
+
+## OFF-D PR-1 REPORTED GREEN; ORDINAL 79 CLAIMED, REVIEW DISPATCHED (2026-08-26)
+
+PR #1043 (`topo::replace_face_offset`) reported: the door beside
+the attach layer, per-kind closed-form carrier transport, the C5
+boundary refusing typed, the apex-window predicate derived from
+CARRIERS (deviation-as-finding: `chart_box` pads a true
+[−1.0,−0.5] window to straddle the apex — sound for containment,
+useless as a quantity), the spline-space obligation discharged by
+iso-row EXTRACTION, and the measured structural obstruction: no
+green Approx body row is possible through the door alone (neighbor
+charts cannot extend; IsoCurve is u-const; Approx×everything
+unrouted) — refused typed BEFORE mutating; the teapot's path is
+analytic-only so nothing waits. Four banked findings incl. the
+O(n²) whole-body mint cost aimed at #1019's fixture. CI: two of
+six points on record (default/default-ε, default/1e-6), stated.
+Ordinal 79 claimed from main (last = 78); single fable review
+(duals suspended per #1016) dispatched against frozen head
+34ee2537 with claims-to-falsify on the one-clone Err contract,
+both nappes, the C5 gate's post-replacement kind, the obstruction
+counterexample hunt, and C7. CYLCYL PR-B opened as #1044 under
+the scope ruling; TESSFOLD implementing.
+
+## CYLCYL PR-B OPENED (#1044) UNDER THE RULING; ORDINAL 80 CLAIMED (2026-08-26)
+
+The lane executed the scope ruling exactly: #1044 carries the
+conservatism scope alone (arms out, premise correction verbatim),
+#347 NARROWED by comment (demand 1 closes with the closed-form
+volume pins; demand 2 stays open on the crossing substrate, door
+table attached, bracket.py's 3mm note flagged stale). The powi(2)
+discipline red was fixed by conversion, not allowlist, with the
+straddling-caller argument in the body. CI green at (interval,
+1e-12) — the tightest row and the one this interval-arithmetic
+unit most needed. Ordinal 80 claimed from main (unchanged at 78;
+79 in flight on OFF-D); single fable review dispatched against
+frozen head b12a7918 with claims-to-falsify on the arc_extent
+sagitta charge's soundness (the one wrong-answer-capable path),
+the wrap-around footprint argument, the span-dip bound's
+re-derivation, and the r>6 boundary. TESSFOLD opened #1045.
+
+## ORDINAL 79 RETURNED: OFF-D PR-1 A-W-F 2/4/5; FIX PASS DISPATCHED (2026-08-26)
+
+The review's centerpiece: BOTH MAJors are one defect — the cone
+offset action derived twice (mint: apex slides −axis·d/sinα, pure
+v-shift, no sign flip; door: old apex + copysign) and the copy
+drifted, measured as a VertexDisagreement gap of exactly d/sinα
+on the one routed cone pair. Nothing shipped is silently wrong
+(both surface as pre-mutation typed refusals; the one-clone Err
+contract verified bit-identical across five paths by whole-body
+Debug), but PR-2's shell of coned bodies would inherit
+wrong-reason refusals. Adjudicated: fix by DE-DUPLICATION — the
+cone action gets one home in geom-brep beside the mint, the door
+consumes it, mirror nappe follows the mint's continuous-extension
+contract (doc sentence corrected, not a typed nappe refusal);
+MIN-1+Q7 merged into one carve-out ruling; MIN-4's shared-key
+operand gets a decided-before-mutation refusal; the reviewer's 8
+probes adopt authorship-preserving with the two reds required to
+flip. Style lane: Q1 sure (the duplication IS the finding), Q3
+sure (weak Err projections), Q6 sure (deviations all scheduled).
+Reviewer lane swept post-report per the reclaim rule.
+
+## ORDINAL 81 CLAIMED: TESSFOLD REVIEW DISPATCHED (2026-08-26)
+
+TESSFOLD (#1045) reported all five scenes verified-as-is with a
+pure-additive 146-row fold: hollowring bit-exact against the
+analytic sizing chain (formula cross-validated on tube_along_arc's
+committed 17,152), the chamfer scenes at twin-identity/planar
+minimum with the fillet-twin gap attributed to genuine curvature,
+bench/benchlayout provenance CHECKED to #938 (post-cut, claims
+verified). Two record corrections banked: 146 not 162 (my log's
+transcription error), and #1037's fold was 47 rows not the 31 my
+brief said. Ordinal 81 claimed (main unchanged at 78; 79/80 in
+flight); single fable review dispatched against frozen head
+48559d61, briefed on the one risk that matters for an audit unit:
+"verified-as-is" is also what a lazy current-state bless returns —
+the review re-derives the analytic chains independently and hunts
+waste the audit might have explained away. Ordinal-79 reviewer
+TaskStopped post-report after orphaned-timer wake spam (lesson in
+lane-ops memory; reviewer briefs now carry the cancel-your-timers
+line).
