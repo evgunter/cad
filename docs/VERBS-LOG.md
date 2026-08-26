@@ -1223,3 +1223,18 @@ fix); they file the class issue citing both instances plus #601
 and the #915 regime; all three active VERBS lanes warned with the
 enumerated-red protocol (compare, state, don't debug; re-merge at
 #971's landing).
+
+## OFF-C MERGED (#1012, 2026-08-26) — Surface::Approx is IN THE KERNEL
+
+Row OFFC (ordinal 76) in MODEL-AB-LOG. The kernel's closed surface
+enum has its seventh variant with the never-trust validator arm
+classifying against the run's ε. OFF-D inherits a measured list:
+the face-replacement primitive owes knot refinement (not elevation
+alone), the transform re-derivation lane (#1020), the mesh
+widening (#1018), and the tier-3 perf box (#1019). **The teapot's
+remaining path: OFF-D (shell + rim surgery, consuming RING's
+door) → the demo.** Seam sweep: verbs-offc lane. Meanwhile CYLCYL
+PR-A reported (green; the D10 silence caught EXECUTING a wrong
+answer — 30π with the lens double-counted, now a typed refusal;
+#347's defect (a) re-diagnosed as two OTHER conservatisms, both
+single-arm PR-B fixes) — its review claims ordinal 77 next.
