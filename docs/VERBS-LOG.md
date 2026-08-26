@@ -1435,3 +1435,19 @@ filter and red exactly as enumerated. Light fix pass out; the
 merge queues behind the hosted-runner outage. **Wave 1 closes at
 this merge**, with the ARMS3-DESIGN correction flagged for Evan's
 retroactive 👍 in the merge state-sync.
+
+## ARMS-3 MERGED (#1028, 2026-08-26) — #319 CLOSED. **WAVE 1 IS COMPLETE.**
+
+Row ARMS3 (ordinal 78) in MODEL-AB-LOG. Every Wave-1 row is
+merged: RIM, CHAMFER, ARMS-1/2/3, TUBEWALL, RING, DEMO — plus the
+defect units the wave surfaced (ARCEVAL×2, SSIFLAT, the fixture
+fixes) and the full curved-fillet family (ten arms; the bud, the
+lentil, the dome, the washer all fillet end to end through the
+annulus door). The register's fillet story is DONE except the
+consumer-gated parked pair and #1022's multi-link door. Wave 2:
+PR-B implementing (the bracket's 6mm is its acceptance); GATE
+landed. Wave 3: OFF-A/B/C landed; OFF-D specs ready. Queued:
+OFF-D, TESSFOLD, the demo round 2. For Evan at the merge sync:
+the A3-2 correction's retroactive 👍 (the ratified recourse
+premise measured impossible; the appended correction is the
+C8-cone pattern's sibling).
