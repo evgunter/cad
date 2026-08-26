@@ -252,6 +252,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "merge_coplanar_faces_declared",
         "gates on `validate_closed` at entry and mutates only through `ring_move`/`kef`",
     ),
+    (
+        "replace_face_offset",
+        "mutates a clone only through `set_face_surface`/`set_edge_curve` (both asserting) \
+         and one point re-write, and gates the clone on `validate_closed` before adopting it",
+    ),
     // ---- Setters carrying their own tier-1 debug_assert. ----
     (
         "set_face_surface",
