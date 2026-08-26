@@ -103,14 +103,15 @@ pub fn contfp<T: Decide>(
     Ok(FaceContainment::In)
 }
 
-/// **Boundary-only containment** for an on-carrier point against a
-/// CURVED face: the shared boundary pre-pass ([`boundary_pre_pass`]),
-/// and nothing after it, with the chord rows gated to **`Line`
-/// carriers only** (a line's chord IS the edge, so the rows decide
-/// exactly; a curved boundary edge is not its chord and gets no
-/// verdict here). `None` is the honest remainder: interior/exterior
-/// classification on a curved chart does not exist at boolean
-/// classification, and the caller's typed frontier door says so.
+/// **Boundary containment** for an on-carrier point against a CURVED
+/// face: the shared boundary pre-pass ([`boundary_pre_pass`]), and
+/// nothing after it. `None` is the honest remainder: this walk answers
+/// about the BOUNDARY only, and the interior/exterior question belongs
+/// to [`curved_face_containment`].
+///
+/// The chord rows are gated to [`EdgeChords::LinesAndArcs`]: a `Line`
+/// boundary IS its chord, a `Circle` boundary gets its own exact arc
+/// rows, and any other carrier gets no verdict rather than a chord's.
 ///
 /// # Errors
 ///
@@ -125,7 +126,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     let loops: Vec<_> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
-    boundary_pre_pass(body, &loops, q, EdgeChords::LinesOnly, band)
+    boundary_pre_pass(body, &loops, q, EdgeChords::LinesAndArcs, band)
 }
 
 /// Which boundary edges the shared pre-pass may decide `OnEdge`
@@ -137,10 +138,12 @@ enum EdgeChords {
     /// exact for line boundaries and conservative-by-band for the
     /// conic ones it has always run).
     All,
-    /// `Line`-carrier boundary edges only (the curved chart's walk —
-    /// a chord row on a conic boundary would answer about the chord,
-    /// not the edge).
-    LinesOnly,
+    /// `Line` carriers through the chord rows, `Circle` carriers
+    /// through their own EXACT arc rows ([`point_on_arc`]), every
+    /// other carrier undecided. The curved chart's walk: a rim arc is
+    /// a boundary a curved face genuinely has, and answering about its
+    /// chord would be answering about a different curve.
+    LinesAndArcs,
 }
 
 /// **The shared boundary pre-pass**: vertex coincidence over ALL
@@ -148,9 +151,12 @@ enum EdgeChords {
 /// coincidence, across loops exactly as within one (the invariant
 /// [`contfp`] always stated; running it per loop let an outer-edge
 /// hit shadow a ring vertex, fixed here with its red-then-green row
-/// below) — then edge interiors over all loops. Four rows, one home:
+/// below) — then edge interiors over all loops. Which rows an edge may
+/// be decided by is [`EdgeChords`]'s, and it is the ONLY thing the
+/// planar and curved walks disagree about. Six rows, one home:
 /// `bool_contact_vertex`, `bool_contact_edge_span` (×2),
-/// `bool_contact_edge`.
+/// `bool_contact_edge`, and — for the arc disposition —
+/// `bool_contact_arc{,_span}`.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[crate::entity::LoopKey],
@@ -179,14 +185,34 @@ fn boundary_pre_pass<T: Decide>(
         let cycle = loop_cycle_points(body, lk)?;
         for (i, (_, he, a)) in cycle.iter().enumerate() {
             let edge_key = body.get_half_edge(*he).ok_or(ContainError::Corrupt)?.edge;
-            if chords == EdgeChords::LinesOnly {
-                let is_line = body
-                    .get_edge(edge_key)
-                    .and_then(|e| body.get_curve_geom(e.curve))
-                    .and_then(crate::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
-                if !is_line {
-                    continue;
+            // Which rows may decide this edge, by carrier. A chord row
+            // on a conic answers about the chord, not the edge, so the
+            // curved walk sends conics to their own exact rows and
+            // sends everything else away empty-handed.
+            let carrier = body
+                .get_edge(edge_key)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(crate::null::CurveGeom::certified)
+                .map(|c| (c.carrier().clone(), c.params()));
+            if chords != EdgeChords::All {
+                match carrier {
+                    Some((geom::Curve3::Line { .. }, _)) => {}
+                    Some((
+                        geom::Curve3::Circle {
+                            center,
+                            axis,
+                            radius,
+                            u_ref,
+                        },
+                        (t0, t1),
+                    )) if chords == EdgeChords::LinesAndArcs => {
+                        if point_on_arc(q, center, axis, radius, u_ref, t0, t1, band)? == Some(true)
+                        {
+                            return Ok(Some(FaceContainment::OnEdge(edge_key)));
+                        }
+                        continue;
+                    }
+                    _ => continue,
                 }
             }
             let b = cycle[(i + 1) % cycle.len()].2;
@@ -219,6 +245,290 @@ fn boundary_pre_pass<T: Decide>(
         }
     }
     Ok(None)
+}
+
+/// Is `q` on the INTERIOR of the arc `(center, axis, radius, u_ref)`
+/// over `[t0, t1]`? `Some(true)` on it, `Some(false)` definitely off
+/// it, `None` when the angular gate lands on an endpoint (the vertex
+/// pass owns those) or the arc spans a whole period (no angular
+/// window to test).
+///
+/// Two independent margins, both lengths: the point's exact distance
+/// FROM THE CIRCLE (`bool_contact_arc` — radial and axial residuals
+/// folded, so one row covers both ways off the carrier), and the
+/// angular span (`bool_contact_arc_span`).
+///
+/// The angular span is THE cosine-window construction, whose argument
+/// — period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering, and ledger
+/// row F8 — is stated once at
+/// [`super::solid_contain::point_on_wall_in_face`] and shared by all
+/// three of its sites.
+#[allow(clippy::too_many_arguments)] // one arc datum, each argument named
+pub(super) fn point_on_arc<T: Decide>(
+    q: Point3<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> Result<Option<bool>, ContainError> {
+    let half = T::from_f64(0.5);
+    let width = t1 - t0;
+    // The cosine equivalence needs a window under a period; a full
+    // circle has no angular gate at all and gets no verdict here.
+    match decide(
+        "bool_contact_arc_span",
+        Margin::levered(T::tau() - width, radius),
+        band,
+    ) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero | Sign::Negative) => return Ok(None),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    let w = q - center;
+    let height = w.dot(axis);
+    let radial = w - axis * height;
+    let r_norm = radial.norm();
+    // Distance from the point to the circle: the radial miss and the
+    // axial miss are orthogonal, so their hypotenuse is exact.
+    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    match decide("bool_contact_arc", Margin::of(d), band) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive) => return Ok(Some(false)),
+        Ok(Sign::Negative) => {
+            return Err(ContainError::Escalated(invalid(band, "bool_contact_arc")));
+        }
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    // On the carrier: the angular window decides which arc of it.
+    let mid = (t0 + t1) * half;
+    let (s_m, c_m) = mid.sin_cos();
+    let v_ref = axis.cross(u_ref);
+    let m_hat = u_ref * c_m + v_ref * s_m;
+    let (_, c_h) = (width * half).sin_cos();
+    let r_hat = radial / r_norm;
+    match decide(
+        "bool_contact_arc_span",
+        Margin::levered(r_hat.dot(m_hat) - c_h, radius),
+        band,
+    ) {
+        Ok(Sign::Positive) => Ok(Some(true)),
+        Ok(Sign::Negative) => Ok(Some(false)),
+        // An endpoint neighbourhood: the vertex pass owns it.
+        Ok(Sign::Zero) => Ok(None),
+        Err(diag) => Err(ContainError::Escalated(diag)),
+    }
+}
+
+/// **Point-in-face containment on a CURVED chart** — the face-level
+/// analog of the solid door's chart trim
+/// ([`super::solid_contain::point_on_wall_in_face`]), and the door the
+/// curved sweep arm's frontier names.
+///
+/// The boundary walk runs first and unchanged
+/// ([`curved_boundary_containment`]): an ON verdict is an ON verdict
+/// whatever the chart is. Then the CARRIER: a face is a subset of its
+/// surface, so a point definitely off the surface is definitely
+/// outside the face, and saying so here is what keeps the
+/// parameter-domain trim below from answering about a point that is
+/// not on the chart at all.
+///
+/// Only then does this ask the interior question, and only a
+/// **cylinder wall of the ISO-BOUNDED class** can answer it:
+///
+/// - the face carries no rings (a ring is a hole the rectangle below
+///   does not model, and answering `In` inside one would be wrong);
+/// - every boundary edge is a RIM (a circle coaxial with the wall, at
+///   the wall's own radius — a height iso-line) or a MERIDIAN (a line
+///   parallel to the axis — an azimuth iso-line).
+///
+/// That class is what makes the chart trim EXACT: both chart
+/// coordinates are monotone along every boundary edge, so the face is
+/// exactly the rectangle `[az] × [h]` its boundary pins
+/// ([`super::solid_contain::cylinder_chart_trim`]). A wall closed by a
+/// tilted section takes its height extreme inside an edge, the
+/// rectangle then misstates the face in BOTH directions, and this door
+/// answers `None` rather than a verdict it cannot stand behind.
+///
+/// `None` is therefore the honest remainder throughout — a non-cylinder
+/// chart, a chart form the trim cannot express (a ringed face, a
+/// non-iso boundary, or a FULL-PERIOD azimuth window, whose cosine
+/// comparison is an equivalence only under a period), or a margin on a
+/// trim boundary — and the caller keeps its typed frontier door there.
+/// The period case is decided HERE rather than read out of the solid
+/// door's refusal: that door escalates, because a ray lane may not
+/// silently skip a wall, and this door's contract is the remainder.
+///
+/// # Errors
+///
+/// [`ContainError`] — sliver escalations or unwalkable topology.
+pub fn curved_face_containment<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<FaceContainment>, ContainError> {
+    if let Some(v) = curved_boundary_containment(body, face, q, band)? {
+        return Ok(Some(v));
+    }
+    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
+    if !face_data.rings.is_empty() {
+        return Ok(None);
+    }
+    let Some(&geom::Surface::Cylinder {
+        origin,
+        axis,
+        radius,
+        u_ref,
+    }) = body.get_surface(face_data.surface)
+    else {
+        return Ok(None);
+    };
+    // ON THE CHART FIRST. The trim below is parameter-domain work and
+    // premises an on-wall point (`point_on_wall_in_face` says so in its
+    // name): handed a point off the carrier it would answer from the
+    // azimuth and height alone and call it `In`. A face is a subset of
+    // its carrier, so a point definitely off the carrier is definitely
+    // outside the face — decided here, before the trim runs.
+    let w = q - origin;
+    let radial = w - axis * w.dot(axis);
+    match decide(
+        "bool_curved_contain_carrier",
+        Margin::of(radial.norm() - radius),
+        band,
+    ) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    if !iso_bounded_wall(body, face, origin, axis, radius, band)? {
+        return Ok(None);
+    }
+    let (az, h) = match super::solid_contain::cylinder_chart_trim(body, face, origin, axis, band) {
+        Ok(t) => t,
+        // A window this face cannot express is the honest remainder,
+        // not corruption of the caller's query.
+        Err(super::solid_contain::PointInSolidError::CorruptFace { .. }) => return Ok(None),
+        Err(e) => return Err(solid_err(e)),
+    };
+    // THE cosine-window construction's period guard, third site
+    // (`point_on_wall_in_face` carries the argument).
+    // A FULL-PERIOD azimuth window is a chart form this door cannot
+    // express, not an ill-conditioned one: the trim's cosine
+    // comparison is an equivalence only for a window narrower than a
+    // period, so at a full turn there is no angular test to run and the
+    // rectangle stops describing the face. The solid door escalates
+    // here because its ray lane must not silently skip a wall; this
+    // door's contract is the honest remainder, so the case is caught
+    // BEFORE the trim rather than read out of its refusal.
+    match decide(
+        "bool_curved_contain_period",
+        Margin::levered(T::tau() - (az.1 - az.0), radius),
+        band,
+    ) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero | Sign::Negative) => return Ok(None),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    match super::solid_contain::point_on_wall_in_face(
+        face, origin, axis, radius, u_ref, az, h, q, band,
+    ) {
+        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
+        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(solid_err(e)),
+    }
+}
+
+fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
+    match e {
+        super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
+            ContainError::Escalated(diag)
+        }
+        _ => ContainError::Corrupt,
+    }
+}
+
+/// Is every boundary edge of `face` a chart ISO-LINE of the wall — a
+/// rim (coaxial circle at the wall's radius) or a meridian (line
+/// parallel to the axis)? A definite non-iso edge answers `false`; an
+/// in-band one escalates (the two-tolerance pair).
+///
+/// **Dimension.** Every margin here is a LENGTH in metres, and the two
+/// kinds of quantity reach that convention differently, so they get
+/// different constructors rather than one:
+///
+/// - a **direction disagreement** is `|â × b̂|` of two UNIT vectors —
+///   dimensionless, the sine of the angle between them. Its physical
+///   size is the displacement it causes at the chart's own scale, so it
+///   is `Margin::levered` by the radius: that is precisely the
+///   dimensionless-times-lever-arm contract.
+/// - a **length disagreement** — a radius difference, an off-axis
+///   offset — is ALREADY metres, so it takes `Margin::of`. Levering it
+///   would multiply metres by metres and make the tolerance scale with
+///   the radius: a rim would be judged coaxial on a loose scale below
+///   `r = 1` and a tight one above it, which is the very drift the
+///   dimension convention exists to prevent.
+fn iso_bounded_wall<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<bool, ContainError> {
+    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
+    let crate::entity::LoopBoundary::Cycle { first } = body
+        .get_loop(face_data.outer)
+        .ok_or(ContainError::Corrupt)?
+        .boundary
+    else {
+        return Ok(false);
+    };
+    let zero = |name: &'static str, m: Margin<T>| -> Result<bool, ContainError> {
+        match decide(name, m, band) {
+            Ok(Sign::Zero) => Ok(true),
+            Ok(Sign::Positive | Sign::Negative) => Ok(false),
+            Err(diag) => Err(ContainError::Escalated(diag)),
+        }
+    };
+    // A unit-vector cross product is a SINE (dimensionless); a radius
+    // or offset difference is already metres. See the header.
+    let sine = |m: T| Margin::levered(m, radius);
+    for he in body.loop_cycle(first).ok_or(ContainError::Corrupt)? {
+        let edge = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
+        let carrier = body
+            .get_edge(edge)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .map(|c| c.carrier().clone());
+        match carrier {
+            Some(geom::Curve3::Line { dir, .. }) => {
+                if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
+                    return Ok(false);
+                }
+            }
+            Some(geom::Curve3::Circle {
+                center,
+                axis: c_axis,
+                radius: c_radius,
+                ..
+            }) => {
+                let e = center - origin;
+                let off_axis = (e - axis * e.dot(axis)).norm();
+                if !zero("bool_wall_iso_rim", sine(c_axis.cross(axis).norm()))?
+                    || !zero("bool_wall_iso_rim", Margin::of(c_radius - radius))?
+                    || !zero("bool_wall_iso_rim", Margin::of(off_axis))?
+                {
+                    return Ok(false);
+                }
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }
 
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {

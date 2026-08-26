@@ -893,20 +893,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
     Ok(())
 }
 
-/// The curved-face sweep arm (M5 PR 9, C12.1; circle rider M6
-/// unit 1): endpoint sides come from the linearized implicit
-/// residual; a definite miss is PROVEN — for a LINE carrier the
-/// residual is convex (both-inside means no wall crossing,
+/// The curved-face sweep arm: endpoint sides come from the linearized
+/// implicit residual; a definite miss is PROVEN — for a LINE carrier
+/// the residual is convex (both-inside means no wall crossing,
 /// both-outside clears through the span minimum), and for a CIRCLE
-/// carrier the whole circle's residual range has exact harmonic
-/// bounds ([`geom_brep::circle_residual_extremes`]), so a definitely
-/// one-sided circle clears. Anything that definitely meets the face
-/// refuses typed at the named frontier door
-/// ([`BooleanError::CurvedPierceUnsupported`] — curved point-in-face
-/// containment at boolean classification does not exist yet), and an
-/// in-band clearance escalates (F6, the same margin's other half).
-/// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
-/// silent fallback.
+/// carrier the ARC's residual range is enclosed two ways (the
+/// carrier's exact harmonic bounds and the arc's own chord-dip
+/// bound), so a definitely one-sided arc clears. Anything that
+/// definitely meets the face refuses typed at the named frontier door
+/// ([`BooleanError::CurvedPierceUnsupported`] — the pierce event's
+/// ring insertion has no lane), and an in-band clearance escalates
+/// (F6, the same margin's other half). Ellipse/NURBS carriers keep
+/// the unconditional M5 door. Never a silent fallback.
 ///
 /// **The declared-cover rung** (CONTACT-DESIGN C8 at the crossing
 /// layer): a zero-clearance incidence whose edge has a parent face
@@ -916,9 +914,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// tangent edge realizes) — takes the planar sweep's endpoint
 /// posture instead of the frontier door: each on-carrier endpoint is
 /// classified through the boundary pre-pass rows
-/// ([`super::contain::curved_boundary_containment`]), producing the
-/// same v-v record family. An endpoint those rows do not decide
-/// keeps the typed frontier refusal, and UNDECLARED incidences keep
+/// ([`super::contain::curved_face_containment`] — the boundary walk,
+/// and behind it the cylinder chart trim), producing the same v-v
+/// record family, or the v-f record when the trim places the endpoint
+/// strictly inside. An endpoint that door does not decide keeps the
+/// typed frontier refusal, and UNDECLARED incidences keep
 /// both frontier doors untouched — the door only widens what a
 /// verified declaration unlocks.
 ///
@@ -1014,20 +1014,32 @@ fn curved_face_arm<T: Decide>(
             });
         }
     };
-    // Conic carriers (M6 surgery unit, the door-A rider): a CIRCLE
-    // carrier now gets a definite-miss verdict in closed form — its
-    // implicit residual over the WHOLE circle is a degree-≤2
-    // trigonometric polynomial against a sphere/cylinder (the
-    // `circle_span_bounds` harmonic algebra), so the range has exact
-    // amplitude bounds (`geom_brep::circle_residual_extremes`).
-    // Definitely one-sided — the whole circle strictly outside, or
-    // strictly inside — means no wall crossing (margin
-    // `max(lo, −hi)` > 0, meters); anything else keeps the typed
-    // frontier door, and an in-band clearance escalates
-    // (two-tolerance on the new arm, definite ones included). Judging
-    // the FULL circle for an arc is conservative in the safe
-    // direction: it can only send more pairs to the frontier.
-    // Ellipse/NURBS carriers keep the M5 unconditional door.
+    // Conic carriers: a CIRCLE carrier gets a definite-miss verdict in
+    // closed form, and the verdict is the edge's ARC, not the carrier
+    // it rides. Two enclosures of the residual are folded, and the
+    // better one decides:
+    //
+    // - **the carrier's**: the residual over the WHOLE circle is a
+    //   degree-≤2 trigonometric polynomial against a sphere/cylinder,
+    //   so its range has exact amplitude bounds
+    //   (`geom_brep::circle_residual_extremes`). Tight for a full-turn
+    //   edge; for a short arc it answers about geometry the edge does
+    //   not occupy, which is what made a corner round's carrier — not
+    //   its arc — decide a cut (#347).
+    // - **the arc's**: the residual at the two ENDPOINTS bounds the
+    //   interior through the same chord-dip argument the line row uses
+    //   along a segment — a smooth function stays within `|F″|·Δθ²/8`
+    //   of its endpoint chord, and `|F″|` is the harmonics' own bound
+    //   (`geom_brep::circle_residual_curvature_bound`). Tight for a
+    //   short arc, useless for a full turn.
+    //
+    // Both are valid enclosures of the ARC's range, so the clearance
+    // margin is the larger of the two one-sidedness margins: definitely
+    // one-sided — the arc strictly outside, or strictly inside — means
+    // no wall crossing (meters). Anything else keeps the typed frontier
+    // door, and an in-band clearance escalates (two-tolerance on the
+    // arm, definite ones included). Ellipse/NURBS carriers keep the M5
+    // unconditional door.
     match *curve.carrier() {
         geom::Curve3::Line { .. } => {}
         geom::Curve3::Circle {
@@ -1041,7 +1053,17 @@ fn curved_face_arm<T: Decide>(
             else {
                 return Err(frontier());
             };
-            let margin = Margin::of(lo.max(-hi));
+            let carrier_margin = lo.max(-hi);
+            let arc_margin =
+                geom_brep::circle_residual_curvature_bound(&surface, center, axis, radius, u_ref)
+                    .map_or(carrier_margin, |f2| {
+                        let (t0, t1) = curve.params();
+                        let dip = f2 * (t1 - t0).powi(2) * T::from_f64(0.125);
+                        let r_u = geom_brep::implicit_residual(&surface, pu);
+                        let r_v = geom_brep::implicit_residual(&surface, pv);
+                        (r_u.min(r_v) - dip).max(-(r_u.max(r_v) + dip))
+                    });
+            let margin = Margin::of(carrier_margin.max(arc_margin));
             return match decide("bool_circle_curved_clearance", margin, band) {
                 Ok(Sign::Positive) => Ok(false),
                 // The declared-cover rung: a covered zero-clearance
@@ -1119,9 +1141,8 @@ fn curved_face_arm<T: Decide>(
         (Sign::Zero, Sign::Zero) if covered => {
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-            // An endpoint the boundary rows cannot decide keeps the
-            // frontier door: the containment it names still does not
-            // exist.
+            // An endpoint the containment door cannot decide keeps the
+            // frontier door.
             if hu && hv { Ok(true) } else { Err(frontier()) }
         }
         (Sign::Zero, Sign::Positive) if covered => {
@@ -1188,13 +1209,13 @@ fn curved_face_arm<T: Decide>(
 }
 
 /// The declared-cosurface rung's endpoint treatment: classify an
-/// on-carrier vertex of `x` against the CURVED face's boundary
-/// through the pre-pass rows and record the planar posture's contact
-/// kinds — `OnVertex` ⇒ v-v, `OnEdge` ⇒ split `y`'s boundary edge at
-/// the (bitwise-shared) point and pair the minted vertex, exactly as
+/// on-carrier vertex of `x` against the CURVED face and record the
+/// planar posture's contact kinds — `OnVertex` ⇒ v-v, `OnEdge` ⇒
+/// split `y`'s boundary edge at the (bitwise-shared) point and pair
+/// the minted vertex, `In` ⇒ the v-f record, exactly as
 /// [`vertex_on_face`] does on a plane. Returns `false` when the
-/// boundary rows decide nothing (the caller's typed frontier door —
-/// interior containment on a curved chart does not exist here).
+/// containment door decides nothing (the caller's typed frontier
+/// door).
 #[allow(clippy::too_many_arguments)]
 fn vertex_on_curved_face<T: Decide>(
     x_is: Operand,
@@ -1206,7 +1227,7 @@ fn vertex_on_curved_face<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    match super::contain::curved_boundary_containment(y, face, px, band)
+    match super::contain::curved_face_containment(y, face, px, band)
         .map_err(|e| esc(e, x_is.other()))?
     {
         Some(FaceContainment::OnVertex(vy)) => {
@@ -1218,9 +1239,16 @@ fn vertex_on_curved_face<T: Decide>(
             push_vv(contacts, x_is, vx, wy);
             return Ok(true);
         }
-        // The boundary walk never answers In/Out (its contract); fall
-        // through to the face-free question below.
-        Some(FaceContainment::In | FaceContainment::Out) | None => {}
+        // Strictly inside the curved face's chart trim: the same
+        // v-f record the planar sweep writes ([`vertex_on_face`]),
+        // now that the trim can say so.
+        Some(FaceContainment::In) => {
+            contacts.vf(x_is, VfContact { vertex: vx, face });
+            return Ok(true);
+        }
+        // Definitely outside this face's trim, or no verdict at all:
+        // fall through to the face-free question below.
+        Some(FaceContainment::Out) | None => {}
     }
     // Not on THIS face's boundary. One face-free question is still
     // decidable by the same row: coincidence with a vertex of `y`
