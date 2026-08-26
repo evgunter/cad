@@ -35,10 +35,15 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
         let kind = geom_brep::SurfaceKind::of(surface);
         match kind {
             geom_brep::SurfaceKind::Plane | geom_brep::SurfaceKind::Cylinder => {}
+            // `Approx` refuses HERE, by kind, rather than passing as
+            // the spline its fit is: a split arm executed against the
+            // fit would cut the approximation, not the surface the
+            // modeller described.
             geom_brep::SurfaceKind::Cone
             | geom_brep::SurfaceKind::Sphere
             | geom_brep::SurfaceKind::Torus
-            | geom_brep::SurfaceKind::Nurbs => {
+            | geom_brep::SurfaceKind::Nurbs
+            | geom_brep::SurfaceKind::Approx => {
                 return Err(SplitReduceError::CurvedBooleanUnsupported {
                     face: face_key,
                     kind,

@@ -728,7 +728,9 @@ mod tests {
                 minor_radius: Dual::constant(minor_radius),
                 u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
-            Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+            // The corpus below is analytic; neither spline kind lifts
+            // to a `Dual` (there is no `NurbsSurface<Dual>` fixture).
+            Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
         }
     }
 
@@ -886,7 +888,7 @@ mod tests {
                         let dr = rho - major_radius;
                         (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
                     }
-                    Surface::Nurbs(_) => 0.0,
+                    Surface::Nurbs(_) | Surface::Approx(_) => 0.0,
                 };
                 prop_assert!(
                     residual.abs() <= 1e-12,

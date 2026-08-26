@@ -162,7 +162,13 @@ impl ContactAcc {
 /// pair-level refusals move to the sites that EXERCISE an arm (the
 /// sweep's crossing lanes, the join's section table), where they cite
 /// the C5 routing. Kinds with no wired arm at all (`Cone`, `Torus`)
-/// keep the gate refusal. Edge carriers: `Line`/`Circle`/`Ellipse`
+/// keep the gate refusal — and so does `Approx`, which is the one kind
+/// whose refusal is a decision rather than a gap: its fit is a `Nurbs`
+/// with a wired arm, and admitting it on that basis would run the
+/// boolean against the APPROXIMATION while reporting a result about the
+/// described surface. It refuses by kind until a rule for composing the
+/// fit's precision claim with the boolean's certificates is ratified.
+/// Edge carriers: `Line`/`Circle`/`Ellipse`
 /// pass this gate (the crossing lanes handle all three; the both-split
 /// point lane still needs a `Line`, and says so where it refuses);
 /// `Nurbs` operand edges refuse typed — a rung-3 INPUT operand is
@@ -180,7 +186,11 @@ pub(super) fn gate_operand_kinds<T: Decide>(
                 | geom::Surface::Sphere { .. }
                 | geom::Surface::Nurbs(_),
             ) => {}
-            Some(s) => {
+            Some(
+                s @ (geom::Surface::Cone { .. }
+                | geom::Surface::Torus { .. }
+                | geom::Surface::Approx(_)),
+            ) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face: face_key,

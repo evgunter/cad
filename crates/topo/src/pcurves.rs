@@ -271,6 +271,10 @@ fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
         // (`Pcurve::IsoArc`). The placeholder mints nothing: it is not
         // a described surface.
         Surface::Nurbs(payload) => !payload.is_placeholder(),
+        // An approximating surface's chart is its fit's, and it is
+        // described by construction — there is no placeholder state to
+        // exclude, so it always mints.
+        Surface::Approx(_) => true,
     }
 }
 

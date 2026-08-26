@@ -48,6 +48,7 @@ pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
                 "nurbs surface"
             }
         }
+        Surface::Approx(_) => "approximating surface",
     }
 }
 
@@ -742,6 +743,22 @@ impl<'a> Writer<'a> {
                     });
                 }
                 self.b_spline_surface(payload)?
+            }
+            // An approximating surface refuses TYPED, and does not
+            // print its fit. Printing the fit would be a lie of
+            // omission in the file: AP214 has no way to carry "this
+            // B-spline stands in for an offset, to within ε", so the
+            // importer would read an exact surface where the kernel
+            // holds an approximation, and the certificate — the only
+            // thing that makes the fit honest — would be gone. What
+            // STEP should carry for a described offset is its own
+            // conversation (AP214 has OFFSET_SURFACE); until it
+            // happens, the refusal is the truthful export.
+            Surface::Approx(_) => {
+                return Err(StepExportError::UnsupportedSurface {
+                    face: face_key,
+                    kind: surface_kind(surface),
+                });
             }
         };
         let mut bounds = Vec::with_capacity(1 + rings.len());

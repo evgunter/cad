@@ -237,6 +237,12 @@ pub(crate) fn face_box_rule<T: Real>(surface: &Surface<T>) -> FaceBoxRule<'_, T>
             radius: *radius,
         },
         Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
+        // The fit IS the face's locus, so the fit's control hull is a
+        // genuine superset of it — the same rule, on the same net. The
+        // certificate bounds the fit's distance from the DESCRIPTION,
+        // which is a statement about intent and has no business
+        // widening a box around the geometry that is actually there.
+        Surface::Approx(a) => FaceBoxRule::ControlNet(a.fit()),
         Surface::Cone { .. } | Surface::Torus { .. } => FaceBoxRule::NoSoundBox,
     }
 }

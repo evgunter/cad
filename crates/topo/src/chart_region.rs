@@ -717,6 +717,11 @@ fn exact_arms<T: Decide>(surface: &Surface<T>) -> Result<(T, T), ChartRegionErro
         Surface::Sphere { .. } => Err(ChartRegionError::ArmUnbounded { chart: "sphere" }),
         Surface::Torus { .. } => Err(ChartRegionError::ArmUnbounded { chart: "torus" }),
         Surface::Nurbs(_) => Err(ChartRegionError::ArmUnbounded { chart: "NURBS" }),
+        // A fitted chart's stretch has no exact constant bound either —
+        // the same refusal its fit would earn, for the same reason.
+        Surface::Approx(_) => Err(ChartRegionError::ArmUnbounded {
+            chart: "approximating surface",
+        }),
     }
 }
 

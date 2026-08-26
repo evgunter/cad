@@ -1578,7 +1578,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             face: yf,
                         });
                     }
-                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {
+                    // `Approx` joins the no-wired-arm refusal, not the
+                    // NURBS lane: the operand gate refuses it by kind
+                    // before this scan runs.
+                    Some(
+                        geom::Surface::Cone { .. }
+                        | geom::Surface::Torus { .. }
+                        | geom::Surface::Approx(_),
+                    ) => {
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,
