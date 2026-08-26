@@ -109,7 +109,14 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             // is its only lane. The placeholder still refuses typed
             // inside the lane; illegal-rational/C⁰ classes refuse
             // [`TessellateError::UnsupportedNurbsFace`] there too.
-            Surface::Nurbs(_) => crate::trimmed::tessellate_trimmed(
+            // An approximating surface meshes through the SAME lane,
+            // on its fit: the fit is the geometry, so the triangles it
+            // produces are the face's own. The certificate's bound is
+            // deliberately NOT folded into the mesh tolerance here —
+            // widening `tol` by the fit's ε so the mesh certifies
+            // against the DESCRIPTION is a separate statement, and
+            // this pass makes the plain one.
+            Surface::Nurbs(_) | Surface::Approx(_) => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,
                 surface,

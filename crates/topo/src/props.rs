@@ -299,7 +299,11 @@ fn face_flux<T: Decide>(
             // lane (M6-3): its flux has no closed form regardless
             // of what bounds it, and the patch engine reads the
             // stored iso pcurves rather than the carriers.
-            let quad_out = if is_trimmed || matches!(surface, Surface::Nurbs(_)) {
+            // A described SPLINE face always takes the quadrature lane
+            // (M6-3): its flux has no closed form regardless of what
+            // bounds it. An approximating face is one — the flux of
+            // its fit, which is the geometry the face actually carries.
+            let quad_out = if is_trimmed || surface.spline_chart().is_some() {
                 quad(body, surface, &outer, &hes, band, tol).map_err(wrap)?
             } else {
                 None
@@ -671,6 +675,36 @@ pub trait PropsQuadLane:
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
+    /// Re-derives an approximating surface's certificate against its
+    /// own stored description and fit, classified against
+    /// `tolerance` — the tier-3 never-trust posture (O5), one
+    /// dimension up from `EdgeCurve::recertify`.
+    ///
+    /// **The tolerance is the RUN's, not the surface's.** The edge
+    /// machinery re-certifies every carrier against the run's band and
+    /// never against a stored bound, and the surface claim is the same
+    /// shape: O3 ratifies `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so
+    /// verifying it means measuring against the ε this validation call
+    /// runs at. A surface minted at a loose tolerance validating
+    /// forever afterwards would be the stored bound quietly replacing
+    /// the ratified one. The stored tolerance stays what it always
+    /// was: the MINT's parameter, and the fit door's own gate.
+    ///
+    /// `None` = this scalar has no re-derivation lane. That is not a
+    /// pass: tier 3 reports it, because a surface certificate is the
+    /// one claim this kernel refuses to leave unchecked. It is also
+    /// vacuous today — the fit door is `f64`-only, so no other scalar
+    /// can hold an `ApproxSurface` in the first place.
+    ///
+    /// # Errors
+    ///
+    /// The fit door's typed refusal, when the re-derivation fails.
+    fn recertify_approx(
+        approx: &geom::ApproxSurface<Self>,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
+
     /// # Errors
     ///
     /// [`PropsError`] from the quadrature lane (budget, unsupported
@@ -690,6 +724,14 @@ impl PropsQuadLane for f64 {
         geom_core::Bounds::lo(self)
     }
 
+    fn recertify_approx(
+        approx: &geom::ApproxSurface<Self>,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        Some(geom_brep::recertify_approx(approx, tolerance, band))
+    }
+
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -704,6 +746,17 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
+    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
+    // minted for this scalar; the honest answer is "no lane", which
+    // tier 3 reports rather than passes.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -722,6 +775,17 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
+    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
+    // minted for this scalar; the honest answer is "no lane", which
+    // tier 3 reports rather than passes.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -744,6 +808,17 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
+    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
+    // minted for this scalar; the honest answer is "no lane", which
+    // tier 3 reports rather than passes.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -891,7 +966,13 @@ mod quad_lane {
     ) -> Result<FaceCutBounds, PropsError> {
         // The NURBS-patch lane (M6-3): a described NURBS face routes
         // to the patch engine over its stored iso-line pcurves.
-        if let Surface::Nurbs(payload) = surface {
+        // The spline-patch lane (M6-3): a described spline face routes
+        // to the patch engine over its stored iso-line pcurves. An
+        // approximating face enters on its fit — the certificate's
+        // bound is a statement about the DESCRIPTION and does not
+        // widen this quadrature (the same deliberate omission the
+        // mesh tolerance makes).
+        if let Some(payload) = surface.spline_chart() {
             return nurbs_face(body, payload, outer, hes, band, tol);
         }
         let Surface::Cylinder { origin, radius, .. } = surface else {
@@ -964,7 +1045,7 @@ mod quad_lane {
     /// cylinder lane; no sense bit is read.
     fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
-        payload: &std::sync::Arc<geom::NurbsSurface<T>>,
+        payload: &geom::NurbsSurface<T>,
         outer: &[LoopEdge<T>],
         hes: &[HalfEdgeKey],
         band: Band,

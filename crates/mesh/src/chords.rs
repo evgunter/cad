@@ -41,7 +41,6 @@
 use std::collections::HashMap;
 
 use geom::Curve3;
-use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
@@ -508,7 +507,10 @@ fn nurbs_tighten(
             .ok_or(TessellateError::MissingEntity {
                 what: "face surface",
             })?;
-        let Surface::Nurbs(ref payload) = *surface else {
+        // The UV step schedule is a statement about the chart, so both
+        // spline kinds take it — an approximating surface's chart is
+        // its fit's.
+        let Some(payload) = surface.spline_chart() else {
             continue;
         };
         if payload.is_placeholder() {

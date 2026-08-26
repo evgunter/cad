@@ -143,6 +143,7 @@ fn chart_of(surface: &Surface<f64>) -> (&'static str, bool) {
         Surface::Sphere { .. } => ("sphere", true),
         Surface::Torus { .. } => ("torus", true),
         Surface::Nurbs(_) => ("nurbs", true),
+        Surface::Approx(_) => ("approx", true),
     }
 }
 

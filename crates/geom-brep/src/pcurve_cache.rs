@@ -1067,9 +1067,18 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     band: Band,
 ) -> Result<Option<SsiCertificate<T>>, PcurveCertifyError> {
     fn operand<T: Real>(s: &Surface<T>) -> SsiOperand<'_, T> {
+        // The catch-all is SPLIT: an approximating surface's chart is
+        // its fit's, so the spline operand is the one that describes
+        // its geometry — routing it to `Analytic` would hand the SSI
+        // limbs an implicit form that does not exist.
         match s {
             Surface::Nurbs(n) => SsiOperand::Nurbs(n),
-            other => SsiOperand::Analytic(other),
+            Surface::Approx(a) => SsiOperand::Nurbs(a.fit()),
+            other @ (Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }) => SsiOperand::Analytic(other),
         }
     }
     // The certificate's carrier spline: a rung-3 carrier IS one; an
@@ -1088,11 +1097,20 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
             radius,
             u_ref,
         } => {
-            if matches!(surface, Surface::Nurbs(_)) || matches!(mate, Surface::Nurbs(_)) {
+            // `Approx` is included, and it has to be: `operand` three
+            // lines up routes it to `SsiOperand::Nurbs(a.fit())`, so
+            // the very limbs this guard's premise is about — the
+            // parameter-coupled NURBS limbs — are the ones an `Approx`
+            // operand would run. The guard reads the SAME roster its
+            // premise names.
+            let spline_operand =
+                |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
+            if spline_operand(surface) || spline_operand(mate) {
                 return Err(PcurveCertifyError::FittedCertificate {
                     limb: None,
                     what: "a Circle carrier's rational-chain certificate is written for \
-                           analytic operand pairs only (the NURBS limbs are \
+                           analytic operand pairs only (the spline limbs — a Nurbs \
+                           payload's or an approximating surface's fit — are \
                            parameter-coupled to a traced pcurve)",
                     magnitude: None,
                 });
@@ -1894,7 +1912,9 @@ fn chart_image_harmonic<T: Real>(
                 (Winding::Pos | Winding::Neg, Winding::Pos | Winding::Neg) => None,
             }
         }
-        Surface::Nurbs(_) => None,
+        // A spline chart's image has no harmonic decomposition —
+        // neither the payload's nor an approximating surface's fit.
+        Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -1932,7 +1952,9 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
             ..
         } => major_radius + minor_radius,
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
-        Surface::Plane { .. } | Surface::Nurbs(_) => T::one(),
+        // Non-periodic charts have no azimuth: plane, spline payload,
+        // and an approximating surface's fitted chart alike.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::one(),
     }
 }
 
@@ -1955,7 +1977,7 @@ fn chart_windings<T: Decide>(
     // Which arms, per chart kind: the azimuth arm always exists on a
     // periodic chart; the v arm exists exactly where v is an angle.
     let (u_arm, v_arm) = match *surface {
-        Surface::Plane { .. } | Surface::Nurbs(_) => {
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             // Non-periodic charts have no winding; the value is unused.
             return Ok(ChartWindings::NONE);
         }
@@ -2118,7 +2140,10 @@ fn run_harmonic_checks<T: Decide>(
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
     let chart = chart_name(surface);
-    if matches!(surface, Surface::Nurbs(_)) {
+    // The closed-form lane is the analytic charts'; a spline chart —
+    // the payload's or an approximating surface's fit — goes through
+    // the fitted lane instead.
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
         return Err(PcurveCertifyError::UnsupportedChart { chart });
     }
     let Some(carrier_form) = carrier_harmonic(carrier) else {
@@ -2151,7 +2176,10 @@ fn run_harmonic_checks<T: Decide>(
     // chart's pcurve, metered at the chart's lever arm — the azimuth
     // channel on every periodic chart, and the polar/meridional
     // channel too where it is itself an angle (sphere/torus).
-    if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
+    if !matches!(
+        surface,
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+    ) {
         let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve else {
             return Err(PcurveCertifyError::UnsupportedCarrier);
         };
@@ -2207,7 +2235,10 @@ fn run_harmonic_checks<T: Decide>(
     // arm). Every term is exactly zero on the minted path.
     let snap_slack = match (surface, pcurve) {
         (_, Pcurve::Harmonic { p0, pa, pb, pl })
-            if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) =>
+            if !matches!(
+                surface,
+                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+            ) =>
         {
             let v_sup = p0.y.abs() + pa.y.abs() + pb.y.abs() + pl.y.abs() * reach;
             let u_arm = azimuth_lever(surface, v_sup);
@@ -2232,7 +2263,8 @@ fn run_harmonic_checks<T: Decide>(
                     (pa.y.abs() + pb.y.abs() + (pl.y - sigma.value::<T>()).abs() * reach)
                         * minor_radius
                 }
-                Surface::Plane { .. } | Surface::Nurbs(_) => T::zero(),
+                // Non-periodic charts snap nothing in v.
+                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::zero(),
             };
             u_slack + v_slack
         }
@@ -2274,6 +2306,7 @@ fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
         Surface::Sphere { .. } => "sphere",
         Surface::Torus { .. } => "torus",
         Surface::Nurbs(_) => "Nurbs",
+        Surface::Approx(_) => "Approx",
     }
 }
 
@@ -2313,6 +2346,10 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
         // `nurbs_stretch_bounds` carries the Floater weight-ratio
         // factor for exactly this. The placeholder keeps unit arms: it
         // has no net to bound.
+        // The catch-all is SPLIT: an approximating surface's arms are
+        // its FIT's derivative-net bounds — the same statement about
+        // the same chart. Unit arms would under-state in the unsafe
+        // direction here (see the rational note above).
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 (T::one(), T::one())
@@ -2320,7 +2357,10 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
                 nurbs_stretch_bounds(payload)
             }
         }
-        _ => (T::one(), T::one()),
+        Surface::Approx(ref a) => nurbs_stretch_bounds(a.fit()),
+        // A plane chart's parameters are already metres; the cone's
+        // arms are the caller's to supply (see the sphere note above).
+        Surface::Plane { .. } | Surface::Cone { .. } => (T::one(), T::one()),
     }
 }
 
@@ -2565,7 +2605,10 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
     let boxed = pcurve.chart_box(t0, t1);
-    if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
+    if !matches!(
+        surface,
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+    ) {
         // The azimuth headroom is an ANGLE, so it reaches the band
         // through the chart's own lever arm — the cone's taken at the
         // `v` reach that dominates both the pcurve's box and the
@@ -2598,9 +2641,16 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         });
     };
     let envelope = ssi.hull_sup;
+    // The catch-all is SPLIT: an approximating surface's limbs are the
+    // spline composite's, exactly as a `Nurbs` chart's, because the
+    // limbs run against its fit.
     let statement = match surface {
-        Surface::Nurbs(_) => EnvelopeStatement::MapResidualComposite,
-        _ => EnvelopeStatement::OnLocusHull,
+        Surface::Nurbs(_) | Surface::Approx(_) => EnvelopeStatement::MapResidualComposite,
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => EnvelopeStatement::OnLocusHull,
     };
     // The envelope is banded exactly as the closed-form lane's is, and
     // for the same reason: a certificate whose own bound exceeds ε is
@@ -2678,7 +2728,10 @@ fn run_iso_arc_checks<T: Decide>(
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
-    let Surface::Nurbs(payload) = surface else {
+    // The iso lane is the SPLINE chart's — an approximating surface's
+    // fit is one, on the same `(u, v)`, so it enters here rather than
+    // being refused as an unimplemented chart.
+    let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: chart_name(surface),
         });
@@ -3026,7 +3079,10 @@ fn run_iso_checks<T: Decide>(
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
-    let Surface::Nurbs(payload) = surface else {
+    // The iso lane is the SPLINE chart's — an approximating surface's
+    // fit is one, on the same `(u, v)`, so it enters here rather than
+    // being refused as an unimplemented chart.
+    let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: chart_name(surface),
         });
@@ -3864,6 +3920,12 @@ pub fn chart_pcurve<T: Decide>(
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
             chart: "Nurbs (representable-unimplemented)",
+        }),
+        // The closed-form pcurve mint is the analytic charts'. An
+        // approximating surface's chart is a spline's, so it has no
+        // harmonic image to mint — the fitted lane owns it.
+        Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: "Approx (fitted chart — no closed-form image)",
         }),
     }
 }

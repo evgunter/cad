@@ -981,9 +981,13 @@ fn run_checks<T: Decide>(
     {
         return Err(CertifyError::Unimplemented);
     }
+    // `Approx` refuses here with `Nurbs`, and for the same reason: the
+    // descriptions this resolver serves (`Intersection`, `Seam`) state
+    // their residual through the IMPLICIT form, which a spline
+    // stand-in does not have. Admitting one would meter poison.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if matches!(s, Surface::Nurbs(_)) {
+        if matches!(s, Surface::Nurbs(_) | Surface::Approx(_)) {
             return Err(CertifyError::Unimplemented);
         }
         Ok(s)

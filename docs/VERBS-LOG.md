@@ -1143,6 +1143,72 @@ have taken back — the GATE re-merge and wall-7 final form handed
 over). Also corrected on their side: their "72-claim not on main"
 finding withdrew under the ancestry check.
 
+## OFF-C landed: `Surface::Approx` is in the kernel (2026-08-25)
+
+The seventh variant, the `SurfaceDescription`/`SurfaceSpec`/
+`ApproxSurface` triple with a private certificate, and the total
+enumeration the closed enum forces: every E0004 the compiler raised
+plus the wildcard/`matches!` sites it could not, dispositions across
+30 files, each stated in the code. Base reference: an
+owned `Arc<NurbsSurface<T>>`, not an arena key — `SurfaceKey` lives
+a crate above `Surface`, and a `Surface` value is read with no arena
+in hand at half the consumers.
+
+Tier 3 re-derives per face (`PropsQuadLane::recertify_approx`), with
+`ApproxCertification` / `ApproxLaneUnsupported` as the typed
+findings; the NURBS-adjacent dihedral and material-sign exemptions
+extend to `Approx` BY KIND, through `Surface::spline_chart`.
+
+**The re-derivation classifies against the RUN's ε, not the
+surface's stored tolerance** (r1 NOTE-2, adjudicated). The edge
+machinery re-certifies every carrier against the run's band and
+never against a stored bound; O3's ratified surface claim is
+`sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so verifying it means
+measuring at the ε this validation call runs at. A surface minted
+loose validating forever afterwards would be the mint's parameter
+quietly replacing the ratified claim. D4 already blesses the
+consequence — ε-tightening may escalate — so a mint that no longer
+meets a tighter run ε refuses honestly, which is exactly what the
+edge machinery does. The stored tolerance stays the MINT's
+parameter and the fit door's own gate.
+
+### What OFF-D inherits (the consumer's findings, sharpened at r1)
+
+**A face-replacement primitive owes its edges the new chart's
+SPLINE SPACE, and owes them BOTH operations.** The iso lane's seam
+class bounds `|B(v) − C(v)|` by a control-difference hull — a
+partition-of-unity argument — so the chart's boundary row and the
+carrier must share knots, degree and weights. Degree elevation
+alone suffices on a PLANAR wall, and that is what the PR's straight
+prism needed; the r1 review's twisted-loft probe showed it is not
+enough on a CURVED one, where the fit refines past the seed grid,
+so **knot refinement into the fit's own interior knots is required
+as well**. Both are exact — same locus, same parameterization, same
+endpoints — so this is a representation change, not rim surgery.
+The shared surgery in `sweep/tests/common/approx.rs` does both.
+
+Two more, same lane: a face's edges must be re-described after
+`FaceSurface::New` (the surgery ordering's own second step, which
+tier 3 reports as `DescriptionNotAdjacent` if skipped); and moving
+an `Approx`-faced body needs the transform door's mapped-certificate
+lane (#1020 — the composition law itself is pinned).
+
+**Scheduled, with boxes:** #1018 mesh + props tolerance widening by
+the certificate's bound (deliberately unwired here); #1019 the
+tier-3 grid-cost perf box (4.73 s serial for 8 whole-body
+validations of a 4-`Approx`-face prism, debug, i7-1065G7 — and the
+measurement lesson that a contended ~65 s reading is not a cost
+figure); #1020 transform.
+
+**The planar-locus boundary, stated.** Every tier-3-green `Approx`
+face this unit builds has an exactly-planar locus, because the
+pulled-back base is exact only on a plane. Curved fits ARE
+body-reachable — the r1 twisted loft validates tier 3 — but only
+marginally: at `d = 2e-9` the edge residual measured 2.3e-9 and
+escalated in the ambiguity band, so the curved rows run at
+`d = 5e-10`. Genuine curved-offset bodies need the rim surgery
+OFF-D owns.
+
 ## Cross-program: the filter-skipped-gate class detonates (2026-08-26)
 
 cad-m8's #971 re-merge tripped k-lint on a COMPILE error MINE:

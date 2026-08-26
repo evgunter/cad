@@ -371,7 +371,9 @@ fn lift_surface(s: &Surface<f64>) -> Surface<Interval> {
             minor_radius: Interval::from_f64(minor_radius),
             u_ref: ivc(u_ref),
         },
-        Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+        // The corpus below is analytic; neither spline kind has an
+        // interval fixture to lift.
+        Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
     }
 }
 

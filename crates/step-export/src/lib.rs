@@ -241,8 +241,11 @@ pub enum StepExportError {
     /// ELEMENTARY_SURFACE prints (plane, cylinder, cone, sphere,
     /// torus) and since M6-3 described NURBS surfaces print as
     /// `B_SPLINE_SURFACE_WITH_KNOTS`, so the one live case is the
-    /// mvfs "no description yet" NURBS placeholder. Typed refusal,
-    /// never a B-spline approximation of an analytic surface.
+    /// mvfs "no description yet" NURBS placeholder — joined by the
+    /// approximating surface, which refuses rather than print its fit
+    /// as though it were the described geometry (the file has no place
+    /// to carry the certificate that makes the fit honest). Typed
+    /// refusal, never a B-spline approximation of an analytic surface.
     UnsupportedSurface {
         /// The face whose surface is out of subset.
         face: FaceKey,

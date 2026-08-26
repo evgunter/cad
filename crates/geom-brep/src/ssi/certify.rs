@@ -342,9 +342,11 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 1.0 / (2.0 * radius),
             ))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => {
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root the exact-arithmetic ring lacks)")
+             (cone/torus need a certified root the exact-arithmetic ring lacks; \
+             a spline stand-in and its offset description have no implicit form \
+             to build one from)")
         }
     }
 }

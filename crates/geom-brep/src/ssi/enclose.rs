@@ -300,7 +300,11 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
             (norm_sq(w) - ring(radius).sqr()) / (two * ring(radius))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => RingInterval::poison(),
+        // `Approx` with the no-enclosure group: the implicit forms this
+        // module encloses do not exist for a spline stand-in.
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            RingInterval::poison()
+        }
     }
 }
 
@@ -337,7 +341,11 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
                 (q[2] - a[2] * h) / ring(radius),
             ]
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => poison,
+        // As the residual enclosure above: no implicit form, no
+        // gradient enclosure.
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            poison
+        }
     }
 }
 

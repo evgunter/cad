@@ -142,7 +142,7 @@
 //! kernel's one classification funnel.
 
 use geom::curves::fit::{FitError, interpolate_columns};
-use geom::surfaces::NurbsSurface;
+use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Point3, ring_interval::RingInterval};
@@ -262,6 +262,14 @@ pub enum OffsetFitError {
         /// How many of the fit's weights are not bitwise `1.0`.
         non_unit_weights: usize,
     },
+    /// The storage door was asked to certify over a window that is not
+    /// the base's own chart rectangle. The certificate this module
+    /// derives covers that rectangle and nothing narrower, so a
+    /// sub-window claim would be a bound it never proved.
+    WindowUnsupported {
+        /// The window asked for.
+        window: geom::ApproxWindow,
+    },
     /// A certificate limb refused on a fit handed in from outside —
     /// the re-derivation door ([`certify_offset`]).
     Limb {
@@ -340,6 +348,12 @@ impl core::fmt::Display for OffsetFitError {
                  supplied. The weighted composite is scheduled, not built; fit_offset's own \
                  fits are always non-rational, so this door refuses rather than under-report"
             ),
+            Self::WindowUnsupported { window } => write!(
+                f,
+                "approx_offset_surface: the window asked for (u {:?}, v {:?}) is not the base's \
+                 own chart rectangle, and the certificate covers that rectangle only",
+                window.u, window.v
+            ),
             Self::Limb {
                 limb,
                 bound,
@@ -355,34 +369,11 @@ impl core::fmt::Display for OffsetFitError {
 
 impl std::error::Error for OffsetFitError {}
 
-/// The two-limb certificate of a fitted offset surface. Every field
-/// is a bound, in metres, that the corresponding limb proved — or the
-/// structure it proved it over.
-#[derive(Clone, Copy, Debug)]
-pub struct OffsetCertificate {
-    /// The signed offset distance the claim is about, in metres.
-    pub distance: f64,
-    /// How many `(u,v)` cells the span schedule has.
-    pub cells: u32,
-    /// The per-direction on-locus sample count inside each cell
-    /// ([`OFFSET_CERT_SAMPLES`]).
-    pub samples: u32,
-    /// Limb 1: the largest on-locus residual over the schedule, in
-    /// metres (the sampled max — it steers, it does not certify).
-    pub on_locus_max: f64,
-    /// Limb 2: the certified **sup-norm** bound over the whole chart
-    /// rectangle, in metres. This is the number that certifies.
-    pub hull_sup: f64,
-    /// The regularity floor the normal enclosure rests on — a
-    /// certified lower bound on `‖S_u × S_v‖` (m² per unit parameter
-    /// area).
-    pub normal_floor: f64,
-    /// The collapse meter's certified fold radius on the folding
-    /// side, in metres.
-    pub curvature_reach: f64,
-    /// How many refinement rounds the fit loop spent.
-    pub rounds: u32,
-}
+// The certificate RECORD lives in `geom` (`geom::OffsetCertificate`):
+// `ApproxSurface` stores it and `Surface` stores that, so the type has
+// to sit below the surface enum. Its derivation is this module's, and
+// every limb below writes into it.
+pub use geom::OffsetCertificate;
 
 /// **The offset fit door**: fit a NURBS approximation of `S + d·n`
 /// over the base's own chart rectangle and certify it.
@@ -544,6 +535,91 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
     }
     let p = jet.point + m * (d / len);
     (p.x.is_finite() && p.y.is_finite() && p.z.is_finite()).then_some(p)
+}
+
+// ---------------------------------------------------------------------
+// The storage door: fit, certify, and hand back a `Surface` variant
+// ---------------------------------------------------------------------
+
+/// **The approximating-surface door**: fit the offset of `base` at
+/// signed distance `d`, certify the fit against the description, and
+/// hand back the [`geom::Surface::Approx`] variant that stores both.
+///
+/// The certificate is derived from the STORED pair — the description
+/// that goes into the surface and the fit that goes into the surface —
+/// by [`certify_offset`], not carried out of [`fit_offset`]'s
+/// refinement loop. That costs one extra measure pass and buys the
+/// property the private-field invariant is for: the certificate an
+/// `ApproxSurface` holds is a certificate OF the `ApproxSurface`.
+///
+/// The one field that does not come from that re-derivation is
+/// `rounds`, which is provenance of the FIT rather than a limb and
+/// which no re-measurement can recompute: the loop's honest count
+/// travels with the certificate rather than being flattened to `0`.
+/// The window is checked rather than attested — see the closure.
+///
+/// # Errors
+///
+/// [`OffsetFitError`]: everything [`fit_offset`] refuses, plus
+/// [`certify_offset`]'s limb classifications. A rational fit refuses
+/// [`OffsetFitError::RationalFitUnsupported`] and the refusal
+/// propagates — nothing here bypasses it.
+pub fn approx_offset_surface(
+    base: std::sync::Arc<NurbsSurface<f64>>,
+    d: f64,
+    tolerance: f64,
+    band: Band,
+) -> Result<Surface<f64>, OffsetFitError> {
+    let (fit, loop_cert) = fit_offset(&base, d, tolerance, band)?;
+    let spec = geom::SurfaceSpec {
+        window: geom::ApproxWindow::of(&*base),
+        description: geom::SurfaceDescription::Offset { base, d },
+        fit,
+        tolerance,
+    };
+    let approx = geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
+        let geom::SurfaceDescription::Offset { base, d } = description;
+        // The certificate covers the base's whole chart rectangle, so
+        // the window asked for is honoured exactly when it IS that
+        // rectangle. Checked, not attested.
+        if window != geom::ApproxWindow::of(base) {
+            return Err(OffsetFitError::WindowUnsupported { window });
+        }
+        certify_offset(base, fit, *d, tolerance, band).map(|cert| OffsetCertificate {
+            // Every measured field is the re-derivation's; `rounds` is
+            // the FIT's provenance, which a re-measurement cannot
+            // recompute, so the loop's honest count travels with it.
+            rounds: loop_cert.rounds,
+            ..cert
+        })
+    })?;
+    Ok(Surface::Approx(std::sync::Arc::new(approx)))
+}
+
+/// **The re-derivation door** (O5's never-trust posture): re-runs
+/// [`certify_offset`] against an approximating surface's own stored
+/// description and fit, classified against `tolerance`.
+///
+/// The stored certificate is not read, and neither is the stored
+/// tolerance: **the classification tolerance is the CALLER's**, which
+/// is what lets tier 3 verify the ratified claim (O3: the residual is
+/// `≤ ε_precision`) rather than whatever bound the mint happened to
+/// ask for. A fit that has been degraded since it was minted —
+/// coarsened, edited, transplanted — fails here with the limb that
+/// caught it; so does one minted loose and re-derived at a tighter ε,
+/// which is D4's blessed consequence of ε-tightening and the edge
+/// machinery's exact behaviour.
+///
+/// # Errors
+///
+/// As [`certify_offset`].
+pub fn recertify_approx(
+    approx: &geom::ApproxSurface<f64>,
+    tolerance: f64,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    let geom::SurfaceDescription::Offset { base, d } = approx.description();
+    certify_offset(base, approx.fit(), *d, tolerance, band)
 }
 
 // ---------------------------------------------------------------------
