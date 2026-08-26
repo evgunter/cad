@@ -1142,3 +1142,18 @@ pair double-booking and the abandoned #971 close-out (which they
 have taken back — the GATE re-merge and wall-7 final form handed
 over). Also corrected on their side: their "72-claim not on main"
 finding withdrew under the ancestry check.
+
+## Cross-program: the filter-skipped-gate class detonates (2026-08-26)
+
+cad-m8's #971 re-merge tripped k-lint on a COMPILE error MINE:
+9f5228bd (GATE's fix pass) shipped a type_complexity lint in
+lily.rs's frustum_aabb — ungated because the k-lint job was
+filter-skipped on the merge runs. The bitter symmetry: GATE's own
+banked finding PREDICTED the class ("the k-lint unification draw
+hides breakage per row; main can be latently red") and then its
+lane shipped the instance. Disposition: cad-m8's alias fix rides
+#971 (fastest path; provenance recorded here — my lint, their
+fix); they file the class issue citing both instances plus #601
+and the #915 regime; all three active VERBS lanes warned with the
+enumerated-red protocol (compare, state, don't debug; re-merge at
+#971's landing).
