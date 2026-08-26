@@ -22,7 +22,7 @@
 
 use geom::{Curve3, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::Revolution;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{CornerConfig, FilletError, RunOutPolicy};
@@ -240,7 +240,7 @@ fn bitten_ball() -> Body<f64> {
     let ca = Point2::new(0.0, 0.0);
     let cb = Point2::new(0.0, 0.15);
     // The rim: y = (d² + 1 − 0.81) / (2d) off A's centre, d = 0.15.
-    let ry = 0.2125 / 0.3;
+    let ry: f64 = 0.2125 / 0.3;
     let rim = Point2::new((1.0 - ry * ry).sqrt(), ry);
     let a_lo = Point2::new(0.7, -(1.0f64 - 0.49).sqrt());
     let b_lo = Point2::new(0.7, 0.15 - (0.81f64 - 0.49).sqrt());
@@ -263,7 +263,7 @@ fn bitten_ball() -> Body<f64> {
 fn a_bitten_ball_crater_rim_folds_opposite_senses() {
     let r = 0.05;
     let source = bitten_ball();
-    let ry = 0.2125 / 0.3;
+    let ry: f64 = 0.2125 / 0.3;
     let rim_r = (1.0 - ry * ry).sqrt();
     let arcs = rims_of_radius(&source, rim_r);
     assert_eq!(arcs.len(), 1, "one closed crater rim");
@@ -292,7 +292,7 @@ fn a_bitten_ball_crater_rim_folds_opposite_senses() {
 #[test]
 fn a_contained_offset_pose_refuses_typed() {
     let source = bitten_ball();
-    let ry = 0.2125 / 0.3;
+    let ry: f64 = 0.2125 / 0.3;
     let arcs = rims_of_radius(&source, (1.0 - ry * ry).sqrt());
     match fillet_edges(&source, &arcs, 0.13, band(), tol()) {
         Ok(_) => panic!("no ball rests on both supports at r = 0.13"),
