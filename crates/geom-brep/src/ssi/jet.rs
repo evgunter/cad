@@ -305,7 +305,9 @@ pub(crate) fn implicit_path_jet(
                 .scale(1.0 / (2.0 * minor_radius))
         }
         // No implicit form (module docs).
-        Surface::Nurbs(_) => Poly3 { c: [f64::NAN; 4] },
+        // No implicit form for a spline stand-in, so no univariate
+        // restriction of one — `Approx` yields the same poison.
+        Surface::Nurbs(_) | Surface::Approx(_) => Poly3 { c: [f64::NAN; 4] },
     }
 }
 

@@ -115,6 +115,7 @@ pub use projection::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    NurbsSurface, Surface, SurfaceJet, SurfaceJet3, SurfaceProjection,
-    SurfaceProjectionInconclusive, SurfaceWindow,
+    ApproxSurface, ChartWindow, NurbsSurface, OffsetCertificate, Surface, SurfaceDescription,
+    SurfaceJet, SurfaceJet3, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
+    SurfaceWindow,
 };

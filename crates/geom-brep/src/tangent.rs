@@ -235,7 +235,12 @@ pub fn tangent_span_bounds<T: Real>(
                 let drift = eight * d_perp2.max(T::zero()).sqrt() / radius.powi(2);
                 Some((f2, drift))
             }
-            Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,
+            // No closed second-fundamental-form bound for a spline
+            // stand-in, so no tangent span bound — `Approx` declines
+            // with the rest, and the caller keeps its own door.
+            Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+                None
+            }
         }
     };
     let (f2a, da) = bounds_of(s1)?;
@@ -475,7 +480,9 @@ fn circle_span_bounds<T: Real>(
                 let drift = eight * dev_rot(a, apex, false) / g_lo.powi(2);
                 Some((f2, drift))
             }
-            Surface::Nurbs(_) => None,
+            // As the first-order bound above: no closed form for the
+            // spline stand-in or the description behind it.
+            Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
     };
     let (f2a, da) = bounds_of(s1)?;
