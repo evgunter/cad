@@ -120,10 +120,15 @@ already removed the storage half. Each lane its own unit:
    BOX ARTIFACT (two layers of inflation — the full-cone slab, then
    tilted-axis corner projection; the exact frustum clears the ball
    by 0.2909). With honest boxes the gate ADMITS the cut, and the
-   true refusal is `NonMaximalFaces`: the lantern's zone is two
-   half-bands on one surface key — a full-revolve PRECONDITION
-   (`merge_coplanar_faces` / the F7 door), not curved-boolean
-   breadth. Wall 7 is therefore NOT a demand signal for rows 6/9/10
+   true refusal is `NonMaximalFaces` — CAUSE CORRECTED a third
+   time (M9-5's measurement, 2026-08-26): NOT the zone's curved
+   half-bands (same-key CURVED adjacency is canonical per
+   gate_maximal_faces' own text) but the AXIS-TOUCHING PLANAR
+   CAPS, born as two half-faces on one plane key — the F7 defect —
+   with merge_coplanar_faces refusing the repair
+   (MergedFaceRoleAmbiguous). The named repair question is its own
+   issue (filed at the correction); Wave-2 items 6+9 are NOT
+   sufficient to flip wall 7 without it. Wall 7 is therefore NOT a demand signal for rows 6/9/10
    — its retirement text re-points at the face-maximality
    precondition; the sphere×sphere germ arm was never reached.)*
 7. **VERBS-CYLCYL (two PRs: A = shared germ substrate L, B = the

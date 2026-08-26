@@ -1312,3 +1312,21 @@ out. #1029's scope grew to FOUR rows via the ARMS-3 lane's
 base-run pin (fail-fast had hidden the second pair); the OFF-C
 fix lane updated; the issues consolidated (the lane self-deduped
 #1030 before my close reached it).
+
+## Wall 7, corrected a THIRD time — the caps, not the zone (2026-08-26)
+
+M9-5's implementer measured the NonMaximalFaces cause and main's
+wall text (GATE's own fix-pass attribution) is FALSE:
+gate_maximal_faces rules same-key CURVED adjacency canonical and
+`continue`s past the zone's half-bands the text blames; the real
+F7 pair is the AXIS-TOUCHING PLANAR CAPS (two half-faces on one
+plane key; merge refuses MergedFaceRoleAmbiguous). Verified
+verbatim in reduce.rs before accepting. Consequence: **Wave-2
+items 6+9 cannot flip wall 7** — the operand is illegal before
+any germ arm; the repair question is #1031 (merge learns the cap
+pair, or revolve mints maximal caps; the interior-seam chart
+question decides). The instrument chain is now four links long
+(body kind → box pair → face maximality → the caps), each
+correction by a better instrument — the attribution lesson's
+third confirmation. M9-5's PR carries the lily text; plan row 6
+corrected; #1031 owns the gap.
