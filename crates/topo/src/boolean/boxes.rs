@@ -1260,13 +1260,13 @@ pub(crate) fn arc_extent<X: Real>(
     // 0`, so its z charge is exactly zero and a planar sector's box
     // stays flat in z; charging `max(a, b)` on every axis would have
     // given every such face a spurious thickness.
-    let eighth = step * step * X::from_f64(0.125);
+    let eighth = step.powi(2) * X::from_f64(0.125);
     let sag = |u: Span<X>, v: Span<X>| {
         let (au, bv) = (
             u.mul(Span::exact(semi_u)).abs_max(),
             v.mul(Span::exact(semi_v)).abs_max(),
         );
-        (au * au + bv * bv).sqrt() * eighth
+        (au.powi(2) + bv.powi(2)).sqrt() * eighth
     };
     SpanBox {
         x: widened.x.widen(sag(u_ref.x, v_ref.x)),
