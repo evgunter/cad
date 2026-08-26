@@ -26,7 +26,8 @@ use topo::{Body, CurveGeom, FaceKey, FaceSurface};
 
 mod common;
 use common::approx::{
-    approx_walls, band, moved_box, pulled_back, top_face, twisted_loft, unit_box,
+    ReattachRefusal, band, moved_box, pulled_back, reattach_certifies_at, top_face,
+    try_approx_walls, twisted_loft, unit_box,
 };
 
 /// Small enough that the pull-back error `d·(n(u,v) − n₀)` on the
@@ -38,12 +39,122 @@ use common::approx::{
 const D: f64 = 5e-10;
 const FIT_TOL: f64 = 1e-6;
 
+/// **The measured re-attach threshold of the twisted fixture**, in
+/// metres: the largest `IsoCurve` residual the surgery's re-attach
+/// hands the certifier, over every edge and every schedule sample, at
+/// `d = ±D`.
+///
+/// The pull-back is exact only on a PLANE: on a saddle the base is
+/// translated along the wall's MID-POINT normal, so the described
+/// offset misses the wall by `d·(n(u,v) − n₀)` and the residual is
+/// construction arithmetic — a fixed number of metres, independent of
+/// ε. The check is `|r| ≤ ε`, so the fixture certifies exactly when ε
+/// is at or above this value, and below it the kernel refuses
+/// `CertifyError::ResidualExceeded { check: IsoResidual, .. }`, which
+/// is the kernel being RIGHT.
+///
+/// Pinned BIT-EXACTLY, both directions, by
+/// [`the_twisted_reattach_threshold_is_where_it_was_measured`]: a
+/// regression that widens the pull-back error is loud, and so is a
+/// tightening that narrows it — including a partial one that would
+/// leave this constant stale in silence behind a ceiling-only guard.
+/// Either way the answer is re-measure and re-state, never loosen.
+const TWISTED_REATTACH_RESIDUAL: f64 = 5.784485397203693e-10;
+
+/// The same quantity for the `d = −D` arm. **It is a different number,
+/// and that is geometry rather than noise**: the pull-back translates
+/// the net along `−d·n₀`, so the two signs put the base on opposite
+/// sides of the saddle and the normal drift `d·(n(u,v) − n₀)` peaks at
+/// a different sample. The rows therefore pin PER SIGN — a single
+/// constant would have to be the max of the two, which would let the
+/// smaller arm drift by the difference in silence.
+const TWISTED_REATTACH_RESIDUAL_NEG: f64 = 5.7844857741573e-10;
+
+/// The measured threshold for the sign in play.
+fn residual_for(d: f64) -> f64 {
+    if d < 0.0 {
+        TWISTED_REATTACH_RESIDUAL_NEG
+    } else {
+        TWISTED_REATTACH_RESIDUAL
+    }
+}
+
+/// Is the run's ε at or above the fixture's threshold for this sign?
+fn above_threshold(d: f64) -> bool {
+    Tol::witness().eps() >= residual_for(d)
+}
+
 /// The twisted loft with every wall converted — the curved sibling of
 /// the consumer suite's straight prism.
-fn twisted_approx() -> (Body<f64>, Vec<FaceKey>) {
+///
+/// **The below-threshold arm lives here**, once, because all four
+/// converting rows share this one gate: it asserts the honest typed
+/// refusal by name and returns `None`, and each row then declines to
+/// assert what the kernel has correctly refused to build.
+fn twisted_approx() -> Option<(Body<f64>, Vec<FaceKey>)> {
     let mut body = twisted_loft(0.05);
-    let faces = approx_walls(&mut body, D, FIT_TOL);
-    (body, faces)
+    match try_approx_walls(&mut body, D, FIT_TOL) {
+        Ok(faces) => {
+            assert!(
+                above_threshold(D),
+                "the re-attach certified at eps = {:e}, below the measured threshold \
+                 {:e} — the pull-back error narrowed; re-measure and re-state the constant",
+                Tol::witness().eps(),
+                residual_for(D)
+            );
+            Some((body, faces))
+        }
+        Err(r) => {
+            assert_honest_reattach_refusal(&r, D);
+            None
+        }
+    }
+}
+
+/// The below-threshold arm's whole content: the refusal is the named,
+/// typed one, at the check that owns it, and the residual that caused
+/// it is the measured constant — bit for bit.
+fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
+    let expected = residual_for(d);
+    assert!(
+        !above_threshold(d),
+        "the re-attach refused at eps = {:e}, at or above the measured threshold \
+         {expected:e} — the pull-back error widened; re-measure and re-state the \
+         constant (refusal was: {})",
+        Tol::witness().eps(),
+        r.error
+    );
+    let topo::EulerOpError::Certification { error } = &r.error else {
+        panic!(
+            "the re-attach must refuse through certification, got {:?}",
+            r.error
+        );
+    };
+    let geom_brep::CertifyError::ResidualExceeded { check, .. } = error else {
+        panic!(
+            "below the threshold the residual DEFINITELY exceeds the band, so the refusal \
+             is ResidualExceeded rather than an escalation — got {error:?}"
+        );
+    };
+    assert_eq!(
+        *check,
+        geom_brep::CertCheck::IsoResidual,
+        "the refusing check is the iso lane's metric residual"
+    );
+    // The number the refusal does not carry. `ResidualExceeded` reports
+    // a verdict, not a margin (unlike the #921 family's escalations,
+    // whose `Indeterminate` carries an enclosure), so the fixture
+    // measures the classified quantity itself and pins it here.
+    assert!(
+        r.max_iso_residual == expected,
+        "the re-attach residual at d = {d:e} is {:e}, not its measured value \
+         {expected:e} — the fixture moved; re-measure and re-state",
+        r.max_iso_residual
+    );
+    assert!(
+        r.max_iso_residual > Tol::witness().eps(),
+        "a definite excess must exceed the band's zero threshold"
+    );
 }
 
 /// A genuinely doubly-curved SKINNED base: bicubic interpolation-shaped
@@ -97,13 +208,97 @@ fn the_twisted_walls_are_not_planar() {
     assert_eq!(spline_walls, 4);
 }
 
+/// **The threshold row.** Measures the fixture's re-attach residual
+/// and pins it bit-exactly, both directions — and then CROSS-CHECKS
+/// the measurement against the kernel's own certifier, which is what
+/// keeps `iso_residual`'s replica of the iso arm honest: an
+/// `EdgeCurve::certify` just ABOVE the measured value must succeed and
+/// one just BELOW must not.
+///
+/// **Measured ε-INDEPENDENTLY, and that is checked rather than
+/// assumed**: this row runs at every ε and asserts the same constant,
+/// and the two arms reach it by different routes — below the threshold
+/// from the replica's direct measurement, above it from a bisection
+/// driven by the kernel's own `EdgeCurve::certify`. Both answered
+/// `5.784485397203693e-10` (bits `0x3e03e016506042e7`) for `d = +D` at
+/// ε = 1e-12 and ε = 1e-9, three orders apart, bit for bit. That agreement is
+/// what says the quantity is construction arithmetic — a fixed number
+/// of metres compared against ε — rather than something the band
+/// moves, which is the property the #921 pattern needs and would not
+/// have if the threshold were ε-dependent.
+#[test]
+fn the_twisted_reattach_threshold_is_where_it_was_measured() {
+    for d in [D, -D] {
+        let expected = residual_for(d);
+        let mut body = twisted_loft(0.05);
+        let outcome = try_approx_walls(&mut body, d, FIT_TOL);
+        let measured = match &outcome {
+            // Above the threshold the surgery completed, so the number
+            // is recovered from the KERNEL's certifier by bisection —
+            // the independent route.
+            Ok(_) => {
+                let mut lo = 0.0_f64;
+                let mut hi = 1e-3_f64;
+                for _ in 0..200 {
+                    let mid = 0.5 * (lo + hi);
+                    if mid <= lo || mid >= hi {
+                        break;
+                    }
+                    if body
+                        .edges()
+                        .all(|(e, _)| reattach_certifies_at(&body, e, mid))
+                    {
+                        hi = mid;
+                    } else {
+                        lo = mid;
+                    }
+                }
+                hi
+            }
+            Err(r) => r.max_iso_residual,
+        };
+        assert!(
+            measured == expected,
+            "the twisted fixture's re-attach residual at d = {d:e} is {measured:e}, not its \
+             measured value {expected:e} — re-measure and re-state the constant"
+        );
+        // The cross-check that keeps the replica honest, on the body
+        // the surgery actually produced. Only meaningful when the
+        // surgery COMPLETED — below the threshold the edges were never
+        // attached, so there is nothing to certify either side of.
+        if outcome.is_ok() {
+            for (e, _) in body.edges() {
+                assert!(
+                    reattach_certifies_at(&body, e, expected * 1.001),
+                    "edge {e:?} must certify just above the measured threshold — the \
+                     replica of the iso arm has drifted from the kernel's"
+                );
+            }
+            assert!(
+                body.edges()
+                    .any(|(e, _)| !reattach_certifies_at(&body, e, expected * 0.999)),
+                "some edge must refuse just below the measured threshold — the replica of \
+                 the iso arm has drifted from the kernel's"
+            );
+        }
+    }
+}
+
 /// **Tier 3, end to end, both signs**, on curved `Approx` walls: the
 /// re-derivation runs against a genuinely curved chart and agrees.
 #[test]
 fn a_curved_approx_walled_body_validates_at_tier_three() {
     for d in [D, -D] {
         let mut body = twisted_loft(0.05);
-        let faces = approx_walls(&mut body, d, FIT_TOL);
+        let faces = match try_approx_walls(&mut body, d, FIT_TOL) {
+            Ok(faces) => faces,
+            Err(r) => {
+                // Below the threshold the surgery cannot build the
+                // body at all; the refusal is the claim.
+                assert_honest_reattach_refusal(&r, d);
+                continue;
+            }
+        };
         assert!(
             matches!(
                 body.get_surface(body.get_face(faces[0]).unwrap().surface),
@@ -123,7 +318,9 @@ fn a_curved_approx_walled_body_validates_at_tier_three() {
 /// behind an honest stored certificate; tier 3 names the face.
 #[test]
 fn a_degraded_curved_fit_goes_red_at_tier_three() {
-    let (mut body, faces) = twisted_approx();
+    let Some((mut body, faces)) = twisted_approx() else {
+        return;
+    };
     let face = faces[0];
     let Some(Surface::Approx(live)) = body.get_surface(body.get_face(face).unwrap().surface) else {
         panic!("the wall carries an approximating surface")
@@ -173,7 +370,9 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
 /// path: every wall gets triangles.
 #[test]
 fn the_curved_approx_walls_tessellate() {
-    let (body, faces) = twisted_approx();
+    let Some((body, faces)) = twisted_approx() else {
+        return;
+    };
     let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).expect("the twisted body meshes");
     for face in faces {
         let patch = mesh
@@ -192,7 +391,9 @@ fn the_curved_approx_walls_tessellate() {
 /// operand (the germ-pair shape needs `Line` carriers; next row).
 #[test]
 fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
-    let (a, _) = twisted_approx();
+    let Some((a, _)) = twisted_approx() else {
+        return;
+    };
     let e = topo::union(&a, &moved_box(), Tol::witness())
         .expect_err("a lofted Approx operand is outside the boolean envelope");
     assert!(
