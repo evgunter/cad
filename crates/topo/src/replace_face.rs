@@ -301,7 +301,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 write!(f, "replace_face_offset escalated: {source}")
             }
             Self::Op { edge, error } => match edge {
-                Some(e) => write!(f, "replace_face_offset: the attach door refused {e:?}: {error}"),
+                Some(e) => write!(
+                    f,
+                    "replace_face_offset: the attach door refused {e:?}: {error}"
+                ),
                 None => write!(f, "replace_face_offset: the attach door refused: {error}"),
             },
             Self::Pcurve { source } => {
@@ -495,10 +498,7 @@ fn transport_curve<T: Decide>(
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
     let (u0, u1) = s.knots_u().domain();
     let (v0, v1) = s.knots_v().domain();
-    let jet = s.ders(
-        T::from_f64((u0 + u1) * 0.5),
-        T::from_f64((v0 + v1) * 0.5),
-    );
+    let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
 }
@@ -632,9 +632,8 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
     if let Surface::Cone { .. } = old_surface {
-        let v_min = face_v_window_min(body, face).ok_or(ReplaceFaceError::ApexWindowUnknown {
-            face,
-        })?;
+        let v_min =
+            face_v_window_min(body, face).ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
         let realized = v_min + shift;
         match decide("offset_apex_window", Margin::of(realized), band)
             .map_err(|source| ReplaceFaceError::Escalated { source })?
@@ -670,8 +669,12 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
                 None => moved.push((vertex, point)),
                 Some((_, first)) => {
                     let gap = first.distance(point);
-                    match decide("offset_vertex_agreement", Margin::of(T::from_f64(tol.eps()) - gap), band)
-                        .map_err(|source| ReplaceFaceError::Escalated { source })?
+                    match decide(
+                        "offset_vertex_agreement",
+                        Margin::of(T::from_f64(tol.eps()) - gap),
+                        band,
+                    )
+                    .map_err(|source| ReplaceFaceError::Escalated { source })?
                     {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
@@ -747,7 +750,8 @@ fn mint_offset<T: Decide + PropsQuadLane>(
             Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
         };
     }
-    geom_brep::offset_surface(old, d, band).map_err(|error| ReplaceFaceError::Offset { face, error })
+    geom_brep::offset_surface(old, d, band)
+        .map_err(|error| ReplaceFaceError::Offset { face, error })
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -918,14 +922,13 @@ fn plan_edge<T: Decide>(
             v0: v0 + shift,
             v1: v1 + shift,
         },
-        EdgeGeometry::Intersection { s1, s2, .. } | EdgeGeometry::TangentIntersection { s1, s2, .. }
+        EdgeGeometry::Intersection { s1, s2, .. }
+        | EdgeGeometry::TangentIntersection { s1, s2, .. }
             if s1 == old_key || s2 == old_key =>
         {
             let other = if s1 == old_key { s2 } else { s1 };
-            let other_kind = SurfaceKind::of(
-                body.get_surface(other)
-                    .ok_or(ReplaceFaceError::Corrupt)?,
-            );
+            let other_kind =
+                SurfaceKind::of(body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?);
             let kind = SurfaceKind::of(new_surface);
             if !geom_brep::intersect::route(kind, other_kind).implemented {
                 return Err(ReplaceFaceError::NeighborPairUnroutable {
@@ -1108,16 +1111,15 @@ fn plan_reanchors<T: Decide>(
                 Sign::Negative => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
             }
             if let EdgeGeometry::MappedCurve(m) = description {
-                description = EdgeGeometry::MappedCurve(
-                    move_mapped_endpoint(m, point, is_start).ok_or(
+                description =
+                    EdgeGeometry::MappedCurve(move_mapped_endpoint(m, point, is_start).ok_or(
                         ReplaceFaceError::CarrierLaneUnsupported {
                             edge,
                             what: "a re-anchored mapped description that is not a placed line \
                                    segment (an arc's bulge and a trajectory's family are sketch \
                                    data this door does not author)",
                         },
-                    )?,
-                );
+                    )?);
             }
             if is_start {
                 t0 = t_new;
