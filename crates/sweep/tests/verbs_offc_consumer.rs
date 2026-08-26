@@ -165,7 +165,7 @@ fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
         body.set_edge_curve(
             edge,
             EdgeCurveSpec {
-                description: re.description().clone(),
+                description: *re.description(),
                 carrier,
                 param_start,
                 param_end,

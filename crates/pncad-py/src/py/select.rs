@@ -335,6 +335,7 @@ pub(crate) enum SurfaceKind {
     Sphere,
     Torus,
     Nurbs,
+    Approx,
 }
 
 impl SurfaceKind {
@@ -346,6 +347,7 @@ impl SurfaceKind {
             Self::Sphere => KSurfaceKind::Sphere,
             Self::Torus => KSurfaceKind::Torus,
             Self::Nurbs => KSurfaceKind::Nurbs,
+            Self::Approx => KSurfaceKind::Approx,
         }
     }
 }
@@ -860,6 +862,7 @@ mod growth_tripwire {
             KSurfaceKind::Sphere => SurfaceKind::Sphere,
             KSurfaceKind::Torus => SurfaceKind::Torus,
             KSurfaceKind::Nurbs => SurfaceKind::Nurbs,
+            KSurfaceKind::Approx => SurfaceKind::Approx,
         }
     }
 
