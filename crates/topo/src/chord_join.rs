@@ -643,11 +643,20 @@ enum SectionCase<T: Real> {
     Tangent(geom::Curve3<T>),
 }
 
-/// The section of `plane_s × wall` under THE C5 table, in the frame
-/// the arc-side rule reads — **one implementation for both chord
-/// lanes** (smell scan S5's residue: this classification was written
-/// twice in this file, once per lane, differing only in the wording of
-/// its refusals and in what it did with the tangent arm).
+/// The section of the surface PAIR `(s1, s2)` under THE C5 table, in
+/// the frame the arc-side rule reads — **one implementation for both
+/// chord lanes** (smell scan S5's residue: this classification was
+/// written twice in this file, once per lane, differing only in the
+/// wording of its refusals and in what it did with the tangent arm).
+///
+/// **Pair-general, not plane-first.** The two arms wired today are
+/// plane×cylinder and plane×sphere, and either order is accepted: the
+/// caller hands over the pair it has, and which member is the plane is
+/// this function's question rather than the caller's. A pair with no
+/// arm — every curved×curved pair, today — refuses typed here, which
+/// is the same discipline the germ-pair frame dispatch keeps
+/// (`boolean::join::pair_section_frame`): a missing arm is never a
+/// straight chord.
 ///
 /// The sphere lane (M5 S13) classifies through `plane_sphere_section`
 /// — an exact Circle, never a fitted chord — and refuses a section
@@ -658,11 +667,32 @@ enum SectionCase<T: Real> {
 fn section_case<T: Decide>(
     face: FaceKey,
     band: Band,
-    plane_s: &geom::Surface<T>,
-    wall: &geom::Surface<T>,
+    s1: &geom::Surface<T>,
+    s2: &geom::Surface<T>,
     extent: T,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
+    // The pair normalization: exactly one member must be the plane the
+    // section rides. Two planes have no conic to select an arc of, and
+    // a curved pair has no arm — both are named rather than folded
+    // into the wall match below.
+    let (plane_s, wall) = match (s1, s2) {
+        (geom::Surface::Plane { .. }, geom::Surface::Plane { .. }) => {
+            return Err(invariant(
+                "a plane×plane pair reached the chord's section table — a planar pair's \
+                 chord is straight and is minted by the planar lane, never here",
+            ));
+        }
+        (geom::Surface::Plane { .. }, other) => (s1, other),
+        (other, geom::Surface::Plane { .. }) => (s2, other),
+        _ => {
+            return Err(invariant(
+                "a chord's section pair has no plane — the C5 arms this lane reads are \
+                 plane×cylinder and plane×sphere, and a curved×curved pair has no arc-side \
+                 rule to run; refused typed rather than defaulted to a straight chord",
+            ));
+        }
+    };
     let table = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
         other => SplitJoinError::Section {
@@ -2518,6 +2548,84 @@ mod tests {
                 "{rung} is spelled at {sites} site(s); the arc-side rule is supposed \
                  to be written once — a second site is the S9 block copied again"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod section_case_pair_tests {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{SectionCase, section_case};
+    use crate::entity::FaceKey;
+    use crate::splitting::SplitJoinError;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    fn plane() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cylinder() -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The dispatch reads a PAIR: which member carries the plane is
+    /// this table's question, not the caller's, so both orders name the
+    /// same conic.
+    #[test]
+    fn the_pair_is_order_free() {
+        let f = FaceKey::default();
+        for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
+            let got = section_case(f, band(), &a, &b, 4.0).expect("the rim arm is wired");
+            let SectionCase::Conic(c) = got else {
+                panic!("a square cut names a rim circle");
+            };
+            assert!((c.sa - 1.0).abs() < 1e-12 && (c.sb - 1.0).abs() < 1e-12);
+        }
+    }
+
+    /// A pair with no arm refuses TYPED. It must never fall through to
+    /// `Straight`, which the callers mint a straight chord from.
+    #[test]
+    fn a_pair_without_a_plane_refuses_typed() {
+        let f = FaceKey::default();
+        for (a, b) in [
+            (cylinder(), cylinder()),
+            (cylinder(), sphere()),
+            (sphere(), sphere()),
+        ] {
+            match section_case(f, band(), &a, &b, 4.0) {
+                Err(SplitJoinError::SectionInvariant { .. }) => {}
+                Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
+                Ok(_) => panic!("a curved pair must refuse typed, never classify"),
+            }
+        }
+        match section_case(f, band(), &plane(), &plane(), 4.0) {
+            Err(SplitJoinError::SectionInvariant { .. }) => {}
+            Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
+            Ok(_) => panic!("a planar pair must refuse typed here, never classify"),
         }
     }
 }
