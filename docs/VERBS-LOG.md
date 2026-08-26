@@ -1377,3 +1377,14 @@ quantity and cross-checks its replica against the REAL certifier
 both sides). The CI draw landed on (interval, 1e-12) — the fix
 gated live at the defect's own point. Queue notified (PR-A's
 re-merge picks it up; the frozen ARMS-3 review keeps filtering).
+
+## Brief amendment adopted (2026-08-26, from #1036)
+
+Every future VERBS implementer/reviewer brief carries BOTH halves
+of the long-job rule: the no-background-waiters prohibition AND
+its exception (a job outliving the ~600s foreground cap launches
+setsid-detached writing to a FILE, polled foreground), plus the
+corollary: a reaped job is indistinguishable from a completed one
+unless you check what it produced. Paid for four times today in
+VERBS lanes and once in M9-5's (which spent the courtesy window);
+the memory PR is cad-m8's #1036.
