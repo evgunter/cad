@@ -7,7 +7,7 @@
 //! "H" on the xy plane extruded +z, a "T" on the yz plane extruded
 //! +x, a "C" on the zx plane extruded +y — all three letter boxes the
 //! same 3-unit height): every face a plane, every edge a line — the
-//! operand gate (`reduce::gate_operand_kinds`) passes and no curved
+//! operand gate (`reduce::gate_operand_pairs`) passes and no curved
 //! geometry goes near a boolean at all (round letterforms are the M5
 //! upgrade). A×Z was probed (#91, 2026-07-25)
 //! and refused typed then — banked as the acceptance fixture for the

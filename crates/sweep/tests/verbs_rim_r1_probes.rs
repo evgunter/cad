@@ -12,8 +12,10 @@
 //!   randomized radii — red if the lever collapses again OR if it ever
 //!   over-reports.
 //! - **The #554 pair at randomized geometry**: full and partial
-//!   revolves of one profile refuse the same `SpineUnsupported` — red
-//!   if the closed form regresses to `TangentialEdge`.
+//!   revolves of one profile DECIDE the same dihedral — red if the
+//!   closed form regresses to `TangentialEdge`. Past that decision the
+//!   closed rim's band is built and the open arc reaches its
+//!   unimplemented seam-meridian corner.
 //! - **The detector differential**: a co-surface seam meridian still
 //!   refuses `TangentialEdge` at margin exactly 0.0 — red if the fix
 //!   removed the detector rather than the false positive.
@@ -30,8 +32,9 @@
 //!   (the old lever) while the max pairwise chord meters ~2r; a
 //!   near-tangent corner (kink ~1e-6 rad) then sits IN the ambiguity
 //!   band at the old lever and decides definitely at the new one —
-//!   red (an `Escalated` instead of `SpineUnsupported`) if the lever
-//!   regresses to the endpoint chord on open arcs.
+//!   red (an `Escalated`, or a tangency, instead of the decided corner
+//!   refusal) if the lever regresses to the endpoint chord on open
+//!   arcs.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -254,12 +257,16 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
 }
 
 /// **The #554 pair, at randomized neck radii and sweep angles.** The
-/// same cone×cylinder corner refuses `SpineUnsupported` — the missing
-/// analytic arm — whether its rim is CLOSED (full revolve) or open
-/// (partial at any sweep). Red if the closed form regresses to the
-/// false `TangentialEdge`.
+/// same cone×cylinder corner DECIDES its dihedral — never reporting
+/// tangency on a transverse corner — whether its rim is CLOSED (full
+/// revolve) or open (partial at any sweep). Red if the closed form
+/// regresses to the false `TangentialEdge`.
+///
+/// Past that decision the forms part: the closed rim's band is built by
+/// the cylinder×cone arm, the open arc terminates at the revolve's
+/// seam-meridian vertices, whose corner configuration is unimplemented.
 #[test]
-fn the_554_pair_refuses_spine_unsupported_at_any_neck_radius() {
+fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
     let mut rng = fuzz::start("rim-r1 #554 pair");
     for _ in 0..fuzz::scaled(4) {
         // Keep `a − tan 30°` clear of the 0.2a bore: below a ≈ 0.72
@@ -278,13 +285,24 @@ fn the_554_pair_refuses_spine_unsupported_at_any_neck_radius() {
                 "a cone×cylinder corner exists at a = {a}; {}",
                 fuzz::replay()
             );
-            match fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol()) {
-                Err(FilletError::SpineUnsupported { .. }) => {}
-                other => panic!(
-                    "neck {a}, closed = {closed}: expected SpineUnsupported, got {other:?}; {}",
-                    fuzz::replay()
-                ),
-            }
+            let v = fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol());
+            assert!(
+                !matches!(v, Err(FilletError::TangentialEdge { .. })),
+                "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
+                 got {v:?}; {}",
+                fuzz::replay()
+            );
+            let expected = if closed {
+                v.is_ok()
+            } else {
+                matches!(v, Err(FilletError::FilletCornerUnsupported { .. }))
+            };
+            assert!(
+                expected,
+                "neck {a}, closed = {closed}: a closed rim builds its band and an open \
+                 arc reaches the unimplemented seam-meridian corner, got {v:?}; {}",
+                fuzz::replay()
+            );
         }
     }
 }
@@ -381,9 +399,10 @@ fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
 /// lever.** The 30° neck-and-flare corner revolved 2π − 0.0032 rad
 /// leaves the corner rim an OPEN arc whose endpoint chord is
 /// ~0.0032·a — the collapsed old lever — while the honest lever
-/// meters ~the rim's diameter; the dihedral decides and the refusal
-/// is the decided `SpineUnsupported`, exactly the full-revolve
-/// answer, on an arc the endpoint chord would have starved.
+/// meters ~the rim's diameter; the dihedral decides, and the refusal
+/// that follows is the OPEN arc's own — its seam-meridian
+/// terminations, whose corner configuration is unimplemented — on an
+/// arc the endpoint chord would have starved before either door.
 ///
 /// The fixture's kink is the same healthy 30° as the #554 pair, ON
 /// PURPOSE: this row first tried a ~1e-6..1e-4 rad kink so the
@@ -412,8 +431,13 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         chord < 0.01 * a,
         "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
-    match fillet_edges(&body, &corner[..1], 0.05, band(), tol()) {
-        Err(FilletError::SpineUnsupported { .. }) => {}
-        other => panic!("expected the decided SpineUnsupported at the honest lever, got {other:?}"),
-    }
+    let v = fillet_edges(&body, &corner[..1], 0.05, band(), tol());
+    assert!(
+        !matches!(v, Err(FilletError::TangentialEdge { .. })),
+        "the dihedral must decide at the honest lever, not starve: {v:?}"
+    );
+    assert!(
+        matches!(v, Err(FilletError::FilletCornerUnsupported { .. })),
+        "expected the decided corner refusal at the honest lever, got {v:?}"
+    );
 }

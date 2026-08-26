@@ -146,6 +146,8 @@ mod review_ssiflat_r2_probes;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "shell_roles.rs"]
+mod shell_roles;
 #[path = "void_door.rs"]
 mod void_door;
 

@@ -1502,3 +1502,144 @@ fn the_same_flush_seat_undeclared_is_the_hard_error() {
         "and every finding is that hard error: {errors:?}"
     );
 }
+
+/// **The refusal's rendering composes through the finding sink**: each
+/// finding is `subject: story` — the attribution (the mate a user can
+/// act on, and the relation) before the colon, the kernel's own
+/// finding forwarded verbatim after it, and never a `Debug` dump of
+/// either. The kernel's tier-3′ messages end in their own recourse,
+/// so the document layer appends none — exactly one recourse per
+/// finding, no generic tail.
+#[test]
+fn the_refusal_renders_attribution_prose_never_debug_guts() {
+    use editor_core::{AtRestFinding, Attribution, MintedDeclaration};
+
+    let minted = MintedDeclaration {
+        mate: RecipeNodeId(4),
+        a: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::Cap(CapEnd::Top)],
+        },
+        b: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(2),
+            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+        },
+        class: ContactClass::Rest,
+        faces: (topo::FaceKey::default(), topo::FaceKey::default()),
+    };
+    let finding = |attribution| AtRestFinding {
+        attribution,
+        error: topo::ValidationError::NegativeVolume,
+    };
+    let msg = AssemblyError::AtRest {
+        findings: vec![
+            finding(Attribution::Refuted(minted.clone())),
+            finding(Attribution::Declined(minted)),
+            finding(Attribution::Unattributed),
+        ],
+    }
+    .to_string();
+    // The header, then one composed line per finding.
+    assert!(
+        msg.contains("the at-rest gate refused (3 finding(s))"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("mate 4's declared Rest contact, refuted:"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("mate 4's declared Rest contact, uncertified:"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("no declaration answers for this finding:"),
+        "{msg}"
+    );
+    // The kernel's story rides each line, forwarded through its own
+    // `Display`.
+    assert!(
+        msg.contains("signed volume is definitely negative"),
+        "{msg}"
+    );
+    // The negative pin class: prose, never Debug — no struct braces,
+    // no variant or type name, no Debug-formatted payload.
+    for guts in [
+        "{",
+        "Refuted",
+        "Declined",
+        "Unattributed",
+        "NegativeVolume",
+        "AtRestFinding",
+        "StableName",
+        "ValidationError",
+    ] {
+        assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+    }
+}
+
+/// **The gather's own refusals render as prose too** — `ProductError`
+/// forwards its payloads' `Display`s (the kernel refusal, each
+/// validity finding on its own indented line, names as kind + minting
+/// node), and `AssemblyError::Product` forwards the whole rendering,
+/// so the assembly surface leaks no `Debug` structure through this
+/// arm either.
+#[test]
+fn the_gather_refusals_render_prose_never_debug_guts() {
+    use editor_core::ProductError;
+
+    let cases = vec![
+        ProductError::SolidInvalid {
+            node: RecipeNodeId(3),
+            errors: vec![
+                topo::ValidationError::NegativeVolume,
+                topo::ValidationError::NegativeVolume,
+            ],
+        },
+        ProductError::Naming {
+            node: RecipeNodeId(2),
+            name: Box::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::Top)],
+            }),
+        },
+        ProductError::Graft {
+            node: RecipeNodeId(5),
+            source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
+                zero: 1.0,
+                escalate: 0.5,
+            })),
+        },
+    ];
+    let expected: [&[&str]; 3] = [
+        &[
+            "root 3's solid is not valid at rest (2 finding(s)):",
+            "\n  the body's exact-B-rep signed volume is definitely negative",
+        ],
+        &["root 2's face name (minted by node 1) collides"],
+        &["grafting root 5 refused: boolean_reduce: invalid band:"],
+    ];
+    for (error, needles) in cases.into_iter().zip(expected) {
+        // Through the assembly surface, exactly as a caller sees it.
+        let msg = AssemblyError::Product(Box::new(error)).to_string();
+        assert!(msg.starts_with("assembly: product:"), "{msg}");
+        for needle in needles {
+            assert!(msg.contains(needle), "{needle:?} not in: {msg}");
+        }
+        for guts in [
+            "{",
+            "SolidInvalid",
+            "NegativeVolume",
+            "ProductError",
+            "ValidationError",
+            "BooleanError",
+            "StableName",
+            "RecipeNodeId",
+        ] {
+            assert!(!msg.contains(guts), "Debug guts leaked ({guts}): {msg}");
+        }
+    }
+}

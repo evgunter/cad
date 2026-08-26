@@ -618,3 +618,487 @@ assertion (the recipe ring and the direct ring agree bit-exactly,
 checked every pass). Renders re-baseline on this merge. Seam
 sweep: verbs-demo + verbs-demo-r1 lanes. Still in flight:
 TUBEWALL dual (69), ARMS-2 review (70).
+## VERBS-TUBEWALL implemented (2026-08-23, lane verbs/tubewall)
+
+The door: `tube_along_arc_hollow(center, axis, u_ref, major_radius,
+window, minor_radius, wall, tol)` — a SIBLING, not a widened
+signature, so the solid door keeps its signature and its suite is
+untouched. BOTH doors take `T: Decide` — no bracket read anywhere on
+the path, see the wall-validation paragraph below. Both doors are one
+private `build` with `wall: Option<T>`; the hand-written
+`swept_segments` involution came out as `circle_traversal(center,
+radius, turn, reversed)` with the three combinations the doors use
+named in its docs. That is the whole elaboration: the hollow form is
+one MORE loop through the same revolve machinery — the outer circle
+as before, the inner circle as the revolve's hole loop, in the
+traversal each construction expects (forward/clockwise for a full
+period, where the hole builds as its own hole-as-outer solid;
+reversed/counterclockwise for a window, where it is an ordinary ring
+in the start cap). No new geometry code and no second construction.
+
+Full-period policy, mirrored from the solid door honestly: the solid
+door supports `TubeWindow::Full`, so the hollow one does, and its
+inner wall closes into a CAVITY — `build_full`'s existing holed path
+inserts it through `topo::insert_void` with `Carried { Positive }`,
+the VERBS-RING route unchanged. The evidence that carries: the two
+circles are concentric and the door has already decided the
+thickness, the bore AND the realized gap between the two stored radii
+definitely positive, so the inner circle is strictly inside the outer
+in the sketch and revolution about the shared axis maps that to 3-D
+verbatim. Both `full.rs`'s and `voids.rs`'s Carried-evidence prose
+gained this third source, which was previously written as if a
+validated profile were the only one. A window is an ordinary open
+elbow of annular section — one shell, two annular wedge caps.
+
+Wall validation went the other way from the brief's suggested
+posture, and the reason is worth recording. The brief asked for a
+plain bracket-read check (the chamfer `NonpositiveSize` precedent);
+that spelling needs `T: Decide + Bounds`, which the ratified
+compound-`Bounds` scope rule allows only in named seams
+(`scripts/gates/bounds-allowlist.sh` — the discipline job caught it
+on the first push, correctly). Rather than ratify a new seam for an S
+unit, the checks went through the door's OWN funnel: plain LINEAR
+margins in meters (unlike this door's levered angular window/frame
+margins), the posture this door already uses for its caller-supplied
+window (`tube_window_span`).
+
+**The merit claim, stated correctly after the ordinal-69 dual — the
+first version of this paragraph was wrong by omission and is
+corrected here rather than left standing.** The two regimes come
+apart and each spelling wins one:
+
+- **ε-scale walls** (R1's fixtures): metering is better. A 1e-20 m
+  wall is not positive at any run tolerance, so the metered form
+  refuses it and escalates an in-band one, where a bracket read
+  accepts both and builds a sliver.
+- **The collapse regime** (R2's finding, the one R1's fixtures never
+  reached): the bracket read was better, and the metering rewrite
+  SILENTLY DELETED the guard that covered it. The branch's own first
+  commit (c56c77d5) had `WallBelowResolution`, a check on the
+  realized separation of the two stored radii; the rewrite dropped it
+  along with the bracket reads it was written in. At large radii —
+  measured, 218 configurations at ε=1e-12 from `minor_radius` ≈
+  5.24e5 m up — a thickness far above ε still falls under that
+  radius's own ulp, both surviving decides answer Positive, and
+  `minor_radius - wall` rounds onto `minor_radius`. Nothing built,
+  but the refusals came from the pcurve mint and the cap-plane Newell
+  fit AFTER everything was classified, i.e. by luck rather than by a
+  wall door — and the cavity's `Carried { Positive }` was by then a
+  FALSE certificate over two coincident circles.
+
+The fix pass covers both with a THIRD decide in the accepted metered
+posture: `tube_wall_gap` on `Margin::of(minor_radius - inner)` — the
+difference of the two numbers the walls will store, not of the two
+the caller wrote. Three arms: `NonpositiveWall`, `WallExceedsRadius`,
+`WallGapCollapsed`, each carrying the run's threshold (not the
+caller's value: with `T: Decide` alone there is no f64 door out of a
+`T`, which is the same seam rule again). The lesson worth keeping:
+a rewrite that changes the *spelling* of a check can silently drop a
+*case* the old spelling covered, and neither the suite nor the gate
+said so — only a reviewer whose fixtures reached the other regime.
+
+Exactness posture: outer wall bit-identical to the solid door's;
+inner wall stores `minor_radius - wall`, one IEEE subtraction of the
+caller's own numbers, pinned with `==` on the bits. Refusal messages
+now name the door honestly: a hollow-only predicate escalation says
+`tube_along_arc_hollow`, and the arms both doors share say `tube
+door` rather than claiming the solid one. KERNEL-VERBS register row
+retired to the present (bound stated: one concentric constant wall,
+nothing eccentric or varying; the STEP claim SOFTENED to "expected" —
+nothing runs the hollow tube through the writer today, and the tour
+scene that would pin it is issue #986). north-star row 19 widened.
+Both review probe branches adopted whole (r1 + r2), with the two
+record-current-behavior rows amended rather than deleted: one now
+pins the corrected door naming, the other inverts to require that
+every collapsed bore is named by a wall door. PR: verbs/tubewall
+(#960).
+
+
+## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
+
+The session hit the model usage limit mid-wave: both in-flight
+reviewers (TUBEWALL R1, ARMS-2 R1) terminated mid-review and the
+orchestrator loop froze ~2 days. On resume: #960/#962 still open
+and untouched, reviewer lanes intact, main moved only with other
+programs' work. Both reviewers RESUMED from transcript (their
+context held unreported findings — resume over fresh per the
+death-recovery rule): TUBEWALL R1 had verified C1's bit-identity
+half and owes the interval run + report; ARMS-2 R1 was mid-anomaly
+(base probe rows passing unexpectedly — told to suspect a stale
+target serving head binaries before trusting any base run).
+TUBEWALL R2's report arrived BEFORE the outage and is severe:
+AWF 3 MAJOR — the metering rewrite silently DELETED the
+WallBelowResolution guard its own first commit had (M1: the
+realized-gap collapse class, 218 configurations measured at
+1e-12, never refused by a wall door — and the Carried{Positive}
+evidence is false for them); the PR's merit sentence is backwards
+(M2); the ratified log entry contradicts the code and the gate
+(M3). Adjudication of the 69 union waits on R1.
+
+## Ordinal-69 dual complete; TUBEWALL fix pass out (2026-08-25)
+
+R1 fable AWF 0/3/3 (resumed post-outage; upheld the metering
+deviation both halves, verified at ε-scale walls; found the
+VERBS-LOG Decide+Bounds contradiction independently). R2 opus AWF
+3/4/7+ (pre-outage): the complementary regime — the realized gap
+`minor − wall` is never decided, so at km-scale radii the
+subtraction rounds the bore onto the outer wall and the refusal
+comes from downstream certification by luck, with the
+Carried{Positive} evidence FALSE for that class; the branch's own
+first commit had the guard and the metering rewrite silently
+deleted it (the one silent deviation, and exactly what the
+dispatch asked adjudicated). Labels converged, substance
+PARTITIONED BY REGIME — each reviewer's fixtures covered what the
+other's missed, the dual earning its cost cleanly. Union fix
+dispatched: the third decide (tube_wall_gap), the backwards merit
+sentence corrected, the log contradiction fixed, both probe
+suites adopted, main re-merged (the outage delta). Also noted:
+classify_shells on main answers DEMO finding 6 and the RING
+winding-oracle caveat — a future unit's wiring, not this PR's.
+
+## Ordinal-70 returned; ARMS-2 fix pass out (2026-08-25)
+
+The resumed reviewer delivered: AWF 1/4/4 + style. The geometry
+held completely — all three sheet-center closed forms re-derived
+(the sign-carrying stable quadratic root confirmed branch-free
+both directions), four-fixture bit-identity byte-verified, klein's
+RadiusHeadroom margin computed exactly (−0.1 m against the inner
+neck wall — the meridian-authoring reading sharpened, as claimed),
+the C8 correction verified against #930's flagged wording, and the
+f64 lane (which BOTH hosted draws missed) clean at 63/63 × two ε.
+The pre-outage anomaly resolved as suspected: stale-binary base
+runs; redone isolated, the probe rows red at base. The MAJOR is a
+vacuous test row (the non-coaxial refusal test never builds a
+non-coaxial pair); MINORs: the refusing branch has zero consumers
+and the new metered name zero probe coverage (K-REPORT's 0-sampled
+class), one unscheduled deviation, a missing-face conflation, and
+ruled-family poison prose. Fix pass out with the union; the
+reviewer's two-sphere-waist differential likely BECOMES the MAJOR
+fix at adoption. Both Wave-1 closers now in fix passes
+concurrently (TUBEWALL + ARMS-2).
+
+## ARMS-2 — the coaxial revolution arms (2026-08-23, `verbs/arms2`)
+
+**#319's coaxial half closes.** Eight new arms land as ONE derivation
+plus eight reductions. Whenever a support pair carries a symmetry the
+rolling ball inherits — a common axis of revolution, or a common
+ruling — the ball centre is confined to a SHEET (the meridian
+half-plane through the rim; the cross-section normal to the ruling).
+Both supports cut that sheet in a line or a circle, and the centre is
+the crossing of the two OFFSET traces: three closed forms
+(line×line, line×circle, circle×circle), each written so the branch it
+takes is the one that returns the RIM as `r → 0` — the structural
+answer to "which of the two circles the offsets meet in is my edge",
+and branch-free (the `√` carries the sign of a stored quantity, and
+poisons exactly at a tangential pair).
+
+Coaxial six (circular spine → TORUS): sphere×cone, cone×plane(⊥),
+cone×cone, cylinder×cone, cylinder×sphere, cylinder×plane(⊥). Ruled
+two (straight spine → CYLINDER): cylinder×cylinder(∥),
+cylinder×plane(∥). No arm mints a cone — the C8 prose correction
+(`docs/CURVED-DESIGN.md`, flagged on #930) lands with them.
+
+The surgery half was real scope: `resolve_rim`'s gates are now split
+by SHAPE rather than by KIND — the annulus asks only that both
+supports be revolution walls, the ladder keeps every ring-and-half-cap
+gate it had. One new routing decision, `fillet3_support_coaxiality`
+(the departure from the shared-axis hypothesis, meters at the rim's
+own lever arm), refuses `SpineUnsupported` on a definite miss. The
+tangent certificate's circle arm grew a CONE row in `geom-brep`
+(without it a sphere×cone band cannot be described at rest).
+
+Acceptance: the calochortus bud's MOUTH RIM alone — a sphere zone
+meeting a conical pucker along a closed latitude circle — fillets to a
+tier-3-valid solid with a pinned census and closed-form trim circles;
+its lip (cone×plane) and its bore's base (cylinder×plane) fillet too.
+ARMS-3 keeps sphere×sphere and the valence-4 corner run-out.
+
+**R1 fix pass** (APPROVE-WITH-FIXES, 1 MAJOR / 4 MINOR / 4 NOTE): the
+geometry held — all three sheet-centre forms re-derived independently,
+the four-fixture bit-identity byte-verified across the merge base, the
+klein `RadiusHeadroom` margin confirmed at exactly −0.1 m, the C8
+correction checked against the ratified wording, and the f64 lane the
+hosted draws missed clean at 63/63 on both ε. The MAJOR was a VACUOUS
+row: the "non-coaxial refuses" test filleted the coaxial mouth and
+grepped a roster string. It is replaced by a PLANTED construction — the
+bud's own cone wall keeps its apex and half-angle and takes a tilted
+axis, and the battery must refuse naming the shared-axis hypothesis
+rather than the kinds — which is also `fillet3_support_coaxiality`'s
+first test consumer. That name now has probe-lane coverage too: a
+curved-rim fillet joins the K sweep as `budrim`, the CHAMFER `spacer`
+precedent one verb over, and the only scene in the corpus that reaches a
+CURVED support pair. The uncarved ruled arms got their schedule (#987,
+behind ARMS-3 — a ruling's terminations ARE the run-out taxonomy), the
+absent-support path got `BodyNotIntact` back, the poison prose got the
+ruled family's actual path, `tangent.rs`'s twice-spelled √g ladder
+folded into one helper, and the plane/sphere vocabulary swept at every
+site the review named (prose only; the name-alphabet mechanism stays
+#961's). Reviewer probe branch adopted authorship-preserving:
+`verbs/arms2-r1-probes`.
+
+## ARMS-2 MERGED (#962, 2026-08-25) — #319's coaxial half CLOSED
+
+Row ARMS2 (ordinal 70) in MODEL-AB-LOG. Curved-support fillets
+exist: the bud's mouth rim (sphere×cone), lip (cone×plane), and
+bore base (cylinder×plane) all fillet end to end through one
+closed-form family. Block VERBS-2 fully consumed. Remaining for
+Wave 1: the TUBEWALL fix pass (CI in flight) and ARMS-3's design
+conversation. Seam sweep: verbs-arms2 + verbs-arms2-r1 lanes after
+the state-sync.
+
+## WAVE 3 OPENS: OFF-A spec committed (2026-08-25)
+
+Evan's rulings at the seam: Wave 3 stays under THIS orchestrator
+(the context argument — the survey, both ratification rounds, the
+door seam — beat the handoff; a remote orchestrator's build
+parallelism noted as the one advantage forgone, with
+remote-implementer dispatch as the adaptation if wall-clock ever
+binds). The build mutex stays width 1 — this box measured at
+9GB/8-core, the same envelope the width was measured for. The Q8
+substrate survey is now durable (docs/Q8-SUBSTRATE-2026-08-21.md,
+snapshot-caveated). OFF-A spec committed (the O1 mint table +
+door-owned refusals; the TUBEWALL realized-radius lesson and the
+ARMS-2 never-meter-a-non-question lesson both folded in);
+difficulty S logged pre-dispatch; consumes block VERBS-3 slot 2.
+Interleave plan: OFF-A + Wave 2's GATE spec next, OFF-B (meters +
+fit + certificate, L) after OFF-A lands, ARMS-3's conversation
+draft at the TUBEWALL merge seam.
+
+## TUBEWALL MERGED (#960, 2026-08-25) — WAVE 1 IMPLEMENTATION COMPLETE
+
+Row TUBEWALL (ordinal 69, sample #22, the TENTH cross-model pair —
+two from the twelve-pair target) in MODEL-AB-LOG. The hollow tube
+door lands with the three-decide wall family; the seam-rule
+posture gap met twice in the unit is filed as #990 (a design
+question for Evan); the tour scene is #986. **Every implementation
+row of Wave 1 is now MERGED**: RIM, CHAMFER, ARMS-1, ARMS-2,
+TUBEWALL, RING, DEMO (plus the unplanned ARCEVAL/SSIFLAT defect
+units the wave surfaced). Remaining Wave-1 item: ARMS-3's
+design conversation (OQ6 run-out taxonomy — Evan-gated), drafting
+next. Wave 3 opened concurrently (OFF-A implementing). Seam
+sweep: verbs-tubewall + both reviewer lanes.
+
+## ARMS-3 conversation OPEN (#992, 2026-08-25)
+
+The last Wave-1 item is now a design conversation awaiting Evan:
+A3-2's substantive claim is that the valence-4 seam-vertex
+"corner" is NOT a corner (the surface is smooth through it; the
+shipped vocabulary misdescribes it) — recommend the SeamVertex
+refusal with the request-the-full-rim recourse, machinery-free;
+A3-3 parks the genuine mid-curve run-out pair consumer-gated with
+the ball-cap named presumptive. Board: OFF-A implementing (Wave
+3); #992 with Evan; Wave 2's GATE spec is the next orchestrator
+work item.
+
+## WAVE 2 OPENS: GATE spec committed (2026-08-25)
+
+docs/VERBS-GATE-SPEC.md: the operand gate goes pair-scoped with
+box-level conservatism as the ruled "genuinely intersects" (over-
+approximation refuses in the safe direction; the payload names the
+pair, stated as a may-intersect); #862's two box defects and
+#700's sibling dedup ride as the precision the gate rests on.
+Acceptance: klein wall 3 flips (or re-pins honestly — build, don't
+assume), wall 4 stays pair-scoped-refused, lily wall 7's refusal
+becomes true (its retirement still waits on SPHSPH per Evan's
+steering). Difficulty M logged pre-dispatch; consumes VERBS-3
+slot 3. Two lanes now: OFF-A (Wave 3) + GATE (Wave 2).
+
+## OFF-A up (#994); ordinal 73 claimed at dispatch (2026-08-25)
+
+OFF-A complete at first pass, no deviations: the cone-slide sign
+derived from the stored normal's axial coefficient (no numeric
+branch), and the cone refusal DERIVED TO BE A NON-QUESTION and
+dropped with the argument (nothing stored approaches a validity
+edge — the parameterization-shift question belongs to OFF-C/D's
+windowed consumers). The TUBEWALL realized-radius lesson is a
+planted red at radius 1e16. **Ordinal 73 claimed at dispatch**
+(ledger through 72 = M9-3's dual on main at claim; 73 not a third)
+— single fable review, frozen 11d955f1ecd8f48e9f07b95f397e5daf354e77b8.
+
+## OFF-A MERGED (#994, 2026-08-25) — Wave 3's substrate begins
+
+Row OFFA (ordinal 73) in MODEL-AB-LOG. The analytic offset mint
+exists with door-owned refusals and echo payloads; the apex-window
+predicate is scheduled into OFF-C/D (plan + OFFSET-DESIGN
+annotated). Next: the OFF-B spec — the two meters (certified
+lower bound on ‖S_u×S_v‖; d vs 1/κ_max collapse) + the A9.4/A9.10
+fit + the two-limb certificate — Wave 3's hardest unit. GATE
+still implementing.
+
+## OFF-B spec committed (2026-08-25)
+
+The program's hardest unit: the two meters (the tree's first
+inf-side surface bound — #528's shared shape named; the collapse
+meter as radius-headroom one dimension up), the Book's A9.4/A9.10
+fit stack in-house, and the C8 two-limb certificate with the
+regularity floor making the normalized normal boundable. Machinery
+only — Surface::Approx and all storage/validator wiring stay
+OFF-C's. The analytic oracle (cylinder/sphere as exact rational
+NURBS vs OFF-A's closed forms) is the acceptance spine. Difficulty
+L logged pre-dispatch; consumes block VERBS-3 slot 4.
+
+## GATE up (#1001); ordinal 74 claimed at dispatch (2026-08-25)
+
+The pair-scoped gate as built: one pair scan reading the same
+boxes candidate generation does; CurvedPairUnsupported payloads
+honest about box conservatism ("MAY, not DOES"); cone and torus
+ACQUIRED boxes (no NoSoundBox arm exists — a poison box would have
+made the re-scope inert); #862's two defects fixed plus a third of
+the same class found by shape-sweep, all extents rewritten against
+one Span interval type — which IS #700's dedup (option 1, no
+allowlist amendment) with a face-for-face differential row
+guarding the residue. Two empirical corrections: klein wall 3
+still refuses — honestly, on (Cone, Plane) — and lily wall 7's
+blocker adds the cone germ lane (plan row 6 corrected; the
+steering's intent stands, the blocker set grew). One M9-owned test
+row moved with the sweep's documented one-way divergence (the
+carrier-graze candidates the over-width kept alive) — courtesy
+note owed to M9. **Ordinal 74 claimed at dispatch** (ledger
+through 73 on main; not a third) — single fable review, frozen
+b2a8bad1.
+
+## OFF-B up (#1003); ordinal 75 claimed at dispatch (2026-08-25)
+
+The program's hardest unit landed green: the three-bound
+regularity floor (mignitude / fixed-projection / Gram determinant,
+conservatism direction stated and pinned), the collapse meter, the
+A9.4 fit with its ONE forced deviation (the Book's chord-length
+parameters would leave no pointwise claim to certify — the
+ratified O3 claim forced the chart's own parameters), the
+insert-and-recertify refinement (A9.10's shape; the compression
+half scheduled), and the two-limb certificate whose sup limb rides
+ALGEBRAIC RATIONALIZATION (X = Ẽ·Ẽ − d²w², Y = Ẽ×M̃ — coefficients
+cancel to the residual's scale where separate hulls would need
+millions of cells). Oracle: bound/sample 3-5x across five rows.
+The mesh hull assembly LIFTED (not called — layering) with mesh's
+numbers unmoved 91/91. Both hosted draws were interval —
+the default compile mode is the dual's unique signal. **Ordinal 75
+claimed at dispatch → a third → DUAL CROSS-MODEL (sample #24, the
+ELEVENTH pair — one from the twelve-pair notification threshold)**:
+R1 fable + R2 opus, frozen db2580f9.
+
+## Ordinal-75 dual returned; OFF-B fix pass out (2026-08-26)
+
+R1 fable AWF 1/4/2; R2 opus AWF 4/9/6 — **the strongest
+convergence of the program**: both independently demonstrated the
+SAME blocker (certify_offset's unweighted read of a rational fit —
+an unsound certificate through a public door, 230×/~1800×
+under-reports, each with their own red probe), both brute-forced
+the core inequality sound (1M + 200k configurations, zero
+violations), both judged the A9.4 fork airtight, both found the
+stale oracle row and the sweep misreport. R2's divergent tail was
+real and landed: the regularity lever DIRECTIONALLY INVERTED
+(large |d| permissive where it is the dangerous side) and the
+small-|d| certificate wall (relative accuracy ~1/|d|). Fix pass
+dispatched with the union, incl. the sharper-denominator
+investigation ((‖E‖+|d|) in place of 2|d|) that may dissolve M4
+outright. This dual is sample #24, the ELEVENTH cross-model pair
+— **the next dual is the twelfth: its recorder notifies Evan
+explicitly per the pre-registered target**.
+
+## OFF-B MERGED (#1003, 2026-08-26) — the approximating substrate EXISTS
+
+Row OFFB (ordinal 75, sample #24, the ELEVENTH cross-model pair)
+in MODEL-AB-LOG. The kernel can now fit a certified offset of a
+NURBS surface: two meters, the Book's fit, the rationalized
+two-limb certificate — with the fix pass exceeding the adjudicated
+union (M3's d-free lever; M4's sharper denominator tightening
+every bound). Four scheduled follow-ons: #1005 (weighted
+composite), #1006 (three-spellings consolidation), #1007
+(directional refinement), #1008 (net recentring). **The next dual
+is the TWELFTH cross-model pair — its recorder notifies Evan
+explicitly.** OFF-C (Surface::Approx integration) is the next
+Wave-3 spec; GATE's ordinal-74 review still out. Seam sweep:
+verbs-offb + both reviewer lanes.
+
+## OFF-C spec committed; block VERBS-4 drawn (2026-08-26)
+
+docs/VERBS-OFFC-SPEC.md: the seventh Surface variant with the D3
+total-enumeration discipline (the compiler is the sweep), the
+private-certificate ApproxSurface triple, O5's never-trust
+re-derivation at tier 3, and a deliberate scope dissolution — the
+apex-window predicate re-points at OFF-D (Offset{base} is
+NURBS-only here; analytic bases never need Approx). Difficulty L
+logged pre-draw; block VERBS-4 drawn (mapping lane-private).
+
+## Ordinal-74 returned; GATE fix pass out (2026-08-26)
+
+AWF 2/5+ — the box rewrite sound in every attacked direction, both
+re-baselines honest (the cross-program m9_3 one judged legitimate
+with the tangency geometry re-derived), but two real MAJORs: the
+gate's admissions DIE DOWNSTREAM in containment doors with a false
+CorruptFace diagnosis (the honest refusal traded for a corruption
+claim on a healthy body; the spec's union acceptance silently
+narrowed to reduce-depth — the unit's one silent deviation), and
+**the wall-7 re-steering was a BOX ARTIFACT**: the reviewer
+measured the pucker's frustum clearing the ball by 0.291 (1.8
+radii) — the (Cone, Sphere) pair came from the cone slab's
+full-range max radius. The plan correction I propagated at the
+claim seam is therefore itself suspect pending the frustum-tight
+re-measurement; I correct the records once the fix pass measures.
+A lesson for the record: an implementer's empirical finding about
+REFUSAL ATTRIBUTION inherits the precision of the instrument that
+attributed it — the review's independent derivation is what
+caught it. Fix pass out with the union; the point-in-solid
+cone/torus capability files as its own unit.
+
+## GATE MERGED (#1001, 2026-08-26) — #862/#700 CLOSED; the wall-7 saga resolved
+
+Row GATE (ordinal 74) in MODEL-AB-LOG. The pair-scoped gate lands
+with honest boxes for every kind and the containment boundary
+typed honestly (#1011 the scheduled capability). The wall-7 record
+went through three states in three days — (waits on 6+9) →
+(+ cone lane) → (a full-revolve face-maximality precondition;
+never curved-boolean breadth at all) — each transition driven by a
+better instrument, and the final one by the fix pass's live
+numbers. Plan rows 6/9 corrected; M9's seam prose synced by the
+lane; the courtesy note to M9 goes on #1002's thread. Wave 2's
+germ lanes (rows 7-10) now dispatch against an honest gate.
+
+## Germ-lane survey folded; CYLCYL spec committed (2026-08-26)
+
+The survey's two premise corrections bind: **M9-3 PR-B is NOT on
+main** (#971 open — the zip substrate I believed landed is not
+substrate) and M9-3 is the declared-contact lane, not #250's germ
+join analog. The germ pipeline mapped door by door (D1-D10):
+chords are minted on demand, never stored (the SSI lift's actual
+meaning); the shared blockers are D3 (curved point-in-face
+containment — which IS #347's conservatism defect, not a rider),
+the D5 `_ => Ok(None)` straight-chord trap (latent unsoundness the
+moment any arm widens D4), and D10's no-crossings silence for
+cylinder pairs (the one wrong-answer-shaped path). CYLCYL specs as
+a two-PR unit (A = substrate, B = arms; #347 needs only the
+parallel-axis class); the sequence reorders 7 → 9 → 8 with the
+rung argument; klein wall 3 re-attributed to row 10. PR-A
+difficulty L logged pre-dispatch; consumes block VERBS-4 slot 2.
+
+## ARMS-3 RATIFIED (#992 👍, merged 2026-08-26); implementation dispatched
+
+The run-out taxonomy resolved as drafted: the seam vertex is NOT a
+corner (SeamVertex refusal with the request-the-full-rim recourse,
+machinery-free); the genuine mid-curve run-out pair parked
+consumer-gated (ball-cap presumptive). One implementation unit
+dispatched: the general sphere×sphere arm (ARMS-2's circle×circle
+closed form), the SeamVertex refusal, register sync; #319 closes
+fully at its merge. Difficulty M logged pre-dispatch; block
+VERBS-4 slot 3; lane verbs-arms3. Three implementation lanes live
+(OFF-C green-awaiting-report, CYLCYL PR-A, ARMS-3).
+
+## OFF-C up (#1012); ordinal 76 claimed at dispatch (2026-08-26)
+
+The seventh Surface variant complete: the triple with the owned-Arc
+base (the spec's arena-key default inverted on two concrete
+obstructions — layering and self-containment — per the
+state-the-choice clause), the certifier INJECTED (the
+certify_nurbs_lane posture, RationalFitUnsupported propagating
+untouched), the ~40-site enumeration with every split catch-all
+named and one latent hole caught (certify.rs's resolve would have
+METERED POISON on an Approx operand instead of refusing — a
+matches! the compiler could not surface), the validator's
+never-trust arm, and the apex-window dissolution executed (the
+base is NurbsSurface BY TYPE). The GATE re-scope was reconciled
+mid-flight (Approx off both rosters by argued decision; the
+refusal now germ-pair-shaped). **Ordinal 76 claimed at dispatch**
+(through 75 on main; not a third) — single fable review, frozen
+597acdb6. The hosted draws were both interval again; the default
+mode is the reviewer's unique signal.

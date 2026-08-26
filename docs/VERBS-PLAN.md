@@ -115,8 +115,23 @@ already removed the storage half. Each lane its own unit:
    non-union kind gate ops.rs:415-427 before the cut is attempted —
    waits on THIS item plus item 9; its probe's retirement text
    executes when both land. docs/M9-5-SPEC.md seam K2 carries the
-   measured detail.)*
-7. **VERBS-CYLCYL (L)** — cylinder×cylinder germ lane. Promoted into
+   measured detail. CORRECTED TWICE, then RESOLVED at #1001's fix
+   pass (2026-08-26): the interim (Cone, Sphere) attribution was a
+   BOX ARTIFACT (two layers of inflation — the full-cone slab, then
+   tilted-axis corner projection; the exact frustum clears the ball
+   by 0.2909). With honest boxes the gate ADMITS the cut, and the
+   true refusal is `NonMaximalFaces`: the lantern's zone is two
+   half-bands on one surface key — a full-revolve PRECONDITION
+   (`merge_coplanar_faces` / the F7 door), not curved-boolean
+   breadth. Wall 7 is therefore NOT a demand signal for rows 6/9/10
+   — its retirement text re-points at the face-maximality
+   precondition; the sphere×sphere germ arm was never reached.)*
+7. **VERBS-CYLCYL (two PRs: A = shared germ substrate L, B = the
+   arms M)** — cylinder×cylinder germ lane. Spec:
+   docs/VERBS-CYLCYL-SPEC.md (2026-08-26 survey; the SEQUENCE
+   REORDERS 7 → 9 → 8 — SPHSPH promoted, CYLSPH last and alone on
+   the fitted rung). Klein wall 3 is gated by row 10's cone lane,
+   NOT rows 7-9 (measured at #1001). Promoted into
    the wave by the scan: #347 is the strongest live demand signal
    (two `circle`-derived cylinders refuse to union AT ALL;
    `examples/bracket.py` rounds at 3 mm instead of 6 mm). #347's
@@ -129,9 +144,9 @@ already removed the storage half. Each lane its own unit:
    certified volume through a pole-crossing meridian arc; #893
    near-polar lever collapse) — a lane minting sphere faces with
    polar rims must not treat `props_rim_level` as a closed premise.
-   *(Steered demand signal — Evan on #966, 2026-08-23, recorded by
-   the M9 orchestrator: lily wall 7 waits on this item plus item
-   6's gate re-scope; see item 6's note.)*
+   *(The wall-7 steering formerly recorded here RESOLVED elsewhere:
+   see item 6's note — with honest boxes the blocker is a
+   full-revolve face-maximality precondition, not this lane.)*
 10. **VERBS-CONE (L)** — cone (and torus) operand lanes, sequenced
     on what 6–9 learn. #226 residual 1 (conic-trimmed cylinder walls
     slip both sense gates) is the known trap; #685 (cone-wedge grid
@@ -165,6 +180,11 @@ area-and-thickness verb). The teapot demo will meet #757/#758/#759/
 #796 (API gaps demos already route around) and #743 (StlOptions
 header panic on plausible part names) — demo findings, recorded not
 dodged, per the demo-purpose rule.
+
+OFF-C/D carry the **apex-window predicate** (ordinal-73 review's
+named residue): before treating a cone mint as a face's offset,
+decide `inf(v-window) + d·cot α > 0` (slant meters) — a shifted
+window crossing the apex silently reads mirror-nappe geometry.
 
 ## Design conversations (Evan-paced; open as info firms up)
 

@@ -62,7 +62,8 @@
 //! revolution is itself one, so it belongs in the meridian rather
 //! than in a rolling ball afterwards (Evan, 2026-08-16 — the
 //! substitution is an improvement on the sketch, not a workaround for
-//! it). Asking `fillet_edges` for that same torus is walls 1 and 2.
+//! it). Asking `fillet_edges` for that same torus is walls 1 and 2 —
+//! which now refuse on the ball's SIZE, not on a missing arm.
 //!
 //! # The findings (each one a wall probe below, except where noted)
 //!
@@ -77,33 +78,48 @@
 //!    `docs/KERNEL-VERBS.md` being paid for by hand, once per wall.
 //!    NOT a probe: there is no verb to call, so there is no refusal
 //!    to pin.
-//! 2. **A closed rim now meters an honest lever arm** (wall 1 — the
-//!    pair with wall 2 is the evidence). A full revolve's latitude
+//! 2. **A closed rim now meters an honest lever arm** (walls 1 and 2 —
+//!    the pair is the evidence). A full revolve's latitude
 //!    rims are CLOSED circles: start vertex == end vertex, so an
 //!    endpoint chord collapses to ~0 there. The battery's lever arm
 //!    is the maximum pairwise chord over the samples
 //!    `{t0, mid, t1}`, which meters a full circular rim at ~its
-//!    diameter — so the neck→flare corner on the FULL revolve
-//!    refuses `SpineUnsupported`, the same honest answer the SAME
-//!    profile revolved PARTIALLY gets. (This pair once split: the
+//!    diameter — so the neck→flare corner on the FULL revolve DECIDES
+//!    its 30° dihedral, as the SAME profile revolved PARTIALLY does.
+//!    (This pair once split: the
 //!    endpoint-chord lever read ~0 on the closed rim and the
 //!    dihedral classifier decided Zero — a false `TangentialEdge` on
 //!    a 30° corner, #554. Both forms are still probed back to back
 //!    because agreement between them is exactly what #554 restored.)
-//! 3. **The cone×cylinder fillet arm is missing** (walls 1, 2) — the
-//!    `constant-radius fillet on CURVED support pairs` row. Recorded,
-//!    NOT wanted: Evan's reading (2026-08-16) is that the meridian
-//!    arc is the better answer for coaxial supports, because the
-//!    blend is then a constructed part of the shape instead of a
-//!    post-hoc roll. Both walls stand as the record of what the verb
-//!    says today, at an honest lever on both rims.
-//! 4. **No boolean may touch a Cone or a Torus face** (walls 3, 4).
-//!    The operand gate is per-FACE-KIND and it rejects the whole
-//!    body: `union` refuses `CurvedBooleanUnsupported { kind: Torus }`
-//!    and `subtract` refuses `CurvedOpUnsupported` before either
-//!    reaches a pair. So the bottle cannot be one body, and the
-//!    self-intersection — the neck piercing the bulb, the one place a
-//!    Klein bottle MUST cross itself in 3-space — cannot be trimmed.
+//! 3. **The cone×cylinder fillet arm EXISTS now; what both walls meet
+//!    is the RADIUS** (walls 1, 2). The `constant-radius fillet on
+//!    CURVED support pairs` row shipped its coaxial half, so this
+//!    corner's spine is no longer the obstacle — predicate 1 is. The
+//!    blend the meridian draws has spine radius `RF`, and a ball that
+//!    big does not fit the neck wall's own curvature, on either rim.
+//!    That is not a defect: it is the reason the substitution is an
+//!    improvement rather than a workaround (Evan, 2026-08-16). An arc
+//!    in the profile is a CONSTRUCTED part of the wall and answers to
+//!    no rolling ball; a post-hoc roll of the same size cannot exist.
+//! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
+//!    THE OTHER OPERAND** (walls 3, 4). The operand gate is
+//!    pair-scoped: a kind with no wired arm disqualifies an operation
+//!    only where its BOX may meet a face of the other body, so both
+//!    refusals now name the germ PAIR and both faces, and they are
+//!    DIFFERENT pairs. `union` refuses
+//!    `CurvedPairUnsupported { kind: Cone, other_kind: Plane }` — the
+//!    flare against a plane of the loop, and NOT the coincident
+//!    annular mate the model cares about. `subtract` refuses
+//!    `{ op: Some(Subtract), kind: Torus, other_kind: Torus }` — the
+//!    bulb's own tube wall against the descending neck's, which IS
+//!    the crossing the model is asking to trim. Box overlap is a MAY,
+//!    not a DOES: the
+//!    kernel cannot rule the meeting out, which is a weaker claim
+//!    than that they meet. So the bottle still cannot be one body,
+//!    and the self-intersection — the neck piercing the bulb, the one
+//!    place a Klein bottle MUST cross itself in 3-space — still
+//!    cannot be trimmed; what changed is that the reason is a pair
+//!    the reader can look at.
 //! 5. **`sweep_body` cannot carry a section around a U-turn**
 //!    (wall 5). The loop's whole spine is one path and would be ONE
 //!    body, but the loft's stacking trilean compares only the LAST
@@ -198,7 +214,7 @@ use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
 use pncad::sweep::fillet::{FilletError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, BooleanError, EdgeKey, Operand};
+use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -224,7 +240,8 @@ const ZTOP: f64 = 3.0;
 /// Height of the spine corner where the neck turns into the flare.
 const ZNECK: f64 = 2.5;
 /// Spine radius of the neck→flare blend (finding: authored in the
-/// meridian, because `fillet_edges` cannot make it — walls 1, 2).
+/// meridian, and a rolling ball this big does not fit the neck wall's
+/// curvature — walls 1, 2).
 const RF: f64 = 0.30;
 /// Spine radius of the wide bottom rim — the "wide torus" the surface
 /// turns back on. Its hole comes out at exactly `R` by construction.
@@ -676,7 +693,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             "tube diameter {:.2} m, wall {:.2} m; the wide rim's hole comes out at the \
              tube diameter by construction (centre radius R + RRIM = {:.3}, minor radii \
              {:.3}/{:.3}). Every blend in the bulb is an ARC IN THE MERIDIAN, exact and \
-             free — fillet_edges cannot make any of them (walls 1-2). The elbows' \
+             free — and no rolling ball of that size fits the wall (walls 1-2). The elbows' \
              volumes are Pappus-exact: ring area {ring:.6} m^2 times spine length. The \
              two elbows meet with residual {residual:.1e} m and the loop meets the neck \
              bit-exactly — the numbers a declared REST contact would accept",
@@ -748,11 +765,18 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          rim is CLOSED (full revolve), {lever_part:.3e} m when it is open (partial). \
          Same corner, same 30° dihedral, honest levers both."
     );
+    // The REASON moved, and the move is the news. The cone×cylinder arm
+    // exists now, so "the analytic arm is missing" is no longer what
+    // stops this: what stops it is the bulb's own blend radius, which is
+    // larger than the neck wall's curvature allows a rolling ball to be.
+    // That is predicate 1, and it is the same fact the meridian
+    // authoring exploits — an arc in the profile is a CONSTRUCTED part
+    // of the wall and answers to no rolling ball.
     crate::walls::wall(
         "bottle",
         1,
-        "fillet the neck→flare corner on the FULL revolve (the blend the band \
-         authors by hand)",
+        "fillet the neck→flare corner on the FULL revolve at the radius the band \
+         authors by hand",
         fillet_edges(
             &sharp_full,
             &[full_edges[0]],
@@ -760,12 +784,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        // The honest refusal, and the SAME one wall 2 gets: the
-        // closed rim meters ~its diameter, the dihedral signs
-        // definitely, and what is actually missing is the
-        // cone×cylinder arm (findings entry 3).
-        |e| matches!(e, FilletError::SpineUnsupported { .. }),
-        "author the bulb's blends with fillet_edges instead of in the meridian",
+        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        "roll a ball as big as the blend the meridian draws for free",
     );
     crate::walls::wall(
         "bottle",
@@ -778,13 +798,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        |e| matches!(e, FilletError::SpineUnsupported { .. }),
-        "author the bulb's blends with fillet_edges instead of in the meridian",
+        // The SAME refusal as wall 1, and that is the pair's point: the
+        // lever is honest on both rims, the dihedral decides on both,
+        // and what stops both is the ball's own size against the neck
+        // wall's curvature — not the closedness of the rim, and no
+        // longer a missing arm.
+        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        "roll a ball as big as the blend the meridian draws for free",
     );
 
     // Wall 3: the bottle is ONE surface. Its three bodies meet on
     // coincident annular faces — the declared REST mate — and the
-    // union refuses before it ever looks at them.
+    // union refuses at a pair that is NOT that mate: the bulb's
+    // CONE (the flare) against a plane of the loop. The gate is
+    // pair-scoped now, so the refusal names the two faces whose
+    // boxes may meet, and this is the first such pair in arena
+    // order. It is a MAY: box overlap over-approximates, and the
+    // flare's own slab is what reaches.
     crate::walls::wall(
         "bottle",
         3,
@@ -793,9 +823,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -811,7 +843,20 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         4,
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &into, tol),
-        |e| matches!(e, BooleanError::CurvedOpUnsupported { .. }),
+        |e| {
+            // Reviewer pin (r1 probes): the PR body and finding 4
+            // claim this pair is (Torus, Torus); the shipped matcher
+            // pins only the op.
+            matches!(
+                e,
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            )
+        },
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 
@@ -990,4 +1035,60 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     let _ = into;
+}
+
+#[cfg(test)]
+mod verbs_gate_r1_probes {
+    //! The bottle's two boolean walls, as a TEST rather than only as
+    //! a run-the-whole-tour probe.
+    //!
+    //! `wall_probes` reaches these two through a full render pass, so
+    //! a change to the boxes under the operand gate could only be
+    //! re-measured by rebuilding and re-running the tour. That is a
+    //! twenty-minute answer to a one-second question, and the walls
+    //! are exactly what a box change moves: the gate names a PAIR
+    //! now, and which pair depends on which faces' boxes may meet.
+    //!
+    //! Same pins as the walls themselves, so the two cannot drift.
+
+    use super::*;
+
+    #[test]
+    fn the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims() {
+        let tol = Tol::witness();
+        let [bulb_body, over, into] = bottle::<f64>(tol);
+
+        let joined = pncad::topo::union(&bulb_body, &over, tol)
+            .expect_err("the bottle's pieces still cannot be joined");
+        println!("klein wall 3: {joined:?}");
+        assert!(
+            matches!(
+                joined,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
+                    ..
+                }
+            ),
+            "wall 3 must name the flare against a plane of the loop: {joined:?}"
+        );
+
+        let trimmed = pncad::topo::subtract(&bulb_body, &into, tol)
+            .expect_err("the self-intersection still cannot be trimmed");
+        println!("klein wall 4: {trimmed:?}");
+        assert!(
+            matches!(
+                trimmed,
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            ),
+            "wall 4 must name the bulb's tube wall against the neck's: {trimmed:?}"
+        );
+    }
 }

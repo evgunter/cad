@@ -22,6 +22,22 @@
 //! certificate and the in-op exhaustiveness subdivision that makes
 //! "every branch found" a theorem or a typed refusal.
 //!
+//! [`offset_surface`] is the analytic offset mint: the analytic kinds
+//! close under normal offset by struct-update on public fields, with
+//! the door-owned degeneracy refusals (the realized-radius floor, the
+//! torus ring convention) decided before any mint — see [`offset`].
+//!
+//! [`offset_fit`] is the approximating half that [`offset`]'s NURBS
+//! arm refuses into: the Book's §9.4 grid interpolation plus a
+//! refine-until-certified loop, and the two-limb certificate of
+//! `sup ‖S_fit − (S + d·n)‖`. It stands on two meters
+//! ([`offset_meters`]) — a certified LOWER bound on `‖S_u × S_v‖`
+//! (the tree's first inf-side surface bound; the offset is undefined
+//! where the normal degenerates) and the collapse headroom `|d|`
+//! against the patch's certified curvature reach — both read off
+//! [`patch_bound`]'s per-cell control-hull enclosures, which are also
+//! what `mesh`'s tessellation deviation certificate consumes.
+//!
 //! The geometry-arena key types ([`PointKey`], [`CurveKey`],
 //! [`SurfaceKey`]) are defined here (descriptions reference surfaces by
 //! arena key) and re-exported by `topo` for its `Body<T>` arenas —
@@ -47,6 +63,10 @@ pub mod intersect;
 pub mod keys;
 pub mod newell;
 pub mod nurbs_iso;
+pub mod offset;
+pub mod offset_fit;
+pub mod offset_meters;
+pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
@@ -75,6 +95,7 @@ pub use intersect::{
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
+pub use offset::{OffsetError, offset_surface};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

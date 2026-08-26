@@ -6,8 +6,10 @@
 //!
 //! The rows pin the change from both sides:
 //! - the #554 pair: the same cone×cylinder corner, full and partial
-//!   revolve, refuses `SpineUnsupported` on BOTH (the closed rim no
-//!   longer misreports `TangentialEdge` on a transverse corner);
+//!   revolve, DECIDES its dihedral on both (the closed rim no longer
+//!   misreports `TangentialEdge` on a transverse corner) — and past
+//!   that decision the closed rim's band is BUILT while the open arc
+//!   reaches the unimplemented seam-meridian corner;
 //! - the differential: a co-surface seam meridian — dihedral sine
 //!   exactly zero — still refuses `TangentialEdge` at a margin of
 //!   exactly 0.0, at a lever that is now definitely nonzero (the fix
@@ -121,29 +123,43 @@ fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
 }
 
 /// **The #554 pair, pinned back to back.** The same cone×cylinder
-/// corner at a 30° dihedral refuses `SpineUnsupported` — the missing
-/// analytic arm, named — whether the rim is CLOSED (full revolve) or
-/// open (partial). Before the lever fix the closed form falsely
-/// refused `TangentialEdge` at a ~0 margin: its lever was the
+/// corner at a 30° dihedral DECIDES its dihedral — no tangency
+/// reported on a transverse corner — whether the rim is CLOSED (full
+/// revolve) or open (partial). Before the lever fix the closed form
+/// falsely refused `TangentialEdge` at a ~0 margin: its lever was the
 /// endpoint chord, structurally zero on a closed rim.
+///
+/// Past that decision the two forms part company, and where they part
+/// is the state of the verb: the closed rim is a one-edge band the
+/// cylinder×cone arm BUILDS, and the open arc terminates at the
+/// revolve's seam-meridian vertices, whose corner configuration is
+/// unimplemented.
 #[test]
-fn full_and_partial_revolve_refuse_the_same_honest_spine_unsupported() {
+fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     let is_pair = |a: &Surface<f64>, b: &Surface<f64>| {
         matches!(a, Surface::Cone { .. }) && matches!(b, Surface::Cylinder { .. })
     };
     let full = neck_flare(Revolution::Full);
     let rim = find_rim(&full, true, 1.0, is_pair);
-    match fillet_edges(&full, &[rim], 0.05, band(), tol()) {
-        Err(FilletError::SpineUnsupported { .. }) => {}
-        other => panic!("closed rim: expected the honest SpineUnsupported, got {other:?}"),
-    }
+    let out = fillet_edges(&full, &[rim], 0.05, band(), tol());
+    assert!(
+        out.is_ok(),
+        "closed rim: the cylinder×cone band is built once the dihedral has decided, \
+         got {out:?}"
+    );
 
     let part = neck_flare(Revolution::Partial(1.0));
     let arc = find_rim(&part, false, 1.0, is_pair);
-    match fillet_edges(&part, &[arc], 0.05, band(), tol()) {
-        Err(FilletError::SpineUnsupported { .. }) => {}
-        other => panic!("open rim: expected SpineUnsupported unchanged, got {other:?}"),
-    }
+    let open = fillet_edges(&part, &[arc], 0.05, band(), tol());
+    assert!(
+        !matches!(open, Err(FilletError::TangentialEdge { .. })),
+        "open rim: a transverse 30° corner is not a tangency, got {open:?}"
+    );
+    assert!(
+        matches!(open, Err(FilletError::FilletCornerUnsupported { .. })),
+        "open rim: the arc terminates at the revolve's seam-meridian vertices, whose \
+         corner configuration is unimplemented, got {open:?}"
+    );
 }
 
 /// **The differential row: genuine tangency is still detected.** A

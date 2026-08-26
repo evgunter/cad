@@ -703,6 +703,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
 /// The certified distance of an enclosure from zero: `0` when it
 /// straddles (or is poison), which is exactly what makes the trilean
 /// land in the sliver band.
+/// (The mignitude. `offset_meters::mig` is the same arithmetic read
+/// as a coefficient-hull assembly term rather than a decision; noted
+/// at both sites.)
 fn zero_free_lower_bound(i: RingInterval) -> f64 {
     if i.is_poison() {
         return 0.0;

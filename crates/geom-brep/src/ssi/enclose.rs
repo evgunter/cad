@@ -222,6 +222,9 @@ fn dot3(a: [RingInterval; 3], b: [RingInterval; 3]) -> RingInterval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
+/// (Component-for-component `offset_meters::cross`, which is the
+/// borrow-shaped twin one crate module over; noted at both sites so
+/// the duplication is a decision. A third consumer collapses them.)
 fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],

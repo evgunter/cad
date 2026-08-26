@@ -35,6 +35,9 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "offb_r1_loft_probes.rs"]
+mod offb_r1_loft_probes;
+
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "extrude_acceptance.rs"]
@@ -133,6 +136,8 @@ mod mass_props_interval;
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
+#[path = "review_arms2_r1_probes.rs"]
+mod review_arms2_r1_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
@@ -207,12 +212,26 @@ mod s49_census_jurisdiction;
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]
 mod verbs_arms1_r1_probes;
+#[path = "verbs_arms2_arms.rs"]
+mod verbs_arms2_arms;
+#[path = "verbs_arms2_bud.rs"]
+mod verbs_arms2_bud;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
 mod verbs_rim_r1_probes;
+#[path = "verbs_tubewall.rs"]
+mod verbs_tubewall;
+#[path = "verbs_tubewall_r1_fingerprint.rs"]
+mod verbs_tubewall_r1_fingerprint;
+#[path = "verbs_tubewall_r1_probes.rs"]
+mod verbs_tubewall_r1_probes;
+#[path = "verbs_tubewall_r2_probes.rs"]
+mod verbs_tubewall_r2_probes;
+#[path = "verbs_tubewall_r2_solidbits.rs"]
+mod verbs_tubewall_r2_solidbits;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
@@ -269,3 +288,6 @@ mod review_probes_m8_4;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
+
+#[path = "verbs_gate_r1_probes.rs"]
+mod verbs_gate_r1_probes;

@@ -96,7 +96,7 @@
 //! inflate with the patch's distance from the origin (the M8-2
 //! template's trick, lifted to two parameters). The whole-domain bound
 //! is the max over cells of the per-cell sups, after the FIXED
-//! [`RATIONAL_CERT_SPLITS`] refinement (schedule docs there).
+//! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs there).
 //!
 //! A degree-1 direction's `Ã_dd`, `w_dd` are exactly zero, but its
 //! CROSS terms survive — a rational degree-1 direction genuinely
@@ -174,15 +174,62 @@
 //! poisoned/non-finite hulls. The placeholder refuses
 //! [`TessellateError::UnsupportedSurface`] upstream in `trimmed`.
 
-use core::ops::RangeInclusive;
-
 use geom::NurbsSurface;
+use geom_brep::patch_bound::{self, PatchBoundError};
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::hull::derivative_coeffs;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
+
+/// A patch-bound refusal, reported in this crate's error type. The
+/// prose is the assembly's own ([`PatchBoundError::note`]) — one
+/// spelling of each refusal, wherever it surfaces.
+fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
+    TessellateError::UnsupportedNurbsFace {
+        face: fk,
+        note: e.note(),
+    }
+}
+
+/// The RATIONAL arm of [`nurbs_face_bound`]: the whole-patch max over
+/// the lifted per-cell enclosures' magnitude reading
+/// ([`patch_bound::PatchCell`]).
+///
+/// The accumulation is hull-then-`m`, at the ring level and in cell
+/// order, because that is what makes a poisoned cell reach the shared
+/// finite check: `m` maps poison to NaN, and an f64 `max` over NaN
+/// would drop it.
+fn rational_face_bound(
+    n: &NurbsSurface<f64>,
+    fk: FaceKey,
+) -> Result<NurbsFaceBound, TessellateError> {
+    let cells = patch_bound::patch_cells(n).map_err(|e| face_err(fk, e))?;
+    let (mut sq_uu, mut sq_uv, mut sq_vv) = (None, None, None);
+    let (mut sq_u, mut sq_v) = (None, None);
+    let acc = |slot: &mut Option<RingInterval>, v: RingInterval| {
+        *slot = Some(match *slot {
+            None => v,
+            Some(h) => RingInterval::hull(h, v),
+        });
+    };
+    for c in &cells {
+        acc(&mut sq_uu, c.sq_uu);
+        acc(&mut sq_uv, c.sq_uv);
+        acc(&mut sq_vv, c.sq_vv);
+        acc(&mut sq_u, c.sq_u);
+        acc(&mut sq_v, c.sq_v);
+    }
+    let m = |sq: Option<RingInterval>| sq.map_or(f64::NAN, cell_component);
+    Ok(NurbsFaceBound {
+        muu: m(sq_uu),
+        muv: m(sq_uv),
+        mvv: m(sq_vv),
+        mu1: m(sq_u),
+        mv1: m(sq_v),
+    })
+}
 
 /// Certified sup bounds on the three second partials of one described
 /// non-rational NURBS face, over its whole chart rectangle (module
@@ -444,29 +491,6 @@ fn min3(a: f64, b: f64, c: f64) -> f64 {
     a.min(b).min(c)
 }
 
-/// One analysis cell before its components are collapsed to f64: the
-/// cell's UV extent and the three per-component squared sums the bound
-/// is assembled from. Kept as ring enclosures so poison flows exactly
-/// as the whole-patch assembly's does (`rational_face_bound`).
-pub(crate) struct CellRaw {
-    /// The cell's `u` extent, `[lo, hi]`.
-    pub u: (f64, f64),
-    /// The cell's `v` extent, `[lo, hi]`.
-    pub v: (f64, f64),
-    /// `Σ_c sup²(S_uu^c)` on the cell.
-    pub sq_uu: RingInterval,
-    /// `Σ_c sup²(S_uv^c)` on the cell.
-    pub sq_uv: RingInterval,
-    /// `Σ_c sup²(S_vv^c)` on the cell.
-    pub sq_vv: RingInterval,
-    /// `Σ_c sup²(S_u^c)` on the cell — the first-fundamental-form
-    /// sample of the split selection's aspect cap, same hull assembly
-    /// one derivative order down.
-    pub sq_u: RingInterval,
-    /// `Σ_c sup²(S_v^c)` on the cell.
-    pub sq_v: RingInterval,
-}
-
 /// One knot-span cell's own certified Hessian bound (the
 /// [`nurbs_face_bound`] assembly restricted to the cell's active
 /// coefficient window) with the UV rectangle it is valid on.
@@ -496,16 +520,6 @@ fn cell_component(sq: RingInterval) -> f64 {
     if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }
 }
 
-/// A span's `[knot, next knot]` extent (the caller has already
-/// established the span is nonempty, so both knots exist).
-fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
-    let k = kv.knots();
-    (
-        k.get(span).copied().unwrap_or(f64::NAN),
-        k.get(span + 1).copied().unwrap_or(f64::NAN),
-    )
-}
-
 /// **The per-cell bounds** (TESS-SPAN, promoted from the #320 sizing
 /// diagnostic): the same certified assembly as [`nurbs_face_bound`],
 /// reported per knot-span cell instead of maxed over the patch.
@@ -519,7 +533,7 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// Granularity differs by arm, because each arm reports at the
 /// granularity its own certified assembly already works in: the
 /// integral arm's cells are the raw knot spans, the rational arm's are
-/// the cells of the fixed [`RATIONAL_CERT_SPLITS`] refinement. The
+/// the cells of the fixed [`patch_bound::RATIONAL_CERT_SPLITS`] refinement. The
 /// budget row carries the cell count, so a reader is never guessing
 /// which.
 ///
@@ -535,14 +549,8 @@ pub(crate) fn nurbs_cell_bounds(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<Vec<CellBound>, TessellateError> {
-    check_direction(n.knots_u(), fk)?;
-    check_direction(n.knots_v(), fk)?;
-    let raw = if n.weights().iter().any(|w| *w != 1.0) {
-        rational_cell_bounds(n, fk)?
-    } else {
-        integral_cell_bounds(n, fk)?
-    };
-    Ok(raw
+    Ok(patch_bound::patch_cells(n)
+        .map_err(|e| face_err(fk, e))?
         .into_iter()
         .map(|c| CellBound {
             u: c.u,
@@ -1114,109 +1122,6 @@ impl NurbsCellGrid {
     }
 }
 
-/// The integral arm of [`nurbs_cell_bounds`]: the same knot-differenced
-/// coefficient nets [`integral_face_bound`] hulls whole, hulled instead
-/// over each span's own active window (`Span::derived_window`, the
-/// rational arm's windowing verbatim). A degree-1 direction's
-/// second-derivative net does not exist, and its term is the exact zero
-/// [`second_derivative_hull`] answers for the same case.
-fn integral_cell_bounds(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<Vec<CellRaw>, TessellateError> {
-    let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
-    let (nu, nv) = n.control_counts();
-    let kv_u1 = (kv_u.degree() >= 2)
-        .then(|| derived_knots(kv_u, fk))
-        .transpose()?;
-    let kv_v1 = (kv_v.degree() >= 2)
-        .then(|| derived_knots(kv_v, fk))
-        .transpose()?;
-    // Per component: the u-major net and its derivative nets (first
-    // derivatives kept for the aspect cap's first-fundamental-form
-    // sups, same windows one order down).
-    struct Comp {
-        d10: Net,
-        d01: Net,
-        d20: Option<Net>,
-        d02: Option<Net>,
-        d11: Net,
-    }
-    let comps: Vec<Comp> = (0..3)
-        .map(|c| {
-            // Row-major layout: control[iu·nv + iv] (NurbsSurface docs).
-            let base: Net = (0..nu)
-                .map(|i| {
-                    (0..nv)
-                        .map(|j| {
-                            let p = n.control()[i * nv + j];
-                            RingInterval::point(match c {
-                                0 => p.x,
-                                1 => p.y,
-                                _ => p.z,
-                            })
-                        })
-                        .collect()
-                })
-                .collect();
-            let d10 = net_d_u(kv_u, &base);
-            let d01 = net_d_v(kv_v, &base);
-            Comp {
-                d11: net_d_v(kv_v, &d10),
-                d20: kv_u1.as_ref().map(|k1| net_d_u(k1, &d10)),
-                d02: kv_v1.as_ref().map(|k1| net_d_v(k1, &d01)),
-                d10,
-                d01,
-            }
-        })
-        .collect();
-    let zero = RingInterval::zero();
-    let mut cells = Vec::new();
-    for su in kv_u.first_span()..=kv_u.last_span() {
-        let Some(span_u) = kv_u.span(su) else {
-            continue;
-        };
-        for sv in kv_v.first_span()..=kv_v.last_span() {
-            let Some(span_v) = kv_v.span(sv) else {
-                continue;
-            };
-            let (wu_val, wv_val) = (span_u.window(), span_v.window());
-            let (wu_d1, wv_d1) = (span_u.first_derived_window(), span_v.first_derived_window());
-            let (wu_d2, wv_d2) = (span_u.derived_window(2), span_v.derived_window(2));
-            let (mut cuu, mut cuv, mut cvv) = (zero, zero, zero);
-            let (mut c1u, mut c1v) = (zero, zero);
-            for comp in &comps {
-                let s20 = comp
-                    .d20
-                    .as_ref()
-                    .zip(wu_d2.as_ref())
-                    .map_or(zero, |(d, wu2)| window_hull(d, wu2, &wv_val));
-                let s02 = comp
-                    .d02
-                    .as_ref()
-                    .zip(wv_d2.as_ref())
-                    .map_or(zero, |(d, wv2)| window_hull(d, &wu_val, wv2));
-                let s11 = window_hull(&comp.d11, &wu_d1, &wv_d1);
-                cuu = cuu + s20.sqr();
-                cvv = cvv + s02.sqr();
-                cuv = cuv + s11.sqr();
-                c1u = c1u + window_hull(&comp.d10, &wu_d1, &wv_val).sqr();
-                c1v = c1v + window_hull(&comp.d01, &wu_val, &wv_d1).sqr();
-            }
-            cells.push(CellRaw {
-                u: span_extent(kv_u, su),
-                v: span_extent(kv_v, sv),
-                sq_uu: cuu,
-                sq_uv: cuv,
-                sq_vv: cvv,
-                sq_u: c1u,
-                sq_v: c1v,
-            });
-        }
-    }
-    Ok(cells)
-}
-
 /// The certified Hessian sup bounds of a described NURBS face, or the
 /// typed refusal naming its class (module docs).
 ///
@@ -1237,9 +1142,9 @@ pub(crate) fn nurbs_face_bound(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<NurbsFaceBound, TessellateError> {
-    check_direction(n.knots_u(), fk)?;
-    check_direction(n.knots_v(), fk)?;
-    let bound = if n.weights().iter().any(|w| *w != 1.0) {
+    patch_bound::check_direction(n.knots_u()).map_err(|e| face_err(fk, e))?;
+    patch_bound::check_direction(n.knots_v()).map_err(|e| face_err(fk, e))?;
+    let bound = if patch_bound::is_rational(n) {
         rational_face_bound(n, fk)?
     } else {
         integral_face_bound(n, fk)?
@@ -1262,6 +1167,19 @@ pub(crate) fn nurbs_face_bound(
 /// The integral (all-unit-weight) arm of [`nurbs_face_bound`]: the
 /// direct control-hull convexity assembly (module docs), including
 /// the first-derivative sups the split selection's aspect cap reads.
+///
+/// **Why this stayed behind when the per-cell assembly was lifted**
+/// into `geom_brep::patch_bound`: it computes a different quantity.
+/// The lifted one hulls each partial over one knot-span cell's ACTIVE
+/// coefficient window; this one hulls the whole net at once, which is
+/// not the max of the cell bounds — it is a coarser single number,
+/// and it is the number `nurbs_face_bound`'s integral arm has always
+/// returned. Folding it into a max over `patch_cells` would be
+/// tighter and would move every integral face's grid, so the
+/// consolidation is scheduled with that baseline move attached
+/// (#1006) rather than done in passing. The differencing recurrence
+/// itself is shared: `derivative_coeffs` is the one spelling, here
+/// and there.
 fn integral_face_bound(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
@@ -1308,500 +1226,12 @@ fn integral_face_bound(
     })
 }
 
-/// The fixed refinement schedule of the RATIONAL arms (this face bound
-/// and `chords`' rational carrier bound): every nonempty span of every
-/// direction splits into this many equal pieces before the per-cell
-/// assembly. A CONSTANT (D9: structure, never a data-dependent
-/// iteration) — the `RATIONAL_METER_SPLITS = 16` precedent of
-/// `geom::curves`' rational speed meter, mirrored. Knot insertion is
-/// evaluation-invariant in ℝ, so it changes no geometry; it only
-/// shrinks every hull the bound is assembled from, which is what keeps
-/// the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized. (The f64
-/// insertion arithmetic rounds; that residue sits inside the crate's
-/// documented f64-evaluation slack — the ε side of δ + ε — exactly
-/// where every `surface.eval` already spends it.)
-pub(crate) const RATIONAL_CERT_SPLITS: usize = 16;
-
-/// The interior split points of the fixed rational refinement schedule
-/// for one knot vector (module-constant docs): `RATIONAL_CERT_SPLITS`
-/// equal pieces per nonempty span, skipping any split point floating
-/// point collapses onto a span end — refinement is a tightening, never
-/// a correctness condition (the speed meter's rule, verbatim).
-pub(crate) fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
-    let mut add = Vec::new();
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
-        let (Some(&lo), Some(&hi)) = (kv.knots().get(span), kv.knots().get(span + 1)) else {
-            continue;
-        };
-        for k in 1..RATIONAL_CERT_SPLITS {
-            #[allow(clippy::cast_precision_loss)]
-            let f = k as f64 / RATIONAL_CERT_SPLITS as f64;
-            let u = lo + (hi - lo) * f;
-            if u > lo && u < hi {
-                add.push(u);
-            }
-        }
-    }
-    add
-}
-
-/// A coefficient net as ring enclosures, u-major: `net[i][j]` is the
-/// coefficient at u-index `i`, v-index `j`.
-type Net = Vec<Vec<RingInterval>>;
-
-/// Differences a net once along u against `kv_u` (per fixed v index):
-/// `(nu − 1) × nv` from `nu × nv`.
-fn net_d_u(kv_u: &KnotVector, net: &Net) -> Net {
-    let nu = net.len();
-    let nv = net.first().map_or(0, Vec::len);
-    let cols: Vec<Vec<RingInterval>> = (0..nv)
-        .map(|j| {
-            let col: Vec<RingInterval> = (0..nu).map(|i| net[i][j]).collect();
-            derivative_coeffs(kv_u, &col)
-        })
-        .collect();
-    let nu1 = nu.saturating_sub(1);
-    (0..nu1)
-        .map(|i| {
-            (0..nv)
-                .map(|j| cols[j].get(i).copied().unwrap_or_else(RingInterval::poison))
-                .collect()
-        })
-        .collect()
-}
-
-/// Differences a net once along v against `kv_v` (per fixed u index):
-/// `nu × (nv − 1)`.
-fn net_d_v(kv_v: &KnotVector, net: &Net) -> Net {
-    net.iter().map(|row| derivative_coeffs(kv_v, row)).collect()
-}
-
-/// The signed hull of `a[i][j] − c·w[i][j]` over the window
-/// `wu × wv` — the recentred homogeneous net `Ã = A − c·w`
-/// read through the linearity of knot differencing (`d(A − c·w) =
-/// dA − c·dw`, entrywise, same knots). Out-of-range indices poison.
-fn window_tilde_hull(
-    a: &Net,
-    w: &Net,
-    c: RingInterval,
-    wu: &RangeInclusive<usize>,
-    wv: &RangeInclusive<usize>,
-) -> RingInterval {
-    let mut acc: Option<RingInterval> = None;
-    for i in wu.clone() {
-        for j in wv.clone() {
-            let (av, wv) = match (
-                a.get(i).and_then(|r| r.get(j)),
-                w.get(i).and_then(|r| r.get(j)),
-            ) {
-                (Some(&av), Some(&wv)) => (av, wv),
-                _ => (RingInterval::poison(), RingInterval::poison()),
-            };
-            let e = av - c * wv;
-            acc = Some(match acc {
-                None => e,
-                Some(h) => RingInterval::hull(h, e),
-            });
-        }
-    }
-    acc.unwrap_or_else(RingInterval::poison)
-}
-
-/// The signed hull of `net[i][j]` over the window `wu × wv`.
-/// Out-of-range indices poison.
-///
-/// Distinct from [`window_tilde_hull`] with a zero centre on purpose:
-/// that spelling computes `a − 0·w`, and the ring's outward rounding
-/// makes the subtraction widen the answer by an ulp — enough to put a
-/// CELL's bound above the whole-patch hull it is a subset of, which is
-/// exactly the invariant `crate::budget` checks.
-fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> RingInterval {
-    let mut acc: Option<RingInterval> = None;
-    for i in wu.clone() {
-        for j in wv.clone() {
-            let e = net
-                .get(i)
-                .and_then(|r| r.get(j))
-                .copied()
-                .unwrap_or_else(RingInterval::poison);
-            acc = Some(match acc {
-                None => e,
-                Some(h) => RingInterval::hull(h, e),
-            });
-        }
-    }
-    acc.unwrap_or_else(RingInterval::poison)
-}
-
-/// The `[0, sup]` magnitude enclosure of a signed hull (poison flows).
-fn mag_iv(h: RingInterval) -> RingInterval {
-    RingInterval::from_bounds(0.0, h.mag())
-}
-
-/// The rational (non-unit-weight) arm of [`nurbs_face_bound`]: the
-/// whole-patch max over [`rational_cell_bounds`]' per-cell enclosures.
-///
-/// The accumulation is hull-then-`m`, at the ring level and in cell
-/// order, because that is what makes a poisoned cell reach the shared
-/// finite check: `m` maps poison to NaN, and an f64 `max` over NaN
-/// would drop it.
-fn rational_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    let cells = rational_cell_bounds(n, fk)?;
-    let (mut sq_uu, mut sq_uv, mut sq_vv) = (None, None, None);
-    let (mut sq_u, mut sq_v) = (None, None);
-    let acc = |slot: &mut Option<RingInterval>, v: RingInterval| {
-        *slot = Some(match *slot {
-            None => v,
-            Some(h) => RingInterval::hull(h, v),
-        });
-    };
-    for c in &cells {
-        acc(&mut sq_uu, c.sq_uu);
-        acc(&mut sq_uv, c.sq_uv);
-        acc(&mut sq_vv, c.sq_vv);
-        acc(&mut sq_u, c.sq_u);
-        acc(&mut sq_v, c.sq_v);
-    }
-    let m = |sq: Option<RingInterval>| sq.map_or(f64::NAN, cell_component);
-    Ok(NurbsFaceBound {
-        muu: m(sq_uu),
-        muv: m(sq_uv),
-        mvv: m(sq_vv),
-        mu1: m(sq_u),
-        mv1: m(sq_v),
-    })
-}
-
-/// The per-cell quotient-rule Hessian assembly the rational arm is the
-/// max of (module docs, "The rational arm"): one [`CellRaw`] per
-/// nonempty cell of the FIXED [`RATIONAL_CERT_SPLITS`] refinement. The
-/// C¹ gates have already run (homogeneous C¹ plus `w > 0` gives
-/// `S = A/w` C¹, which is what the Taylor certificate needs).
-fn rational_cell_bounds(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<Vec<CellRaw>, TessellateError> {
-    // The convex-combination licence, on f64 STRUCTURE: every hull
-    // fact below (the rational value hull, the weight-range divisor)
-    // requires strictly positive finite weights. `!(w > 0.0)` catches
-    // NaN. (`NurbsSurface::new` refuses these at the door; re-checked
-    // here so THIS bound never divides by an unproven denominator.)
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "rational NURBS face with a non-positive or non-finite weight — an \
-                   illegal rational description: the convex-combination licence every \
-                   hull fact rests on requires strictly positive weights",
-        });
-    }
-    // Fixed refinement (RATIONAL_CERT_SPLITS docs), both directions.
-    let refined = n
-        .refine_knots_u(&rational_split_points(n.knots_u()))
-        .and_then(|r| r.refine_knots_v(&rational_split_points(r.knots_v())))
-        .map_err(|_| TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "rational NURBS face whose refinement fails to materialise — \
-                   outside the certified inventory",
-        })?;
-    let r = &refined;
-    // Positivity survives insertion in ℝ (convex combinations); this
-    // code may not assume floating point did (the speed meter's rule).
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if r.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "rational NURBS face whose refined weights lost positivity — \
-                   outside the certified inventory",
-        });
-    }
-    let (kv_u, kv_v) = (r.knots_u(), r.knots_v());
-    let (pu, pv) = (kv_u.degree(), kv_v.degree());
-    let (nu, nv) = r.control_counts();
-    // Homogeneous nets: w and A^c = w·P^c per component, as ring
-    // products of the exact f64 inputs.
-    let w_grid: Net = (0..nu)
-        .map(|i| {
-            (0..nv)
-                .map(|j| RingInterval::point(r.weights()[i * nv + j]))
-                .collect()
-        })
-        .collect();
-    let comp_grid = |c: usize| -> Net {
-        (0..nu)
-            .map(|i| {
-                (0..nv)
-                    .map(|j| {
-                        let p = r.control()[i * nv + j];
-                        RingInterval::point(r.weights()[i * nv + j])
-                            * RingInterval::point(match c {
-                                0 => p.x,
-                                1 => p.y,
-                                _ => p.z,
-                            })
-                    })
-                    .collect()
-            })
-            .collect()
-    };
-    // Derivative nets. Second derivatives along a degree-1 direction
-    // are EXACTLY zero in ℝ for the polynomial nets A and w (the
-    // direction is a single linear span pre-refinement — the C¹ gate —
-    // and refinement's inserted knots are removable), so those nets
-    // are `None` and their terms exact zeros; the CROSS terms
-    // (`S_d·w_d`, and `w_dd` of the other direction) stay, which is
-    // where a rational degree-1 direction genuinely curves in
-    // parameter.
-    let kv_u1 = (pu >= 2).then(|| derived_knots(kv_u, fk)).transpose()?;
-    let kv_v1 = (pv >= 2).then(|| derived_knots(kv_v, fk)).transpose()?;
-    struct DNets {
-        d10: Net,
-        d01: Net,
-        d11: Net,
-        d20: Option<Net>,
-        d02: Option<Net>,
-    }
-    let build = |base: &Net| -> DNets {
-        let d10 = net_d_u(kv_u, base);
-        let d01 = net_d_v(kv_v, base);
-        let d11 = net_d_v(kv_v, &d10);
-        let d20 = kv_u1.as_ref().map(|k1| net_d_u(k1, &d10));
-        let d02 = kv_v1.as_ref().map(|k1| net_d_v(k1, &d01));
-        DNets {
-            d10,
-            d01,
-            d11,
-            d20,
-            d02,
-        }
-    };
-    let w_nets = build(&w_grid);
-    let a_nets: Vec<(Net, DNets)> = (0..3)
-        .map(|c| {
-            let g = comp_grid(c);
-            let d = build(&g);
-            (g, d)
-        })
-        .collect();
-    // Per-cell assembly. The caller either maxes these (the shipped
-    // bound — `rational_face_bound`) or keeps them apart (the sizing
-    // diagnostic — `nurbs_cell_bounds`).
-    let mut cells: Vec<CellRaw> = Vec::new();
-    let two = RingInterval::point(2.0);
-    for su in kv_u.first_span()..=kv_u.last_span() {
-        for sv in kv_v.first_span()..=kv_v.last_span() {
-            // Emptiness skip, span validation and window construction
-            // in one operation, both directions. The `checked_sub`
-            // pair this replaces — and its
-            // `MissingEntity { what: "NURBS span below its degree" }`
-            // return — are unrepresentable now: `iu0`/`jv0` ARE
-            // `first_control()`, subtracted once inside `Span`'s
-            // invariant.
-            let Some(win) = r.window(su, sv) else {
-                continue;
-            };
-            let (span_u, span_v) = (win.span_u(), win.span_v());
-            // Active windows on span (su, sv): value indices
-            // [su−p, su]; each u/v differencing drops the top index —
-            // which is `derived_window`, so `su − 1` and `su − 2` are
-            // no longer subtractions at the use site either. The
-            // order-2 windows are `None` exactly when their derived
-            // NETS are (degree < 2), so the two `Option`s are zipped
-            // rather than independently discharged.
-            let wu_val = span_u.window();
-            let wv_val = span_v.window();
-            let wu_d1 = span_u.first_derived_window();
-            let wv_d1 = span_v.first_derived_window();
-            let wu_d2 = span_u.derived_window(2);
-            let wv_d2 = span_v.derived_window(2);
-            // The cell centroid — a translation CHOICE (any finite c
-            // is sound), computed on f64 structure, fixed order.
-            let mut csum = [0.0f64; 3];
-            let mut count = 0.0f64;
-            for i in 0..=span_u.degree() {
-                let row = win.row(i);
-                for j in 0..=span_v.degree() {
-                    let p = r.control()[row + j];
-                    csum[0] += p.x;
-                    csum[1] += p.y;
-                    csum[2] += p.z;
-                    count += 1.0;
-                }
-            }
-            let c = [csum[0] / count, csum[1] / count, csum[2] / count];
-            // The cell's weight range — the divisor (module docs: for
-            // a SUP bound the divisor is w_min; the interval division
-            // by [w_lo, w_hi] takes exactly num_sup/w_lo for the
-            // nonnegative numerators below, outward-rounded, and
-            // poisons if positivity was never proven).
-            let mut w_cell: Option<RingInterval> = None;
-            for row in &w_grid[wu_val.clone()] {
-                for wv in &row[wv_val.clone()] {
-                    w_cell = Some(match w_cell {
-                        None => *wv,
-                        Some(h) => RingInterval::hull(h, *wv),
-                    });
-                }
-            }
-            let w_cell = w_cell.unwrap_or_else(RingInterval::poison);
-            let zero = RingInterval::zero();
-            // Weight-net magnitude sups on the cell.
-            let w10 = mag_iv(window_tilde_hull(
-                &w_nets.d10,
-                &w_nets.d10,
-                zero,
-                &wu_d1,
-                &wv_val,
-            ));
-            let w01 = mag_iv(window_tilde_hull(
-                &w_nets.d01,
-                &w_nets.d01,
-                zero,
-                &wu_val,
-                &wv_d1,
-            ));
-            let w11 = mag_iv(window_tilde_hull(
-                &w_nets.d11,
-                &w_nets.d11,
-                zero,
-                &wu_d1,
-                &wv_d1,
-            ));
-            let w20 = w_nets
-                .d20
-                .as_ref()
-                .zip(wu_d2.as_ref())
-                .map_or_else(RingInterval::zero, |(d, wu2)| {
-                    mag_iv(window_tilde_hull(d, d, zero, wu2, &wv_val))
-                });
-            let w02 = w_nets
-                .d02
-                .as_ref()
-                .zip(wv_d2.as_ref())
-                .map_or_else(RingInterval::zero, |(d, wv2)| {
-                    mag_iv(window_tilde_hull(d, d, zero, &wu_val, wv2))
-                });
-            let (mut cuu, mut cuv, mut cvv) = (
-                RingInterval::zero(),
-                RingInterval::zero(),
-                RingInterval::zero(),
-            );
-            let (mut c1u, mut c1v) = (RingInterval::zero(), RingInterval::zero());
-            for (comp, (_, a)) in a_nets.iter().enumerate() {
-                let cc = RingInterval::point(c[comp]);
-                // sup|S^c − c^c| on the cell: the rational value hull
-                // (positive weights ⇒ nonnegative partition of unity
-                // over the ACTIVE control points).
-                let mut v0h: Option<RingInterval> = None;
-                for i in 0..=span_u.degree() {
-                    let row = win.row(i);
-                    for j in 0..=span_v.degree() {
-                        let p = r.control()[row + j];
-                        let e = RingInterval::point(match comp {
-                            0 => p.x,
-                            1 => p.y,
-                            _ => p.z,
-                        }) - cc;
-                        v0h = Some(match v0h {
-                            None => e,
-                            Some(h) => RingInterval::hull(h, e),
-                        });
-                    }
-                }
-                let v0 = mag_iv(v0h.unwrap_or_else(RingInterval::poison));
-                // Recentred homogeneous derivative sups Ã_kl = A_kl −
-                // c·w_kl on the cell.
-                let a10 = mag_iv(window_tilde_hull(&a.d10, &w_nets.d10, cc, &wu_d1, &wv_val));
-                let a01 = mag_iv(window_tilde_hull(&a.d01, &w_nets.d01, cc, &wu_val, &wv_d1));
-                let a11 = mag_iv(window_tilde_hull(&a.d11, &w_nets.d11, cc, &wu_d1, &wv_d1));
-                let a20 = match (a.d20.as_ref(), w_nets.d20.as_ref(), wu_d2.as_ref()) {
-                    (Some(ad), Some(wd), Some(wu2)) => {
-                        mag_iv(window_tilde_hull(ad, wd, cc, wu2, &wv_val))
-                    }
-                    _ => RingInterval::zero(),
-                };
-                let a02 = match (a.d02.as_ref(), w_nets.d02.as_ref(), wv_d2.as_ref()) {
-                    (Some(ad), Some(wd), Some(wv2)) => {
-                        mag_iv(window_tilde_hull(ad, wd, cc, &wu_val, wv2))
-                    }
-                    _ => RingInterval::zero(),
-                };
-                // The quotient-rule recurrences (module docs), each
-                // division by the cell weight range.
-                let s1u = (a10 + v0 * w10) / w_cell;
-                let s1v = (a01 + v0 * w01) / w_cell;
-                let suu = (a20 + two * s1u * w10 + v0 * w20) / w_cell;
-                let svv = (a02 + two * s1v * w01 + v0 * w02) / w_cell;
-                let suv = (a11 + s1u * w01 + s1v * w10 + v0 * w11) / w_cell;
-                cuu = cuu + suu.sqr();
-                cuv = cuv + suv.sqr();
-                cvv = cvv + svv.sqr();
-                // The same recurrence one order down IS the
-                // first-derivative sup — recorded for the aspect cap.
-                c1u = c1u + s1u.sqr();
-                c1v = c1v + s1v.sqr();
-            }
-            cells.push(CellRaw {
-                u: span_extent(kv_u, su),
-                v: span_extent(kv_v, sv),
-                sq_uu: cuu,
-                sq_uv: cuv,
-                sq_vv: cvv,
-                sq_u: c1u,
-                sq_v: c1v,
-            });
-        }
-    }
-    Ok(cells)
-}
-
-/// The C¹ gate per direction (module docs): degree 0 refuses; degree 1
-/// must be single-span (an interior knot is a C⁰ crease); degree ≥ 2
-/// needs interior multiplicities ≤ p − 1 — the chord pass's carrier
-/// gate, verbatim on the surface's knot vectors.
-fn check_direction(kv: &KnotVector, fk: FaceKey) -> Result<(), TessellateError> {
-    let p = kv.degree();
-    if p == 0 {
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "degree-0 NURBS direction (a degenerate face description)",
-        });
-    }
-    if p == 1 {
-        if kv.interior_knots().next().is_none() {
-            return Ok(());
-        }
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "degree-1 NURBS direction with interior knots (a C⁰ crease) — \
-                   the interpolation Taylor bound needs C¹; split the face at \
-                   the crease",
-        });
-    }
-    // C¹ needs every interior multiplicity ≤ p − 1 (p ≥ 2 here).
-    if kv.interior_knots().any(|(_, m)| m > p - 1) {
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "NURBS direction with a C⁰ crease (interior multiplicity = \
-                   degree) — the interpolation Taylor bound needs C¹; split \
-                   the face at the crease",
-        });
-    }
-    Ok(())
-}
-
 /// Hull of ALL first-derivative coefficients along one direction: each
 /// `rows[k]` is the coefficient row of one fixed cross-direction
 /// index, differenced ONCE against `kv` — the first-fundamental-form
 /// sup the split selection's aspect cap reads, by the same convexity
 /// fact as the second-derivative hulls. Needs only degree ≥ 1, which
-/// [`check_direction`] guarantees.
+/// `patch_bound::check_direction` guarantees.
 fn first_derivative_hull(
     kv: &KnotVector,
     rows: &[Vec<RingInterval>],
@@ -1832,7 +1262,7 @@ fn second_derivative_hull(
     if kv.degree() < 2 {
         return Ok(RingInterval::zero());
     }
-    let kv1 = derived_knots(kv, fk)?;
+    let kv1 = patch_bound::derived_knots(kv).map_err(|e| face_err(fk, e))?;
     let mut acc: Option<RingInterval> = None;
     for row in rows {
         let q1 = derivative_coeffs(kv, row);
@@ -1853,7 +1283,7 @@ fn second_derivative_hull(
 /// `kv_u` (per `u_rows` row, i.e. per fixed v index), then once along
 /// `kv_v` across the resulting net (module docs — one application per
 /// direction, so only degree ≥ 1 is needed on each, which
-/// [`check_direction`] guarantees).
+/// `patch_bound::check_direction` guarantees).
 fn mixed_derivative_hull(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
@@ -1886,17 +1316,6 @@ fn mixed_derivative_hull(
     }
     acc.ok_or(TessellateError::MissingEntity {
         what: "empty NURBS control net",
-    })
-}
-
-/// The once-differenced knot vector (drop the outer knot pair, degree
-/// − 1) — the chord pass's construction, shared refusal shape.
-fn derived_knots(kv: &KnotVector, fk: FaceKey) -> Result<KnotVector, TessellateError> {
-    let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
-    KnotVector::clamped(inner, kv.degree() - 1).map_err(|_| TessellateError::UnsupportedNurbsFace {
-        face: fk,
-        note: "NURBS direction whose derivative knot vector fails to materialise — \
-               outside the certified inventory",
     })
 }
 
