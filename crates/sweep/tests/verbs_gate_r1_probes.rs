@@ -66,22 +66,50 @@ fn bulge_arc() -> (f64, f64, f64) {
     (cx, r_arc, half)
 }
 
-/// A "vase": a solid of revolution about the WORLD Y AXIS (the
-/// revolve axis is the sketch's y direction in the xy sketch plane)
-/// with a straight cylinder wall of radius 0.5 over y ∈ [0, 1] and a
-/// BULGE arc over y ∈ [1, 1.5] — the bulge revolves to a genuine
-/// TORUS band (the kernel's own authorship, not a relabel). Closed by
-/// discs at y = 0 and y = 1.5, coplanar-merged so the operand is
-/// maximal-faced (a full revolve mints each disc as two same-key
-/// halves, which the boolean's F7 gate refuses).
+/// A "vase": a solid of revolution about the WORLD Y AXIS with, from
+/// bottom to top: a hemispherical cap (arc centred ON the axis →
+/// Sphere), a cylinder wall over y ∈ [0.5, 1.0], the BULGE arc over
+/// y ∈ [1.0, 1.5] (centre off the axis → a genuine TORUS band), a
+/// second cylinder wall over y ∈ [1.5, 2.0], and a top hemispherical
+/// cap closing at (0, 2.5). No planar faces at all, so the operand is
+/// maximal-faced by construction (a full revolve mints planar discs
+/// as two same-key halves, which the boolean's F7 gate refuses and
+/// the coplanar merge cannot re-fuse — MergedFaceRoleAmbiguous).
+/// The cap-to-wall joints are exactly tangent and declared so.
 fn vase() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
+    let cap = (core::f64::consts::PI / 8.0).tan(); // quarter-turn arc
     let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(0.5, 0.0), 0.0),
-        ProfileVertex::new(p2(0.5, 1.0), BULGE), // bulge arc to (0.5, 1.5)
-        ProfileVertex::new(p2(0.5, 1.5), 0.0),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+        ProfileVertex::new(p2(0.0, 0.0), cap), // bottom cap → (0.5, 0.5)
+        ProfileVertex::new(p2(0.5, 0.5), 0.0), // wall → (0.5, 1.0)
+        ProfileVertex::new(p2(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
+        ProfileVertex::new(p2(0.5, 1.5), 0.0), // wall → (0.5, 2.0)
+        ProfileVertex::new(p2(0.5, 2.0), cap), // top cap → (0, 2.5)
+        ProfileVertex::new(p2(0.0, 2.5), 0.0), // axis seam → start
+    ])
+    .with_tangent_joints(vec![1, 4]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// A DONUT: a full circle of radius 0.15 about (0.5, 1.25) in the
+/// profile, revolved fully about the y axis — every face a torus
+/// band, no sphere and no plane, which is what lets the no-crossings
+/// fallback (row 3) be reached without the sphere extent scan
+/// refusing first on a trimmed sphere group.
+fn donut() -> Body<f64> {
+    use sweep::{Revolution, RevolveAxis, revolve};
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.5, 1.10), 1.0),
+        ProfileVertex::new(p2(0.5, 1.40), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -90,12 +118,9 @@ fn vase() -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let mut body = revolve(&vp, axis, Revolution::Full, Tol::witness())
+    revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
-        .body;
-    body.merge_coplanar_faces(Tol::witness())
-        .expect("the vase's disc halves merge");
-    body
+        .body
 }
 
 /// The vase carries a torus face, minted by the kernel itself.
@@ -112,21 +137,23 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 /// **E2E row 1 — the granted case, full pipeline, mass-checked.**
 /// The vase's torus band's whole-torus box spans y ∈ [1.25 ± R_arc]
 /// ≈ [0.97, 1.53]; the brick crosses the CYLINDER wall over
-/// y ∈ [0.3, 0.7] and clears the torus box, so the pair-scoped gate
-/// must admit the union, the
+/// y ∈ [0.55, 0.93] and clears the torus box (and the sphere caps'
+/// boxes are irrelevant: Sphere is an admitted kind, never an
+/// offender), so the pair-scoped gate must admit the union, the
 /// crossing pipeline must cut it, and the volume must be the analytic
 /// one. Reverting the gate to a per-body kind scan reds this row with
 /// a refusal; a wrong cut reds it on the number.
 #[test]
 fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
     let a = vase();
-    let b = brick((-1.0, 1.0), (0.3, 0.7), (-1.0, 1.0));
+    let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0));
     let out = topo::union(&a, &b, Tol::witness())
         .expect("the torus band clears the brick; the pair gate must admit this union");
     let body = &out.body().expect("a non-empty union").body;
-    // vase = bottom cylinder (π·0.5²·1) + the bulge solid of
-    // revolution: x(z) = cx + √(R² − (z − 1.25)²) over the half-chord
-    // a, V = π ∫ x² dz = π [cx²·2a + 2·cx·Iq + (R²·2a − 2a³/3)] with
+    // vase = two hemispheres (2·(2/3)π·0.5³) + two wall cylinders
+    // (2·π·0.5²·0.5) + the bulge solid of revolution:
+    // x(y) = cx + √(R² − (y − 1.25)²) over the half-chord a,
+    // V = π ∫ x² dy = π [cx²·2a + 2·cx·Iq + (R²·2a − 2a³/3)] with
     // Iq = 2[(a/2)·√(R² − a²) + (R²/2)·asin(a/R)] — the reviewer's
     // own integral, not the kernel's.
     let (cx, r_arc, a) = bulge_arc();
@@ -134,9 +161,9 @@ fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
         2.0 * (a / 2.0 * (r_arc * r_arc - a * a).sqrt() + r_arc * r_arc / 2.0 * (a / r_arc).asin());
     let top = PI
         * (cx * cx * 2.0 * a + 2.0 * cx * iq + (r_arc * r_arc * 2.0 * a - 2.0 * a * a * a / 3.0));
-    let vase_vol = PI * 0.25 * 1.0 + top;
-    let brick_vol = 2.0 * 2.0 * 0.4;
-    let overlap = PI * 0.25 * 0.4; // the y-axis cylinder core inside the brick
+    let vase_vol = 2.0 * (2.0 / 3.0) * PI * 0.125 + 2.0 * PI * 0.25 * 0.5 + top;
+    let brick_vol = 2.0 * 2.0 * 0.38;
+    let overlap = PI * 0.25 * 0.38; // the y-axis cylinder core inside the brick
     let want = vase_vol + brick_vol - overlap;
     let got = vol(body);
     assert!(
@@ -184,7 +211,7 @@ fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
 /// answer a two-solid assembly of volume vase + brick.
 #[test]
 fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
-    let a = vase();
+    let a = donut();
     let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
     match topo::union(&a, &b, Tol::witness()) {
         Err(
@@ -192,7 +219,7 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
             | BooleanError::CurvedBooleanUnsupported { .. },
         ) => {
             panic!(
-                "the torus band clears a body five units away — the pair-scoped \
+                "the donut clears a body five units away — the pair-scoped \
                  gate must not refuse this"
             );
         }
