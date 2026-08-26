@@ -1553,3 +1553,18 @@ waste the audit might have explained away. Ordinal-79 reviewer
 TaskStopped post-report after orphaned-timer wake spam (lesson in
 lane-ops memory; reviewer briefs now carry the cancel-your-timers
 line).
+
+## PROTOCOL DEVIATION FOUND AND RECORDED: VERBS-4 RAN OPUS×4 (2026-08-26)
+
+Post-OFFD1-merge transcript audit (triggered by a slot-label
+inconsistency noticed while preparing PR-2's dispatch): block
+VERBS-4's drawn fable (slot 2, CYLCYL-A) was mis-dispatched as
+opus — the whole block executed opus×4 and the drawn fable never
+ran. Deviation note appended to MODEL-AB-LOG (rows stand
+as-executed; the block-balancing property fails for VERBS-4; the
+fable implementer sample runs one short through ordinal 79).
+Remedy: arms are now read back from the draw file at dispatch and
+echoed verbatim into the dispatch record. Flagged for Evan with
+#1016. OFF-D PR-2 (shell) dispatches to the same lane on the same
+as-executed arm (slot 4 = opus, which the draw and the execution
+agree on).
