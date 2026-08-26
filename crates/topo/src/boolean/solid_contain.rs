@@ -378,47 +378,7 @@ fn face_geo<T: Decide>(
             radius,
             u_ref,
         }) => {
-            let surf = body
-                .get_surface(f.surface)
-                .cloned()
-                .ok_or(PointInSolidError::CorruptFace { face })?;
-            let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
-                .ok()
-                .flatten()
-                .ok_or(PointInSolidError::CorruptFace { face })?;
-            // Height range from the outer cycle's vertices (exact for
-            // the iso-bounded wall class). Folded WITHOUT infinity
-            // seeds: an Interval scalar's ±∞ singleton is Ill and
-            // poisons every min/max through it (the MAJOR-1 root
-            // cause — the whole Interval boolean lane died on a NaN
-            // height range).
-            let mut h_range: Option<(T, T)> = None;
-            let LoopBoundary::Cycle { first } = body
-                .get_loop(f.outer)
-                .ok_or(PointInSolidError::CorruptFace { face })?
-                .boundary
-            else {
-                return Err(PointInSolidError::CorruptFace { face });
-            };
-            for he in body
-                .loop_cycle(first)
-                .ok_or(PointInSolidError::CorruptFace { face })?
-            {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .start;
-                let p = *body
-                    .get_vertex(v)
-                    .and_then(|v| body.get_point(v.point))
-                    .ok_or(PointInSolidError::CorruptFace { face })?;
-                let h = (p - origin).dot(axis);
-                h_range = Some(match h_range {
-                    None => (h, h),
-                    Some((lo, hi)) => (lo.min(h), hi.max(h)),
-                });
-            }
-            let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
+            let (az, h) = cylinder_chart_trim(body, face, origin, axis, band)?;
             Ok(FaceGeo::Cylinder {
                 origin,
                 axis,
@@ -449,6 +409,76 @@ fn face_geo<T: Decide>(
     }
 }
 
+/// **A cylinder wall face's exact chart trim**: the azimuth window
+/// from the outer cycle's closed-form chart images (the S9 machinery)
+/// and the height range from its boundary vertices.
+///
+/// The height fold takes NO infinity seed: an `Interval` scalar's ±∞
+/// singleton is `Ill` and poisons every min/max through it (the
+/// MAJOR-1 root cause — the whole Interval boolean lane died on a NaN
+/// height range).
+///
+/// **The premise, stated once for both readers**: the range is the
+/// face's own only for the ISO-BOUNDED wall class — rims are height
+/// iso-lines and meridians azimuth iso-lines, so the extremes of both
+/// chart coordinates lie on the boundary VERTICES. A wall bounded by a
+/// tilted section takes its height extreme in an edge's interior, and
+/// this rectangle then under-covers it. The face-level containment door
+/// ([`super::contain::curved_face_containment`]) checks the class
+/// before it reads this; the ray lane premises it from construction.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a face whose window or
+/// boundary cannot be resolved.
+pub(super) fn cylinder_chart_trim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<((T, T), (T, T)), PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surf = body
+        .get_surface(f.surface)
+        .cloned()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
+        .ok()
+        .flatten()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let mut h_range: Option<(T, T)> = None;
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(f.outer)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .boundary
+    else {
+        return Err(PointInSolidError::CorruptFace { face });
+    };
+    for he in body
+        .loop_cycle(first)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+    {
+        let v = body
+            .get_half_edge(he)
+            .ok_or(PointInSolidError::CorruptFace { face })?
+            .start;
+        let p = *body
+            .get_vertex(v)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        let h = (p - origin).dot(axis);
+        h_range = Some(match h_range {
+            None => (h, h),
+            Some((lo, hi)) => (lo.min(h), hi.max(h)),
+        });
+    }
+    let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
+    Ok((az, h))
+}
+
 /// Is the ON-WALL point `p` within the wall face's chart trim?
 /// `Some(true/false)` definite, `None` a boundary graze.
 ///
@@ -466,7 +496,7 @@ fn face_geo<T: Decide>(
 /// convention, escalating MORE near degenerate windows, never less).
 /// Height margins are metres directly, unchanged.
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-fn point_on_wall_in_face<T: Decide>(
+pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
     origin: Point3<T>,
     axis: Vec3<T>,

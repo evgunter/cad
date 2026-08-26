@@ -226,3 +226,169 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         .unwrap()
         .body
 }
+
+// ---------------------------------------------------------------- D3 --
+//
+// The curved containment door, pinned in BOTH directions on a real
+// cylinder chart. The operand is an extruded circle, so its wall is two
+// half-cylinder faces: azimuth window a half turn wide, height range
+// [z0, z1], and boundary edges that are rim arcs and seam meridians —
+// exactly the iso-bounded class the trim is exact for.
+
+/// The wall faces of `body`, in face-arena order.
+fn wall_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
+    body.faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// A point on the unit cylinder about z at azimuth `theta`, height `h`.
+fn on_wall(theta: f64, h: f64) -> Point3<f64> {
+    Point3::new(theta.cos(), theta.sin(), h)
+}
+
+#[test]
+fn the_containment_door_answers_both_directions_on_a_cylinder_chart() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let walls = wall_faces(&body);
+    assert_eq!(walls.len(), 2, "an extruded circle mints two half-walls");
+
+    // Every azimuth strictly inside ONE of the two windows, at a height
+    // strictly inside the band: the point is IN exactly one wall face
+    // and OUT of the other.
+    for theta in [0.4_f64, 1.2, 2.4, 3.6, 4.8, 6.0] {
+        let q = on_wall(theta, 1.0);
+        let verdicts: Vec<_> = walls
+            .iter()
+            .map(|&f| topo::curved_face_containment(&body, f, q, band).unwrap())
+            .collect();
+        let ins = verdicts
+            .iter()
+            .filter(|v| **v == Some(topo::FaceContainment::In))
+            .count();
+        let outs = verdicts
+            .iter()
+            .filter(|v| **v == Some(topo::FaceContainment::Out))
+            .count();
+        assert_eq!(
+            (ins, outs),
+            (1, 1),
+            "θ = {theta}: exactly one wall holds the point, got {verdicts:?}"
+        );
+    }
+
+    // ON the carrier but ABOVE and BELOW the height band: out of both.
+    for h in [-0.5_f64, 2.5] {
+        for &f in &walls {
+            assert_eq!(
+                topo::curved_face_containment(&body, f, on_wall(0.4, h), band).unwrap(),
+                Some(topo::FaceContainment::Out),
+                "h = {h} is outside the wall's height range"
+            );
+        }
+    }
+
+    // OFF the carrier entirely (the surface's own residual definitely
+    // non-zero): out of both, from the trim's radial row.
+    for r in [0.5_f64, 1.5] {
+        let q = Point3::new(r * 0.4_f64.cos(), r * 0.4_f64.sin(), 1.0);
+        for &f in &walls {
+            assert_eq!(
+                topo::curved_face_containment(&body, f, q, band).unwrap(),
+                Some(topo::FaceContainment::Out),
+                "radius {r} is off the wall's carrier"
+            );
+        }
+    }
+}
+
+/// The BAND EDGES: a point on a rim, on a seam meridian, or on a
+/// boundary vertex is a BOUNDARY answer or the honest `None` — never
+/// an interior/exterior verdict the trim cannot stand behind.
+#[test]
+fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let walls = wall_faces(&body);
+
+    // A rim point (height exactly at a band edge, azimuth interior):
+    // the boundary walk's CIRCLE arm names the rim edge it lies on.
+    for h in [0.0_f64, 2.0] {
+        let q = on_wall(1.0, h);
+        let named = walls.iter().any(|&f| {
+            matches!(
+                topo::curved_face_containment(&body, f, q, band).unwrap(),
+                Some(topo::FaceContainment::OnEdge(_))
+            )
+        });
+        assert!(named, "a rim point at h = {h} must name the rim edge");
+    }
+
+    // A seam-meridian point (azimuth exactly at a window edge, height
+    // interior): the LINE arm names the meridian edge.
+    for theta in [0.0_f64, core::f64::consts::PI] {
+        let q = on_wall(theta, 1.0);
+        let named = walls.iter().any(|&f| {
+            matches!(
+                topo::curved_face_containment(&body, f, q, band).unwrap(),
+                Some(topo::FaceContainment::OnEdge(_))
+            )
+        });
+        assert!(named, "a seam point at θ = {theta} must name the meridian");
+    }
+
+    // A boundary VERTEX (both band edges at once): the vertex pass wins,
+    // ahead of either edge arm.
+    for (theta, h) in [(0.0_f64, 0.0_f64), (core::f64::consts::PI, 2.0)] {
+        let q = on_wall(theta, h);
+        let named = walls.iter().any(|&f| {
+            matches!(
+                topo::curved_face_containment(&body, f, q, band).unwrap(),
+                Some(topo::FaceContainment::OnVertex(_))
+            )
+        });
+        assert!(named, "a corner at (θ = {theta}, h = {h}) is a vertex hit");
+    }
+}
+
+/// The class gate: a wall the chart trim CANNOT express answers `None`,
+/// never a verdict. A tilted cut leaves the wall bounded by a section
+/// ELLIPSE, whose height extreme is interior to an edge, so the
+/// rectangle the boundary vertices pin misstates the face in both
+/// directions — and the door refuses to speak rather than read it.
+#[test]
+fn a_wall_the_trim_cannot_express_gets_no_verdict() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let post = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let phi = 0.3_f64;
+    let plane = topo::splitting::SplitPlane {
+        origin: Point3::new(0.0, 0.0, 1.0),
+        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
+    };
+    let result = topo::splitting::split(&post, &plane, tol).unwrap();
+    let topo::splitting::SplitPart::Body(below) = &result.below else {
+        panic!("the tilted cut leaves material below");
+    };
+    let walls = wall_faces(below);
+    assert!(!walls.is_empty(), "the cut post still has wall faces");
+    // On the carrier, well inside the surviving stub: an iso-bounded
+    // wall answers In or Out here; an ellipse-bounded one must not.
+    let verdicts: Vec<_> = walls
+        .iter()
+        .map(|&f| topo::curved_face_containment(below, f, on_wall(0.4, 0.5), band).unwrap())
+        .collect();
+    assert!(
+        verdicts.iter().all(Option::is_none),
+        "a wall closed by a tilted section must get no verdict, got {verdicts:?}"
+    );
+}

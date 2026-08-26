@@ -351,6 +351,47 @@ pub fn circle_residual_extremes<T: Real>(
     radius: T,
     u_ref: Vec3<T>,
 ) -> Option<(T, T)> {
+    let (c0, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
+    Some((c0 - a1 - a2, c0 + a1 + a2))
+}
+
+/// A bound on `|d²F/dθ²|` for [`implicit_residual`] composed with the
+/// same circle carrier — the curvature term an ARC-SCOPED clearance
+/// needs.
+///
+/// The composed residual is `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)` (the
+/// second harmonic present only against a cylinder), so differentiating
+/// twice multiplies the harmonics by `1` and `4`: `|F″| ≤ A₁ + 4A₂`.
+/// With it, a smooth function's dip below its ENDPOINT CHORD is at most
+/// `|F″|max·Δθ²/8` — the same total-arithmetic bound the line row uses
+/// along a segment, and the reason an arc can clear where the whole
+/// circle it rides cannot.
+///
+/// `None` for the kinds without the closed harmonic form. Total
+/// arithmetic: poison in, poison out.
+#[must_use]
+pub fn circle_residual_curvature_bound<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+) -> Option<T> {
+    let (_, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
+    Some(a1 + T::from_f64(4.0) * a2)
+}
+
+/// The composed residual's harmonic decomposition in RESIDUAL units:
+/// `(c₀, A₁, A₂)` of `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)`. Both readers
+/// above are views of this one algebra, so the range and the curvature
+/// bound cannot drift apart.
+fn circle_residual_harmonics<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+) -> Option<(T, T, T)> {
     let two = T::from_f64(2.0);
     let u = u_ref;
     let v = axis.cross(u_ref);
@@ -359,7 +400,7 @@ pub fn circle_residual_extremes<T: Real>(
         Surface::Plane { origin, normal, .. } => {
             let c0 = (center - origin).dot(normal);
             let a1 = radius * amp(u.dot(normal), v.dot(normal));
-            Some((c0 - a1, c0 + a1))
+            Some((c0, a1, T::zero()))
         }
         Surface::Sphere {
             center: sc,
@@ -372,10 +413,7 @@ pub fn circle_residual_extremes<T: Real>(
             let e = center - sc;
             let c0 = e.norm_squared() + radius.powi(2);
             let a1 = two * radius * amp(e.dot(u), e.dot(v));
-            Some((
-                (c0 - a1 - r.powi(2)) / (two * r),
-                (c0 + a1 - r.powi(2)) / (two * r),
-            ))
+            Some(((c0 - r.powi(2)) / (two * r), a1 / (two * r), T::zero()))
         }
         Surface::Cylinder {
             origin,
@@ -402,10 +440,7 @@ pub fn circle_residual_extremes<T: Real>(
             let a1 = two * radius * amp(e.dot(up), e.dot(vp));
             let a2 =
                 radius.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
-            Some((
-                (c0 - a1 - a2 - r.powi(2)) / (two * r),
-                (c0 + a1 + a2 - r.powi(2)) / (two * r),
-            ))
+            Some(((c0 - r.powi(2)) / (two * r), a1 / (two * r), a2 / (two * r)))
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,
     }

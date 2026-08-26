@@ -97,7 +97,7 @@ use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
-pub use contain::{ContainError, FaceContainment, contfp};
+pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
