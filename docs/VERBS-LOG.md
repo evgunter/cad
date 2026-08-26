@@ -1473,3 +1473,25 @@ substrate unit — the curved pierce/split door — which every germ
 lane's arms consume (SPHSPH included), spec to be cut. Addendum
 in VERBS-CYLCYL-SPEC. Lane also banked the `| tail`-buffering
 slot finding (now in agent-lane-operations memory).
+
+## OFF-D PR-1 REPORTED GREEN; ORDINAL 79 CLAIMED, REVIEW DISPATCHED (2026-08-26)
+
+PR #1043 (`topo::replace_face_offset`) reported: the door beside
+the attach layer, per-kind closed-form carrier transport, the C5
+boundary refusing typed, the apex-window predicate derived from
+CARRIERS (deviation-as-finding: `chart_box` pads a true
+[−1.0,−0.5] window to straddle the apex — sound for containment,
+useless as a quantity), the spline-space obligation discharged by
+iso-row EXTRACTION, and the measured structural obstruction: no
+green Approx body row is possible through the door alone (neighbor
+charts cannot extend; IsoCurve is u-const; Approx×everything
+unrouted) — refused typed BEFORE mutating; the teapot's path is
+analytic-only so nothing waits. Four banked findings incl. the
+O(n²) whole-body mint cost aimed at #1019's fixture. CI: two of
+six points on record (default/default-ε, default/1e-6), stated.
+Ordinal 79 claimed from main (last = 78); single fable review
+(duals suspended per #1016) dispatched against frozen head
+34ee2537 with claims-to-falsify on the one-clone Err contract,
+both nappes, the C5 gate's post-replacement kind, the obstruction
+counterexample hunt, and C7. CYLCYL PR-B opened as #1044 under
+the scope ruling; TESSFOLD implementing.
