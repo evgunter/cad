@@ -1599,6 +1599,7 @@ fn face_vertex_points<T: Decide>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 

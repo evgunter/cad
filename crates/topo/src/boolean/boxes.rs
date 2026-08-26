@@ -1799,14 +1799,15 @@ mod tests {
     /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
     ///   **Prunes**: loose is slower work, never a different answer.
     ///   The only door for which that is true.
-    /// - `boolean/ops.rs` — the sphere-extent fallback, face and
+    /// - `boolean/ops.rs` — the curved-extent fallback, face and
     ///   edge: the cylinder-face arm clears a [`face_box`] against
     ///   the ball's extent, the scan's near-boundary test walks the
-    ///   face's [`edge_box`]es against the germ circle's box, and the
+    ///   face's [`edge_box`]es against the germ circle's box, the
     ///   cone/torus arm consults a [`face_box`] before refusing by
-    ///   kind — reach first, kind second, as at the operand gate.
-    ///   **Refuses**: whichever box fails to clear turns the pair
-    ///   into `FallbackExtentUnsupported`.
+    ///   kind — reach first, kind second, as at the operand gate —
+    ///   and the WALL-PAIR gate reads two [`face_box`]es, one per
+    ///   operand, on the same rule. **Refuses**: whichever box fails
+    ///   to clear turns the pair into `FallbackExtentUnsupported`.
     /// - `separation.rs` — the placement certificate. **Refuses**:
     ///   non-overlap IS the grant.
     /// - `census.rs` — `reach_box` and `edge_reach`, this module's
@@ -1849,7 +1850,7 @@ mod tests {
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 3),
+            ("boolean/ops.rs", 5),
             ("boolean/reduce.rs", 5),
             ("census.rs", 3),
             ("separation.rs", 1),

@@ -431,6 +431,7 @@ fn face_geo<T: Decide>(
 ///
 /// [`PointInSolidError::CorruptFace`] for a face whose window or
 /// boundary cannot be resolved.
+#[allow(clippy::type_complexity)] // (azimuth window, height range) — one chart trim
 pub(super) fn cylinder_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
