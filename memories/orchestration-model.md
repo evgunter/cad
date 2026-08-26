@@ -101,6 +101,20 @@ in git history and the M-logs, not here):
   reviewer suites into CI after the fix pass
   ([[review-and-dependency-policy]]). Dual-review sampling per the A/B
   amendment in `docs/MODEL-AB-LOG.md`, which owns the ordinal.
+- **The foreground rule needs its exception stated, or long jobs die
+  (2026-08-26, M9-5)**: the verbatim foreground sentence ("never arm
+  waiters, monitors, or background chains for your own builds/tests")
+  is written against waiter-parking and is right — but a job that
+  outlives a 600 s foreground call MUST be launched `setsid`-detached
+  from the process group and then polled in the foreground, per
+  [[agent-lane-operations]]. Briefs that carry only the prohibition
+  get the failure it does not cover: an M9-5 chained battery was
+  REAPED by the harness ~30 min into a release build, holding a
+  courtesy slot-turn another program had donated, and produced
+  nothing. Worse than the loss: **a harness-reaped background job is
+  indistinguishable from a completed one** — it announced `killed`
+  and left a slot-holder file that looked ordinary. Put BOTH halves
+  in every implementer brief.
 - **A finding with no durable home cannot warn anyone (2026-08-26,
   #1023; adopted on the VERBS side the same day)**: at ADJUDICATION
   time — as part of reading a report, not later — any finding that
