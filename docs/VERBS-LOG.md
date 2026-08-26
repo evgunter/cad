@@ -1495,3 +1495,20 @@ Ordinal 79 claimed from main (last = 78); single fable review
 both nappes, the C5 gate's post-replacement kind, the obstruction
 counterexample hunt, and C7. CYLCYL PR-B opened as #1044 under
 the scope ruling; TESSFOLD implementing.
+
+## CYLCYL PR-B OPENED (#1044) UNDER THE RULING; ORDINAL 80 CLAIMED (2026-08-26)
+
+The lane executed the scope ruling exactly: #1044 carries the
+conservatism scope alone (arms out, premise correction verbatim),
+#347 NARROWED by comment (demand 1 closes with the closed-form
+volume pins; demand 2 stays open on the crossing substrate, door
+table attached, bracket.py's 3mm note flagged stale). The powi(2)
+discipline red was fixed by conversion, not allowlist, with the
+straddling-caller argument in the body. CI green at (interval,
+1e-12) — the tightest row and the one this interval-arithmetic
+unit most needed. Ordinal 80 claimed from main (unchanged at 78;
+79 in flight on OFF-D); single fable review dispatched against
+frozen head b12a7918 with claims-to-falsify on the arc_extent
+sagitta charge's soundness (the one wrong-answer-capable path),
+the wrap-around footprint argument, the span-dip bound's
+re-derivation, and the r>6 boundary. TESSFOLD opened #1045.
