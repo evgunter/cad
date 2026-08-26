@@ -69,6 +69,11 @@ self-acquire; wrap raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
+- **Never pipe a slot-wrapped command through `| tail`/`| head`** — the
+  pipe buffers the wrapper's output away, so queue/acquire progress
+  lines vanish and a live wait is indistinguishable from a hang; you
+  then kill and re-queue a healthy waiter. Let the wrapper write to the
+  terminal or a file and filter afterwards. (CYLCYL PR-B lane, 2026-08-26.)
 - **Re-issuing a timed-out call means killing your own previous waiter
   first.** A harness-timed-out Bash call does NOT kill its flock waiter;
   the orphan stays queued and burns a slot turn when the mutex frees.

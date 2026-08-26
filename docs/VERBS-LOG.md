@@ -1451,3 +1451,25 @@ OFF-D, TESSFOLD, the demo round 2. For Evan at the merge sync:
 the A3-2 correction's retroactive 👍 (the ratified recourse
 premise measured impossible; the appended correction is the
 C8-cone pattern's sibling).
+
+## CYLCYL PR-B SCOPE CORRECTION (adjudicated 2026-08-26)
+
+The PR-B lane's opening measurement (all four cases doored, table
+in its report) falsified the arms' premise: the cylinder-union
+refusals are the CROSSING layer's — `CurvedPierceUnsupported` (no
+pierce-event path for a rim circle definitely crossing the
+partner wall) and `PointSplitCarrierUnsupported` (Circle-edge
+split at an event point is unwired) — so "route the section
+through the dispatch" builds a join for crossings that cannot yet
+exist. The conservatism half, meanwhile, turned out to be #347's
+whole first demand: the three fixes alone (arc-scoped conic edge
+box — the carrier-slab diagnosis one level down, a banked class
+finding; boundary-clipped cylinder face box; segment-clamped
+line-clearance vertex) make the bracket round at 6 mm, pinned at
+closed-form volumes r ∈ {3,4,5,6}. Ruling: PR-B ships as the
+conservatism unit alone; #347 NARROWS (first demand closes, the
+union demand stays open); the arms move behind a new shared
+substrate unit — the curved pierce/split door — which every germ
+lane's arms consume (SPHSPH included), spec to be cut. Addendum
+in VERBS-CYLCYL-SPEC. Lane also banked the `| tail`-buffering
+slot finding (now in agent-lane-operations memory).
