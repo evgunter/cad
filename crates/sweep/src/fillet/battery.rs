@@ -1321,9 +1321,7 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
     let [(p, q), second] = rim[..] else {
         return false;
     };
-    seams.len() == 2
-        && (p, q) == second
-        && seams.iter().all(|s| *s == p || *s == q)
+    seams.len() == 2 && (p, q) == second && seams.iter().all(|s| *s == p || *s == q)
 }
 
 /// Predicate 6 at one termination vertex: gather valence, per-edge

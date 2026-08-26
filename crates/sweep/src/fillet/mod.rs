@@ -843,6 +843,7 @@ mod recourse_tests {
     use geom_core::{Band, Indeterminate, MarginDiag};
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
+    use super::CornerConfig;
     use super::{
         CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
         FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
@@ -850,7 +851,6 @@ mod recourse_tests {
         FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
         FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
     };
-    use super::CornerConfig;
 
     /// Every recourse sentence this module can append.
     const ALL: [&str; 14] = [
