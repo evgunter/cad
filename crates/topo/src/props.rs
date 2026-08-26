@@ -299,7 +299,11 @@ fn face_flux<T: Decide>(
             // lane (M6-3): its flux has no closed form regardless
             // of what bounds it, and the patch engine reads the
             // stored iso pcurves rather than the carriers.
-            let quad_out = if is_trimmed || matches!(surface, Surface::Nurbs(_)) {
+            // A described SPLINE face always takes the quadrature lane
+            // (M6-3): its flux has no closed form regardless of what
+            // bounds it. An approximating face is one — the flux of
+            // its fit, which is the geometry the face actually carries.
+            let quad_out = if is_trimmed || surface.spline_chart().is_some() {
                 quad(body, surface, &outer, &hes, band, tol).map_err(wrap)?
             } else {
                 None
@@ -891,7 +895,13 @@ mod quad_lane {
     ) -> Result<FaceCutBounds, PropsError> {
         // The NURBS-patch lane (M6-3): a described NURBS face routes
         // to the patch engine over its stored iso-line pcurves.
-        if let Surface::Nurbs(payload) = surface {
+        // The spline-patch lane (M6-3): a described spline face routes
+        // to the patch engine over its stored iso-line pcurves. An
+        // approximating face enters on its fit — the certificate's
+        // bound is a statement about the DESCRIPTION and does not
+        // widen this quadrature (the same deliberate omission the
+        // mesh tolerance makes).
+        if let Some(payload) = surface.spline_chart() {
             return nurbs_face(body, payload, outer, hes, band, tol);
         }
         let Surface::Cylinder { origin, radius, .. } = surface else {
@@ -964,7 +974,7 @@ mod quad_lane {
     /// cylinder lane; no sense bit is read.
     fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
-        payload: &std::sync::Arc<geom::NurbsSurface<T>>,
+        payload: &geom::NurbsSurface<T>,
         outer: &[LoopEdge<T>],
         hes: &[HalfEdgeKey],
         band: Band,

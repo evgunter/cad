@@ -302,9 +302,10 @@ pub fn pcurve_of<T: Decide>(
     }
     let (carrier, _, _) = half_edge_carrier(body, half_edge)?;
     let surface = half_edge_surface(body, half_edge)?;
-    if matches!(surface, Surface::Nurbs(_)) {
-        // The NURBS chart's images are description-driven (M6-3) —
-        // the iso derivation, not the closed-form harmonic table.
+    // A SPLINE chart's images are description-driven (M6-3) — the iso
+    // derivation, not the closed-form harmonic table. An approximating
+    // surface's chart IS its fit's, so it takes the same route.
+    if surface.spline_chart().is_some() {
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
     chart_pcurve(&carrier, &surface, band)
@@ -482,8 +483,12 @@ fn nurbs_iso_derive<T: Decide>(
     let span = t1 - t0;
     // The chart's OWN domain (doc above): `[0, 1]²` for a kernel-built
     // patch, the file's parameterization for an imported one.
-    let (cu0, cu1, cv0, cv1) = match surface {
-        Surface::Nurbs(payload) => {
+    // The catch-all is SPLIT: an approximating surface's domain is its
+    // FIT's knot domain, not the unit square — reading `[0,1]²` off a
+    // chart parameterized otherwise would place every derived image on
+    // the wrong rectangle.
+    let (cu0, cu1, cv0, cv1) = match surface.spline_chart() {
+        Some(payload) => {
             let (a, b) = payload.knots_u().domain();
             let (c, d) = payload.knots_v().domain();
             (
@@ -493,7 +498,7 @@ fn nurbs_iso_derive<T: Decide>(
                 T::from_f64(d),
             )
         }
-        _ => (T::zero(), T::one(), T::zero(), T::one()),
+        None => (T::zero(), T::one(), T::zero(), T::one()),
     };
     // A definite endpoint-side selection: which of the two candidate
     // chart values places the carrier's START on the surface. The
@@ -569,8 +574,8 @@ fn nurbs_iso_derive<T: Decide>(
             geom_brep::MappedCurve::PlacedSegment { .. }
             | geom_brep::MappedCurve::RevolvedPoint { .. },
         ) if matches!(carrier, geom::Curve3::Circle { .. }) => {
-            let geom::Surface::Nurbs(payload) = surface else {
-                return Err(refuse("an arc cap rim on a non-NURBS chart"));
+            let Some(payload) = surface.spline_chart() else {
+                return Err(refuse("an arc cap rim on a non-spline chart"));
             };
             let ku = payload.knots_u();
             let (d0, d1) = ku.domain();
@@ -779,7 +784,9 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
             ..
         } => (major_radius + minor_radius * v.cos()).abs(),
         Surface::Cone { half_angle, .. } => (v * half_angle.sin()).abs(),
-        _ => T::one(),
+        // Non-periodic charts: the plane's parameters are metres, and
+        // both spline kinds' are the net's own — no azimuth to lever.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::one(),
     }
 }
 
@@ -821,7 +828,11 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
 /// this the walk reports the wrap as a discontinuity: a symptom, not
 /// the cause.
 fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
-    let Surface::Nurbs(payload) = surface else {
+    // The `τ` default belongs to the AZIMUTH charts. A spline chart —
+    // the payload's or an approximating surface's fit — has whatever
+    // period its knot domain says, and only if the net actually closes;
+    // handing it `τ` would let the loop walk wrap a chart that does not.
+    let Some(payload) = surface.spline_chart() else {
         return Some(T::tau());
     };
     let (u0, u1) = payload.knots_u().domain();
@@ -848,7 +859,13 @@ fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
     match *surface {
         Surface::Sphere { radius, .. } => Some(radius),
         Surface::Torus { minor_radius, .. } => Some(minor_radius),
-        _ => None,
+        // The second channel is a length on these charts (spline
+        // parameters included), so gaps in it are already metres.
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => None,
     }
 }
 
@@ -1149,8 +1166,8 @@ fn walk_loop<T: Decide>(
     let mut first_entry: Option<geom_core::Point2<T>> = None;
     for he in cycle {
         let (carrier, t0, t1) = half_edge_carrier(body, he)?;
-        let base = if matches!(surface, Surface::Nurbs(_)) {
-            // NURBS charts derive from the edge's intensional
+        let base = if surface.spline_chart().is_some() {
+            // Spline charts derive from the edge's intensional
             // description (M6-3) — see `nurbs_iso_derive`.
             nurbs_iso_derive(body, he, surface, band)?
         } else {

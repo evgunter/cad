@@ -183,6 +183,13 @@ pub(crate) fn tessellate_trimmed(
             axis,
             radius,
         },
+        // An approximating surface takes the spline lane on its fit
+        // (there is no placeholder state to screen: it is certified by
+        // construction).
+        Surface::Approx(ref a) => Lane::Nurbs {
+            grid: nurbs_cell_grid(a.fit(), fk)?,
+            patch: face_bound(bounds, a.fit(), fk)?,
+        },
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 // The mvfs "no description yet" state — the historical

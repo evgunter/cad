@@ -573,6 +573,12 @@ fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> boo
                 && v3(*u1, *u2)
         }
         (Surface::Nurbs(x), Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
+        // Shared-payload identity, exactly as the `Nurbs` arm: two
+        // faces carrying the same `Arc` carry the same chart. Distinct
+        // payloads answer `false` even when structurally equal —
+        // conservative in the direction this predicate needs.
+        (Surface::Approx(x), Surface::Approx(y)) => std::sync::Arc::ptr_eq(x, y),
+        // Mismatched kinds are never the same chart.
         _ => false,
     }
 }
