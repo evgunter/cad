@@ -306,6 +306,16 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
         // field the record states, like the analytic arms above.
         // Counts lead each variable-length section so two payloads
         // with different shapes cannot alias by concatenation.
+        // No import path mints one (STEP's OFFSET_SURFACE is not read),
+        // so this arm exists to keep the signature TOTAL rather than to
+        // dedup: a tag alone would alias every approximating surface to
+        // every other, which is the silent-wrong-body trap the NURBS
+        // arm below was written against. A distinct tag plus the fit's
+        // and the base's own signatures is what an adopt path would
+        // need, and it is not written until one exists — so the arm
+        // signs a tag that can alias only with itself and no import
+        // reaches it.
+        Surface::Approx(_) => vec![6u64],
         Surface::Nurbs(ref payload) => {
             let (nu, nv) = payload.control_counts();
             let mut sig = vec![

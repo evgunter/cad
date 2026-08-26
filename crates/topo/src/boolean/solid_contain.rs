@@ -496,6 +496,18 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
 /// `sin(w/2)·δθ·r ≤ δθ·r` — conservative relative to the arc-length
 /// convention, escalating MORE near degenerate windows, never less).
 /// Height margins are metres directly, unchanged.
+///
+/// **THE cosine-window construction, and its three sites.** This
+/// argument — the guard that the window is narrower than a period, the
+/// `r̂·m̂ ≥ cos(w/2)` comparison, the `· radius` metering, and ledger
+/// row F8's deferred narrow-window fix — is one construction used
+/// three times, so a change to any of it is a change to all three:
+/// here (a wall face's azimuth trim, ray lane), in
+/// [`super::contain::point_on_arc`] (a rim ARC's own angular span,
+/// boundary walk), and in
+/// [`super::contain::curved_face_containment`] (the same period guard
+/// asked as a chart-form question, which is why its answer is `None`
+/// where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,

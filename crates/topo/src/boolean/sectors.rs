@@ -351,11 +351,51 @@ pub(super) fn tangent_lump<T: Decide>(
     // Transverse in-tangent-plane direction (the jet family's d̂ =
     // n̂ × τ̂; quadratic consumption, so τ̂'s sign is immaterial).
     let d_hat = n_ref.cross(locus_dir).normalize();
-    // The graph-over-the-shared-tangent-plane acceleration of each
-    // carrier along d̂, signed against n̂_ref: differentiating
-    // F(x, z(x)) = 0 twice gives z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref) — the
-    // denominator carries the orientation, exactly the jet chain's
-    // own construction ([`geom_brep::tangent_jet`]).
+    match tangent_relative_side(
+        sector_surface,
+        other_surface,
+        other_outward,
+        p,
+        d_hat,
+        arm,
+        band,
+    )? {
+        SideCode::In => Ok(SideCode::In),
+        SideCode::Out => Ok(SideCode::Out),
+        // The exact-zero osculating residue, bridged by the verified
+        // declaration (doc above): locally conformal with verified
+        // opposed senses IS the Eq. 15.3 ⁻ posture.
+        SideCode::On => Ok(super::tables::eq15_3_lump(
+            op,
+            on_side,
+            super::plane_eq::PlaneRelation::SameOpposite,
+        )),
+    }
+}
+
+/// **The per-direction second-order side** of a declared-`Tangent`
+/// sector pair: which side of the OTHER face's material does the
+/// sector's carrier lie on along direction `d` from the tie point —
+/// the relative graph-over-the-shared-tangent-plane acceleration
+/// `z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref)` differenced across the two
+/// carriers (the jet chain's own denominator-carries-the-sign
+/// construction), classified through the existing second-order
+/// trilean (rows `tangent_sector_order2{,_arm}`). `On` is the honest
+/// exact-zero: the direction rides the tangency locus (a curve on
+/// either carrier along it separates at no order this kernel
+/// measures) — the ON-direction machinery downstream adjudicates it,
+/// exactly as a first-order On flows to the recl edge engine.
+pub(super) fn tangent_relative_side<T: Decide>(
+    sector_surface: &geom::Surface<T>,
+    other_surface: &geom::Surface<T>,
+    other_outward: OutwardNormal<T>,
+    p: geom_core::Point3<T>,
+    d: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let n_ref = other_outward.vec();
+    let d_hat = d.normalize();
     let graph_accel = |s: &geom::Surface<T>| {
         let g = geom_brep::implicit_gradient(s, p);
         T::zero() - geom_brep::implicit_hessian_form(s, p, d_hat) / g.dot(n_ref)
@@ -370,14 +410,7 @@ pub(super) fn tangent_lump<T: Decide>(
     ) {
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
         Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
-        // The exact-zero osculating residue, bridged by the verified
-        // declaration (doc above): locally conformal with verified
-        // opposed senses IS the Eq. 15.3 ⁻ posture.
-        Ok(EntersMaterial::Tangent) => Ok(super::tables::eq15_3_lump(
-            op,
-            on_side,
-            super::plane_eq::PlaneRelation::SameOpposite,
-        )),
+        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
         Err(diag) => Err(BooleanError::Escalated { diag }),
     }
 }

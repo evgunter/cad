@@ -2686,10 +2686,10 @@ mod verbs_gate_r1_probes {
     /// carving ball's — the kernel's own two constructions, re-derived
     /// here so the residual looseness is measured by an outside
     /// consumer rather than read out of the module under test.
-    fn frustum_aabb(
-        lant: &Body<f64>,
-        ball: (Point3<f64>, f64),
-    ) -> ((Point3<f64>, Point3<f64>), (Point3<f64>, Point3<f64>)) {
+    /// One axis-aligned box as (lo, hi).
+    type Aabb = (Point3<f64>, Point3<f64>);
+
+    fn frustum_aabb(lant: &Body<f64>, ball: (Point3<f64>, f64)) -> (Aabb, Aabb) {
         let (bc, br) = ball;
         let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
         let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);

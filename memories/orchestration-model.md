@@ -101,5 +101,21 @@ in git history and the M-logs, not here):
   reviewer suites into CI after the fix pass
   ([[review-and-dependency-policy]]). Dual-review sampling per the A/B
   amendment in `docs/MODEL-AB-LOG.md`, which owns the ordinal.
+- **A finding with no durable home cannot warn anyone (2026-08-26,
+  #1023; adopted on the VERBS side the same day)**: at ADJUDICATION
+  time — as part of reading a report, not later — any finding that
+  asserts a CLASS rather than an instance gets a durable home: a log
+  line or an issue. Two instances bought this rule on one day. A
+  banked finding that PREDICTED #1023's defect class lived only in an
+  implementer's report transcript, so when the class fired the
+  citation trail broke at first use and the warning had protected
+  nothing. Separately, M9-3's dual reviews (ordinal 72) were
+  delivered, adjudicated, and then LOST with the orchestrator session
+  that held them — the residue issues survived, so the reviews are
+  attested, but every verdict label, finding count, rubric score and
+  per-phase figure is gone and the ledger row records missing data
+  instead. Corollary for reviews specifically: a report that only
+  ever exists in a session's context is one outage from never having
+  happened.
 
 Handing the session to a successor: [[orchestrator-switch-runbook]].

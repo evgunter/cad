@@ -201,7 +201,9 @@ pub(crate) fn uv_of(surface: &Surface<f64>, p: Point3<f64>) -> Option<Point2<f64
             let ring = (d - axis * w).norm() - major_radius;
             Point2::new(azimuth(d, axis, u_ref), w.atan2(ring))
         }
-        Surface::Nurbs(_) => return None,
+        // No closed-form chart inverse for a spline, nor for a fitted
+        // stand-in whose chart is one.
+        Surface::Nurbs(_) | Surface::Approx(_) => return None,
     };
     (uv.x.is_finite() && uv.y.is_finite()).then_some(uv)
 }
@@ -218,7 +220,9 @@ fn periodic(surface: &Surface<f64>) -> (bool, bool) {
         Surface::Plane { .. } => (false, false),
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => (true, false),
         Surface::Torus { .. } => (true, true),
-        Surface::Nurbs(_) => (true, true),
+        // The conservative answer for a chart this module cannot
+        // invert: assume both directions wrap, as the spline arm does.
+        Surface::Nurbs(_) | Surface::Approx(_) => (true, true),
     }
 }
 
@@ -256,7 +260,9 @@ pub(crate) fn infer_outer(
     rings: &[Vec<Point3<f64>>],
     eps_in_eff: f64,
 ) -> Result<usize, OuternessRefusal> {
-    if matches!(surface, Surface::Nurbs(_)) {
+    // Outerness is inferred in the chart, and neither spline kind has
+    // the closed-form inverse this needs.
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
         return Err(OuternessRefusal::UnsupportedChart);
     }
     let (per_u, per_v) = periodic(surface);

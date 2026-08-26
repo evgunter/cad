@@ -109,6 +109,11 @@ pub enum TransformError {
     /// A `Nurbs` placeholder surface or carrier — unimplemented
     /// geometry evaluates to poison, so transforming it is refused.
     NurbsPlaceholder,
+    /// An approximating surface: the rigid map of an offset is the
+    /// offset of the rigid map, but re-deriving the mapped fit's
+    /// certificate is fit-door work this pass cannot reach, and a
+    /// certificate is never carried across a geometry change.
+    ApproxSurface,
     /// The body's topology references a missing arena entry — a
     /// corrupt body (the validators would refuse it too).
     Corrupt {
@@ -139,6 +144,13 @@ impl core::fmt::Display for TransformError {
                 f,
                 "transform: edge {edge:?} carries a transient null-scaffold curve; bodies at \
                  rest never do"
+            ),
+            Self::ApproxSurface => f.write_str(
+                "transform: an approximating surface's description composes with a rigid map \
+                 (the map of an offset is the offset of the map), but its certificate would \
+                 have to be re-derived against the mapped base — fit-door work this pass \
+                 cannot reach — so mapping it is refused rather than carrying an \
+                 unre-derived claim",
             ),
             Self::NurbsPlaceholder => f.write_str(
                 "transform: a Nurbs placeholder surface or carrier evaluates to poison, so \
@@ -292,6 +304,18 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             u_ref: map_vec(map, u_ref),
         },
         Surface::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
+        // The composition law HOLDS: a rigid map carries unit normals
+        // to unit normals, so `M(S + d·n) = M(S) + d·n_M` — the map of
+        // an offset IS the offset of the map, and the description is
+        // the layer where that identity lives (a fit mapped
+        // control-point-wise is the fit of the mapped description).
+        // What this pass cannot discharge is the CERTIFICATE: it is
+        // generic in `T` and carries no band or tolerance, while
+        // re-deriving the two-limb bound is `f64`-only fit-door work.
+        // Carrying a certificate across a geometry change is exactly
+        // what the never-trust posture forbids, so the door refuses
+        // rather than ship an unre-derived claim.
+        Surface::Approx(_) => return Err(TransformError::ApproxSurface),
     })
 }
 

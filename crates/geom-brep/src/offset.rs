@@ -140,6 +140,13 @@ pub enum OffsetError<T: geom_core::Real> {
     /// `Offset(base, d)` surface description with a certified
     /// to-tolerance fit — never a silent fit here.
     NotClosedUnderOffset,
+    /// The operand is already an approximating surface, so its offset
+    /// would nest one description inside another — and its certificate
+    /// would have to compose two precision claims, the inner ε against
+    /// a base this door cannot see through. The kernel has no consumer
+    /// for a nested offset today; when one arrives it brings the
+    /// composition rule with it, rather than this door inventing one.
+    ApproxNesting,
     /// A refusal predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
     Escalated {
@@ -169,6 +176,13 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
                  normal breaks rationality); the approximating-surface route — an \
                  intensional Offset description with a certified fit — is the door for \
                  this kind, and it is not built yet"
+            ),
+            Self::ApproxNesting => write!(
+                f,
+                "offset_surface: the operand is already an approximating surface — offsetting \
+                 it would nest one Offset description inside another, whose certificate would \
+                 have to compose two precision claims. No consumer needs that yet, so nothing \
+                 is minted"
             ),
             Self::Escalated { source } => write!(f, "offset_surface escalated: {source}"),
         }
@@ -292,5 +306,6 @@ pub fn offset_surface<T: geom_core::Decide>(
             })
         }
         Surface::Nurbs(_) => Err(OffsetError::NotClosedUnderOffset),
+        Surface::Approx(_) => Err(OffsetError::ApproxNesting),
     }
 }

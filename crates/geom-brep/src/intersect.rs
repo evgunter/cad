@@ -99,6 +99,16 @@ pub enum SurfaceKind {
     Torus,
     /// [`Surface::Nurbs`] — the universal fallback kind.
     Nurbs,
+    /// [`Surface::Approx`] — a fitted stand-in for a description.
+    ///
+    /// **Its own kind, not `Nurbs`.** The payload is a NURBS and every
+    /// evaluator delegates to it, but a pair table indexed by kind is
+    /// deciding what a *locus claim* about the pair means, and a claim
+    /// about an approximating surface is a claim about the fit, not
+    /// about the surface the modeller asked for. Collapsing the two
+    /// tags would let every such table answer for `Approx` silently —
+    /// the exact failure the closed enum exists to prevent.
+    Approx,
 }
 
 impl SurfaceKind {
@@ -111,6 +121,7 @@ impl SurfaceKind {
             Surface::Sphere { .. } => Self::Sphere,
             Surface::Torus { .. } => Self::Torus,
             Surface::Nurbs(_) => Self::Nurbs,
+            Surface::Approx(_) => Self::Approx,
         }
     }
 
@@ -123,6 +134,7 @@ impl SurfaceKind {
             Self::Sphere => "sphere",
             Self::Torus => "torus",
             Self::Nurbs => "nurbs",
+            Self::Approx => "approx",
         }
     }
 }
@@ -192,7 +204,7 @@ impl PairRoute {
 /// else in the workspace; the no-wildcard grep row in
 /// `tests/pcurve_conic.rs` keeps the property pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
-    use SurfaceKind::{Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
     match (a, b) {
         // ---- Rung 1, implemented: the M2 pair, executed by the
         // existing splitting/boolean seam bit-identically. ----
@@ -382,6 +394,25 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    and NURBS×NURBS needs both charts' tube plus its own \
                    exhaustiveness/seeding story — arms retire one at a time, each \
                    with its proof",
+        },
+        // ---- Approx × everything: refused, and deliberately NOT as
+        // the fitted kind would be. An intersection locus is a claim
+        // about the surfaces the modeller asked for; against an
+        // approximating surface it is a claim about the FIT, off the
+        // intended locus by up to the fit's own ε. Certifying it means
+        // composing that ε with the SSI's three limbs, and no rule for
+        // that composition is ratified. Routing `Approx` to its fitted
+        // kind's arm would silently make the weaker claim. ----
+        (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => PairRoute {
+            rung: Rung::General,
+            implemented: false,
+            note: "an approximating operand routes to the general rung with the ℝ⁴ \
+                   PARAMETRIC-PAIR trace shape of its FIT, and refuses there: the \
+                   locus the trace would certify is the fit's, not the described \
+                   surface's, and composing the fit's precision claim with the \
+                   SSI certificate's limbs is not a ratified rule. The refusal is \
+                   the honest answer, not a missing marcher",
         },
     }
 }

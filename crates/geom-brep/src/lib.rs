@@ -96,6 +96,10 @@ pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
 pub use offset::{OffsetError, offset_surface};
+pub use offset_fit::{
+    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
+    fit_offset, recertify_approx,
+};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

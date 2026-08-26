@@ -1142,3 +1142,128 @@ pair double-booking and the abandoned #971 close-out (which they
 have taken back — the GATE re-merge and wall-7 final form handed
 over). Also corrected on their side: their "72-claim not on main"
 finding withdrew under the ancestry check.
+
+## OFF-C landed: `Surface::Approx` is in the kernel (2026-08-25)
+
+The seventh variant, the `SurfaceDescription`/`SurfaceSpec`/
+`ApproxSurface` triple with a private certificate, and the total
+enumeration the closed enum forces: every E0004 the compiler raised
+plus the wildcard/`matches!` sites it could not, dispositions across
+30 files, each stated in the code. Base reference: an
+owned `Arc<NurbsSurface<T>>`, not an arena key — `SurfaceKey` lives
+a crate above `Surface`, and a `Surface` value is read with no arena
+in hand at half the consumers.
+
+Tier 3 re-derives per face (`PropsQuadLane::recertify_approx`), with
+`ApproxCertification` / `ApproxLaneUnsupported` as the typed
+findings; the NURBS-adjacent dihedral and material-sign exemptions
+extend to `Approx` BY KIND, through `Surface::spline_chart`.
+
+**The re-derivation classifies against the RUN's ε, not the
+surface's stored tolerance** (r1 NOTE-2, adjudicated). The edge
+machinery re-certifies every carrier against the run's band and
+never against a stored bound; O3's ratified surface claim is
+`sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so verifying it means
+measuring at the ε this validation call runs at. A surface minted
+loose validating forever afterwards would be the mint's parameter
+quietly replacing the ratified claim. D4 already blesses the
+consequence — ε-tightening may escalate — so a mint that no longer
+meets a tighter run ε refuses honestly, which is exactly what the
+edge machinery does. The stored tolerance stays the MINT's
+parameter and the fit door's own gate.
+
+### What OFF-D inherits (the consumer's findings, sharpened at r1)
+
+**A face-replacement primitive owes its edges the new chart's
+SPLINE SPACE, and owes them BOTH operations.** The iso lane's seam
+class bounds `|B(v) − C(v)|` by a control-difference hull — a
+partition-of-unity argument — so the chart's boundary row and the
+carrier must share knots, degree and weights. Degree elevation
+alone suffices on a PLANAR wall, and that is what the PR's straight
+prism needed; the r1 review's twisted-loft probe showed it is not
+enough on a CURVED one, where the fit refines past the seed grid,
+so **knot refinement into the fit's own interior knots is required
+as well**. Both are exact — same locus, same parameterization, same
+endpoints — so this is a representation change, not rim surgery.
+The shared surgery in `sweep/tests/common/approx.rs` does both.
+
+Two more, same lane: a face's edges must be re-described after
+`FaceSurface::New` (the surgery ordering's own second step, which
+tier 3 reports as `DescriptionNotAdjacent` if skipped); and moving
+an `Approx`-faced body needs the transform door's mapped-certificate
+lane (#1020 — the composition law itself is pinned).
+
+**Scheduled, with boxes:** #1018 mesh + props tolerance widening by
+the certificate's bound (deliberately unwired here); #1019 the
+tier-3 grid-cost perf box (4.73 s serial for 8 whole-body
+validations of a 4-`Approx`-face prism, debug, i7-1065G7 — and the
+measurement lesson that a contended ~65 s reading is not a cost
+figure); #1020 transform.
+
+**The planar-locus boundary, stated.** Every tier-3-green `Approx`
+face this unit builds has an exactly-planar locus, because the
+pulled-back base is exact only on a plane. Curved fits ARE
+body-reachable — the r1 twisted loft validates tier 3 — but only
+marginally: at `d = 2e-9` the edge residual measured 2.3e-9 and
+escalated in the ambiguity band, so the curved rows run at
+`d = 5e-10`. Genuine curved-offset bodies need the rim surgery
+OFF-D owns.
+
+## Cross-program: the filter-skipped-gate class detonates (2026-08-26)
+
+cad-m8's #971 re-merge tripped k-lint on a COMPILE error MINE:
+9f5228bd (GATE's fix pass) shipped a type_complexity lint in
+lily.rs's frustum_aabb — ungated because the k-lint job was
+filter-skipped on the merge runs. The bitter symmetry: GATE's own
+banked finding PREDICTED the class ("the k-lint unification draw
+hides breakage per row; main can be latently red") and then its
+lane shipped the instance. Disposition: cad-m8's alias fix rides
+#971 (fastest path; provenance recorded here — my lint, their
+fix); they file the class issue citing both instances plus #601
+and the #915 regime; all three active VERBS lanes warned with the
+enumerated-red protocol (compare, state, don't debug; re-merge at
+#971's landing).
+
+## OFF-C MERGED (#1012, 2026-08-26) — Surface::Approx is IN THE KERNEL
+
+Row OFFC (ordinal 76) in MODEL-AB-LOG. The kernel's closed surface
+enum has its seventh variant with the never-trust validator arm
+classifying against the run's ε. OFF-D inherits a measured list:
+the face-replacement primitive owes knot refinement (not elevation
+alone), the transform re-derivation lane (#1020), the mesh
+widening (#1018), and the tier-3 perf box (#1019). **The teapot's
+remaining path: OFF-D (shell + rim surgery, consuming RING's
+door) → the demo.** Seam sweep: verbs-offc lane. Meanwhile CYLCYL
+PR-A reported (green; the D10 silence caught EXECUTING a wrong
+answer — 30π with the lens double-counted, now a typed refusal;
+#347's defect (a) re-diagnosed as two OTHER conservatisms, both
+single-arm PR-B fixes) — its review claims ordinal 77 next.
+
+## PR-A up (#1021); ordinal 77 claimed at dispatch (2026-08-26)
+
+The germ substrate landed green: D3's containment door REUSING the
+solid door's trim resolution (shared pub(super) — cannot drift),
+the D5 trap closed FIRST with pair-general signatures, D10 ruled
+typed-refusal — and the report's two heavyweight findings: the
+D10 silence was caught EXECUTING a wrong answer (a union returning
+Ok at exactly 30π with the shared lens double-counted — now
+refused), and #347's defect (a) re-diagnosed by measurement as two
+DIFFERENT conservatisms (the carrier-slab wall box + the
+span-dip's unclamped vertex), both single-arm PR-B fixes with the
+red-able row waiting. **Ordinal 77 claimed at dispatch** (through
+76 on main; duals SUSPENDED per #1016's in-force recommendation —
+single fable review), frozen 845aab0f.
+
+## OFF-D spec committed (2026-08-26) — shell, two PRs
+
+docs/VERBS-OFFD-SPEC.md: PR-1 the face-replacement primitive
+(carrying the measured inheritance — knot refinement + elevation,
+the coherence budget, the apex-window predicate landing at last);
+PR-2 the verb (sealed = the degenerate arm through RING's door
+with Carried evidence from the collapse meter's own decides;
+opened = rim surgery to a closed thin solid; klein's hand-built
+wall pairs begin retiring as the acceptance). The teapot follows
+as its own demo unit. PR-1 difficulty M logged pre-dispatch;
+dispatches when a lane frees. Also: #971 merged (the lint
+known-red retired; lanes updated) and M9's close-out is landing
+(#1024 their at-merge row).
