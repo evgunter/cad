@@ -1,9 +1,12 @@
 # ARMS-3 — general sphere×sphere, and what a run-out at a seam vertex IS
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off**
-(VERBS program; the ARMS cut's third unit, whose corner half OQ6
-explicitly reserved for Evan: "run-out policies are a taxonomy
-decision Evan should own before any lands"). Proposals A3-1..A3-3.
+**Status: RATIFIED** (Evan, 2026-08-25; #992). Implemented by
+VERBS-ARMS-3, with one correction recorded below — A3-2's RECOURSE
+rested on a premise the implementation lane found false when it
+reproduced the witness. (VERBS program; the ARMS cut's third unit,
+whose corner half OQ6 explicitly reserved for Evan: "run-out
+policies are a taxonomy decision Evan should own before any
+lands".) Proposals A3-1..A3-3.
 
 ## A3-1 — the sphere×sphere arm is plumbing; it dispatches on ratification
 
@@ -43,6 +46,38 @@ met so far — the bud, the snowman, every solid of revolution).
 This replaces a misdescribing refusal with a true one at zero
 machinery cost, exactly the #554 shape.
 
+### Correction, at implementation (2026-08-26) — flagged for Evan
+
+The recourse's parenthesis above — *"true since ARMS-1, and the
+actual answer for every consumer met so far"* — is **false at the
+sites where the tag fires**, and reproducing the witness is what
+showed it. The two facts are structurally linked:
+
+- A seam vertex exists only on a rim a chart seam has SPLIT, i.e.
+  on a full revolve of a POLE-TOUCHING profile, where every wall
+  becomes two half-bands and every latitude rim two arcs.
+- A rim that is ONE self-closed edge — every annular revolve: the
+  dome, the bud, the snowman, the lentil — is a CLOSED chain, which
+  registers no corners at all, so no seam vertex is ever reached
+  there.
+
+So "request the full closed rim; the annulus door carves it" names
+a door that cannot serve the caller who was just refused: their
+whole-rim request is a MULTI-LINK closed chain, and the ring-free
+annulus band is a one-edge rim's. Measured on the lantern fixture,
+all three of its rims refuse one door later (mouth, neck and lip),
+including #319's own plane×sphere neck rim.
+
+**What shipped instead**: the tag and its substantive claim are
+unchanged (the vertex is not a corner; no run-out policy applies;
+`policy` is `None`). The recourse names the REQUEST rather than
+promising the carve — *"request the rim whole — every arc the chart
+seam split it into — rather than a chain that stops at the seam,
+which is a chart artifact the surface is smooth through"* — and the
+missing door is filed as **#1022** and carried in the register's
+run-out row. That keeps the refusal true, which was the whole point
+of A3-2.
+
 ## A3-3 — the genuine mid-curve run-out is REAL, parked, and named
 
 A user who wants a fillet that stops PART-WAY along a smooth closed
@@ -72,3 +107,13 @@ the `SeamVertex` refusal + register/vocabulary sync). #319 closes
 fully at its merge (the coaxial half closed at ARMS-2; the corner
 finding resolves as A3-2's re-description). The parked run-out
 pair joins the register with this doc as its design record.
+
+**Delivered** (VERBS-ARMS-3): the arm as one row in `coaxial_arm`
+plus one `BlendArm` variant — the circle×circle sheet crossing was
+already there — unit-rowed in both material configurations beside
+the other curved arms, with a lentil (two unit spheres, bored)
+whose convex equator fillets end to end. `CornerConfig::SeamVertex`
+with `policy: Option<RunOutPolicy>` (the tag's own map is the one
+source, so a payload cannot disagree with its tag) and its own
+recourse. The parked pair sits in the register's new run-out row
+with this doc as its record; the correction above is #1022.

@@ -110,7 +110,11 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 }
 
 // ---------------------------------------------------------------------
-// §3 — every `CornerConfig` tag and both `RunOutPolicy` names.
+// §3 — every `CornerConfig` tag `corner_config` itself can reach, and
+// both `RunOutPolicy` names. The one tag that is NOT reachable here is
+// `SeamVertex`: it is recognized from the vertex's own structure before
+// any valence is read as a corner configuration, so it is pinned
+// through the front door instead (`verbs_arms3`).
 // ---------------------------------------------------------------------
 
 /// A valence-four vertex: no spherical triangle, so no octant patch.
@@ -127,7 +131,7 @@ fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
             ..
         }) => {
             assert_eq!(valence, 4);
-            assert_eq!(policy, RunOutPolicy::RunOutStopAtVertex);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
         }
         other => panic!("expected an N-edge corner refusal, got {other:?}"),
     }
@@ -150,7 +154,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
             corner: CornerConfig::DependentNormals,
             policy,
             ..
-        }) => assert_eq!(policy, RunOutPolicy::RunOutStopAtVertex),
+        }) => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
         other => panic!("expected a dependent-normals refusal, got {other:?}"),
     }
 }
@@ -174,7 +178,7 @@ fn corner_tag_mixed_convexity_names_feather() {
             ..
         }) => {
             assert_eq!(convex, 1);
-            assert_eq!(policy, RunOutPolicy::RunOutFeather);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
         }
         other => panic!("expected a mixed-convexity refusal, got {other:?}"),
     }
@@ -273,7 +277,7 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
             ..
         }) = run_battery(&req, band())
         {
-            assert_eq!(policy, RunOutPolicy::RunOutStopAtVertex);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
             saw = true;
         }
     }

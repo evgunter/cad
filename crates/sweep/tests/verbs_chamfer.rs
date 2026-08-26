@@ -295,7 +295,7 @@ fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
             ..
         } => {
             assert_eq!(convex, 2, "two of the three incident edges are convex");
-            assert_eq!(policy, RunOutPolicy::RunOutFeather);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
         }
         other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
     }

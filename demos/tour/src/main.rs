@@ -58,6 +58,7 @@ mod skinned;
 #[cfg(feature = "budget")]
 mod tessbudget;
 mod tube;
+mod twopeg;
 mod uvdump;
 mod walls;
 
@@ -669,6 +670,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!("\n-- the cross-lap joint (#90's boolean-of-boolean, made visible) --");
     for stop in crosslap::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the two-peg plate (M9-3: a declared CYLINDRICAL Rest, and the join \
+         demos/README.md said could not be built) --"
+    );
+    for stop in twopeg::stops(tol) {
         visit(&stop);
     }
 
