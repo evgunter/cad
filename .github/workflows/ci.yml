@@ -2321,10 +2321,16 @@ jobs:
       # `verbs_gate_r1_probes` modules. All of that was dead code in
       # the gate until this line.
       #
-      # COST: the same compilation, one more test binary. The bin's
-      # unit tests link against the crate this row already builds in
-      # release, so the widening pays a link plus the runs themselves,
-      # not a sixth feature unification.
+      # COST, MEASURED on the run that armed it (32973311618, this
+      # row's own draw): release build 2m11, then the bin's unit tests
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # bin's unit tests link against the crate this row already builds
+      # in release, so the widening pays a link plus ~14 s of running,
+      # not a sixth feature unification. (Those same unit tests cost
+      # ~412 s in the DEV profile — the finding-13 rows tessellate the
+      # lily at δ = 2e-3 — which is why this row is the release one and
+      # why widening the dev-default row instead would not have been
+      # free.)
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/tour && cargo test --release
