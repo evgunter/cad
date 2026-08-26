@@ -35,6 +35,9 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "offb_r1_loft_probes.rs"]
+mod offb_r1_loft_probes;
+
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "extrude_acceptance.rs"]
