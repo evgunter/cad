@@ -107,30 +107,57 @@ fn the_coaxial_boss_refuses_at_the_point_split_carrier_door() {
     );
 }
 
-/// #347's measured bound, reproduced through the Rust doors: the
-/// bracket's pocket cut passes at `r ≤ 4 mm` and refuses at `r ≥ 5 mm`,
-/// which is exactly `2r > 8` — the corner round's CARRIER slab reaching
-/// the pocket's `x = 8` wall. The refusal names a LINE edge of the
-/// pocket against the round's cylinder face.
+/// **#347's bound is GONE, and the flip is this row.** It used to
+/// assert what the substrate measured: the pocket cut passed at
+/// `r ≤ 4 mm` and refused at `r ≥ 5 mm`, which is exactly `2r > 8` —
+/// the corner round's CARRIER reaching the pocket's `x = 8` wall while
+/// the round's own ARC stayed 2 mm clear. Two conservatisms in series
+/// produced that: the rim arc and the wall face were both boxed by the
+/// whole circle they ride, which made the pocket edge a candidate at
+/// all; and the line-clearance dip charged a centred-vertex dip to an
+/// edge whose nearest approach is an endpoint.
+///
+/// Both are trim-scoped now, so every radius cuts — and the row meters
+/// the RESULT rather than merely asserting the absence of a refusal: a
+/// door that opened onto a wrong body would pass an `is_ok` check.
+/// The closed form is `bracket.py`'s own: an 80×40 plate less what four
+/// corner rounds of radius `r` take off, times 8 thick, less the
+/// pocket's 5 mm bite.
 #[test]
-fn the_bracket_bound_is_the_carrier_slab_not_the_arc() {
+fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
     let tol = Tol::witness();
-    for r_mm in [3.0_f64, 4.0] {
-        let plate = rounded_plate(80.0, 40.0, r_mm, 8.0);
+    for r in [3.0_f64, 4.0, 5.0, 6.0] {
+        let plate = rounded_plate(80.0, 40.0, r, 8.0);
         let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
-        topo::subtract(&plate, &pocket, tol)
-            .unwrap_or_else(|e| panic!("r = {r_mm} mm must cut: {e:?}"));
-    }
-    for r_mm in [5.0_f64, 6.0] {
-        let plate = rounded_plate(80.0, 40.0, r_mm, 8.0);
-        let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
-        let err = topo::subtract(&plate, &pocket, tol)
-            .expect_err("the carrier-slab candidate refuses today");
+        let out = topo::subtract(&plate, &pocket, tol)
+            .unwrap_or_else(|e| panic!("r = {r} mm must cut: {e:?}"));
+        let topo::BooleanResult::Body(bb) = out else {
+            panic!("r = {r} mm: the cut cannot empty the plate");
+        };
+        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        // Plate area less the four corner bites, times the thickness,
+        // less the pocket's 20×20×5 bite.
+        let expect =
+            (80.0 * 40.0 - r * r * (4.0 - core::f64::consts::PI)) * 8.0 - 20.0 * 20.0 * 5.0;
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-            "r = {r_mm} mm: {err:?}"
+            (v - expect).abs() < 1e-9,
+            "r = {r} mm: metered {v}, closed form {expect}"
         );
     }
+}
+
+/// #347's own headline radius, called out on its own so the issue can
+/// be closed against a named row: **the bracket rounds at 6 mm.**
+#[test]
+fn the_bracket_rounds_at_six_millimetres() {
+    let tol = Tol::witness();
+    let out = topo::subtract(
+        &rounded_plate(80.0, 40.0, 6.0, 8.0),
+        &slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0)),
+        tol,
+    )
+    .expect("#347's requested radius cuts");
+    assert!(matches!(out, topo::BooleanResult::Body(_)));
 }
 
 /// **The no-crossings silence, and the posture that closes it.**

@@ -1167,16 +1167,35 @@ fn curved_face_arm<T: Decide>(
         // maximum is at an endpoint — definitely no wall crossing.
         (Sign::Negative, Sign::Negative) => Ok(false),
         // Both outside: clear through a DIVISION-FREE lower bound on
-        // the span minimum of the convex residual (fix pass: the old
+        // the span minimum of the convex residual. Division-free is a
+        // hard requirement, not a preference: the original
         // parabola-vertex formula divided by the transverse direction
-        // norm, which is 0/0 on axis-parallel edges — the IDEALIZED
-        // sweep examines exactly those at distance and poisoned the
-        // whole op). A convex quadratic dips below its endpoint chord
-        // by at most f″·Δt²/8, and f″ is closed-form per kind, so
-        //   min_span f ≥ min(f(t₀), f(t₁)) − f″·Δt²/8
-        // — total arithmetic, conservative direction (a too-small
-        // bound only sends more pairs to the typed frontier door,
-        // never accepts).
+        // norm, which is 0/0 on an axis-parallel edge — and the
+        // IDEALIZED sweep examines exactly those at distance, so the
+        // poison took the whole op with it.
+        //
+        // **The vertex is CLAMPED to the segment, and that is what the
+        // bound buys.** Write `q = f″·Δt²` and `m = f(t₁) − f(t₀)`,
+        // both metres. For a convex quadratic the interior minimum
+        // exists only when the vertex lies inside the span, which is
+        // exactly `|m| < q/2`; outside that the function is monotone
+        // and its minimum IS an endpoint. So the dip below the
+        // endpoint chord is
+        //   dip = (q/2 − |m|)² / (2q)   when |m| < q/2,  else 0
+        // and since `(q/2 − |m|) ≤ q/2` the quotient is at most
+        // `(q/2 − |m|)/4`. Taking that as the charge keeps the whole
+        // computation in `max` and `min`:
+        //   dip ≤ max(0, q/2 − |m|) / 4
+        // — no division, EXACTLY ZERO when the vertex is outside the
+        // segment, exact again at the centred vertex (`m = 0` gives
+        // `q/8`, the true worst case), and never more than a factor
+        // two loose between. The old `q/8` charged the centred-vertex
+        // dip to every edge whatever its endpoint gap, which is what
+        // made a pocket wall 2 mm clear of a corner round read as a
+        // pierce (#347's measured `r ≥ 5` bound).
+        //
+        // Conservative direction is unchanged: a too-large charge only
+        // sends more pairs to the typed frontier door, never accepts.
         (Sign::Positive, Sign::Positive) => {
             let geom::Curve3::Line { origin: _, dir } = *curve.carrier() else {
                 return Err(frontier()); // unreachable: matched above
@@ -1195,9 +1214,12 @@ fn curved_face_arm<T: Decide>(
                 _ => return Err(frontier()),
             };
             let span = t1 - t0;
-            let dip = f2 * span.powi(2) * T::from_f64(0.125);
             let r_u = geom_brep::implicit_residual(&surface, pu);
             let r_v = geom_brep::implicit_residual(&surface, pv);
+            // q = f''·Δt², m = the endpoint gap; both metres.
+            let q = f2 * span.powi(2);
+            let m = (r_v - r_u).abs();
+            let dip = (q * T::from_f64(0.5) - m).max(T::zero()) * T::from_f64(0.25);
             let min_bound = Margin::of(r_u.min(r_v) - dip);
             match decide("bool_line_cylinder_clearance", min_bound, band) {
                 Ok(Sign::Positive) => Ok(false),
