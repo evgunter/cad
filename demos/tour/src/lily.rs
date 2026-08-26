@@ -1749,26 +1749,38 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    The pair-scoped gate ADMITS this cut: the pucker's box
     //    clears the ball's, so no unsupported KIND can enter the
     //    operation. What refuses is one door later, and it is not a
-    //    germ class — the lantern is a full revolve, so its spherical
-    //    zone is two half-bands on ONE surface key and the operand is
-    //    not maximal-faced (`NonMaximalFaces`, the F7 door, the same
-    //    shape wall 6 meets at its co-surface seam).
+    //    germ class: the operand is not maximal-faced
+    //    (`NonMaximalFaces`, the F7 door).
+    //
+    //    WHICH faces, corrected at M9-5 — this sentence used to name
+    //    the spherical zone's two half-bands on one surface key, and
+    //    that is not the defect. `boolean::reduce`'s
+    //    `gate_maximal_faces` says so in terms: same-key CURVED
+    //    adjacency is the CANONICAL maximal form (a periodic wall
+    //    cannot be one face without its parameterization cut), and
+    //    only the PLANAR same-key pair is the F7 defect. The lantern's
+    //    real defect is its AXIS-TOUCHING PLANAR CAPS: a full revolve
+    //    of a profile that touches the axis emits each such cap as two
+    //    half-faces on one plane key, and that pair is the refusal.
     //
     //    That makes this wall's blocker a PRECONDITION rather than a
-    //    breadth gap: `merge_coplanar_faces` on the operand (or the
-    //    F7 door widening) comes first, and only then the
-    //    sphere×sphere germ arm the geometry actually needs.
+    //    breadth gap — and the obvious repair does not work either,
+    //    which probe 13 measures: `merge_coplanar_faces` REFUSES on
+    //    those caps (`MergedFaceRoleAmbiguous`), because killing both
+    //    seam struts leaves a loop the winding resolution cannot
+    //    assign a role to. So the precondition is a door-widening or
+    //    an authoring change (the corm avoids the class entirely by
+    //    having ANNULAR caps), not a call the scene forgot to make.
     //
-    //    The precondition is measured, and probe 13 measures it: the
-    //    lantern's seam-split planar caps do not merge either, so
-    //    `merge_coplanar_faces` is not the way past this door.
-    //    What is left here
-    //    is the breadth half, and it is DEPENDENCY-STATED like probe
-    //    8's: it waits on the verbs/breadth slate, VERBS-PLAN Wave 2
-    //    items 6 (VERBS-GATE, the per-face-kind gate re-scope) and 9
-    //    (VERBS-SPHSPH, the sphere × sphere germ lane) — the ruling
-    //    that put it there is M9-5's, and the demand signal is this
-    //    probe.
+    //    What is left after that is the breadth half, DEPENDENCY-STATED
+    //    like probe 8's: it waits on the verbs/breadth slate,
+    //    VERBS-PLAN Wave 2 items 6 (VERBS-GATE, the per-face-kind gate
+    //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
+    //    — the ruling that put it there is M9-5's, and the demand
+    //    signal is this probe. NOTE for those items: on this
+    //    measurement a sphere × sphere germ arm alone does not flip
+    //    this wall, because the F7 refusal happens first and is about
+    //    the caps.
     wall(
         7,
         "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
@@ -1862,9 +1874,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     but the two-peg path it was measured on carries a PLANAR
     //     `Rest` at the rim plane as well, and the plant has none to
     //     offer: a stem passes THROUGH its corm, it does not sit on
-    //     it. So the honest statement of this wall is narrow and
-    //     testable — a purely cylindrical mate, with no planar contact
-    //     anywhere on it, does not reach the rest lane today.
+    //     it. So the honest statement of this wall is narrow, testable
+    //     and NOT about plants: a purely cylindrical mate, with no
+    //     planar contact anywhere on it, does not reach the rest lane
+    //     today. Filed as **#1032** with the measurement that isolates
+    //     it — the refusal survives full engagement, partial
+    //     engagement, and the two-peg fixture's own 3-arc face
+    //     structure, so neither the minted rim nor the full-period
+    //     face a revolve makes is the cause.
     let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
     let mut bore_decls = pncad::topo::BooleanDeclarations::none();
     for &fa in &axial_walls(corm_body, STEM_R) {
@@ -1902,7 +1919,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // 13. The door UNDER probe 7, said out loud and probed on its own.
     //     A full revolve whose planar cap TOUCHES THE AXIS arrives as
     //     two half-faces on one plane key — the F7 maximal-faces
-    //     defect — so no such body can ever be a boolean operand. The
+    //     defect (`reduce.rs`'s `gate_maximal_faces`, which says in
+    //     terms that same-key CURVED adjacency is the canonical
+    //     maximal form and only the PLANAR same-key pair is the
+    //     defect) — so no such body can ever be a boolean operand. The
     //     obvious repair is the merge door, and the merge door refuses
     //     too: killing both seam struts leaves a loop the winding
     //     resolution cannot assign a role to, and the op declines to
