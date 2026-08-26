@@ -1278,3 +1278,19 @@ home (a log line or an issue) at adjudication, as part of reading
 the report. M9-5 confirmed dispatched on cad-m8's side (seam D
 only; K2 remains VERBS Wave-2 items 6+9); cross-program threads
 all closed.
+
+## #1029: the OFF-C fixture red at 1e-12 (2026-08-26)
+
+The ARMS-3 lane's draw was the FIRST to gate the adopted OFF-C
+probe fixtures at (default, 1e-12) — two rows red at the shared
+helper's re-attach (IsoResidual, honest: the curved-fit
+marginality the ordinal-76 review itself measured), and nextest
+fail-fast makes it a PROGRAM-WIDE 1e-12 lane-blocker (~567 rows
+unexecuted; same SHA, same draw, no re-roll). The #921/#923
+family's fifth member. Dispositions: #1029 filed with the ARMS-3
+lane's discovery record; the OFF-C lane fixing on verbs/offc-fix
+(the two-arm pattern's fifth application — tests-only, self-merge
+class, orchestrator-adjudicated directly); the PR-A reviewer and
+the queue carry the comparison instruction. The ARMS-3 lane's
+handling was the protocol working end to end: base-run comparison,
+ci-local for own coverage, the finding filed not fixed.
