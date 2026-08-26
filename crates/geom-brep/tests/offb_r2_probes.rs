@@ -20,6 +20,12 @@
 //!   about a rational fit.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// `!(x > y)` is the kernel's NaN-catching idiom (a NaN makes the
+// comparison false, so the negation takes the reject branch); the
+// probes use it in their sampling guards exactly as the evaluation
+// code does. Added at adoption — the reviewer's own lane never lint-
+// gated this file, because its CI draw skipped the clippy point.
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
 
 use core::f64::consts::FRAC_PI_2;
 
@@ -97,7 +103,7 @@ fn v_cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 /// is the only thing the whole hull-side limb rests on.
 #[test]
 fn p1_the_rationalized_residual_inequality_holds_under_the_sign_condition() {
-    let mut rng = Lcg(0x0FF5E7_B_u64);
+    let mut rng = Lcg(0x00FF_5E7B_u64);
     let mut checked = 0usize;
     let mut worst_slack = f64::INFINITY;
     for _ in 0..400_000 {
