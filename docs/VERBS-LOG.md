@@ -1362,3 +1362,18 @@ from this worktree (the known host-lock issue). probe.rs truthing
 green-lit (ARMS-3 made the same non-registration call). The
 offc-fix PR is up (#1035, closing #1029) — adjudicating directly
 on its report per the tests-only ruling.
+
+## #1035 MERGED — #1029 CLOSED; the 1e-12 draws are unblocked (2026-08-26)
+
+The offc-fix adjudicated directly (tests-only class): all four
+fixture rows two-armed through ONE gate helper; the threshold
+proven ε-INDEPENDENT by two routes bit-for-bit at ε three orders
+apart (the stop condition explicitly not triggered); PER-SIGN
+thresholds after the −D arm went red on the first constant (one
+constant would have shipped a silent blind spot); the two
+departures from the #921 family argued (ResidualExceeded carries
+a verdict not a margin, so the helper measures the classified
+quantity and cross-checks its replica against the REAL certifier
+both sides). The CI draw landed on (interval, 1e-12) — the fix
+gated live at the defect's own point. Queue notified (PR-A's
+re-merge picks it up; the frozen ARMS-3 review keeps filtering).
