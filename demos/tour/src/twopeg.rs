@@ -70,8 +70,10 @@ const ENGAGE: f64 = 1.0;
 /// vol(P) = plate + the two pegs' proud stubs; vol(Q) = plate − the
 /// two bores. The π-terms are equal and opposite, so the mated pair is
 /// exactly two plates' worth of material.
-const V_P: f64 = PLATE.0 * PLATE.1 * PLATE.2 + 2.0 * core::f64::consts::PI * PEG_R * PEG_R * ENGAGE / 2.0;
-const V_Q: f64 = PLATE.0 * PLATE.1 * PLATE.2 - 2.0 * core::f64::consts::PI * PEG_R * PEG_R * ENGAGE / 2.0;
+const V_P: f64 =
+    PLATE.0 * PLATE.1 * PLATE.2 + 2.0 * core::f64::consts::PI * PEG_R * PEG_R * ENGAGE / 2.0;
+const V_Q: f64 =
+    PLATE.0 * PLATE.1 * PLATE.2 - 2.0 * core::f64::consts::PI * PEG_R * PEG_R * ENGAGE / 2.0;
 const V_MATED: f64 = 2.0 * PLATE.0 * PLATE.1 * PLATE.2;
 
 /// A plate: the 6×4 footprint, thickness 1, sketched at `z0`.
@@ -115,7 +117,7 @@ fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
         S::from_f64(0.0),
         S::from_f64(z0),
     )));
-    let profile = Profile::new(plane, vec![rim.into()], ).validate(tol).unwrap();
+    let profile = Profile::new(plane, vec![rim.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(S::from_f64(h)), tol)
         .unwrap()
         .body
@@ -232,11 +234,9 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
     for cx in PEG_X {
         for &fa in &peg_walls(p, cx) {
             for &fb in &peg_walls(q, cx) {
-                decls.coincident_faces.push(FacePairDeclaration::new(
-                    fa,
-                    fb,
-                    ContactClass::Rest,
-                ));
+                decls
+                    .coincident_faces
+                    .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
             }
         }
     }
@@ -247,9 +247,7 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
 /// ops): both parts, the UNDECLARED refusal, the DECLARED mate, and
 /// the lifted copy for the apart framing. Returns the undeclared
 /// refusal's narration for the f64 captions.
-pub(crate) fn build<S: Scalar>(
-    tol: Tol,
-) -> (Body<S>, Body<S>, BooleanBody<S>, Body<S>, String) {
+pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, Body<S>, String) {
     let p = plate_with_pegs::<S>(tol);
     let q = plate_with_bores::<S>(tol);
 

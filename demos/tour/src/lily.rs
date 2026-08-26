@@ -392,11 +392,8 @@ fn corm<S: Scalar>(
         .line_to(Start, tol)
         .expect("corm bore wall")
         .into();
-    let plane = SketchPlane::from_frame(
-        pt3(0.0, 0.0, top_z),
-        v3(1.0, 0.0, 0.0),
-        v3(0.0, 0.0, -1.0),
-    );
+    let plane =
+        SketchPlane::from_frame(pt3(0.0, 0.0, top_z), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, -1.0));
     revolve(
         &validated(plane, vec![lp], tol).expect("corm profile validates"),
         sketch_axis(),
