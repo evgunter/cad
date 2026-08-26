@@ -50,7 +50,11 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             "perpendicular unequal radii",
             cyl(0.0, 0.0, 2.0, -3.0, 3.0),
             moved(
-                &turned(&cyl(0.0, 0.0, 0.7, -4.0, 4.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
+                &turned(
+                    &cyl(0.0, 0.0, 0.7, -4.0, 4.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    PI / 2.0,
+                ),
                 Vec3::new(0.0, 0.0, 0.0),
             ),
         ),
@@ -58,7 +62,11 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             "skew axes, crossing walls",
             cyl(0.0, 0.0, 1.0, 0.0, 6.0),
             moved(
-                &turned(&cyl(0.0, 0.0, 0.8, -5.0, 5.0), Vec3::new(1.0, 0.0, 0.0), 0.7),
+                &turned(
+                    &cyl(0.0, 0.0, 0.8, -5.0, 5.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    0.7,
+                ),
                 Vec3::new(0.9, 0.0, 3.0),
             ),
         ),
@@ -66,7 +74,11 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             "no-edge-event lens, unequal radii",
             cyl(0.0, 0.0, 1.0, 0.0, 10.0),
             moved(
-                &turned(&cyl(0.0, 0.0, 0.6, -10.0, 10.0), Vec3::new(0.0, 1.0, 0.0), PI / 2.0),
+                &turned(
+                    &cyl(0.0, 0.0, 0.6, -10.0, 10.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    PI / 2.0,
+                ),
                 Vec3::new(0.0, 1.2, 5.0),
             ),
         ),
@@ -84,7 +96,11 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             "tall thin through short fat",
             cyl(0.0, 0.0, 0.2, -8.0, 8.0),
             moved(
-                &turned(&cyl(0.0, 0.0, 3.0, -1.0, 1.0), Vec3::new(0.0, 1.0, 0.0), PI / 2.0),
+                &turned(
+                    &cyl(0.0, 0.0, 3.0, -1.0, 1.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    PI / 2.0,
+                ),
                 Vec3::new(0.0, 0.0, 0.0),
             ),
         ),
@@ -252,7 +268,9 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
         Point2::new(r, h),
         Point2::new(0.0, h),
     ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol).unwrap();
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
     let axis = sweep::RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
@@ -373,16 +391,25 @@ fn the_r5_bracket_refusal_names_the_pocket_edge_and_the_corner_wall() {
     let geom::Curve3::Line { origin, dir } = carrier else {
         panic!("the named edge is the pocket LINE, got {carrier:?}");
     };
-    assert!((origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9, "the y = 10 pocket edge");
+    assert!(
+        (origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9,
+        "the y = 10 pocket edge"
+    );
     let surf = face_body
         .get_face(face)
         .and_then(|f| face_body.get_surface(f.surface))
         .expect("the named face resolves");
-    let geom::Surface::Cylinder { origin: o, radius, .. } = surf else {
+    let geom::Surface::Cylinder {
+        origin: o, radius, ..
+    } = surf
+    else {
         panic!("the named face is the corner round, got {surf:?}");
     };
     assert!((*radius - 5.0).abs() < 1e-9, "r = 5");
-    assert!((o.x - 5.0).abs() < 1e-9 && (o.y - 5.0).abs() < 1e-9, "corner at (5, 5), got {o:?}");
+    assert!(
+        (o.x - 5.0).abs() < 1e-9 && (o.y - 5.0).abs() < 1e-9,
+        "corner at (5, 5), got {o:?}"
+    );
 }
 
 /// `bracket.py`'s `rounded_plate` (reviewer copy of the probe suite's
@@ -419,7 +446,9 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
-    extrude(&prof, Extrusion::Distance(thick), tol).unwrap().body
+    extrude(&prof, Extrusion::Distance(thick), tol)
+        .unwrap()
+        .body
 }
 
 /// `bracket.py`'s `slab`, in millimetres.
@@ -433,7 +462,9 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
     let prof = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&prof, Extrusion::Distance(z.1 - z.0), tol).unwrap().body
+    extrude(&prof, Extrusion::Distance(z.1 - z.0), tol)
+        .unwrap()
+        .body
 }
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the
