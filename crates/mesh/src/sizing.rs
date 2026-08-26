@@ -285,6 +285,43 @@ mod tests {
         }
     }
 
+    /// VERBS-TESSFOLD review probe (PR #1045): the fold's analytic
+    /// audit re-derived inside the tree, from the scenes' constants and
+    /// nothing observed. `hollowring`'s two wall sizes, the
+    /// `tube_along_arc` reference pair, and `diecomposed`'s pip-rim
+    /// blend tori are exactly what [`torus_grid_step`] prices — the
+    /// rim torus's major radius and arc are derived here from the
+    /// rolling-ball construction (ball tangent to the top plane and
+    /// externally tangent to the cavity sphere), so no number in this
+    /// row was read off a CSV first.
+    #[test]
+    fn tessfold_r1_torus_rows_rederive_from_scene_constants() {
+        use core::f64::consts::PI;
+        let tris = |delta: f64, major: f64, minor: f64, uspan: f64, vspan: f64| {
+            let h = cap_angular(torus_grid_step(delta * 0.5, major, minor));
+            2 * ceil_count(uspan, h).unwrap() * ceil_count(vspan, h).unwrap()
+        };
+        // hollowring (demos/tour/src/ring.rs): R = 0.30, walls
+        // r_i = 0.05 / r_o = 0.07, delta = 2e-3; each wall is two
+        // half-tube faces (uspan 2*pi, vspan pi).
+        assert_eq!(tris(2e-3, 0.30, 0.05, 2.0 * PI, PI), 47_524);
+        assert_eq!(tris(2e-3, 0.30, 0.07, 2.0 * PI, PI), 52_670);
+        // tube_along_arc (demos/tour/src/tube.rs): R = 2, r = 0.5,
+        // delta = 1e-2, arc T1 - T0 = 1.5.
+        assert_eq!(tris(1e-2, 2.0, 0.5, 1.5, PI), 17_152);
+        // diecomposed pip-rim blend (demos/tour/src/diefillet.rs):
+        // RIM_R = 0.02 ball between the face plane and the
+        // PIP_R = 0.09 cavity sphere whose centre stands
+        // d = PIP_R - PIP_H = 0.04 off the plane; centre circle
+        // rho = sqrt((R+r)^2 - (d+r)^2), arc acos((d+r)/(R+r));
+        // delta = 5e-3, full rim (uspan 2*pi).
+        let (pip_r, pip_h, rim_r) = (0.09_f64, 0.05, 0.02);
+        let d = pip_r - pip_h;
+        let major = ((pip_r + rim_r).powi(2) - (d + rim_r).powi(2)).sqrt();
+        let vspan = ((d + rim_r) / (pip_r + rim_r)).acos();
+        assert_eq!(tris(5e-3, major, rim_r, 2.0 * PI, vspan), 2_080);
+    }
+
     /// [`cap_angular`]'s documented total behaviour. The obvious-looking
     /// rewrite `if step > MAX { MAX } else { step }` is NOT equivalent —
     /// it returns NaN — and nothing else in the tree would notice.
