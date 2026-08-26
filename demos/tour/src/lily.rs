@@ -1426,12 +1426,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // The KIND is the claim: the refusal names a TORUS face, i.e.
         // the tangent tube walls, not the coincident planar discs.
         |e| {
+            // Reviewer pin (r1 probes): PR body claims (Torus, Plane).
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -1447,12 +1449,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "weld the lantern onto the arch (torus tube x sphere zone)",
         pncad::topo::union(lant, arch, tol),
         |e| {
+            // Reviewer pin (r1 probes): PR body claims (Cone, Torus).
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             )
@@ -2457,5 +2461,105 @@ mod review_probes {
                  the lofted_blade prose, and the filed frontier together"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod verbs_gate_r1_probes {
+    //! Reviewer probes (PR #1001 r1): the wall-7 steering correction,
+    //! measured with the reviewer's own arithmetic rather than the
+    //! kernel's boxes.
+
+    use super::*;
+    use pncad::topo::Surface;
+
+    /// The wall-7 finding, re-derived with the reviewer's own
+    /// arithmetic — and the measurement REVERSES the reading the wall
+    /// text invites. The refusal names (Cone, Sphere): the pucker's
+    /// SLAB BOX overlaps the carving ball's box, and that is real —
+    /// but the pucker's EXACT frustum never comes within the ball's
+    /// radius of it, while the sphere ZONE's carrier does meet the
+    /// ball. So the pair the gate names is pure box looseness (the
+    /// cone slab claims max-generator radius along its whole axial
+    /// range); the geometry the model cares about is still
+    /// sphere-on-sphere, and a tighter cone box would restore the
+    /// original steering premise (waits on item 9) without any cone
+    /// germ lane.
+    #[test]
+    fn wall7_the_cone_pair_is_box_looseness_the_ball_meets_the_zone() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let lant = &pieces
+            .iter()
+            .find(|p| p.name == "lily_lantern")
+            .expect("lantern piece")
+            .body;
+        // The carving ball of wall 7, in its own numbers.
+        let (bc, br) = (Point3::new(-2.80, 0.0, 0.90), 0.16);
+        let mut min_frustum_gap = f64::INFINITY;
+        let mut zone_hit = false;
+        for (_, f) in lant.faces() {
+            match lant.get_surface(f.surface) {
+                Some(&Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    ..
+                }) => {
+                    let mut v_lo = f64::INFINITY;
+                    let mut v_hi = f64::NEG_INFINITY;
+                    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                        let Some(l) = lant.get_loop(lk) else { continue };
+                        let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
+                            continue;
+                        };
+                        for he in lant.loop_cycle(first).expect("walkable lantern loop") {
+                            let v = lant.get_half_edge(he).expect("half-edge").start;
+                            let p = *lant
+                                .get_vertex(v)
+                                .and_then(|vd| lant.get_point(vd.point))
+                                .expect("vertex point");
+                            let h = (p - apex).dot(axis);
+                            v_lo = v_lo.min(h);
+                            v_hi = v_hi.max(h);
+                        }
+                    }
+                    let w = bc - apex;
+                    let h = w.dot(axis);
+                    let rad = (w - axis * h).norm();
+                    let seg = |h0: f64, r0: f64, h1: f64, r1: f64| -> f64 {
+                        let (dx, dy) = (h1 - h0, r1 - r0);
+                        let t = (((h - h0) * dx + (rad - r0) * dy) / (dx * dx + dy * dy))
+                            .clamp(0.0, 1.0);
+                        let (px, py) = (h0 + t * dx, r0 + t * dy);
+                        ((h - px).powi(2) + (rad - py).powi(2)).sqrt()
+                    };
+                    let ta = half_angle.tan();
+                    let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta) - br;
+                    min_frustum_gap = min_frustum_gap.min(d);
+                }
+                Some(&Surface::Sphere { center, radius, .. }) => {
+                    let d = (center - bc).norm();
+                    if d <= radius + br && d + br >= radius {
+                        zone_hit = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        println!(
+            "wall-7 probe: min frustum-to-ball surface gap = {min_frustum_gap:.4} \
+             (positive = clear); sphere zone carrier meets ball = {zone_hit}"
+        );
+        assert!(
+            min_frustum_gap > 0.0,
+            "the pucker's exact frustum reaches the ball after all — the box-artifact \
+             reading is wrong, re-derive"
+        );
+        assert!(
+            zone_hit,
+            "the carving ball no longer meets the sphere zone — the wall is not even \
+             asking a sphere-on-sphere question any more"
+        );
     }
 }
