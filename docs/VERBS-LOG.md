@@ -1408,3 +1408,13 @@ The bench/benchlayout provenance gets CHECKED, not accepted
 corroborated the finding-13 pins (no re-pin owed) and refuted
 their own predicted firing row (granular gate: new bodies =
 new coverage).
+
+## PR-A MERGED (#1021, 2026-08-26) — the germ substrate is in; PR-B dispatches
+
+Row CYLCYL-A (ordinal 77) in MODEL-AB-LOG. Every later germ lane
+now has: the curved containment door, the pair-general dispatch
+with the trap closed by proof, and the no-crossings typed posture
+(the 30π wrong answer retired). PR-B (the arms — parallel-axis
+first, #347's whole need; Steinmetz second) dispatches to the same
+lane per the two-PR shape; the bracket rounding at 6mm is its
+acceptance and #347 closes at its merge.
