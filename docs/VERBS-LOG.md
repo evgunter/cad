@@ -1071,3 +1071,34 @@ a two-PR unit (A = substrate, B = arms; #347 needs only the
 parallel-axis class); the sequence reorders 7 → 9 → 8 with the
 rung argument; klein wall 3 re-attributed to row 10. PR-A
 difficulty L logged pre-dispatch; consumes block VERBS-4 slot 2.
+
+## ARMS-3 RATIFIED (#992 👍, merged 2026-08-26); implementation dispatched
+
+The run-out taxonomy resolved as drafted: the seam vertex is NOT a
+corner (SeamVertex refusal with the request-the-full-rim recourse,
+machinery-free); the genuine mid-curve run-out pair parked
+consumer-gated (ball-cap presumptive). One implementation unit
+dispatched: the general sphere×sphere arm (ARMS-2's circle×circle
+closed form), the SeamVertex refusal, register sync; #319 closes
+fully at its merge. Difficulty M logged pre-dispatch; block
+VERBS-4 slot 3; lane verbs-arms3. Three implementation lanes live
+(OFF-C green-awaiting-report, CYLCYL PR-A, ARMS-3).
+
+## OFF-C up (#1012); ordinal 76 claimed at dispatch (2026-08-26)
+
+The seventh Surface variant complete: the triple with the owned-Arc
+base (the spec's arena-key default inverted on two concrete
+obstructions — layering and self-containment — per the
+state-the-choice clause), the certifier INJECTED (the
+certify_nurbs_lane posture, RationalFitUnsupported propagating
+untouched), the ~40-site enumeration with every split catch-all
+named and one latent hole caught (certify.rs's resolve would have
+METERED POISON on an Approx operand instead of refusing — a
+matches! the compiler could not surface), the validator's
+never-trust arm, and the apex-window dissolution executed (the
+base is NurbsSurface BY TYPE). The GATE re-scope was reconciled
+mid-flight (Approx off both rosters by argued decision; the
+refusal now germ-pair-shaped). **Ordinal 76 claimed at dispatch**
+(through 75 on main; not a third) — single fable review, frozen
+597acdb6. The hosted draws were both interval again; the default
+mode is the reviewer's unique signal.
