@@ -45,6 +45,12 @@ pub(super) struct ZipReport {
     /// The seam edges surviving the zip (the outer cycle's edges), in
     /// cycle order.
     pub seam_edges: Vec<crate::entity::EdgeKey>,
+    /// Seam edges KILLED by this zip as R-interior structure (the
+    /// already-fused runs a slit zip consumes — e.g. the meridian
+    /// seams of a closed cosurface band, which are segments AND
+    /// interior to the contact region). Empty for a plain
+    /// [`zip_seam`].
+    pub interior_edges: Vec<crate::entity::EdgeKey>,
 }
 
 /// Zips one section-face pair (module docs).
