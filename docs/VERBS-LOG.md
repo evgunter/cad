@@ -1238,3 +1238,18 @@ PR-A reported (green; the D10 silence caught EXECUTING a wrong
 answer — 30π with the lens double-counted, now a typed refusal;
 #347's defect (a) re-diagnosed as two OTHER conservatisms, both
 single-arm PR-B fixes) — its review claims ordinal 77 next.
+
+## PR-A up (#1021); ordinal 77 claimed at dispatch (2026-08-26)
+
+The germ substrate landed green: D3's containment door REUSING the
+solid door's trim resolution (shared pub(super) — cannot drift),
+the D5 trap closed FIRST with pair-general signatures, D10 ruled
+typed-refusal — and the report's two heavyweight findings: the
+D10 silence was caught EXECUTING a wrong answer (a union returning
+Ok at exactly 30π with the shared lens double-counted — now
+refused), and #347's defect (a) re-diagnosed by measurement as two
+DIFFERENT conservatisms (the carrier-slab wall box + the
+span-dip's unclamped vertex), both single-arm PR-B fixes with the
+red-able row waiting. **Ordinal 77 claimed at dispatch** (through
+76 on main; duals SUSPENDED per #1016's in-force recommendation —
+single fable review), frozen 845aab0f.
