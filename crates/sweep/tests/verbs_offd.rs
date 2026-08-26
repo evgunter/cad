@@ -348,6 +348,47 @@ fn an_apex_window_crossing_refuses_typed() {
     );
 }
 
+/// **A shared chart is a multi-face operand, and the door says so
+/// before it computes anything.** An extruded disc's two wall faces
+/// carry ONE cylinder surface (the profile is two semicircular arcs),
+/// which is the natural form of the sharing `step-import`'s adoption
+/// also produces. Replacing one wall would re-point the shared vertical
+/// seams at a fresh key while the other wall kept the old chart.
+#[test]
+fn a_shared_surface_key_refuses_typed() {
+    let v = |x: f64, y: f64| ProfileVertex::new(p2(x, y), 1.0);
+    let lp = ProfileLoop::new(vec![v(-0.5, 0.0), v(0.5, 0.0)]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("a disc is a valid profile");
+    let mut body = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
+        .expect("the disc extrudes")
+        .body;
+    let wall = body
+        .faces()
+        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+        .map(|(k, _)| k)
+        .expect("the extruded disc has cylinder walls");
+    let shared = body.get_face(wall).unwrap().surface;
+    assert_eq!(
+        body.faces().filter(|(_, f)| f.surface == shared).count(),
+        2,
+        "the fixture's two wall faces really do share one surface"
+    );
+    let before = format!("{body:?}");
+    let e = topo::replace_face_offset(&mut body, wall, 0.05, FIT_TOL, band(), Tol::witness())
+        .expect_err("a shared chart is a multi-face operand");
+    assert!(
+        matches!(e, ReplaceFaceError::SharedSurfaceKey { face: f, .. } if f == wall),
+        "expected the shared-key refusal naming {wall:?}, got {e}"
+    );
+    assert_eq!(
+        format!("{body:?}"),
+        before,
+        "the refusal is decided before anything is computed or written"
+    );
+}
+
 // ---------------------------------------------------------------------
 // The `Approx` row
 // ---------------------------------------------------------------------
