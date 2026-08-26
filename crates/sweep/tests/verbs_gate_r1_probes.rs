@@ -50,18 +50,33 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         .body
 }
 
+/// The vase's bulge-arc data, shared by the fixture and the analytic
+/// volume: bulge b = 0.6 on the vertical chord (0.5, 1) → (0.5, 1.5),
+/// so sagitta s = b·c/2, arc radius R = ((c/2)² + s²)/(2s), centre
+/// (0.5 + s − R, 1.25). b < 1 keeps the arc's end tangents off both
+/// neighbouring segments (no undeclared tangency) and R < centre-x
+/// keeps the revolved torus a ring torus (r < R).
+const BULGE: f64 = 0.6;
+
+fn bulge_arc() -> (f64, f64, f64) {
+    let (c, half) = (0.5, 0.25);
+    let s = BULGE * c / 2.0;
+    let r_arc = (half * half + s * s) / (2.0 * s);
+    let cx = 0.5 + s - r_arc;
+    (cx, r_arc, half)
+}
+
 /// A "vase": a solid of revolution about z with a straight cylinder
-/// wall of radius 0.5 over z ∈ [0, 1] and a half-circle BULGE arc
-/// (radius 0.25, centred at (0.5, 1.25) in the profile) over
+/// wall of radius 0.5 over z ∈ [0, 1] and a BULGE arc over
 /// z ∈ [1, 1.5] — the bulge revolves to a genuine TORUS band
-/// (R = 0.5, r = 0.25, axis z), the kernel's own authorship, not a
-/// relabel. Closed by discs at z = 0 and z = 1.5.
+/// (the kernel's own authorship, not a relabel). Closed by discs at
+/// z = 0 and z = 1.5.
 fn vase() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, 0.0), 0.0),
         ProfileVertex::new(p2(0.5, 0.0), 0.0),
-        ProfileVertex::new(p2(0.5, 1.0), 1.0), // half-circle bulge to (0.5, 1.5)
+        ProfileVertex::new(p2(0.5, 1.0), BULGE), // bulge arc to (0.5, 1.5)
         ProfileVertex::new(p2(0.5, 1.5), 0.0),
         ProfileVertex::new(p2(0.0, 1.5), 0.0),
     ]);
@@ -102,11 +117,17 @@ fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
     let out = topo::union(&a, &b, Tol::witness())
         .expect("the torus band clears the brick; the pair gate must admit this union");
     let body = &out.body().expect("a non-empty union").body;
-    // vase = cylinder (π r² · 1) + top segment: revolved half-disc
-    // (Pappus: 2π · x̄ · A, x̄ = 0.5 + 4·0.25/(3π), A = π·0.25²/2)
-    // + inner cylinder over the bulge's z-range (π r² · 0.5).
-    let bulge = 2.0 * PI * (0.5 + 4.0 * 0.25 / (3.0 * PI)) * (PI * 0.25 * 0.25 / 2.0);
-    let vase_vol = PI * 0.25 * 1.0 + PI * 0.25 * 0.5 + bulge;
+    // vase = bottom cylinder (π·0.5²·1) + the bulge solid of
+    // revolution: x(z) = cx + √(R² − (z − 1.25)²) over the half-chord
+    // a, V = π ∫ x² dz = π [cx²·2a + 2·cx·Iq + (R²·2a − 2a³/3)] with
+    // Iq = 2[(a/2)·√(R² − a²) + (R²/2)·asin(a/R)] — the reviewer's
+    // own integral, not the kernel's.
+    let (cx, r_arc, a) = bulge_arc();
+    let iq =
+        2.0 * (a / 2.0 * (r_arc * r_arc - a * a).sqrt() + r_arc * r_arc / 2.0 * (a / r_arc).asin());
+    let top = PI
+        * (cx * cx * 2.0 * a + 2.0 * cx * iq + (r_arc * r_arc * 2.0 * a - 2.0 * a * a * a / 3.0));
+    let vase_vol = PI * 0.25 * 1.0 + top;
     let brick_vol = 2.0 * 2.0 * 0.4;
     let overlap = PI * 0.25 * 0.4; // the cylinder's core inside the brick
     let want = vase_vol + brick_vol - overlap;
@@ -120,7 +141,8 @@ fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
 
 /// **E2E row 2 — the refused pose.** The same brick raised into the
 /// torus band's box (z ∈ [1.05, 1.45] overlaps the whole-torus box
-/// z ∈ [1.0, 1.5]) must refuse naming the (Torus, _) pair — even
+/// z ∈ [1.25 ± R_arc] ≈ [0.97, 1.53]) must refuse naming the
+/// (Torus, _) pair — even
 /// though the brick still genuinely intersects the solid only through
 /// supported faces, the box MAY meet and the gate has no arm for the
 /// pair.
@@ -176,14 +198,12 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
         }
         Err(other) => panic!("unexpected refusal shape for the fallback path: {other:?}"),
         Ok(out) => {
-            // If this ever succeeds, it must be the honest assembly.
-            let body = &out.body().expect("a non-empty union").body;
-            let got = vol(body);
-            let bulge = 2.0 * PI * (0.5 + 4.0 * 0.25 / (3.0 * PI)) * (PI * 0.25 * 0.25 / 2.0);
-            let want = PI * 0.25 * 1.0 + PI * 0.25 * 0.5 + bulge + 1.0;
-            assert!(
-                (got - want).abs() < 1e-6,
-                "a disjoint union that completes must be the assembly: {got} vs {want}"
+            // If this ever succeeds, it must be the honest assembly:
+            // report loudly so the pinned frontier is re-derived.
+            panic!(
+                "the disjoint torus union now COMPLETES ({:?}) — the fallback \
+                 grew a torus arm; re-derive this probe",
+                out.body().map(|b| b.kind)
             );
         }
     }
