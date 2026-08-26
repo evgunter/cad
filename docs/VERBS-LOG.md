@@ -1041,3 +1041,16 @@ REFUSAL ATTRIBUTION inherits the precision of the instrument that
 attributed it — the review's independent derivation is what
 caught it. Fix pass out with the union; the point-in-solid
 cone/torus capability files as its own unit.
+
+## GATE MERGED (#1001, 2026-08-26) — #862/#700 CLOSED; the wall-7 saga resolved
+
+Row GATE (ordinal 74) in MODEL-AB-LOG. The pair-scoped gate lands
+with honest boxes for every kind and the containment boundary
+typed honestly (#1011 the scheduled capability). The wall-7 record
+went through three states in three days — (waits on 6+9) →
+(+ cone lane) → (a full-revolve face-maximality precondition;
+never curved-boolean breadth at all) — each transition driven by a
+better instrument, and the final one by the fix pass's live
+numbers. Plan rows 6/9 corrected; M9's seam prose synced by the
+lane; the courtesy note to M9 goes on #1002's thread. Wave 2's
+germ lanes (rows 7-10) now dispatch against an honest gate.
