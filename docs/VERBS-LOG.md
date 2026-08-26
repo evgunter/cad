@@ -1110,3 +1110,17 @@ launch was skipped when the session interleaved — caught at the
 next hourly tick (the branch sat at main's head). Actually
 dispatched ~1h later than the entry claims. The tick sweep is what
 caught it; recorded per the no-unverified-claims rule.
+
+## Ordinal-76 returned; OFF-C fix pass out (2026-08-26)
+
+AWF 3/3, zero MAJOR — the ~40-site enumeration held under the
+reviewer's own differently-shaped sweeps, which found exactly two
+latent gate-shielded gaps (reduce.rs's crossing guard and the
+Circle-chain guard's unswept sibling). The substantive
+adjudication: tier 3 was re-establishing the surface's
+SELF-DECLARED tolerance — ruled to the edge posture (re-derive
+against the RUN's ε_precision; O3's claim is ≤ ε_precision and D4
+blesses the escalate-on-tightening consequence). The reviewer's
+empirical sharpening for OFF-D: on curved fits the seam carrier
+needs KNOT REFINEMENT, not degree elevation alone (the fit
+refines past the seed grid even at d = 5e-10). Fix pass out.
