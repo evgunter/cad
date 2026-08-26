@@ -66,7 +66,12 @@
 //! window that crosses zero images the MIRROR nappe — geometry the
 //! offset mint is right to produce and this door must not silently call
 //! a face's offset. The margined predicate `offset_apex_window` decides
-//! `inf(v-window) + d·cot α` before anything is minted.
+//! `inf(v-window) + d·cot α` before anything is minted — and its mirror
+//! `−(sup(v-window) + d·cot α)` on the OTHER nappe, which is not an
+//! extra case but the same statement: revolve aims every cone's chart
+//! axis at `+a₃`, so a downward-opening cone sweeps `v < 0` and its
+//! window's near end is its supremum. A window that already reaches the
+//! apex has no single nappe to offset and refuses on the same variant.
 //!
 //! # Discipline
 //!
@@ -144,14 +149,14 @@ pub enum ReplaceFaceError<T: Real> {
         face: FaceKey,
         /// The window's infimum on the base chart, in meters of slant.
         v_min: T,
+        /// The window's supremum on the base chart.
+        v_max: T,
         /// The parameter shift `d·cot α` the offset applies.
         shift: T,
     },
-    /// The face carries a cone but its chart window is not derivable —
-    /// a boundary half-edge has no pcurve cache, so there is no window
-    /// to decide the apex predicate over. Refusing is the only honest
-    /// answer: inventing a window would decide the predicate on made-up
-    /// data.
+    /// The face carries a cone but has no boundary carrier to read a
+    /// `v`-window off. Refusing is the only honest answer: inventing a
+    /// window would decide the apex predicate on made-up data.
     ApexWindowUnknown {
         /// The cone-faced face with no derivable window.
         face: FaceKey,
@@ -166,6 +171,18 @@ pub enum ReplaceFaceError<T: Real> {
         kind: SurfaceKind,
         /// The untouched neighbour's kind.
         other_kind: SurfaceKind,
+    },
+    /// **The bounded-chart boundary.** A fitted chart covers exactly
+    /// its own parameter window, so a boundary edge it does not carry
+    /// as one of its own rows cannot follow the moved face: the
+    /// neighbour that holds the edge would have to EXTEND to meet it,
+    /// and a bounded chart does not extend. Named per edge, with what
+    /// the edge presented.
+    FittedBoundaryUnsupported {
+        /// The edge the fitted chart cannot carry.
+        edge: EdgeKey,
+        /// What the edge presented, in the door's own words.
+        what: &'static str,
     },
     /// The pair routes, but this door does not mint a carrier for the
     /// (surface kind, carrier kind) combination the edge presents. A
@@ -256,17 +273,22 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 "replace_face_offset: {face:?} carries the not-yet-described placeholder \
                  surface, which has no locus to offset"
             ),
-            Self::ApexWindow { face, v_min, shift } => write!(
+            Self::ApexWindow {
+                face,
+                v_min,
+                v_max,
+                shift,
+            } => write!(
                 f,
-                "replace_face_offset: {face:?}'s v-window infimum ({v_min:?} m of slant) shifted \
-                 by the cone offset's d·cot α ({shift:?} m) reaches or crosses the apex — the \
-                 minted cone's nappe attribution flips inside the window, so it is not this \
-                 face's offset"
+                "replace_face_offset: {face:?}'s v-window [{v_min:?}, {v_max:?}] (m of slant) \
+                 shifted by the cone offset's d·cot α ({shift:?} m) reaches or crosses the apex \
+                 — the minted cone's nappe attribution flips inside the window, so it is not \
+                 this face's offset"
             ),
             Self::ApexWindowUnknown { face } => write!(
                 f,
-                "replace_face_offset: {face:?} carries a cone but a boundary half-edge has no \
-                 pcurve cache, so the apex-window predicate has no window to decide over"
+                "replace_face_offset: {face:?} carries a cone but has no boundary carrier, so \
+                 the apex-window predicate has no window to decide over"
             ),
             Self::NeighborPairUnroutable {
                 edge,
@@ -276,6 +298,13 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "replace_face_offset: {edge:?} cannot be re-described — {}",
                 geom_brep::intersect::route(*kind, *other_kind).refusal(*kind, *other_kind)
+            ),
+            Self::FittedBoundaryUnsupported { edge, what } => write!(
+                f,
+                "replace_face_offset: {edge:?} is on a fitted face's boundary but is not one of \
+                 the fit's own rows ({what}) — a bounded chart covers only its own window, so \
+                 the untouched neighbour holding this edge would have to extend to meet the \
+                 moved face"
             ),
             Self::CarrierLaneUnsupported { edge, what } => write!(
                 f,
@@ -631,16 +660,47 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
 
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
-    if let Surface::Cone { .. } = old_surface {
-        let v_min =
-            face_v_window_min(body, face).ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
-        let realized = v_min + shift;
-        match decide("offset_apex_window", Margin::of(realized), band)
-            .map_err(|source| ReplaceFaceError::Escalated { source })?
-        {
+    if let Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = old_surface
+    {
+        let (v_min, v_max) = face_cone_v_window(body, face, apex, axis, half_angle.cos())
+            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+        // Which nappe the face lives on decides which end of its window
+        // is the one nearest the apex — and a window that already
+        // straddles the apex is a face with no single nappe to offset.
+        let esc = |source| ReplaceFaceError::Escalated { source };
+        let low = decide("offset_apex_nappe", Margin::of(v_min), band).map_err(esc)?;
+        let high = decide("offset_apex_nappe", Margin::of(v_max), band).map_err(esc)?;
+        let (v_near, sense) = match (low, high) {
+            (Sign::Positive, _) => (v_min, T::one()),
+            (_, Sign::Negative) => (v_max, -T::one()),
+            // Zero at either end, or opposite signs: the window reaches
+            // the apex before any offset is applied.
+            _ => {
+                return Err(ReplaceFaceError::ApexWindow {
+                    face,
+                    v_min,
+                    v_max,
+                    shift,
+                });
+            }
+        };
+        // `inf(v-window) + d·cot α > 0` on the opening nappe, and its
+        // mirror on the other — one margin, signed by the nappe.
+        let realized = (v_near + shift) * sense;
+        match decide("offset_apex_window", Margin::of(realized), band).map_err(esc)? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => {
-                return Err(ReplaceFaceError::ApexWindow { face, v_min, shift });
+                return Err(ReplaceFaceError::ApexWindow {
+                    face,
+                    v_min,
+                    v_max,
+                    shift,
+                });
             }
         }
     }
@@ -652,6 +712,7 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
         plans.push(plan_edge(
             body,
             edge,
+            face,
             &old_surface,
             old_key,
             &new_surface,
@@ -766,28 +827,103 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
     }
 }
 
-/// The infimum of `face`'s `v`-window, read off the boundary's own
-/// pcurve caches (the same self-referential hull the mint and the
-/// validator derive a face's chart window from). `None` when a boundary
-/// half-edge carries no cache.
-fn face_v_window_min<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<T> {
-    let face_data = body.get_face(face)?;
-    let mut v_min: Option<T> = None;
-    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first)? {
-            let cache = body.pcurve(he)?;
-            let (t0, t1) = cache.params();
-            let w = cache.pcurve().chart_box(t0, t1);
-            v_min = Some(match v_min {
-                None => w.v_min,
-                Some(m) => m.min(w.v_min),
-            });
+/// `face`'s `v`-window on a cone chart: the hull of its BOUNDARY
+/// carriers' `v`-ranges.
+///
+/// `v` is an affine functional of position on a cone chart
+/// (`v = (p − apex)·axis / cos α`), so each carrier's range is closed
+/// form — endpoints for a line, centre ± amplitude for a conic, the
+/// control net's own hull for a spline (the convex-hull property). And
+/// a coordinate's extremes over a compact chart region are attained on
+/// its boundary, so the hull of the boundary's ranges IS the face's
+/// window. Nothing is sampled and nothing is padded.
+///
+/// `None` when the face has no boundary carrier to read.
+fn face_cone_v_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    cos_a: T,
+) -> Option<(T, T)> {
+    let mut window: Option<(T, T)> = None;
+    for edge in boundary_edges(body, face)? {
+        let edge_data = body.get_edge(edge)?;
+        let curve = body
+            .get_curve_geom(edge_data.curve)
+            .and_then(crate::null::CurveGeom::certified)?;
+        let (t0, t1) = curve.params();
+        let (lo, hi) = cone_v_range(curve.carrier(), t0, t1, apex, axis, cos_a);
+        window = Some(match window {
+            None => (lo, hi),
+            Some((a, b)) => (a.min(lo), b.max(hi)),
+        });
+    }
+    window
+}
+
+/// The `v`-range of one carrier on a cone chart (see
+/// [`face_cone_v_window`]).
+fn cone_v_range<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    cos_a: T,
+) -> (T, T) {
+    let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    match carrier {
+        // `v` is affine in `t`, so the endpoints are the extremes.
+        Curve3::Line { .. } => {
+            let (a, b) = (v_of(carrier.eval(t0)), v_of(carrier.eval(t1)));
+            (a.min(b), a.max(b))
+        }
+        // A conic's `v` is `centre ± amplitude·cos(θ − φ)`: the
+        // amplitude is the semi-axes' own components along the cone
+        // axis. Taken over the FULL period, which is conservative on a
+        // sub-arc and exact on a closed rim.
+        Curve3::Circle {
+            center,
+            axis: ca,
+            radius,
+            u_ref,
+        } => {
+            let v_ref = ca.cross(*u_ref);
+            let amp = ((u_ref.dot(axis) * *radius).powi(2) + (v_ref.dot(axis) * *radius).powi(2))
+                .sqrt()
+                / cos_a;
+            let c = v_of(*center);
+            (c - amp, c + amp)
+        }
+        Curve3::Ellipse {
+            center,
+            axis: ca,
+            major,
+            minor,
+            u_ref,
+        } => {
+            let v_ref = ca.cross(*u_ref);
+            let amp = ((u_ref.dot(axis) * *major).powi(2) + (v_ref.dot(axis) * *minor).powi(2))
+                .sqrt()
+                / cos_a;
+            let c = v_of(*center);
+            (c - amp, c + amp)
+        }
+        // The convex-hull property: the image lies in the hull of the
+        // control polygon, and an affine functional's range over a hull
+        // is its range over the vertices.
+        Curve3::Nurbs(n) => {
+            let mut lo: Option<T> = None;
+            let mut hi: Option<T> = None;
+            for p in n.control() {
+                let v = v_of(*p);
+                lo = Some(lo.map_or(v, |x: T| x.min(v)));
+                hi = Some(hi.map_or(v, |x: T| x.max(v)));
+            }
+            (lo.unwrap_or_else(T::zero), hi.unwrap_or_else(T::zero))
         }
     }
-    v_min
 }
 
 /// `face`'s boundary edges, in loop-then-cycle order, each once.
@@ -815,6 +951,7 @@ fn boundary_edges<T: Real>(body: &Body<T>, face: FaceKey) -> Option<Vec<EdgeKey>
 fn plan_edge<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
+    face: FaceKey,
     old_surface: &Surface<T>,
     old_key: SurfaceKey,
     new_surface: &Surface<T>,
@@ -853,6 +990,29 @@ fn plan_edge<T: Decide>(
     ) = (&description, new_surface)
     {
         if *surface == old_key {
+            // The seam this row carries is shared with whatever face
+            // sits on the other side. If THAT face is a bounded chart
+            // too, it would have to move with this one to keep holding
+            // the edge — which is a body-wide offset, not a
+            // face-replacement, and this door says so rather than
+            // storing a row the neighbour's own lane will reject.
+            let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
+            let other = if fa == face { fb } else { fa };
+            if other != face
+                && matches!(
+                    body.get_surface(
+                        body.get_face(other)
+                            .ok_or(ReplaceFaceError::Corrupt)?
+                            .surface
+                    ),
+                    Some(Surface::Nurbs(_) | Surface::Approx(_))
+                )
+            {
+                return Err(ReplaceFaceError::FittedBoundaryUnsupported {
+                    edge,
+                    what: "a seam shared with another bounded chart",
+                });
+            }
             let fit = approx.fit();
             let (fu0, fu1) = fit.knots_u().domain();
             let at = |edge_param: T, domain: f64| -> Result<bool, ReplaceFaceError<T>> {
@@ -900,6 +1060,25 @@ fn plan_edge<T: Decide>(
                 p_end,
             });
         }
+    }
+
+    // Past the fit's own rows, a fitted face's boundary has nowhere to
+    // go: every remaining lane transports a carrier off the chart that
+    // is supposed to hold it.
+    if matches!(new_surface, Surface::Approx(_)) {
+        return Err(ReplaceFaceError::FittedBoundaryUnsupported {
+            edge,
+            what: match description {
+                EdgeGeometry::IsoCurve { .. } => "an iso-curve of a neighbour's chart",
+                EdgeGeometry::Seam { .. } => "a periodic seam",
+                EdgeGeometry::MappedCurve(_) => {
+                    "a mapped rim (a v-row is not an `IsoCurve`, which is u-const by definition)"
+                }
+                EdgeGeometry::Intersection { .. } | EdgeGeometry::TangentIntersection { .. } => {
+                    "an intrinsic intersection with an untouched neighbour"
+                }
+            },
+        });
     }
 
     let (carrier, delta) = transport_curve(old_surface, d, &old_carrier, mid, band)
@@ -1191,4 +1370,12 @@ fn move_mapped_endpoint<T: Real>(
         },
         place,
     })
+}
+
+/// The two faces an edge separates (they coincide on a seam).
+fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(FaceKey, FaceKey)> {
+    let e = body.get_edge(edge)?;
+    let face_of =
+        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
 }
