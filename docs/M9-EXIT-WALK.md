@@ -93,17 +93,21 @@ MET / MET-WITH-RECORDED-HONESTY / CARRIED (named owner).
    sequencing is recorded because approving before one's own check
    lands is a thing a reader should be able to see and judge.
 
-6. **Hosted CI is green on every merge, with one confirmation
-   pending on infrastructure.** Each M9 unit merged only on its own
-   fully-green head. At the time of writing, the push run for the
-   final merge (`a92ba3b4`) has been QUEUED for over an hour in a
-   hosted-runner outage — the last completed run repo-wide was
-   14:41Z — so **main's tip carries every M9 merge but its own
-   verification run has not executed**. That is a gap in
-   confirmation, not a reason for suspicion (the PR's two runs were
-   green and between them drew both rows the unit needed), and this
-   row exists so the closure ruling is made knowing it. The walk
-   should not be ratified until that run lands green.
+6. **Hosted CI is green on every merge; the final confirmation was
+   delayed by a runner outage and has since landed — with one
+   precise caveat.** Each M9 unit merged only on its own fully-green
+   head. A hosted-runner outage (last completed run repo-wide 14:41Z,
+   recovery ~17:10Z) left the push run for the final unit merge
+   (`a92ba3b4`) QUEUED for roughly two hours, and this row originally
+   proposed that the walk not be ratified until it landed. **The
+   condition is now met, by a different run than the one that
+   stalled**: `a92ba3b4`'s own push run never executed — it was
+   superseded when the seam merge advanced main under the workflow's
+   `cancel-in-progress` concurrency group — but **main's tip
+   `bca8e9bc`, which contains every M9 merge (`a92ba3b4` verified as
+   an ancestor), ran GREEN at 17:13Z**. Stated this way rather than
+   as "the run landed" because the two are not the same claim: the
+   code is verified on main, the specific stalled run is not.
 
 7. **The milestone's operational cost was dominated by a defect in
    how we run jobs, not by the work.** M9-5's implementer spent
