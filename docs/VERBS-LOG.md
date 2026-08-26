@@ -1294,3 +1294,21 @@ class, orchestrator-adjudicated directly); the PR-A reviewer and
 the queue carry the comparison instruction. The ARMS-3 lane's
 handling was the protocol working end to end: base-run comparison,
 ci-local for own coverage, the finding filed not fixed.
+
+## Ordinal-77 returned; PR-A fix pass out; #1029 scope grew (2026-08-26)
+
+The review executed everything: the D10 wrong answer REPRODUCED at
+the merge base (30π, Ok), the scoping argument attacked with six
+crossing poses and revolve-minted seam walls (held — the ellipse
+always crosses a boundary edge), the #347 re-diagnosis re-derived
+to the digit (0.9 vs the charged 10), the nested-pair
+right-by-luck claim verified both ways. AWF 1/2/3+7: the MAJOR is
+the arc-bound's accepting direction having no red-able row — the
+one computation that can only WIDEN acceptance; the fix plants
+the corruption to prove the new row reds. MINORs: lengths through
+Margin::levered (the door-contract violation the codebase
+polices); the full-period Err-vs-promised-None mismatch. Fix pass
+out. #1029's scope grew to FOUR rows via the ARMS-3 lane's
+base-run pin (fail-fast had hidden the second pair); the OFF-C
+fix lane updated; the issues consolidated (the lane self-deduped
+#1030 before my close reached it).
