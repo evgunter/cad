@@ -128,7 +128,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "crosslap",
             caption: "cross-lap (glued)".to_string(),
-            montage: true,
+            // Montage cell RETIRED by the M9-5 consolidation, which is
+            // the one demos/README.md's "considered and NOT built"
+            // note said to wait for: `twopeg` shows this cell's whole
+            // claim — a glued union across a declared coincident
+            // PLANAR contact — and adds the two CYLINDRICAL contacts
+            // that did not exist when that note was written, on a
+            // shape that is more part-like than either. The cross-lap
+            // keeps its standalone render, its narration, and every
+            // non-sheet role (corpus, latency, exports).
+            montage: false,
             story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
                     UNIONED into one body through the declared-REST zip (M5 S1) — the \
                     contact patches are interior now; only the seam edges remain",
@@ -150,7 +159,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "crosslap_exploded",
             caption: "cross-lap (exploded)".to_string(),
-            montage: true,
+            // Off the sheet with its own glued cell (see above);
+            // `twopeg_apart` is the apart framing the sheet now
+            // carries.
+            montage: false,
             story: "the same joint exploded: beam B lifted by a rigid transform \
                     (re-minted witnesses, #84), the interlocking notches visible",
             ops: "transform_rigid(beam B, +1.25 z) — transform witnesses re-minted",

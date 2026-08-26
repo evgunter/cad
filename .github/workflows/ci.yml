@@ -2302,23 +2302,38 @@ jobs:
       # pin is about, so the tour under test would not be the tour that
       # ships.
       #
-      # SCOPED TO THE INTEGRATION TEST, DELIBERATELY, AND NOT A
-      # SILENCING. A plain `cargo test --release` here would also run
-      # `--bin demo-tour`'s seven `lily::review_probes` unit tests, and
-      # two rows of `finding_13_tessellation_table_reproduces` are red
-      # on main today (issue #782: the two SWEPT blades tessellate to
-      # 1016/854 triangles against a pinned 976/826, while all five
-      # analytic rows are exact). Whether that new count is correct is a
-      # `mesh` question. **What stays unrun is load-bearing**: those
-      # seven include `the_spine_curl_wall_re_measured`, which pins a
-      # typed `LoftError::ReversedStacking` frontier from both sides,
-      # so `lily.rs` keeps its frontier pins in two spellings of which
-      # only the tour-runtime one (`wall_probes`) executes. Widening
-      # this row to the whole suite is owed the moment #782 is decided —
-      # #782 carries that obligation and the split.
-      - name: demos tour eps pin (#99)
+      # ARMED — no longer scoped to the integration test. This row ran
+      # `--test eps_regression` alone while `--bin demo-tour`'s unit
+      # tests carried red rows (#782), and the widening was owed the
+      # moment #782 was decided. It is: TESS-SPLIT re-pinned
+      # `finding_13_tessellation_table_reproduces` against the shipped
+      # split schedule and posted the disposition, and every row of it
+      # is green. So the whole `demos/tour` suite runs here.
+      #
+      # WHAT THE WIDENING BUYS, and it is why the obligation was
+      # recorded rather than dropped: `lily.rs` keeps its frontier pins
+      # in TWO spellings, and only the tour-runtime one (`wall_probes`)
+      # was executable in the gate. The unit spelling includes
+      # `the_spine_curl_wall_re_measured`, which pins a typed
+      # `LoftError::ReversedStacking` from both sides — a frontier no
+      # other row touches — plus the lily's geometric claims (taper,
+      # roll, sepal tangency), `klein`'s wall-pair probes and both
+      # `verbs_gate_r1_probes` modules. All of that was dead code in
+      # the gate until this line.
+      #
+      # COST, MEASURED on the run that armed it (32973311618, this
+      # row's own draw): release build 2m11, then the bin's unit tests
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # bin's unit tests link against the crate this row already builds
+      # in release, so the widening pays a link plus ~14 s of running,
+      # not a sixth feature unification. (Those same unit tests cost
+      # ~412 s in the DEV profile — the finding-13 rows tessellate the
+      # lily at δ = 2e-3 — which is why this row is the release one and
+      # why widening the dev-default row instead would not have been
+      # free.)
+      - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
-        run: cd demos/tour && cargo test --release --test eps_regression
+        run: cd demos/tour && cargo test --release
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

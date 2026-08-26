@@ -726,12 +726,12 @@ demos_hygiene() {
     (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
 }
 
-# Scoped to the integration test for the reason stated at the hosted
-# step — `--bin demo-tour`'s unit tests carry two rows that are red on
-# main (issue #782).
-# HOSTED MIRROR: k-lint / demos tour eps pin (#99)
+# The WHOLE demos/tour suite since M9-5 armed it (#782 decided): the
+# ε pin plus `--bin demo-tour`'s own unit tests, which are the second
+# spelling of the lily's and the bottle's frontier pins.
+# HOSTED MIRROR: k-lint / demos tour suite (the #99 ε pin + the tour's own probes)
 demos_eps_pin() {
-  (cd demos/tour && cargo test --release --test eps_regression)
+  (cd demos/tour && cargo test --release)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
@@ -939,7 +939,7 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # is a strict superset of any hosted run, and that is now true of three
 # sampled dimensions rather than two.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
-run_row_if "$RUN_K_LINT" "demos tour eps pin (#99)"        demos_eps_pin
+run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "probe test targets (type-check)"  probe_targets
