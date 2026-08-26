@@ -1162,6 +1162,10 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
             // survive the hull, and `f64::min` RETURNS the non-NaN
             // operand.
             let scoped = params.map_or(full, |(t0, t1)| {
+                // REVIEW MUTATION M2
+                let _ = (t0, t1);
+                return full;
+                #[allow(unreachable_code)]
                 aabb_of(arc_extent(
                     &bracket_point(center),
                     &bracket_vector(u_ref),
@@ -2631,5 +2635,169 @@ mod tests {
             "a bracket straddling zero must contribute its largest magnitude, \
              got {conic:?}"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // Blinded-review probe rows (VERBS-CYLCYL PR-B, ordinal 80) — probe
+    // branch only. Adversarial containment attacks on `arc_extent` and
+    // on the boundary clip's wrap case.
+    // ------------------------------------------------------------------
+
+    /// **`arc_extent` soundness under adversarial arcs.** The box must
+    /// CONTAIN the true arc: near-full turns with the phase chosen so
+    /// coordinate extrema fall mid-segment, a tiny arc crossing an
+    /// extremum strictly between samples, a 5000:1 ellipse in a tilted
+    /// plane, and a full turn at an arbitrary phase. Dense sampling
+    /// (20k points per case) with zero slack beyond 1e-12 relative —
+    /// the subdivision charge itself is what must cover the bulge.
+    #[test]
+    fn probe_arc_extent_contains_adversarial_arcs() {
+        let tilt = Vec3::new(1.0, 2.0, 3.0).normalize();
+        let (tu, tv) = tilt.orthonormal_basis();
+        let cases: Vec<(&str, Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64, f64)> = vec![
+            // near-full turn, extrema mid-segment (phase 0.1)
+            (
+                "near-full-turn",
+                Point3::new(0.3, -0.2, 0.15),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+                1.0,
+                1.0,
+                0.1,
+                0.1 + 0.999 * core::f64::consts::TAU,
+            ),
+            // tiny arc crossing the y extremum strictly mid-segment
+            (
+                "extremum-mid-segment",
+                Point3::origin(),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+                2.0,
+                2.0,
+                1.4,
+                1.75,
+            ),
+            // 5000:1 ellipse in a tilted plane, most of a turn
+            (
+                "flat-ellipse-tilted",
+                Point3::new(-1.0, 0.5, 2.0),
+                tu,
+                tv,
+                5.0,
+                1e-3,
+                0.3,
+                5.9,
+            ),
+            // tiny amplitude far from the origin
+            (
+                "tiny-radius",
+                Point3::new(100.0, -50.0, 25.0),
+                Vec3::unit_y(),
+                Vec3::unit_z(),
+                1e-6,
+                1e-6,
+                0.7,
+                2.9,
+            ),
+            // a full turn at an arbitrary phase (the no-case-analysis
+            // claim: no special arm, still enclosing)
+            (
+                "full-turn-phased",
+                Point3::new(0.0, 0.0, -3.0),
+                tu,
+                tv,
+                2.5,
+                2.5,
+                0.37,
+                0.37 + core::f64::consts::TAU,
+            ),
+        ];
+        for (what, c, u, v, a, b, t0, t1) in cases {
+            let e = arc_extent(
+                &SpanBox::point(c),
+                &SpanBox::vector(u),
+                &SpanBox::vector(v),
+                a,
+                b,
+                t0,
+                t1,
+            );
+            let scale = a.abs().max(b.abs()) + 1.0;
+            let slack = 1e-12 * scale;
+            for i in 0..=20_000 {
+                let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
+                let p = Point3::new(
+                    c.x + a * t.cos() * u.x + b * t.sin() * v.x,
+                    c.y + a * t.cos() * u.y + b * t.sin() * v.y,
+                    c.z + a * t.cos() * u.z + b * t.sin() * v.z,
+                );
+                for (name, lo, hi, w) in [
+                    ("x", e.x.lo, e.x.hi, p.x),
+                    ("y", e.y.lo, e.y.hi, p.y),
+                    ("z", e.z.lo, e.z.hi, p.z),
+                ] {
+                    assert!(
+                        w >= lo - slack && w <= hi + slack,
+                        "{what}: arc point at t = {t} left the box in {name}: \
+                         {w} outside [{lo}, {hi}]"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The clip's wrap case.** A wall window crossing azimuth 0
+    /// (`u ∈ [5.9, 6.7]`, through `2π`): the boundary rims' arc boxes
+    /// and the clipped face box must still contain the whole wall —
+    /// the azimuth chart coordinate wraps here, which is the exact
+    /// posture the "no interior extremum" argument has to survive. The
+    /// census lane must agree face-for-face at the same window
+    /// (pad = 0), and the box must actually BE clipped: the window
+    /// reaches `+x` (cos hits 1 at `t = 2π`) but not `−x`/`±y` fully,
+    /// so `min_x` must sit near `r·cos(5.9)`… clipped, not at `−r`.
+    #[test]
+    fn probe_wrap_window_wall_clip_is_sound_and_tight() {
+        let (r, u0, u1, z0, z1) = (2.0, 5.9, 6.7, -0.25, 0.75);
+        let (body, face) = cyl_wall(r, u0, u1, z0, z1);
+        let pad = pad();
+        let b = face_box(&body, face, pad).unwrap();
+        // Soundness: dense wall samples inside.
+        for i in 0..=400 {
+            for j in 0..=40 {
+                let u = u0 + (u1 - u0) * f64::from(i) / 400.0;
+                let z = z0 + (z1 - z0) * f64::from(j) / 40.0;
+                let p = Point3::new(r * u.cos(), r * u.sin(), z);
+                assert!(
+                    holds(&b, p),
+                    "wall point (u = {u}, z = {z}) left the box: {b:?}"
+                );
+            }
+        }
+        // Tightness: the window never reaches −x (cos min there is
+        // cos(5.9) ≈ 0.927), so a clip that silently kept the slab
+        // (min_x = −r) fails here.
+        let step = (u1 - u0) / ARC_SAMPLES as f64;
+        let sag = r * step * step * 0.125;
+        assert!(
+            b.min_x >= r * (u0.cos().min(u1.cos())) - sag - pad - 1e-9,
+            "min_x {} is looser than the clipped construction",
+            b.min_x
+        );
+        // The census mirror at the same wrap window.
+        let (lo, hi) = crate::census::face_reach(&body, face).expect("census claims the wall");
+        let b0 = face_box(&body, face, 0.0).unwrap();
+        for (name, g, w) in [
+            ("min_x", b0.min_x, lo.x),
+            ("min_y", b0.min_y, lo.y),
+            ("min_z", b0.min_z, lo.z),
+            ("max_x", b0.max_x, hi.x),
+            ("max_y", b0.max_y, hi.y),
+            ("max_z", b0.max_z, hi.z),
+        ] {
+            assert!(
+                (g - w).abs() <= 4.0 * f64::EPSILON * (1.0 + w.abs()),
+                "wrap window: the two lanes disagree at {name}: boolean {g}, census {w}"
+            );
+        }
     }
 }
