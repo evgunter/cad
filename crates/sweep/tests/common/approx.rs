@@ -195,11 +195,74 @@ pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
         .collect()
 }
 
-/// **The surgery** (module docs): every spline wall's surface becomes
-/// the certified `Approx` of its pulled-back base, every carrier is
-/// carried into the fit's spline space, and the pcurve map is re-minted.
-/// Returns the converted faces.
-pub fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
+/// The re-attach gate's honest refusal: an edge whose `IsoCurve`
+/// residual does not certify against the run's ε.
+///
+/// **Why the residual is carried here rather than read off the
+/// error.** `CertifyError::ResidualExceeded` reports a VERDICT — which
+/// check, which sample — and no number, unlike the escalating refusals
+/// of the #921 family whose `Indeterminate` carries an enclosure. So
+/// the fixture measures the quantity the check classifies
+/// ([`iso_residual`]) alongside the call, and
+/// [`reattach_certifies_at`] cross-checks that measurement against the
+/// kernel's own classifier so a drifted replica cannot pass silently.
+#[derive(Debug)]
+pub struct ReattachRefusal {
+    /// The first edge that refused.
+    pub edge: EdgeKey,
+    /// The attach layer's typed error.
+    pub error: topo::EulerOpError,
+    /// The largest `IsoCurve` residual measured over every edge the
+    /// surgery re-attaches, in metres — the threshold this fixture
+    /// certifies at or above.
+    pub max_iso_residual: f64,
+}
+
+/// The quantity `CertCheck::IsoResidual` classifies, for one
+/// `IsoCurve`-described spec: `max_i |C(tᵢ) − S(u, v(tᵢ))|` over the
+/// certification schedule, with `v` affine in the parameter — the
+/// kernel's own formula (`geom_brep::certify`'s iso arm), replicated
+/// so the fixture has a NUMBER where the refusal gives a verdict.
+fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
+    let geom_brep::EdgeGeometry::IsoCurve { surface, u, v0, v1 } = spec.description else {
+        return None;
+    };
+    let s = body.get_surface(surface)?;
+    let n = f64::from(geom_brep::CERT_SAMPLES - 1);
+    let mut worst = 0.0_f64;
+    for i in 0..geom_brep::CERT_SAMPLES {
+        // The schedule parameter is the KERNEL's own
+        // (`geom_brep::sample_param`), so only the `v` affine map is
+        // replicated here — and `reattach_certifies_at` cross-checks
+        // even that against the real classifier.
+        let t = geom_brep::sample_param(spec.param_start, spec.param_end, i);
+        let v = v0 + (v1 - v0) * (f64::from(i) / n);
+        worst = worst.max(spec.carrier.eval(t).distance(s.eval(u, v)));
+    }
+    Some(worst)
+}
+
+/// **The surgery** (module docs), fallible: every spline wall's surface
+/// becomes the certified `Approx` of its pulled-back base, every
+/// carrier is carried into the fit's spline space, and the pcurve map
+/// is re-minted.
+///
+/// The re-attach is the one step that can honestly refuse — on a
+/// CURVED fixture the pull-back is exact only to `d·Δn`, so the
+/// `IsoCurve` residual is construction arithmetic and a tight enough ε
+/// classifies it as a definite excess. That refusal is the kernel
+/// being right, so it is returned rather than panicked: the caller
+/// takes the two arms.
+///
+/// # Errors
+///
+/// [`ReattachRefusal`] naming the first edge that did not certify, and
+/// the measured residual that explains it.
+pub fn try_approx_walls(
+    body: &mut Body<f64>,
+    d: f64,
+    tolerance: f64,
+) -> Result<Vec<FaceKey>, ReattachRefusal> {
     let walls = nurbs_walls(body);
     assert!(!walls.is_empty(), "the fixture has spline walls to convert");
 
@@ -207,6 +270,7 @@ pub fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey
     let mut remap: HashMap<SurfaceKey, SurfaceKey> = HashMap::new();
     let mut faces = Vec::new();
     let mut fit_interior_v: Vec<f64> = Vec::new();
+    let mut max_iso_residual = 0.0_f64;
     for (face, wall) in walls {
         let old = body.get_face(face).unwrap().surface;
         let base = Arc::new(pulled_back(&wall, d));
@@ -224,7 +288,15 @@ pub fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey
     }
 
     // ---- 2: descriptions, and the carriers' spline space.
+    //
+    // Every spec is built and MEASURED first, then attached. The two
+    // passes are not a style choice: attaching is per edge, so a
+    // single pass would report a max truncated at whichever edge
+    // refused first — a number that depends on the refusal rather than
+    // describing the fixture. Building all the specs up front is sound
+    // because attaching one edge does not change another's curve.
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    let mut specs: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = Vec::new();
     for edge in edges {
         let ck = body.get_edge(edge).unwrap().curve;
         let Some(curve) = body.get_curve_geom(ck).and_then(CurveGeom::certified) else {
@@ -248,20 +320,77 @@ pub fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey
             other => other.clone(),
         };
         let (param_start, param_end) = re.params();
-        body.set_edge_curve(
-            edge,
-            EdgeCurveSpec {
-                description: *re.description(),
-                carrier,
-                param_start,
-                param_end,
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("edge {edge:?} re-attach: {e}"));
+        let spec = EdgeCurveSpec {
+            description: *re.description(),
+            carrier,
+            param_start,
+            param_end,
+        };
+        if let Some(r) = iso_residual(body, &spec) {
+            max_iso_residual = max_iso_residual.max(r);
+        }
+        specs.push((edge, spec));
+    }
+    for (edge, spec) in specs {
+        if let Err(error) = body.set_edge_curve(edge, spec, Tol::witness()) {
+            return Err(ReattachRefusal {
+                edge,
+                error,
+                max_iso_residual,
+            });
+        }
     }
 
     // ---- 3: the pcurve map.
     topo::mint_pcurves(body, Tol::witness()).expect("the Approx charts mint their iso images");
-    faces
+    Ok(faces)
+}
+
+/// [`try_approx_walls`] for the fixtures whose re-attach cannot
+/// honestly refuse — the PLANAR pull-backs, where `Δn = 0` and the
+/// `IsoCurve` residual is f64 dust at every ε the suite runs at.
+pub fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
+    try_approx_walls(body, d, tolerance)
+        .unwrap_or_else(|r| panic!("edge {:?} re-attach: {}", r.edge, r.error))
+}
+
+/// **The cross-check that keeps [`iso_residual`]'s replica honest**:
+/// does the kernel's own certification of `spec` succeed against a
+/// band at `eps`?
+///
+/// A replica that drifted from `geom_brep::certify`'s iso arm would
+/// pin a stale constant in silence; running the real classifier either
+/// side of the measured threshold makes that loud.
+pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool {
+    let Some(e) = body.get_edge(edge) else {
+        return false;
+    };
+    let Some(curve) = body.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
+        return false;
+    };
+    let Some(plus) = body.get_half_edge(e.he_plus) else {
+        return false;
+    };
+    let Some(end_v) = body.half_edge_end(e.he_plus) else {
+        return false;
+    };
+    let (Some(start), Some(end)) = (
+        body.get_vertex(plus.start)
+            .and_then(|v| body.get_point(v.point)),
+        body.get_vertex(end_v).and_then(|v| body.get_point(v.point)),
+    ) else {
+        return false;
+    };
+    let (start, end) = (*start, *end);
+    let (param_start, param_end) = curve.params();
+    let spec = EdgeCurveSpec {
+        description: *curve.description(),
+        carrier: curve.carrier().clone(),
+        param_start,
+        param_end,
+    };
+    let Ok(band) = geom_core::Band::new(eps, eps * 10.0) else {
+        return false;
+    };
+    geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()
 }
