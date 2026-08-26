@@ -995,3 +995,18 @@ investigation ((‖E‖+|d|) in place of 2|d|) that may dissolve M4
 outright. This dual is sample #24, the ELEVENTH cross-model pair
 — **the next dual is the twelfth: its recorder notifies Evan
 explicitly per the pre-registered target**.
+
+## OFF-B MERGED (#1003, 2026-08-26) — the approximating substrate EXISTS
+
+Row OFFB (ordinal 75, sample #24, the ELEVENTH cross-model pair)
+in MODEL-AB-LOG. The kernel can now fit a certified offset of a
+NURBS surface: two meters, the Book's fit, the rationalized
+two-limb certificate — with the fix pass exceeding the adjudicated
+union (M3's d-free lever; M4's sharper denominator tightening
+every bound). Four scheduled follow-ons: #1005 (weighted
+composite), #1006 (three-spellings consolidation), #1007
+(directional refinement), #1008 (net recentring). **The next dual
+is the TWELFTH cross-model pair — its recorder notifies Evan
+explicitly.** OFF-C (Surface::Approx integration) is the next
+Wave-3 spec; GATE's ordinal-74 review still out. Seam sweep:
+verbs-offb + both reviewer lanes.
