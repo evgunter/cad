@@ -146,7 +146,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // NOTE: the long form truncated and collided with its
         // neighbour); the story/note carry the long narration.
         caption: "boss ∪ plate (first curved boolean)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the M9-5 consolidation: `twopeg`
+        // builds FOUR of exactly this transverse curved boolean (two
+        // peg unions, two bore subtracts) on its way to the mate, so
+        // the sheet keeps the op and spends one cell pair instead of
+        // three. This stop keeps its standalone render and its
+        // shared-chord watertightness pin, which is the claim no other
+        // scene makes.
+        montage: false,
         story: "a cylindrical boss unioned into a plate — the milestone's first \
                 transverse curved boolean, rendered",
         ops: "extrude(plate) ∪ extrude(three-arc boss); seam = 3 exact Circle arcs \

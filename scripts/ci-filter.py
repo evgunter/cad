@@ -589,8 +589,9 @@ EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 #   dev-default      demos/tour + demos/wild + the three tools/ crates,
 #                    `cargo fmt --check` / `clippy --all-targets` / `cargo
 #                    test`, dev profile, default features
-#   release-default  the #99 ε pin: `cargo test --release --test
-#                    eps_regression` in demos/tour, default features
+#   release-default  the demos/tour suite: `cargo test --release` in
+#                    demos/tour (the #99 ε pin plus the tour bin's own
+#                    unit probes), default features
 #   release-budget   the tessellation-budget sweep (`cargo run --release
 #                    --features budget`) and the tess-lint gate over its CSV
 #   dev-budget       `cargo clippy`/`cargo test -p mesh --features budget`,
