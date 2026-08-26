@@ -19,17 +19,14 @@
 //!
 //! What the lily IS, therefore:
 //!
-//! - the plant stands on its **corm** — the underground storage bulb
-//!   a *Calochortus* rises from — and this is the one place on the
-//!   plant where two authored bodies are made ONE. The corm is a
-//!   squat solid of revolution with a coaxial cylindrical SOCKET
-//!   authored into its meridian, and the stem's **foot** is a plain
-//!   cylinder standing in it. Two declared `Rest` contacts hold them
-//!   together: the socket floor under the foot's cap (planar), and
-//!   the socket wall against the foot's wall (CYLINDRICAL — the
-//!   contact class M9-3 built, and the reason this join exists at
-//!   all). See [`rootstock`], which also records the two pieces of
-//!   friction met on the way.
+//! - the plant has its underground half now: a **corm** — the swollen
+//!   stem-base a *Calochortus* rises from each spring — threaded on
+//!   the straight basal internode, the **foot**. The corm is a
+//!   sphere-zone swelling with a coaxial BORE at the stem's own
+//!   diameter, so the two bodies are cosurface along the whole bore:
+//!   the cleanest declared CYLINDRICAL contact this plant has, and
+//!   the exact class M9-3 built. It still does not JOIN, and probes
+//!   12 and 13 are why — measured, not assumed.
 //! - the **stem** is a chain of circular tube arcs — each one a
 //!   windowed TUBE ALONG AN ARC, i.e. a torus segment said in world
 //!   coordinates: ring centre, spine axis, start radial, ring radius,
@@ -346,16 +343,20 @@ fn lantern<S: Scalar>(
     .body
 }
 
-/// The **corm**: the underground storage bulb a *Calochortus* rises
-/// from each spring — and, since M9-3, the one place on this plant
-/// where two authored bodies can be made ONE.
+/// The **corm**: the swollen underground stem-base a *Calochortus*
+/// rises from each spring — and, since M9-3, the one place on this
+/// plant where two authored bodies are made ONE.
 ///
-/// A squat solid of revolution (sphere zone, flat top, flat base) with
-/// a coaxial cylindrical SOCKET sunk into its top at the stem's own
-/// diameter. The socket is authored INTO the meridian rather than
-/// drilled by a boolean: a re-entrant notch in a closed profile is one
-/// revolve, and a blind bore would be a transverse curved subtract the
-/// kernel does not have.
+/// A corm is not a thing the stem stands on; it is the stem's OWN base,
+/// swollen, with the axis running through it. So it is authored as
+/// exactly that: a sphere-zone swelling with a coaxial BORE at the
+/// stem's diameter, threaded on the stem's foot. Its two planar caps
+/// are ANNULI, which is load-bearing and not a styling choice: a full
+/// revolve whose planar cap TOUCHES THE AXIS arrives as two half-faces
+/// on one plane key, and that is the F7 maximal-faces defect — such a
+/// body can never be a boolean operand, and `merge_coplanar_faces`
+/// cannot repair it either (probe 13). An annular cap revolves to ONE
+/// whole face and has no such defect.
 ///
 /// Sketch frame: origin on the corm's top plane, `v` pointing DOWN
 /// into the corm, so `t` is depth. Same axis convention as
@@ -365,19 +366,14 @@ fn corm<S: Scalar>(
     globe: f64,
     shoulder: f64,
     base: f64,
-    sock_r: f64,
-    sock_depth: f64,
+    bore_r: f64,
     tol: Tol,
 ) -> Body<S> {
     let r_top = (globe.powi(2) - shoulder.powi(2)).sqrt();
     let r_base = (globe.powi(2) - base.powi(2)).sqrt();
     let t_base = shoulder + base;
     let lp: ProfileLoop<S> = Open
-        .at(p2(0.0, sock_depth))
-        .line_to(p2(sock_r, sock_depth), tol)
-        .expect("corm socket floor")
-        .line_to(p2(sock_r, 0.0), tol)
-        .expect("corm socket wall")
+        .at(p2(bore_r, 0.0))
         .line_to(p2(r_top, 0.0), tol)
         .expect("corm shoulder annulus")
         // The flank rides the corm's own sphere, about its centre —
@@ -391,10 +387,10 @@ fn corm<S: Scalar>(
             tol,
         )
         .expect("corm flank rides the sphere")
-        .line_to(p2(0.0, t_base), tol)
-        .expect("corm base disk")
+        .line_to(p2(bore_r, t_base), tol)
+        .expect("corm base annulus")
         .line_to(Start, tol)
-        .expect("corm axis seam")
+        .expect("corm bore wall")
         .into();
     let plane = SketchPlane::from_frame(
         pt3(0.0, 0.0, top_z),
@@ -428,9 +424,7 @@ fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
     )
     .expect("the foot's three-arc rim authors");
     let plane = SketchPlane::new(Affine3::translation(v3::<S>(0.0, 0.0, z0)));
-    let profile = pncad::profile::Profile::new(plane, vec![rim.into()])
-        .validate(tol)
-        .expect("foot profile validates");
+    let profile = validated(plane, vec![rim.into()], tol).expect("foot profile validates");
     extrude(&profile, Extrusion::Distance(S::from_f64(z1 - z0)), tol)
         .expect("the foot extrudes")
         .body
@@ -443,13 +437,14 @@ const CORM_TOP_Z: f64 = -0.28;
 /// See [`CORM_TOP_Z`].
 const CORM_GLOBE: f64 = 0.30;
 /// Depth of the corm's sphere centre below its top plane.
-const CORM_SHOULDER: f64 = 0.20;
+const CORM_SHOULDER: f64 = 0.22;
 /// Depth of the base truncation below that centre.
-const CORM_BASE: f64 = 0.28;
-/// The stem tube's radius — the lower arc's, and the socket's.
+const CORM_BASE: f64 = 0.22;
+/// The stem tube's radius — the lower arc's, the bore's, and the
+/// foot's: one number, because they are one stem.
 const STEM_R: f64 = 0.060;
-/// How deep the foot sits in the corm.
-const SOCK_DEPTH: f64 = 0.12;
+/// Where the foot's root end stops, below the corm.
+const FOOT_BOTTOM_Z: f64 = -0.92;
 
 /// Every cylindrical face of `body` carried by a cylinder of radius
 /// `r` about the world z-axis.
@@ -477,121 +472,6 @@ fn axial_walls<S: Scalar>(body: &Body<S>, r: f64) -> Vec<pncad::topo::FaceKey> {
         })
         .map(|(k, _)| k)
         .collect()
-}
-
-/// The one planar face of `body` at world height `z` whose outward
-/// normal points up (`up`) or down. Same finding as [`axial_walls`].
-fn disk_at<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(pncad::geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z.f() - z).abs() < 1e-12 && (normal.z.f() > 0.5) == up
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one z = {z} face (up = {up}), got {hits:?}");
-    };
-    f
-}
-
-/// **The plant's one JOIN**: the stem's foot, seated in the corm's
-/// socket, DECLARED and glued into a single body.
-///
-/// Two declared `Rest` contacts — the socket floor under the foot's
-/// bottom cap, and the socket wall against the foot's wall. The second
-/// is CYLINDRICAL, which is the contact class M9-3 built and the thing
-/// that makes this join sayable at all; before it, every one of this
-/// plant's joins was a wall probe.
-///
-/// **Two pieces of friction met on the way, both real** (demo-purpose
-/// rule — awkwardness is a finding, never a workaround):
-///
-/// 1. A FULL REVOLVE IS NOT A LEGAL BOOLEAN OPERAND until its planar
-///    caps are merged. The revolve halves every face at its seam
-///    meridian, so the corm's top annulus, its base and its socket
-///    floor each arrive as two half-faces sharing ONE plane key — and
-///    that is exactly the F7 maximal-faces defect (a same-key CURVED
-///    pair is the canonical maximal form; only the planar pair is the
-///    defect). `Body::merge_coplanar_faces` is the door, and it is a
-///    door the author has to know to knock on: nothing in `revolve`'s
-///    signature or in the boolean's says the two are related. The
-///    lantern is the same shape and never calls it, which is why
-///    probe 7 still refuses there.
-/// 2. The engagement is PARTIAL — the foot stands proud of the corm —
-///    so the shared cylinder is a patch on the foot's wall, not the
-///    whole face, and the zip has to MINT the rim circle where the
-///    two part company. That is M9-3 PR-B's carrier-aware seam mint,
-///    exercised here by a plant rather than by a fixture.
-fn rootstock<S: Scalar>(tol: Tol) -> (Body<S>, pncad::topo::ContactRecords) {
-    let mut corm_body = corm::<S>(
-        CORM_TOP_Z,
-        CORM_GLOBE,
-        CORM_SHOULDER,
-        CORM_BASE,
-        STEM_R,
-        SOCK_DEPTH,
-        tol,
-    );
-    // Finding 1 above: without this the union refuses `NonMaximalFaces`
-    // on the corm before it looks at a single declaration.
-    corm_body
-        .merge_coplanar_faces(tol)
-        .expect("the corm's seam-split caps merge");
-    let floor_z = CORM_TOP_Z - SOCK_DEPTH;
-    let foot_body = foot::<S>(floor_z, 0.0, STEM_R, tol);
-
-    let mut decls = pncad::topo::BooleanDeclarations::none();
-    decls.coincident_faces.push(pncad::topo::FacePairDeclaration::new(
-        disk_at(&corm_body, floor_z, true),
-        disk_at(&foot_body, floor_z, false),
-        pncad::topo::ContactClass::Rest,
-    ));
-    for &fa in &axial_walls(&corm_body, STEM_R) {
-        for &fb in &axial_walls(&foot_body, STEM_R) {
-            decls.coincident_faces.push(pncad::topo::FacePairDeclaration::new(
-                fa,
-                fb,
-                pncad::topo::ContactClass::Rest,
-            ));
-        }
-    }
-
-    let va = pncad::topo::mass_properties(&corm_body, tol)
-        .expect("corm volume")
-        .volume
-        .f();
-    let vb = pncad::topo::mass_properties(&foot_body, tol)
-        .expect("foot volume")
-        .volume
-        .f();
-    let out = pncad::topo::union_with(&corm_body, &foot_body, &decls, tol)
-        .expect("the declared rootstock join");
-    let pncad::topo::BooleanResult::Body(bb) = out else {
-        panic!("the rootstock union cannot be empty");
-    };
-    let v = pncad::topo::mass_properties(&bb.body, tol)
-        .expect("rootstock volume")
-        .volume
-        .f();
-    // Additive to re-association rounding: the minted rim circle
-    // SPLITS the foot's wall, so the same per-face flux terms are
-    // summed in a different association. Each term is O(V) and one
-    // re-association perturbs the sum by O(ulp(V)).
-    let slack = 8.0 * (va + vb) * f64::EPSILON;
-    assert!(
-        (v - (va + vb)).abs() <= slack,
-        "the rootstock join is additive: {v} vs {} (allowed {slack})",
-        va + vb
-    );
-    println!(
-        "   the corm and the stem's foot are ONE body: volume {v} = {va} + {vb} \
-         (two declared Rest contacts, one of them CYLINDRICAL)"
-    );
-    (bb.body, bb.contacts)
 }
 
 /// A **bud**: three pre-tepals, each a PARTIAL revolve of the same
@@ -1277,11 +1157,6 @@ pub struct Piece<S: Scalar> {
     // carrying it: the render path wants the body alone.
     #[allow(dead_code)]
     pub caps: Option<WedgeFrames<S>>,
-    /// For a piece that is a BOOLEAN RESULT (the rootstock), the op's
-    /// own declared contacts — tier-3′ currency, which the scene
-    /// validates against rather than the plain geometric gate.
-    /// `None` for the authored bodies, which have no contacts.
-    pub contacts: Option<pncad::topo::ContactRecords>,
 }
 
 /// The BUD's globe radius and truncation height — much smaller than
@@ -1423,38 +1298,48 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
 
-    // The rootstock: the corm with the stem's foot glued into it —
-    // the plant's ONE joined body (see `rootstock`).
-    let (base_body, base_contacts) = rootstock::<S>(tol);
-
     let mut pieces = vec![
         Piece {
-            name: "lily_base",
+            name: "lily_corm",
             color: GREEN_CORM,
-            body: base_body,
+            // The swollen stem-base, threaded on the foot below —
+            // TOUCHING it along the whole bore and not joined to it,
+            // like every other pair on this plant (probe 12).
+            body: corm(
+                CORM_TOP_Z,
+                CORM_GLOBE,
+                CORM_SHOULDER,
+                CORM_BASE,
+                STEM_R,
+                tol,
+            ),
             caps: None,
-            contacts: Some(base_contacts),
+        },
+        Piece {
+            name: "lily_foot",
+            color: GREEN_STEM,
+            // The straight basal internode: runs up through the corm
+            // to the world origin, where the turtle's first arc starts.
+            body: foot(FOOT_BOTTOM_Z, 0.0, STEM_R, tol),
+            caps: None,
         },
         Piece {
             name: "lily_stem",
             color: GREEN_STEM,
             body: stem,
             caps: Some(stem_caps),
-            contacts: None,
         },
         Piece {
             name: "lily_arch",
             color: GREEN_STEM,
             body: arch,
             caps: Some(arch_caps),
-            contacts: None,
         },
         Piece {
             name: "lily_pedicel",
             color: GREEN_STEM,
             body: pedicel_body,
             caps: Some(pedicel_caps),
-            contacts: None,
         },
         Piece {
             name: "lily_lantern",
@@ -1473,7 +1358,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 tol,
             ),
             caps: None,
-            contacts: None,
         },
         Piece {
             name: "lily_leaf_a",
@@ -1496,7 +1380,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 tol,
             ),
             caps: None,
-            contacts: None,
         },
         Piece {
             name: "lily_leaf_b",
@@ -1515,7 +1398,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 tol,
             ),
             caps: None,
-            contacts: None,
         },
         Piece {
             name: "lily_leaf_c",
@@ -1534,7 +1416,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 tol,
             ),
             caps: None,
-            contacts: None,
         },
     ];
     // The bud's three pre-tepals, then the three sepals, each named in
@@ -1549,7 +1430,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             color: GREEN_SEPAL,
             body,
             caps: None,
-            contacts: None,
         });
     }
     // The three sepals, named in order round the flower axis so the
@@ -1563,7 +1443,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             color: GREEN_SEPAL,
             body,
             caps: None,
-            contacts: None,
         });
     }
     pieces
@@ -1589,13 +1468,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          sphere. The five analytic bodies approximate nothing — torus, \
          sphere, cone and plane exactly, parameters included; the \
          blades are fitted skins, the price of leaving the plane. \
-         ONE body of the {} is a JOIN and not an authored solid: the \
-         corm and the stem's foot, glued on two declared Rest \
-         contacts — the socket floor (planar) and the socket wall \
-         (CYLINDRICAL, the class M9-3 built). Everything else is still \
-         set beside its neighbour rather than welded to it — the leaf \
-         to its own sheath least of all: see the wall probes.",
-        pieces.len(),
+         Nothing is JOINED — the corm threaded on the stem's foot \
+         least of all, and the leaf to its own sheath least of all \
+         after that: see the wall probes.",
         pieces.len()
     );
     vec![Stop {
@@ -1627,13 +1502,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         },
         bodies: pieces
             .into_iter()
-            .map(|p| match p.contacts {
-                // A boolean RESULT validates against its own declared
-                // contacts (the 3′ contract); an authored body takes
-                // the plain tier-3 gate.
-                Some(c) => SceneBody::seamed(p.name, p.color, p.body, c),
-                None => SceneBody::plain(p.name, p.color, p.body),
-            })
+            .map(|p| SceneBody::plain(p.name, p.color, p.body))
             .collect(),
     }]
 }
@@ -1718,9 +1587,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the glue is the M5 S1 declared REST zip if it reaches it.
     //
     //    M9-3 opened the declared-contact door to the
-    //    plane/sphere/cylinder carrier inventory, and the plant USES
-    //    it: the corm and the stem's foot are one body (`rootstock`).
-    //    The TORUS is not in that inventory, and this wall is the
+    //    plane/sphere/cylinder carrier inventory. The TORUS is not in
+    //    that inventory, and this wall is the
     //    named residue of the ruling that decided so — banked as
     //    **#968**: the torus declared-Rest lane wants gate admission
     //    at the operand scan, a torus rung in `carrier_eq` so the
@@ -1894,10 +1762,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    F7 door widening) comes first, and only then the
     //    sphere×sphere germ arm the geometry actually needs.
     //
-    //    The precondition is no longer theoretical: the corm is the
-    //    same shape — a full revolve with seam-split planar caps —
-    //    and `rootstock` gets it through the boolean by calling
-    //    `Body::merge_coplanar_faces` on it first. What is left here
+    //    The precondition is measured, and probe 13 measures it: the
+    //    lantern's seam-split planar caps do not merge either, so
+    //    `merge_coplanar_faces` is not the way past this door.
+    //    What is left here
     //    is the breadth half, and it is DEPENDENCY-STATED like probe
     //    8's: it waits on the verbs/breadth slate, VERBS-PLAN Wave 2
     //    items 6 (VERBS-GATE, the per-face-kind gate re-scope) and 9
@@ -1979,6 +1847,83 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",
+    );
+
+    // 12. The corm is the stem's OWN base, swollen: the two bodies are
+    //     cosurface along the whole bore, at one radius stated once
+    //     and used by both. That is a declared CYLINDRICAL `Rest` —
+    //     precisely the contact class M9-3 built — and it is DECLARED
+    //     here, face pair by face pair, because the author knows which
+    //     wall meets which.
+    //
+    //     It refuses one door short of the zip, and the door is the
+    //     reduction's curved-face arm rather than the declaration
+    //     gate: the corm's own annulus rim circle lies ON the shared
+    //     carrier, decides zero clearance, and takes
+    //     `CurvedPierceUnsupported` before any patch is discovered.
+    //     M9-3 PR-A's rung teaches that arm to consult declarations —
+    //     but the two-peg path it was measured on carries a PLANAR
+    //     `Rest` at the rim plane as well, and the plant has none to
+    //     offer: a stem passes THROUGH its corm, it does not sit on
+    //     it. So the honest statement of this wall is narrow and
+    //     testable — a purely cylindrical mate, with no planar contact
+    //     anywhere on it, does not reach the rest lane today.
+    let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
+    let mut bore_decls = pncad::topo::BooleanDeclarations::none();
+    for &fa in &axial_walls(corm_body, STEM_R) {
+        for &fb in &axial_walls(foot_body, STEM_R) {
+            bore_decls
+                .coincident_faces
+                .push(pncad::topo::FacePairDeclaration::new(
+                    fa,
+                    fb,
+                    pncad::topo::ContactClass::Rest,
+                ));
+        }
+    }
+    wall(
+        12,
+        "thread the corm onto the stem's foot at their shared cylinder wall \
+         (declared cylindrical Rest, no planar contact anywhere on the mate)",
+        pncad::topo::union_with(corm_body, foot_body, &bore_decls, tol),
+        // The KIND is the claim: the reduction's curved-face arm, on
+        // operand A, at an edge — NOT the declaration gate, which
+        // admitted the pair, and not a carrier refusal.
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedPierceUnsupported {
+                    operand: Operand::A,
+                    ..
+                }
+            )
+        },
+        "give the plant a joined rootstock, and re-derive the two-peg cell's \
+         claim about what a cylindrical mate needs beside it",
+    );
+
+    // 13. The door UNDER probe 7, said out loud and probed on its own.
+    //     A full revolve whose planar cap TOUCHES THE AXIS arrives as
+    //     two half-faces on one plane key — the F7 maximal-faces
+    //     defect — so no such body can ever be a boolean operand. The
+    //     obvious repair is the merge door, and the merge door refuses
+    //     too: killing both seam struts leaves a loop the winding
+    //     resolution cannot assign a role to, and the op declines to
+    //     guess. The corm avoids the whole class by being authored
+    //     with ANNULAR caps, which is why it is a legal operand at all
+    //     (probe 12 gets one door further than probe 7 does).
+    wall(
+        13,
+        "merge the lantern's seam-split caps so it can be a boolean operand at all",
+        lant.clone().merge_coplanar_faces(tol),
+        |e| {
+            matches!(
+                e,
+                pncad::topo::MergeCoplanarError::MergedFaceRoleAmbiguous { .. }
+            )
+        },
+        "make a revolve with an axis-touching flat cap usable as a boolean \
+         operand, and re-derive probe 7's blocker sentence",
     );
 
     println!(
@@ -3067,64 +3012,5 @@ mod verbs_gate_r1_probes {
                 Point3::new(bc.x + br, bc.y + br, bc.z + br),
             ),
         )
-    }
-}
-
-#[cfg(test)]
-mod m9_5_diag {
-    //! TEMPORARY (M9-5 diagnosis) — remove before the PR.
-    use super::*;
-    use pncad::topo::Surface;
-
-    #[test]
-    fn diag_wall7_f7_edge() {
-        let tol = Tol::witness();
-        let pieces = plant::<f64>(tol);
-        let lant = &pieces
-            .iter()
-            .find(|p| p.name == "lily_lantern")
-            .expect("lantern")
-            .body;
-        let out = pncad::topo::subtract(lant, &ball::<f64>((-2.80, 0.90), 0.16, tol), tol);
-        println!("DIAG wall7 refusal: {out:?}");
-        if let Err(pncad::topo::BooleanError::NonMaximalFaces { edge, .. }) = &out {
-            let e = lant.get_edge(*edge).expect("edge");
-            for he in [e.he_plus, e.he_minus] {
-                let f = lant
-                    .get_half_edge(he)
-                    .and_then(|h| lant.get_loop(h.parent_loop))
-                    .map(|l| l.face)
-                    .expect("face");
-                let s = lant.get_face(f).map(|ff| ff.surface).expect("surface key");
-                println!("DIAG   face {f:?} surface-key {s:?} = {:?}", lant.get_surface(s));
-            }
-        }
-        panic!("DIAG only");
-    }
-
-    #[test]
-    fn diag_lantern_face_census() {
-        let tol = Tol::witness();
-        let pieces = plant::<f64>(tol);
-        let lant = &pieces
-            .iter()
-            .find(|p| p.name == "lily_lantern")
-            .expect("lantern")
-            .body;
-        for (k, f) in lant.faces() {
-            println!(
-                "DIAG face {k:?} key {:?} kind {:?}",
-                f.surface,
-                lant.get_surface(f.surface).map(|s| match s {
-                    Surface::Plane { .. } => "plane",
-                    Surface::Cylinder { .. } => "cylinder",
-                    Surface::Sphere { .. } => "sphere",
-                    Surface::Cone { .. } => "cone",
-                    Surface::Torus { .. } => "torus",
-                    _ => "other",
-                })
-            );
-        }
-        panic!("DIAG only");
     }
 }

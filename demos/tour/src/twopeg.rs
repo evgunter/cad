@@ -21,9 +21,12 @@
 //! - **The mate is DECLARED, never inferred.** The author knows Q is
 //!   located on P — the kernel is told, in the author's own words,
 //!   which face pairs are in contact and that each contact is a
-//!   `Rest`. Value equality never glues (the coincidence ladder is
-//!   law); a declaration is what unlocks the arm, and verification
-//!   still happens inside the op.
+//!   `Rest`. Value equality never glues; a declaration is what
+//!   unlocks the arm, and verification still happens inside the op.
+//!   Undeclared, this mate does not even reach the coincidence ladder
+//!   the cross-lap's is turned away at — it is refused one stage
+//!   earlier, in the reduction's curved-face arm, and the live
+//!   narration prints which refusal it actually got.
 //! - **The union is exactly additive.** vol(P) + vol(Q) =
 //!   (24 + π/2) + (24 − π/2) = **48**, and the glued body measures 48
 //!   BITWISE: the interiors are disjoint, so nothing is discarded, and
@@ -250,15 +253,22 @@ pub(crate) fn build<S: Scalar>(
     let p = plate_with_pegs::<S>(tol);
     let q = plate_with_bores::<S>(tol);
 
-    // UNDECLARED, the mate refuses: value equality never glues. The
-    // contrast is the point — a declaration is an author's statement,
-    // not a measurement the kernel is allowed to make for him.
+    // UNDECLARED, the mate refuses — and it refuses EARLIER than the
+    // cross-lap's does, which is worth saying because the two look
+    // alike. The cross-lap's planar mate reaches the coincidence
+    // ladder and is turned away there (value equality never
+    // classifies); this one never gets that far. The reduction's
+    // curved-face arm meets a bore rim circle sitting ON the peg's
+    // carrier, decides zero clearance, and takes
+    // `CurvedPierceUnsupported` before a single patch is discovered.
+    // What the declaration unlocks is therefore that ARM, not just
+    // the front door — M9-3 PR-A's rung, seen from the outside.
     let naive = check(try_union(&p, &q, tol), V_MATED, tol);
     let refusal = crate::booleans::describe(&naive, V_MATED);
     if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
         panic!(
             "the UNDECLARED two-peg mate no longer refuses ({refusal}) — \
-             value equality must never glue (coincidence ladder rung (b)); regression"
+             a declaration must be what unlocks the arm, never a measurement); regression"
         );
     }
     println!("   two-peg mate WITHOUT declarations: {refusal}");
