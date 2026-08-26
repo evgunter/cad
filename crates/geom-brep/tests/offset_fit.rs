@@ -442,13 +442,20 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
     );
     // The inward fold radius is `r`; the outward direction never
     // folds, so its reach is unbounded.
-    // The certified reach is CONSERVATIVE — never above the true
-    // fold radius `r`, and on this fixture within a factor of ~2 of
-    // it (the join's measured slack; see `cell_curvature`).
+    // The certified reach is CONSERVATIVE — never above the true fold
+    // radius `r`. How far below is a MEASURED slack, not a designed
+    // one, so the row asserts the guard it actually wants (soundness,
+    // and non-vacuousness) and prints the ratio rather than asserting
+    // a factor the join's assemblies are free to improve.
     assert!(
         coll.reach <= r && coll.reach > 0.3 * r,
-        "inward reach {} is not within a factor of two of r = {r}",
+        "inward reach {} is unsound (> r) or vacuous (< 0.3r), r = {r}",
         coll.reach
+    );
+    eprintln!(
+        "sphere reach ratio: certified {:.4} / true {r} = {:.3}",
+        coll.reach,
+        coll.reach / r
     );
     eprintln!(
         "sphere collapse: kappa=[{:.4}, {:.4}] inward reach={:.4} (true kappa = {:.4}, \
@@ -571,6 +578,91 @@ fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
             assert!(achieved.is_finite() && achieved > tolerance);
         }
         other => panic!("an unreachable tolerance did not refuse typed: {other:?}"),
+    }
+}
+
+/// **The small-`|d|` row, and the limit it pins.** The certificate's
+/// normal component divides `|X|` by `w²·(‖E‖ + |d|)`. Bounding that
+/// denominator below by `2|d|` alone made the reported accuracy scale
+/// like `1/|d|` and, once `dist` reached `|d|`, collapsed every cell
+/// to `+∞` — a micron-scale offset on a metre-scale patch certified
+/// as `inf`. The composite therefore carries `Ẽ` and takes a DIRECT
+/// mignitude lower bound on `‖E‖`, which is what makes the row below
+/// finite at all.
+///
+/// What it does NOT do is make the bound scale with `|d|`: the fit's
+/// own absolute accuracy is set by the base's coordinate magnitudes,
+/// not by the offset distance, so at `d = 1e-6` the certified sup
+/// sits near `3e-4` — sound, finite, and hundreds of times `|d|`.
+/// The row pins both halves: a reachable tolerance certifies, and an
+/// unreachable one refuses typed rather than reporting a number it
+/// cannot support.
+#[test]
+fn a_micron_scale_offset_certifies_and_names_its_limit() {
+    let base = quarter_cylinder(1.0, 1.0);
+    let d = 1e-6;
+    let (fit, cert) = fit_offset(&base, d, 1e-3, band())
+        .unwrap_or_else(|e| panic!("a micron-scale offset refused at 1e-3: {e}"));
+    let mut worst = 0.0f64;
+    for (u, v) in dense_grid() {
+        let target = offset_point(&base, d, u, v).unwrap();
+        worst = worst.max((fit.eval(u, v) - target).norm());
+    }
+    assert!(
+        cert.hull_sup.is_finite(),
+        "the small-d bound is {} — the `2|d|` denominator is back",
+        cert.hull_sup
+    );
+    assert!(
+        worst <= cert.hull_sup,
+        "d = {d}: certified sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+    eprintln!(
+        "small-d d={d:.0e}: cells={} rounds={} hull_sup={:.3e} sampled={worst:.3e} \
+         (ratio to |d|: {:.0}x)",
+        cert.cells,
+        cert.rounds,
+        cert.hull_sup,
+        worst.max(cert.hull_sup) / d
+    );
+    // The honest other half: a tolerance below what the fit's own
+    // absolute accuracy can reach refuses typed, carrying the bound
+    // it did reach — never a number it cannot support.
+    match fit_offset(&base, d, 1e-9, band()) {
+        Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
+            eprintln!("small-d: 1e-9 refused typed, achieved = {achieved:.3e}");
+        }
+        other => {
+            panic!("a tolerance below the fit's absolute accuracy did not refuse typed: {other:?}")
+        }
+    }
+}
+
+/// **The certifying limb's own red.** The degraded-fit row above trips
+/// limb 1, which is the sampled limb; the limb that CERTIFIES had no
+/// red of its own. A fit that is right at every on-locus sample and
+/// wrong between them is what limb 2 exists to catch, and a fit built
+/// for a different `d` is exactly that shape at the cell scale: its
+/// sign witness fails, the cell answers `+∞`, and the certificate
+/// refuses naming `HullSup`.
+#[test]
+fn a_fit_for_the_wrong_distance_is_refused_by_the_certifying_limb() {
+    let base = quarter_cylinder(1.0, 1.0);
+    let (fit, _) = fit_offset(&base, 0.3, 1e-3, band()).unwrap();
+    // Certified against the OPPOSITE sign: `E·n` carries the wrong
+    // sign everywhere, so `D`'s witness cannot pass and limb 2 is the
+    // limb that must speak. A tolerance far above the true residual
+    // keeps limb 1 quiet, so the refusal can only come from limb 2.
+    match certify_offset(&base, &fit, -0.3, 1e3, band()) {
+        Err(OffsetFitError::Limb { limb, bound, .. }) => {
+            assert_eq!(limb, OffsetLimb::HullSup);
+            assert!(
+                bound.is_infinite(),
+                "the unproved sign witness must answer +inf, not {bound}"
+            );
+        }
+        other => panic!("limb 2 certified a fit built for the other sign: {other:?}"),
     }
 }
 

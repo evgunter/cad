@@ -108,6 +108,23 @@
 //! parameter; here it is answered by
 //! [`geom_core::spline::compose::patch`].
 //!
+//! **The small-`|d|` denominator, and the limit that remains.** The
+//! normal component divides `|X|` by `w²·(‖E‖ + |d|)`. Bounding that
+//! below by `2|d|` alone is both loose and brittle: once `dist`
+//! reaches `|d|` the cell collapses to `+∞`, so a micron-scale offset
+//! on a metre-scale patch certified as `inf`. The composite therefore
+//! carries `Ẽ` and takes a DIRECT mignitude lower bound on `‖E‖` —
+//! the same inf-side shape meter 1 uses on the cross product — which
+//! makes the small-`|d|` case finite and tightens every other row.
+//!
+//! It does not make the bound SCALE with `|d|`: the fit's absolute
+//! accuracy comes from the base's coordinate magnitudes, so at
+//! `d = 1e-6` the certified sup sits near `3e-4`. Sound and finite,
+//! weak in relative terms, and refused typed below what the fit can
+//! reach. The restructure that would fix it (recentring the
+//! composite's nets, as `patch_bound`'s rational arm already does per
+//! cell) is #1008.
+//!
 //! **Where the regularity floor enters.** `τ` and `D` both divide by
 //! `‖m‖`, and `X`'s reading divides by `w²`. The weight hull is
 //! positive by the rational licence; `‖m‖` is positive only because
@@ -130,7 +147,7 @@ use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Point3, ring_interval::RingInterval};
 
-use crate::offset_meters::{MeterError, MeterResult, meter_patch};
+use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down, sqrt_up};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational, net_d_u, net_d_v};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
@@ -226,6 +243,25 @@ pub enum OffsetFitError {
         /// The tolerance it had to reach.
         tolerance: f64,
     },
+    /// The fit handed in is RATIONAL, and limb 2 cannot certify it.
+    ///
+    /// The hull limb's composite reads the fitted net as a
+    /// polynomial (`Ẽ = F·w_base − A`, with `F` the fitted control
+    /// net): it never consults `fit.weights()`, so on a rational fit
+    /// it would bound a DIFFERENT surface than the one handed in —
+    /// and measurably so, by two to three orders on the reviewers'
+    /// rows. [`fit_offset`] never mints a rational fit (every fit it
+    /// returns carries unit weights), so this refusal is reachable
+    /// only through [`certify_offset`]'s public door.
+    ///
+    /// The weighted composite is SCHEDULED, not built (#1005): `Ẽ`
+    /// would become `F̃·w_base − A·w_fit` with `F̃` the fitted
+    /// homogeneous net, raising every downstream degree by the fit's
+    /// own.
+    RationalFitUnsupported {
+        /// How many of the fit's weights are not bitwise `1.0`.
+        non_unit_weights: usize,
+    },
     /// A certificate limb refused on a fit handed in from outside —
     /// the re-derivation door ([`certify_offset`]).
     Limb {
@@ -295,6 +331,14 @@ impl core::fmt::Display for OffsetFitError {
                  sup bound is {achieved} m against a tolerance of {tolerance} m; nothing \
                  uncertified is returned",
                 grid.0, grid.1, OFFSET_FIT_SAMPLE_CAP
+            ),
+            Self::RationalFitUnsupported { non_unit_weights } => write!(
+                f,
+                "fit_offset: the fitted surface handed in is rational ({non_unit_weights} \
+                 non-unit weights), and the certificate's hull limb reads a fitted net as \
+                 a POLYNOMIAL — certifying it would bound a different surface than the one \
+                 supplied. The weighted composite is scheduled, not built; fit_offset's own \
+                 fits are always non-rational, so this door refuses rather than under-report"
             ),
             Self::Limb {
                 limb,
@@ -399,6 +443,17 @@ pub fn fit_offset(
         // interval a worst-carrying cell touches — the "knot
         // insertion on the worst spans" step (module docs), which
         // reaches the fitted knot vector through Eq. 9.8.
+        //
+        // **Both directions are bisected, always.** A failing cell
+        // marks its `u` interval AND its `v` interval, so a patch
+        // whose error lives in one direction still pays a quadratic
+        // grid — on the quarter cylinder, whose `v` is an exact
+        // ruling the first fit already reproduces, that is most of
+        // the cells. This is a SIMPLIFICATION, not a deferral: the
+        // directional rule (mark the direction whose model-space cell
+        // extent `h·sup‖S_d‖` is larger — the tessellation split
+        // selection's own principle) is a small change to this block,
+        // filed as perf work (#1007), not a design question.
         let next_u = bisect(&us, &mark(&us, report.failing.iter().map(|c| c.0)));
         let next_v = bisect(&vs, &mark(&vs, report.failing.iter().map(|c| c.1)));
         if (next_u.len() == us.len() && next_v.len() == vs.len())
@@ -776,12 +831,26 @@ struct Composite {
     /// The weight channel `w` (a positive constant `1` patch when the
     /// base is non-rational).
     w: PatchSpans,
+    /// `Ẽ = w·E` itself, kept so the residual's normal component can
+    /// divide by a DIRECT lower bound on `‖E‖` (module docs, "the
+    /// small-`|d|` denominator") instead of by `2|d|`.
+    e: [PatchSpans; 3],
     breaks_u: Vec<f64>,
     breaks_v: Vec<f64>,
 }
 
 /// A row-major ring net of one spatial channel of a control net,
 /// optionally weighted (the homogeneous `A^c = w·P^c`).
+///
+/// `patch_bound::comp_nets` is the same extraction in the nested
+/// `Net` shape that module's windowed hulls index, and [`flat`] /
+/// [`nest`] exist only to bridge the two. They are NOT unified,
+/// deliberately and narrowly: the row-major slice is what
+/// `PatchSpans::decompose` consumes and the nested form is what
+/// `window_hull` indexes, so a single home would still hand one
+/// caller the wrong shape. What is shared is the arithmetic —
+/// `weight · coordinate`, in that order — and the two sites are
+/// cross-referenced so a change to it is a change to both.
 fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool) -> Vec<RingInterval> {
     n.control()
         .iter()
@@ -834,6 +903,17 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
+        // The composite polynomializes the FITTED net (`channel(fit,
+        // c, false)`), so a rational fit would be bounded as a
+        // different surface. Refused here, at the site that cannot
+        // read the weights, rather than at the door — every path to
+        // limb 2 runs through this constructor.
+        let non_unit = fit.weights().iter().filter(|w| **w != 1.0).count();
+        if non_unit > 0 {
+            return Err(OffsetFitError::RationalFitUnsupported {
+                non_unit_weights: non_unit,
+            });
+        }
         // A degree-1 direction has no derived KNOT VECTOR (degree 0
         // is not a clamped vector), and the composite needs one to
         // decompose the derivative nets. Degree elevation is exact in
@@ -947,6 +1027,7 @@ impl Composite {
             y,
             dd,
             w,
+            e,
             breaks_u,
             breaks_v,
         })
@@ -963,9 +1044,17 @@ impl Composite {
     /// One cell's certified sup bound on `‖S_fit − (S + d·n)‖`
     /// (module docs). `f64::INFINITY` whenever a side condition is
     /// not proved — never a finite wrong answer.
+    ///
+    /// **The whole assembly stays in the ring**, with `.hi()` read
+    /// exactly once at the end: every intermediate is a
+    /// [`RingInterval`], so the outward rounding of each quotient,
+    /// product and sum is the ring's. An `f64` fold of ring endpoints
+    /// would round to nearest at each step and under-cover the real
+    /// bound by ulps, which "certified" does not permit.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
-        let w_lo = self.w.cell_hull(su, sv).lo();
+        let w = self.w.cell_hull(su, sv);
+        let w_lo = w.lo();
         if !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
@@ -980,29 +1069,37 @@ impl Composite {
         }) {
             return f64::INFINITY;
         }
-        // | ‖E‖ − |d| | = |‖E‖² − d²| / (‖E‖ + |d|) ≤ sup|X| / (w_lo²·|d|).
-        let dist = (self.x.cell_hull(su, sv).mag() / w_lo.powi(2) / d.abs()).next_up();
-        // τ = ‖Y‖ / (w·‖M̃‖) ≤ sup‖Y‖ / (floor·w_lo⁴), using
-        // ‖M̃‖ = w³·‖m‖ ≥ w_lo³·floor.
-        let y2 = self.y[0].cell_hull(su, sv).mag().powi(2)
+        let abs_d = RingInterval::point(d.abs());
+        // A DIRECT lower bound on `‖E‖`, from `E = Ẽ/w` and the
+        // mignitude assembly on `Ẽ`'s own cell hulls — the same
+        // inf-side shape meter 1 uses on the cross product. This is
+        // what keeps the normal component's denominator honest when
+        // `|d|` is small: `‖E‖ + |d|` is the true divisor of
+        // `|‖E‖² − d²|`, and falling back on `2|d|` for it both
+        // loses accuracy and, once `dist` reaches `|d|`, collapses
+        // the cell to `+∞` for no geometric reason.
+        let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
+            + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
+            + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
+        let e_lo_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / w;
+        // | ‖E‖ − |d| | = |X| / (w²·(‖E‖ + |d|)).
+        let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (w.sqr() * (e_lo_iv + abs_d));
+        // τ = ‖Y‖ / (w·‖M̃‖) ≤ sup‖Y‖ / (floor·w⁴), using
+        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor.
+        let y_sq = self.y[0].cell_hull(su, sv).mag().powi(2)
             + self.y[1].cell_hull(su, sv).mag().powi(2)
             + self.y[2].cell_hull(su, sv).mag().powi(2);
-        let denom = floor * w_lo.powi(4);
-        if !(denom > 0.0) || !denom.is_finite() {
+        let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
+        let tau_iv = y_mag / (RingInterval::point(floor) * w.powi(4));
+        // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
+        // direct bound, or `|d| − dist` when that is larger.
+        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
+        if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
-        let tau = (y2.sqrt().next_up() / denom).next_up();
-        // ‖E‖ ≥ |d| − dist; below that the residual already exceeds
-        // any tolerance worth certifying.
-        let e_lo = d.abs() - dist;
-        if !(e_lo > 0.0) {
-            return f64::INFINITY;
-        }
-        let bound = dist + tau + (tau.powi(2) / e_lo).next_up();
-        if bound.is_finite() {
-            bound
-        } else {
-            f64::INFINITY
-        }
+        let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
+        let hi = bound.hi();
+        if hi.is_finite() { hi } else { f64::INFINITY }
     }
 }

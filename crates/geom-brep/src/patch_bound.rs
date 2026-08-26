@@ -35,6 +35,22 @@
 //! strictly tighter; both are sound; they share every ingredient hull
 //! above them, which is the point of computing them together.
 //!
+//! **What the second reading costs the first consumer, stated.**
+//! `mesh`'s tessellation sizing asks for the magnitude reading and
+//! gets the signed one built alongside it: per rational cell that is
+//! five extra ring divisions (the signed `S_u, S_v, S_uu, S_uv, S_vv`
+//! recurrences) and five extra `window_hull` passes (the signed
+//! ingredient hulls the magnitude spelling takes through
+//! `window_tilde_hull` instead). It is on the SHIPPED sizing path,
+//! not a diagnostic one. It was not measured as a regression because
+//! the alternative — two modules recomputing the same nets — is the
+//! thing the lift exists to prevent; if a tessellation perf lane
+//! measures it as material, splitting the assembly on a reading flag
+//! is a local change to this function. Retiring the magnitude reading
+//! outright is tighter and moves those baselines, so it is scheduled
+//! with its re-baseline attached (#1006) rather than left to "the
+//! lane that owns them".
+//!
 //! # The rational arm
 //!
 //! A RATIONAL patch is `S = A/w` with `A = ΣΣ Nᵢ Nⱼ wᵢⱼ Pᵢⱼ` and
@@ -121,8 +137,6 @@ pub enum PatchBoundError {
     /// A direction whose once-differenced knot vector failed to
     /// materialise.
     DerivedKnots,
-    /// An empty control net.
-    EmptyNet,
 }
 
 impl PatchBoundError {
@@ -158,7 +172,6 @@ impl PatchBoundError {
                 "NURBS direction whose derivative knot vector fails to materialise — \
                  outside the certified inventory"
             }
-            Self::EmptyNet => "empty NURBS control net",
         }
     }
 }
@@ -445,6 +458,11 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 }
 
 /// The three spatial channels of a control net, as ring points.
+///
+/// (`offset_fit::channel` is the same extraction in the row-major
+/// slice shape `PatchSpans::decompose` consumes; the two shapes have
+/// different consumers and are bridged rather than unified — see that
+/// function for the argument. Same arithmetic, same order.)
 fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
     let (nu, nv) = n.control_counts();
     (0..3)

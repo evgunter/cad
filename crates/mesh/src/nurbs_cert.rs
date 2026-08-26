@@ -1167,6 +1167,19 @@ pub(crate) fn nurbs_face_bound(
 /// The integral (all-unit-weight) arm of [`nurbs_face_bound`]: the
 /// direct control-hull convexity assembly (module docs), including
 /// the first-derivative sups the split selection's aspect cap reads.
+///
+/// **Why this stayed behind when the per-cell assembly was lifted**
+/// into `geom_brep::patch_bound`: it computes a different quantity.
+/// The lifted one hulls each partial over one knot-span cell's ACTIVE
+/// coefficient window; this one hulls the whole net at once, which is
+/// not the max of the cell bounds — it is a coarser single number,
+/// and it is the number `nurbs_face_bound`'s integral arm has always
+/// returned. Folding it into a max over `patch_cells` would be
+/// tighter and would move every integral face's grid, so the
+/// consolidation is scheduled with that baseline move attached
+/// (#1006) rather than done in passing. The differencing recurrence
+/// itself is shared: `derivative_coeffs` is the one spelling, here
+/// and there.
 fn integral_face_bound(
     n: &NurbsSurface<f64>,
     fk: FaceKey,

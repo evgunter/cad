@@ -23,9 +23,9 @@
 //! On a cell, `S_u` and `S_v` each lie componentwise in the signed
 //! hull of their active derived coefficients ([`crate::patch_bound`]).
 //! Interval-multiplying those three-component enclosures gives an
-//! enclosure `M ⊇ { S_u(u,v) × S_v(u,v) : (u,v) ∈ cell }`. Two sound
-//! lower bounds on `‖m‖` are read off `M`, and the larger wins — the
-//! speed meter's two-assembly join, lifted:
+//! enclosure `M ⊇ { S_u(u,v) × S_v(u,v) : (u,v) ∈ cell }`. THREE
+//! sound lower bounds on `‖m‖` are assembled and the largest wins —
+//! the speed meter's two-assembly join, lifted and extended:
 //!
 //! - **Componentwise mignitude**: `‖m‖ = √(Σ_c m_c²) ≥ √(Σ_c mig(M_c)²)`,
 //!   where `mig(I)` is the smallest `|x|` for `x ∈ I` (zero when `I`
@@ -74,19 +74,41 @@
 //! built, and building it without a caller would guess its region
 //! vocabulary.
 //!
-//! ## The margin and its lever
+//! ## The margin and its lever, and why the lever is NOT `d`
 //!
 //! The certified quantity is `floor`, in **m² per unit parameter
 //! area** — the natural units of `‖S_u × S_v‖`, and the number the
 //! certificate actually consumes (it is what makes `1/‖S_u × S_v‖`
 //! boundable). The *predicate* cannot classify an area rate against a
-//! linear band, so [`offset_normal_floor`] meters the dimensionless
-//! **sine floor** `floor / (sup‖S_u‖ · sup‖S_v‖) ≤ sin∠(S_u, S_v)`
-//! levered by `|d|`: the lever is the offset distance itself, because
-//! the displacement a normal ambiguity of angle `θ` inflicts on the
-//! offset point is exactly `|d|·θ`. Sup-side denominators push the
-//! sine floor DOWN, so the levered margin is conservative in the same
-//! direction as the floor.
+//! linear band, so it needs a lever, and the choice of lever is the
+//! whole content of this paragraph.
+//!
+//! **The lever is the patch's own faster chart speed**:
+//! [`offset_normal_floor`] classifies
+//! `Margin::over_lever(floor, max(sup‖S_u‖, sup‖S_v‖))` — the
+//! `over_lever` door's own named case, a chart-orientation area over
+//! the length that scales it. The quotient is
+//! `min(‖S_u‖, ‖S_v‖)·sin∠(S_u, S_v)` up to the sup-side slack: the
+//! **thinness of the chart parallelogram**, in metres, and exactly
+//! the length that goes to zero as the normal degenerates.
+//!
+//! **What it deliberately is not.** An earlier spelling levered the
+//! dimensionless sine floor by `|d|`, reasoning that a normal
+//! ambiguity of angle `θ` displaces the offset point by `|d|·θ`. That
+//! reasoning is sound about the *certificate* and wrong about *this
+//! predicate*, in the direction that matters: it makes the margin
+//! grow with `|d|`, so the same fixed geometry is admitted at a large
+//! offset and refused at a small one — permissive exactly where the
+//! displacement is largest, and refusing a perfectly regular patch
+//! for no reason but a small `d`. The subject of this meter — does
+//! the chart normal degenerate? — does not depend on `d` at all, and
+//! the margin must not either. The `|d|` dependence belongs where it
+//! already is: the certificate consumes `floor` directly (`τ` and the
+//! sign witness both divide by `‖m‖`), so nothing unsound reaches it
+//! from a `d`-independent door.
+//!
+//! Sup-side denominators push the quotient DOWN, so the margin is
+//! conservative in the same direction as the floor.
 //!
 //! # Meter 2 — the collapse headroom
 //!
@@ -155,10 +177,12 @@ pub enum MeterError {
         /// The certified lower bound on `‖S_u × S_v‖` (m² per unit
         /// parameter area) — zero when no cell could be certified.
         floor: f64,
-        /// The dimensionless sine floor the margin levered.
-        sine_floor: f64,
-        /// The lever the margin used, in metres (`|d|`).
-        lever: f64,
+        /// The classified margin: the chart parallelogram's certified
+        /// thinness in metres, `floor / max(sup‖S_u‖, sup‖S_v‖)`.
+        thinness: f64,
+        /// The lever the margin divided by, in metres per unit
+        /// parameter — the patch's faster chart speed.
+        speed_lever: f64,
     },
     /// `offset_curvature_headroom`: `|d|` reaches the patch's
     /// smallest certified curvature radius on the folding side, so
@@ -186,13 +210,14 @@ impl core::fmt::Display for MeterError {
         match self {
             Self::NormalFloor {
                 floor,
-                sine_floor,
-                lever,
+                thinness,
+                speed_lever,
             } => write!(
                 f,
                 "offset_normal_floor: the patch's chart normal is not certifiably \
-                 non-degenerate — the certified floor on ‖S_u × S_v‖ is {floor} \
-                 (sine floor {sine_floor}, levered by |d| = {lever} m); the offset \
+                 non-degenerate — the certified floor on ‖S_u × S_v‖ is {floor} m² per \
+                 unit parameter area, which over the patch's faster chart speed \
+                 ({speed_lever} m) leaves a chart thinness of {thinness} m; the offset \
                  locus is undefined where the normal degenerates, so nothing is fitted"
             ),
             Self::CurvatureHeadroom {
@@ -217,7 +242,16 @@ impl core::error::Error for MeterError {}
 /// The smallest `|x|` over the enclosure — zero when it straddles (or
 /// is poisoned, whose comparisons are all false: the conservative
 /// answer).
-fn mig(i: RingInterval) -> f64 {
+///
+/// The **mignitude**, and the same quantity `ssi::certify`'s
+/// `zero_free_lower_bound` reads for the transversality margin. Kept
+/// separate rather than shared: that one is a *decision* helper on a
+/// residual channel and answers `0.0` for a straddling interval
+/// because a straddling residual proves nothing; this one is a
+/// coefficient-hull *assembly* term and answers `0.0` for the same
+/// arithmetic reason. One spelling would have to pick one of the two
+/// docs, and the shared body is four comparisons.
+pub fn mig(i: RingInterval) -> f64 {
     if i.lo() > 0.0 {
         i.lo()
     } else if i.hi() < 0.0 {
@@ -229,12 +263,12 @@ fn mig(i: RingInterval) -> f64 {
 
 /// `√x` rounded DOWN (a lower bound), zero for a non-positive or
 /// non-finite argument.
-fn sqrt_down(x: f64) -> f64 {
+pub fn sqrt_down(x: f64) -> f64 {
     if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
 }
 
 /// `√x` rounded UP (an upper bound); NaN flows.
-fn sqrt_up(x: f64) -> f64 {
+pub fn sqrt_up(x: f64) -> f64 {
     if x > 0.0 { x.sqrt().next_up() } else { x }
 }
 
@@ -244,6 +278,13 @@ fn dot(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> RingInterval {
 }
 
 /// Interval cross product, fixed component order (D9).
+///
+/// Component-for-component `ssi::enclose::cross3`, which is private
+/// to that module and takes its operands by value. The three vector
+/// helpers here ([`dot`], `cross`, [`norm_sq`]) are this module's
+/// borrow-shaped triple; if a third consumer ever wants them, the
+/// pair collapses into one `geom_core` home — noted at both sites so
+/// the duplication is a decision rather than an accident.
 fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
@@ -278,7 +319,7 @@ pub struct CellNormal {
     pub sup: f64,
 }
 
-/// Meter 1, per cell: the two-assembly join (module docs).
+/// Meter 1, per cell: the three-assembly join (module docs).
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let m = cross(&cell.s_u, &cell.s_v);
     // Assembly A: componentwise mignitude.
@@ -297,8 +338,13 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         let proj = RingInterval::point(dv[0]) * m[0]
             + RingInterval::point(dv[1]) * m[1]
             + RingInterval::point(dv[2]) * m[2];
-        let lo = proj.lo();
-        if lo > 0.0 { (lo / dn).next_down() } else { 0.0 }
+        // The quotient stays IN THE RING and `.lo()` is read once, so
+        // the outward rounding of the division is the ring's rather
+        // than this function's: a bare `lo / dn` would be a
+        // correctly-rounded f64 quotient, which is not a lower bound
+        // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
+        // so dividing by it is the sound side.
+        (proj / RingInterval::point(dn)).lo().max(0.0)
     } else {
         0.0
     };
@@ -333,10 +379,32 @@ pub struct PatchRegularity {
     /// `sup ‖S_v‖` (m per unit parameter).
     pub speed_v: f64,
     /// `floor / (speed_u · speed_v)` — a dimensionless lower bound on
-    /// `sin∠(S_u, S_v)`, the quantity the predicate levers.
+    /// `sin∠(S_u, S_v)`. A DIAGNOSTIC: the predicate classifies
+    /// [`PatchRegularity::thinness`], not this (module docs).
     pub sine_floor: f64,
     /// How many cells the fold ran over.
     pub cells: u32,
+}
+
+impl PatchRegularity {
+    /// The lever the regularity predicate divides by: the patch's
+    /// faster chart speed, in metres per unit parameter.
+    pub fn speed_lever(&self) -> f64 {
+        self.speed_u.max(self.speed_v)
+    }
+
+    /// The margin [`offset_normal_floor`] classifies — the chart
+    /// parallelogram's certified thinness in metres,
+    /// `floor / max(sup‖S_u‖, sup‖S_v‖)`, which is
+    /// `min(‖S_u‖, ‖S_v‖)·sin∠(S_u, S_v)` up to the sup-side slack.
+    ///
+    /// Deliberately UNGUARDED, so this and the predicate are the same
+    /// number on every input: a zero lever leaves `0/0`, which
+    /// escalates rather than certifying, and an infinite one leaves a
+    /// zero margin, which refuses. Both are the loud answer.
+    pub fn thinness(&self) -> f64 {
+        self.floor / self.speed_lever()
+    }
 }
 
 /// Meter 1, whole patch: the min of the per-cell floors, the max of
@@ -348,8 +416,11 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     let mut speed_v = 0.0f64;
     for cell in cells {
         let n = cell_normal(cell);
-        // NaN-catching: `!(x < floor)` keeps a poisoned cell from
-        // being silently skipped — a NaN sup poisons `sup` below.
+        // `cell_normal` never answers a NaN floor — its assemblies
+        // clamp at zero, which is the conservative reading of a
+        // poisoned cell — so a plain `<` is the whole fold. The sup
+        // CAN be NaN (it reads `mag`), and the explicit poison step
+        // below is what keeps that from being dropped by `max`.
         if n.floor < floor {
             floor = n.floor;
         }
@@ -380,26 +451,28 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     }
 }
 
-/// **`offset_normal_floor`** — the regularity predicate (module docs).
-/// Margin: the dimensionless sine floor levered by `|d|`, in metres;
-/// classified against the run's linear band.
+/// **`offset_normal_floor`** — the regularity predicate (module
+/// docs). Margin: the chart parallelogram's certified thinness,
+/// `floor / max(sup‖S_u‖, sup‖S_v‖)` in metres; classified against
+/// the run's linear band. **It takes no `d`**, deliberately — see the
+/// module docs' lever paragraph for why an earlier `|d|` lever was
+/// inverted with respect to the risk it was supposed to meter.
 ///
 /// # Errors
 ///
 /// [`MeterError::NormalFloor`] when the margin is certifiably at or
 /// below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
-pub fn offset_normal_floor(reg: &PatchRegularity, d: f64, band: Band) -> Result<(), MeterError> {
-    let lever = d.abs();
-    let margin = Margin::levered(reg.sine_floor, lever);
+pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
+    let margin = Margin::over_lever(reg.floor, reg.speed_lever());
     match decide("offset_normal_floor", margin, band)
         .map_err(|source| MeterError::Escalated { source })?
     {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(MeterError::NormalFloor {
             floor: reg.floor,
-            sine_floor: reg.sine_floor,
-            lever,
+            thinness: margin.value(),
+            speed_lever: reg.speed_lever(),
         }),
     }
 }
@@ -575,7 +648,7 @@ pub fn meter_patch(
         let cells = patch_cells_refined(base, splits).map_err(MeterResult::PatchBound)?;
         let reg = patch_regularity(&cells);
         let coll = patch_collapse(&cells, d);
-        match offset_normal_floor(&reg, d, band).and_then(|()| {
+        match offset_normal_floor(&reg, band).and_then(|()| {
             offset_curvature_headroom(&coll, band)?;
             Ok(())
         }) {
@@ -586,8 +659,8 @@ pub fn meter_patch(
     Err(MeterResult::Meter(last.unwrap_or(
         MeterError::NormalFloor {
             floor: 0.0,
-            sine_floor: 0.0,
-            lever: d.abs(),
+            thinness: 0.0,
+            speed_lever: 0.0,
         },
     )))
 }
