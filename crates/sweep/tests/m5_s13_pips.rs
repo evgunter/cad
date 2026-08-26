@@ -362,13 +362,22 @@ fn trimmed_sphere_group_operand_refuses_typed_at_the_scan() {
 }
 
 /// **F2 (fix pass): the scan's CYLINDER-NEAR-SPHERE arm.** A ball
-/// hovering above a cylinder's wall inside the wall's certified box
-/// (the PR 9 box is the full cylinder slab widened by the radius in
-/// every coordinate) but with every edge pair box-clear: nothing is
-/// examined, the fallback fires, and the scan refuses typed naming the
-/// cyl×sphere seam blocker — certified boxes prove separation, and
-/// anything closer than the boxes cannot be classified without the
-/// fitted-chord lane (PR 9c deviation 1).
+/// inside the cylinder wall's certified box but with every edge pair
+/// box-clear: nothing is examined, the fallback fires, and the scan
+/// refuses typed naming the cyl×sphere seam blocker — certified boxes
+/// prove separation, and anything closer than the boxes cannot be
+/// classified without the fitted-chord lane (PR 9c deviation 1).
+///
+/// **Where the ball sits, and why there.** The wall's box is the
+/// rectangular prism around a ROUND slab, so it over-claims at its
+/// own corners — the looseness the rule states, not slack in the
+/// code. The ball is parked in one of those corners: radially
+/// 0.43 out from the axis against a 0.35 wall, so it is genuinely
+/// clear of the solid, while its box still meets the wall's.
+/// A ball hovering ABOVE the top cap is NOT such a case, whatever
+/// the gap: the slab claims nothing along its own axis beyond the
+/// face's own trim, so the scan certifies that pair and the union
+/// answers.
 #[test]
 fn cylinder_near_sphere_refuses_typed_at_the_scan() {
     let disc = ProfileLoop::new(vec![
@@ -381,11 +390,41 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
     let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
         .unwrap()
         .body;
-    let ball = ball_at(0.2, Vec3::new(0.0, 0.0, 1.75));
+    let ball = ball_at(0.05, Vec3::new(0.34, 0.34, 0.65));
     let err = topo::union(&cyl, &ball, Tol::witness())
         .expect_err("nearness to a cylinder wall cannot certify");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's cylinder arm, got {err:?}");
     };
     assert!(what.contains("cyl×sphere"), "{what}");
+}
+
+/// **The other side of that boundary, and the consumer-visible half
+/// of #862**: the same ball hovering over the same cylinder's top
+/// cap, clear of it by less than the radius, is CERTIFIED separated
+/// and the union answers a two-solid assembly. An axial over-claim in
+/// the wall's box turns exactly this pair into a false
+/// `FallbackExtentUnsupported`.
+#[test]
+fn a_ball_above_the_cylinders_cap_is_certified_separated() {
+    let disc = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.35, 0.0), 1.0),
+        ProfileVertex::new(p2(-0.35, 0.0), 1.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![disc])
+        .validate(Tol::witness())
+        .unwrap();
+    let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
+        .unwrap()
+        .body;
+    // Ball bottom at z = 1.55, cap at z = 1.3: a gap of 0.25, less
+    // than the wall's 0.35 radius.
+    let ball = ball_at(0.2, Vec3::new(0.0, 0.0, 1.75));
+    let out = topo::union(&cyl, &ball, Tol::witness())
+        .expect("a genuinely separated pair must be certified, not refused");
+    let kind = out.body().expect("a non-empty union").kind;
+    assert!(
+        matches!(kind, topo::boolean::BooleanResultKind::Assembly),
+        "two disjoint solids union to an assembly, got {kind:?}"
+    );
 }

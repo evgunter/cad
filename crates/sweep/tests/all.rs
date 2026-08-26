@@ -282,3 +282,6 @@ mod m9_3_wall_door;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "verbs_gate_r1_probes.rs"]
+mod verbs_gate_r1_probes;

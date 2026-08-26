@@ -101,13 +101,25 @@
 //!    improvement rather than a workaround (Evan, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
-//! 4. **No boolean may touch a Cone or a Torus face** (walls 3, 4).
-//!    The operand gate is per-FACE-KIND and it rejects the whole
-//!    body: `union` refuses `CurvedBooleanUnsupported { kind: Torus }`
-//!    and `subtract` refuses `CurvedOpUnsupported` before either
-//!    reaches a pair. So the bottle cannot be one body, and the
-//!    self-intersection — the neck piercing the bulb, the one place a
-//!    Klein bottle MUST cross itself in 3-space — cannot be trimmed.
+//! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
+//!    THE OTHER OPERAND** (walls 3, 4). The operand gate is
+//!    pair-scoped: a kind with no wired arm disqualifies an operation
+//!    only where its BOX may meet a face of the other body, so both
+//!    refusals now name the germ PAIR and both faces, and they are
+//!    DIFFERENT pairs. `union` refuses
+//!    `CurvedPairUnsupported { kind: Cone, other_kind: Plane }` — the
+//!    flare against a plane of the loop, and NOT the coincident
+//!    annular mate the model cares about. `subtract` refuses
+//!    `{ op: Some(Subtract), kind: Torus, other_kind: Torus }` — the
+//!    bulb's own tube wall against the descending neck's, which IS
+//!    the crossing the model is asking to trim. Box overlap is a MAY,
+//!    not a DOES: the
+//!    kernel cannot rule the meeting out, which is a weaker claim
+//!    than that they meet. So the bottle still cannot be one body,
+//!    and the self-intersection — the neck piercing the bulb, the one
+//!    place a Klein bottle MUST cross itself in 3-space — still
+//!    cannot be trimmed; what changed is that the reason is a pair
+//!    the reader can look at.
 //! 5. **`sweep_body` cannot carry a section around a U-turn**
 //!    (wall 5). The loop's whole spine is one path and would be ONE
 //!    body, but the loft's stacking trilean compares only the LAST
@@ -202,7 +214,7 @@ use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
 use pncad::sweep::fillet::{FilletError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, BooleanError, EdgeKey, Operand};
+use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -797,7 +809,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its three bodies meet on
     // coincident annular faces — the declared REST mate — and the
-    // union refuses before it ever looks at them.
+    // union refuses at a pair that is NOT that mate: the bulb's
+    // CONE (the flare) against a plane of the loop. The gate is
+    // pair-scoped now, so the refusal names the two faces whose
+    // boxes may meet, and this is the first such pair in arena
+    // order. It is a MAY: box overlap over-approximates, and the
+    // flare's own slab is what reaches.
     crate::walls::wall(
         "bottle",
         3,
@@ -806,9 +823,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -824,7 +843,20 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         4,
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &into, tol),
-        |e| matches!(e, BooleanError::CurvedOpUnsupported { .. }),
+        |e| {
+            // Reviewer pin (r1 probes): the PR body and finding 4
+            // claim this pair is (Torus, Torus); the shipped matcher
+            // pins only the op.
+            matches!(
+                e,
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            )
+        },
         "trim the self-intersection instead of letting the walls interpenetrate",
     );
 
@@ -1003,4 +1035,60 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     let _ = into;
+}
+
+#[cfg(test)]
+mod verbs_gate_r1_probes {
+    //! The bottle's two boolean walls, as a TEST rather than only as
+    //! a run-the-whole-tour probe.
+    //!
+    //! `wall_probes` reaches these two through a full render pass, so
+    //! a change to the boxes under the operand gate could only be
+    //! re-measured by rebuilding and re-running the tour. That is a
+    //! twenty-minute answer to a one-second question, and the walls
+    //! are exactly what a box change moves: the gate names a PAIR
+    //! now, and which pair depends on which faces' boxes may meet.
+    //!
+    //! Same pins as the walls themselves, so the two cannot drift.
+
+    use super::*;
+
+    #[test]
+    fn the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims() {
+        let tol = Tol::witness();
+        let [bulb_body, over, into] = bottle::<f64>(tol);
+
+        let joined = pncad::topo::union(&bulb_body, &over, tol)
+            .expect_err("the bottle's pieces still cannot be joined");
+        println!("klein wall 3: {joined:?}");
+        assert!(
+            matches!(
+                joined,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
+                    ..
+                }
+            ),
+            "wall 3 must name the flare against a plane of the loop: {joined:?}"
+        );
+
+        let trimmed = pncad::topo::subtract(&bulb_body, &into, tol)
+            .expect_err("the self-intersection still cannot be trimmed");
+        println!("klein wall 4: {trimmed:?}");
+        assert!(
+            matches!(
+                trimmed,
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            ),
+            "wall 4 must name the bulb's tube wall against the neck's: {trimmed:?}"
+        );
+    }
 }

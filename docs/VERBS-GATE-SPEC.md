@@ -73,6 +73,26 @@ say so rather than gating vacuously.
   genuinely intersect; the germ class is row 9's): the wall's text
   updates to the true refusal, and its retirement text (recorded at
   plan row 6) still executes only when row 9 lands.
+
+**Amendment (r1 review, adjudicated).** Two corrections to the
+acceptance above, both from measurement:
+
+- **What admission buys is REDUCE-DEPTH plus an honest downstream
+  refusal**, not a completed operation. Every containment door
+  (`join`'s `resolve_roles_geometric`, `ops`' shell classification,
+  `finish`) walks EVERY face of the body being classified against,
+  because a ray from the query point crosses the whole boundary and
+  box reach cannot be consulted there at all. A cone/torus operand the
+  gate admits therefore still refuses at `point_in_solid` — typed and
+  naming the kind (`PointInSolidError::KindUnsupported`), never as
+  corruption. The capability is **#1011**, a scheduled unit. The
+  acceptance's admit case is honest at reduce depth and the E2E rows
+  pin the downstream boundary.
+- **The cone box must be the FRUSTUM the face's axial window cuts**,
+  not a slab pinned at the window's widest radius. The looser form
+  named a `(Cone, Sphere)` germ pair for lily wall 7 whose exact
+  frustum clears the carving ball by 0.291 — a box artifact, not a
+  contact. That is the #862 rider's own spirit and lands here.
 - A constructed admit case: a body carrying an irrelevant torus
   face unions with a plane/cylinder body whose faces clear it —
   red-able by reverting the gate.
