@@ -1512,3 +1512,24 @@ frozen head b12a7918 with claims-to-falsify on the arc_extent
 sagitta charge's soundness (the one wrong-answer-capable path),
 the wrap-around footprint argument, the span-dip bound's
 re-derivation, and the r>6 boundary. TESSFOLD opened #1045.
+
+## ORDINAL 79 RETURNED: OFF-D PR-1 A-W-F 2/4/5; FIX PASS DISPATCHED (2026-08-26)
+
+The review's centerpiece: BOTH MAJors are one defect — the cone
+offset action derived twice (mint: apex slides −axis·d/sinα, pure
+v-shift, no sign flip; door: old apex + copysign) and the copy
+drifted, measured as a VertexDisagreement gap of exactly d/sinα
+on the one routed cone pair. Nothing shipped is silently wrong
+(both surface as pre-mutation typed refusals; the one-clone Err
+contract verified bit-identical across five paths by whole-body
+Debug), but PR-2's shell of coned bodies would inherit
+wrong-reason refusals. Adjudicated: fix by DE-DUPLICATION — the
+cone action gets one home in geom-brep beside the mint, the door
+consumes it, mirror nappe follows the mint's continuous-extension
+contract (doc sentence corrected, not a typed nappe refusal);
+MIN-1+Q7 merged into one carve-out ruling; MIN-4's shared-key
+operand gets a decided-before-mutation refusal; the reviewer's 8
+probes adopt authorship-preserving with the two reds required to
+flip. Style lane: Q1 sure (the duplication IS the finding), Q3
+sure (weak Err projections), Q6 sure (deviations all scheduled).
+Reviewer lane swept post-report per the reclaim rule.
