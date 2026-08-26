@@ -133,27 +133,48 @@ fn the_bracket_bound_is_the_carrier_slab_not_the_arc() {
     }
 }
 
-/// **The executed no-crossings silence.** The pair below genuinely
-/// interpenetrates, yet no vertex of either operand is inside the
-/// other, so the containment fallback keeps both shells whole and the
-/// union is metered as two DISJOINT solids: its volume is the SUM of
-/// the operands', with the shared lens counted twice. This is the one
-/// path that yields a WRONG ANSWER rather than a refusal.
+/// **The no-crossings silence, and the posture that closes it.**
+///
+/// The pair below genuinely interpenetrates, yet no vertex of either
+/// operand is inside the other and no edge of either meets a face of
+/// the other. Before D10 the containment fallback kept both shells
+/// whole and metered the union as two DISJOINT solids — volume exactly
+/// the SUM of the operands', the shared lens counted twice, a WRONG
+/// ANSWER rather than a refusal. The sum is asserted here so the row
+/// still carries the measurement it was opened with.
+///
+/// It now refuses typed at the curved-extent scan's wall×wall gate.
 #[test]
-fn a_fully_crossing_cylinder_pair_with_no_edge_event_is_answered_wrong() {
+fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     let tol = Tol::witness();
     let (a, b) = crossing_pair_without_edge_events();
     let va = topo::mass_properties(&a, tol).unwrap().volume;
     let vb = topo::mass_properties(&b, tol).unwrap().volume;
-    let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).unwrap() else {
-        panic!("the fallback answers rather than refusing today");
+    // The wrong answer the silence used to give, kept as the row's own
+    // yardstick: 10π + 20π, the lens counted twice.
+    assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
+    let err = topo::union(&a, &b, tol).expect_err("the silence never re-opens");
+    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+        panic!("expected the extent scan's wall pair gate, got {err:?}");
     };
+    assert!(what.contains("two cylinder walls"), "{what}");
+}
+
+/// Cylinder operands the gate must NOT touch: two walls standing clear
+/// of each other still answer, because non-overlapping boxes prove the
+/// boundaries do not meet. The gate is reach-first, so the ordinary
+/// disjoint-operands fallback keeps working.
+#[test]
+fn cylinders_standing_clear_of_each_other_still_answer() {
+    let tol = Tol::witness();
+    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let b = cyl(5.0, 0.0, 1.0, 0.0, 2.0);
+    let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).unwrap() else {
+        panic!("two disjoint solids union into a two-shell body");
+    };
+    assert_eq!(out.body.shells().count(), 2);
     let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-    assert_eq!(out.body.shells().count(), 2, "two shells, kept whole");
-    assert!(
-        (v - (va + vb)).abs() < 1e-9,
-        "the overlap is counted twice: {v} vs {va} + {vb}"
-    );
+    assert!((v - 4.0 * core::f64::consts::PI).abs() < 1e-9, "{v}");
 }
 
 /// The pair whose walls cross in ONE closed loop that reaches no edge
