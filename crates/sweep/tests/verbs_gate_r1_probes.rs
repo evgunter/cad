@@ -66,11 +66,14 @@ fn bulge_arc() -> (f64, f64, f64) {
     (cx, r_arc, half)
 }
 
-/// A "vase": a solid of revolution about z with a straight cylinder
-/// wall of radius 0.5 over z ∈ [0, 1] and a BULGE arc over
-/// z ∈ [1, 1.5] — the bulge revolves to a genuine TORUS band
-/// (the kernel's own authorship, not a relabel). Closed by discs at
-/// z = 0 and z = 1.5.
+/// A "vase": a solid of revolution about the WORLD Y AXIS (the
+/// revolve axis is the sketch's y direction in the xy sketch plane)
+/// with a straight cylinder wall of radius 0.5 over y ∈ [0, 1] and a
+/// BULGE arc over y ∈ [1, 1.5] — the bulge revolves to a genuine
+/// TORUS band (the kernel's own authorship, not a relabel). Closed by
+/// discs at y = 0 and y = 1.5, coplanar-merged so the operand is
+/// maximal-faced (a full revolve mints each disc as two same-key
+/// halves, which the boolean's F7 gate refuses).
 fn vase() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
     let lp = ProfileLoop::new(vec![
@@ -87,9 +90,12 @@ fn vase() -> Body<f64> {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, Revolution::Full, Tol::witness())
+    let mut body = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
-        .body
+        .body;
+    body.merge_coplanar_faces(Tol::witness())
+        .expect("the vase's disc halves merge");
+    body
 }
 
 /// The vase carries a torus face, minted by the kernel itself.
@@ -104,16 +110,17 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 }
 
 /// **E2E row 1 — the granted case, full pipeline, mass-checked.**
-/// The vase's torus band lives in z ∈ [1, 1.5] (whole-torus box); the
-/// brick crosses the CYLINDER wall over z ∈ [0.3, 0.7] and clears the
-/// torus box, so the pair-scoped gate must admit the union, the
+/// The vase's torus band's whole-torus box spans y ∈ [1.25 ± R_arc]
+/// ≈ [0.97, 1.53]; the brick crosses the CYLINDER wall over
+/// y ∈ [0.3, 0.7] and clears the torus box, so the pair-scoped gate
+/// must admit the union, the
 /// crossing pipeline must cut it, and the volume must be the analytic
 /// one. Reverting the gate to a per-body kind scan reds this row with
 /// a refusal; a wrong cut reds it on the number.
 #[test]
 fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
     let a = vase();
-    let b = brick((-1.0, 1.0), (-1.0, 1.0), (0.3, 0.7));
+    let b = brick((-1.0, 1.0), (0.3, 0.7), (-1.0, 1.0));
     let out = topo::union(&a, &b, Tol::witness())
         .expect("the torus band clears the brick; the pair gate must admit this union");
     let body = &out.body().expect("a non-empty union").body;
@@ -129,7 +136,7 @@ fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
         * (cx * cx * 2.0 * a + 2.0 * cx * iq + (r_arc * r_arc * 2.0 * a - 2.0 * a * a * a / 3.0));
     let vase_vol = PI * 0.25 * 1.0 + top;
     let brick_vol = 2.0 * 2.0 * 0.4;
-    let overlap = PI * 0.25 * 0.4; // the cylinder's core inside the brick
+    let overlap = PI * 0.25 * 0.4; // the y-axis cylinder core inside the brick
     let want = vase_vol + brick_vol - overlap;
     let got = vol(body);
     assert!(
@@ -140,8 +147,8 @@ fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
 }
 
 /// **E2E row 2 — the refused pose.** The same brick raised into the
-/// torus band's box (z ∈ [1.05, 1.45] overlaps the whole-torus box
-/// z ∈ [1.25 ± R_arc] ≈ [0.97, 1.53]) must refuse naming the
+/// torus band's box (y ∈ [1.05, 1.45] overlaps the whole-torus box
+/// y ∈ [1.25 ± R_arc] ≈ [0.97, 1.53]) must refuse naming the
 /// (Torus, _) pair — even
 /// though the brick still genuinely intersects the solid only through
 /// supported faces, the box MAY meet and the gate has no arm for the
@@ -149,7 +156,7 @@ fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
 #[test]
 fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
     let a = vase();
-    let b = brick((-1.0, 1.0), (-1.0, 1.0), (1.05, 1.45));
+    let b = brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0));
     let err = topo::union(&a, &b, Tol::witness())
         .expect_err("a torus face whose box may meet the brick must gate the union");
     let BooleanError::CurvedPairUnsupported {
