@@ -1097,11 +1097,20 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
             radius,
             u_ref,
         } => {
-            if matches!(surface, Surface::Nurbs(_)) || matches!(mate, Surface::Nurbs(_)) {
+            // `Approx` is included, and it has to be: `operand` three
+            // lines up routes it to `SsiOperand::Nurbs(a.fit())`, so
+            // the very limbs this guard's premise is about — the
+            // parameter-coupled NURBS limbs — are the ones an `Approx`
+            // operand would run. The guard reads the SAME roster its
+            // premise names.
+            let spline_operand =
+                |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
+            if spline_operand(surface) || spline_operand(mate) {
                 return Err(PcurveCertifyError::FittedCertificate {
                     limb: None,
                     what: "a Circle carrier's rational-chain certificate is written for \
-                           analytic operand pairs only (the NURBS limbs are \
+                           analytic operand pairs only (the spline limbs — a Nurbs \
+                           payload's or an approximating surface's fit — are \
                            parameter-coupled to a traced pcurve)",
                     magnitude: None,
                 });

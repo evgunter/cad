@@ -980,11 +980,28 @@ fn curved_face_arm<T: Decide>(
     // (`NurbsSurface::project` is an `impl NurbsSurface<f64>` block),
     // so wiring it would kill the Interval lane. Refused typed HERE,
     // before the residual sides — poison is not a refusal.
-    if matches!(surface, geom::Surface::Nurbs(_)) {
+    //
+    // **`Approx` refuses on the same terms, stated rather than
+    // inherited.** Its geometry is a spline fit, so `implicit_residual`
+    // and `classify_dihedral` are poison on it too. The operand gate
+    // does refuse the kind earlier, which makes this site unreachable
+    // in the pipeline as it stands — but that is a fact about the
+    // CALLER, and an unstated nesting invariant is exactly how a
+    // poison path gets re-entered when a gate later narrows. The arm
+    // is written for the same reason the extent scan's is.
+    if let Some(kind) = match surface {
+        geom::Surface::Nurbs(_) => Some(geom_brep::SurfaceKind::Nurbs),
+        geom::Surface::Approx(_) => Some(geom_brep::SurfaceKind::Approx),
+        geom::Surface::Plane { .. }
+        | geom::Surface::Cylinder { .. }
+        | geom::Surface::Cone { .. }
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Torus { .. } => None,
+    } {
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand: x_is,
             face,
-            kind: geom_brep::SurfaceKind::Nurbs,
+            kind,
         });
     }
     let curve = match x.get_curve_geom(edge.curve) {

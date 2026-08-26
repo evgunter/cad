@@ -354,10 +354,13 @@ pub enum ValidationError {
     ///
     /// The stored certificate is never read (O5's never-trust
     /// posture): the two-limb bound is re-derived per validation call
-    /// from the description, the fit and the tolerance the surface
-    /// carries. A fit that has drifted from what it claims to
-    /// approximate — coarsened, edited, grafted onto another base —
-    /// reports here, naming the limb that caught it.
+    /// from the description and the fit, and classified against the
+    /// **run's** ε_precision rather than the tolerance the surface
+    /// carries (O3's ratified claim is what tier 3 verifies; the stored
+    /// tolerance is the mint's parameter). A fit that has drifted from
+    /// what it claims to approximate — coarsened, edited, grafted onto
+    /// another base — reports here, naming the limb that caught it, and
+    /// so does one minted looser than the ε this run demands.
     ApproxCertification {
         /// The face whose approximating surface failed.
         face: FaceKey,
@@ -1928,12 +1931,20 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             }
             // The approximating surface's re-derivation (O5): the
             // two-limb certificate is recomputed from the stored
-            // description, fit and tolerance on EVERY call, and the
-            // stored certificate is not read. A grid per face is a
-            // real cost where edges pay a line schedule; the
-            // alternative — trust-on-read for surfaces only — would
-            // make this the one unchecked claim in tier 3.
-            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, band) {
+            // description and fit on EVERY call, and the stored
+            // certificate is not read. A grid per face is a real cost
+            // where edges pay a line schedule; the alternative —
+            // trust-on-read for surfaces only — would make this the one
+            // unchecked claim in tier 3.
+            //
+            // **Classified against the RUN's ε, exactly as every edge
+            // carrier is** — never against the surface's own stored
+            // tolerance. O3's ratified claim is `≤ ε_precision`, and a
+            // mint's parameter is not that claim; see
+            // `PropsQuadLane::recertify_approx` for the argument, and
+            // for why ε-tightening turning a loosely-minted surface red
+            // is D4's blessed behaviour rather than a regression.
+            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, tol.eps(), band) {
                 Some(Ok(_)) => {}
                 Some(Err(error)) => {
                     errors.push(ValidationError::ApproxCertification {

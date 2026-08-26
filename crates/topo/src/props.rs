@@ -676,9 +676,19 @@ pub trait PropsQuadLane:
     fn datum_lo(self) -> f64;
 
     /// Re-derives an approximating surface's certificate against its
-    /// own stored description, fit and tolerance — the tier-3
-    /// never-trust posture (O5), one dimension up from
-    /// `EdgeCurve::recertify`.
+    /// own stored description and fit, classified against
+    /// `tolerance` — the tier-3 never-trust posture (O5), one
+    /// dimension up from `EdgeCurve::recertify`.
+    ///
+    /// **The tolerance is the RUN's, not the surface's.** The edge
+    /// machinery re-certifies every carrier against the run's band and
+    /// never against a stored bound, and the surface claim is the same
+    /// shape: O3 ratifies `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so
+    /// verifying it means measuring against the ε this validation call
+    /// runs at. A surface minted at a loose tolerance validating
+    /// forever afterwards would be the stored bound quietly replacing
+    /// the ratified one. The stored tolerance stays what it always
+    /// was: the MINT's parameter, and the fit door's own gate.
     ///
     /// `None` = this scalar has no re-derivation lane. That is not a
     /// pass: tier 3 reports it, because a surface certificate is the
@@ -691,6 +701,7 @@ pub trait PropsQuadLane:
     /// The fit door's typed refusal, when the re-derivation fails.
     fn recertify_approx(
         approx: &geom::ApproxSurface<Self>,
+        tolerance: f64,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
 
@@ -715,9 +726,10 @@ impl PropsQuadLane for f64 {
 
     fn recertify_approx(
         approx: &geom::ApproxSurface<Self>,
+        tolerance: f64,
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        Some(geom_brep::recertify_approx(approx, band))
+        Some(geom_brep::recertify_approx(approx, tolerance, band))
     }
 
     fn quad_cut_face(
@@ -739,6 +751,7 @@ impl PropsQuadLane for geom_core::Probe {
     // tier 3 reports rather than passes.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -767,6 +780,7 @@ impl PropsQuadLane for geom_core::interval::Interval {
     // tier 3 reports rather than passes.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None
@@ -799,6 +813,7 @@ where
     // tier 3 reports rather than passes.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
         None

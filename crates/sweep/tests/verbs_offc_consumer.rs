@@ -39,200 +39,17 @@
 
 use std::sync::Arc;
 
-use geom::{Curve3, NurbsSurface, Surface};
-use geom_brep::EdgeCurveSpec;
-use geom_brep::keys::SurfaceKey;
-use geom_core::{Affine3, Band, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use std::collections::HashMap;
-use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
+use geom::{NurbsSurface, Surface};
+use geom_core::{Affine3, Tol, Vec3};
+use topo::{Body, FaceKey, FaceSurface};
 
-/// The offset fit door's degree — the spline space every wall carrier
-/// is elevated into (`geom_brep::offset_fit::OFFSET_FIT_DEGREE`).
-const FIT_DEGREE: usize = geom_brep::offset_fit::OFFSET_FIT_DEGREE;
+mod common;
+use common::approx::{
+    approx_walls, band, moved_box, planar_patch, prism, pulled_back, top_face, unit_box,
+};
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-/// A straight-walled square prism lofted between two identical
-/// sections — four PLANAR described-NURBS walls.
-fn prism() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let square = || {
-        vec![ProfileLoop::new(vec![
-            v(0.0, 0.0),
-            v(2.0, 0.0),
-            v(2.0, 2.0),
-            v(0.0, 2.0),
-        ])]
-    };
-    let places = [0.0, 1.0]
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect::<Vec<_>>();
-    sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
-        .expect("the square prism lofts")
-        .body
-}
-
-/// The box `[0,2]² x [0,1]` — planar faces and `Line` carriers
-/// throughout.
-fn unit_box() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a square is a valid profile");
-    sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("a square prism extrudes")
-        .body
-}
-
-/// The same box moved to a general position — no face of it is
-/// coplanar with the unmoved one's, so the pair reaches the operand
-/// gate rather than a coincidence refusal.
-fn moved_box() -> Body<f64> {
-    topo::transform_rigid(
-        &unit_box(),
-        &Affine3::translation(Vec3::new(0.7, 0.3, 0.4)),
-        Tol::witness(),
-    )
-    .expect("a planar box transforms")
-}
-
-/// The box's `z = 1` cap.
-fn top_face(body: &Body<f64>) -> FaceKey {
-    body.faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && origin.z > 0.5
-            )
-        })
-        .map(|(k, _)| k)
-        .expect("the extruded box has a top cap")
-}
-
-/// A flat bilinear patch at height `z` over `[0,2]²`.
-fn planar_patch(z: f64) -> NurbsSurface<f64> {
-    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let control = vec![
-        geom_core::Point3::new(0.0, 0.0, z),
-        geom_core::Point3::new(0.0, 2.0, z),
-        geom_core::Point3::new(2.0, 0.0, z),
-        geom_core::Point3::new(2.0, 2.0, z),
-    ];
-    NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap()
-}
-
-/// The wall's net pulled back `d` along its chart normal — the base
-/// whose offset at `+d` is the wall itself.
-fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
-    let (u0, u1) = wall.knots_u().domain();
-    let (v0, v1) = wall.knots_v().domain();
-    let jet = wall.ders((u0 + u1) * 0.5, (v0 + v1) * 0.5);
-    let n = jet.du.cross(jet.dv).normalize();
-    NurbsSurface::new(
-        wall.knots_u().clone(),
-        wall.knots_v().clone(),
-        wall.control().iter().map(|p| *p - n * d).collect(),
-        wall.weights().to_vec(),
-    )
-    .expect("a translated net is a valid surface")
-}
-
-/// **The surgery**, in the M6-1 order: every wall's surface first
-/// (`set_face_surface`), then every wall edge's DESCRIPTION re-pointed
-/// at the new surface key, then `mint_pcurves`.
-///
-/// Two things beyond the surface write, both forced by the kind rather
-/// than chosen:
-///
-/// - **Re-description.** `FaceSurface::New` mints a fresh arena key, so
-///   every `IsoCurve` description naming the old wall is stale. Tier 3
-///   says so (`DescriptionNotAdjacent`); the fix is the ordering
-///   discipline's own second step.
-/// - **Degree elevation of the wall carriers.** The iso lane's seam
-///   class bounds `|B(v) − C(v)|` by a control-difference hull, which
-///   is a partition-of-unity argument and therefore needs the chart's
-///   boundary row and the carrier in ONE spline space. A loft wall is
-///   bilinear; its offset fit is bicubic. Degree elevation is exact —
-///   same locus, same parameterization, same endpoints — so raising
-///   each wall carrier to the fit's space is a representation change,
-///   not rim surgery. (Moving the carrier's LOCUS would be, and that
-///   is OFF-D's.)
-///
-/// All four walls convert together: a vertical edge is shared by two
-/// of them, and both sides have to agree on the carrier's spline
-/// space. The two fits are built from congruent bases, so they land in
-/// the same one.
-fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
-    let walls: Vec<(FaceKey, Arc<NurbsSurface<f64>>)> = body
-        .faces()
-        .filter_map(|(key, face)| match body.get_surface(face.surface) {
-            Some(Surface::Nurbs(payload)) if !payload.is_placeholder() => {
-                Some((key, Arc::clone(payload)))
-            }
-            _ => None,
-        })
-        .collect();
-    assert_eq!(walls.len(), 4, "the square prism has four walls");
-
-    // ---- 1: surfaces.
-    let mut remap: HashMap<SurfaceKey, SurfaceKey> = HashMap::new();
-    let mut faces = Vec::new();
-    for (face, wall) in walls {
-        let old = body.get_face(face).unwrap().surface;
-        let base = Arc::new(pulled_back(&wall, d));
-        let approx = geom_brep::approx_offset_surface(base, d, tolerance, band())
-            .unwrap_or_else(|e| panic!("d = {d}: a planar wall's offset must fit: {e}"));
-        let new = body
-            .set_face_surface(face, FaceSurface::New(approx))
-            .expect("the attach-layer door accepts a live face");
-        remap.insert(old, new);
-        faces.push(face);
-    }
-
-    // ---- 2: descriptions (and the carriers' spline space).
-    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    for edge in edges {
-        let ck = body.get_edge(edge).unwrap().curve;
-        let Some(curve) = body.get_curve_geom(ck).and_then(CurveGeom::certified) else {
-            continue;
-        };
-        let re = curve
-            .with_remapped_surfaces(|k| Some(remap.get(&k).copied().unwrap_or(k)))
-            .expect("the remap answers for every key");
-        let carrier = match re.carrier() {
-            Curve3::Nurbs(c) if c.knots().degree() < FIT_DEGREE => Curve3::Nurbs(Arc::new(
-                c.elevate_degree(FIT_DEGREE - c.knots().degree())
-                    .expect("degree elevation of a clamped carrier"),
-            )),
-            other => other.clone(),
-        };
-        let (param_start, param_end) = re.params();
-        body.set_edge_curve(
-            edge,
-            EdgeCurveSpec {
-                description: *re.description(),
-                carrier,
-                param_start,
-                param_end,
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("edge {edge:?} re-attach: {e}"));
-    }
-
-    // ---- 3: the pcurve map.
-    topo::mint_pcurves(body, Tol::witness()).expect("the Approx charts mint their iso images");
-    faces
-}
-
-/// Builds the prism with all four walls carrying certified `Approx`
-/// surfaces at the given signed distance.
+/// The prism with all four walls carrying certified `Approx` surfaces
+/// at the given signed distance.
 fn prism_with_approx_walls(d: f64, tolerance: f64) -> (Body<f64>, Vec<FaceKey>) {
     let mut body = prism();
     let faces = approx_walls(&mut body, d, tolerance);
@@ -330,7 +147,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
             window: good.window(),
             tolerance: good.tolerance(),
         },
-        |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
+        |_, _, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
 

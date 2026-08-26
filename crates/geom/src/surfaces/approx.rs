@@ -63,20 +63,25 @@ use geom_core::Real;
 
 use super::nurbs::NurbsSurface;
 
-/// The `(u, v)` rectangle a fit is certified over — the base's own
-/// chart domain, in parameter units.
+/// The `(u, v)` rectangle an approximating surface's fit is certified
+/// over — the base's own chart domain, in parameter units.
 ///
 /// Knot vectors are `f64` whatever the surface's scalar is, so this
 /// window is `f64` too: it names parameters, not geometry.
+///
+/// **Named for the surface, not the chart**, because `geom_brep` has a
+/// generic `ChartWindow<T>` of its own with a different job (the
+/// pcurve lane's trim window); two types under one name across two
+/// crates is a reader's trap, and this one is the newcomer.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ChartWindow {
+pub struct ApproxWindow {
     /// The u-direction interval `(u₀, u₁)`.
     pub u: (f64, f64),
     /// The v-direction interval `(v₀, v₁)`.
     pub v: (f64, f64),
 }
 
-impl ChartWindow {
+impl ApproxWindow {
     /// The window a NURBS surface's own knot vectors span.
     pub fn of<T: Real>(s: &NurbsSurface<T>) -> Self {
         Self {
@@ -114,7 +119,15 @@ pub struct OffsetCertificate {
     /// The collapse meter's certified fold radius on the folding side,
     /// in metres.
     pub curvature_reach: f64,
-    /// How many refinement rounds the fit loop spent.
+    /// How many refinement rounds the fit that this certificate is
+    /// about took to reach its tolerance.
+    ///
+    /// **Provenance of the FIT, not a limb**, and the one field a
+    /// re-derivation cannot recompute: re-measuring a finished fit runs
+    /// no refinement. So [`crate::ApproxSurface`]'s stored copy carries
+    /// the MINT loop's count across the re-derivation the storage door
+    /// makes (see `geom_brep::approx_offset_surface`), and a bare
+    /// `certify_offset` — which has no loop behind it — reports `0`.
     pub rounds: u32,
 }
 
@@ -151,8 +164,9 @@ pub struct SurfaceSpec<T: Real> {
     pub description: SurfaceDescription<T>,
     /// The fitted surface that stands in for it.
     pub fit: NurbsSurface<T>,
-    /// The `(u, v)` rectangle the claim is made over.
-    pub window: ChartWindow,
+    /// The `(u, v)` rectangle the claim is made over. Passed to the
+    /// certifier, which decides whether it can honour it.
+    pub window: ApproxWindow,
     /// The precision tolerance the claim is against, in metres (D4's
     /// ε_precision, not ε_input).
     pub tolerance: f64,
@@ -175,7 +189,7 @@ pub struct SurfaceSpec<T: Real> {
 pub struct ApproxSurface<T: Real> {
     description: SurfaceDescription<T>,
     fit: NurbsSurface<T>,
-    window: ChartWindow,
+    window: ApproxWindow,
     tolerance: f64,
     certificate: OffsetCertificate,
 }
@@ -189,6 +203,13 @@ impl<T: Real> ApproxSurface<T> {
     /// certification stack does not have (a rational fit, today) stays
     /// a refusal all the way out.
     ///
+    /// **The window is handed to the certifier**, not merely stored
+    /// beside its answer: the today's certifier
+    /// (`geom_brep::certify_offset`) derives over the base's whole
+    /// chart rectangle and so can check the window it is asked for
+    /// rather than have one attested at it. A certifier that ever
+    /// bounds a SUB-rectangle needs this argument to know which.
+    ///
     /// # Errors
     ///
     /// Whatever `certifier` returns as its error, unchanged.
@@ -197,10 +218,11 @@ impl<T: Real> ApproxSurface<T> {
         certifier: impl FnOnce(
             &SurfaceDescription<T>,
             &NurbsSurface<T>,
+            ApproxWindow,
             f64,
         ) -> Result<OffsetCertificate, E>,
     ) -> Result<Self, E> {
-        let certificate = certifier(&spec.description, &spec.fit, spec.tolerance)?;
+        let certificate = certifier(&spec.description, &spec.fit, spec.window, spec.tolerance)?;
         Ok(Self {
             description: spec.description,
             fit: spec.fit,
@@ -225,7 +247,7 @@ impl<T: Real> ApproxSurface<T> {
     }
 
     /// The `(u, v)` rectangle the certificate covers.
-    pub fn window(&self) -> ChartWindow {
+    pub fn window(&self) -> ApproxWindow {
         self.window
     }
 

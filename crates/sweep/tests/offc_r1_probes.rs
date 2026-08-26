@@ -21,14 +21,13 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsSurface, Surface};
-use geom_brep::EdgeCurveSpec;
-use geom_brep::keys::SurfaceKey;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use std::collections::HashMap;
-use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
+use geom_core::{Point3, Tol, Vec3};
+use topo::{Body, CurveGeom, FaceKey, FaceSurface};
 
-const FIT_DEGREE: usize = geom_brep::offset_fit::OFFSET_FIT_DEGREE;
+mod common;
+use common::approx::{
+    approx_walls, band, moved_box, pulled_back, top_face, twisted_loft, unit_box,
+};
 
 /// Small enough that the pull-back error `d·(n(u,v) − n₀)` on the
 /// twisted walls stays well inside the default ε = 1e-9 band (at
@@ -39,140 +38,12 @@ const FIT_DEGREE: usize = geom_brep::offset_fit::OFFSET_FIT_DEGREE;
 const D: f64 = 5e-10;
 const FIT_TOL: f64 = 1e-6;
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-/// A loft between a square and the SAME square rotated 0.05 rad about
-/// its own centre (rotation applied to the 2-D section, places pure
-/// translations) — four congruent bilinear saddle walls (nonplanar).
-fn twisted_loft() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let rotated = |theta: f64| {
-        let (s, c) = theta.sin_cos();
-        let rv = move |x: f64, y: f64| {
-            let (dx, dy) = (x - 1.0, y - 1.0);
-            ProfileVertex::new(
-                Point2::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy),
-                0.0,
-            )
-        };
-        vec![ProfileLoop::new(vec![
-            rv(0.0, 0.0),
-            rv(2.0, 0.0),
-            rv(2.0, 2.0),
-            rv(0.0, 2.0),
-        ])]
-    };
-    let square = vec![ProfileLoop::new(vec![
-        v(0.0, 0.0),
-        v(2.0, 0.0),
-        v(2.0, 2.0),
-        v(0.0, 2.0),
-    ])];
-    let places = vec![
-        Affine3::translation(Vec3::new(0.0, 0.0, 0.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-    ];
-    sweep::loft_body::<f64>(&[square, rotated(0.05)], &places, 1, Tol::witness())
-        .expect("the twisted square lofts")
-        .body
-}
-
-/// The wall's net pulled back `d` along its MID-POINT chart normal —
-/// exact on a plane, approximate (to `d·Δn`) on a saddle.
-fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
-    let (u0, u1) = wall.knots_u().domain();
-    let (v0, v1) = wall.knots_v().domain();
-    let jet = wall.ders((u0 + u1) * 0.5, (v0 + v1) * 0.5);
-    let n = jet.du.cross(jet.dv).normalize();
-    NurbsSurface::new(
-        wall.knots_u().clone(),
-        wall.knots_v().clone(),
-        wall.control().iter().map(|p| *p - n * d).collect(),
-        wall.weights().to_vec(),
-    )
-    .expect("a translated net is a valid surface")
-}
-
-/// The consumer surgery, in the M6-1 order (surfaces → descriptions +
-/// carrier spline space → pcurves), on every non-placeholder NURBS
-/// wall.
-fn approx_walls(body: &mut Body<f64>, d: f64, tolerance: f64) -> Vec<FaceKey> {
-    let walls: Vec<(FaceKey, Arc<NurbsSurface<f64>>)> = body
-        .faces()
-        .filter_map(|(key, face)| match body.get_surface(face.surface) {
-            Some(Surface::Nurbs(payload)) if !payload.is_placeholder() => {
-                Some((key, Arc::clone(payload)))
-            }
-            _ => None,
-        })
-        .collect();
-    assert_eq!(walls.len(), 4, "the twisted loft has four spline walls");
-
-    let mut remap: HashMap<SurfaceKey, SurfaceKey> = HashMap::new();
-    let mut faces = Vec::new();
-    let mut fit_interior_v: Vec<f64> = Vec::new();
-    for (face, wall) in walls {
-        let old = body.get_face(face).unwrap().surface;
-        let base = Arc::new(pulled_back(&wall, d));
-        let approx = geom_brep::approx_offset_surface(base, d, tolerance, band())
-            .unwrap_or_else(|e| panic!("d = {d}: the saddle wall's offset must fit: {e}"));
-        if let Surface::Approx(a) = &approx {
-            let kv = a.fit().knots_v().knots();
-            fit_interior_v = kv[4..kv.len() - 4].to_vec();
-        }
-        let new = body
-            .set_face_surface(face, FaceSurface::New(approx))
-            .expect("the attach-layer door accepts a live face");
-        remap.insert(old, new);
-        faces.push(face);
-    }
-
-    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    for edge in edges {
-        let ck = body.get_edge(edge).unwrap().curve;
-        let Some(curve) = body.get_curve_geom(ck).and_then(CurveGeom::certified) else {
-            continue;
-        };
-        let re = curve
-            .with_remapped_surfaces(|k| Some(remap.get(&k).copied().unwrap_or(k)))
-            .expect("the remap answers for every key");
-        let carrier = match re.carrier() {
-            // Degree elevation AND knot refinement into the fit's own
-            // spline space: on a curved wall the fit refines past the
-            // seed grid, so elevation alone no longer lands the seam
-            // carrier in the chart's boundary-row space — the OFF-D
-            // face-replacement primitive owes its edges BOTH.
-            Curve3::Nurbs(c) if c.knots().degree() < FIT_DEGREE => {
-                let mut e = c
-                    .elevate_degree(FIT_DEGREE - c.knots().degree())
-                    .expect("degree elevation of a clamped carrier");
-                if !fit_interior_v.is_empty() {
-                    e = e
-                        .refine_knots(&fit_interior_v)
-                        .expect("knot refinement into the fit's space");
-                }
-                Curve3::Nurbs(Arc::new(e))
-            }
-            other => other.clone(),
-        };
-        let (param_start, param_end) = re.params();
-        body.set_edge_curve(
-            edge,
-            EdgeCurveSpec {
-                description: *re.description(),
-                carrier,
-                param_start,
-                param_end,
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("edge {edge:?} re-attach: {e}"));
-    }
-
-    topo::mint_pcurves(body, Tol::witness()).expect("the Approx charts mint their iso images");
-    faces
+/// The twisted loft with every wall converted — the curved sibling of
+/// the consumer suite's straight prism.
+fn twisted_approx() -> (Body<f64>, Vec<FaceKey>) {
+    let mut body = twisted_loft(0.05);
+    let faces = approx_walls(&mut body, D, FIT_TOL);
+    (body, faces)
 }
 
 /// A genuinely doubly-curved SKINNED base: bicubic interpolation-shaped
@@ -196,46 +67,11 @@ fn skinned_base() -> NurbsSurface<f64> {
     NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 16]).unwrap()
 }
 
-fn unit_box() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a square is a valid profile");
-    sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("a square prism extrudes")
-        .body
-}
-
-fn moved_box() -> Body<f64> {
-    topo::transform_rigid(
-        &unit_box(),
-        &Affine3::translation(Vec3::new(0.7, 0.3, 0.4)),
-        Tol::witness(),
-    )
-    .expect("a planar box transforms")
-}
-
-fn top_face(body: &Body<f64>) -> FaceKey {
-    body.faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && origin.z > 0.5
-            )
-        })
-        .map(|(k, _)| k)
-        .expect("the extruded box has a top cap")
-}
-
-// ---------------------------------------------------------------------
-
 /// The twisted loft's walls really are curved — the premise the whole
 /// file rests on, asserted rather than assumed.
 #[test]
 fn the_twisted_walls_are_not_planar() {
-    let body = twisted_loft();
+    let body = twisted_loft(0.05);
     let mut spline_walls = 0;
     for (_, face) in body.faces() {
         if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface)
@@ -266,7 +102,7 @@ fn the_twisted_walls_are_not_planar() {
 #[test]
 fn a_curved_approx_walled_body_validates_at_tier_three() {
     for d in [D, -D] {
-        let mut body = twisted_loft();
+        let mut body = twisted_loft(0.05);
         let faces = approx_walls(&mut body, d, FIT_TOL);
         assert!(
             matches!(
@@ -287,8 +123,7 @@ fn a_curved_approx_walled_body_validates_at_tier_three() {
 /// behind an honest stored certificate; tier 3 names the face.
 #[test]
 fn a_degraded_curved_fit_goes_red_at_tier_three() {
-    let mut body = twisted_loft();
-    let faces = approx_walls(&mut body, D, FIT_TOL);
+    let (mut body, faces) = twisted_approx();
     let face = faces[0];
     let Some(Surface::Approx(live)) = body.get_surface(body.get_face(face).unwrap().surface) else {
         panic!("the wall carries an approximating surface")
@@ -317,7 +152,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
             window: good.window(),
             tolerance: good.tolerance(),
         },
-        |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
+        |_, _, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
@@ -338,8 +173,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
 /// path: every wall gets triangles.
 #[test]
 fn the_curved_approx_walls_tessellate() {
-    let mut body = twisted_loft();
-    let faces = approx_walls(&mut body, D, FIT_TOL);
+    let (body, faces) = twisted_approx();
     let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).expect("the twisted body meshes");
     for face in faces {
         let patch = mesh
@@ -358,8 +192,7 @@ fn the_curved_approx_walls_tessellate() {
 /// operand (the germ-pair shape needs `Line` carriers; next row).
 #[test]
 fn a_boolean_against_the_twisted_approx_body_refuses_typed() {
-    let mut a = twisted_loft();
-    let _ = approx_walls(&mut a, D, FIT_TOL);
+    let (a, _) = twisted_approx();
     let e = topo::union(&a, &moved_box(), Tol::witness())
         .expect_err("a lofted Approx operand is outside the boolean envelope");
     assert!(
@@ -384,7 +217,7 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
         panic!("the door mints the variant")
     };
     // The certificate is real: re-derivation agrees at rest.
-    let re = geom_brep::offset_fit::recertify_approx(a_surf, band())
+    let re = geom_brep::offset_fit::recertify_approx(a_surf, 1e-5, band())
         .expect("the skinned offset re-certifies");
     assert!(re.hull_sup <= 1e-5);
 
@@ -411,7 +244,7 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 /// TEMP diagnostic: what spline spaces are in play on the twisted wall?
 #[test]
 fn diag_spline_spaces() {
-    let body = twisted_loft();
+    let body = twisted_loft(0.05);
     for (fk, face) in body.faces() {
         if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface)
             && !p.is_placeholder()
