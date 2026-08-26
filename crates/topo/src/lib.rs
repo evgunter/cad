@@ -309,7 +309,7 @@ pub use props::{
 };
 pub use provenance::Provenance;
 pub use readback::{DanglingRef, Pose, ReadbackError};
-pub use replace_face::{ReplaceFaceError, replace_face_offset};
+pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation};
 pub use shell::{ShellError, shell, shell_open};

@@ -300,14 +300,21 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // ---- Decide: the designation. ----
     check_designation(body, open_faces)?;
 
-    // ---- The cavity: one clone, every face inward. ----
-    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    // ---- The cavity: one clone, every CHART inward. ----
+    //
+    // By chart, not by face: a full revolve splits its wall into two
+    // bands over one cylinder, and such a surface has to move as one
+    // (the face-replacement door's own group form says why). Grouping
+    // is by surface key, in face-arena order, so the walk is
+    // deterministic.
+    let charts = chart_groups(body);
     let mut cavity = body.clone();
-    for face in &faces {
-        let d = inward(&cavity, *face, thickness)?;
-        crate::replace_face_offset(&mut cavity, *face, d, tolerance, band, tol).map_err(
+    for group in &charts {
+        let face = group[0];
+        let d = inward(&cavity, face, thickness)?;
+        crate::replace_faces_offset(&mut cavity, group, d, tolerance, band, tol).map_err(
             |error| ShellError::Face {
-                face: *face,
+                face,
                 error: Box::new(error),
             },
         )?;
@@ -373,6 +380,23 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // ---- One validation. ----
     validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(out)
+}
+
+/// The body's faces grouped by the surface they wear, in face-arena
+/// order — the unit a chart moves in.
+fn chart_groups<T: Real>(body: &Body<T>) -> Vec<Vec<FaceKey>> {
+    let mut keys: Vec<crate::geometry::SurfaceKey> = Vec::new();
+    let mut groups: Vec<Vec<FaceKey>> = Vec::new();
+    for (key, face) in body.faces() {
+        match keys.iter().position(|k| *k == face.surface) {
+            Some(i) => groups[i].push(key),
+            None => {
+                keys.push(face.surface);
+                groups.push(vec![key]);
+            }
+        }
+    }
+    groups
 }
 
 /// The signed offset distance that moves `face` INTO the material: the

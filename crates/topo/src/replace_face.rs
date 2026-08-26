@@ -169,6 +169,16 @@ pub enum ReplaceFaceError<T: Real> {
         /// One other face carrying the same surface key.
         other: FaceKey,
     },
+    /// No face was named.
+    EmptyGroup,
+    /// The named faces do not all carry ONE chart, so there is no
+    /// single surface to offset.
+    GroupChartsDiffer {
+        /// The first named face.
+        face: FaceKey,
+        /// The first face carrying a different surface.
+        other: FaceKey,
+    },
     /// The face carries the "not yet described" placeholder surface,
     /// which has no locus to offset.
     PlaceholderSurface {
@@ -317,6 +327,15 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 "replace_face_offset: {face:?}'s surface is shared with {other:?}, so replacing \
                  it would leave the sharer on the old chart while the shared boundary names \
                  the new one — replacing a shared chart is a multi-face operation"
+            ),
+            Self::EmptyGroup => write!(
+                f,
+                "replace_faces_offset: no face was named, so there is no chart to replace"
+            ),
+            Self::GroupChartsDiffer { face, other } => write!(
+                f,
+                "replace_faces_offset: {face:?} and {other:?} carry different surfaces — a \
+                 group is one chart's faces, not an arbitrary set"
             ),
             Self::PlaceholderSurface { face } => write!(
                 f,
@@ -729,19 +748,63 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
-    // ---- Decide: the mint. ----
+    replace_faces_offset(body, &[face], d, tolerance, band, tol)
+}
+
+/// [`replace_face_offset`] for a CHART: every face carrying one surface
+/// key, replaced together.
+///
+/// A surface can be worn by more than one face — a full revolve splits
+/// its wall into two bands over one cylinder, `step-import`'s adoption
+/// shares keys outright — and such a chart cannot be replaced one face
+/// at a time: the fresh key would leave the sharer on the old surface
+/// while their shared seam named the new one, and a `Seam` description
+/// requires ONE surface on both sides, so there is no re-description
+/// that repairs it afterwards. That is what
+/// [`ReplaceFaceError::SharedSurfaceKey`] refuses, and this door is the
+/// capability the refusal points at: name the whole group, and the
+/// chart moves as one.
+///
+/// `faces` must be exactly the set of faces carrying the chart — not a
+/// subset (the refusal above) and not a mixture of charts
+/// ([`ReplaceFaceError::GroupChartsDiffer`]).
+///
+/// # Errors
+///
+/// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
+/// gates.
+pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    d: T,
+    tolerance: f64,
+    band: Band,
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    // ---- Decide: the group. ----
+    let Some(&face) = faces.first() else {
+        return Err(ReplaceFaceError::EmptyGroup);
+    };
     let face_data = body
         .get_face(face)
         .ok_or(ReplaceFaceError::StaleFace { face })?;
     let old_key = face_data.surface;
-    // A shared chart is decided BEFORE the mint: the fresh key the
-    // attach layer would hand back is exactly what makes the sharing
-    // incoherent, and nothing about the offset itself is worth
-    // computing first (`step-import`'s adoption shares keys, and so
-    // does any body whose profile splits one wall into two faces).
+    for &member in &faces[1..] {
+        let data = body
+            .get_face(member)
+            .ok_or(ReplaceFaceError::StaleFace { face: member })?;
+        if data.surface != old_key {
+            return Err(ReplaceFaceError::GroupChartsDiffer {
+                face,
+                other: member,
+            });
+        }
+    }
+    // The group must be the WHOLE group: a chart with a face left
+    // behind is the incoherence this door exists to avoid.
     if let Some((other, _)) = body
         .faces()
-        .find(|(k, f)| *k != face && f.surface == old_key)
+        .find(|(k, f)| !faces.contains(k) && f.surface == old_key)
     {
         return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
     }
@@ -760,7 +823,7 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
         ..
     } = old_surface
     {
-        let (v_min, v_max) = face_cone_v_window(body, face, apex, axis, half_angle.cos())
+        let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
             .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
         // Which nappe the face lives on decides which end of its window
         // is the one nearest the apex — and a window that already
@@ -799,13 +862,13 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
     }
 
     // ---- Decide: the boundary plan. ----
-    let boundary = boundary_edges(body, face).ok_or(ReplaceFaceError::Corrupt)?;
+    let boundary = group_boundary(body, faces).ok_or(ReplaceFaceError::Corrupt)?;
     let mut plans: Vec<EdgePlan<T>> = Vec::with_capacity(boundary.len());
     for &edge in &boundary {
         plans.push(plan_edge(
             body,
             edge,
-            face,
+            faces,
             &old_surface,
             old_key,
             &new_surface,
@@ -868,6 +931,13 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
     let new_key = work
         .set_face_surface(face, FaceSurface::New(new_surface))
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+    // The rest of the chart's faces adopt the SAME key: the group wore
+    // one surface before and wears one after, which is what keeps their
+    // shared seams describable.
+    for &member in &faces[1..] {
+        work.set_face_surface(member, FaceSurface::Shared(new_key))
+            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+    }
     for (vertex, point) in &moved {
         let old_point = work
             .get_vertex(*vertex)
@@ -950,15 +1020,15 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
 /// window. Nothing is sampled and nothing is padded.
 ///
 /// `None` when the face has no boundary carrier to read.
-fn face_cone_v_window<T: Decide>(
+fn group_cone_v_window<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
+    group: &[FaceKey],
     apex: Point3<T>,
     axis: Vec3<T>,
     cos_a: T,
 ) -> Option<(T, T)> {
     let mut window: Option<(T, T)> = None;
-    for edge in boundary_edges(body, face)? {
+    for edge in group_boundary(body, group)? {
         let edge_data = body.get_edge(edge)?;
         let curve = body
             .get_curve_geom(edge_data.curve)
@@ -1037,10 +1107,24 @@ fn cone_v_range<T: Decide>(
     }
 }
 
-/// `face`'s boundary edges, in loop-then-cycle order, each once.
-fn boundary_edges<T: Real>(body: &Body<T>, face: FaceKey) -> Option<Vec<EdgeKey>> {
-    let face_data = body.get_face(face)?;
+/// The group's boundary edges, in face-then-loop-then-cycle order,
+/// each once — including the seams INTERNAL to the group, which move
+/// with the chart exactly as its outer edges do.
+fn group_boundary<T: Real>(body: &Body<T>, group: &[FaceKey]) -> Option<Vec<EdgeKey>> {
     let mut out: Vec<EdgeKey> = Vec::new();
+    for &face in group {
+        boundary_edges_into(body, face, &mut out)?;
+    }
+    Some(out)
+}
+
+/// `face`'s boundary edges appended to `out`, each once.
+fn boundary_edges_into<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+    out: &mut Vec<EdgeKey>,
+) -> Option<()> {
+    let face_data = body.get_face(face)?;
     for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
         let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
             continue;
@@ -1052,7 +1136,7 @@ fn boundary_edges<T: Real>(body: &Body<T>, face: FaceKey) -> Option<Vec<EdgeKey>
             }
         }
     }
-    Some(out)
+    Some(())
 }
 
 /// One boundary edge's re-derivation: the description re-stated against
@@ -1062,7 +1146,7 @@ fn boundary_edges<T: Real>(body: &Body<T>, face: FaceKey) -> Option<Vec<EdgeKey>
 fn plan_edge<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
-    face: FaceKey,
+    group: &[FaceKey],
     old_surface: &Surface<T>,
     old_key: SurfaceKey,
     new_surface: &Surface<T>,
@@ -1108,8 +1192,8 @@ fn plan_edge<T: Decide>(
         // face-replacement, and this door says so rather than
         // storing a row the neighbour's own lane will reject.
         let (fa, fb) = edge_faces(body, edge).ok_or(ReplaceFaceError::Corrupt)?;
-        let other = if fa == face { fb } else { fa };
-        if other != face
+        let other = if group.contains(&fa) { fb } else { fa };
+        if !group.contains(&other)
             && matches!(
                 body.get_surface(
                     body.get_face(other)
@@ -1405,6 +1489,27 @@ fn plan_reanchors<T: Decide>(
                 t1 = t_new;
             }
         }
+        // **The witness follows the parameter range.** An intrinsic
+        // description's witness is pinned to the edge's MID-PARAMETER
+        // point, so re-anchoring an endpoint moves the point the
+        // witness has to be — a stored witness from the old range
+        // fails `WitnessMidpoint` at the very gate that re-attaches it.
+        // The carrier did not move, so the new witness is that carrier
+        // read at the new midpoint.
+        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        description = match description {
+            EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+                s1,
+                s2,
+                witness: mid,
+            },
+            EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
+                s1,
+                s2,
+                witness: mid,
+            },
+            other => other,
+        };
         out.push((
             edge,
             EdgeCurveSpec {
