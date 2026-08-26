@@ -1134,7 +1134,9 @@ mod tests {
                     minor_radius: Interval::from_f64(minor_radius),
                     u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
-                Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+                // As the dual lift: the corpus is analytic, and neither
+                // spline kind has an interval fixture to lift.
+                Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
             }
         }
 

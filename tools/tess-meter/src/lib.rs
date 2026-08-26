@@ -176,6 +176,11 @@ pub enum Chart {
     /// `Surface::Nurbs` (described; the placeholder never reaches a row
     /// — it refuses upstream).
     Nurbs,
+    /// `Surface::Approx` — an approximating surface. Its own row: the
+    /// lane meshes its FIT, so the cell count is a spline's, but what
+    /// the face carries is a description plus a certificate, and a
+    /// budget reader that saw `nurbs` here would not know that.
+    Approx,
 }
 
 impl Chart {
@@ -188,6 +193,7 @@ impl Chart {
             Surface::Sphere { .. } => Chart::Sphere,
             Surface::Torus { .. } => Chart::Torus,
             Surface::Nurbs(_) => Chart::Nurbs,
+            Surface::Approx(_) => Chart::Approx,
         }
     }
 
@@ -200,6 +206,7 @@ impl Chart {
             Chart::Sphere => "sphere",
             Chart::Torus => "torus",
             Chart::Nurbs => "nurbs",
+            Chart::Approx => "approx",
         }
     }
 }
