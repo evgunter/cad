@@ -452,7 +452,7 @@ fn p6_mixed_convexity_corner_refuses_naming_the_feather_policy() {
             ..
         }) => {
             assert_eq!(convex, 2);
-            assert_eq!(policy, RunOutPolicy::RunOutFeather);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
         }
         other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
     }

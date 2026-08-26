@@ -140,6 +140,33 @@ a design-conversation PR for Evan**, not a self-merge. Reproduce
 #319's valence-4 witness first (the survey could not build to verify
 it).
 
+**Dispatch addendum (post-implementation facts, binding on anything
+that touches this ground next):**
+
+- **The witness, reproduced.** `FilletCornerUnsupported { NEdgeVertex
+  { valence: 4 } }` needs a full revolve of a POLE-TOUCHING
+  (non-annular) profile: that splits every wall into two half-bands,
+  so each latitude rim is TWO arcs and each seam vertex has four
+  incident edges — the two arcs plus the two supports' seam
+  meridians. On an ANNULAR profile (the bud, the dome, the snowman)
+  each rim is one self-closed edge, hence a closed chain, hence no
+  corner is registered and the witness is unreachable. Requesting ONE
+  arc is what reaches it.
+- **Both extra edges are co-surface** (one surface on both sides), so
+  the dihedral there is zero by construction; each refuses
+  `TangentialEdge` at margin exactly zero in its own right. That is
+  the structural recognition `SeamVertex` is decided on — never a
+  sampled normal.
+- **A3-2's recourse premise was false and is corrected in the design
+  doc**: the whole-rim request on a seam-split rim is a multi-link
+  closed chain and the annulus band is a one-edge rim's, so that door
+  refuses one step later (#1022). The tag's claim is unaffected.
+- **The snowman waist does NOT build.** It is a valley, so its band
+  would add material; with the arm in place it now refuses at the
+  concave-chain door instead of the spine door. The convex
+  sphere×sphere consumer is a LENTIL (the solid between two spheres),
+  and that is the fixture the acceptance uses.
+
 ## Lane obligations (every unit)
 
 `docs/prompts/implementer-discipline.md` binds; no Co-Authored-By
