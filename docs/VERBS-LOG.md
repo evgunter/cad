@@ -1076,9 +1076,9 @@ difficulty L logged pre-dispatch; consumes block VERBS-4 slot 2.
 
 The seventh variant, the `SurfaceDescription`/`SurfaceSpec`/
 `ApproxSurface` triple with a private certificate, and the total
-enumeration the closed enum forces: 31 compiler-surfaced dispatch
-sites plus 14 wildcard/`matches!` sites the compiler could not
-surface, each given a disposition in the code. Base reference: an
+enumeration the closed enum forces: every E0004 the compiler raised
+plus the wildcard/`matches!` sites it could not, dispositions across
+30 files, each stated in the code. Base reference: an
 owned `Arc<NurbsSurface<T>>`, not an arena key — `SurfaceKey` lives
 a crate above `Surface`, and a `Surface` value is read with no arena
 in hand at half the consumers.
