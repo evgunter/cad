@@ -218,6 +218,8 @@ mod verbs_arms2_arms;
 mod verbs_arms2_bud;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
+#[path = "verbs_cylcyl_probe.rs"]
+mod verbs_cylcyl_probe;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
