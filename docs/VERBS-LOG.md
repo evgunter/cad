@@ -976,3 +976,37 @@ the default compile mode is the dual's unique signal. **Ordinal 75
 claimed at dispatch → a third → DUAL CROSS-MODEL (sample #24, the
 ELEVENTH pair — one from the twelve-pair notification threshold)**:
 R1 fable + R2 opus, frozen db2580f9.
+
+## Ordinal-75 dual returned; OFF-B fix pass out (2026-08-26)
+
+R1 fable AWF 1/4/2; R2 opus AWF 4/9/6 — **the strongest
+convergence of the program**: both independently demonstrated the
+SAME blocker (certify_offset's unweighted read of a rational fit —
+an unsound certificate through a public door, 230×/~1800×
+under-reports, each with their own red probe), both brute-forced
+the core inequality sound (1M + 200k configurations, zero
+violations), both judged the A9.4 fork airtight, both found the
+stale oracle row and the sweep misreport. R2's divergent tail was
+real and landed: the regularity lever DIRECTIONALLY INVERTED
+(large |d| permissive where it is the dangerous side) and the
+small-|d| certificate wall (relative accuracy ~1/|d|). Fix pass
+dispatched with the union, incl. the sharper-denominator
+investigation ((‖E‖+|d|) in place of 2|d|) that may dissolve M4
+outright. This dual is sample #24, the ELEVENTH cross-model pair
+— **the next dual is the twelfth: its recorder notifies Evan
+explicitly per the pre-registered target**.
+
+## OFF-B MERGED (#1003, 2026-08-26) — the approximating substrate EXISTS
+
+Row OFFB (ordinal 75, sample #24, the ELEVENTH cross-model pair)
+in MODEL-AB-LOG. The kernel can now fit a certified offset of a
+NURBS surface: two meters, the Book's fit, the rationalized
+two-limb certificate — with the fix pass exceeding the adjudicated
+union (M3's d-free lever; M4's sharper denominator tightening
+every bound). Four scheduled follow-ons: #1005 (weighted
+composite), #1006 (three-spellings consolidation), #1007
+(directional refinement), #1008 (net recentring). **The next dual
+is the TWELFTH cross-model pair — its recorder notifies Evan
+explicitly.** OFF-C (Surface::Approx integration) is the next
+Wave-3 spec; GATE's ordinal-74 review still out. Seam sweep:
+verbs-offb + both reviewer lanes.
