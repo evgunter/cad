@@ -1209,3 +1209,47 @@ escalated in the ambiguity band, so the curved rows run at
 `d = 5e-10`. Genuine curved-offset bodies need the rim surgery
 OFF-D owns.
 
+## Cross-program: the filter-skipped-gate class detonates (2026-08-26)
+
+cad-m8's #971 re-merge tripped k-lint on a COMPILE error MINE:
+9f5228bd (GATE's fix pass) shipped a type_complexity lint in
+lily.rs's frustum_aabb — ungated because the k-lint job was
+filter-skipped on the merge runs. The bitter symmetry: GATE's own
+banked finding PREDICTED the class ("the k-lint unification draw
+hides breakage per row; main can be latently red") and then its
+lane shipped the instance. Disposition: cad-m8's alias fix rides
+#971 (fastest path; provenance recorded here — my lint, their
+fix); they file the class issue citing both instances plus #601
+and the #915 regime; all three active VERBS lanes warned with the
+enumerated-red protocol (compare, state, don't debug; re-merge at
+#971's landing).
+
+## OFF-C MERGED (#1012, 2026-08-26) — Surface::Approx is IN THE KERNEL
+
+Row OFFC (ordinal 76) in MODEL-AB-LOG. The kernel's closed surface
+enum has its seventh variant with the never-trust validator arm
+classifying against the run's ε. OFF-D inherits a measured list:
+the face-replacement primitive owes knot refinement (not elevation
+alone), the transform re-derivation lane (#1020), the mesh
+widening (#1018), and the tier-3 perf box (#1019). **The teapot's
+remaining path: OFF-D (shell + rim surgery, consuming RING's
+door) → the demo.** Seam sweep: verbs-offc lane. Meanwhile CYLCYL
+PR-A reported (green; the D10 silence caught EXECUTING a wrong
+answer — 30π with the lens double-counted, now a typed refusal;
+#347's defect (a) re-diagnosed as two OTHER conservatisms, both
+single-arm PR-B fixes) — its review claims ordinal 77 next.
+
+## PR-A up (#1021); ordinal 77 claimed at dispatch (2026-08-26)
+
+The germ substrate landed green: D3's containment door REUSING the
+solid door's trim resolution (shared pub(super) — cannot drift),
+the D5 trap closed FIRST with pair-general signatures, D10 ruled
+typed-refusal — and the report's two heavyweight findings: the
+D10 silence was caught EXECUTING a wrong answer (a union returning
+Ok at exactly 30π with the shared lens double-counted — now
+refused), and #347's defect (a) re-diagnosed by measurement as two
+DIFFERENT conservatisms (the carrier-slab wall box + the
+span-dip's unclamped vertex), both single-arm PR-B fixes with the
+red-able row waiting. **Ordinal 77 claimed at dispatch** (through
+76 on main; duals SUSPENDED per #1016's in-force recommendation —
+single fable review), frozen 845aab0f.
