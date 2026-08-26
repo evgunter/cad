@@ -1,7 +1,8 @@
-//! The demo-scene K-telemetry sweep (M4 PR 8b, D3): rebuilds every
-//! tour scene at the recording scalar [`Probe`] — the SAME generic
-//! constructors the f64 tour runs, so there is no duplicated scene
-//! data to drift — and dumps every recorded `MarginSample` as CSV in
+//! The demo-scene K-telemetry sweep (M4 PR 8b, D3): rebuilds a NAMED
+//! SUBSET of the tour's scenes at the recording scalar [`Probe`] — the
+//! SAME generic constructors the f64 tour runs, so there is no
+//! duplicated scene data to drift — and dumps every recorded
+//! `MarginSample` as CSV in
 //! the M2 K-report file convention (`shape,predicate,margin,
 //! band_zero,band_escalate,outcome`), shapes namespaced
 //! `demo/<scene>` (the corpus harness `m4_pr8_k_probe.rs` namespaces
@@ -16,6 +17,17 @@
 //! corpora). The bowtie row that used to ride beside them left with the
 //! finale scene (LIB-RETTAIL); its refusal is pinned in the profile
 //! crate's own validation suite now, outside the K sweep.
+//!
+//! **The subset is the `use` list below and nothing else, said out
+//! loud** (M9-5; this sentence used to claim "every tour scene", which
+//! was already untrue of `klein`, `skinned`, `ring` and `tube`). A
+//! scene joins the sweep when its own margin POPULATION is worth
+//! measuring, not automatically: every addition changes the
+//! distribution the `k-lint` gate compares, so it is a baseline
+//! re-derivation under the K-REPORT runbook rather than a free import.
+//! `twopeg` is deliberately out on exactly that ground — its ops are
+//! already sampled through `bossplate` (transverse curved union) and
+//! `crosslap` (the declared-REST zip).
 //!
 //! One process per ε (`Tolerance` is a OnceLock):
 //!
