@@ -1388,3 +1388,23 @@ corollary: a reaped job is indistinguishable from a completed one
 unless you check what it produced. Paid for four times today in
 VERBS lanes and once in M9-5's (which spent the courtesy window);
 the memory PR is cad-m8's #1036.
+
+## M9-5's window PASSED — and found the tess-baseline gap (2026-08-26)
+
+The second slot turn closed their acceptance row and surfaced a
+VERBS-owned gap: five scenes (162 rows — diechamfer 68,
+benchlayout 30, diechamferblank 26, bench 18, hollowring 4) have
+been swept-and-linted on every run but COMPARED AGAINST NOTHING —
+the committed baseline was cut before they landed, and tess-lint's
+per-scene granularity reports new coverage, not a finding
+(#1023's family, the biggest instance by row count). Ruled: M9-5's
+PR keeps only its 31 rows; **VERBS-TESSFOLD** (S/M, queued after
+the current reviews) audits the five scenes' sizing against
+expectations (chamfer vs filleted twins; hollowring vs the
+analytic shell) and folds verified-or-corrected values —
+per-scene disposition stated, never a blind current-state bless.
+The bench/benchlayout provenance gets CHECKED, not accepted
+(the attribution lesson). Their sweep also independently
+corroborated the finding-13 pins (no re-pin owed) and refuted
+their own predicted firing row (granular gate: new bodies =
+new coverage).
