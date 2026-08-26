@@ -77,17 +77,31 @@ fn bulge_arc() -> (f64, f64, f64) {
 /// the coplanar merge cannot re-fuse — MergedFaceRoleAmbiguous).
 /// The cap-to-wall joints are exactly tangent and declared so.
 fn vase() -> Body<f64> {
+    vase_with_caps(true)
+}
+
+/// [`vase`] with a cap choice: `true` = hemispherical caps (Sphere
+/// faces, exactly tangent to the walls, declared); `false` = 45-degree
+/// conical caps (Cone faces, no tangencies). Both authorships carry
+/// the same torus band and the same cylinder walls.
+fn vase_with_caps(sphere: bool) -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
-    let cap = (core::f64::consts::PI / 8.0).tan(); // quarter-turn arc
-    let lp = ProfileLoop::new(vec![
+    let cap = if sphere {
+        (core::f64::consts::PI / 8.0).tan() // quarter-turn arc
+    } else {
+        0.0 // straight generator: a cone with its apex on the axis
+    };
+    let mut lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, 0.0), cap), // bottom cap → (0.5, 0.5)
         ProfileVertex::new(p2(0.5, 0.5), 0.0), // wall → (0.5, 1.0)
         ProfileVertex::new(p2(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
         ProfileVertex::new(p2(0.5, 1.5), 0.0), // wall → (0.5, 2.0)
         ProfileVertex::new(p2(0.5, 2.0), cap), // top cap → (0, 2.5)
         ProfileVertex::new(p2(0.0, 2.5), 0.0), // axis seam → start
-    ])
-    .with_tangent_joints(vec![1, 4]);
+    ]);
+    if sphere {
+        lp = lp.with_tangent_joints(vec![1, 4]);
+    }
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
