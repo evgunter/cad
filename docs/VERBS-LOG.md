@@ -1418,3 +1418,20 @@ with the trap closed by proof, and the no-crossings typed posture
 first, #347's whole need; Steinmetz second) dispatches to the same
 lane per the two-PR shape; the bracket rounding at 6mm is its
 acceptance and #347 closes at its merge.
+
+## Ordinal-78 returned: APPROVE (2026-08-26)
+
+Zero MAJOR. The A3-2 correction verified AIRTIGHT twice — by the
+code's own gates and live on a spinning-top body the unit never
+built — and judged the honest minimum (keeping the ratified
+promise would be false at every site the tag fires; #1022 is the
+scope beyond the unit). The one MINOR is the review's own gift:
+the NEdgeVertex front-door differential existed only on the probe
+branch (an over-firing recognizer would have turned nothing red).
+The reviewer's C7 answer confirms the unit was gated ONLY by
+local runs (the #1029 shard cancellation) — its matrix: 99/99 and
+565/565 at both ε, the four enumerated fixtures excluded by
+filter and red exactly as enumerated. Light fix pass out; the
+merge queues behind the hosted-runner outage. **Wave 1 closes at
+this merge**, with the ARMS3-DESIGN correction flagged for Evan's
+retroactive 👍 in the merge state-sync.
