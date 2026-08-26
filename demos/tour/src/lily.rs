@@ -1771,6 +1771,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    assign a role to. So the precondition is a door-widening or
     //    an authoring change (the corm avoids the class entirely by
     //    having ANNULAR caps), not a call the scene forgot to make.
+    //    The open REPAIR question — teach `merge_coplanar_faces` the
+    //    cap pair, or have `revolve` mint maximal caps — is **#1031**;
+    //    the mechanism is `gate_maximal_faces` in
+    //    `crates/topo/src/boolean/reduce.rs`.
     //
     //    What is left after that is the breadth half, DEPENDENCY-STATED
     //    like probe 8's: it waits on the verbs/breadth slate,
@@ -1929,6 +1933,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     guess. The corm avoids the whole class by being authored
     //     with ANNULAR caps, which is why it is a legal operand at all
     //     (probe 12 gets one door further than probe 7 does).
+    //
+    //     The open REPAIR question is **#1031** — whether
+    //     `merge_coplanar_faces` learns the cap pair, or `revolve`
+    //     mints maximal caps. This probe holds the mechanism; the
+    //     issue holds the choice.
     wall(
         13,
         "merge the lantern's seam-split caps so it can be a boolean operand at all",
