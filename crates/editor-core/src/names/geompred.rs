@@ -178,18 +178,20 @@ const fn surface_bit(kind: SurfaceKind) -> u8 {
         SurfaceKind::Sphere => 3,
         SurfaceKind::Torus => 4,
         SurfaceKind::Nurbs => 5,
+        SurfaceKind::Approx => 6,
     }
 }
 
 /// Every [`SurfaceKind`], in declaration order — the iteration order of
 /// a [`SurfaceKindSet`].
-pub const ALL_SURFACE_KINDS: [SurfaceKind; 6] = [
+pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
     SurfaceKind::Plane,
     SurfaceKind::Cylinder,
     SurfaceKind::Cone,
     SurfaceKind::Sphere,
     SurfaceKind::Torus,
     SurfaceKind::Nurbs,
+    SurfaceKind::Approx,
 ];
 
 /// A SET of [`SurfaceKind`]s — [`CurveKindSet`]'s face-side twin, and

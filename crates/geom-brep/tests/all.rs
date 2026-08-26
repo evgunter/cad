@@ -35,6 +35,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "approx_surface.rs"]
+mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
 #[path = "decoration_plane_mint.rs"]

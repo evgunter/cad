@@ -410,6 +410,45 @@ impl<T: Real> EdgeCurveSpec<T> {
         }
     }
 
+    /// The conventional ARC spec along an existing CIRCLE carrier
+    /// between the given parameters: the carrier and interval are kept
+    /// verbatim, and the description is the honest pushforward form —
+    /// the start point's trajectory under the rotation about the
+    /// carrier's own axis by the swept angle
+    /// ([`crate::MappedCurve::RevolvedPoint`], the same
+    /// geometry-derived posture as [`Self::line_between`]'s
+    /// `ExtrudedPoint`). This is the conventional description for a
+    /// circular locus the adjacent surfaces UNDER-determine (D2's
+    /// split — e.g. a seam between coplanar faces).
+    ///
+    /// `None` for a non-circle carrier: no other kind has this
+    /// rotation pushforward, and the caller owns its own honest
+    /// refusal there.
+    pub fn arc_of_circle(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
+    where
+        T: SpanLocate,
+    {
+        use geom_core::{Affine3, Point2, Point3};
+        let Curve3::Circle { center, axis, .. } = carrier else {
+            return None;
+        };
+        let start = carrier.eval(t0);
+        Some(Self {
+            description: EdgeGeometry::MappedCurve(
+                crate::edge_geometry::MappedCurve::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(start - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: axis,
+                    angle: t1 - t0,
+                },
+            ),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        })
+    }
+
     /// The canonical full-period self-loop spec at `p`: a unit circle
     /// through `p` (center `p + x̂`, axis `ẑ`, parameters `0 … τ`),
     /// described as `p`'s trajectory under a full revolution about
@@ -981,9 +1020,13 @@ fn run_checks<T: Decide>(
     {
         return Err(CertifyError::Unimplemented);
     }
+    // `Approx` refuses here with `Nurbs`, and for the same reason: the
+    // descriptions this resolver serves (`Intersection`, `Seam`) state
+    // their residual through the IMPLICIT form, which a spline
+    // stand-in does not have. Admitting one would meter poison.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if matches!(s, Surface::Nurbs(_)) {
+        if matches!(s, Surface::Nurbs(_) | Surface::Approx(_)) {
             return Err(CertifyError::Unimplemented);
         }
         Ok(s)

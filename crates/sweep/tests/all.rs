@@ -37,6 +37,10 @@
 
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
+#[path = "offc_r1_probes.rs"]
+mod offc_r1_probes;
+#[path = "verbs_offc_consumer.rs"]
+mod verbs_offc_consumer;
 
 #[path = "bitdump.rs"]
 mod bitdump;
@@ -282,8 +286,14 @@ mod m9_2_chart_region_loft;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "m9_3_zip.rs"]
+mod m9_3_zip;
+
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_probes_m9_3.rs"]
+mod r1_probes_m9_3;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;

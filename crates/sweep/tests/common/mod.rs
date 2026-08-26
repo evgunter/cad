@@ -10,6 +10,8 @@
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
 //! - [`orient`] — what a suite CHECKS of a body it built;
+//! - [`approx`] — the `Surface::Approx` surgery vocabulary (body
+//!   authoring, so it routes to this module rather than to a suite);
 //! - `revolve_common` — the revolve suites' own, and the place `p2`
 //!   and `eps` presently live despite belonging to no verb.
 //!
@@ -28,6 +30,11 @@
 /// of shared thing from the section authoring below — not a fixture,
 /// but the check several suites make of a body they built.
 pub mod orient;
+
+/// The `Surface::Approx` surgery vocabulary — the pulled-back base,
+/// the fixtures the OFF-C rows convert, and the surface + carrier +
+/// pcurve surgery itself. Body authoring, so it routes here.
+pub mod approx;
 
 use geom_core::Point2;
 use profile::RawLoop;

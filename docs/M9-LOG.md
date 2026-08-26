@@ -297,3 +297,70 @@ flush closure, the F1/Door-2 sibling) — both M9-2-machinery
 design work, neither blocking M9-3 (the join lane is the boolean
 lane, where reduction refines). Board: PR-A dispatching on this
 seam's merge.
+
+## M9-3 MERGED (both PRs; #967 at 3057f806 + #971 at f483d8b6, 2026-08-26) — the join lane exists
+
+The milestone's core unit is done end to end. **PR-A opened the
+door** (#967, 2026-08-23): `validate_declarations` admits by CARRIER
+INVENTORY instead of refusing every non-planar declared face, the
+reduction rung's cover extends to verified declared pairs, the
+carrier lump lands at BOTH wall sites — vtxfac's pierce site and
+recl's vertex-vertex site, the untyped one the substrate found —
+and the declared-`Tangent` descent runs the EXISTING second-order
+sector trilean, so the unit mints no new metered predicate, exactly
+as the spec's default required. **PR-B closed the lane** (#971):
+multi-run slit zip (band closure) and ring-capable `glue_pair`,
+correspondence widened to the reduction's own v-v records, the D6
+smooth ladder minting `TangentIntersection` where the jet is
+determinate (the folded M9-4), and stale curved smooth seams
+re-described conventionally on their unchanged carriers instead of
+dying `JoinDesync`. Acceptance: the two-peg plate unions at volume
+exactly 48 BITWISE with every wall face deleted; the tube-chain rim
+survives as the wedge-π smooth seam carrying `TangentIntersection`;
+crosslap and the S1 suites unregressed but for one deliberate
+baseline move (the annular ring-carrying patch, retired to green
+with an exact-volume + tier-3 oracle).
+
+**OUTAGE SEAM, recorded honestly.** The 2026-08-23→25 model-limit
+outage killed the orchestrator session that dispatched this unit's
+review, between PR-B's fix pass and its merge; PR-B then sat open
+and green for three days. The reviews DID complete — #975 collects
+residues from both arms by name (item 2 "(R1 NOTE-4)", item 3
+"(R2 n1)") — but the reports, verdict labels, finding counts,
+rubric scores and per-phase figures died with that session and are
+NOT recoverable. The unit row says so in place of invented numbers,
+and the dual is recorded as attested-but-unscored. Nothing nudged
+the lane back afterwards because the away-channel then carrying M9
+watched only `verbs/` prefixes — the monitor-scope lesson of this
+milestone, and the reason the close-out happened only when an
+older M9 session was resumed and swept the board.
+
+**The close-out's own finding.** Re-merging main (151 commits)
+surfaced ONE real interaction: VERBS-GATE (#1001) had re-pinned
+`tangent_door_contradicts_escalates_and_admits` to the planar merge
+door's "not a plane" refusal, and PR-B's Rest-only class filter
+removes that path, so the union now completes. Measured before the
+assertion was touched: tier-3 valid, ONE solid, volume 16 + 0.75π
+with difference exactly 0.0 — bitwise additive across a tangent
+ruling. Flipped to the success arm carrying that oracle, on the
+same discipline PR-B applied to the annular row. A second, unrelated
+repair rode along: a main-inherited clippy `type_complexity` error
+in demos/tour that had landed ungated because the change filter
+skipped `k-lint` on the pushes carrying it — filed as the class
+issue #1023 at the VERBS orchestrator's request.
+
+**Residues, none blocking**: #974 (the coaxial cylinder×sphere
+`TangentLocus::Circle` arm — the STOP-reported witness-lane
+widening, which is why fixture (ii) is the straight-spine rim
+rather than the sphere-capped one) and #975 (six semantic residues,
+headed by the vtxfac/recl tangent-descent divergence). **STRANDED
+at the same outage moment**: branch `m9/census-xid` (890d3fb6)
+carries an unreviewed, un-PR'd start on #943's gap 2 — the Door-2
+world-carrier arm for declared planar pairs — recorded on #943
+rather than merged or discarded.
+
+Board: **M9-5 (the lily FULL rebuild) is the last unit**, and its
+fresh-state pointer exists (TESS-SPLIT #951 at 31f052d2; walls 1+7
+retire, wall 2 deferred by ruling, wall 8 rides the post-M9 pcurve
+migration, #554 rides-or-banks as a question for Evan). Then the
+M9 exit walk.

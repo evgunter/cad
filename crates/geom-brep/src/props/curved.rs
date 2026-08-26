@@ -77,7 +77,11 @@ pub fn curved_face<T: Decide>(
             minor_radius,
             ..
         } => torus(center, axis, major_radius, minor_radius, outer, band),
-        Surface::Nurbs(_) => Err(PropsError::Unimplemented),
+        // The volume/area inventory is closed-form per analytic kind;
+        // a spline has no entry and neither does an offset description
+        // over one. `Approx` refuses here rather than answer as its
+        // fitted kind would.
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
 
@@ -217,7 +221,9 @@ pub fn boundary_material_sign<T: Decide>(
                 orient.flip(),
             )))
         }
-        Surface::Nurbs(_) => Err(PropsError::Unimplemented),
+        // As `curved_face`: no closed-form rim inventory for a spline
+        // or for an offset description over one.
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
 

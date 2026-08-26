@@ -685,6 +685,8 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         | ValidationError::DegenerateTorus { .. }
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::NonpositiveTorusTube { .. }
+        | ValidationError::ApproxCertification { .. }
+        | ValidationError::ApproxLaneUnsupported { .. }
         | ValidationError::EdgeCertification { .. }
         | ValidationError::DescriptionNotAdjacent { .. }
         | ValidationError::PlanarFaceResidual { .. }

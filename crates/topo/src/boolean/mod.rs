@@ -1486,8 +1486,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             &declared,
             band,
         )?;
-        let out =
-            insert::insert_null_pairs(&mut a, &mut b, c, &a_sectors, &b_sectors, &records, band)?;
+        let out = insert::insert_null_pairs(
+            &mut a, &mut b, c, &a_sectors, &b_sectors, &records, &declared, band,
+        )?;
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
     }
@@ -1636,6 +1637,11 @@ fn verify_tangent_declaration<T: Decide>(
                     margin: Indeterminate {
                         margin: MarginDiag::Invalid,
                         band,
+                        // Display-only by design: no `decide` ran here
+                        // (the sameness was STRUCTURAL), so this label
+                        // names the finding for the reader and never
+                        // enters the K funnel — the
+                        // `contact_rest_senses_opposed` precedent.
                         predicate: Some("contact_tangent_conformal"),
                     },
                 });

@@ -93,7 +93,8 @@ fn my_dist(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             minor_radius,
             ..
         } => my_dist_torus(center, axis, major_radius, minor_radius, p),
-        Surface::Nurbs(_) => f64::NAN,
+        // No closed-form distance oracle for a spline locus or a fit.
+        Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }
 }
 
