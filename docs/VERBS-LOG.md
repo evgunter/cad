@@ -936,3 +936,87 @@ only — Surface::Approx and all storage/validator wiring stay
 OFF-C's. The analytic oracle (cylinder/sphere as exact rational
 NURBS vs OFF-A's closed forms) is the acceptance spine. Difficulty
 L logged pre-dispatch; consumes block VERBS-3 slot 4.
+
+## GATE up (#1001); ordinal 74 claimed at dispatch (2026-08-25)
+
+The pair-scoped gate as built: one pair scan reading the same
+boxes candidate generation does; CurvedPairUnsupported payloads
+honest about box conservatism ("MAY, not DOES"); cone and torus
+ACQUIRED boxes (no NoSoundBox arm exists — a poison box would have
+made the re-scope inert); #862's two defects fixed plus a third of
+the same class found by shape-sweep, all extents rewritten against
+one Span interval type — which IS #700's dedup (option 1, no
+allowlist amendment) with a face-for-face differential row
+guarding the residue. Two empirical corrections: klein wall 3
+still refuses — honestly, on (Cone, Plane) — and lily wall 7's
+blocker adds the cone germ lane (plan row 6 corrected; the
+steering's intent stands, the blocker set grew). One M9-owned test
+row moved with the sweep's documented one-way divergence (the
+carrier-graze candidates the over-width kept alive) — courtesy
+note owed to M9. **Ordinal 74 claimed at dispatch** (ledger
+through 73 on main; not a third) — single fable review, frozen
+b2a8bad1.
+
+## OFF-B up (#1003); ordinal 75 claimed at dispatch (2026-08-25)
+
+The program's hardest unit landed green: the three-bound
+regularity floor (mignitude / fixed-projection / Gram determinant,
+conservatism direction stated and pinned), the collapse meter, the
+A9.4 fit with its ONE forced deviation (the Book's chord-length
+parameters would leave no pointwise claim to certify — the
+ratified O3 claim forced the chart's own parameters), the
+insert-and-recertify refinement (A9.10's shape; the compression
+half scheduled), and the two-limb certificate whose sup limb rides
+ALGEBRAIC RATIONALIZATION (X = Ẽ·Ẽ − d²w², Y = Ẽ×M̃ — coefficients
+cancel to the residual's scale where separate hulls would need
+millions of cells). Oracle: bound/sample 3-5x across five rows.
+The mesh hull assembly LIFTED (not called — layering) with mesh's
+numbers unmoved 91/91. Both hosted draws were interval —
+the default compile mode is the dual's unique signal. **Ordinal 75
+claimed at dispatch → a third → DUAL CROSS-MODEL (sample #24, the
+ELEVENTH pair — one from the twelve-pair notification threshold)**:
+R1 fable + R2 opus, frozen db2580f9.
+
+## Ordinal-75 dual returned; OFF-B fix pass out (2026-08-26)
+
+R1 fable AWF 1/4/2; R2 opus AWF 4/9/6 — **the strongest
+convergence of the program**: both independently demonstrated the
+SAME blocker (certify_offset's unweighted read of a rational fit —
+an unsound certificate through a public door, 230×/~1800×
+under-reports, each with their own red probe), both brute-forced
+the core inequality sound (1M + 200k configurations, zero
+violations), both judged the A9.4 fork airtight, both found the
+stale oracle row and the sweep misreport. R2's divergent tail was
+real and landed: the regularity lever DIRECTIONALLY INVERTED
+(large |d| permissive where it is the dangerous side) and the
+small-|d| certificate wall (relative accuracy ~1/|d|). Fix pass
+dispatched with the union, incl. the sharper-denominator
+investigation ((‖E‖+|d|) in place of 2|d|) that may dissolve M4
+outright. This dual is sample #24, the ELEVENTH cross-model pair
+— **the next dual is the twelfth: its recorder notifies Evan
+explicitly per the pre-registered target**.
+
+## OFF-B MERGED (#1003, 2026-08-26) — the approximating substrate EXISTS
+
+Row OFFB (ordinal 75, sample #24, the ELEVENTH cross-model pair)
+in MODEL-AB-LOG. The kernel can now fit a certified offset of a
+NURBS surface: two meters, the Book's fit, the rationalized
+two-limb certificate — with the fix pass exceeding the adjudicated
+union (M3's d-free lever; M4's sharper denominator tightening
+every bound). Four scheduled follow-ons: #1005 (weighted
+composite), #1006 (three-spellings consolidation), #1007
+(directional refinement), #1008 (net recentring). **The next dual
+is the TWELFTH cross-model pair — its recorder notifies Evan
+explicitly.** OFF-C (Surface::Approx integration) is the next
+Wave-3 spec; GATE's ordinal-74 review still out. Seam sweep:
+verbs-offb + both reviewer lanes.
+
+## OFF-C spec committed; block VERBS-4 drawn (2026-08-26)
+
+docs/VERBS-OFFC-SPEC.md: the seventh Surface variant with the D3
+total-enumeration discipline (the compiler is the sweep), the
+private-certificate ApproxSurface triple, O5's never-trust
+re-derivation at tier 3, and a deliberate scope dissolution — the
+apex-window predicate re-points at OFF-D (Offset{base} is
+NURBS-only here; analytic bases never need Approx). Difficulty L
+logged pre-draw; block VERBS-4 drawn (mapping lane-private).
