@@ -10,7 +10,7 @@
 //! - the opposite-sense fold on a bitten ball (a cavity wall's sense
 //!   bit is the other one), and the HONEST refusal when the offset
 //!   circles stop crossing (containment / near-tangency poses);
-//! - a genuine valence-4 vertex (a tent apex, four distinct planes)
+//! - a genuine valence-4 vertex (a chamfered cube patch corner)
 //!   keeping its `NEdgeVertex` refusal — the seam recognition must not
 //!   swallow it;
 //! - a torus-walled rim still refusing `SpineUnsupported` through its
@@ -22,14 +22,12 @@
 
 use geom::{Curve3, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{CornerConfig, FilletError, RunOutPolicy};
 use sweep::test_support::revolved_about_y;
-use sweep::{Extrusion, extrude};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, EdgeKey, SurfaceKey, transform_rigid};
+use topo::{Body, EdgeKey, SurfaceKey, transform_rigid};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -345,9 +343,13 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         trace(0.6, 1.0),
         0.4,
     );
+    // The half-chord square is an EXACT zero only in real arithmetic;
+    // in floats it is a ± ulp residue, so the honest outcomes are "on
+    // the axis to √ulp" or NaN (poison) — both feed predicate 3 a
+    // degenerate spine. A finite centre OFF the axis is the failure.
     assert!(
-        at_tangency.x.abs() < 1e-12 && at_tangency.z.abs() < 1e-12,
-        "at tangency the centre lands on the axis, got {at_tangency:?}"
+        (at_tangency.x.abs() < 1e-6 && at_tangency.z.abs() < 1e-6) || at_tangency.x.is_nan(),
+        "at tangency the centre degenerates (axis or poison), got {at_tangency:?}"
     );
     // r = 0.45: no crossing exists; the form must say NaN.
     let past = sheet_center(
@@ -380,8 +382,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         0.125,
     );
     assert!(
-        internal.x.abs() < 1e-9 && internal.z.abs() < 1e-9,
-        "internal tangency degenerates onto the axis, got {internal:?}"
+        (internal.x.abs() < 1e-6 && internal.z.abs() < 1e-6) || internal.x.is_nan(),
+        "internal tangency degenerates (axis or poison), got {internal:?}"
     );
 }
 
@@ -389,91 +391,56 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
 // 4. A genuine valence-4 vertex keeps NEdgeVertex.
 // ------------------------------------------------------------------
 
-/// A hip tent: the intersection of two wedge prisms whose ridges cross
-/// at (0, 1, 0). Four DISTINCT roof planes meet at the apex along four
-/// hip edges — a genuine valence-4 vertex with no co-surface edge
-/// anywhere near it.
-fn tent() -> Body<f64> {
-    let wedge = |verts: [(f64, f64); 3], len: f64| {
-        let lp = ProfileLoop::new(
-            verts
-                .iter()
-                .map(|&(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-                .collect(),
-        );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol())
-            .expect("a wedge profile");
-        let body = extrude(&profile, Extrusion::Distance(len), tol())
-            .expect("a wedge extrudes")
-            .body;
-        transform_rigid(
-            &body,
-            &Affine3::translation(Vec3::new(0.0, 0.0, -len / 2.0)),
-            tol(),
-        )
-        .unwrap()
-    };
-    // Wedge 1: 45° roofs, ridge along z at height 1, spanning x ∈ [−1, 1].
-    let w1 = wedge([(-1.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 2.0);
-    // Wedge 2: steeper roofs from below floor level, shorter span so its
-    // caps cut the tent transversally; rotated so its ridge runs along x.
-    let w2 = wedge([(-0.75, -0.5), (0.75, -0.5), (0.0, 1.0)], 1.6);
-    let w2 = transform_rigid(
-        &w2,
-        &Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            core::f64::consts::FRAC_PI_2,
-        ),
-        tol(),
-    )
-    .unwrap();
-    let out = boolean_op_with(
-        BooleanOp::Intersect,
-        &w1,
-        &w2,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the tent intersects");
-    out.body().expect("a body").body.clone()
+/// **A fully chamfered cube** — twelve edges at equal setback. Each
+/// corner-patch triangle vertex is a GENUINE valence-4 vertex: patch,
+/// two strips, and a shrunk box face, all four distinct planes, no
+/// co-surface edge anywhere. (An earlier draft of this probe tried the
+/// intersection of two crossing wedge prisms — the boolean refuses the
+/// ridge-through-ridge contact typed, `ZipCorrespondence`, so the
+/// chamfer is the machinery that actually mints valence-4 today.)
+fn chamfered_cube() -> Body<f64> {
+    let body = sweep::test_support::cube(1.0, tol());
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    sweep::chamfer::chamfer_edges(&body, &edges, 0.1, band(), tol())
+        .expect("a cube's twelve edges chamfer")
+        .body
 }
 
 /// **The seam recognition must not swallow a real N-edge vertex.** A
-/// chain stopping at the tent apex — valence four, four distinct plane
-/// supports, zero co-surface edges — keeps the `NEdgeVertex` refusal
-/// and its stop-at-vertex policy exactly as before.
+/// fillet chain stopping at a chamfered cube's patch vertex — valence
+/// four, four distinct plane supports, zero co-surface edges — keeps
+/// the `NEdgeVertex` refusal and its stop-at-vertex policy exactly as
+/// before this unit.
 #[test]
-fn a_tent_apex_keeps_its_n_edge_vertex_refusal() {
-    let body = tent();
-    let apex = body
-        .vertices()
-        .find(|(_, vt)| {
-            body.get_point(vt.point)
-                .is_some_and(|p| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9 && p.z.abs() < 1e-9)
-        })
-        .map(|(k, _)| k)
-        .expect("the apex vertex exists");
-    // Its orbit really is four edges on four distinct support pairs.
-    let orbit = body
-        .vertex_orbit(body.get_vertex(apex).unwrap().emanating.unwrap())
-        .unwrap();
-    let mut edges: Vec<EdgeKey> = orbit
-        .iter()
-        .map(|h| body.get_half_edge(*h).unwrap().edge)
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    assert_eq!(edges.len(), 4, "the apex is valence four");
+fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
+    let body = chamfered_cube();
+    // Find a valence-4 vertex and check its structure is the genuine
+    // kind: four edges, four DISTINCT support pairs, none co-surface.
+    let mut found = None;
+    for (vk, vt) in body.vertices() {
+        let Some(he) = vt.emanating else { continue };
+        let Some(orbit) = body.vertex_orbit(he) else {
+            continue;
+        };
+        let mut edges: Vec<EdgeKey> = orbit
+            .iter()
+            .map(|h| body.get_half_edge(*h).unwrap().edge)
+            .collect();
+        edges.sort_unstable();
+        edges.dedup();
+        if edges.len() == 4 {
+            found = Some((vk, edges));
+            break;
+        }
+    }
+    let (_, edges) = found.expect("a chamfered cube has valence-4 patch vertices");
     for e in &edges {
         let (a, b) = supports(&body, *e);
-        assert_ne!(a, b, "no hip edge is co-surface");
+        assert_ne!(a, b, "no edge at a patch vertex is co-surface");
     }
-    // A chain of one hip edge terminates there; the refusal is the
-    // N-edge one, not the seam one.
-    match fillet_edges(&body, &edges[..1], 0.05, band(), tol()) {
+    // A chain of one incident edge terminates there; the refusal is
+    // the N-edge one, not the seam one.
+    match fillet_edges(&body, &edges[..1], 0.02, band(), tol()) {
         Err(FilletError::FilletCornerUnsupported {
             corner: CornerConfig::NEdgeVertex { valence: 4 },
             policy,
