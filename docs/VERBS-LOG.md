@@ -1568,3 +1568,20 @@ echoed verbatim into the dispatch record. Flagged for Evan with
 #1016. OFF-D PR-2 (shell) dispatches to the same lane on the same
 as-executed arm (slot 4 = opus, which the draw and the execution
 agree on).
+
+## ORDINAL 81 RETURNED: TESSFOLD A-W-F 0/1/3; SMALL FIX PASS OUT (2026-08-26)
+
+The review answered the audit-vs-bless question decisively for
+the audit: every constant re-derived from scene sources through
+the sizing rule (hollowring to the digit; the pip-rim torus's
+2,080 from the rolling-ball construction; diecomposed's 48,870
+decomposed and balanced to the last triangle; the pipped mains'
+2+82n vs 2+16n confirmed as Euler-minimum at their rim chord
+counts), the fold's byte-identity re-proven by an independent
+sweep, and C7 verified against the run log. The MIN is a stale
+row-count sentence in TESS-BUDGET.md the PR deepened while
+editing the doc; NOTEs are chronology precision (generation
+commit vs landing commit) and hollowring's relative-only census
+pin. Fix pass dispatched (incl. adopting the reviewer's
+rederivation probe row, which pins the audit's analytic half
+in-tree). Reviewer lane swept post-report.
