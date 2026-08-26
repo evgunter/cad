@@ -195,11 +195,8 @@ fn symmetric_lentil() -> Body<f64> {
 #[test]
 fn a_reposed_lentil_fillets_in_its_own_frame() {
     let r = 0.05;
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map =
+        Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.7);
     let posed = transform_rigid(&symmetric_lentil(), &map, tol()).unwrap();
     let posed = transform_rigid(
         &posed,
@@ -516,10 +513,9 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
     let source = torus_barrel();
     // The fixture really has a torus wall.
     assert!(
-        source.faces().any(|(_, f)| matches!(
-            source.get_surface(f.surface),
-            Some(&Surface::Torus { .. })
-        )),
+        source
+            .faces()
+            .any(|(_, f)| matches!(source.get_surface(f.surface), Some(&Surface::Torus { .. }))),
         "the barrel wall is a torus"
     );
     let arcs = rims_of_radius(&source, 0.9);
