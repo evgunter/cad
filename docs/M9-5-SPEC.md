@@ -58,7 +58,7 @@ its zip).
 | 4 | lily.rs:1508 | NotRigid{col2_unit} | transform | stays (#250 triage) |
 | 5 | lily.rs:1529 | NotRigid{det_plus_one} | transform | stays (#250 triage) |
 | 6 | lily.rs:1544 | TangentialEdge{margin==0.0} | fillet battery | stays (post-#910 genuinely the co-surface seam) |
-| 7 | lily.rs:1563 | CurvedOpUnsupported{Subtract} | ops.rs:415-427; no sphere×sphere lane (ops.rs:1560-1568) | stays — dependency-stated on VERBS Wave 2 items 6+9 (ruled) |
+| 7 | lily.rs:1563 | CurvedPairUnsupported{op: Some(Subtract)} (was `CurvedOpUnsupported`; renamed by PR #1001, VERBS-GATE) | ops.rs:415-427; no sphere×sphere lane (ops.rs:1560-1568) | stays — dependency-stated on VERBS Wave 2 items 6+9 (ruled) |
 | 8 | lily.rs:1620 | CurvedEdgeUnsupported | reduce.rs:206 | stays — flip rides the post-M9 pcurve migration (ratified) |
 
 The wall harness (demos/tour/src/walls.rs:23-43) panics on ANY
@@ -125,7 +125,8 @@ covered declarations or those pins panic (Q3).
 
 What the flip needs, measured: per-arm relaxation of the
 non-union kind gate (ops.rs:415-427 — the lantern's cone pucker
-takes `CurvedOpUnsupported` before the cut is attempted) and a
+takes what is now `CurvedPairUnsupported`, renamed and made
+pair-scoped by PR #1001, before the cut is attempted) and a
 sphere×sphere germ arm (today a typed refusal, ops.rs:1560-1568).
 This is an UNDECLARED TRANSVERSE cut — curved-boolean BREADTH,
 not declared contact; KERNEL-VERBS.md:43 registers this exact

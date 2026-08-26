@@ -1021,6 +1021,57 @@ apex-window predicate re-points at OFF-D (Offset{base} is
 NURBS-only here; analytic bases never need Approx). Difficulty L
 logged pre-draw; block VERBS-4 drawn (mapping lane-private).
 
+## Ordinal-74 returned; GATE fix pass out (2026-08-26)
+
+AWF 2/5+ — the box rewrite sound in every attacked direction, both
+re-baselines honest (the cross-program m9_3 one judged legitimate
+with the tangency geometry re-derived), but two real MAJORs: the
+gate's admissions DIE DOWNSTREAM in containment doors with a false
+CorruptFace diagnosis (the honest refusal traded for a corruption
+claim on a healthy body; the spec's union acceptance silently
+narrowed to reduce-depth — the unit's one silent deviation), and
+**the wall-7 re-steering was a BOX ARTIFACT**: the reviewer
+measured the pucker's frustum clearing the ball by 0.291 (1.8
+radii) — the (Cone, Sphere) pair came from the cone slab's
+full-range max radius. The plan correction I propagated at the
+claim seam is therefore itself suspect pending the frustum-tight
+re-measurement; I correct the records once the fix pass measures.
+A lesson for the record: an implementer's empirical finding about
+REFUSAL ATTRIBUTION inherits the precision of the instrument that
+attributed it — the review's independent derivation is what
+caught it. Fix pass out with the union; the point-in-solid
+cone/torus capability files as its own unit.
+
+## GATE MERGED (#1001, 2026-08-26) — #862/#700 CLOSED; the wall-7 saga resolved
+
+Row GATE (ordinal 74) in MODEL-AB-LOG. The pair-scoped gate lands
+with honest boxes for every kind and the containment boundary
+typed honestly (#1011 the scheduled capability). The wall-7 record
+went through three states in three days — (waits on 6+9) →
+(+ cone lane) → (a full-revolve face-maximality precondition;
+never curved-boolean breadth at all) — each transition driven by a
+better instrument, and the final one by the fix pass's live
+numbers. Plan rows 6/9 corrected; M9's seam prose synced by the
+lane; the courtesy note to M9 goes on #1002's thread. Wave 2's
+germ lanes (rows 7-10) now dispatch against an honest gate.
+
+## Germ-lane survey folded; CYLCYL spec committed (2026-08-26)
+
+The survey's two premise corrections bind: **M9-3 PR-B is NOT on
+main** (#971 open — the zip substrate I believed landed is not
+substrate) and M9-3 is the declared-contact lane, not #250's germ
+join analog. The germ pipeline mapped door by door (D1-D10):
+chords are minted on demand, never stored (the SSI lift's actual
+meaning); the shared blockers are D3 (curved point-in-face
+containment — which IS #347's conservatism defect, not a rider),
+the D5 `_ => Ok(None)` straight-chord trap (latent unsoundness the
+moment any arm widens D4), and D10's no-crossings silence for
+cylinder pairs (the one wrong-answer-shaped path). CYLCYL specs as
+a two-PR unit (A = substrate, B = arms; #347 needs only the
+parallel-axis class); the sequence reorders 7 → 9 → 8 with the
+rung argument; klein wall 3 re-attributed to row 10. PR-A
+difficulty L logged pre-dispatch; consumes block VERBS-4 slot 2.
+
 ## OFF-C landed: `Surface::Approx` is in the kernel (2026-08-25)
 
 The seventh variant, the `SurfaceDescription`/`SurfaceSpec`/
@@ -1044,3 +1095,4 @@ of the carriers is the exact fix, and the test does it); and a
 face's edges must be re-described after `FaceSurface::New`, which
 is the surgery ordering's own second step. Mesh-tolerance widening
 by the certificate's bound stays deliberately unwired.
+

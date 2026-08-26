@@ -4,7 +4,7 @@
 //! on a body the boolean itself built:
 //!
 //! - the TORUS gate: `union` has no per-class door of its own, so the
-//!   torus must refuse at `reduce::gate_operand_kinds` — this is what scopes
+//!   torus must refuse at `reduce::gate_operand_pairs` — this is what scopes
 //!   the containment-fallback finding to the sphere class;
 //! - the RADIAL POKE: a cylinder wall escaping between its own seam
 //!   vertices, the shape that defeats a vertex probe — exact or typed,

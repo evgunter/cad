@@ -43,7 +43,7 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
 use geom_core::{Affine3, Band, Point2, Tol, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use std::collections::HashMap;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
 
@@ -74,6 +74,57 @@ fn prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the square prism lofts")
         .body
+}
+
+/// The box `[0,2]² x [0,1]` — planar faces and `Line` carriers
+/// throughout.
+fn unit_box() -> Body<f64> {
+    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("a square is a valid profile");
+    sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
+        .expect("a square prism extrudes")
+        .body
+}
+
+/// The same box moved to a general position — no face of it is
+/// coplanar with the unmoved one's, so the pair reaches the operand
+/// gate rather than a coincidence refusal.
+fn moved_box() -> Body<f64> {
+    topo::transform_rigid(
+        &unit_box(),
+        &Affine3::translation(Vec3::new(0.7, 0.3, 0.4)),
+        Tol::witness(),
+    )
+    .expect("a planar box transforms")
+}
+
+/// The box's `z = 1` cap.
+fn top_face(body: &Body<f64>) -> FaceKey {
+    body.faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() > 0.5 && origin.z > 0.5
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the extruded box has a top cap")
+}
+
+/// A flat bilinear patch at height `z` over `[0,2]²`.
+fn planar_patch(z: f64) -> NurbsSurface<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        geom_core::Point3::new(0.0, 0.0, z),
+        geom_core::Point3::new(0.0, 2.0, z),
+        geom_core::Point3::new(2.0, 0.0, z),
+        geom_core::Point3::new(2.0, 2.0, z),
+    ];
+    NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap()
 }
 
 /// The wall's net pulled back `d` along its chart normal — the base
@@ -300,20 +351,49 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
 }
 
 /// **The boolean gate refuses the operand pair-scoped**, by kind, and
-/// does NOT treat the face as the NURBS its fit is: a plain
-/// NURBS-walled prism passes the same gate.
+/// does NOT admit the face on the authority of the `Nurbs` its fit is.
+/// The refusal names the GERM PAIR — `(approx, plane)` — which is the
+/// pair-scoped gate's own shape: a kind disqualifies an operation only
+/// through a pair it could enter.
+///
+/// The body here is an extruded BOX, not the lofted prism: the gate's
+/// edge rule runs first, and a loft's wall carriers are rung-3
+/// splines, so a lofted operand refuses at the edge rule whatever its
+/// faces carry. A box has `Line` carriers throughout, so the FACE rule
+/// is the one that decides — which is the rule under test. The control
+/// row is the same box unmodified, which unions cleanly.
 #[test]
 fn the_boolean_gate_refuses_an_approx_operand_by_kind() {
-    let (approx_body, faces) = prism_with_approx_walls(0.05, 1e-9);
-    let face = faces[0];
-    let e = topo::union(&approx_body, &prism(), Tol::witness())
+    // Control: two overlapping boxes union through the gate.
+    topo::union(&unit_box(), &moved_box(), Tol::witness())
+        .expect("two planar boxes union through the gate");
+
+    // The same box with its top face carrying an approximating
+    // surface — a planar patch over the face's own footprint,
+    // described as the offset of that patch pulled back by `d`.
+    let mut a = unit_box();
+    let face = top_face(&a);
+    let patch = planar_patch(1.0);
+    let approx =
+        geom_brep::approx_offset_surface(Arc::new(pulled_back(&patch, 0.05)), 0.05, 1e-9, band())
+            .expect("a planar patch's offset fits");
+    a.set_face_surface(face, FaceSurface::New(approx))
+        .expect("the attach-layer door accepts a live face");
+
+    let e = topo::union(&a, &moved_box(), Tol::witness())
         .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(
         matches!(
             e,
-            topo::BooleanError::CurvedBooleanUnsupported { kind: geom_brep::SurfaceKind::Approx, face: f, .. } if f == face
+            topo::BooleanError::CurvedPairUnsupported {
+                kind: geom_brep::SurfaceKind::Approx,
+                other_kind: geom_brep::SurfaceKind::Plane,
+                face: f,
+                ..
+            } if f == face
         ),
-        "expected the pair-scoped gate refusal naming SurfaceKind::Approx on {face:?}, got {e}"
+        "expected the pair-scoped gate's germ-pair refusal naming SurfaceKind::Approx on \
+         {face:?}, got {e}"
     );
 }
 

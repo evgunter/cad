@@ -10,7 +10,7 @@
 //! Square-only honesty: real enclosures want ROUND bosses and drilled
 //! pilot holes; this chain does not attempt them, and says so. Not
 //! because a blanket gate forbids curved operands — the operand gate
-//! (`topo`'s `reduce::gate_operand_kinds`) admits `Cylinder` and
+//! (`topo`'s `reduce::gate_operand_pairs`) admits `Cylinder` and
 //! `Sphere` faces; the curved refusals live per C5 arm, at the sites
 //! that exercise one. Everything here is square. Coordinates follow the #91 design rule: no two operand planes
 //! coincide anywhere in the chain (all features offset in 1/16 steps).

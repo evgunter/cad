@@ -283,7 +283,7 @@ pub(super) fn apply_rule_b(
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
 ///   validated operand cannot carry one; the boolean's own operand
-///   gates (`gate_operand_kinds`, `gate_maximal_faces`) do not run
+///   gates (`gate_operand_pairs`, `gate_maximal_faces`) do not run
 ///   that check, which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
