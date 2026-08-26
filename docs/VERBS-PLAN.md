@@ -126,7 +126,12 @@ already removed the storage half. Each lane its own unit:
    breadth. Wall 7 is therefore NOT a demand signal for rows 6/9/10
    — its retirement text re-points at the face-maximality
    precondition; the sphere×sphere germ arm was never reached.)*
-7. **VERBS-CYLCYL (L)** — cylinder×cylinder germ lane. Promoted into
+7. **VERBS-CYLCYL (two PRs: A = shared germ substrate L, B = the
+   arms M)** — cylinder×cylinder germ lane. Spec:
+   docs/VERBS-CYLCYL-SPEC.md (2026-08-26 survey; the SEQUENCE
+   REORDERS 7 → 9 → 8 — SPHSPH promoted, CYLSPH last and alone on
+   the fitted rung). Klein wall 3 is gated by row 10's cone lane,
+   NOT rows 7-9 (measured at #1001). Promoted into
    the wave by the scan: #347 is the strongest live demand signal
    (two `circle`-derived cylinders refuse to union AT ALL;
    `examples/bracket.py` rounds at 3 mm instead of 6 mm). #347's
