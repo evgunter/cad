@@ -1253,3 +1253,101 @@ span-dip's unclamped vertex), both single-arm PR-B fixes with the
 red-able row waiting. **Ordinal 77 claimed at dispatch** (through
 76 on main; duals SUSPENDED per #1016's in-force recommendation —
 single fable review), frozen 845aab0f.
+
+## OFF-D spec committed (2026-08-26) — shell, two PRs
+
+docs/VERBS-OFFD-SPEC.md: PR-1 the face-replacement primitive
+(carrying the measured inheritance — knot refinement + elevation,
+the coherence budget, the apex-window predicate landing at last);
+PR-2 the verb (sealed = the degenerate arm through RING's door
+with Carried evidence from the collapse meter's own decides;
+opened = rim surgery to a closed thin solid; klein's hand-built
+wall pairs begin retiring as the acceptance). The teapot follows
+as its own demo unit. PR-1 difficulty M logged pre-dispatch;
+dispatches when a lane frees. Also: #971 merged (the lint
+known-red retired; lanes updated) and M9's close-out is landing
+(#1024 their at-merge row).
+
+## Standing practice (2026-08-26, from the #1023 mis-cite)
+
+A finding with no durable home cannot warn anyone: the GATE lane's
+banked prediction of the filter-skipped-gate class lived only in
+its report transcript, and the citation broke at first use.
+FROM HERE: any banked finding asserting a CLASS gets a durable
+home (a log line or an issue) at adjudication, as part of reading
+the report. M9-5 confirmed dispatched on cad-m8's side (seam D
+only; K2 remains VERBS Wave-2 items 6+9); cross-program threads
+all closed.
+
+## #1029: the OFF-C fixture red at 1e-12 (2026-08-26)
+
+The ARMS-3 lane's draw was the FIRST to gate the adopted OFF-C
+probe fixtures at (default, 1e-12) — two rows red at the shared
+helper's re-attach (IsoResidual, honest: the curved-fit
+marginality the ordinal-76 review itself measured), and nextest
+fail-fast makes it a PROGRAM-WIDE 1e-12 lane-blocker (~567 rows
+unexecuted; same SHA, same draw, no re-roll). The #921/#923
+family's fifth member. Dispositions: #1029 filed with the ARMS-3
+lane's discovery record; the OFF-C lane fixing on verbs/offc-fix
+(the two-arm pattern's fifth application — tests-only, self-merge
+class, orchestrator-adjudicated directly); the PR-A reviewer and
+the queue carry the comparison instruction. The ARMS-3 lane's
+handling was the protocol working end to end: base-run comparison,
+ci-local for own coverage, the finding filed not fixed.
+
+## Ordinal-77 returned; PR-A fix pass out; #1029 scope grew (2026-08-26)
+
+The review executed everything: the D10 wrong answer REPRODUCED at
+the merge base (30π, Ok), the scoping argument attacked with six
+crossing poses and revolve-minted seam walls (held — the ellipse
+always crosses a boundary edge), the #347 re-diagnosis re-derived
+to the digit (0.9 vs the charged 10), the nested-pair
+right-by-luck claim verified both ways. AWF 1/2/3+7: the MAJOR is
+the arc-bound's accepting direction having no red-able row — the
+one computation that can only WIDEN acceptance; the fix plants
+the corruption to prove the new row reds. MINORs: lengths through
+Margin::levered (the door-contract violation the codebase
+polices); the full-period Err-vs-promised-None mismatch. Fix pass
+out. #1029's scope grew to FOUR rows via the ARMS-3 lane's
+base-run pin (fail-fast had hidden the second pair); the OFF-C
+fix lane updated; the issues consolidated (the lane self-deduped
+#1030 before my close reached it).
+
+## Wall 7, corrected a THIRD time — the caps, not the zone (2026-08-26)
+
+M9-5's implementer measured the NonMaximalFaces cause and main's
+wall text (GATE's own fix-pass attribution) is FALSE:
+gate_maximal_faces rules same-key CURVED adjacency canonical and
+`continue`s past the zone's half-bands the text blames; the real
+F7 pair is the AXIS-TOUCHING PLANAR CAPS (two half-faces on one
+plane key; merge refuses MergedFaceRoleAmbiguous). Verified
+verbatim in reduce.rs before accepting. Consequence: **Wave-2
+items 6+9 cannot flip wall 7** — the operand is illegal before
+any germ arm; the repair question is #1031 (merge learns the cap
+pair, or revolve mints maximal caps; the interior-seam chart
+question decides). The instrument chain is now four links long
+(body kind → box pair → face maximality → the caps), each
+correction by a better instrument — the attribution lesson's
+third confirmation. M9-5's PR carries the lily text; plan row 6
+corrected; #1031 owns the gap.
+
+## ARMS-3 up (#1028); ordinal 78 claimed at dispatch (2026-08-26)
+
+The sphere×sphere arm landed as the table's one
+condition-free row (coaxial BY CONSTRUCTION — the axis is the
+centre line), the whole implementation one variant + one row; the
+snowman self-corrected to a LENTIL consumer (the snowman's valley
+is concave — the arm now correctly refuses on convexity, a
+better outcome than the fixture assumption); the #319 witness
+reproduced (pole-touching profiles split every wall) and the
+misdescribing NEdgeVertex{4} became SeamVertex with
+policy: None — plus a latent policy disagreement fixed
+(surgery hardcoded StopAtVertex for every tag). **A3-2's ratified
+recourse premise measured FALSE** (the annulus door cannot carve
+the seam-split rim the recourse promises; #1022 is the missing
+door) — a dominant-argument correction recorded in the design doc
+and flagged for Evan's retroactive review per the self-merge
+escalation, the C8-cone pattern. The lane's #1029 handling was
+the comparison protocol end to end. **Ordinal 78 claimed at
+dispatch** (through 77 on main; duals suspended per #1016) —
+single fable review, frozen b7227242.
