@@ -336,20 +336,27 @@ without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
 
 **A re-cut that FOLDS IN uncovered scenes restores coverage, it does
-not verify it** (M9-5, PR #1037). The baseline cut at 31f052d2 predated
-five scenes already on the tour — `diechamfer`, `benchlayout`,
-`diechamferblank`, `bench`, `hollowring`, 146 face rows — which had
-therefore been swept, measured, printed and compared against NOTHING on
-every run, while the gate reported clean. They are folded in now,
-additively (193 insertions, 0 deletions, 0 modifications, so no existing
-row moved). What that buys is coverage FROM NOW ON. It cannot recover
-the window: whatever happened to those scenes' sizing in the interval is
-unaudited and unrecoverable from this data, so their blessed values are
-**current-state, not verified-optimal** — if one of them regressed in
-that window, the fold enshrines the regression as the new reference. An
-audit is still owed if anyone wants those numbers to mean more. The
-class — a comparison gate whose coverage decays silently while its
-verdict stays green — is **#1038**, sibling to #1023.
+not verify it.** This is the sentence to read before treating a fold as
+good news, whoever is doing it. Folding an uncovered scene into the
+baseline buys comparison FROM NOW ON; it cannot recover the window the
+scene spent outside the gate. Whatever happened to its sizing in that
+interval is unaudited and is not recoverable from the sweep data, so the
+values a fold blesses are **current-state, not verified-optimal** — if
+the scene regressed in the window, the fold enshrines the regression as
+the new reference. *Coverage restored* is not *coverage verified*, and
+only an audit closes the gap.
+
+Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
+predated five scenes already on the tour — `diechamfer` 68,
+`benchlayout` 30, `diechamferblank` 26, `bench` 18, `hollowring` 4 =
+**146 face rows** — swept, measured, printed and compared against
+NOTHING on every run, while the gate reported clean. M9-5 folded them in
+and then handed them back: the VERBS lane owns that fold WITH the audit,
+so those rows land with someone asking whether the sizing is right
+rather than merely current. M9-5's own baseline change is its 47 new
+rows only. The class — a comparison gate whose coverage decays silently
+as the corpus outgrows its reference, while its verdict stays green by
+not looking — is **#1038**, sibling to #1023.
 
 ## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 
