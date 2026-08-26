@@ -1267,3 +1267,14 @@ as its own demo unit. PR-1 difficulty M logged pre-dispatch;
 dispatches when a lane frees. Also: #971 merged (the lint
 known-red retired; lanes updated) and M9's close-out is landing
 (#1024 their at-merge row).
+
+## Standing practice (2026-08-26, from the #1023 mis-cite)
+
+A finding with no durable home cannot warn anyone: the GATE lane's
+banked prediction of the filter-skipped-gate class lived only in
+its report transcript, and the citation broke at first use.
+FROM HERE: any banked finding asserting a CLASS gets a durable
+home (a log line or an issue) at adjudication, as part of reading
+the report. M9-5 confirmed dispatched on cad-m8's side (seam D
+only; K2 remains VERBS Wave-2 items 6+9); cross-program threads
+all closed.
