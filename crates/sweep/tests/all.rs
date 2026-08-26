@@ -222,6 +222,10 @@ mod verbs_arms2_arms;
 mod verbs_arms2_bud;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
+#[path = "verbs_cylcyl_probe.rs"]
+mod verbs_cylcyl_probe;
+#[path = "verbs_cylcyl_r1_review_probes.rs"]
+mod verbs_cylcyl_r1_review_probes;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
@@ -284,8 +288,14 @@ mod m9_2_chart_region_loft;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "m9_3_zip.rs"]
+mod m9_3_zip;
+
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_probes_m9_3.rs"]
+mod r1_probes_m9_3;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;

@@ -264,8 +264,8 @@ pub use boolean::{
     PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy, SweepTrace,
     TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
     VoidInserted, VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
-    contfp, face_carrier, flush_pair_relation, insert_void, intersect, intersect_with,
-    oriented_plane_eq, point_in_solid, subtract, subtract_with, tangent_locus,
+    contfp, curved_face_containment, face_carrier, flush_pair_relation, insert_void, intersect,
+    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, tangent_locus,
     tangent_pair_relation, union, union_with,
 };
 // The contact vocabulary (C3/C4), defined once at the lowest crate

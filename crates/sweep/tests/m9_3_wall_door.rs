@@ -152,22 +152,35 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
                 .unwrap()
                 .volume;
             assert_eq!(vol, 16.0, "exactly-additive volume (closed form)");
+            // The surviving rim arcs sit between two COPLANAR planar
+            // faces (plate cap × peg cap): the surfaces under-
+            // determine the locus, so the D6 pass re-describes the
+            // stale intersection citations CONVENTIONALLY on the
+            // unchanged circle carriers — the arrival the curved
+            // smooth-seam `JoinDesync` door demands (the red half of
+            // this row was the measured refusal before the
+            // conventional-arc lane existed).
+            let mut rims = 0;
+            for (_, e) in b.body.edges() {
+                let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    continue;
+                };
+                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+                    rims += 1;
+                    assert!(
+                        matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_)),
+                        "a coplanar-adjacent rim is conventionally described: {:?}",
+                        c.description()
+                    );
+                }
+            }
+            assert_eq!(rims, 6, "two rim circles of three arcs each survive");
         }
         Ok(BooleanResult::Empty) => panic!("a filled plate cannot be empty"),
-        Err(err) => {
-            // PR-A's measured opening state: classification completes
-            // and the refusal comes from INSIDE `try_rest_union` — the
-            // zip's own typed sub-frontier (seam-run contiguity), which
-            // is exactly PR-B's work order. Never the door, the sweep
-            // frontier, either wall site, or an untyped invariant.
-            // PR-B flips this arm to the Ok arm above; the volume
-            // oracle is already waiting there.
-            assert!(
-                matches!(err, BooleanError::RestZipUnsupported { .. }),
-                "the declared two-peg union must fail DOWNSTREAM of classification \
-                 (or succeed), never at the wall this PR removes: {err:?}"
-            );
-        }
+        // PR-B: the zip's band closure landed — the union SUCCEEDS
+        // (the Ok arm above carries the closed-form volume oracle);
+        // any refusal is a regression of the opened lane.
+        Err(err) => panic!("the declared exactly-filling union must succeed: {err:?}"),
     }
 }
 
@@ -304,28 +317,28 @@ fn tangent_door_contradicts_escalates_and_admits() {
         v.iter().any(|x| x.predicate == "tangent_locus_gap"),
         "the witness lane must have derived the ruling"
     );
-    // The measured boundary, pinned: the door ADMITS the pair (no
-    // door refusal), and what refuses is downstream — the declared
-    // face pair this fixture supplies names a CYLINDER wall, and the
-    // coplanar-merge lane it reaches takes planes only.
-    //
-    // The graze-edge frontier this used to land on is not reachable
-    // from this fixture: the plate's top face runs to y = 0 and
-    // y = 4, the lying cylinder's wall only over y ∈ [0.5, 3.5], and
-    // those far edges grazed the wall's INFINITE carrier rather than
-    // the trimmed face. Box-level non-overlap is exactly the
-    // condition that separates the two, which is the sweep's
-    // documented one-way divergence (`reduce` module docs: pruning
-    // drops spurious escalations, never an accepted event).
-    let err = out.expect_err("the declared curved contact still has no merge lane");
-    assert!(
-        matches!(err, BooleanError::Merge(_)),
-        "admitted past the door, refused downstream: {err:?}"
+    // Admitted past the door AND carried through: a `Tangent` pair's
+    // carriers are distinct by its own verification, so the pair never
+    // reaches the planar coplanar-merge door, and the join lane unions
+    // the line-contact pair into ONE solid. The contact is a tangent
+    // ruling — measure zero — so the volume is the operands' sum
+    // BITWISE, which is the oracle this row pins.
+    let Ok(BooleanResult::Body(b)) = out else {
+        panic!("the admitted tangent pair must union: {out:?}");
+    };
+    assert_eq!(
+        topo::validate_geometric(&b.body, Tol::witness()),
+        Ok(()),
+        "the tangent union is tier-3 valid"
     );
-    let msg = err.to_string();
-    assert!(
-        msg.contains("not a plane"),
-        "the refusal names the declared face's kind as the blocker: {msg}"
+    assert_eq!(b.body.solids().count(), 1, "one solid, not a graft");
+    let vol = topo::mass_properties(&b.body, Tol::witness())
+        .unwrap()
+        .volume;
+    assert_eq!(
+        vol,
+        16.0 + 0.75 * core::f64::consts::PI,
+        "plate + lying cylinder, exactly additive across the tangent ruling"
     );
 }
 

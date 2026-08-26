@@ -502,7 +502,11 @@ fn boolean_op_recut<T: Decide + Bounds>(
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
     let connected = match bool_connect(&mut red, a, b, band, tol) {
         Ok(c) => c,
-        Err(err @ (BooleanError::Join(_) | BooleanError::JoinDesync { .. })) => match saved {
+        Err(
+            err @ (BooleanError::Join(_)
+            | BooleanError::JoinDesync { .. }
+            | BooleanError::CurvedBooleanUnsupported { .. }),
+        ) => match saved {
             Some((sa, sb)) => {
                 red.a = sa;
                 red.b = sb;
@@ -961,10 +965,9 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 // its two adjacent faces' surfaces would violate D2
                 // adjacency coherence at tier 3 — the glue its
                 // description anticipated was skipped (or the merge
-                // re-homed its neighbors). Re-describe as the
-                // conventional chord line: coplanar surfaces
-                // under-determine the locus (D2's split), so the
-                // line's own data is the honest description.
+                // re-homed its neighbors, or the zip fused it between
+                // new faces). Re-describe conventionally where the
+                // surfaces under-determine the locus (D2's split).
                 let stale = match *body
                     .get_curve_geom(edge_data.curve)
                     .and_then(crate::null::CurveGeom::certified)
@@ -984,21 +987,102 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                     geom_brep::EdgeGeometry::MappedCurve(_) => false,
                 };
-                if stale {
-                    if curved {
-                        // A curved smooth seam whose description went
-                        // stale has no honest conventional line form —
-                        // refuse rather than replace an arc with its
-                        // chord (M5 PR 9: no silent geometric rewrite).
-                        return Err(BooleanError::JoinDesync {
-                            what: "stale CURVED smooth-seam description (no conventional \
-                                   re-description lane exists for arcs)",
-                        });
+                // The D6 smooth ladder (M9-3): a definitely-smooth
+                // seam descends one order, exactly as the tier-3
+                // contact mark does — the jet's second-order margin at
+                // the same interior schedule (rows
+                // `tangent_second_order`, reused). Determinate at
+                // every sample ⇒ the surfaces DETERMINE the locus and
+                // the intrinsic `TangentIntersection` is minted (the
+                // must-carry's own regime) — a G1 rim's line ruling
+                // included; a zero-side or in-band sample keeps the
+                // CONVENTIONAL posture (tier 3's ratified
+                // `SmoothUnderdetermined` stance — coplanar planes'
+                // exact-zero jet lands here, so every planar split
+                // keeps its chord description bit-identically; the
+                // weaker description is never a lie, and ε-tightening
+                // never flips a valid body through this choice).
+                let jet_determinate = {
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    let (t0, t1) = c.params();
+                    let mut det = true;
+                    for i in 1..(geom_brep::CERT_SAMPLES - 1) {
+                        let t = geom_brep::sample_param(t0, t1, i);
+                        let p = c.carrier().eval(t);
+                        let jet = geom_brep::tangent_jet(surf1, surf2, p, c.carrier().deriv(t));
+                        let arm = geom_brep::curvature_lever_arm(surf1, p)
+                            .min(geom_brep::curvature_lever_arm(surf2, p))
+                            .min(extent);
+                        match decide(
+                            "tangent_second_order",
+                            Margin::sagitta(jet.kappa_rel.abs(), arm),
+                            band,
+                        ) {
+                            Ok(Sign::Positive) => {}
+                            _ => {
+                                det = false;
+                                break;
+                            }
+                        }
                     }
-                    body.set_edge_curve(edge, geom_brep::EdgeCurveSpec::line_between(p0, p1), tol)
+                    det
+                };
+                if jet_determinate {
+                    // Mint the intrinsic tangency on the existing
+                    // carrier (U2: today's taxonomy, 1:1 onto
+                    // (surface, exact-lane pcurve)) — this also
+                    // refreshes a stale citation, since the minted
+                    // surfaces are the CURRENT adjacency.
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    let (t0, t1) = c.params();
+                    let spec = geom_brep::EdgeCurveSpec {
+                        description: geom_brep::EdgeGeometry::TangentIntersection {
+                            s1,
+                            s2,
+                            witness,
+                        },
+                        carrier: c.carrier().clone(),
+                        param_start: t0,
+                        param_end: t1,
+                    };
+                    body.set_edge_curve(edge, spec, tol)
+                        .map_err(|_| BooleanError::JoinDesync {
+                            what: "tangent-seam description failed certification",
+                        })?;
+                } else if stale {
+                    if curved {
+                        // The conventional re-description for an arc
+                        // the adjacent surfaces under-determine: the
+                        // same pushforward posture as the planar chord
+                        // lane, on the UNCHANGED carrier (no silent
+                        // geometric rewrite — only the description
+                        // moves). Carrier kinds with no conventional
+                        // pushforward keep the typed refusal.
+                        let c = existing.as_ref().ok_or_else(corrupt)?;
+                        let (t0, t1) = c.params();
+                        let Some(spec) =
+                            geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
+                        else {
+                            return Err(BooleanError::JoinDesync {
+                                what: "stale CURVED smooth-seam description (no conventional \
+                                       re-description lane exists for this carrier kind)",
+                            });
+                        };
+                        body.set_edge_curve(edge, spec, tol).map_err(|_| {
+                            BooleanError::JoinDesync {
+                                what: "stale arc description failed re-certification",
+                            }
+                        })?;
+                    } else {
+                        body.set_edge_curve(
+                            edge,
+                            geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                            tol,
+                        )
                         .map_err(|_| BooleanError::JoinDesync {
                             what: "stale in-plane description failed re-certification",
                         })?;
+                    }
                 }
             }
             Err(diag) => return Err(BooleanError::Escalated { diag }),
@@ -1217,14 +1301,26 @@ pub(super) fn declared_surface_pairs<T: Real>(
     decls
         .coincident_faces
         .iter()
-        .filter_map(|&FacePairDeclaration { a: fa, b: fb, .. }| {
-            // A-clone surface keys ARE result keys (carve/clone
-            // preserve them); B bridges through the graft.
-            let ka = a.get_face(fa)?.surface;
-            let kb = graft.surfaces.get(b.get_face(fb)?.surface).copied()?;
-            (result.get_surface(ka).is_some() && result.get_surface(kb).is_some() && ka != kb)
-                .then_some((ka, kb))
-        })
+        .filter_map(
+            |&FacePairDeclaration {
+                 a: fa,
+                 b: fb,
+                 class,
+             }| {
+                // Only the CONFORMAL class declares a merge-stage
+                // coincidence; a `Tangent` pair's carriers are DISTINCT
+                // by its own verification and never merge.
+                if class != crate::contact::ContactClass::Rest {
+                    return None;
+                }
+                // A-clone surface keys ARE result keys (carve/clone
+                // preserve them); B bridges through the graft.
+                let ka = a.get_face(fa)?.surface;
+                let kb = graft.surfaces.get(b.get_face(fb)?.surface).copied()?;
+                (result.get_surface(ka).is_some() && result.get_surface(kb).is_some() && ka != kb)
+                    .then_some((ka, kb))
+            },
+        )
         .collect()
 }
 
@@ -1321,13 +1417,23 @@ struct SphereRecut<T: Real> {
     align: Vec3<T>,
 }
 
-/// The M5 S13 curved-EXTENT scan (fn-level story on the call site in
-/// [`boolean_op_recut`]). Sound because every sphere-involved
-/// boundary pair is either **certified disjoint** (so a connected
-/// shell shares its witness vertex's side — the vertex probe's missing
+/// The curved-EXTENT scan (fn-level story on the call site in
+/// [`boolean_op_recut`]). Sound because every CURVED-involved boundary
+/// pair is either **certified disjoint** (so a connected shell shares
+/// its witness vertex's side — the vertex probe's missing
 /// certificate), **an escape** (re-cut and re-entered), or **refused
-/// typed**. Cylinder/plane-only configurations run zero new
-/// predicates: the scan's outer loop keys on sphere surfaces.
+/// typed**. Plane-only configurations run zero new predicates.
+///
+/// Two classes, and they get different answers because different
+/// evidence exists for them:
+///
+/// - **Sphere**: a closed group's true extent is `center ± r`, so the
+///   pairs it can meet are enumerable exactly, and an escape through a
+///   plane face is repairable by a re-chart.
+/// - **Cylinder**: no exact wall-vs-face gap test is wired, so the
+///   scan has no certificate to offer and refuses typed on REACH. That
+///   is the whole of [`cylinder_extent_gate`]'s job, and its argument
+///   lives there.
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
@@ -1348,6 +1454,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     let pad = boxes::sweep_pad(band);
+    cylinder_extent_gate(a, b, pad)?;
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         let mut seen: Vec<SurfaceKey> = Vec::new();
@@ -1664,6 +1771,100 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     Ok(out)
+}
+
+/// **The cylinder class's no-crossings posture (D10): a typed refusal,
+/// not a certificate.**
+///
+/// The containment fallback answers "which operand contains the other"
+/// by probing VERTICES, and that answer is only sound when the two
+/// boundaries do not meet. A cylinder pair can meet with no vertex
+/// noticing and no edge event either: two walls can cross in a single
+/// closed loop that lies strictly inside both faces' interiors, leaving
+/// every rim and every seam meridian clear of the other operand. The
+/// reduction then finds nothing, the probe reports both shells outside
+/// each other, and the union is metered as two disjoint solids — the
+/// S12 silence, executed, on a wrong answer rather than a refusal.
+///
+/// **Why no certificate.** The sphere arm can certify because a closed
+/// group's extent is `center ± r`, an exact datum independent of the
+/// trim. A cylinder wall has no such datum: its reach is the trimmed
+/// patch's, and bounding it against another face needs an exact
+/// wall-vs-face gap test — plane faces through their own region, walls
+/// through the axis pair — which is not wired. Guessing is the one
+/// thing this door may not do, so it refuses.
+///
+/// **WALL AGAINST WALL, and only that.** The silence needs a closed
+/// intersection loop interior to a face on BOTH sides, and only a
+/// wall×wall pair can have one:
+///
+/// - against a PLANE face the section is a conic, and a CLOSED one
+///   encircles the wall — so it passes through every ruling, the seam
+///   meridians included, and the seam's point on the loop is an edge
+///   sitting inside the plane face. An OPEN section leaves the face
+///   through its boundary. Either way an edge event exists, and the
+///   crossing layer sees it.
+///
+///   **That step rests on a premise this codebase does not enforce:
+///   every cylinder wall face carries at least one meridian boundary
+///   edge.** It holds of both doors that mint walls — extrude lowers a
+///   circle to two arcs and revolve seams a full turn, so each mints a
+///   banded wall with seam meridians — and it is exactly what makes
+///   "the loop passes through every ruling" imply "the loop meets an
+///   edge". A SEAMLESS periodic band, one face closing on itself with
+///   no meridian at all, would void the argument and put the plane
+///   partner back in this gate's scope. Nothing in the type system
+///   forbids one; state the premise when you add a constructor that
+///   breaks it, and widen this gate in the same change.
+/// - against a SPHERE face the scan's own sphere arm already refuses
+///   on reach, and it says so in the sphere's words rather than the
+///   cylinder's — this gate must not shadow it.
+/// - cone, torus and NURBS partners never reach here: the operand gate
+///   refuses the pair up front.
+///
+/// **Reach first, kind second** (the scan's cone/torus arm's rule,
+/// kept): the gate costs nothing to a wall whose certified box cannot
+/// meet the other operand's walls at all. Both boxes are supersets of
+/// their faces, so non-overlap PROVES the two loci do not meet, and a
+/// wall out of reach of the other cannot be the pair that defeats the
+/// probe. Cylinder operands standing clear of each other — the
+/// ordinary disjoint-operands fallback — are untouched.
+fn cylinder_extent_gate<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    pad: f64,
+) -> Result<(), BooleanError> {
+    let is_wall = |body: &Body<T>, f: &crate::entity::Face| {
+        matches!(
+            body.get_surface(f.surface),
+            Some(geom::Surface::Cylinder { .. })
+        )
+    };
+    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
+        for (face, fd) in x.faces() {
+            if !is_wall(x, fd) {
+                continue;
+            }
+            let wall_box = boxes::face_box(x, face, pad)?;
+            for (yf, yfd) in y.faces() {
+                if !is_wall(y, yfd) {
+                    continue;
+                }
+                if wall_box.overlaps(&boxes::face_box(y, yf, pad)?) {
+                    return Err(BooleanError::FallbackExtentUnsupported {
+                        operand: x_is,
+                        face,
+                        what: "two cylinder walls' certified extents meet and no crossing \
+                               layer saw an event — a wall pair can cross in a closed loop \
+                               interior to both faces, which no vertex probe and no edge \
+                               event can see, and no exact wall-vs-wall gap test is wired to \
+                               rule it out",
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Applies the scan's re-cuts: each escaping group's shell is carved
