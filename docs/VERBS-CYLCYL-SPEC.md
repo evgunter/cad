@@ -74,6 +74,24 @@ declared-contact lane, not the germ join analog.
    (its pair is (Cone, Plane) — row 10's), and the spec says so to
    keep the demo expectations honest.
 
+## PR-B scope correction (adjudicated 2026-08-26, measured in-lane)
+
+The arms' premise was false: the cylinder-union refusals come from the
+**crossing layer**, not the join — `CurvedPierceUnsupported` (a rim
+circle definitely piercing the partner wall has no event path) and
+`PointSplitCarrierUnsupported` (splitting a Circle edge at an event
+point is unwired). Items 1–2 above presumed crossings already existed
+to route. Ruling: **PR-B ships as the conservatism unit alone** (the
+three box/clearance fixes; the bracket rounds at 6 mm, pinned at
+closed-form volumes r ∈ {3,4,5,6}; #347's first demand closes, the
+union demand stays open on the issue). The arms move behind a new
+shared substrate unit — **the curved pierce/split door** (Circle-edge
+split at event points + the pierce event path for curved carriers) —
+which every germ lane's arms consume, so it precedes SPHSPH's arms
+too. Spec for that unit to be cut separately; the 7 → 9 → 8 order
+below is unchanged in spirit (substrate before arms, exact lanes
+before the fitted rung).
+
 ## Plan consequences (recorded at this spec's sync)
 
 Rows reorder **7 → 9 → 8**: SPHSPH promoted ahead of CYLSPH —

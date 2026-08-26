@@ -69,6 +69,17 @@ self-acquire; wrap raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
+- **A finished agent with orphaned detached timers re-wakes forever** —
+  each expiry resumes it for a no-op "stale timer" turn, burning tokens
+  and notification spam. Once its report is final, the orchestrator
+  TaskStops the agent; a lane about to finish should cancel its own
+  detached waits before writing the final report. (OFF-D reviewer,
+  2026-08-26: a dozen no-op wakes post-report.)
+- **Never pipe a slot-wrapped command through `| tail`/`| head`** — the
+  pipe buffers the wrapper's output away, so queue/acquire progress
+  lines vanish and a live wait is indistinguishable from a hang; you
+  then kill and re-queue a healthy waiter. Let the wrapper write to the
+  terminal or a file and filter afterwards. (CYLCYL PR-B lane, 2026-08-26.)
 - **Re-issuing a timed-out call means killing your own previous waiter
   first.** A harness-timed-out Bash call does NOT kill its flock waiter;
   the orphan stays queued and burns a slot turn when the mutex frees.
