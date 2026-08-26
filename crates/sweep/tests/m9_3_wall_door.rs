@@ -317,28 +317,28 @@ fn tangent_door_contradicts_escalates_and_admits() {
         v.iter().any(|x| x.predicate == "tangent_locus_gap"),
         "the witness lane must have derived the ruling"
     );
-    // The measured boundary, pinned: the door ADMITS the pair (no
-    // door refusal), and what refuses is downstream — the declared
-    // face pair this fixture supplies names a CYLINDER wall, and the
-    // coplanar-merge lane it reaches takes planes only.
-    //
-    // The graze-edge frontier this used to land on is not reachable
-    // from this fixture: the plate's top face runs to y = 0 and
-    // y = 4, the lying cylinder's wall only over y ∈ [0.5, 3.5], and
-    // those far edges grazed the wall's INFINITE carrier rather than
-    // the trimmed face. Box-level non-overlap is exactly the
-    // condition that separates the two, which is the sweep's
-    // documented one-way divergence (`reduce` module docs: pruning
-    // drops spurious escalations, never an accepted event).
-    let err = out.expect_err("the declared curved contact still has no merge lane");
-    assert!(
-        matches!(err, BooleanError::Merge(_)),
-        "admitted past the door, refused downstream: {err:?}"
+    // Admitted past the door AND carried through: a `Tangent` pair's
+    // carriers are distinct by its own verification, so the pair never
+    // reaches the planar coplanar-merge door, and the join lane unions
+    // the line-contact pair into ONE solid. The contact is a tangent
+    // ruling — measure zero — so the volume is the operands' sum
+    // BITWISE, which is the oracle this row pins.
+    let Ok(BooleanResult::Body(b)) = out else {
+        panic!("the admitted tangent pair must union: {out:?}");
+    };
+    assert_eq!(
+        topo::validate_geometric(&b.body, Tol::witness()),
+        Ok(()),
+        "the tangent union is tier-3 valid"
     );
-    let msg = err.to_string();
-    assert!(
-        msg.contains("not a plane"),
-        "the refusal names the declared face's kind as the blocker: {msg}"
+    assert_eq!(b.body.solids().count(), 1, "one solid, not a graft");
+    let vol = topo::mass_properties(&b.body, Tol::witness())
+        .unwrap()
+        .volume;
+    assert_eq!(
+        vol,
+        16.0 + 0.75 * core::f64::consts::PI,
+        "plate + lying cylinder, exactly additive across the tangent ruling"
     );
 }
 
