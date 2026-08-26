@@ -78,7 +78,10 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1,075 face rows, WITH the resampling pass, **re-cut at TESS-SPLIT**).
+(WITH the resampling pass). Its row count is the file's own and grows
+with the tour — 1,075 at the TESS-SPLIT re-cut, and every re-cut since
+is an ordinary commit under "Re-cutting the baseline" below — so read
+the file, not this sentence, for the current count.
 It is NOT the cut this document's measurement was taken from and its
 numbers are not the ones quoted below: "The finding" reports 1,025
 faces and 390,100 grid cells against the shipped whole-patch schedule
@@ -356,8 +359,9 @@ executed by VERBS-TESSFOLD WITH the audit this section demands: each
 scene's values verified against an expectation the fold does not
 itself define (the chamfer scenes row-for-row against their
 filleted/pipped twins, `hollowring` exactly against the torus grid
-step (`mesh::sizing::torus_grid_step`), the bench scenes against their introducing PR's claim
-and the box-face arithmetic) before landing as reference. The class —
+step (`mesh::sizing::torus_grid_step`), the bench scenes against
+their introducing PR's claim and the box-face arithmetic) before
+landing as reference. The class —
 a comparison gate whose coverage decays silently as the corpus
 outgrows its reference, while its verdict stays green by not looking —
 is **#1038**, sibling to #1023, and stays open past the fold.
