@@ -335,6 +335,22 @@ and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
 
+**A re-cut that FOLDS IN uncovered scenes restores coverage, it does
+not verify it** (M9-5, PR #1037). The baseline cut at 31f052d2 predated
+five scenes already on the tour — `diechamfer`, `benchlayout`,
+`diechamferblank`, `bench`, `hollowring`, 146 face rows — which had
+therefore been swept, measured, printed and compared against NOTHING on
+every run, while the gate reported clean. They are folded in now,
+additively (193 insertions, 0 deletions, 0 modifications, so no existing
+row moved). What that buys is coverage FROM NOW ON. It cannot recover
+the window: whatever happened to those scenes' sizing in the interval is
+unaudited and unrecoverable from this data, so their blessed values are
+**current-state, not verified-optimal** — if one of them regressed in
+that window, the fold enshrines the regression as the new reference. An
+audit is still owed if anyone wants those numbers to mean more. The
+class — a comparison gate whose coverage decays silently while its
+verdict stays green — is **#1038**, sibling to #1023.
+
 ## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 
 The #547 measurement located the dominant sizing slack (~4.1x,
