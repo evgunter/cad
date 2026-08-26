@@ -350,13 +350,17 @@ Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
 predated five scenes already on the tour — `diechamfer` 68,
 `benchlayout` 30, `diechamferblank` 26, `bench` 18, `hollowring` 4 =
 **146 face rows** — swept, measured, printed and compared against
-NOTHING on every run, while the gate reported clean. M9-5 folded them in
-and then handed them back: the VERBS lane owns that fold WITH the audit,
-so those rows land with someone asking whether the sizing is right
-rather than merely current. M9-5's own baseline change is its 47 new
-rows only. The class — a comparison gate whose coverage decays silently
-as the corpus outgrows its reference, while its verdict stays green by
-not looking — is **#1038**, sibling to #1023.
+NOTHING on every run, while the gate reported clean. M9-5's own
+baseline change was its 47 new rows only; the five scenes' fold was
+executed by VERBS-TESSFOLD WITH the audit this section demands: each
+scene's values verified against an expectation the fold does not
+itself define (the chamfer scenes row-for-row against their
+filleted/pipped twins, `hollowring` exactly against the torus grid
+step (`mesh::sizing::torus_grid_step`), the bench scenes against their introducing PR's claim
+and the box-face arithmetic) before landing as reference. The class —
+a comparison gate whose coverage decays silently as the corpus
+outgrows its reference, while its verdict stays green by not looking —
+is **#1038**, sibling to #1023, and stays open past the fold.
 
 ## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 
