@@ -162,9 +162,17 @@ pub enum FilletSite {
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
     /// corner patch fills the junction. The three-convex-edge case of
-    /// this policy — the sphere octant — is the ONE configuration M5
-    /// ships; every other vertex valence or convexity mix names this
-    /// policy as what would handle it.
+    /// this policy — the sphere octant — is the ONE configuration that
+    /// ships.
+    ///
+    /// It is the policy MOST out-of-scope corners name, but not all of
+    /// them, and the exceptions are the interesting ones
+    /// ([`CornerConfig::policy`] is the map): a MIXED-CONVEXITY vertex
+    /// names [`Self::RunOutFeather`] instead, because a corner patch
+    /// cannot help where the ball changes sides; and a
+    /// [`CornerConfig::SeamVertex`] names NO policy at all, because it
+    /// is not a corner — the surface is smooth through it, so there is
+    /// nothing for a run-out to run out into.
     RunOutStopAtVertex,
     /// The radius decays to zero before the vertex and the blend
     /// fades back into the sharp edge. No variable-radius machinery
@@ -722,13 +730,13 @@ impl fmt::Display for FilletError {
                 "fillet chain: edge {edge:?} is not {chain} like the rest of the chain \
                  — margin {margin} m; {FILLET3_CONVEXITY_RECOURSE}"
             ),
-            Self::FilletCornerUnsupported {
-                vertex,
-                corner,
-                policy,
-            } => {
+            Self::FilletCornerUnsupported { vertex, corner, .. } => {
+                // Both halves of this sentence come from the TAG — the
+                // policy it names and the recourse that is true of it —
+                // so the message cannot contradict itself, and the
+                // payload's `policy` cannot make it lie.
                 let recourse = corner.recourse();
-                match policy {
+                match corner.policy() {
                     Some(policy) => write!(
                         f,
                         "fillet corner: {vertex:?} is {corner}, which only a run-out policy \
@@ -842,7 +850,7 @@ mod recourse_tests {
         FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
         FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
     };
-    use super::{CornerConfig, RunOutPolicy};
+    use super::CornerConfig;
 
     /// Every recourse sentence this module can append.
     const ALL: [&str; 14] = [
@@ -992,12 +1000,12 @@ mod recourse_tests {
             FilletError::FilletCornerUnsupported {
                 vertex: VertexKey::default(),
                 corner: CornerConfig::NEdgeVertex { valence: 4 },
-                policy: Some(RunOutPolicy::RunOutStopAtVertex),
+                policy: CornerConfig::NEdgeVertex { valence: 4 }.policy(),
             },
             FilletError::FilletCornerUnsupported {
                 vertex: VertexKey::default(),
                 corner: CornerConfig::SeamVertex,
-                policy: None,
+                policy: CornerConfig::SeamVertex.policy(),
             },
             FilletError::Escalated {
                 site: FilletSite::Chain,
@@ -1013,6 +1021,32 @@ mod recourse_tests {
     /// How many of `ALL` appear in `text`.
     fn recourses_in(text: &str) -> Vec<&'static str> {
         ALL.into_iter().filter(|r| text.contains(r)).collect()
+    }
+
+    /// **The tag's two maps agree.** A corner tag names a run-out policy
+    /// EXACTLY when its recourse is the run-out one — the only pairing
+    /// that renders a coherent sentence, since `Display` takes both
+    /// halves from the tag. A tag that named a policy and a recourse
+    /// pointing somewhere else would say "only a run-out policy would
+    /// handle this" and then advise something that is not one.
+    #[test]
+    fn a_corner_tag_names_a_policy_exactly_when_its_recourse_is_the_run_out_one() {
+        for corner in [
+            CornerConfig::ThreeConvexEdges,
+            CornerConfig::NEdgeVertex { valence: 4 },
+            CornerConfig::MixedConvexity { convex: 1 },
+            CornerConfig::DependentNormals,
+            CornerConfig::SeamVertex,
+            CornerConfig::Indeterminate,
+        ] {
+            assert_eq!(
+                corner.policy().is_some(),
+                corner.recourse() == FILLET3_CORNER_RECOURSE,
+                "{corner} names policy {:?} but recourse {:?} — the two maps have drifted",
+                corner.policy(),
+                corner.recourse()
+            );
+        }
     }
 
     #[test]

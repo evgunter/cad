@@ -1294,25 +1294,36 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// carry ONE support pair between them, i.e. the same rim arriving and
 /// leaving.
 ///
+/// The two families must be the SAME geometry, not merely the right
+/// counts: each seam's surface has to be one of the rim's own two
+/// supports. That is what makes this the rim's own charts cut — a
+/// co-surface edge on some unrelated third surface is somebody else's
+/// seam passing through, and the vertex it makes is not this one.
+///
 /// The surface is smooth through such a point: nothing about the
 /// geometry changes across a seam, only which chart names it. So it is
 /// not a corner, no run-out policy addresses it, and the door that does
 /// is the closed-rim one — which is what [`CornerConfig::SeamVertex`]
 /// says.
 fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
-    let mut seams = 0usize;
+    let mut seams: Vec<SurfaceKey> = Vec::new();
     let mut rim: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
     for e in edges {
         let Some((a, b)) = edge_surfaces(body, *e) else {
             return false;
         };
         if a == b {
-            seams += 1;
+            seams.push(a);
         } else {
             rim.push((a, b));
         }
     }
-    seams == 2 && rim.len() == 2 && rim[0] == rim[1]
+    let [(p, q), second] = rim[..] else {
+        return false;
+    };
+    seams.len() == 2
+        && (p, q) == second
+        && seams.iter().all(|s| *s == p || *s == q)
 }
 
 /// Predicate 6 at one termination vertex: gather valence, per-edge
