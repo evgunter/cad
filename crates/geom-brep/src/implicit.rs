@@ -742,7 +742,14 @@ mod arc_clearance_tests {
     /// exercises BOTH harmonics: the cylinder rows tilt the circle
     /// against the wall axis, which is the only way `A₂` is nonzero,
     /// and the plane/sphere rows pin the first-harmonic-only arms.
-    fn cases() -> Vec<(&'static str, Surface<f64>, Point3<f64>, Vec3<f64>, f64, Vec3<f64>)> {
+    fn cases() -> Vec<(
+        &'static str,
+        Surface<f64>,
+        Point3<f64>,
+        Vec3<f64>,
+        f64,
+        Vec3<f64>,
+    )> {
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
         // A circle whose axis is tilted 45° from the wall's: the

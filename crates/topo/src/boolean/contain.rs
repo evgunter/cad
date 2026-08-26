@@ -206,8 +206,7 @@ fn boundary_pre_pass<T: Decide>(
                         },
                         (t0, t1),
                     )) if chords == EdgeChords::LinesAndArcs => {
-                        if point_on_arc(q, center, axis, radius, u_ref, t0, t1, band)?
-                            == Some(true)
+                        if point_on_arc(q, center, axis, radius, u_ref, t0, t1, band)? == Some(true)
                         {
                             return Ok(Some(FaceContainment::OnEdge(edge_key)));
                         }

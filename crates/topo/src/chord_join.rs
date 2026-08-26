@@ -542,71 +542,6 @@ impl<T: Real> JoinLane<'_, T> {
     }
 }
 
-/// The chord spec for dividing `face` between vertices `u1 → u2`
-/// (the mef/mekr `he_plus` direction): `None` for planar faces and
-/// for ruling sections (the straight chord IS the honest carrier —
-/// the M3 lane, bit-identical), `Some(spec)` with the C5 conic arc
-/// for curved faces.
-///
-/// The conic lane (M5 PR 5):
-///
-/// 1. Classify (plane × wall surface) through THE table's
-///    [`geom_brep::plane_cylinder_section`] — trileans before any
-///    rung; `TiltedEllipse`/`Rim` proceed, `ParallelLines` falls back
-///    to the ruling chord, `TangentLine` refuses typed (C7),
-///    escalations pass through whole.
-/// 2. Select WHICH arc of the section conic lies in `face` by
-///    **azimuth-window containment** (M5 S9, repairing the PR 5
-///    RUN-sample rule — see the selection note below).
-/// 3. Describe as `Intersection { wall, aux plane, witness }` with the
-///    witness minted at the carrier's mid-parameter (the witness
-///    contract) — certification then pins endpoints, residuals, and
-///    transversality through the ordinary gate.
-///
-/// # The arc-side rule: azimuth-window containment (M5 S9)
-///
-/// The stored arc must lie inside the **divided face's own azimuth
-/// window** — the same statement M5 PR 6 certifies for pcurves
-/// ([`crate::pcurves`]), evaluated here at selection time.
-///
-/// - The window comes from the RUN this chord co-bounds the face with
-///   (`run`, the real halves between the two null halves being joined):
-///   each run edge's chart image is derived in closed form through
-///   [`geom_brep::chart_pcurve`], branch-pinned to its predecessor's
-///   exit exactly as PR 6's loop walk does, and the hull of their
-///   **exact** azimuth extents is the window. Nothing is sampled.
-/// - The chord's two complementary candidates are closed azimuth
-///   intervals anchored at its start, `[x₁, x₁ + g]` (ccw in the chart)
-///   and `[x₁ − (τ − g), x₁]`, with `g` the endpoints' azimuth gap;
-///   the selected arc is the one **contained** in the window. Exactly
-///   one is contained whenever the window is narrower than a period
-///   (the two candidates' unions cover the circle and only one can fit
-///   inside a sub-period window), so neither/both are genuine
-///   degeneracies and refuse typed with the sub-case named
-///   ([`ArcWindowCase`]) — never a guess.
-/// - Every containment margin is metered as **azimuth × chart radius**
-///   (metres, the PR 6 convention) through the named trilean
-///   `split_arc_window`; an in-band window boundary escalates F6.
-///   Which candidate is the conic parameter's ccw arc is itself a named
-///   trilean, `split_arc_chart_orientation` (θ runs ccw about the
-///   section normal, azimuth ccw about the cylinder axis: they agree
-///   iff `n̂ₑ · âc > 0`). The cw arc takes the axis-flipped frame so the
-///   carrier still runs forward `u1 → u2`.
-///
-/// **Why the PR 5 rule was wrong** (#144, and the history note in
-/// `sweep/tests/m5_pr5_tilted_cut.rs`): it decided the side from a
-/// single azimuth *sample* on the run, premised on that sample lying
-/// inside the chord's own interval. That premise fails whenever the
-/// divided face spans more azimuth than the chord — the tilted belly
-/// cut, where a 91° rim run bounds a face closed by 17.5° and 44.4°
-/// section arcs — and the rule then selected the complement arc, a body
-/// no tier-3 check could reject. Containment asks about the face, not
-/// about a point.
-///
-/// Seam placement does not enter: rotating the chart's `u_ref` shifts
-/// the window and the chord's endpoint azimuths by the same constant,
-/// and every quantity below is a difference.
-#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 /// The section conic's frame — the datum both chord lanes select an
 /// arc of, in the form the arc-side rule reads it.
 struct SectionConic<T: Real> {
@@ -1035,6 +970,71 @@ fn select_arc<T: Decide>(
     }
 }
 
+/// The chord spec for dividing `face` between vertices `u1 → u2`
+/// (the mef/mekr `he_plus` direction): `None` for planar faces and
+/// for ruling sections (the straight chord IS the honest carrier —
+/// the M3 lane, bit-identical), `Some(spec)` with the C5 conic arc
+/// for curved faces.
+///
+/// The conic lane (M5 PR 5):
+///
+/// 1. Classify (plane × wall surface) through THE table's
+///    [`geom_brep::plane_cylinder_section`] — trileans before any
+///    rung; `TiltedEllipse`/`Rim` proceed, `ParallelLines` falls back
+///    to the ruling chord, `TangentLine` refuses typed (C7),
+///    escalations pass through whole.
+/// 2. Select WHICH arc of the section conic lies in `face` by
+///    **azimuth-window containment** (M5 S9, repairing the PR 5
+///    RUN-sample rule — see the selection note below).
+/// 3. Describe as `Intersection { wall, aux plane, witness }` with the
+///    witness minted at the carrier's mid-parameter (the witness
+///    contract) — certification then pins endpoints, residuals, and
+///    transversality through the ordinary gate.
+///
+/// # The arc-side rule: azimuth-window containment (M5 S9)
+///
+/// The stored arc must lie inside the **divided face's own azimuth
+/// window** — the same statement M5 PR 6 certifies for pcurves
+/// ([`crate::pcurves`]), evaluated here at selection time.
+///
+/// - The window comes from the RUN this chord co-bounds the face with
+///   (`run`, the real halves between the two null halves being joined):
+///   each run edge's chart image is derived in closed form through
+///   [`geom_brep::chart_pcurve`], branch-pinned to its predecessor's
+///   exit exactly as PR 6's loop walk does, and the hull of their
+///   **exact** azimuth extents is the window. Nothing is sampled.
+/// - The chord's two complementary candidates are closed azimuth
+///   intervals anchored at its start, `[x₁, x₁ + g]` (ccw in the chart)
+///   and `[x₁ − (τ − g), x₁]`, with `g` the endpoints' azimuth gap;
+///   the selected arc is the one **contained** in the window. Exactly
+///   one is contained whenever the window is narrower than a period
+///   (the two candidates' unions cover the circle and only one can fit
+///   inside a sub-period window), so neither/both are genuine
+///   degeneracies and refuse typed with the sub-case named
+///   ([`ArcWindowCase`]) — never a guess.
+/// - Every containment margin is metered as **azimuth × chart radius**
+///   (metres, the PR 6 convention) through the named trilean
+///   `split_arc_window`; an in-band window boundary escalates F6.
+///   Which candidate is the conic parameter's ccw arc is itself a named
+///   trilean, `split_arc_chart_orientation` (θ runs ccw about the
+///   section normal, azimuth ccw about the cylinder axis: they agree
+///   iff `n̂ₑ · âc > 0`). The cw arc takes the axis-flipped frame so the
+///   carrier still runs forward `u1 → u2`.
+///
+/// **Why the PR 5 rule was wrong** (#144, and the history note in
+/// `sweep/tests/m5_pr5_tilted_cut.rs`): it decided the side from a
+/// single azimuth *sample* on the run, premised on that sample lying
+/// inside the chord's own interval. That premise fails whenever the
+/// divided face spans more azimuth than the chord — the tilted belly
+/// cut, where a 91° rim run bounds a face closed by 17.5° and 44.4°
+/// section arcs — and the rule then selected the complement arc, a body
+/// no tier-3 check could reject. Containment asks about the face, not
+/// about a point.
+///
+/// Seam placement does not enter: rotating the chart's `u_ref` shifts
+/// the window and the chord's endpoint azimuths by the same constant,
+/// and every quantity below is a difference.
+#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 fn chord_spec<T: Decide>(
     body: &mut Body<T>,
     band: Band,

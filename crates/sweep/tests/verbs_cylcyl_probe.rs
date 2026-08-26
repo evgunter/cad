@@ -144,6 +144,17 @@ fn the_bracket_bound_is_the_carrier_slab_not_the_arc() {
 /// still carries the measurement it was opened with.
 ///
 /// It now refuses typed at the curved-extent scan's wall×wall gate.
+///
+/// **The base reproduction, recorded here rather than as a row.** At
+/// this unit's merge base the same two bodies returned
+/// `BooleanResult::Body` from `union`, with `shells().count() == 2` and
+/// `mass_properties(..).volume == 94.2477796076938` — 30π to the last
+/// digit, i.e. exactly `va + vb`, with the interpenetrating lens
+/// contributing nothing. The independent review reproduced it at base.
+/// It cannot be a test row on this branch, because the row would have
+/// to ASSERT the wrong answer; the sum is asserted below instead, so
+/// the yardstick that made the defect visible still ships with the
+/// fix.
 #[test]
 fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     let tol = Tol::witness();
