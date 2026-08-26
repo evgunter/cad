@@ -1253,3 +1253,17 @@ span-dip's unclamped vertex), both single-arm PR-B fixes with the
 red-able row waiting. **Ordinal 77 claimed at dispatch** (through
 76 on main; duals SUSPENDED per #1016's in-force recommendation —
 single fable review), frozen 845aab0f.
+
+## OFF-D spec committed (2026-08-26) — shell, two PRs
+
+docs/VERBS-OFFD-SPEC.md: PR-1 the face-replacement primitive
+(carrying the measured inheritance — knot refinement + elevation,
+the coherence budget, the apex-window predicate landing at last);
+PR-2 the verb (sealed = the degenerate arm through RING's door
+with Carried evidence from the collapse meter's own decides;
+opened = rim surgery to a closed thin solid; klein's hand-built
+wall pairs begin retiring as the acceptance). The teapot follows
+as its own demo unit. PR-1 difficulty M logged pre-dispatch;
+dispatches when a lane frees. Also: #971 merged (the lint
+known-red retired; lanes updated) and M9's close-out is landing
+(#1024 their at-merge row).
