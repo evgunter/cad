@@ -69,6 +69,12 @@ self-acquire; wrap raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
+- **A finished agent with orphaned detached timers re-wakes forever** —
+  each expiry resumes it for a no-op "stale timer" turn, burning tokens
+  and notification spam. Once its report is final, the orchestrator
+  TaskStops the agent; a lane about to finish should cancel its own
+  detached waits before writing the final report. (OFF-D reviewer,
+  2026-08-26: a dozen no-op wakes post-report.)
 - **Never pipe a slot-wrapped command through `| tail`/`| head`** — the
   pipe buffers the wrapper's output away, so queue/acquire progress
   lines vanish and a live wait is indistinguishable from a hang; you
