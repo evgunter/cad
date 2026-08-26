@@ -713,7 +713,6 @@ pins the corrected door naming, the other inverts to require that
 every collapsed bore is named by a wall door. PR: verbs/tubewall
 (#960).
 
-
 ## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
 
 The session hit the model usage limit mid-wave: both in-flight
@@ -1553,6 +1552,7 @@ waste the audit might have explained away. Ordinal-79 reviewer
 TaskStopped post-report after orphaned-timer wake spam (lesson in
 lane-ops memory; reviewer briefs now carry the cancel-your-timers
 line).
+
 ## VERBS-TESSFOLD executed (2026-08-26) — the five uncovered scenes audited and folded
 
 The audit half of #1038's disposition. Fresh sweep at this unit's
@@ -1574,3 +1574,45 @@ solids, matching what PR #938 claimed and nothing more. The 1,122
 covered rows of the fresh sweep are bit-identical to the committed
 baseline, so the re-cut is a pure 146-row addition. No corrections
 owed, no findings filed; #1038 (the gate class) STAYS OPEN.
+
+## PROTOCOL DEVIATION FOUND AND RECORDED: VERBS-4 RAN OPUS×4 (2026-08-26)
+
+Post-OFFD1-merge transcript audit (triggered by a slot-label
+inconsistency noticed while preparing PR-2's dispatch): block
+VERBS-4's drawn fable (slot 2, CYLCYL-A) was mis-dispatched as
+opus — the whole block executed opus×4 and the drawn fable never
+ran. Deviation note appended to MODEL-AB-LOG (rows stand
+as-executed; the block-balancing property fails for VERBS-4; the
+fable implementer sample runs one short through ordinal 79).
+Remedy: arms are now read back from the draw file at dispatch and
+echoed verbatim into the dispatch record. Flagged for Evan with
+#1016. OFF-D PR-2 (shell) dispatches to the same lane on the same
+as-executed arm (slot 4 = opus, which the draw and the execution
+agree on).
+
+## ORDINAL 81 RETURNED: TESSFOLD A-W-F 0/1/3; SMALL FIX PASS OUT (2026-08-26)
+
+The review answered the audit-vs-bless question decisively for
+the audit: every constant re-derived from scene sources through
+the sizing rule (hollowring to the digit; the pip-rim torus's
+2,080 from the rolling-ball construction; diecomposed's 48,870
+decomposed and balanced to the last triangle; the pipped mains'
+2+82n vs 2+16n confirmed as Euler-minimum at their rim chord
+counts), the fold's byte-identity re-proven by an independent
+sweep, and C7 verified against the run log. The MIN is a stale
+row-count sentence in TESS-BUDGET.md the PR deepened while
+editing the doc; NOTEs are chronology precision (generation
+commit vs landing commit) and hollowring's relative-only census
+pin. Fix pass dispatched (incl. adopting the reviewer's
+rederivation probe row, which pins the audit's analytic half
+in-tree). Reviewer lane swept post-report.
+
+## TESSFOLD MERGED (#1045, 2026-08-26) — ordinal-81 row; the gate's eyes are open
+
+Row TESSF in MODEL-AB-LOG. The five scenes' 146 rows are covered
+verified-not-blessed; #1038 stays open for the gate's class fix.
+The fix pass surfaced a wild instance of a new operational law
+(now in lane-ops memory): a CONFLICTING PR gets no CI run,
+silently, and none retroactively — force one via push or
+close/reopen after resolving. Lane swept. In flight: ordinal 80
+(#1044's review), OFF-D PR-2 (shell).
