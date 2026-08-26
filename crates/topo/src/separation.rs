@@ -21,22 +21,20 @@
 //! affine image of a superset is a superset of the affine image, so a
 //! box-level separation is a genuine separation of the solids.
 //!
-//! **That premise is the box module's contract, and it is not fully
-//! held today — issue #862.** Under an `Interval` scalar the slab and
-//! conic arms read single bracket endpoints, so there are loci
-//! `face_box` does not enclose; the `f64` lane is unaffected. This
-//! door is the one where a box-level non-overlap is a GRANT rather
-//! than a prune, so it is the door that pays for it, and the sentence
-//! above must not be read as unconditional while #862 is open.
+//! **That premise is the box module's contract, and it holds on every
+//! scalar**: the per-kind extents range over a bracketed description
+//! rather than sampling one endpoint of it. This door is the one where
+//! a box-level non-overlap is a GRANT rather than a prune, so it is
+//! the door that would pay for any gap, and the sentence above may be
+//! read as unconditional.
 //!
 //! **The other direction costs this door too, and costs it more
 //! often.** A box that is too BIG cannot make a wrong certificate —
 //! it can only withhold one — but withholding is this door's whole
-//! output. `face_box`'s cylinder arm is over-wide by a full radius
-//! along its own axis and its conic arm's amplitude is not even a
-//! function of the locus (both #862), so genuinely separated
-//! placements are refused here for reasons that are not about the
-//! placements.
+//! output. What remains is the looseness the RULES themselves state —
+//! a whole ball for a sphere band, a full turn for an arc — not slack
+//! in the code: each arm claims exactly its construction, which the
+//! `boxes` module's ceiling rows pin.
 //!
 //! **This door needs no surface-kind gate of its own.** It shares the one
 //! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a

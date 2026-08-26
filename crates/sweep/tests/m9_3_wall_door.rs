@@ -304,20 +304,28 @@ fn tangent_door_contradicts_escalates_and_admits() {
         v.iter().any(|x| x.predicate == "tangent_locus_gap"),
         "the witness lane must have derived the ruling"
     );
-    // The measured PR-A boundary, pinned: the door ADMITS the pair
-    // (no door refusal), and what refuses is the reduce sweep's
-    // pre-existing conservative frontier — the tangent PLANE's own
-    // face edges cross the extended ruling and graze the infinite
-    // carrier (their span-minimum clearance is exactly zero), which
-    // is a tangential graze, not a declared-Rest cosurface incidence,
-    // so item 2's rung leaves it verbatim. Tangent classification
-    // engages end to end on the rim fixture (PR-B's acceptance
-    // shape); the second-order descent itself is pinned three-outcome
-    // at the unit level beside `tangent_lump`.
-    let err = out.expect_err("the graze-edge frontier still stands in PR-A");
+    // The measured boundary, pinned: the door ADMITS the pair (no
+    // door refusal), and what refuses is downstream — the declared
+    // face pair this fixture supplies names a CYLINDER wall, and the
+    // coplanar-merge lane it reaches takes planes only.
+    //
+    // The graze-edge frontier this used to land on is not reachable
+    // from this fixture: the plate's top face runs to y = 0 and
+    // y = 4, the lying cylinder's wall only over y ∈ [0.5, 3.5], and
+    // those far edges grazed the wall's INFINITE carrier rather than
+    // the trimmed face. Box-level non-overlap is exactly the
+    // condition that separates the two, which is the sweep's
+    // documented one-way divergence (`reduce` module docs: pruning
+    // drops spurious escalations, never an accepted event).
+    let err = out.expect_err("the declared curved contact still has no merge lane");
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "admitted past the door, refused at the sweep frontier: {err:?}"
+        matches!(err, BooleanError::Merge(_)),
+        "admitted past the door, refused downstream: {err:?}"
+    );
+    let msg = err.to_string();
+    assert!(
+        msg.contains("not a plane"),
+        "the refusal names the declared face's kind as the blocker: {msg}"
     );
 }
 
