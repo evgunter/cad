@@ -1162,10 +1162,6 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
             // survive the hull, and `f64::min` RETURNS the non-NaN
             // operand.
             let scoped = params.map_or(full, |(t0, t1)| {
-                // REVIEW MUTATION M2
-                let _ = (t0, t1);
-                return full;
-                #[allow(unreachable_code)]
                 aabb_of(arc_extent(
                     &bracket_point(center),
                     &bracket_vector(u_ref),
