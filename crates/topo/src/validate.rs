@@ -349,6 +349,33 @@ pub enum ValidationError {
         /// The face whose surface is the placeholder.
         face: FaceKey,
     },
+    /// Tier 3: a face's **approximating** surface failed to
+    /// re-certify against its own stored description at rest.
+    ///
+    /// The stored certificate is never read (O5's never-trust
+    /// posture): the two-limb bound is re-derived per validation call
+    /// from the description, the fit and the tolerance the surface
+    /// carries. A fit that has drifted from what it claims to
+    /// approximate — coarsened, edited, grafted onto another base —
+    /// reports here, naming the limb that caught it.
+    ApproxCertification {
+        /// The face whose approximating surface failed.
+        face: FaceKey,
+        /// The fit door's typed refusal.
+        error: geom_brep::OffsetFitError,
+    },
+    /// Tier 3: a face carries an approximating surface and this scalar
+    /// has no re-derivation lane ([`crate::props::PropsQuadLane`]'s
+    /// `recertify_approx` answering `None`).
+    ///
+    /// Reported rather than skipped: a surface certificate is the one
+    /// claim this kernel refuses to leave unchecked, and passing a
+    /// face whose certificate nothing re-derived would make it exactly
+    /// that.
+    ApproxLaneUnsupported {
+        /// The face whose approximating surface has no lane.
+        face: FaceKey,
+    },
     /// Tier 3: a face's torus violates D3's ring convention `R > r > 0`
     /// — a horn (`R == r`) or spindle (`R < r`) torus, whose axis
     /// carries a singular point the chart machinery has no
@@ -1175,6 +1202,17 @@ impl fmt::Display for ValidationError {
                  'no description yet' state) — uncertifiable at rest; attach the real \
                  surface. A described NURBS surface passes this check"
             ),
+            Self::ApproxCertification { face, error } => write!(
+                f,
+                "tier 3: face {face:?}'s approximating surface does not re-certify against \
+                 its own description at rest: {error}"
+            ),
+            Self::ApproxLaneUnsupported { face } => write!(
+                f,
+                "tier 3: face {face:?} carries an approximating surface and this scalar has \
+                 no re-derivation lane — the certificate cannot be re-derived, and a \
+                 surface certificate is never trusted unchecked"
+            ),
             Self::DegenerateTorus { face } => write!(
                 f,
                 "face {face:?}'s torus violates D3's ring convention R > r > 0 (a horn or \
@@ -1888,6 +1926,25 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             Some(Surface::Nurbs(payload)) if payload.is_placeholder() => {
                 errors.push(ValidationError::UncertifiableSurface { face: face_key });
             }
+            // The approximating surface's re-derivation (O5): the
+            // two-limb certificate is recomputed from the stored
+            // description, fit and tolerance on EVERY call, and the
+            // stored certificate is not read. A grid per face is a
+            // real cost where edges pay a line schedule; the
+            // alternative — trust-on-read for surfaces only — would
+            // make this the one unchecked claim in tier 3.
+            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, band) {
+                Some(Ok(_)) => {}
+                Some(Err(error)) => {
+                    errors.push(ValidationError::ApproxCertification {
+                        face: face_key,
+                        error,
+                    });
+                }
+                None => {
+                    errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
+                }
+            },
             Some(Surface::Torus {
                 major_radius,
                 minor_radius,
@@ -2124,8 +2181,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // conventional `IsoCurve`/`MappedCurve` descriptions the
         // loft/sweep builder mints; the mark stays `Unmarked` (no
         // derived verdict, exactly the escalation posture).
-        let nurbs_adjacent =
-            matches!(s_plus, Surface::Nurbs(_)) || matches!(s_minus, Surface::Nurbs(_));
+        // An `Approx` face is exempt on the SAME terms and by the same
+        // rule: its geometry is a spline fit, whose implicit-form
+        // gradient is poison, so `classify_dihedral` cannot run there
+        // either. O5 records the inheritance explicitly — narrowing it
+        // (deriving a dihedral class from the DESCRIPTION rather than
+        // the fit) is its own conversation, not smuggled in here.
+        let nurbs_adjacent = s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some();
         let mut escalated = false;
         let mut all_transverse = true;
         let mut all_smooth = true;
@@ -2435,8 +2497,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         let Some(surface) = body.surfaces.get(face.surface) else {
             continue; // unreachable on tier-1 input
         };
-        if matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
-            // Planar: the Newell arm above. NURBS: the quadrature lane
+        if matches!(surface, Surface::Plane { .. }) || surface.spline_chart().is_some() {
+            // Planar: the Newell arm above. Spline charts: the quadrature lane
             // is winding-derived end to end, bit-free by design (S10
             // module docs) — recorded residual, out of this arm's
             // scope.
@@ -4245,7 +4307,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 62;
+        const VARIANTS: usize = 64;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4310,6 +4372,8 @@ mod tests {
                 ValidationError::DegenerateTorus { .. } => 59,
                 ValidationError::DegenerateTorusEscalated { .. } => 60,
                 ValidationError::NonpositiveTorusTube { .. } => 61,
+                ValidationError::ApproxCertification { .. } => 62,
+                ValidationError::ApproxLaneUnsupported { .. } => 63,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4514,6 +4578,14 @@ mod tests {
                 cause: indeterminate(),
             },
             ValidationError::NonpositiveTorusTube { face: t.face_a },
+            ValidationError::ApproxCertification {
+                face: t.face_a,
+                error: geom_brep::OffsetFitError::InvalidRequest {
+                    d: 0.0,
+                    tolerance: 0.0,
+                },
+            },
+            ValidationError::ApproxLaneUnsupported { face: t.face_a },
         ];
         let mut covered = [false; VARIANTS];
         for err in &all {

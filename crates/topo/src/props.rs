@@ -675,6 +675,25 @@ pub trait PropsQuadLane:
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
+    /// Re-derives an approximating surface's certificate against its
+    /// own stored description, fit and tolerance — the tier-3
+    /// never-trust posture (O5), one dimension up from
+    /// `EdgeCurve::recertify`.
+    ///
+    /// `None` = this scalar has no re-derivation lane. That is not a
+    /// pass: tier 3 reports it, because a surface certificate is the
+    /// one claim this kernel refuses to leave unchecked. It is also
+    /// vacuous today — the fit door is `f64`-only, so no other scalar
+    /// can hold an `ApproxSurface` in the first place.
+    ///
+    /// # Errors
+    ///
+    /// The fit door's typed refusal, when the re-derivation fails.
+    fn recertify_approx(
+        approx: &geom::ApproxSurface<Self>,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
+
     /// # Errors
     ///
     /// [`PropsError`] from the quadrature lane (budget, unsupported
@@ -694,6 +713,13 @@ impl PropsQuadLane for f64 {
         geom_core::Bounds::lo(self)
     }
 
+    fn recertify_approx(
+        approx: &geom::ApproxSurface<Self>,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        Some(geom_brep::recertify_approx(approx, band))
+    }
+
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -708,6 +734,16 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
+    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
+    // minted for this scalar; the honest answer is "no lane", which
+    // tier 3 reports rather than passes.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -726,6 +762,16 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
+    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
+    // minted for this scalar; the honest answer is "no lane", which
+    // tier 3 reports rather than passes.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -748,6 +794,16 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
+    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
+    // minted for this scalar; the honest answer is "no lane", which
+    // tier 3 reports rather than passes.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
