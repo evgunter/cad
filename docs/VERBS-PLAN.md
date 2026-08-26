@@ -172,10 +172,17 @@ area-and-thickness verb). The teapot demo will meet #757/#758/#759/
 header panic on plausible part names) — demo findings, recorded not
 dodged, per the demo-purpose rule.
 
-OFF-C/D carry the **apex-window predicate** (ordinal-73 review's
+**OFF-D** carries the **apex-window predicate** (ordinal-73 review's
 named residue): before treating a cone mint as a face's offset,
 decide `inf(v-window) + d·cot α > 0` (slant meters) — a shifted
 window crossing the apex silently reads mirror-nappe geometry.
+
+It is NOT OFF-C's. `SurfaceDescription::Offset` takes a NURBS base
+by type — analytic kinds are closed under offset and mint exactly
+through `offset_surface`, so no cone-based description is
+representable and there is no apex band for an approximating
+surface to window around. The predicate arises where mixed
+analytic surgery does: the face-replacement unit.
 
 ## Design conversations (Evan-paced; open as info firms up)
 

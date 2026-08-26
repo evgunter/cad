@@ -1020,3 +1020,27 @@ re-derivation at tier 3, and a deliberate scope dissolution — the
 apex-window predicate re-points at OFF-D (Offset{base} is
 NURBS-only here; analytic bases never need Approx). Difficulty L
 logged pre-draw; block VERBS-4 drawn (mapping lane-private).
+
+## OFF-C landed: `Surface::Approx` is in the kernel (2026-08-25)
+
+The seventh variant, the `SurfaceDescription`/`SurfaceSpec`/
+`ApproxSurface` triple with a private certificate, and the total
+enumeration the closed enum forces: 31 compiler-surfaced dispatch
+sites plus 14 wildcard/`matches!` sites the compiler could not
+surface, each given a disposition in the code. Base reference: an
+owned `Arc<NurbsSurface<T>>`, not an arena key — `SurfaceKey` lives
+a crate above `Surface`, and a `Surface` value is read with no arena
+in hand at half the consumers.
+
+Tier 3 re-derives per face (`PropsQuadLane::recertify_approx`), with
+`ApproxCertification` / `ApproxLaneUnsupported` as the typed
+findings; the NURBS-adjacent dihedral and material-sign exemptions
+extend to `Approx` BY KIND, through `Surface::spline_chart`.
+
+Two findings the consumer surfaced, both scheduled at OFF-D:
+replacing a face's surface with a fit in a DIFFERENT spline space
+breaks the iso lane's one-spline-space hypothesis (degree elevation
+of the carriers is the exact fix, and the test does it); and a
+face's edges must be re-described after `FaceSurface::New`, which
+is the surgery ordering's own second step. Mesh-tolerance widening
+by the certificate's bound stays deliberately unwired.
