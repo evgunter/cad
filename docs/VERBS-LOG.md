@@ -1054,3 +1054,20 @@ better instrument, and the final one by the fix pass's live
 numbers. Plan rows 6/9 corrected; M9's seam prose synced by the
 lane; the courtesy note to M9 goes on #1002's thread. Wave 2's
 germ lanes (rows 7-10) now dispatch against an honest gate.
+
+## Germ-lane survey folded; CYLCYL spec committed (2026-08-26)
+
+The survey's two premise corrections bind: **M9-3 PR-B is NOT on
+main** (#971 open — the zip substrate I believed landed is not
+substrate) and M9-3 is the declared-contact lane, not #250's germ
+join analog. The germ pipeline mapped door by door (D1-D10):
+chords are minted on demand, never stored (the SSI lift's actual
+meaning); the shared blockers are D3 (curved point-in-face
+containment — which IS #347's conservatism defect, not a rider),
+the D5 `_ => Ok(None)` straight-chord trap (latent unsoundness the
+moment any arm widens D4), and D10's no-crossings silence for
+cylinder pairs (the one wrong-answer-shaped path). CYLCYL specs as
+a two-PR unit (A = substrate, B = arms; #347 needs only the
+parallel-axis class); the sequence reorders 7 → 9 → 8 with the
+rung argument; klein wall 3 re-attributed to row 10. PR-A
+difficulty L logged pre-dispatch; consumes block VERBS-4 slot 2.
