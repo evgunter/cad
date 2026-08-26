@@ -1071,3 +1071,15 @@ a two-PR unit (A = substrate, B = arms; #347 needs only the
 parallel-axis class); the sequence reorders 7 → 9 → 8 with the
 rung argument; klein wall 3 re-attributed to row 10. PR-A
 difficulty L logged pre-dispatch; consumes block VERBS-4 slot 2.
+
+## ARMS-3 RATIFIED (#992 👍, merged 2026-08-26); implementation dispatched
+
+The run-out taxonomy resolved as drafted: the seam vertex is NOT a
+corner (SeamVertex refusal with the request-the-full-rim recourse,
+machinery-free); the genuine mid-curve run-out pair parked
+consumer-gated (ball-cap presumptive). One implementation unit
+dispatched: the general sphere×sphere arm (ARMS-2's circle×circle
+closed form), the SeamVertex refusal, register sync; #319 closes
+fully at its merge. Difficulty M logged pre-dispatch; block
+VERBS-4 slot 3; lane verbs-arms3. Three implementation lanes live
+(OFF-C green-awaiting-report, CYLCYL PR-A, ARMS-3).
