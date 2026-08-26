@@ -2746,3 +2746,62 @@ mod verbs_gate_r1_probes {
         )
     }
 }
+
+#[cfg(test)]
+mod m9_5_diag {
+    //! TEMPORARY (M9-5 diagnosis) — remove before the PR.
+    use super::*;
+    use pncad::topo::Surface;
+
+    #[test]
+    fn diag_wall7_f7_edge() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let lant = &pieces
+            .iter()
+            .find(|p| p.name == "lily_lantern")
+            .expect("lantern")
+            .body;
+        let out = pncad::topo::subtract(lant, &ball::<f64>((-2.80, 0.90), 0.16, tol), tol);
+        println!("DIAG wall7 refusal: {out:?}");
+        if let Err(pncad::topo::BooleanError::NonMaximalFaces { edge, .. }) = &out {
+            let e = lant.get_edge(*edge).expect("edge");
+            for he in [e.he_plus, e.he_minus] {
+                let f = lant
+                    .get_half_edge(he)
+                    .and_then(|h| lant.get_loop(h.parent_loop))
+                    .map(|l| l.face)
+                    .expect("face");
+                let s = lant.get_face(f).map(|ff| ff.surface).expect("surface key");
+                println!("DIAG   face {f:?} surface-key {s:?} = {:?}", lant.get_surface(s));
+            }
+        }
+        panic!("DIAG only");
+    }
+
+    #[test]
+    fn diag_lantern_face_census() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let lant = &pieces
+            .iter()
+            .find(|p| p.name == "lily_lantern")
+            .expect("lantern")
+            .body;
+        for (k, f) in lant.faces() {
+            println!(
+                "DIAG face {k:?} key {:?} kind {:?}",
+                f.surface,
+                lant.get_surface(f.surface).map(|s| match s {
+                    Surface::Plane { .. } => "plane",
+                    Surface::Cylinder { .. } => "cylinder",
+                    Surface::Sphere { .. } => "sphere",
+                    Surface::Cone { .. } => "cone",
+                    Surface::Torus { .. } => "torus",
+                    _ => "other",
+                })
+            );
+        }
+        panic!("DIAG only");
+    }
+}

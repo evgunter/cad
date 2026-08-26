@@ -595,22 +595,34 @@ two shadow proofs standalone. `nonuniform_loft` was re-spaced in the
 same pass (z = 0/0.15/2, scene-only; the corpus fixture keeps 0/1/3)
 after the measured 0/1/3 pair proved visually indistinguishable.
 
-### Considered and NOT built: a two-peg plate
+### Built at M9-5: the two-peg plate
 
-The obvious next consolidation is to fold `crosslap`/`crosslap_exploded`
-and `plate`/`bossplate` into one two-peg plate shown assembled and
-apart — one cell pair instead of two, more part-like than either.
-It is deliberately **not** built, and the reason is a kernel fact
-rather than a taste call: `crosslap`'s value on the sheet is the
-**S1 planar REST zip** — a glued union across coincident PLANAR
-contact — and a glued peg-in-hole is a *cylindrical* declared
-contact, which the kernel does not have. A two-peg plate built today
-would demonstrate transverse union (`bossplate`'s point already) plus
-free-placement display, and would silently drop the zip the cell
-exists to show. Cylindrical declared contact is the curved-census /
-declared-contact design doc's territory (M6); revisit this
-consolidation when that lands, at which point the merged cell shows
-strictly more than the two it replaces.
+This section used to say the consolidation below was deliberately not
+built, and named the kernel fact that stopped it. That fact has
+changed, so the cell exists: `twopeg`/`twopeg_apart` fold
+`crosslap`/`crosslap_exploded` and `bossplate` into ONE cell pair —
+two plates located on each other by a mating plane and two peg-in-hole
+fits, shown mated and apart.
+
+The reason it was blocked, kept because it is the reason the new cell
+is worth having: `crosslap`'s value on the sheet is the **S1 planar
+REST zip** — a glued union across coincident PLANAR contact — and a
+glued peg-in-hole is a *cylindrical* declared contact, which the
+kernel did not have. **M9-3 built it** (the declared-contact front
+door admits the plane/sphere/cylinder carrier inventory; the zip is
+carrier-general). So the merged cell now shows strictly more than the
+three it replaces: the planar Rest zip, PLUS two cylindrical Rests,
+PLUS four transverse curved booleans (two peg unions and two bore
+subtracts) as the parts' own construction — and it answers an
+EXACTLY-ADDITIVE volume, `vol(P) + vol(Q) = (24 + π/2) + (24 − π/2) =
+48` bitwise, which neither retired cell could claim across a curved
+contact.
+
+Retired from the SHEET only, as always: `crosslap`,
+`crosslap_exploded` and `bossplate` keep their standalone renders,
+their narration and assertions (including `bossplate`'s shared-chord
+watertightness pin, a claim no other scene makes), and every
+corpus/latency/STEP role.
 
 ## Validation posture (tier 3′)
 
