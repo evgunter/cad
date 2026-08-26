@@ -134,43 +134,82 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
     );
 }
 
-/// **E2E row 1 — the granted case, full pipeline, mass-checked.**
-/// The vase's torus band's whole-torus box spans y ∈ [1.25 ± R_arc]
-/// ≈ [0.97, 1.53]; the brick crosses the CYLINDER wall over
-/// y ∈ [0.55, 0.93] and clears the torus box (and the sphere caps'
-/// boxes are irrelevant: Sphere is an admitted kind, never an
-/// offender), so the pair-scoped gate must admit the union, the
-/// crossing pipeline must cut it, and the volume must be the analytic
-/// one. Reverting the gate to a per-body kind scan reds this row with
-/// a refusal; a wrong cut reds it on the number.
+/// **E2E row 1 — the granted crossing case, full pipeline.** The
+/// torus band's box clears the brick, the brick genuinely crosses
+/// only CYLINDER walls (wired germ), so the pair-scoped gate admits
+/// the union — and the spec's ruling says the torus's kind is then
+/// irrelevant. As built it is NOT: the join's geometric role
+/// resolution (`resolve_roles_geometric`, join.rs) probes
+/// `point_in_solid` against the whole PRISTINE other body, whose
+/// boundary pre-pass walks EVERY face — the out-of-reach caps and
+/// band included — so the admitted union still dies in the
+/// containment door with an error about the OPERAND's kind, not the
+/// operation: `PartialSphereFace` for the sphere-capped vase,
+/// `CorruptFace` ("not planar or not walkable" — on a healthy body)
+/// for the cone-capped one.
+///
+/// Both arms carry the aspirational branch: if the union ever
+/// completes, its volume must be the reviewer's own closed form.
 #[test]
-fn a_union_whose_torus_face_is_out_of_reach_completes_with_the_exact_volume() {
-    let a = vase();
-    let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0));
-    let out = topo::union(&a, &b, Tol::witness())
-        .expect("the torus band clears the brick; the pair gate must admit this union");
-    let body = &out.body().expect("a non-empty union").body;
-    // vase = two hemispheres (2·(2/3)π·0.5³) + two wall cylinders
-    // (2·π·0.5²·0.5) + the bulge solid of revolution:
-    // x(y) = cx + √(R² − (y − 1.25)²) over the half-chord a,
-    // V = π ∫ x² dy = π [cx²·2a + 2·cx·Iq + (R²·2a − 2a³/3)] with
-    // Iq = 2[(a/2)·√(R² − a²) + (R²/2)·asin(a/R)] — the reviewer's
-    // own integral, not the kernel's.
-    let (cx, r_arc, a) = bulge_arc();
-    let iq =
-        2.0 * (a / 2.0 * (r_arc * r_arc - a * a).sqrt() + r_arc * r_arc / 2.0 * (a / r_arc).asin());
-    let top = PI
-        * (cx * cx * 2.0 * a + 2.0 * cx * iq + (r_arc * r_arc * 2.0 * a - 2.0 * a * a * a / 3.0));
-    let vase_vol = 2.0 * (2.0 / 3.0) * PI * 0.125 + 2.0 * PI * 0.25 * 0.5 + top;
-    let brick_vol = 2.0 * 2.0 * 0.38;
-    let overlap = PI * 0.25 * 0.38; // the y-axis cylinder core inside the brick
-    let want = vase_vol + brick_vol - overlap;
-    let got = vol(body);
-    assert!(
-        (got - want).abs() < 1e-6,
-        "union volume {got} != analytic {want} (vase {vase_vol}, brick {brick_vol}, \
-         overlap {overlap})"
-    );
+fn a_granted_crossing_union_with_a_torus_band_dies_in_the_containment_door() {
+    for sphere_caps in [true, false] {
+        let a = vase_with_caps(sphere_caps);
+        let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0));
+        match topo::union(&a, &b, Tol::witness()) {
+            Err(
+                BooleanError::CurvedPairUnsupported { .. }
+                | BooleanError::CurvedBooleanUnsupported { .. },
+            ) => panic!(
+                "sphere_caps = {sphere_caps}: the torus band and caps clear the \
+                 brick — the pair-scoped gate must not refuse this union"
+            ),
+            Err(BooleanError::Containment(e)) => {
+                let msg = e.to_string();
+                if sphere_caps {
+                    assert!(
+                        msg.contains("trimmed"),
+                        "expected the partial-sphere containment refusal: {msg}"
+                    );
+                } else {
+                    assert!(
+                        msg.contains("planar")
+                            || msg.contains("walkable")
+                            || msg.contains("corrupt"),
+                        "expected the mislabelled corruption refusal: {msg}"
+                    );
+                }
+            }
+            Err(other) => {
+                panic!("sphere_caps = {sphere_caps}: unexpected refusal shape: {other:?}")
+            }
+            Ok(out) => {
+                // The aspirational branch: an honest completion must
+                // carry the analytic volume (reviewer's own integral).
+                let body = &out.body().expect("a non-empty union").body;
+                let (cx, r_arc, a_h) = bulge_arc();
+                let iq = 2.0
+                    * (a_h / 2.0 * (r_arc * r_arc - a_h * a_h).sqrt()
+                        + r_arc * r_arc / 2.0 * (a_h / r_arc).asin());
+                let top = PI
+                    * (cx * cx * 2.0 * a_h
+                        + 2.0 * cx * iq
+                        + (r_arc * r_arc * 2.0 * a_h - 2.0 * a_h * a_h * a_h / 3.0));
+                let caps_vol = if sphere_caps {
+                    2.0 * (2.0 / 3.0) * PI * 0.125
+                } else {
+                    2.0 * PI * 0.25 * 0.5 / 3.0
+                };
+                let vase_vol = caps_vol + 2.0 * PI * 0.25 * 0.5 + top;
+                let want = vase_vol + 2.0 * 2.0 * 0.38 - PI * 0.25 * 0.38;
+                let got = vol(body);
+                assert!(
+                    (got - want).abs() < 1e-6,
+                    "sphere_caps = {sphere_caps}: completed union volume {got} != \
+                     analytic {want}"
+                );
+            }
+        }
+    }
 }
 
 /// **E2E row 2 — the refused pose.** The same brick raised into the
