@@ -529,6 +529,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 /// If the profile does not validate, the revolve fails, the mouth rim
 /// is not the one closed latitude circle of radius `0.8`, or the fillet
 /// refuses — each of which would be a frontier that moved.
+#[cfg(feature = "probe")]
 pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     // The sphere zone rides the UNIT circle about the origin from its
     // equator to the 3-4-5 point (0.8, 0.6), where the pucker takes
