@@ -134,8 +134,10 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         }
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
-        // M5 PR 4) owns that story, not this module.
-        Surface::Nurbs(_) => poison(),
+        // M5 PR 4) owns that story, not this module. `Approx` joins it:
+        // the fit is a spline, and an offset description has no
+        // implicit form to inherit either.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
 }
 
@@ -186,7 +188,10 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
         // M5 PR 4) owns that story, not this module.
-        Surface::Nurbs(_) => poison_vec(),
+        // As `Nurbs`, and for the same reason one level in: an
+        // approximating surface's stand-in IS a spline, so it has no
+        // implicit form either — and its description has none to lend.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison_vec(),
     }
 }
 
@@ -212,7 +217,9 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
         // M5 PR 4) owns that story, not this module.
-        Surface::Nurbs(_) => poison(),
+        // As `Nurbs`: the stand-in is a spline, so no implicit form —
+        // and the offset description has no closed lever arm to lend.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
 }
 
@@ -273,7 +280,9 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
             let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);
             (d_perp2 * (rho - major_radius) / rho + d_w.powi(2) + d_ax.powi(2)) / minor_radius
         }
-        Surface::Nurbs(_) => poison(),
+        // As `implicit_residual`: no implicit form, so no Hessian of
+        // one — for the spline fit or the description behind it.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
 }
 
@@ -407,7 +416,11 @@ pub fn circle_residual_extremes<T: Real>(
                 (c0 + a1 + a2 - r.powi(2)) / (two * r),
             ))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,
+        // `Approx` joins the no-closed-form group: the fit is a spline
+        // and the description's offset locus has no harmonic residual.
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            None
+        }
     }
 }
 
@@ -423,7 +436,9 @@ pub(crate) fn seam_frame<T: Real>(
 ) -> Option<(Vec3<T>, Vec3<T>, Vec3<T>)> {
     let (anchor, axis, u_ref) = match *s {
         // Nurbs: no implicit/seam form (C2.1 foot points, M5 PR 4).
-        Surface::Plane { .. } | Surface::Nurbs(_) => return None,
+        // Approx: neither — its stand-in is a spline, and an offset
+        // description carries no axis to hang a seam frame on.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
         Surface::Cylinder {
             origin,
             axis,

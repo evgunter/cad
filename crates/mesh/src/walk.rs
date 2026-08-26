@@ -153,7 +153,10 @@ impl Chart {
     /// `Nurbs` is refused upstream).
     pub(crate) fn of(surface: &Surface<f64>) -> Option<Chart> {
         match *surface {
-            Surface::Plane { .. } | Surface::Nurbs(_) => None,
+            // Both spline kinds are refused upstream: the tessellator
+            // meshes them through their own net, not through an
+            // analytic chart.
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
             Surface::Cylinder {
                 origin,
                 axis,

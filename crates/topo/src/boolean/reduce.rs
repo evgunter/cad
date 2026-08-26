@@ -160,6 +160,15 @@ impl ContactAcc {
 /// EXERCISE an arm (the sweep's crossing lanes, the join's section
 /// table), citing the C5 routing; kinds with no wired arm at all
 /// (`Cone`, `Torus`) are what [`gate_operand_pairs`] tests boxes for.
+///
+/// **`Approx` is absent by DECISION, not by gap.** Its fit is a
+/// `Nurbs`, which is on the roster, so admitting it on the fitted
+/// kind's authority would run the boolean against the APPROXIMATION
+/// while reporting a result about the described surface. It stays off
+/// until a rule for composing the fit's precision claim with the
+/// boolean's certificates is ratified — and because it is off, the
+/// refusal it earns is pair-scoped like every other kind's, naming
+/// `SurfaceKind::Approx` in the germ pair.
 pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
     matches!(
         surface,
@@ -176,6 +185,10 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
 /// argument). ONE home, beside its sibling above, so the two rosters
 /// cannot drift apart in two files: the front door in `ops` reads
 /// this rather than spelling a second `matches!`.
+///
+/// `Approx` is off this roster for the reason it is off the one
+/// above, which is strictly stronger here: `Nurbs` has no crossing
+/// layer at all, and an approximating surface's chart is a `Nurbs`'s.
 pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
     matches!(
         surface,
@@ -967,11 +980,28 @@ fn curved_face_arm<T: Decide>(
     // (`NurbsSurface::project` is an `impl NurbsSurface<f64>` block),
     // so wiring it would kill the Interval lane. Refused typed HERE,
     // before the residual sides — poison is not a refusal.
-    if matches!(surface, geom::Surface::Nurbs(_)) {
+    //
+    // **`Approx` refuses on the same terms, stated rather than
+    // inherited.** Its geometry is a spline fit, so `implicit_residual`
+    // and `classify_dihedral` are poison on it too. The operand gate
+    // does refuse the kind earlier, which makes this site unreachable
+    // in the pipeline as it stands — but that is a fact about the
+    // CALLER, and an unstated nesting invariant is exactly how a
+    // poison path gets re-entered when a gate later narrows. The arm
+    // is written for the same reason the extent scan's is.
+    if let Some(kind) = match surface {
+        geom::Surface::Nurbs(_) => Some(geom_brep::SurfaceKind::Nurbs),
+        geom::Surface::Approx(_) => Some(geom_brep::SurfaceKind::Approx),
+        geom::Surface::Plane { .. }
+        | geom::Surface::Cylinder { .. }
+        | geom::Surface::Cone { .. }
+        | geom::Surface::Sphere { .. }
+        | geom::Surface::Torus { .. } => None,
+    } {
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand: x_is,
             face,
-            kind: geom_brep::SurfaceKind::Nurbs,
+            kind,
         });
     }
     let curve = match x.get_curve_geom(edge.curve) {

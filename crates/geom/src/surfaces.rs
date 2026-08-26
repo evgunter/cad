@@ -56,6 +56,7 @@
 //!   (unit; `u_ref ⊥ axis`, ⊥ `normal`), unchecked per the crate
 //!   docs' rule.
 
+pub mod approx;
 pub mod boxes;
 pub mod nurbs;
 pub mod projection;
@@ -66,6 +67,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::azimuth;
+pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
 pub use nurbs::{NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
@@ -248,6 +250,24 @@ pub enum Surface<T: Real> {
     /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
     /// the same all-poison evaluation behavior.
     Nurbs(Arc<NurbsSurface<T>>),
+
+    /// An **approximating** surface: a fitted NURBS standing in for a
+    /// surface the kernel cannot represent exactly, carrying the
+    /// intensional description of what it approximates and a
+    /// certificate bounding the distance between them
+    /// ([`ApproxSurface`]).
+    ///
+    /// The fit **is** the geometry: every evaluator, box and mesh arm
+    /// delegates to it, and the certificate says how far that stands
+    /// from the intent. The description is what re-certification
+    /// measures against — the validator re-derives per face and never
+    /// trusts the stored certificate.
+    ///
+    /// The payload is certified by construction ([`ApproxSurface`] has
+    /// no other door), so unlike [`Surface::Nurbs`] there is no
+    /// placeholder state in this variant: an `Approx` surface is always
+    /// described.
+    Approx(Arc<ApproxSurface<T>>),
 }
 
 impl<T: Real> Surface<T> {
@@ -258,6 +278,30 @@ impl<T: Real> Surface<T> {
     /// loudly (D4 ¶2) — representable ≠ described.
     pub fn nurbs_placeholder() -> Self {
         Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
+    }
+
+    /// The **spline chart** a surface evaluates through, when it has
+    /// one: the payload for [`Surface::Nurbs`], the fit for
+    /// [`Surface::Approx`], `None` for the analytic kinds.
+    ///
+    /// The invariant this expresses is the `Approx` variant's own — the
+    /// fit IS the geometry — so every consumer whose question is about
+    /// the surface's `(u, v)` chart (evaluation, stretch bounds, the
+    /// spline pcurve lanes, tessellation) asks here rather than
+    /// matching `Nurbs` and dropping `Approx` on the floor. A consumer
+    /// whose question is about what the surface *means* (the boolean
+    /// operand gate, the offset mint, STEP export) must NOT: it reads
+    /// the description, or refuses.
+    pub fn spline_chart(&self) -> Option<&NurbsSurface<T>> {
+        match self {
+            Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. } => None,
+            Surface::Nurbs(n) => Some(n),
+            Surface::Approx(a) => Some(a.fit()),
+        }
     }
 }
 
@@ -335,6 +379,10 @@ impl<T: SpanLocate> Surface<T> {
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
+            // The fit IS the geometry (the variant's docs): evaluation
+            // delegates to it, and the certificate — not this arm —
+            // carries how far it stands from the description.
+            Surface::Approx(a) => a.fit().eval(u, v),
         }
     }
 
@@ -452,6 +500,9 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             Surface::Nurbs(n) => n.ders(u, v),
+            // As `eval`: the fit is the geometry, so every derivative
+            // (and therefore `normal`) is the fit's.
+            Surface::Approx(a) => a.fit().ders(u, v),
         }
     }
 
@@ -677,7 +728,9 @@ mod tests {
                 minor_radius: Dual::constant(minor_radius),
                 u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
-            Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+            // The corpus below is analytic; neither spline kind lifts
+            // to a `Dual` (there is no `NurbsSurface<Dual>` fixture).
+            Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
         }
     }
 
@@ -835,7 +888,7 @@ mod tests {
                         let dr = rho - major_radius;
                         (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
                     }
-                    Surface::Nurbs(_) => 0.0,
+                    Surface::Nurbs(_) | Surface::Approx(_) => 0.0,
                 };
                 prop_assert!(
                     residual.abs() <= 1e-12,
@@ -1081,7 +1134,9 @@ mod tests {
                     minor_radius: Interval::from_f64(minor_radius),
                     u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
-                Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+                // As the dual lift: the corpus is analytic, and neither
+                // spline kind has an interval fixture to lift.
+                Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
             }
         }
 

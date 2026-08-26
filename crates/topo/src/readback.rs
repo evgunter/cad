@@ -235,6 +235,11 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
         Surface::Nurbs(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs surface",
         }),
+        // No canonical frame: neither the fit (a spline) nor the
+        // description (an offset of one) fixes an origin and an axis.
+        Surface::Approx(_) => Err(ReadbackError::NoCanonicalFrame {
+            carrier: "approximating surface",
+        }),
     }
 }
 

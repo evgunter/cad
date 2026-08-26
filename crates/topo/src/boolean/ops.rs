@@ -1580,7 +1580,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             face: yf,
                         });
                     }
-                    Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {
+                    // `Approx` joins the no-wired-arm refusal, not the
+                    // NURBS lane: the pair-scoped operand gate refuses
+                    // it by kind before this scan runs.
+                    Some(
+                        geom::Surface::Cone { .. }
+                        | geom::Surface::Torus { .. }
+                        | geom::Surface::Approx(_),
+                    ) => {
                         // REACH FIRST, kind second. This arm asks
                         // whether the ball can escape past THIS face;
                         // a face whose box cannot meet the ball's

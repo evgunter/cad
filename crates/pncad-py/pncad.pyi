@@ -1080,6 +1080,7 @@ class SurfaceKind:
     Sphere: Final[SurfaceKind]
     Torus: Final[SurfaceKind]
     Nurbs: Final[SurfaceKind]
+    Approx: Final[SurfaceKind]
 
 class Cmp:
     """The comparison `GeomPred.datum_distance` makes: the sign

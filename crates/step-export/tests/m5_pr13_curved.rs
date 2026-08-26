@@ -615,6 +615,11 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                         );
                     }
                 }
+                // Export refuses the kind, so no corpus document can
+                // carry one; reaching here means the refusal moved.
+                Surface::Approx(_) => {
+                    panic!("FRAME: {name}: an approximating surface reached the writer")
+                }
             }
 
             // ---- CHART-AXIS (pin B): `same_sense` IS `Face::sense`,
@@ -645,6 +650,12 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                 // appears, design its axis-negation pin then.
                 Surface::Nurbs(_) => {
                     panic!("CHART-AXIS: a REVERSED NURBS face reached pin B — extend it")
+                }
+                // No corpus document carries one (export refuses the
+                // kind outright), and a fitted chart has no single axis
+                // either.
+                Surface::Approx(_) => {
+                    panic!("CHART-AXIS: an approximating face reached pin B — extend it")
                 }
             };
             let (_, z, _) = place(&recs);
