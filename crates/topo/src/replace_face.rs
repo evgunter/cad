@@ -18,10 +18,11 @@
 //! - the face's boundary edges' carriers and descriptions,
 //! - the points of the vertices those edges end at,
 //! - the parameter range of every edge that ends at one of those
-//!   vertices without lying on the face's boundary (its carrier is
-//!   unchanged — only where the edge stops moved).
+//!   vertices without lying on the face's boundary — its carrier is
+//!   unchanged, because the surfaces holding it did not move; only
+//!   where the edge stops did.
 //!
-//! # The three carrier lanes
+//! # The carrier lanes
 //!
 //! An edge on the boundary lies ON the replaced surface, so the offset
 //! ACTS on its carrier. That action is closed-form per (surface kind,
