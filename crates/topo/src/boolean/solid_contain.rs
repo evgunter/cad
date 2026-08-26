@@ -108,10 +108,42 @@ pub enum PointInSolidError {
     ZeroVolumeBody,
     /// An in-plane loop test failed (nested typed error).
     Loop(PointInLoopError),
-    /// A face is not planar (F5) or not walkable.
+    /// A face is not walkable, or an entity it names is lost — an
+    /// arena claim about a body that is BROKEN.
+    ///
+    /// A healthy face whose surface KIND this door has no arm for is
+    /// [`Self::KindUnsupported`], never this: the two answers are
+    /// about different things, and reporting a cone as corruption
+    /// sends a reader to look for damage that is not there.
     CorruptFace {
         /// The face.
         face: FaceKey,
+    },
+    /// A healthy face whose surface KIND has no arm in the
+    /// CONTAINMENT door.
+    ///
+    /// `point_in_solid` is ray-parity against each face of the body
+    /// being classified against, so it needs a ray×surface crossing
+    /// count per kind: `Plane`, `Cylinder` (exact chart trim) and a
+    /// closed `Sphere` group have one, `Cone`, `Torus` and `Nurbs` do
+    /// not.
+    ///
+    /// **This door is BOX-BLIND on purpose and that is why the kind
+    /// still matters here.** The operand gate is pair-scoped — a face
+    /// whose box clears the other operand cannot enter a crossing, so
+    /// it does not gate the operation — but containment asks a
+    /// different question: a ray from the query point crosses the
+    /// WHOLE boundary, and a face out of reach of the cut is not out
+    /// of reach of the ray. So an operation the gate admits can still
+    /// meet this refusal downstream, and that boundary is the honest
+    /// one until the kind has a containment arm — **#1011**, where
+    /// the ray×cone quadratic, the ray×torus quartic and the chart
+    /// trims both need are scheduled.
+    KindUnsupported {
+        /// The face.
+        face: FaceKey,
+        /// Its kind — the row the arm is missing for.
+        kind: geom_brep::SurfaceKind,
     },
     /// A `Sphere` face belongs to a face group that is NOT closed on
     /// its own surface (M5 PR 9c): the sphere containment/pierce door
@@ -155,7 +187,24 @@ impl core::fmt::Display for PointInSolidError {
             Self::CorruptFace { face } => {
                 write!(
                     f,
-                    "point_in_solid: face {face:?} is not a walkable planar face"
+                    "point_in_solid: face {face:?} is not walkable, or an entity it \
+                     names is lost — this is an arena claim about a BROKEN body, not \
+                     about a surface kind"
+                )
+            }
+            Self::KindUnsupported { face, kind } => {
+                write!(
+                    f,
+                    "point_in_solid: face {face:?} is a {} and the containment door \
+                     has no ray-crossing arm for the kind. The body is HEALTHY; what \
+                     is missing is a capability. This door is deliberately box-blind \
+                     — a ray from the query point crosses the whole boundary, so a \
+                     face out of reach of the CUT is still in reach of the RAY, which \
+                     is why the pair-scoped operand gate admitting the operation does \
+                     not settle this. Recourse: express the operation so no cone or \
+                     torus face bounds the solid being classified against, or wait on \
+                     the containment arm for the kind",
+                    kind.name()
                 )
             }
             Self::PartialSphereFace { face } => {
@@ -196,7 +245,13 @@ pub(super) fn face_plane<T: Decide>(
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
         Some(Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal * f.sense_sign::<T>())),
-        _ => Err(PointInSolidError::CorruptFace { face }),
+        // A resolved non-plane is a CAPABILITY answer; only a surface
+        // key that does not resolve is corruption.
+        Some(s) => Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: geom_brep::SurfaceKind::of(s),
+        }),
+        None => Err(PointInSolidError::CorruptFace { face }),
     }
 }
 
@@ -301,9 +356,10 @@ pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> O
 }
 
 /// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Sphere}
-/// refuse as [`PointInSolidError::CorruptFace`] (per-arm, C12.1 — cone
-/// and torus walls have no wired arm), and a TRIMMED sphere face
-/// refuses as [`PointInSolidError::PartialSphereFace`].
+/// refuse as [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 —
+/// cone and torus walls have no ray-crossing arm), and a TRIMMED
+/// sphere face as [`PointInSolidError::PartialSphereFace`]. Only a
+/// surface key that does not RESOLVE is corruption.
 fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -385,7 +441,11 @@ fn face_geo<T: Decide>(
             }),
             None => Err(PointInSolidError::PartialSphereFace { face }),
         },
-        _ => Err(PointInSolidError::CorruptFace { face }),
+        Some(s) => Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: geom_brep::SurfaceKind::of(s),
+        }),
+        None => Err(PointInSolidError::CorruptFace { face }),
     }
 }
 

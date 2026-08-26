@@ -170,6 +170,19 @@ pub(super) fn boolean_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool 
     )
 }
 
+/// **The face kinds ∖ and ∩ have a seam lane for** — the same roster
+/// minus `Nurbs`, which has no crossing layer at all
+/// (`BooleanError::CurvedPairUnsupported`'s docs carry the per-class
+/// argument). ONE home, beside its sibling above, so the two rosters
+/// cannot drift apart in two files: the front door in `ops` reads
+/// this rather than spelling a second `matches!`.
+pub(super) fn revert_arm_exists<T: Decide>(surface: &geom::Surface<T>) -> bool {
+    matches!(
+        surface,
+        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
+    )
+}
+
 /// One unsupported-kind face and the face of the other operand whose
 /// box it may meet — [`first_unsupported_pair`]'s finding, and the
 /// payload of the refusals built from it.
@@ -220,14 +233,16 @@ pub(super) struct UnsupportedPair {
 /// precondition rather than something this gate could decide. So a
 /// cone and a torus on the SAME body do not gate each other here.
 ///
-/// A face whose surface key does not RESOLVE is not a pair question:
-/// there is no description to bound, so the caller refuses it
-/// body-scoped rather than naming a partner for it.
+/// A face whose surface key does not RESOLVE is neither a pair
+/// question nor a kind question: there is no description to bound and
+/// no kind to name, so it is reported as the arena corruption it is
+/// rather than labelled with a kind it was never shown to have.
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] when a face's topology
-/// is corrupt (`boxes::face_box`).
+/// [`BooleanError::ClassificationInvariant`] for a face whose surface
+/// key does not resolve, or whose topology is corrupt
+/// (`boxes::face_box`).
 pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
@@ -239,22 +254,23 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         // Arena order both ways, and no box is built for an operand
         // that carries no unsupported kind at all — the common case
         // pays nothing for this gate.
-        let offenders: Vec<(FaceKey, geom_brep::SurfaceKind)> = body
-            .faces()
-            .filter_map(|(key, f)| {
-                let s = body.get_surface(f.surface)?;
-                (!supported(s)).then(|| (key, geom_brep::SurfaceKind::of(s)))
-            })
-            .collect();
+        let mut offenders: Vec<(FaceKey, geom_brep::SurfaceKind)> = Vec::new();
+        for (key, f) in body.faces() {
+            let s = surface_of(body, f)?;
+            if !supported(s) {
+                offenders.push((key, geom_brep::SurfaceKind::of(s)));
+            }
+        }
         if offenders.is_empty() {
             continue;
         }
+        // The other side's boxes are built ONCE, and only now that an
+        // offender exists: the scan is `offenders × other faces`, so
+        // re-boxing per offender would re-walk a whole body per cone.
         let others: Vec<(FaceKey, geom_brep::SurfaceKind, bvh::Aabb)> = other
             .faces()
             .map(|(key, f)| {
-                let kind = other
-                    .get_surface(f.surface)
-                    .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+                let kind = geom_brep::SurfaceKind::of(surface_of(other, f)?);
                 Ok((key, kind, super::boxes::face_box(other, key, pad)?))
             })
             .collect::<Result<_, BooleanError>>()?;
@@ -306,7 +322,7 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        gate_operand_body_scoped(body, operand)?;
+        gate_operand_edges(body, operand)?;
     }
     if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists)? {
         return Err(BooleanError::CurvedPairUnsupported {
@@ -321,22 +337,22 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     Ok(())
 }
 
-/// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers,
-/// and the faces whose surface key does not resolve (no description,
-/// so no box and no pair to name).
-fn gate_operand_body_scoped<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
-) -> Result<(), BooleanError> {
-    for (face_key, face) in body.faces() {
-        if body.get_surface(face.surface).is_none() {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face: face_key,
-                kind: geom_brep::SurfaceKind::Nurbs,
-            });
-        }
-    }
+/// A face's resolved surface. An unresolved key is arena corruption
+/// and says so, rather than acquiring a kind label by default —
+/// `Nurbs` was the old default and named a kind nothing had shown the
+/// face to have.
+fn surface_of<'a, T: Decide>(
+    body: &'a Body<T>,
+    face: &crate::entity::Face,
+) -> Result<&'a geom::Surface<T>, BooleanError> {
+    body.get_surface(face.surface)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "operand gate: an operand face's surface key does not resolve",
+        })
+}
+
+/// The BODY-scoped half of [`gate_operand_pairs`]: the edge carriers.
+fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(CurveGeom::Certified(curve)) => match curve.carrier() {

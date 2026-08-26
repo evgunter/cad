@@ -152,20 +152,23 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 /// torus band's box clears the brick, the brick genuinely crosses
 /// only CYLINDER walls (wired germ), so the pair-scoped gate admits
 /// the union — and the spec's ruling says the torus's kind is then
-/// irrelevant. As built it is NOT: the join's geometric role
-/// resolution (`resolve_roles_geometric`, join.rs) probes
-/// `point_in_solid` against the whole PRISTINE other body, whose
-/// boundary pre-pass walks EVERY face — the out-of-reach caps and
-/// band included — so the admitted union still dies in the
-/// containment door with an error about the OPERAND's kind, not the
-/// operation: `PartialSphereFace` for the sphere-capped vase,
-/// `CorruptFace` ("not planar or not walkable" — on a healthy body)
-/// for the cone-capped one.
+/// irrelevant. To the CUT it is; to CONTAINMENT it is not, and the
+/// boundary is now typed. The join's geometric role resolution
+/// (`resolve_roles_geometric`, join.rs) probes `point_in_solid`
+/// against the whole PRISTINE other body, whose boundary pre-pass
+/// walks EVERY face — the out-of-reach caps and band included —
+/// because a ray from the query point crosses the whole boundary and
+/// box reach does not enter that question. So the admitted union
+/// still refuses, naming the KIND and saying the body is healthy:
+/// `PartialSphereFace` for the sphere-capped vase,
+/// `KindUnsupported { kind: Cone }` for the cone-capped one. What
+/// this row pins is that the refusal is a capability statement and
+/// never a corruption claim.
 ///
 /// Both arms carry the aspirational branch: if the union ever
 /// completes, its volume must be the reviewer's own closed form.
 #[test]
-fn a_granted_crossing_union_with_a_torus_band_dies_in_the_containment_door() {
+fn a_granted_crossing_union_with_a_torus_band_is_refused_by_kind_in_containment() {
     for sphere_caps in [true, false] {
         let a = vase_with_caps(sphere_caps);
         let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0));
@@ -186,10 +189,18 @@ fn a_granted_crossing_union_with_a_torus_band_dies_in_the_containment_door() {
                     );
                 } else {
                     assert!(
-                        msg.contains("planar")
-                            || msg.contains("walkable")
-                            || msg.contains("corrupt"),
-                        "expected the mislabelled corruption refusal: {msg}"
+                        matches!(
+                            e,
+                            topo::PointInSolidError::KindUnsupported {
+                                kind: geom_brep::SurfaceKind::Cone,
+                                ..
+                            }
+                        ),
+                        "expected the typed containment kind refusal, got {e:?}"
+                    );
+                    assert!(
+                        msg.contains("HEALTHY") && !msg.contains("corrupt"),
+                        "the refusal must name a missing capability, not damage: {msg}"
                     );
                 }
             }
@@ -254,16 +265,17 @@ fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
 /// (correct per the spec's ruling: it can enter no crossing). But
 /// with no crossings at all the pipeline falls through to the
 /// containment fallback, and `point_in_solid` walks EVERY face of the
-/// classified-against body — box overlap never enters it — so the
-/// admitted union dies in `face_geo`'s wildcard with an error that
-/// claims the body is CORRUPT ("not planar (F5) or not walkable"),
-/// which it is not.
+/// classified-against body — box reach never enters it, because a ray
+/// crosses the whole boundary — so the admitted union refuses in
+/// `face_geo` naming the TORUS kind and the missing arm. The body is
+/// healthy and the refusal says so; that is the honest boundary the
+/// pair-scoped gate buys until the containment arm lands.
 ///
-/// This row pins the CURRENT behaviour so the frontier is visible; if
-/// a torus containment arm ever lands, the union should instead
-/// answer a two-solid assembly of volume vase + brick.
+/// This row pins that boundary; if a torus containment arm ever
+/// lands, the union should instead answer a two-solid assembly of
+/// volume vase + brick.
 #[test]
-fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
+fn a_disjoint_union_with_a_torus_face_is_admitted_then_refused_by_kind() {
     let a = donut();
     let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
     match topo::union(&a, &b, Tol::witness()) {
@@ -277,10 +289,20 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_then_mislabelled_corrupt() {
             );
         }
         Err(BooleanError::Containment(e)) => {
+            assert!(
+                matches!(
+                    e,
+                    topo::PointInSolidError::KindUnsupported {
+                        kind: geom_brep::SurfaceKind::Torus,
+                        ..
+                    }
+                ),
+                "expected the typed containment kind refusal, got {e:?}"
+            );
             let msg = e.to_string();
             assert!(
-                msg.contains("planar") || msg.contains("walkable") || msg.contains("corrupt"),
-                "expected the fallback's mislabelled corruption refusal, got: {msg}"
+                msg.contains("HEALTHY") && !msg.contains("corrupt"),
+                "the refusal must name a missing capability, not damage: {msg}"
             );
         }
         Err(other) => panic!("unexpected refusal shape for the fallback path: {other:?}"),

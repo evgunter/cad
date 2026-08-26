@@ -417,14 +417,9 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     // reduction work before it.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;
-        if let Some(p) = super::reduce::first_unsupported_pair(a, b, band, |s| {
-            matches!(
-                s,
-                geom::Surface::Plane { .. }
-                    | geom::Surface::Cylinder { .. }
-                    | geom::Surface::Sphere { .. }
-            )
-        })? {
+        if let Some(p) =
+            super::reduce::first_unsupported_pair(a, b, band, super::reduce::revert_arm_exists)?
+        {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
                 operand: p.operand,
@@ -1586,6 +1581,17 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         });
                     }
                     Some(geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {
+                        // REACH FIRST, kind second. This arm asks
+                        // whether the ball can escape past THIS face;
+                        // a face whose box cannot meet the ball's
+                        // certified extent bounds no escape route
+                        // through it, and its kind is then no more
+                        // relevant here than it is at the operand
+                        // gate. Only a face the ball may actually
+                        // reach costs the operation its answer.
+                        if !boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
+                            continue;
+                        }
                         return Err(BooleanError::CurvedBooleanUnsupported {
                             operand: x_is.other(),
                             face: yf,

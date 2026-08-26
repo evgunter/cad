@@ -117,7 +117,7 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{Body, BooleanError, BooleanOp, Operand, TransformError};
+use pncad::topo::{Body, BooleanError, Operand, TransformError};
 use profile::RawLoop;
 
 use crate::scalar::Scalar;
@@ -1565,27 +1565,32 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // 7. The lantern is THREE tepals fused, and their seams are
     //    longitudinal grooves. Carving one is a sphere-on-sphere
-    //    subtract — but that is not what the kernel names when asked,
-    //    and the difference is the point of a live probe. The
-    //    refusal is PAIR-scoped, and the pair it finds first is
-    //    (Cone, Sphere): the lantern's conical PUCKER, not its
-    //    spherical zone, is what the carving ball's box may meet. So
-    //    the wall retires on the cone germ lane and the sphere×sphere
-    //    one together — or on the pucker moving out of the ball's
-    //    reach, which is a modelling answer rather than a kernel one.
+    //    subtract — and the GEOMETRY agrees: the ball meets the
+    //    spherical zone and clears the conical pucker's exact frustum
+    //    by 0.29 (measured in this module's `verbs_gate_r1_probes`).
+    //
+    //    The pair-scoped gate ADMITS this cut: the pucker's box
+    //    clears the ball's, so no unsupported KIND can enter the
+    //    operation. What refuses is one door later, and it is not a
+    //    germ class — the lantern is a full revolve, so its spherical
+    //    zone is two half-bands on ONE surface key and the operand is
+    //    not maximal-faced (`NonMaximalFaces`, the F7 door, the same
+    //    shape wall 6 meets at its co-surface seam).
+    //
+    //    That makes this wall's blocker a PRECONDITION rather than a
+    //    breadth gap: `merge_coplanar_faces` on the operand (or the
+    //    F7 door widening) comes first, and only then the
+    //    sphere×sphere germ arm the geometry actually needs.
     wall(
         7,
-        "carve a tepal seam into the lantern (asked as sphere x sphere; the pucker \
-         answers first)",
+        "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
+         operand's own shape answers first)",
         pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: Some(BooleanOp::Subtract),
+                BooleanError::NonMaximalFaces {
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Sphere,
                     ..
                 }
             )
@@ -2561,5 +2566,131 @@ mod verbs_gate_r1_probes {
             "the carving ball no longer meets the sphere zone — the wall is not even \
              asking a sphere-on-sphere question any more"
         );
+
+        // **The amendment (r1 fix pass), and it is a NEGATIVE result
+        // stated as one.** The measurement above is the reviewer's,
+        // unchanged: the pucker's exact frustum clears the carving
+        // ball, and the sphere zone meets it. The cone arm now boxes
+        // the FRUSTUM its axial window cuts rather than a slab pinned
+        // at the window's widest radius — a real tightening, measured
+        // below — and it is STILL not enough to separate this pair.
+        //
+        // What is left is not the constant-radius artifact the
+        // reviewer measured. It is the AABB of a TILTED frustum: an
+        // axis-aligned box around a slanted cone is bigger than the
+        // cone, and no per-kind box construction can close that. So
+        // the gate keeps naming (Cone, Sphere), honestly — "may
+        // intersect" is exactly the claim it makes, and the two loci
+        // do not.
+        //
+        // The residual is measured rather than asserted away: this
+        // row prints the frustum's own AABB against the ball's and
+        // the per-axis overlap, so the day an ORIENTED-box door or an
+        // exact cone×sphere separation test lands, the number to beat
+        // is written down.
+        let (fa, fb) = frustum_aabb(lant, (bc, br));
+        let overlap = |lo_a: f64, hi_a: f64, lo_b: f64, hi_b: f64| hi_a.min(hi_b) - lo_a.max(lo_b);
+        let per_axis = [
+            overlap(fa.0.x, fa.1.x, fb.0.x, fb.1.x),
+            overlap(fa.0.y, fa.1.y, fb.0.y, fb.1.y),
+            overlap(fa.0.z, fa.1.z, fb.0.z, fb.1.z),
+        ];
+        let tightest = per_axis.iter().fold(f64::INFINITY, |m, v| m.min(*v));
+        println!(
+            "wall-7 probe: frustum AABB {fa:?} vs ball AABB {fb:?}; per-axis overlap \
+             {per_axis:?} (tightest {tightest:.4}) — the exact loci clear by \
+             {min_frustum_gap:.4}, so this overlap is AABB looseness on a tilted \
+             frustum, not contact"
+        );
+        let ball_body = ball::<f64>((-2.80, 0.90), 0.16, tol);
+        let refusal = pncad::topo::subtract(lant, &ball_body, tol)
+            .expect_err("the tepal seam is still refused, somewhere");
+        println!("wall-7 probe: the kernel answers {refusal:?}");
+        // **The measured outcome, and it is neither branch the review
+        // anticipated.** With the axial window taken from the
+        // boundary's own locus, the pucker's box clears the ball by
+        // {tightest} on its tightest axis, so the pair-scoped gate
+        // ADMITS — and what answers is not a germ class at all but
+        // the operand-shape precondition: the lantern is a full
+        // revolve, so its zone is two half-bands on one surface key
+        // and it is not maximal-faced.
+        //
+        // So the sphere×sphere germ arm is not even reached. This
+        // wall's dependency is now `merge_coplanar_faces` on the
+        // operand (or the F7 door widening), and only THEN row 9.
+        assert!(
+            tightest < 0.0,
+            "the pucker's box must clear the ball's for the gate to admit; it does \
+             not, so this row's reading of the refusal below is wrong"
+        );
+        assert!(
+            matches!(refusal, BooleanError::NonMaximalFaces { .. }),
+            "the operand gate admits now, so what refuses is the maximal-faces \
+             precondition — got {refusal:?}"
+        );
+    }
+
+    /// The axis-aligned box of the lantern's cone frustum, and the
+    /// carving ball's — the kernel's own two constructions, re-derived
+    /// here so the residual looseness is measured by an outside
+    /// consumer rather than read out of the module under test.
+    fn frustum_aabb(
+        lant: &Body<f64>,
+        ball: (Point3<f64>, f64),
+    ) -> ((Point3<f64>, Point3<f64>), (Point3<f64>, Point3<f64>)) {
+        let (bc, br) = ball;
+        let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
+        let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+        for (_, f) in lant.faces() {
+            let Some(&Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                ..
+            }) = lant.get_surface(f.surface)
+            else {
+                continue;
+            };
+            let (mut v_lo, mut v_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+            for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                let Some(l) = lant.get_loop(lk) else { continue };
+                let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
+                    continue;
+                };
+                for he in lant.loop_cycle(first).expect("walkable lantern loop") {
+                    let v = lant.get_half_edge(he).expect("half-edge").start;
+                    let p = *lant
+                        .get_vertex(v)
+                        .and_then(|vd| lant.get_point(vd.point))
+                        .expect("vertex point");
+                    let h = (p - apex).dot(axis);
+                    v_lo = v_lo.min(h);
+                    v_hi = v_hi.max(h);
+                }
+            }
+            let ta = half_angle.tan();
+            let h0 = v_lo.max(0.0).min(v_hi);
+            let comp = |ai: f64, oi: f64| {
+                let k = ta * (1.0 - ai * ai).max(0.0).sqrt();
+                let g = |t: f64| (oi + t * ai - t.abs() * k, oi + t * ai + t.abs() * k);
+                [g(v_lo), g(v_hi), g(h0)]
+                    .into_iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |acc, (l, h)| {
+                        (acc.0.min(l), acc.1.max(h))
+                    })
+            };
+            let (x0, x1) = comp(axis.x, apex.x);
+            let (y0, y1) = comp(axis.y, apex.y);
+            let (z0, z1) = comp(axis.z, apex.z);
+            lo = Point3::new(lo.x.min(x0), lo.y.min(y0), lo.z.min(z0));
+            hi = Point3::new(hi.x.max(x1), hi.y.max(y1), hi.z.max(z1));
+        }
+        (
+            (lo, hi),
+            (
+                Point3::new(bc.x - br, bc.y - br, bc.z - br),
+                Point3::new(bc.x + br, bc.y + br, bc.z + br),
+            ),
+        )
     }
 }

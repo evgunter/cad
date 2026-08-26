@@ -22,9 +22,11 @@
 //!   [`sweep_cross_solid_backstop`]): cross-solid face pairs with a
 //!   curved side within reach — curved × curved (the conformal
 //!   cradle, boss-in-hole) and curved × planar (the embedded ball
-//!   cap, F5) — including EVERY pair with a cone/torus/NURBS side
-//!   (no sound cheap reach bound exists: refused without a distance
-//!   test); a cross-key `PatchContact` on such a pair ESCALATES
+//!   cap, F5). Cone, torus and NURBS sides are reach-tested like any
+//!   other — every surface kind has a sound cheap reach bound
+//!   ([`face_reach`]); what refuses without a distance test is a
+//!   DESCRIPTION with no claim in it (a placeholder patch), not a
+//!   kind. A cross-key `PatchContact` on such a pair ESCALATES
 //!   through the chart predicate's divergence posture, so the class
 //!   can today be neither certified nor silently passed. And one
 //!   instance's extent box contained in another's (the
@@ -1208,17 +1210,17 @@ pub(crate) fn face_reach<T: Decide>(
             axis,
             radius,
         } => {
-            // The axial extent comes from the boundary's own
-            // reach, not its vertices: the axial coordinate is
-            // linear along the surface, so the face's axial
-            // extremes lie ON the boundary — but not necessarily
-            // at a boundary VERTEX.
-            let bnd = span_box(boundary_reach(body, f)?);
-            let origin = crate::boolean::boxes::SpanBox::point(origin);
-            let axis = crate::boolean::boxes::SpanBox::vector(axis);
-            let h = crate::boolean::boxes::axial_range(&origin, &axis, &bnd);
+            // The axial extent comes from the boundary's own LOCUS
+            // — not its vertices, and not a box around it: the axial
+            // coordinate is linear along the surface, so the face's
+            // axial extremes lie ON the boundary, but not
+            // necessarily at a boundary VERTEX.
+            let h = boundary_axial(body, f, origin, axis)?;
             Some(span_pts(crate::boolean::boxes::slab_extent(
-                &origin, &axis, h, radius,
+                &crate::boolean::boxes::SpanBox::point(origin),
+                &crate::boolean::boxes::SpanBox::vector(axis),
+                h,
+                radius,
             )))
         }
         crate::boolean::boxes::FaceBoxRule::ConeSlab {
@@ -1226,16 +1228,83 @@ pub(crate) fn face_reach<T: Decide>(
             axis,
             half_angle,
         } => {
-            let bnd = span_box(boundary_reach(body, f)?);
+            let h = boundary_axial(body, f, apex, axis)?;
             let apex = crate::boolean::boxes::SpanBox::point(apex);
             let axis = crate::boolean::boxes::SpanBox::vector(axis);
-            let h = crate::boolean::boxes::axial_range(&apex, &axis, &bnd);
-            let radius = crate::boolean::boxes::max_reach(&apex, &bnd) * half_angle.sin();
-            Some(span_pts(crate::boolean::boxes::slab_extent(
-                &apex, &axis, h, radius,
+            Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
+                &apex,
+                &axis,
+                h,
+                half_angle.tan(),
             )))
         }
     }
+}
+
+/// The face boundary's AXIAL range about `(origin, axis)` — the
+/// boundary's own locus projected on the axis, edge by edge, rather
+/// than the corners of a box around it
+/// ([`crate::boolean::boxes::edge_axial_span`], which carries why the
+/// difference is not cosmetic at a tilted axis). `None` for a face
+/// with no boundary, or one whose boundary this lane cannot walk.
+fn boundary_axial<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+) -> Option<crate::boolean::boxes::Span<T>> {
+    use crate::boolean::boxes::{AxialCarrier, EdgeBoxRule, SpanBox, edge_axial_span};
+    let face = body.get_face(f)?;
+    let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
+    let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let l = body.loops.get(lk)?;
+        match l.boundary {
+            LoopBoundary::Empty { vertex } => {
+                let v = body.vertices.get(vertex)?;
+                let p = SpanBox::point(*body.points.get(v.point)?);
+                let sp = edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p));
+                acc = Some(acc.map_or(sp, |a| a.hull(sp)));
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    let ek = body.half_edges.get(he)?.edge;
+                    let e = body.edges.get(ek)?;
+                    let end = |h| -> Option<SpanBox<T>> {
+                        let hd = body.half_edges.get(h)?;
+                        let v = body.vertices.get(hd.start)?;
+                        Some(SpanBox::point(*body.points.get(v.point)?))
+                    };
+                    let carrier = body
+                        .curves
+                        .get(e.curve)
+                        .and_then(CurveGeom::certified)
+                        .map(geom_brep::EdgeCurve::carrier);
+                    let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
+                        EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::Chord => AxialCarrier::Chord,
+                        EdgeBoxRule::ConicAmplitude {
+                            center,
+                            axis: c_axis,
+                            semi_u,
+                            semi_v,
+                            u_ref,
+                        } => AxialCarrier::Conic {
+                            center: SpanBox::point(center),
+                            u_ref: SpanBox::vector(u_ref),
+                            v_ref: SpanBox::vector(c_axis.cross(u_ref)),
+                            semi_u,
+                            semi_v,
+                        },
+                    };
+                    let sp =
+                        edge_axial_span(&o, &ax, &axial, (&end(e.he_plus)?, &end(e.he_minus)?));
+                    acc = Some(acc.map_or(sp, |a| a.hull(sp)));
+                }
+            }
+        }
+    }
+    acc
 }
 
 /// Every boundary edge's reach, hulled with the isolated-vertex loops
@@ -1338,14 +1407,6 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
         Point3::new(s.x.lo, s.y.lo, s.z.lo),
         Point3::new(s.x.hi, s.y.hi, s.z.hi),
     )
-}
-
-fn span_box<T: Decide>((lo, hi): (Point3<T>, Point3<T>)) -> crate::boolean::boxes::SpanBox<T> {
-    crate::boolean::boxes::SpanBox {
-        x: crate::boolean::boxes::Span { lo: lo.x, hi: hi.x },
-        y: crate::boolean::boxes::Span { lo: lo.y, hi: hi.y },
-        z: crate::boolean::boxes::Span { lo: lo.z, hi: hi.z },
-    }
 }
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
@@ -1721,16 +1782,19 @@ fn sweep_cross_solid_backstop<T: Decide>(
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
-            // A kind with no sound reach box refuses without a
-            // distance test (reach_box docs — the loud direction).
+            // A DESCRIPTION with no claim in it refuses without a
+            // distance test (`face_reach` docs — the loud direction).
+            // Every surface KIND has a reach bound; what has none is a
+            // placeholder patch, or a face whose boundary carries an
+            // unboxable curve.
             let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) else {
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: "a cross-solid face pair with a carrier kind that has no \
-                           sound cheap reach bound (cone/torus/NURBS, or a planar \
-                           face with a non-conic curved boundary) — the \
-                           exclusion ring is the certified excluder",
+                    what: "a cross-solid face pair one of whose faces has no sound \
+                           cheap reach bound — a placeholder surface, or a boundary \
+                           carrying a curve with no sound box — the exclusion ring \
+                           is the certified excluder",
                 });
                 continue;
             };
