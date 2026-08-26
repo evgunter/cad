@@ -713,7 +713,6 @@ pins the corrected door naming, the other inverts to require that
 every collapsed bore is named by a wall door. PR: verbs/tubewall
 (#960).
 
-
 ## Outage and resume (2026-08-23 ~09:00Z → 2026-08-25)
 
 The session hit the model usage limit mid-wave: both in-flight
@@ -1553,6 +1552,28 @@ waste the audit might have explained away. Ordinal-79 reviewer
 TaskStopped post-report after orphaned-timer wake spam (lesson in
 lane-ops memory; reviewer briefs now carry the cancel-your-timers
 line).
+
+## VERBS-TESSFOLD executed (2026-08-26) — the five uncovered scenes audited and folded
+
+The audit half of #1038's disposition. Fresh sweep at this unit's
+head measured the uncovered set at **146 rows** — diechamfer 68,
+benchlayout 30, diechamferblank 26, bench 18, hollowring 4 — which
+corrects this log's earlier "162 rows" (that entry's own scene list
+sums to 146; #1038's table was right). Every scene verified-as-is
+against an expectation the fold does not define: the chamfer die's
+42 pip-sphere faces and six pipped mains row-for-row identical to
+`diepips`'s (multiset {18,34,50,66,82,98} planes, 42×39 spheres),
+its 20 chamfer facets at the planar minimum (2/strip, 1/corner);
+the blank at 44 tris vs the fillet blank's 444 (the ruled strip
+never out-tessellates the blend band); `hollowring`'s four torus
+walls EXACT against `torus_grid_step` (inner 2×218×109 = 47,524,
+outer 2×229×115 = 52,670 per face, the same formula that
+reproduces `tube_along_arc`'s 17,152 bit-for-bit); bench 36 /
+benchlayout 60 = 2 triangles per box rectangle over 3 and 5
+solids, matching what PR #938 claimed and nothing more. The 1,122
+covered rows of the fresh sweep are bit-identical to the committed
+baseline, so the re-cut is a pure 146-row addition. No corrections
+owed, no findings filed; #1038 (the gate class) STAYS OPEN.
 
 ## PROTOCOL DEVIATION FOUND AND RECORDED: VERBS-4 RAN OPUS×4 (2026-08-26)
 
