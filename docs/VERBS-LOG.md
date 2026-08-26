@@ -1102,3 +1102,43 @@ refusal now germ-pair-shaped). **Ordinal 76 claimed at dispatch**
 (through 75 on main; not a third) — single fable review, frozen
 597acdb6. The hosted draws were both interval again; the default
 mode is the reviewer's unique signal.
+
+## Correction (2026-08-26): the ARMS-3 dispatch entry above was premature
+
+The lane was created and the log written, but the implementer
+launch was skipped when the session interleaved — caught at the
+next hourly tick (the branch sat at main's head). Actually
+dispatched ~1h later than the entry claims. The tick sweep is what
+caught it; recorded per the no-unverified-claims rule.
+
+## Ordinal-76 returned; OFF-C fix pass out (2026-08-26)
+
+AWF 3/3, zero MAJOR — the ~40-site enumeration held under the
+reviewer's own differently-shaped sweeps, which found exactly two
+latent gate-shielded gaps (reduce.rs's crossing guard and the
+Circle-chain guard's unswept sibling). The substantive
+adjudication: tier 3 was re-establishing the surface's
+SELF-DECLARED tolerance — ruled to the edge posture (re-derive
+against the RUN's ε_precision; O3's claim is ≤ ε_precision and D4
+blesses the escalate-on-tightening consequence). The reviewer's
+empirical sharpening for OFF-D: on curved fits the seam carrier
+needs KNOT REFINEMENT, not degree elevation alone (the fit
+refines past the seed grid even at d = 5e-10). Fix pass out.
+
+## THE 12-PAIR TARGET IS MET — Evan notified (#1016, 2026-08-26)
+
+The M9 orchestrator (resumed cad-m8 session) determined ordinal
+72's dual COMPLETED — both arms attested by #974/#975's own
+citations of R1/R2 findings, per-arm figures unrecoverable
+(outage-window session loss; recorded attested-but-unscored). So
+72 = the eleventh pair and OFF-B/75 = the TWELFTH; my row-75
+label corrected with a dated note. The pre-registered explicit
+notification to Evan filed as #1016 with the full tally, the
+pair-11 caveat, and the disposition recommendation (dual sampling
+SUSPENDS pending Evan's readout — the reversible direction; a
+missed dual can run late on a frozen head, an extra one cannot be
+un-spent). Cross-program credit: cad-m8's sweep caught both the
+pair double-booking and the abandoned #971 close-out (which they
+have taken back — the GATE re-merge and wall-7 final form handed
+over). Also corrected on their side: their "72-claim not on main"
+finding withdrew under the ancestry check.
