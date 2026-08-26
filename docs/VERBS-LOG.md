@@ -1351,3 +1351,14 @@ escalation, the C8-cone pattern. The lane's #1029 handling was
 the comparison protocol end to end. **Ordinal 78 claimed at
 dispatch** (through 77 on main; duals suspended per #1016) —
 single fable review, frozen b7227242.
+
+## Slot courtesy to M9-5; offc-fix PR up (2026-08-26)
+
+Granted cad-m8's bounded ask (one ~40-min main-slot turn for
+M9-5's read-before-recut tess chain; the PR-A lane pauses 5 min
+so their blocking waiter wins; resume on done-signal or 60-min
+timeout) — delivered via the away-channel after the mngr CLI hung
+from this worktree (the known host-lock issue). probe.rs truthing
+green-lit (ARMS-3 made the same non-registration call). The
+offc-fix PR is up (#1035, closing #1029) — adjudicating directly
+on its report per the tests-only ruling.
