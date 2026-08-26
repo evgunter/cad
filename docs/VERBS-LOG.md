@@ -1351,3 +1351,70 @@ escalation, the C8-cone pattern. The lane's #1029 handling was
 the comparison protocol end to end. **Ordinal 78 claimed at
 dispatch** (through 77 on main; duals suspended per #1016) —
 single fable review, frozen b7227242.
+
+## Slot courtesy to M9-5; offc-fix PR up (2026-08-26)
+
+Granted cad-m8's bounded ask (one ~40-min main-slot turn for
+M9-5's read-before-recut tess chain; the PR-A lane pauses 5 min
+so their blocking waiter wins; resume on done-signal or 60-min
+timeout) — delivered via the away-channel after the mngr CLI hung
+from this worktree (the known host-lock issue). probe.rs truthing
+green-lit (ARMS-3 made the same non-registration call). The
+offc-fix PR is up (#1035, closing #1029) — adjudicating directly
+on its report per the tests-only ruling.
+
+## #1035 MERGED — #1029 CLOSED; the 1e-12 draws are unblocked (2026-08-26)
+
+The offc-fix adjudicated directly (tests-only class): all four
+fixture rows two-armed through ONE gate helper; the threshold
+proven ε-INDEPENDENT by two routes bit-for-bit at ε three orders
+apart (the stop condition explicitly not triggered); PER-SIGN
+thresholds after the −D arm went red on the first constant (one
+constant would have shipped a silent blind spot); the two
+departures from the #921 family argued (ResidualExceeded carries
+a verdict not a margin, so the helper measures the classified
+quantity and cross-checks its replica against the REAL certifier
+both sides). The CI draw landed on (interval, 1e-12) — the fix
+gated live at the defect's own point. Queue notified (PR-A's
+re-merge picks it up; the frozen ARMS-3 review keeps filtering).
+
+## Brief amendment adopted (2026-08-26, from #1036)
+
+Every future VERBS implementer/reviewer brief carries BOTH halves
+of the long-job rule: the no-background-waiters prohibition AND
+its exception (a job outliving the ~600s foreground cap launches
+setsid-detached writing to a FILE, polled foreground), plus the
+corollary: a reaped job is indistinguishable from a completed one
+unless you check what it produced. Paid for four times today in
+VERBS lanes and once in M9-5's (which spent the courtesy window);
+the memory PR is cad-m8's #1036.
+
+## M9-5's window PASSED — and found the tess-baseline gap (2026-08-26)
+
+The second slot turn closed their acceptance row and surfaced a
+VERBS-owned gap: five scenes (162 rows — diechamfer 68,
+benchlayout 30, diechamferblank 26, bench 18, hollowring 4) have
+been swept-and-linted on every run but COMPARED AGAINST NOTHING —
+the committed baseline was cut before they landed, and tess-lint's
+per-scene granularity reports new coverage, not a finding
+(#1023's family, the biggest instance by row count). Ruled: M9-5's
+PR keeps only its 31 rows; **VERBS-TESSFOLD** (S/M, queued after
+the current reviews) audits the five scenes' sizing against
+expectations (chamfer vs filleted twins; hollowring vs the
+analytic shell) and folds verified-or-corrected values —
+per-scene disposition stated, never a blind current-state bless.
+The bench/benchlayout provenance gets CHECKED, not accepted
+(the attribution lesson). Their sweep also independently
+corroborated the finding-13 pins (no re-pin owed) and refuted
+their own predicted firing row (granular gate: new bodies =
+new coverage).
+
+## PR-A MERGED (#1021, 2026-08-26) — the germ substrate is in; PR-B dispatches
+
+Row CYLCYL-A (ordinal 77) in MODEL-AB-LOG. Every later germ lane
+now has: the curved containment door, the pair-general dispatch
+with the trap closed by proof, and the no-crossings typed posture
+(the 30π wrong answer retired). PR-B (the arms — parallel-axis
+first, #347's whole need; Steinmetz second) dispatches to the same
+lane per the two-PR shape; the bracket rounding at 6mm is its
+acceptance and #347 closes at its merge.
