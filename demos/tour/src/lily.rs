@@ -2630,6 +2630,58 @@ mod verbs_gate_r1_probes {
         );
     }
 
+    /// The plant's other two boolean walls, as a TEST — same reason
+    /// the bottle's are (`klein::verbs_gate_r1_probes`): the gate
+    /// names a PAIR, so a change under the boxes moves them, and
+    /// re-measuring must not cost a whole render pass.
+    #[test]
+    fn the_plants_other_boolean_walls_name_the_pairs_the_scene_claims() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let by = |name: &str| {
+            &pieces
+                .iter()
+                .find(|p| p.name == name)
+                .expect("named lily piece")
+                .body
+        };
+        let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+
+        let glued = crate::booleans::try_union_declared(stem, arch, tol)
+            .expect_err("the stem's two arcs still cannot be glued");
+        println!("lily wall 1: {glued:?}");
+        assert!(
+            matches!(
+                glued,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::A,
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
+                    ..
+                }
+            ),
+            "wall 1 must name the tangent tube walls against a planar disc: {glued:?}"
+        );
+
+        let welded = pncad::topo::union(lant, arch, tol)
+            .expect_err("the lantern still cannot be welded to the arch");
+        println!("lily wall 2: {welded:?}");
+        assert!(
+            matches!(
+                welded,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            ),
+            "wall 2 must name the lantern's pucker against the arch's tube: {welded:?}"
+        );
+    }
+
     /// The axis-aligned box of the lantern's cone frustum, and the
     /// carving ball's — the kernel's own two constructions, re-derived
     /// here so the residual looseness is measured by an outside

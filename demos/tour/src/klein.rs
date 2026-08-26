@@ -1036,3 +1036,59 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     let _ = into;
 }
+
+#[cfg(test)]
+mod verbs_gate_r1_probes {
+    //! The bottle's two boolean walls, as a TEST rather than only as
+    //! a run-the-whole-tour probe.
+    //!
+    //! `wall_probes` reaches these two through a full render pass, so
+    //! a change to the boxes under the operand gate could only be
+    //! re-measured by rebuilding and re-running the tour. That is a
+    //! twenty-minute answer to a one-second question, and the walls
+    //! are exactly what a box change moves: the gate names a PAIR
+    //! now, and which pair depends on which faces' boxes may meet.
+    //!
+    //! Same pins as the walls themselves, so the two cannot drift.
+
+    use super::*;
+
+    #[test]
+    fn the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims() {
+        let tol = Tol::witness();
+        let [bulb_body, over, into] = bottle::<f64>(tol);
+
+        let joined = pncad::topo::union(&bulb_body, &over, tol)
+            .expect_err("the bottle's pieces still cannot be joined");
+        println!("klein wall 3: {joined:?}");
+        assert!(
+            matches!(
+                joined,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
+                    ..
+                }
+            ),
+            "wall 3 must name the flare against a plane of the loop: {joined:?}"
+        );
+
+        let trimmed = pncad::topo::subtract(&bulb_body, &into, tol)
+            .expect_err("the self-intersection still cannot be trimmed");
+        println!("klein wall 4: {trimmed:?}");
+        assert!(
+            matches!(
+                trimmed,
+                BooleanError::CurvedPairUnsupported {
+                    op: Some(BooleanOp::Subtract),
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            ),
+            "wall 4 must name the bulb's tube wall against the neck's: {trimmed:?}"
+        );
+    }
+}
