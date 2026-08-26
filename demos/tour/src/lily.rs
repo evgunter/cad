@@ -2473,15 +2473,20 @@ mod verbs_gate_r1_probes {
     use super::*;
     use pncad::topo::Surface;
 
-    /// The wall-7 finding, re-derived: the lantern's CONE (pucker)
-    /// locus — the exact frustum, not the kernel's slab box — must
-    /// reach the carving ball's box, and the finding's contrast with
-    /// the sphere zone is measured rather than assumed: whether the
-    /// ZONE also meets the ball is printed and pinned, because the
-    /// wall text says the pucker "is what the carving ball's box may
-    /// meet" and a reader will hear "and the zone does not".
+    /// The wall-7 finding, re-derived with the reviewer's own
+    /// arithmetic — and the measurement REVERSES the reading the wall
+    /// text invites. The refusal names (Cone, Sphere): the pucker's
+    /// SLAB BOX overlaps the carving ball's box, and that is real —
+    /// but the pucker's EXACT frustum never comes within the ball's
+    /// radius of it, while the sphere ZONE's carrier does meet the
+    /// ball. So the pair the gate names is pure box looseness (the
+    /// cone slab claims max-generator radius along its whole axial
+    /// range); the geometry the model cares about is still
+    /// sphere-on-sphere, and a tighter cone box would restore the
+    /// original steering premise (waits on item 9) without any cone
+    /// germ lane.
     #[test]
-    fn wall7_the_pucker_frustum_genuinely_reaches_the_carving_ball() {
+    fn wall7_the_cone_pair_is_box_looseness_the_ball_meets_the_zone() {
         let tol = Tol::witness();
         let pieces = plant::<f64>(tol);
         let lant = &pieces
@@ -2491,9 +2496,8 @@ mod verbs_gate_r1_probes {
             .body;
         // The carving ball of wall 7, in its own numbers.
         let (bc, br) = (Point3::new(-2.80, 0.0, 0.90), 0.16);
-        let mut cone_hit = false;
+        let mut min_frustum_gap = f64::INFINITY;
         let mut zone_hit = false;
-        let mut zone_ball_gap = f64::INFINITY;
         for (_, f) in lant.faces() {
             match lant.get_surface(f.surface) {
                 Some(&Surface::Cone {
@@ -2502,11 +2506,6 @@ mod verbs_gate_r1_probes {
                     half_angle,
                     ..
                 }) => {
-                    // The trim's axial range from the boundary
-                    // vertices: a full-revolve cone face is a
-                    // frustum, its rims are circles about the axis,
-                    // and every rim vertex sits ON a rim, so the
-                    // vertex axial range IS the frustum's.
                     let mut v_lo = f64::INFINITY;
                     let mut v_hi = f64::NEG_INFINITY;
                     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
@@ -2525,20 +2524,10 @@ mod verbs_gate_r1_probes {
                             v_hi = v_hi.max(h);
                         }
                     }
-                    // Distance from the ball centre to the frustum
-                    // (full revolution surface), computed in the
-                    // (axial, radial) half-plane: the surface is the
-                    // segment from (v_lo, |v_lo| tan a .. ) — as a
-                    // cone about the axis, a point at axial h has
-                    // radius |h|·tan(half_angle) for h in [v_lo, v_hi]
-                    // (cos-normalized: h here is v·cos a, radius
-                    // v·sin a = h·tan a).
                     let w = bc - apex;
                     let h = w.dot(axis);
                     let rad = (w - axis * h).norm();
                     let seg = |h0: f64, r0: f64, h1: f64, r1: f64| -> f64 {
-                        // distance from (h, rad) to segment
-                        // (h0, r0)-(h1, r1) in the half-plane.
                         let (dx, dy) = (h1 - h0, r1 - r0);
                         let t = (((h - h0) * dx + (rad - r0) * dy) / (dx * dx + dy * dy))
                             .clamp(0.0, 1.0);
@@ -2546,34 +2535,31 @@ mod verbs_gate_r1_probes {
                         ((h - px).powi(2) + (rad - py).powi(2)).sqrt()
                     };
                     let ta = half_angle.tan();
-                    let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta);
-                    if d <= br {
-                        cone_hit = true;
-                    }
+                    let d = seg(v_lo, v_lo.abs() * ta, v_hi, v_hi.abs() * ta) - br;
+                    min_frustum_gap = min_frustum_gap.min(d);
                 }
                 Some(&Surface::Sphere { center, radius, .. }) => {
-                    // The zone rides the whole globe; exact
-                    // sphere-to-ball-surface gap.
-                    let gap = ((center - bc).norm() - radius).abs() - br;
-                    zone_ball_gap = zone_ball_gap.min(gap);
-                    if (center - bc).norm() <= radius + br && (center - bc).norm() + br >= radius {
+                    let d = (center - bc).norm();
+                    if d <= radius + br && d + br >= radius {
                         zone_hit = true;
                     }
                 }
                 _ => {}
             }
         }
-        assert!(
-            cone_hit,
-            "the wall-7 refusal names the cone pucker, but the pucker's exact \
-             frustum does not even reach the carving ball — the finding would \
-             then be a box artifact, not geometry"
-        );
-        // Not an assertion the PR makes anywhere, but the wall text
-        // invites the reading; measure it so the report can say which.
         println!(
-            "wall-7 probe: pucker frustum reaches ball = {cone_hit}; \
-             sphere zone carrier meets ball = {zone_hit} (surface gap {zone_ball_gap:.4})"
+            "wall-7 probe: min frustum-to-ball surface gap = {min_frustum_gap:.4} \
+             (positive = clear); sphere zone carrier meets ball = {zone_hit}"
+        );
+        assert!(
+            min_frustum_gap > 0.0,
+            "the pucker's exact frustum reaches the ball after all — the box-artifact \
+             reading is wrong, re-derive"
+        );
+        assert!(
+            zone_hit,
+            "the carving ball no longer meets the sphere zone — the wall is not even \
+             asking a sphere-on-sphere question any more"
         );
     }
 }
