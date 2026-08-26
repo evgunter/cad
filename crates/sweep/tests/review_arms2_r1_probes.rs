@@ -280,7 +280,8 @@ fn a_cylinder_sphere_rim_fillets_to_r_minus_r_exactly() {
 
 // ------------------------------------------------------------------
 // Row 5: the differential — a sphere×sphere waist (two DISTINCT
-// centres) refuses SpineUnsupported; nothing mints a torus for it.
+// centres). The ARM now exists, so the row's question moved one door
+// down: what this waist meets is its own CONCAVITY, not a missing arm.
 // ------------------------------------------------------------------
 
 fn snowman() -> Body<f64> {
@@ -298,8 +299,14 @@ fn snowman() -> Body<f64> {
     ])
 }
 
+/// The waist of two UNIONED spheres is a valley: the rolling ball sits
+/// in the void and its band would ADD material, which the composition
+/// surgery does not build. So the honest refusal here is the concave
+/// chain's, and the fact this row now pins is that the SPINE door is
+/// passed — the battery classifies the pair, mints its torus, and hands
+/// the chain on.
 #[test]
-fn a_sphere_sphere_waist_refuses_spine_unsupported() {
+fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     let source = snowman();
     // Both walls really are spheres with distinct centres.
     let mut sphere_centres: Vec<f64> = source
@@ -317,14 +324,20 @@ fn a_sphere_sphere_waist_refuses_spine_unsupported() {
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = closed_rim_at(&source, 0.8, 0.6);
     match fillet_edges(&source, &[waist], 0.05, band(), tol()) {
-        Err(FilletError::SpineUnsupported { supports, .. }) => {
+        Err(FilletError::UnsupportedChain { detail, .. }) => {
             assert!(
-                !supports.contains("sphere–sphere"),
-                "the refusal must not advertise the ARMS-3 arm: {supports}"
+                detail.contains("concave"),
+                "the waist is a valley, so the refusal is the concave chain's: {detail}"
             );
         }
-        other => panic!("a sphere-sphere waist must refuse SpineUnsupported, got {other:?}"),
+        other => panic!("a sphere-sphere waist refuses as a concave chain, got {other:?}"),
     }
+    // The arm door itself is PASSED, and the roster says so: the pair
+    // the refusal above no longer names is advertised as implemented.
+    assert!(
+        sweep::fillet::battery::arm_roster().contains("sphere–sphere"),
+        "the sphere-sphere arm is advertised"
+    );
 }
 
 // ------------------------------------------------------------------

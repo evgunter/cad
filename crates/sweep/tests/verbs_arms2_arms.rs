@@ -129,12 +129,12 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f6
     }
 }
 
-/// The eight curved rows, each on the SAME rim point `(0.8, 0.6, 0)` so
-/// the fixtures differ only in what meets there.
+/// Every curved row, each on the SAME rim point `(0.8, 0.6, 0)` so the
+/// fixtures differ only in what meets there.
 ///
-/// The coaxial six sit on the y-axis; the ruled two on the ruling
-/// `+z` through the same point (two unit cylinders 1.6 apart, and one of
-/// them cut by a plane through the rim containing the ruling).
+/// The coaxial rows sit on the y-axis; the ruled two on the ruling `+z`
+/// through the same point (two unit cylinders 1.6 apart, and one of them
+/// cut by a plane through the rim containing the ruling).
 fn rows() -> Vec<Row> {
     let up = v3(0.0, 1.0, 0.0);
     let rim = p3(0.8, 0.6, 0.0);
@@ -144,6 +144,9 @@ fn rows() -> Vec<Row> {
     // A second cone through the same rim, opening the other way at 45°.
     let shallow = cone(0.6 - 0.8, core::f64::consts::FRAC_PI_4);
     let unit_sphere = sphere(p3(0.0, 0.0, 0.0), 1.0);
+    // The second sphere of the sphere–sphere pair: the unit sphere
+    // through the same rim from the other side, centred at `(0, 1.2)`.
+    let mate_sphere = sphere(p3(0.0, 1.2, 0.0), 1.0);
     let coaxial_cyl = cyl(p3(0.0, 0.0, 0.0), up, 0.8, v3(1.0, 0.0, 0.0));
     let flat = plane(p3(0.0, 0.6, 0.0), up, v3(1.0, 0.0, 0.0));
     let sheet = Some((p3(0.0, 0.6, 0.0), up));
@@ -187,7 +190,15 @@ fn rows() -> Vec<Row> {
         Row {
             arm: BlendArm::CylinderSphereTorus,
             a: coaxial_cyl.clone(),
-            b: unit_sphere,
+            b: unit_sphere.clone(),
+            rim,
+            axis: sheet,
+            tau: None,
+        },
+        Row {
+            arm: BlendArm::SphereSphereTorus,
+            a: unit_sphere.clone(),
+            b: mate_sphere,
             rim,
             axis: sheet,
             tau: None,

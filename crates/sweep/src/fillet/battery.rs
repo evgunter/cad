@@ -39,12 +39,12 @@ use geom::Surface;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
-use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::blend::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
-use super::{BlendKind, CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+use super::{BlendKind, CornerConfig, FilletError, FilletSite, decide};
 
 /// The number of interior samples the chain predicates take along
 /// each link. Nine, matching the certification schedule's
@@ -557,8 +557,9 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// Valence and convexity are COMBINATORIAL facts, so they are decided
 /// before any margin and reported with their own
 /// [`CornerConfig`] tag; each tag names the run-out policy that would
-/// handle it ([`RunOutPolicy`]) and nothing more — zero constructor
-/// surface, refusal-payload vocabulary only.
+/// handle it ([`CornerConfig::policy`]) — or says that none would —
+/// and nothing more: zero constructor surface, refusal-payload
+/// vocabulary only.
 ///
 /// # Errors
 ///
@@ -572,19 +573,10 @@ pub fn corner_config<T: Decide + Bounds>(
     radius: T,
     band: Band,
 ) -> Result<(), FilletError> {
-    let refuse = |corner: CornerConfig| FilletError::FilletCornerUnsupported {
-        vertex,
-        corner,
-        // Every out-of-scope corner is one a stop-at-vertex run-out
-        // with a general corner patch would handle; feathering is the
-        // alternative policy and is named on the mixed-convexity tag,
-        // where a corner patch cannot help because the ball changes
-        // sides.
-        policy: match corner {
-            CornerConfig::MixedConvexity { .. } => RunOutPolicy::RunOutFeather,
-            _ => RunOutPolicy::RunOutStopAtVertex,
-        },
-    };
+    // Which run-out policy (if any) an out-of-scope configuration names
+    // is the TAG's own fact, so it is read from the tag rather than
+    // decided again here (`CornerConfig::policy`).
+    let refuse = |corner: CornerConfig| super::surgery::unbuilt_corner_config(vertex, corner);
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
@@ -739,7 +731,7 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
 /// payload is a `&'static str`. `arms::the_refusal_roster_names_every_arm`
 /// checks it against [`BlendArm::name`], so an arm that grows without
 /// its roster row goes red rather than shipping a stale refusal.
-pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / sphere–cone / cone–plane / \
+pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / sphere–cone / sphere–sphere / cone–plane / \
      cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–plane(∥) / \
      cylinder–cylinder)";
 
@@ -874,6 +866,11 @@ fn classify_arm<T: Decide + Bounds>(
 fn coaxial_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
     use Surface::{Cone, Cylinder, Plane, Sphere};
     match (sa, sb) {
+        // Two spheres on distinct centres ALWAYS meet in a circle whose
+        // axis is the line through those centres, so this row's coaxiality
+        // hypothesis is free — the only arm in the table with no
+        // configuration condition on its supports.
+        (Sphere { .. }, Sphere { .. }) => Some(BlendArm::SphereSphereTorus),
         (Sphere { .. }, Cone { .. }) | (Cone { .. }, Sphere { .. }) => {
             Some(BlendArm::SphereConeTorus)
         }
@@ -1277,6 +1274,47 @@ pub fn run_battery_for<T: Decide + Bounds>(
     })
 }
 
+/// The unordered pair of SURFACES an edge's two supports carry — the
+/// stored arena keys, so a co-surface seam is recognized by identity
+/// rather than by comparing two placed surfaces for equality.
+fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey, SurfaceKey)> {
+    let e = body.get_edge(edge)?;
+    let a = body.get_face(face_of(body, e.he_plus)?)?.surface;
+    let b = body.get_face(face_of(body, e.he_minus)?)?.surface;
+    Some(if a <= b { (a, b) } else { (b, a) })
+}
+
+/// **A chart-seam vertex, recognized structurally** — the point where a
+/// CLOSED rim was cut by the chart seams of its own two supports.
+///
+/// Its shape, and the whole of it: four incident edges, of which two are
+/// CO-SURFACE seams (one surface on both sides, so the dihedral there is
+/// zero by construction and not by measurement — the same structural
+/// reading S10/S11 require of every sense question), and the other two
+/// carry ONE support pair between them, i.e. the same rim arriving and
+/// leaving.
+///
+/// The surface is smooth through such a point: nothing about the
+/// geometry changes across a seam, only which chart names it. So it is
+/// not a corner, no run-out policy addresses it, and the door that does
+/// is the closed-rim one — which is what [`CornerConfig::SeamVertex`]
+/// says.
+fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
+    let mut seams = 0usize;
+    let mut rim: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    for e in edges {
+        let Some((a, b)) = edge_surfaces(body, *e) else {
+            return false;
+        };
+        if a == b {
+            seams += 1;
+        } else {
+            rim.push((a, b));
+        }
+    }
+    seams == 2 && rim.len() == 2 && rim[0] == rim[1]
+}
+
 /// Predicate 6 at one termination vertex: gather valence, per-edge
 /// convexity, and the three support normals, then classify.
 fn corner_at<T: Decide + Bounds>(
@@ -1286,12 +1324,20 @@ fn corner_at<T: Decide + Bounds>(
     band: Band,
     kind: BlendKind,
 ) -> Result<(), FilletError> {
-    let edges = vertex_edges(body, vertex).ok_or(FilletError::FilletCornerUnsupported {
-        vertex,
-        corner: CornerConfig::Indeterminate,
-        policy: RunOutPolicy::RunOutStopAtVertex,
-    })?;
+    let indeterminate =
+        || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
+    let edges = vertex_edges(body, vertex).ok_or_else(indeterminate)?;
     let valence = edges.len();
+    // A chart seam crossing a smooth rim is NOT a corner, so it is
+    // recognized before the valence is read as a corner configuration —
+    // otherwise the refusal describes a wedge that is not there and
+    // names a run-out policy that could not help.
+    if is_seam_vertex(body, &edges) {
+        return Err(super::surgery::unbuilt_corner_config(
+            vertex,
+            CornerConfig::SeamVertex,
+        ));
+    }
     if valence != 3 {
         return corner_config(
             vertex,
@@ -1338,11 +1384,7 @@ fn corner_at<T: Decide + Bounds>(
             // not lost SILENTLY, because the tag says the
             // configuration did not classify.
             Err(_) => {
-                return Err(FilletError::FilletCornerUnsupported {
-                    vertex,
-                    corner: CornerConfig::Indeterminate,
-                    policy: RunOutPolicy::RunOutStopAtVertex,
-                });
+                return Err(indeterminate());
             }
         }
     }
@@ -1350,11 +1392,7 @@ fn corner_at<T: Decide + Bounds>(
         .get_vertex(vertex)
         .and_then(|v| body.get_point(v.point))
     else {
-        return Err(FilletError::FilletCornerUnsupported {
-            vertex,
-            corner: CornerConfig::Indeterminate,
-            policy: RunOutPolicy::RunOutStopAtVertex,
-        });
+        return Err(indeterminate());
     };
     if faces.len() != 3 {
         return corner_config(vertex, faces.len(), convex, normals, radius, band);

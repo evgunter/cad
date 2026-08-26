@@ -216,6 +216,8 @@ mod verbs_arms1_r1_probes;
 mod verbs_arms2_arms;
 #[path = "verbs_arms2_bud.rs"]
 mod verbs_arms2_bud;
+#[path = "verbs_arms3.rs"]
+mod verbs_arms3;
 #[path = "verbs_chamfer.rs"]
 mod verbs_chamfer;
 #[path = "verbs_rim_closed_lever.rs"]

@@ -210,9 +210,55 @@ pub enum CornerConfig {
     /// ball centre is not determined by the three distance
     /// conditions.
     DependentNormals,
+    /// A vertex where a CHART SEAM crosses an otherwise smooth rim: the
+    /// two edges continuing the rim carry the same support pair, and the
+    /// other two are co-surface seam meridians (one surface on both
+    /// sides, so the dihedral there is zero by construction).
+    ///
+    /// **Not a corner**, and that is the whole content of the tag. The
+    /// surface is smooth through the point — the seam is where a chart
+    /// was cut, not where material turns — so there is no wedge, no
+    /// ball-rest configuration distinct from the neighbouring rim
+    /// points, and no run-out policy that would help. What helps is
+    /// asking for the rim whole, which is a door that already exists,
+    /// and that is what this tag's recourse says.
+    SeamVertex,
     /// A vertex reached with an in-band or poisoned configuration
     /// margin — the configuration could not be classified at all.
     Indeterminate,
+}
+
+impl CornerConfig {
+    /// **The run-out policy that would handle this configuration** —
+    /// and `None` where no run-out policy would, because the
+    /// configuration is not a corner at all
+    /// ([`CornerConfig::SeamVertex`]).
+    ///
+    /// The one place the tag → policy map lives, so a refusal's payload
+    /// cannot disagree with its own tag.
+    #[must_use]
+    pub fn policy(self) -> Option<RunOutPolicy> {
+        match self {
+            // A corner patch cannot help where the ball changes sides
+            // mid-corner; feathering is the policy that addresses it.
+            Self::MixedConvexity { .. } => Some(RunOutPolicy::RunOutFeather),
+            // Not a corner: the surface is smooth through the point, so
+            // there is nothing for a run-out to run out INTO.
+            Self::SeamVertex => None,
+            _ => Some(RunOutPolicy::RunOutStopAtVertex),
+        }
+    }
+
+    /// The recourse sentence that is TRUE of this configuration. A
+    /// seam vertex names the closed-rim door that exists; every other
+    /// tag names the run-out door that does not.
+    #[must_use]
+    pub fn recourse(self) -> &'static str {
+        match self {
+            Self::SeamVertex => FILLET3_SEAM_VERTEX_RECOURSE,
+            _ => FILLET3_CORNER_RECOURSE,
+        }
+    }
 }
 
 impl fmt::Display for CornerConfig {
@@ -224,6 +270,10 @@ impl fmt::Display for CornerConfig {
                 write!(f, "a mixed-convexity vertex ({convex} of 3 edges convex)")
             }
             Self::DependentNormals => write!(f, "a trihedron with dependent support normals"),
+            Self::SeamVertex => write!(
+                f,
+                "a chart-seam vertex on a smooth rim, which is not a corner at all"
+            ),
             Self::Indeterminate => write!(f, "a vertex whose configuration did not classify"),
         }
     }
@@ -258,6 +308,20 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// names the run-out front door that does not exist yet.
 pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a three-convex-edge vertex; general run-outs \
      are not implemented";
+/// The recourse for a chain that stops at a CHART SEAM on an otherwise
+/// smooth rim.
+///
+/// It names the REQUEST that describes what the caller wants — the rim
+/// entire, which is a closed chain — rather than a run-out policy,
+/// because a run-out at a smooth point is not what is missing. Whether
+/// that closed chain's band is then carved is the closed-rim surgery's
+/// own question and it answers it in its own words: today the ring-free
+/// annulus band is a ONE-EDGE rim's, so a rim a seam has split still
+/// meets that door's frontier. This sentence deliberately stops short of
+/// promising the carve.
+pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into — rather than a \
+     chain that stops at the seam, which is a chart artifact the surface is smooth \
+     through";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through, concave
@@ -417,8 +481,10 @@ pub enum FilletError {
         vertex: VertexKey,
         /// Which configuration was found.
         corner: CornerConfig,
-        /// The run-out policy that WOULD handle it.
-        policy: RunOutPolicy,
+        /// The run-out policy that WOULD handle it — [`None`] where
+        /// none would, because the configuration is not a corner
+        /// ([`CornerConfig::policy`], the tag's own map).
+        policy: Option<RunOutPolicy>,
     },
     /// The link's support pair has no analytic blend arm in the
     /// battery's table (only plane–plane and plane–sphere are
@@ -660,11 +726,17 @@ impl fmt::Display for FilletError {
                 vertex,
                 corner,
                 policy,
-            } => write!(
-                f,
-                "fillet corner: {vertex:?} is {corner}, which only a run-out policy \
-                 would handle ({policy}) — {FILLET3_CORNER_RECOURSE}"
-            ),
+            } => {
+                let recourse = corner.recourse();
+                match policy {
+                    Some(policy) => write!(
+                        f,
+                        "fillet corner: {vertex:?} is {corner}, which only a run-out policy \
+                         would handle ({policy}) — {recourse}"
+                    ),
+                    None => write!(f, "fillet corner: {vertex:?} is {corner} — {recourse}"),
+                }
+            }
             Self::SpineUnsupported { edge, supports } => write!(
                 f,
                 "fillet: the {supports} support pair at edge {edge:?} has no analytic \
@@ -767,12 +839,13 @@ mod recourse_tests {
         CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
         FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-        FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
-        FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
+        FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
+        FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
     };
+    use super::{CornerConfig, RunOutPolicy};
 
     /// Every recourse sentence this module can append.
-    const ALL: [&str; 13] = [
+    const ALL: [&str; 14] = [
         CHAMFER_ARM_RECOURSE,
         FILLET3_RADIUS_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE,
@@ -786,6 +859,7 @@ mod recourse_tests {
         FILLET3_GEOMETRY_RECOURSE,
         FILLET3_RING_RECOURSE,
         FILLET3_SPINE_KIND_RECOURSE,
+        FILLET3_SEAM_VERTEX_RECOURSE,
     ];
 
     /// What a variant's `Display` is allowed to append.
@@ -843,8 +917,8 @@ mod recourse_tests {
             FilletError::ConvexitySignFlip { .. } => {
                 (err.clone(), Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE))
             }
-            FilletError::FilletCornerUnsupported { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_CORNER_RECOURSE))
+            FilletError::FilletCornerUnsupported { corner, .. } => {
+                (err.clone(), Recourse::Exactly(corner.recourse()))
             }
             FilletError::SpineUnsupported { .. } => {
                 (err.clone(), Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE))
@@ -911,6 +985,19 @@ mod recourse_tests {
             FilletError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
+            },
+            // BOTH corner routes are seeded: the recourse this variant
+            // appends is chosen by its TAG, so one witness would leave
+            // the other route unrendered and unchecked.
+            FilletError::FilletCornerUnsupported {
+                vertex: VertexKey::default(),
+                corner: CornerConfig::NEdgeVertex { valence: 4 },
+                policy: Some(RunOutPolicy::RunOutStopAtVertex),
+            },
+            FilletError::FilletCornerUnsupported {
+                vertex: VertexKey::default(),
+                corner: CornerConfig::SeamVertex,
+                policy: None,
             },
             FilletError::Escalated {
                 site: FilletSite::Chain,
