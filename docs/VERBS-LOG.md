@@ -1010,3 +1010,13 @@ is the TWELFTH cross-model pair — its recorder notifies Evan
 explicitly.** OFF-C (Surface::Approx integration) is the next
 Wave-3 spec; GATE's ordinal-74 review still out. Seam sweep:
 verbs-offb + both reviewer lanes.
+
+## OFF-C spec committed; block VERBS-4 drawn (2026-08-26)
+
+docs/VERBS-OFFC-SPEC.md: the seventh Surface variant with the D3
+total-enumeration discipline (the compiler is the sweep), the
+private-certificate ApproxSurface triple, O5's never-trust
+re-derivation at tier 3, and a deliberate scope dissolution — the
+apex-window predicate re-points at OFF-D (Offset{base} is
+NURBS-only here; analytic bases never need Approx). Difficulty L
+logged pre-draw; block VERBS-4 drawn (mapping lane-private).
