@@ -1533,3 +1533,23 @@ probes adopt authorship-preserving with the two reds required to
 flip. Style lane: Q1 sure (the duplication IS the finding), Q3
 sure (weak Err projections), Q6 sure (deviations all scheduled).
 Reviewer lane swept post-report per the reclaim rule.
+
+## ORDINAL 81 CLAIMED: TESSFOLD REVIEW DISPATCHED (2026-08-26)
+
+TESSFOLD (#1045) reported all five scenes verified-as-is with a
+pure-additive 146-row fold: hollowring bit-exact against the
+analytic sizing chain (formula cross-validated on tube_along_arc's
+committed 17,152), the chamfer scenes at twin-identity/planar
+minimum with the fillet-twin gap attributed to genuine curvature,
+bench/benchlayout provenance CHECKED to #938 (post-cut, claims
+verified). Two record corrections banked: 146 not 162 (my log's
+transcription error), and #1037's fold was 47 rows not the 31 my
+brief said. Ordinal 81 claimed (main unchanged at 78; 79/80 in
+flight); single fable review dispatched against frozen head
+48559d61, briefed on the one risk that matters for an audit unit:
+"verified-as-is" is also what a lazy current-state bless returns —
+the review re-derives the analytic chains independently and hunts
+waste the audit might have explained away. Ordinal-79 reviewer
+TaskStopped post-report after orphaned-timer wake spam (lesson in
+lane-ops memory; reviewer briefs now carry the cancel-your-timers
+line).
