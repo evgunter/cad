@@ -294,8 +294,8 @@ fn poison_value<T: Real>() -> T {
 /// edge's own locus projected on the axis, not the corners of a box
 /// around it.**
 ///
-/// [`axial_range`] over a boundary's AABB is exact when the axis is a
-/// coordinate direction: the projection then reads one coordinate and
+/// Projecting a boundary's AABB corners instead is exact when the
+/// axis is a coordinate direction: the projection then reads one coordinate and
 /// the box's spread in the other two contributes nothing. **At a
 /// TILTED axis it is not**, and the error is the box's spread times
 /// the axis's other components — for a rim circle of radius `r`, up
@@ -566,7 +566,7 @@ pub(crate) fn conic_extent<T: Real>(
 ///   `t = v·cos α` its radial offset is `|t|·tan α` EXACTLY. `t` is
 ///   linear in the chart, so its extremes over a trimmed face lie on
 ///   the face's boundary exactly as the cylinder's do
-///   ([`axial_range`]), and [`cone_frustum_extent`] boxes the frustum
+///   ([`edge_axial_span`]), and [`cone_frustum_extent`] boxes the frustum
 ///   that window cuts. Pinning the radius at the window's widest end
 ///   instead is what makes a pucker read as if it were the whole
 ///   cone, and doors that read overlap as "may meet" pay it in
