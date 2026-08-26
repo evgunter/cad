@@ -135,7 +135,7 @@ use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::blend::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::build::{Filleted, face_cycle, outward_of};
 use super::naming::{FilletNaming, RimSide};
-use super::{BlendKind, CornerConfig, FilletError, FilletSite, RunOutPolicy, decide};
+use super::{BlendKind, CornerConfig, FilletError, FilletSite, decide};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -159,11 +159,15 @@ pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> FilletError 
 
 /// **Row 2** — the corner's own CONFIGURATION is not the sphere octant
 /// (the OQ6 vocabulary, shared with the battery's classifier).
+///
+/// The one mint of this refusal, so the policy it advertises is always
+/// the tag's own ([`CornerConfig::policy`]) and can never be a second,
+/// drifting opinion about the same configuration.
 pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> FilletError {
     FilletError::FilletCornerUnsupported {
         vertex,
         corner,
-        policy: RunOutPolicy::RunOutStopAtVertex,
+        policy: corner.policy(),
     }
 }
 

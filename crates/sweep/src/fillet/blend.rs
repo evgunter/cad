@@ -7,7 +7,7 @@
 //! |---|---|---|---|
 //! | plane–plane | line | cylinder | two lines |
 //! | plane–sphere (a circular rim) | circle | torus | two circles |
-//! | sphere–cone, cone–plane(⊥), cone–cone, cylinder–cone, cylinder–sphere, cylinder–plane(⊥) | circle | torus | two circles |
+//! | sphere–cone, cone–plane(⊥), cone–cone, cylinder–cone, cylinder–sphere, cylinder–plane(⊥), sphere–sphere | circle | torus | two circles |
 //! | cylinder–cylinder(∥), cylinder–plane(∥) | line | cylinder | two lines |
 //! | trihedral vertex (3 planes) | point | sphere | three circles |
 //!
@@ -45,6 +45,7 @@
 //! | cylinder–plane(⊥) | two lines | `R ∓ r` exactly |
 //! | sphere–cone | line × circle | the offset generator on the offset sphere |
 //! | cylinder–sphere | line × circle | `R_cyl ∓ r` exactly |
+//! | sphere–sphere | two circles | the offset spheres' own crossing |
 //! | cylinder–cylinder(∥) | two circles | (straight spine: no `s`) |
 //! | cylinder–plane(∥) | line × circle | (straight spine: no `s`) |
 //!
@@ -148,6 +149,11 @@ pub enum BlendArm {
     CylinderSphereTorus,
     /// Cylinder–plane(⊥ axis) coaxial rim → torus patch, circular spine.
     CylinderPlaneTorus,
+    /// Sphere–sphere rim → torus patch, circular spine. The one arm
+    /// whose hypothesis is free: two spheres on distinct centres always
+    /// meet in a circle, and the line through the centres is that
+    /// circle's own axis, so the pair is coaxial by construction.
+    SphereSphereTorus,
     /// Two parallel cylinders meeting along a common ruling → cylinder
     /// patch, straight spine. The arm is exact; no surgery carves its
     /// band yet (the terminations are the run-out taxonomy — #987).
@@ -182,6 +188,7 @@ impl BlendArm {
                 | Self::CylinderConeTorus
                 | Self::CylinderSphereTorus
                 | Self::CylinderPlaneTorus
+                | Self::SphereSphereTorus
         )
     }
 
@@ -202,13 +209,14 @@ impl BlendArm {
             Self::CylinderConeTorus => "cylinder–cone → torus",
             Self::CylinderSphereTorus => "cylinder–sphere → torus",
             Self::CylinderPlaneTorus => "cylinder–plane → torus",
+            Self::SphereSphereTorus => "sphere–sphere → torus",
             Self::CylinderCylinderCylinder => "cylinder–cylinder → cylinder",
             Self::CylinderPlaneCylinder => "cylinder–plane(∥) → cylinder",
         }
     }
 
     /// Every arm, for the coverage rows and the refusal-roster check.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::PlanePlaneCylinder,
         Self::PlaneSphereTorus,
         Self::PlanePlaneStrip,
@@ -218,6 +226,7 @@ impl BlendArm {
         Self::CylinderConeTorus,
         Self::CylinderSphereTorus,
         Self::CylinderPlaneTorus,
+        Self::SphereSphereTorus,
         Self::CylinderCylinderCylinder,
         Self::CylinderPlaneCylinder,
     ];
