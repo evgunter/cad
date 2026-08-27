@@ -640,6 +640,11 @@ fn pcurve_entry<T: Decide + Bounds>(
             }
         }
         Pcurve::Fitted(_) => Err("Fitted chart image (rung-3 trace) is not a straight segment"),
+        // The general curve-in-UV arm (U2): a NURBS chart image with
+        // no straightness fact of any kind — the same refusal as the
+        // fitted arm, and separate because the inventory names the
+        // class it refuses.
+        Pcurve::General(_) => Err("General curve-in-UV image is not a straight segment"),
     }
 }
 

@@ -869,6 +869,9 @@ run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "scene manifest reader (demos)" manifest_selftest
 # HOSTED MIRROR: fmt / rustfmt
 run_row "rustfmt"                      cargo fmt --all --check
+# HOSTED MIRROR: fmt / rustfmt (benches — its own cargo root)
+# `--all` above stops at the workspace, and benches/ is outside it.
+run_row "rustfmt (benches)"            bash -c 'cd benches && cargo fmt --all --check'
 # HOSTED MIRROR: clippy / clippy (default features)
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here

@@ -11,6 +11,7 @@ __pycache__/
 demos/renders-preview/
 
 # Cargo build artifacts of the workspace-excluded projects
+benches/target/
 demos/tour/target/
 demos/wild/target/
 tools/k-lint/target/

@@ -88,7 +88,7 @@ findings, whose numbering is kept so the two docs cross-reference.
 | `StableName` nests one `Box` per boolean | `editor-core/src/names/role.rs:290-382` | O(chain²) on a long boolean chain | commit | 15 |
 | Tier-3 runs twice on the product path | `editor-core/src/product.rs:410` and `:445` | duplicated over the same entities | commit | 16 |
 | Tier-1 pass 13 is quadratic in null scaffolds | `topo/src/validate.rs:3430-3443` — per null-scaffold curve, a full edge-arena `filter().count()` | worst exactly mid-boolean | commit | 5 |
-| Per-op debug full-body tier-1 | `topo/src/euler.rs:60-72` — D1's **ratified** postcondition clause | body construction Θ(ops × N) in every debug/CI row | CI/dev | 5 |
+| Per-op debug full-body tier-1 | `topo/src/euler.rs:60-72` — D1's **ratified** postcondition clause | body construction Θ(ops × N) in every debug/CI row; **measured 2026-08-27 at 6.5× on an extrude build and 5.2× on the two-brick boolean**, and free on validation, mass props and tessellation | CI/dev | 5 |
 | `point_in_loop` re-decides loop-intrinsic facts per query | `topo/src/splitting/containment.rs:238` | per-query work that is per-loop | commit | 8 |
 | `geom-core` has 2 `#[inline]` attributes total | `crates/geom-core/src/` | cross-crate call overhead on the hottest scalars | CI/dev | 17 |
 
@@ -98,7 +98,17 @@ Two entries need their constraint stated rather than a fix assumed:
   module docs call it "D1's ratified clause". Making it cheaper is a
   design change (a declared-delta check without the full tier-1
   sweep, say), so it goes through DESIGN.md, not through a
-  performance PR.
+  performance PR. It now has a price: turning debug assertions on
+  costs **6.5×** on `kernel/build/extrude` and **5.2×** on
+  `kernel/boolean/two_bricks`, and nothing measurable on the other four
+  rows — the first measurement of this clause, taken by building
+  `benches/` both ways (`benches/Cargo.toml` records it). Two
+  consequences. It lands squarely on the topology-surgery rows, which
+  is why the benchmark profile turns it OFF: a 5× constant on exactly
+  the scenarios the arena-scan family below is meant to move would
+  round a real algorithmic win away. And it means every debug and CI
+  row in this repository pays it — which is a fact about the cost of
+  the gate, not an argument about D1.
 - **The pcurve re-mint is under active surgery.** `PCURVE-PLAN.md`'s
   P-1 rewrites the edge-description vocabulary that `mint_pcurves`
   serves. Narrowing the re-mint to the faces a boolean actually
@@ -113,27 +123,34 @@ architecture, then parallelism, then micro-optimization** — each item
 names its target code and its trigger; the trigger is the license to
 start.
 
-**Measurement comes first, and it is the one thing still missing.**
-There is no `benches/` and no `criterion` dependency anywhere in the
-workspace. §2.3 gates every micro-optimization on a harness that
-nobody has built, which is a deadlock rather than a deferral, and the
-2026-08-14 scan could put measured numbers on exactly one of its ~20
-findings — the one whose author built a harness first, which then
-produced the report's largest result (35×). See §5.
+**Measurement comes first, and it exists now.** `benches/` is a
+criterion harness over the six rows §5 specifies, and
+`docs/perf-data/criterion/` accumulates one entry per night that `main`
+moves. Until 2026-08-27 there was no `benches/` and no `criterion`
+dependency anywhere in the tree, so §2.3 gated every micro-optimization
+on a harness nobody had built — a deadlock rather than a deferral, and
+the reason the 2026-08-14 scan could put measured numbers on exactly one
+of its ~20 findings (the one whose author built a harness first, which
+then produced the report's largest result, 35×). That gate is open.
 
 What *does* exist, and what each is good for:
 
 | Instrument | What it measures | Trustworthy for |
 |---|---|---|
+| `docs/perf-data/criterion/` | per-kernel wall time for §5's six rows — tessellation at two δ, tier-2+3 validation, mass props, an extrude build, the two-brick boolean — release profile, debug assertions OFF | the **only** instrument that answers a per-kernel cost question; trend across nights, and a within-lane ratio (1e-4 vs 1e-6) |
 | `docs/perf-data/rebuild-latency/` | per-document full-rebuild and incremental-recompute wall time, one entry per merge to `main`, each carrying its build environment | trend across merges; **not** absolute cost |
 | `docs/perf-data/opt-level/` | nightly opt-level calibration — which `CARGO_PROFILE_*_OPT_LEVEL` the gate should run | the CI knob only |
 | `docs/k-report-data/` | predicate decision counts | exact, deterministic, machine-independent — the **best** evidence base until the harness exists |
 | `docs/TESS-BUDGET.md` + `tools/tess-meter` | over-tessellation ratios per knot-span cell | tessellation grid sizing |
 
-`docs/k-report-data/` is the one to reach for by default. It is
-immune to both the profile problem and the contention problem that
-disqualify wall-clock numbers taken on a developer box, and it is
-what localized the scan's SSI and predicate findings.
+`docs/k-report-data/` is still the one to reach for when a counter can
+answer the question. It is immune to both the profile problem and the
+contention problem that disqualify wall-clock numbers taken on a
+developer box, and it is what localized the scan's SSI and predicate
+findings. Reach for the criterion lane when the question is genuinely
+about time — and read its README's noise floor first: cross-run spread
+there is ~3–9% against within-run intervals of ±2–3%, so a single
+entry's confidence interval is not the resolution of a comparison.
 
 ### 2.1 Algorithmic wins (they dominate; do these first)
 
@@ -149,8 +166,41 @@ what localized the scan's SSI and predicate findings.
   — is a **dead end**, measured at 39.26 s vs 39.05 s: the quadratic
   is the legalization cascade against a degenerate cocircular hull,
   not point location. `crates/mesh/src/lib.rs`'s §Performance section
-  is the statement of record and is current. Trigger: a real fine-δ
-  export need, or the corpus showing CDT dominance.
+  is the statement of record and is current.
+
+  **The quadratic is now measured rather than argued, and on a body
+  with no hole in it.** `benches/examples/counts.rs` sweeps δ over four
+  decades on the washer and reports the exponent directly (2026-08-27,
+  two runs, 4-core box):
+
+  | δ | triangles | wall | exponent in n |
+  |---|---|---|---|
+  | 1e-2 | 308 | 0.75 / 0.98 ms | |
+  | 1e-3 | 964 | 1.96 / 2.27 ms | 0.87 / 0.73 |
+  | 1e-4 | 3040 | 9.44 / 10.7 ms | 1.36 / 1.35 |
+  | 1e-5 | 9596 | 70.8 / 87.8 ms | 1.75 / 1.83 |
+  | 1e-6 | 30340 | 642 / 733 ms | 1.91 / 1.84 |
+
+  Triangle count grows as √10 per decade, as a chordal criterion should,
+  and is bit-identical run to run (D9). The wall clock does not follow
+  it: the exponent in triangle count climbs to **~1.85** and has not
+  finished climbing at 30k triangles. The washer's annulus caps put
+  their vertices on two concentric circles — near-cocircular by
+  construction, which is finding 7b's degeneracy reached through a slit
+  rather than through nesting. So the cost this item is about is real,
+  is asymptotically n², and does not need a hole to appear.
+
+  **The written trigger is still not met, and the distinction matters.**
+  It says "a real fine-δ export need, or the corpus showing CDT
+  dominance" — a claim about documents people actually build. One
+  synthetic body swept by an example is not the corpus, and δ = 1e-6 is
+  an export tolerance, which §1.2 puts in the *background* lane where
+  642 ms is not a latency failure. What the sweep licenses is the
+  measurement work: point `tools/tess-meter` or the harness at the
+  corpus documents and see whether their faces reach this regime. If
+  they do, the trigger is met on evidence; if they do not, this item
+  stays queued and that is worth knowing too. The `spade` `HashSet` fix
+  comes first either way.
 - **Narrow the pcurve re-mint to the touched faces** (§1.3's top
   entry). Sequenced behind PCURVE P-1, and belongs on that program's
   slate.
@@ -274,10 +324,14 @@ exercised — not as a fix for the corpus timings.
     defines them.
 - **`#[inline]` in `geom-core`** — two attributes in the whole crate,
   and it defines the scalars every hot loop calls through. Cheap to
-  try, needs the harness to confirm.
+  try, and the harness that confirms it now exists: the four
+  microsecond rows are where a cross-crate call cost would show, and a
+  candidate has to move one of them by more than the lane's ~10% noise
+  floor to count.
 - Later, evidence-gated: SoA layouts for batch predicate/cert
-  sampling; LTO/PGO on release; SIMD in BVH traversal. All premature
-  before the harness (§5) exists to show a win.
+  sampling; LTO/PGO on release; SIMD in BVH traversal. The harness can
+  now show a win, so these are gated on evidence rather than on the
+  instrument — and on the instrument saying more than its noise floor.
 - **Never**: fast-math flags, FMA contraction, or per-platform
   intrinsics in kernel code — D9 and the Q1 no-fused-ops rule
   (`Real` has no `mul_add`) already ban them; stated here so
@@ -449,28 +503,36 @@ developer run to re-check what CI checks better. The shape instead:
 
 ## 5. What to do next
 
-**The benchmark harness is the blocking item, and it is now the
-first thing to do rather than the last.** It has been called that
-since 2026-08-14 and has not been picked up.
+**The benchmark harness was the blocking item for a year and it landed
+on 2026-08-27.** What follows is ordered against what it now says.
 
-1. **Criterion benchmark harness — post-merge only, never a PR gate**
-   (ratified, Q-P4): runs on pushes to `main`, optionally
-   path-filtered to perf-relevant crates, so no PR waits on it and no
-   shared-runner wall-clock flake can block a merge; regressions are
-   read off the archived per-commit trend, not a threshold. Five
-   scenarios: washer tessellation at δ ∈ {1e-4, 1e-6}, tier-2+3
-   validation of a revolved body, mass props, extrude build, and the
-   two-brick boolean. Its output belongs in `docs/perf-data/` beside
-   the existing lanes, carrying the same environment block they do.
+1. **Read the criterion trend before optimizing anything.** The harness
+   landed 2026-08-27 (`benches/`, the nightly's `criterion benchmarks
+   (reporting)` job, `docs/perf-data/criterion/`), which is what opened
+   §2.3's gate. The first readings, on a 4-core box, are the numbers
+   this document lacked for a year:
 
-   Why this cannot keep sliding: §2.3 gates every micro-optimization
-   on it, so the doc forbids the work until the measurement exists,
-   and nobody built the measurement. Meanwhile the M5/M10 triggers
-   this doc sets for itself ("if the corpus shows CDT dominance", "if
-   certification wall-times demand it") are **unfireable** —
-   `rebuild-latency` is comparable across merges but is a reporting
-   lane, not a benchmark, and it is the wrong instrument for a
-   per-kernel cost question.
+   | row | median |
+   |---|---|
+   | `tessellate/washer/1e-4` | 10.5 ms |
+   | `tessellate/washer/1e-6` | 690 ms |
+   | `kernel/validate/tier23_washer` | 24 µs |
+   | `kernel/mass_props/washer` | 1.7 µs |
+   | `kernel/build/extrude` | 24 µs |
+   | `kernel/boolean/two_bricks` | 130 µs |
+
+   **What that table settles, and what it does not.** Tessellation is
+   two to four orders of magnitude above every other row, and §2.1's δ
+   sweep shows its cost growing as ~n^1.85 in triangle count on a
+   near-cocircular body — so the CDT quadratic is measured, and the
+   `spade` `HashSet` fix that must precede bulk loading is the next
+   unit of work there. It does **not** discharge that item's written
+   trigger, which asks for the *corpus* showing dominance rather than
+   one synthetic body at an export tolerance; §2.1 says what would.
+   The other four rows are microseconds, which prices the arena-scan
+   family honestly: they are complexity fixes for bodies far larger
+   than these, and item 2 below does not wait on the harness precisely
+   because these scenarios are too small to show them.
 
 2. **The arena-scan family** (§2.1) — findings 9, 11, 13, 14, and
    pass 13. Local, D9-neutral, justified by complexity argument
@@ -483,10 +545,14 @@ since 2026-08-14 and has not been picked up.
 4. **Boolean gate double tier-1 and product-path double tier-3**
    (findings 4, 16) — XS/S, in release, on the commit lane.
 
-**On the trigger list, not started:** CDT bulk loading (needs the
-`spade` patch first, §2.1); SSI seeding on the BVH (its own module
-states the trigger — "when profiling asks for it", so it waits on
-item 1); per-face tessellation parallelism (§2.2).
+**On the trigger list:** CDT bulk loading — its quadratic is measured
+now (§2.1's sweep), its trigger is not yet met, and the corpus reading
+that would meet it is the cheap next step; the `spade` `HashSet` fix
+precedes adoption either way. SSI
+seeding on the BVH: its own module says "when profiling asks for it",
+and the harness does not benchmark SSI, so that trigger needs a row
+before it can fire. Per-face tessellation parallelism (§2.2) — the
+tessellation rows above are the case for it.
 
 **GUI milestone owns** everything in §3.1: wgpu rendering, ID-buffer
 picking, LOD, the preview-tessellation experiment. The kernel's
@@ -499,8 +565,10 @@ it.
 
 **Premature, named to stay dead until their triggers:** any GPU work;
 SIMD/SoA/PGO/LTO; parallelizing Euler sequences; benchmark *gates*
-(as opposed to the trend); micro-tuning validators or mass props
-beyond the specific findings above.
+(as opposed to the trend — the lane is reporting-only and Q-P4 is why);
+micro-tuning validators or mass props beyond the specific findings
+above. Mass props at 1.7 µs and validation at 24 µs are now measured,
+which makes "premature" a fact about those two rather than a posture.
 
 ## 6. Settled, not re-litigated
 

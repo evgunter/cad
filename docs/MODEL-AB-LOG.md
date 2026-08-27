@@ -113,6 +113,64 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Method relaxations are RECORDED PER ARM, and a pair whose arms ran
+  under different methods counts toward NEITHER the tally NOR the twelve
+  (Evan, in-chat, 2026-08-27).** The rule: *"it's important to record
+  when the method was relaxed, because then the two reviews aren't
+  comparable any more — and probably also don't count them towards the
+  12."*
+  1. **Any orchestrator relaxation of a reviewer's method is written
+     into the row, naming WHICH ARM received it.** Scope narrowing
+     ("run the rows your findings need, not the whole crate"), a
+     lifted battery requirement, a permitted substitution — each is a
+     change to the instrument, not a scheduling detail.
+  2. **A pair whose two arms ran under different methods is excluded
+     from the adjudicated unilateral-MAJOR tally AND from the
+     twelve-pair count.** It is still RECORDED in full, findings and
+     all — the work is not wasted, it is simply not a controlled
+     comparison. This EXTENDS v6 item 3(e), which excluded interrupted
+     or truncated pairs; the same logic covers a pair the orchestrator
+     itself made asymmetric.
+  2b. **A CORRECTION back to the stated method is NOT a relaxation
+     (boundary raised by the VERBS orchestrator, 2026-08-27, applying
+     this rule to its own PIERCE pair).** Nudging an agent that parked
+     on a background watcher back into foreground polling, or telling
+     one that a battery belongs in `-x` rather than the express lane,
+     restores the brief — it does not change the instrument, and it
+     does not spend the pair. What spends the pair is granting one arm
+     something the brief did not give it and the other arm did not
+     get: narrower scope, a lifted requirement, a permitted
+     substitution. The test is not "did the orchestrator send a
+     message" but **"do the two arms now differ in what they were
+     permitted to do".** Without this line the rule would exclude
+     every pair anyone ever nudged, which would make it unusable.
+  3. **Why it matters more than it looks.** A unilateral MAJOR is
+     informative only if the silent arm had the same opportunity to
+     find it. If one arm was told to narrow its batteries and the
+     other was not, "R2 never mentioned it" stops being evidence about
+     R2's judgment and becomes evidence about the instructions.
+  4. **The operational tension, stated so it is not rediscovered.**
+     Relaxations get proposed under build-mutex saturation, which is
+     exactly when several duals run at once. Every relaxation now
+     costs a pair, so under contention the cheaper lever is REDUCING
+     CONCURRENCY (fewer simultaneous duals) rather than narrowing
+     method — the same total work, without spending the experiment.
+
+  **Applied retroactively at this entry, both of 2026-08-27:**
+  - **PCURVE P-1a (ordinal 84)** — EXCLUDED. R2's batteries were
+    killed twice by the express-lane cap (work lost) and it needed an
+    orchestrator nudge to resume; v6 3(e) already covered this.
+  - **Census gap 2 (ordinal 200)** — EXCLUDED under the new clause,
+    reversing this orchestrator's earlier call that it was fair. **R1
+    was granted a scope relaxation under mutex saturation and R2 was
+    not** — R2 had already run full `cargo test -p topo` batteries. R1
+    then found a unilateral MAJOR (the `chart_region_parallel`
+    argument-order asymmetry) that R2 missed while sweeping 120
+    frame configurations. The finding is REAL and is being fixed; it
+    simply cannot be scored, because the arms were not comparable and
+    the asymmetry was mine.
+
+  **Tally after this entry: 0 of 8. Clean pairs toward twelve: 0.**
 - **Ordinal bands, per program (Evan, in-chat, 2026-08-27; authorised
   and self-merged after the first arbitrated collision).** THE
   PROBLEM v6 CREATED: under v4/v5 duals were every third row, and two
@@ -128,8 +186,10 @@ amended:
      cross-program read is needed at dispatch, so a collision is
      impossible by construction rather than arbitrated after the
      fact. Bands, allocated at this entry:
-     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399**, with
-     **400+ unallocated** — the orchestrator opening the next
+     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399 · GUI 400–499
+     (claimed 2026-08-27 at the GUI program's opening —
+     `docs/GUI-LOG.md`)**, with
+     **500+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
@@ -1505,3 +1565,24 @@ unchanged; both briefs carry v6 item 5's lane-isolation READ rule.
 Pre-draw fields logged at the spec: difficulty **M**, task-class
 **NUMERIC**, implementer arm **OPUS** (block PCURVE-1 slot 2).
 Row at merge.
+
+## GUI program rows (the v1 GUI, docs/GUI-PLAN.md; band 400–499; blocks named GUI-B<n> — the B avoids colliding with the unit names GUI-0…GUI-6)
+
+Block GUI-B1 pre-draw fields (2026-08-27, logged before the draw):
+slot 1 = GUI-0 (docs/GUI-0-SPEC.md) — difficulty M, task-class
+STRUCTURAL (new-crate scaffold, eframe/wgpu plumbing, typed camera
+ops; no new numeric predicate — camera math is display-layer state,
+not a tolerance/measurement decision). Slot 2 = GUI-1
+(docs/GUI-1-SPEC.md) — difficulty M, task-class NUMERIC (ray-slab
+comparisons, conservative-superset boundary decisions, nearest-hit
+ordering are geometric-measurement decisions, though under no D9
+obligation). Slots 3–4 bank for GUI-2/GUI-3 in dispatch order,
+pre-draw fields at their specs.
+
+Block GUI-B1 draw (2026-08-27, after the pre-draw fields above):
+byte **101** (<252, accepted), 101 mod 4 = 1 = fable's position
+(0-indexed, the VERBS-4/PCURVE-1 mapping) ⇒ **fable at slot 2**.
+So: slot 1 GUI-0 = OPUS, slot 2 GUI-1 = FABLE, slots 3–4 = OPUS
+(GUI-2/GUI-3, arms read back from this record at dispatch per the
+VERBS-4 deviation remedy).
+| P-1a | 2026-08-27 | PCURVE's first unit — the collapsed edge description, the unified meter, the authority record (`geom-brep` only, behind a thin shim; consumers/fence/test-rewrites are P-1b's). `EdgeDescription` collapses D2's conventional variants to one `Chart(ChartCurve{surface,pcurve,seam})` arm plus a fenced `Scaffold`; `Pcurve::General` lands at the Fitted grade through `certify_general` (running `run_fitted_checks` VERBATIM, with a row asserting both doors produce identical certificates on identical inputs); D1's unified meter `|C(t) − S(P(t))| ≤ ε` with the two seam predicates retained as a periodic-chart obligation; `EdgeAuthority::{Derived,Declared}` stored per edge; D4's mint wired at certification. The `Copy` loss resolved by BORROW — `EdgeGeometry` stays `Copy` as the consumers' vocabulary, so the 22 deref sites are untouched and P-1b pays them against a borrowable type | **L** / STRUCTURAL (pre-logged at the spec) | OPUS (block PCURVE-1 slot 1; block byte 251, mod 4 = 3 ⇒ fable at slot 4) | **DUAL (ordinal 84, sample #27, CROSS-MODEL, v6's FIRST randomized-slot draw — byte 238, parity 0 ⇒ R1 opus + R2 fable, frozen `af0aebb5`). BOTH ARMS NOT-MERGEABLE-AS-IS, converged on the core defect from different angles.** R1: the gate was red at the frozen head (the `d2` row failing at ε=1e-12 and `demos/tour` not compiling — a `Pcurve::General` arm missed because `demos/tour` is outside the workspace, so `--workspace` never sees it); the D2 row generalized ONE ε point into a class fact; **the seam meter changed QUANTITY not bits — cone perpendicular-to-generator vs radial chord, ratio sec α, and an edge that certifies on main now ESCALATES**; the iso move unbounded in anchor offset (t0 1e6 → 7.0e14 ULP). R2: the same gate red; **the same seam finding reached independently and wider — sphere 2.35e9 ULP, cone 6.7e14 verdict-flipping, and cylinder at r=1e-4 moving 6.0e9, so the row's r=2 fixture was exactly where the move rounds away**; and the D2 tripwire BLIND to the laundering it existed to catch (iso slope exactly 1.0 — two mutants survived it). **PAIR EXCLUDED from the v6 tally and from the twelve** under item 3(e): R2's batteries were killed twice by the express-lane cap and it needed a correction to resume — work lost, so the arms are not comparable. Findings fully recorded and fully fixed; simply not scored | **0 silent** — every deviation reported in the PR body before review | 4 | 4 | 5 | substantial, IMPLEMENTER-INHERITED, TWO ROUNDS. Round 1: the seam disposition ruled `|C − S(P)|` the RIGHT quantity and re-baselined deliberately — the decisive ground VERIFIED not argued, that the pcurve CACHE lane already imposed exactly this statement on exactly this geometry through exactly this mint (demonstrated by running the fixture through `PcurveCache::certify`, code the unit does not touch), so the collapse removes a place where the kernel said two different things about one edge rather than inventing a rule; the price pinned as an assertion of the NEW behaviour; the implementer WITHDREW its own 'the new meter is conservative' claim on R2's small-cylinder evidence and replaced it with the narrower `|C − S(P)| ≥ dist(C, surface)`; the D2 tripwire rebuilt onto the mint's OUTPUT bits after finding TWO MORE blindnesses the review had not (v0=0 degeneracy, quadratic swamping). Round 2 (delta re-verification, required by the NOT-MERGEABLE verdict): the delta EXECUTED and FALSIFIED the implementer's 'no-op, not a survivor' claim — two re-associations passed all three D2 rows while moving minted bits at ~52%% and ~1.2%% of random anchors, coinciding only at the four pinned ones; two separating anchors added (six total, each documented with why), all four mutants now die, and the PR record corrected in place because a false 'we checked, it was a no-op' retires the question for the next reader | hosted CI green on every head; the branch's union drew BOTH compile modes on fix-pass code — default @ 1e-12 (`a6f3fcd6`) and interval @ 1e-6 (`54b542f0`, `a030c694`), k-lint gate green throughout (a metered-quantity change did not trip it). Merged #1073 at `9fa321d4` | impl ~443k / reviews R1 ~201k + R2 ~280k (incl. delta round) | impl ~6h across two fix rounds; reviews ~5.6h wall including a 2h18m self-inflicted mutex starvation (the implementer's own superseded footnote battery — the incident that produced the lane-ops rule at #1085) |
