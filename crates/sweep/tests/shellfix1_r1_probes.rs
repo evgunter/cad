@@ -319,8 +319,7 @@ fn p4_annular_split_holds_on_fresh_radii() {
     );
     assert_eq!(plane_chart_at_y(&cup, h).len(), 2);
     let pi = core::f64::consts::PI;
-    let want = pi
-        * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
+    let want = pi * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert_coherent("p4 fresh-radii tube", &cup, Some(want));
 }
 
@@ -403,8 +402,8 @@ fn p6_single_square_hole_splits_on_line_carriers() {
                 "outer band plus hole band; the bore keeps genus 1"
             );
             assert_eq!(plane_chart_at_z(&cup, h).len(), 2, "two rim faces");
-            let want = w * d * h
-                - ((w - 2.0 * t) * (d - 2.0 * t) - (2.0 * s + 2.0 * t).powi(2)) * (h - t);
+            let want =
+                w * d * h - ((w - 2.0 * t) * (d - 2.0 * t) - (2.0 * s + 2.0 * t).powi(2)) * (h - t);
             assert_coherent("p6 square-holed cup", &cup, Some(want));
         }
     }

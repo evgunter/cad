@@ -136,7 +136,12 @@ fn dump(body: &Body<f64>) -> String {
             .get_surface(f.surface)
             .map(|x| format!("{x:?}"))
             .unwrap_or_else(|| "?".into());
-        let _ = writeln!(s, "f {k:?} sense={} rings={} {surf}", f.sense, f.rings.len());
+        let _ = writeln!(
+            s,
+            "f {k:?} sense={} rings={} {surf}",
+            f.sense,
+            f.rings.len()
+        );
         for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
             let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
                 let _ = writeln!(s, "  loop {lk:?} empty");

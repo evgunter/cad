@@ -43,16 +43,16 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "shellfix1_bitdump.rs"]
+mod shellfix1_bitdump;
+#[path = "shellfix1_r1_probes.rs"]
+mod shellfix1_r1_probes;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
 mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
-#[path = "shellfix1_r1_probes.rs"]
-mod shellfix1_r1_probes;
-#[path = "shellfix1_bitdump.rs"]
-mod shellfix1_bitdump;
 
 #[path = "bitdump.rs"]
 mod bitdump;
