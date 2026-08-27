@@ -775,7 +775,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 }
                                 FaceContainment::OnEdge(ey) => {
                                     let w = split_at(x, x_is, edge_key, t, tol)?;
-                                    let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                                    let wy =
+                                        split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
                                     push_vv(contacts, x_is, w, wy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
@@ -1697,7 +1698,10 @@ mod tests {
                 got.lo(),
                 got.hi()
             );
-            assert!(got.lo() > 0.0 && got.hi() < PI, "at {t}: not strictly inside");
+            assert!(
+                got.lo() > 0.0 && got.hi() < PI,
+                "at {t}: not strictly inside"
+            );
         }
     }
 }

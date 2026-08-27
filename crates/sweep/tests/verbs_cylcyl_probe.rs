@@ -120,8 +120,7 @@ fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
         &cyl(0.0, 0.0, 0.5, 1.0, 3.0),
         tol,
     )
-    .expect("the boss unions")
-    else {
+    .expect("the boss unions") else {
         panic!("a boss on a shaft is one solid");
     };
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
