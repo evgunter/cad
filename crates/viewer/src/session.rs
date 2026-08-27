@@ -381,7 +381,11 @@ impl DocSession {
 
     /// The slot's driver and current value, or the refusal that says
     /// the slot is not there.
-    fn driver_of(&self, node: RecipeNodeId, slot: SlotId) -> Result<(SlotDriver, Option<SlotValue>), Refusal> {
+    fn driver_of(
+        &self,
+        node: RecipeNodeId,
+        slot: SlotId,
+    ) -> Result<(SlotDriver, Option<SlotValue>), Refusal> {
         let row = props::slot_rows(self.committed_doc(), node)
             .into_iter()
             .find(|row| row.slot == slot)

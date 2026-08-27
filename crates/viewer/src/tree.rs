@@ -178,6 +178,10 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// Whether any row reports a failure or a poisoning — what a chrome
 /// shows as "this document is not building".
 pub fn has_faults(rows: &[TreeRow]) -> bool {
-    rows.iter()
-        .any(|row| matches!(row.status, RowStatus::Failed { .. } | RowStatus::Poisoned { .. }))
+    rows.iter().any(|row| {
+        matches!(
+            row.status,
+            RowStatus::Failed { .. } | RowStatus::Poisoned { .. }
+        )
+    })
 }

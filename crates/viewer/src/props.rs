@@ -142,7 +142,11 @@ pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
 }
 
 /// One row, or `None` if the node does not actually carry the slot.
-fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId) -> Option<SlotRow> {
+fn slot_row(
+    doc: &Doc<ProfileProgram>,
+    node: &Node<ProfileProgram>,
+    slot: SlotId,
+) -> Option<SlotRow> {
     let expr = node.expr(slot)?;
     let env = doc.param_env::<f64>();
     let value = if slot.dimension() == Dimension::Count {
@@ -215,7 +219,11 @@ pub fn slot_edit(
 
 /// The edit that replaces a document parameter's value, keeping its
 /// declared dimension.
-pub fn param_edit(name: ParamName, dimension: Dimension, value: SlotValue) -> DocEdit<ProfileProgram> {
+pub fn param_edit(
+    name: ParamName,
+    dimension: Dimension,
+    value: SlotValue,
+) -> DocEdit<ProfileProgram> {
     let param = match value {
         SlotValue::Count(value) => DocParam::Count { value },
         SlotValue::Continuous(value) => DocParam::Continuous {
