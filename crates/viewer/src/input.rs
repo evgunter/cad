@@ -30,16 +30,22 @@
 //! - **Zoom**: a scroll notch is a fixed multiplicative step, so
 //!   zooming is scale-invariant and reversible.
 //!
-//! **The primary (left) button is bound to nothing, on purpose and
-//! only until GUI-2.** It is the button click-to-select takes — the
-//! first of `docs/GUI-DESIGN.md` G3's four items, and GUI-2's whole
-//! subject — so binding it to a navigation move here would be
-//! squatting on the one binding the next unit needs, and unbinding it
-//! again would be a behaviour change a user had already learned.
-//! Reviewers reading a maintainer's first left-drag as inert are
-//! reading it correctly; it is inert because it is reserved.
+//! **The primary (left) button selects, and moves no camera.** It is
+//! the button click-to-select takes — the first of
+//! `docs/GUI-DESIGN.md` G3's four items — so it is bound to
+//! [`PickAction::Select`] and to nothing in the navigation vocabulary.
 //! Navigation lives on middle and secondary, which is mainstream CAD
 //! convention independently of that.
+//!
+//! # Two mappings over one event stream
+//!
+//! The same [`ViewportEvent`] stream feeds two independent readings,
+//! and neither knows about the other: [`InputMap::map`] says which
+//! **camera** operation an event is, and [`InputMap::pick`] says which
+//! **cursor** action it is. An event is at most one of the two —
+//! a drag moves the camera and picks nothing, a click picks and moves
+//! nothing — but that is a property of the default bindings, not an
+//! invariant either function enforces on the other.
 
 use crate::camera::{Camera, CameraOp, Folded};
 
@@ -75,6 +81,44 @@ pub enum ViewportEvent {
         /// Notches (fractional on a trackpad).
         units: f64,
     },
+    /// The pointer is inside the viewport at this position, with no
+    /// button held. Physical pixels from the viewport's top-left
+    /// corner, the same axes as [`ViewportEvent::Drag`]'s delta.
+    Hover {
+        /// Where the cursor is.
+        pos_px: [f64; 2],
+    },
+    /// A button was pressed and released without dragging.
+    Click {
+        /// Which button.
+        button: PointerButton,
+        /// Where the cursor was.
+        pos_px: [f64; 2],
+    },
+    /// The pointer left the viewport.
+    ///
+    /// Its own event rather than a `Hover` with no position: "the
+    /// cursor is nowhere" is a state the hover highlight has to reach,
+    /// and an `Option` inside `Hover` would make every consumer handle
+    /// the absent case at the position it reads.
+    Leave,
+}
+
+/// What a cursor event asks the viewport to pick.
+///
+/// The **cursor** half of the input mapping, beside [`CameraOp`]'s
+/// navigation half: a value naming a query, with no ray and no scene
+/// in it. Turning one into a selection needs a camera and an
+/// evaluation, which is [`crate::pick::PickIndex`]'s job.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PickAction {
+    /// Move the transient hover to whatever is under this cursor.
+    Hover([f64; 2]),
+    /// Make whatever is under this cursor the selection — and, on a
+    /// miss, clear it.
+    Select([f64; 2]),
+    /// The cursor is gone; there is nothing to hover.
+    ClearHover,
 }
 
 /// The viewport's size in physical pixels.
@@ -115,6 +159,8 @@ pub struct InputMap {
     pub orbit_button: PointerButton,
     /// The button that pans without a modifier.
     pub pan_button: PointerButton,
+    /// The button that selects.
+    pub select_button: PointerButton,
 }
 
 impl Default for InputMap {
@@ -125,6 +171,7 @@ impl Default for InputMap {
             zoom_rate_per_notch: 0.1,
             orbit_button: PointerButton::Middle,
             pan_button: PointerButton::Secondary,
+            select_button: PointerButton::Primary,
         }
     }
 }
@@ -178,6 +225,31 @@ impl InputMap {
                 Some(CameraOp::Dolly {
                     factor: (-units * self.zoom_rate_per_notch).exp(),
                 })
+            }
+            // Cursor events move no camera. They are not "unbound":
+            // they are the other mapping's subject, and `pick` below
+            // is where they are read.
+            ViewportEvent::Hover { .. } | ViewportEvent::Click { .. } | ViewportEvent::Leave => {
+                None
+            }
+        }
+    }
+
+    /// The cursor action an event denotes, or `None` when this event
+    /// asks for no pick — every drag and scroll, and a click on a
+    /// button that is not [`InputMap::select_button`].
+    ///
+    /// Needs no camera and no viewport: a cursor action names a screen
+    /// position, and what lies under it is a question for the scene.
+    pub fn pick(&self, event: &ViewportEvent) -> Option<PickAction> {
+        match *event {
+            ViewportEvent::Hover { pos_px } => Some(PickAction::Hover(pos_px)),
+            ViewportEvent::Click { button, pos_px } if button == self.select_button => {
+                Some(PickAction::Select(pos_px))
+            }
+            ViewportEvent::Leave => Some(PickAction::ClearHover),
+            ViewportEvent::Click { .. } | ViewportEvent::Drag { .. } | ViewportEvent::Scroll { .. } => {
+                None
             }
         }
     }
@@ -265,4 +337,18 @@ pub fn map_stream<'a>(
         Some((_, error)) => Err(error),
         None => Ok((folded.camera, folded.applied)),
     }
+}
+
+/// The cursor actions an event stream denotes, in order.
+///
+/// The pick-side counterpart of [`fold_events`], and deliberately not
+/// a fold: a cursor action carries no state that the next one depends
+/// on, so there is nothing to accumulate. **This is the sequence the
+/// viewport runs and the sequence the tests run**, for the same
+/// reason the camera has one fold.
+pub fn pick_stream<'a>(
+    map: &InputMap,
+    events: impl IntoIterator<Item = &'a ViewportEvent>,
+) -> Vec<PickAction> {
+    events.into_iter().filter_map(|event| map.pick(event)).collect()
 }
