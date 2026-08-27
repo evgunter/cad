@@ -170,10 +170,22 @@ fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
         "tier 3 passes"
     );
 
-    // The two mouth faces each carry one ring; both rings are the same
-    // full circle of radius neck - t on the axis.
+    // The two mouth faces each carry one ring. MEASURED (this probe's
+    // first two runs): the ring is NOT a bare circle — it is the
+    // cavity counterpart's own half-disc boundary: a half-circle of
+    // radius neck - t about the axis plus TWO radial line edges
+    // (carriers `Line { origin: (0, TOP, 0), dir: ±x }`) meeting at a
+    // ring vertex AT the axis point (0, TOP, 0). The outer loop of the
+    // same face still owns a vertex at that exact point, and its two
+    // seam radial edges lie on the same lines — so the ring touches
+    // the outer boundary at the axis and overlaps its radial edges
+    // over [0, neck - t]. An interior ring that meets its outer loop
+    // is not a valid trim of any face; the body is WRONG as a body.
     let r_ring = VASE_NECK - t;
-    let mut crossing_faces = 0;
+    let axis_pt = Point3::new(0.0, VASE_TOP, 0.0);
+    let dist_pt = |p: Point3<f64>, q: Point3<f64>| {
+        ((p.x - q.x).powi(2) + (p.y - q.y).powi(2) + (p.z - q.z).powi(2)).sqrt()
+    };
     let mut ring_faces = 0;
     for (fk, f) in cup.faces() {
         let on_mouth = matches!(cup.get_surface(f.surface),
@@ -187,41 +199,56 @@ fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
             1,
             "face {fk:?}: each designated half-disc carries exactly one ring"
         );
-        for c in loop_carriers(&cup, f.rings[0]) {
+        // Classify the ring's edges: arcs on the inner circle, plus at
+        // least one straight diameter edge through the axis.
+        let carriers = loop_carriers(&cup, f.rings[0]);
+        let ends = loop_edge_ends(&cup, f.rings[0]);
+        println!("mouth face {fk:?}: ring of {} edges:", carriers.len());
+        let mut has_inner_arc = false;
+        let mut has_axis_diameter = false;
+        for (c, (a, b)) in carriers.iter().zip(&ends) {
+            println!("  edge {:?} -> {:?}: {c:?}", (a.x, a.z), (b.x, b.z));
             match c {
-                Curve3::Circle { center, radius, .. } => {
-                    assert!(
-                        center.x.abs() < 1e-12
-                            && center.z.abs() < 1e-12
-                            && (center.y - VASE_TOP).abs() < 1e-12
-                            && (radius - r_ring).abs() < 1e-12,
-                        "every ring edge lies on the FULL inner circle (axis, r = {r_ring}); \
-                         got center {center:?} radius {radius}"
-                    );
+                Curve3::Circle { center, radius, .. }
+                    if center.x.abs() < 1e-9
+                        && center.z.abs() < 1e-9
+                        && (radius - r_ring).abs() < 1e-9 =>
+                {
+                    has_inner_arc = true;
                 }
-                other => panic!(
-                    "a ring edge that is not on the inner circle would allow a valid \
-                     D-shaped half-annulus reading; got {other:?}"
-                ),
+                Curve3::Line { .. } => {
+                    // A radial leg: one endpoint AT the axis point (a
+                    // vertex of the ring sits exactly where the outer
+                    // loop's own axis vertex is), the other at the
+                    // cavity radius, the segment lying along the seam
+                    // radial line the outer loop's edges occupy.
+                    let (ra, rb) = (a.x.hypot(a.z), b.x.hypot(b.z));
+                    if (ra.min(rb)) < 1e-9 && (ra.max(rb) - r_ring).abs() < 1e-9 {
+                        has_axis_diameter = true;
+                    }
+                }
+                _ => {}
             }
         }
-        // The outer loop still runs from the axis out to the neck
-        // radius: some edge's endpoints straddle r_ring, so the ring
-        // crosses the outer boundary.
-        let straddles = loop_edge_ends(&cup, f.outer).iter().any(|(a, b)| {
-            let (ra, rb) = (a.x.hypot(a.z), b.x.hypot(b.z));
-            ra.min(rb) < r_ring - 1e-9 && ra.max(rb) > r_ring + 1e-9
-        });
-        if straddles {
-            crossing_faces += 1;
-        }
+        assert!(
+            has_inner_arc && has_axis_diameter,
+            "face {fk:?}: the ring is the cavity half-disc's own boundary — an inner \
+             half-circle plus radial legs that reach the AXIS; got {carriers:?}"
+        );
+        // The outer loop keeps a vertex AT the axis point, and its seam
+        // radial edges run along the very line the ring's diameter lies
+        // on — the ring meets the outer boundary, which no valid
+        // interior ring can.
+        let outer_ends = loop_edge_ends(&cup, f.outer);
+        let outer_touches_axis = outer_ends
+            .iter()
+            .any(|(a, b)| dist_pt(*a, axis_pt) < 1e-9 || dist_pt(*b, axis_pt) < 1e-9);
+        assert!(
+            outer_touches_axis,
+            "face {fk:?}: the outer loop still owns the axis vertex the ring passes through"
+        );
     }
     assert_eq!(ring_faces, 2, "both half-discs came back");
-    assert_eq!(
-        crossing_faces, 2,
-        "on BOTH half-discs the ring's carrier crosses the face's outer boundary — the \
-         trim is geometrically inconsistent, so this is a wrong body, not a wrong doc"
-    );
     assert_eq!(rings(&cup), 2, "and those are the body's only rings");
 
     // Euler bookkeeping on the returned data reads genus 1 (the
@@ -419,7 +446,8 @@ fn p3_wall1_gap_matches_the_reanchor_closed_form() {
         panic!("not the re-anchor refusal: {error}");
     };
     let r = 5.0 / 64.0;
-    let want = r - ((4.0 / 64.0 - t).powi(2) + (1.0 / 64.0 - 4.0 / 64.0).powi(2)).sqrt();
+    let dy: f64 = 1.0 / 64.0 - 4.0 / 64.0;
+    let want = r - ((4.0 / 64.0 - t).powi(2) + dy.powi(2)).sqrt();
     println!("wall-1 gap = {gap}, closed form = {want}");
     assert!(
         (gap - want).abs() < 1e-15,
