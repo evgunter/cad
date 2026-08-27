@@ -2,21 +2,24 @@
 //! door refuses #347's cases, measured rather than assumed, on bodies
 //! this suite authors through the public extrude door.
 //!
-//! Two families, and they meet the SAME door from opposite sides:
+//! Two families, and they no longer share a fate:
 //!
-//! - #347's cylinder unions (coaxial, parallel, Steinmetz) refuse at
-//!   `CurvedPierceUnsupported` — the curved sweep arm's frontier, the
-//!   door D3's containment is built to open.
-//! - #347's bracket bound (`r ≤ 4` passes, `r ≥ 5` refuses) is the
-//!   same frontier reached through the LINE row: the corner round's
-//!   face box is the whole carrier slab (`FaceBoxRule::CylinderSlab`,
-//!   `x ∈ [0, 2r]`), so the pocket's `x = 8` edge becomes a candidate
-//!   exactly when `2r > 8`, and the span-dip clearance bound then
-//!   cannot prove the miss it would have to prove.
+//! - #347's cylinder unions (coaxial, parallel, Steinmetz) STILL refuse
+//!   at `CurvedPierceUnsupported` — the curved sweep arm's frontier.
+//!   That is the crossing layer, not the join, and opening it needs a
+//!   pierce/split substrate that is its own unit; the rows below pin
+//!   the refusals so that unit starts from a measurement.
+//! - #347's bracket bound is GONE. It used to read `r ≤ 4` passes,
+//!   `r ≥ 5` refuses — exactly `2r > 8`, the corner round's CARRIER
+//!   reaching the pocket's `x = 8` wall while its ARC stayed 2 mm
+//!   clear. Both halves of that are retired: the rim arc and the wall
+//!   face are boxed by the arc they occupy rather than the circle they
+//!   ride, and the line-clearance dip clamps its vertex to the
+//!   segment. Every radius cuts, and the rows meter the result.
 //!
-//! The last row is the **no-crossings silence**: a cylinder pair whose
-//! walls cross in one closed loop touching no edge of either operand
-//! reaches the vertex probe with no extent certificate.
+//! One row is the **no-crossings silence**: a cylinder pair whose walls
+//! cross in one closed loop touching no edge of either operand reaches
+//! the vertex probe with no extent certificate, and refuses typed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -107,30 +110,57 @@ fn the_coaxial_boss_refuses_at_the_point_split_carrier_door() {
     );
 }
 
-/// #347's measured bound, reproduced through the Rust doors: the
-/// bracket's pocket cut passes at `r ≤ 4 mm` and refuses at `r ≥ 5 mm`,
-/// which is exactly `2r > 8` — the corner round's CARRIER slab reaching
-/// the pocket's `x = 8` wall. The refusal names a LINE edge of the
-/// pocket against the round's cylinder face.
+/// **#347's bound is GONE, and the flip is this row.** It used to
+/// assert what the substrate measured: the pocket cut passed at
+/// `r ≤ 4 mm` and refused at `r ≥ 5 mm`, which is exactly `2r > 8` —
+/// the corner round's CARRIER reaching the pocket's `x = 8` wall while
+/// the round's own ARC stayed 2 mm clear. Two conservatisms in series
+/// produced that: the rim arc and the wall face were both boxed by the
+/// whole circle they ride, which made the pocket edge a candidate at
+/// all; and the line-clearance dip charged a centred-vertex dip to an
+/// edge whose nearest approach is an endpoint.
+///
+/// Both are trim-scoped now, so every radius cuts — and the row meters
+/// the RESULT rather than merely asserting the absence of a refusal: a
+/// door that opened onto a wrong body would pass an `is_ok` check.
+/// The closed form is `bracket.py`'s own: an 80×40 plate less what four
+/// corner rounds of radius `r` take off, times 8 thick, less the
+/// pocket's 5 mm bite.
 #[test]
-fn the_bracket_bound_is_the_carrier_slab_not_the_arc() {
+fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
     let tol = Tol::witness();
-    for r_mm in [3.0_f64, 4.0] {
-        let plate = rounded_plate(80.0, 40.0, r_mm, 8.0);
+    for r in [3.0_f64, 4.0, 5.0, 6.0] {
+        let plate = rounded_plate(80.0, 40.0, r, 8.0);
         let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
-        topo::subtract(&plate, &pocket, tol)
-            .unwrap_or_else(|e| panic!("r = {r_mm} mm must cut: {e:?}"));
-    }
-    for r_mm in [5.0_f64, 6.0] {
-        let plate = rounded_plate(80.0, 40.0, r_mm, 8.0);
-        let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
-        let err = topo::subtract(&plate, &pocket, tol)
-            .expect_err("the carrier-slab candidate refuses today");
+        let out = topo::subtract(&plate, &pocket, tol)
+            .unwrap_or_else(|e| panic!("r = {r} mm must cut: {e:?}"));
+        let topo::BooleanResult::Body(bb) = out else {
+            panic!("r = {r} mm: the cut cannot empty the plate");
+        };
+        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        // Plate area less the four corner bites, times the thickness,
+        // less the pocket's 20×20×5 bite.
+        let expect =
+            (80.0 * 40.0 - r * r * (4.0 - core::f64::consts::PI)) * 8.0 - 20.0 * 20.0 * 5.0;
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-            "r = {r_mm} mm: {err:?}"
+            (v - expect).abs() < 1e-9,
+            "r = {r} mm: metered {v}, closed form {expect}"
         );
     }
+}
+
+/// #347's own headline radius, called out on its own so the issue can
+/// be closed against a named row: **the bracket rounds at 6 mm.**
+#[test]
+fn the_bracket_rounds_at_six_millimetres() {
+    let tol = Tol::witness();
+    let out = topo::subtract(
+        &rounded_plate(80.0, 40.0, 6.0, 8.0),
+        &slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0)),
+        tol,
+    )
+    .expect("#347's requested radius cuts");
+    assert!(matches!(out, topo::BooleanResult::Body(_)));
 }
 
 /// **The no-crossings silence, and the posture that closes it.**
@@ -423,4 +453,51 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
         verdicts.iter().all(Option::is_none),
         "a wall closed by a tilted section must get no verdict, got {verdicts:?}"
     );
+}
+
+/// **The dip clamp's own row.** The blinded review found the clamp
+/// shipped unpinned: reverting `bool_line_cylinder_clearance`'s charge
+/// to the unconditional `q/8` left the whole tree green, because the
+/// bracket the clamp was written for stopped being a candidate pair
+/// once the boxes were trim-scoped. Two fixes for one defect, and each
+/// hid the other's evidence.
+///
+/// This is the bracket's shape reduced until only the clamp decides. A
+/// unit wall, and a brick whose lower edges run radially away from it
+/// starting just outside the surface at `y = 0.999`:
+///
+/// - the boxes DO overlap (the brick's edge starts at `x = 0.5`, inside
+///   the wall's `x ∈ [−1, 1]`), so the pair is genuinely examined;
+/// - the line's nearest approach to the axis is its START — the
+///   parabola's vertex sits at `x = 0`, outside the span `[0.5, 2.5]` —
+///   so the true clearance is the endpoint residual, about 0.124 m;
+/// - the endpoint gap `m ≈ 3.0` exceeds `q/2 = 2.0`, so the clamp
+///   charges EXACTLY ZERO and the clearance stands;
+/// - the unconditional `q/8 = 0.5` would swamp 0.124 and refuse.
+///
+/// So this row reds — with `CurvedPierceUnsupported` — the moment the
+/// clamp is reverted, and it is the only row in the tree that does.
+#[test]
+fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
+    let tol = Tol::witness();
+    let wall = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let lp =
+        profile::ProfileLoop::polygon([p2(0.5, 0.999), p2(2.5, 0.999), p2(2.5, 3.0), p2(0.5, 3.0)]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
+    let brick = extrude(
+        &Profile::new(plane, vec![lp]).validate(tol).unwrap(),
+        Extrusion::Distance(0.2),
+        tol,
+    )
+    .unwrap()
+    .body;
+    let out = topo::union(&wall, &brick, tol)
+        .expect("the radial edge clears the wall; only the clamp proves it");
+    let topo::BooleanResult::Body(bb) = out else {
+        panic!("two disjoint solids union into a body");
+    };
+    // Disjoint operands, so the volumes add: π·1²·2 + 2.0·2.001·0.2.
+    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let expect = core::f64::consts::PI * 2.0 + 2.0 * 2.001 * 0.2;
+    assert!((v - expect).abs() < 1e-9, "metered {v}, expected {expect}");
 }

@@ -473,3 +473,39 @@ Board: **every M9 unit is merged.** Remaining: the exit walk —
 criteria vs evidence, the honesty rows, and the closure affordance
 to Evan. Open items it inherits: #1032, #1031, #1038, #968, #974,
 #975, and `m9/census-xid` still stranded against #943.
+
+## M9 CLOSED (walk ratified #1041 at b8f55b34, 2026-08-27)
+
+Evan ratified `docs/M9-EXIT-WALK.md` AS WRITTEN, which is the
+milestone's done-state of record. Two consequences the affordance
+put to him explicitly and the ratification therefore carries: **the
+lily's no-join outcome stands as an honest milestone RESULT**, not a
+shortfall to be made good later; and **#427's Q3 pushback window
+passed unexercised**, so the authority record's home closes as
+adopted — per-edge KERNEL data — with the post-M9 pcurve migration.
+
+What M9 built: the declared-contact vocabulary (M9-1), the A5
+at-rest census door (M9-2, closing #382), the OQ5 refusal migration
+(M9-0, closing #459), the pcurve unification design pass ratified as
+U2 (M9-D), the revolve pole-key emitter (D1), the join lane itself
+with M9-4's mark-wiring folded in (M9-3), and the lily rebuild with
+the two-peg plate cell (M9-5). A′ PlacedUnion went to LIB with M9
+retaining design ownership.
+
+What M9 leaves, each with a named owner in the walk's carried table:
+#1032 (cylindrical-only declared `Rest` never reaches the rest
+lane), #1031 (axis-touching planar caps born as the F7 defect),
+#1038 (a comparison gate stops comparing when the corpus outgrows
+its reference — audit half executed by VERBS, the gate fix still
+open), #968, #943 gap 2 with `m9/census-xid` recorded as a stranded
+start, #974, #975, and lily walls 2/7/8.
+
+The milestone's own methodological residue, recorded because it
+outlived the units: two standing rules landed mid-flight — a class
+finding gets a durable home AT ADJUDICATION time (#1027), and the
+foreground rule needs its `setsid` exception in every brief (#1036)
+— both bought by failures inside this milestone rather than
+theorised.
+
+**The kernel program's next milestone is M10 (error propagation,
+C5's contract items), unopened and unscheduled at this entry.**

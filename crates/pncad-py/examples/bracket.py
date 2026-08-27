@@ -35,12 +35,15 @@ import tempfile
 from pncad import BooleanOp, Doc, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
-# The plate's corner radius. It is BOUNDED at 4 mm, and the bound is
-# the pocket's: a corner round of radius r rides a carrier circle
-# spanning x in [0, 2r], and a Boolean refuses when a cutter's plane
-# crosses that carrier — even where it stays clear of the arc itself.
-# The pocket's x = 8 mm wall therefore requires 2r <= 8.
-CORNER = 3 * mm
+# The plate's corner radius: the natural one for this plate. It was
+# held at 3 mm while the kernel boxed a corner round by the whole
+# CARRIER circle it rides (x in [0, 2r]) rather than by the quarter arc
+# it occupies, which made the pocket's x = 8 mm wall a candidate against
+# the round whenever 2r > 8 and refused the cut. That is fixed (#1044:
+# the conic edge box and the wall face box are trim-scoped, and the
+# line-clearance bound clamps its vertex to the segment), so the bound
+# is gone and the demo asks for what it actually wants.
+CORNER = 6 * mm
 
 
 def rounded_plate(doc, width, height, radius, thickness):

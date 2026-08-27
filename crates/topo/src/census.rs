@@ -1216,12 +1216,27 @@ pub(crate) fn face_reach<T: Decide>(
             // axial extremes lie ON the boundary, but not
             // necessarily at a boundary VERTEX.
             let h = boundary_axial(body, f, origin, axis)?;
-            Some(span_pts(crate::boolean::boxes::slab_extent(
+            let slab = span_pts(crate::boolean::boxes::slab_extent(
                 &crate::boolean::boxes::SpanBox::point(origin),
                 &crate::boolean::boxes::SpanBox::vector(axis),
                 h,
                 radius,
-            )))
+            ));
+            // The azimuth clip, mirroring the boolean lane's
+            // `clip_to_boundary` — the slab is the whole turn, the face
+            // is a patch of it, and the boundary's own reach bounds the
+            // patch's footprint perpendicular to the axis (azimuth is a
+            // chart coordinate, so it takes no interior extremum). Both
+            // lanes must clip the same way or
+            // `the_two_box_lanes_agree_face_for_face` reds — which is
+            // exactly that row's job.
+            Some(match boundary_reach(body, f) {
+                Some((blo, bhi)) => (
+                    Point3::new(slab.0.x.max(blo.x), slab.0.y.max(blo.y), slab.0.z),
+                    Point3::new(slab.1.x.min(bhi.x), slab.1.y.min(bhi.y), slab.1.z),
+                ),
+                None => slab,
+            })
         }
         crate::boolean::boxes::FaceBoxRule::ConeSlab {
             apex,
@@ -1295,6 +1310,11 @@ fn boundary_axial<T: Decide>(
                             v_ref: SpanBox::vector(c_axis.cross(u_ref)),
                             semi_u,
                             semi_v,
+                            params: body
+                                .curves
+                                .get(e.curve)
+                                .and_then(CurveGeom::certified)
+                                .map(geom_brep::EdgeCurve::params),
                         },
                     };
                     let sp =
@@ -1377,13 +1397,34 @@ fn edge_reach<T: Decide>(
             u_ref,
         } => {
             let v_ref = axis.cross(u_ref);
-            let (flo, fhi) = span_pts(crate::boolean::boxes::conic_extent(
-                &crate::boolean::boxes::SpanBox::point(center),
-                &crate::boolean::boxes::SpanBox::vector(u_ref),
-                &crate::boolean::boxes::SpanBox::vector(v_ref),
-                semi_u,
-                semi_v,
-            ));
+            // The ARC's own extent, not the closed conic's — the same
+            // construction the boolean lane reads, so the two cannot
+            // drift (`the_two_box_lanes_agree_face_for_face` is what
+            // says so). A carrier with no certified parameters has no
+            // arc to scope and keeps the full-turn amplitude.
+            let params = body
+                .curves
+                .get(e.curve)
+                .and_then(CurveGeom::certified)
+                .map(geom_brep::EdgeCurve::params);
+            let (flo, fhi) = span_pts(match params {
+                Some((t0, t1)) => crate::boolean::boxes::arc_extent(
+                    &crate::boolean::boxes::SpanBox::point(center),
+                    &crate::boolean::boxes::SpanBox::vector(u_ref),
+                    &crate::boolean::boxes::SpanBox::vector(v_ref),
+                    crate::boolean::boxes::Span::exact(semi_u),
+                    crate::boolean::boxes::Span::exact(semi_v),
+                    t0,
+                    t1,
+                ),
+                None => crate::boolean::boxes::conic_extent(
+                    &crate::boolean::boxes::SpanBox::point(center),
+                    &crate::boolean::boxes::SpanBox::vector(u_ref),
+                    &crate::boolean::boxes::SpanBox::vector(v_ref),
+                    semi_u,
+                    semi_v,
+                ),
+            });
             Some((
                 Point3::new(
                     flo.x.min(chord.0.x),
