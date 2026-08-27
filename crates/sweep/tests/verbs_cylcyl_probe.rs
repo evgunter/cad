@@ -2,21 +2,24 @@
 //! door refuses #347's cases, measured rather than assumed, on bodies
 //! this suite authors through the public extrude door.
 //!
-//! Two families, and they meet the SAME door from opposite sides:
+//! Two families, and they no longer share a fate:
 //!
-//! - #347's cylinder unions (coaxial, parallel, Steinmetz) refuse at
-//!   `CurvedPierceUnsupported` — the curved sweep arm's frontier, the
-//!   door D3's containment is built to open.
-//! - #347's bracket bound (`r ≤ 4` passes, `r ≥ 5` refuses) is the
-//!   same frontier reached through the LINE row: the corner round's
-//!   face box is the whole carrier slab (`FaceBoxRule::CylinderSlab`,
-//!   `x ∈ [0, 2r]`), so the pocket's `x = 8` edge becomes a candidate
-//!   exactly when `2r > 8`, and the span-dip clearance bound then
-//!   cannot prove the miss it would have to prove.
+//! - #347's cylinder unions (coaxial, parallel, Steinmetz) STILL refuse
+//!   at `CurvedPierceUnsupported` — the curved sweep arm's frontier.
+//!   That is the crossing layer, not the join, and opening it needs a
+//!   pierce/split substrate that is its own unit; the rows below pin
+//!   the refusals so that unit starts from a measurement.
+//! - #347's bracket bound is GONE. It used to read `r ≤ 4` passes,
+//!   `r ≥ 5` refuses — exactly `2r > 8`, the corner round's CARRIER
+//!   reaching the pocket's `x = 8` wall while its ARC stayed 2 mm
+//!   clear. Both halves of that are retired: the rim arc and the wall
+//!   face are boxed by the arc they occupy rather than the circle they
+//!   ride, and the line-clearance dip clamps its vertex to the
+//!   segment. Every radius cuts, and the rows meter the result.
 //!
-//! The last row is the **no-crossings silence**: a cylinder pair whose
-//! walls cross in one closed loop touching no edge of either operand
-//! reaches the vertex probe with no extent certificate.
+//! One row is the **no-crossings silence**: a cylinder pair whose walls
+//! cross in one closed loop touching no edge of either operand reaches
+//! the vertex probe with no extent certificate, and refuses typed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -450,4 +453,51 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
         verdicts.iter().all(Option::is_none),
         "a wall closed by a tilted section must get no verdict, got {verdicts:?}"
     );
+}
+
+/// **The dip clamp's own row.** The blinded review found the clamp
+/// shipped unpinned: reverting `bool_line_cylinder_clearance`'s charge
+/// to the unconditional `q/8` left the whole tree green, because the
+/// bracket the clamp was written for stopped being a candidate pair
+/// once the boxes were trim-scoped. Two fixes for one defect, and each
+/// hid the other's evidence.
+///
+/// This is the bracket's shape reduced until only the clamp decides. A
+/// unit wall, and a brick whose lower edges run radially away from it
+/// starting just outside the surface at `y = 0.999`:
+///
+/// - the boxes DO overlap (the brick's edge starts at `x = 0.5`, inside
+///   the wall's `x ∈ [−1, 1]`), so the pair is genuinely examined;
+/// - the line's nearest approach to the axis is its START — the
+///   parabola's vertex sits at `x = 0`, outside the span `[0.5, 2.5]` —
+///   so the true clearance is the endpoint residual, about 0.124 m;
+/// - the endpoint gap `m ≈ 3.0` exceeds `q/2 = 2.0`, so the clamp
+///   charges EXACTLY ZERO and the clearance stands;
+/// - the unconditional `q/8 = 0.5` would swamp 0.124 and refuse.
+///
+/// So this row reds — with `CurvedPierceUnsupported` — the moment the
+/// clamp is reverted, and it is the only row in the tree that does.
+#[test]
+fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
+    let tol = Tol::witness();
+    let wall = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let lp =
+        profile::ProfileLoop::polygon([p2(0.5, 0.999), p2(2.5, 0.999), p2(2.5, 3.0), p2(0.5, 3.0)]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
+    let brick = extrude(
+        &Profile::new(plane, vec![lp]).validate(tol).unwrap(),
+        Extrusion::Distance(0.2),
+        tol,
+    )
+    .unwrap()
+    .body;
+    let out = topo::union(&wall, &brick, tol)
+        .expect("the radial edge clears the wall; only the clamp proves it");
+    let topo::BooleanResult::Body(bb) = out else {
+        panic!("two disjoint solids union into a body");
+    };
+    // Disjoint operands, so the volumes add: π·1²·2 + 2.0·2.001·0.2.
+    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let expect = core::f64::consts::PI * 2.0 + 2.0 * 2.001 * 0.2;
+    assert!((v - expect).abs() < 1e-9, "metered {v}, expected {expect}");
 }

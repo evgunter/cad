@@ -355,29 +355,36 @@ fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
     );
 }
 
-/// #347's bracket at r = 5, verified at the MECHANISM rather than the
-/// door — **and the mechanism is now retired, so the row asserts its
-/// absence at the same two datums.**
+/// #347's bracket verified at the MECHANISM rather than the door —
+/// **and the mechanism is now retired, so the row asserts its absence
+/// at the same two datums.**
 ///
 /// As written for the substrate, this row pinned the refusal's payload:
 /// the pocket's `y = 10` LINE edge (whose x-span `[8, 28]` entered the
-/// corner CARRIER's slab) against the corner-round CYLINDER face at
-/// `(5, 5)`, `r = 5`. Keeping it green by keeping the refusal is not an
-/// option a moved baseline allows, so it is re-aimed rather than
-/// deleted: the same two entities are looked up by geometry, and what
-/// is asserted is that their BOXES no longer meet. That is the precise
-/// claim the trim-scoped conic edge box and wall face box make, it
-/// fails if either scoping regresses, and it says something the
-/// whole-op row (`the_bracket_rounds_at_every_radius_and_meters_exactly`)
-/// cannot: WHY the cut runs.
+/// corner CARRIER's slab) against the corner-round CYLINDER face.
+/// Keeping it green by keeping the refusal is not an option a moved
+/// baseline allows, so it is re-aimed rather than deleted: the same two
+/// entities are looked up by geometry, and what is asserted is that
+/// they are no longer a candidate PAIR.
+///
+/// **At `r = 6`, not `r = 5`, and the radius is load-bearing.** The
+/// blinded review measured the `r = 5` form green under a REVERTED
+/// scoping, which makes it no regression guard at all: the round at
+/// `(5, 5)` has a carrier slab of `x, y ∈ [0, 10]`, so its regressed
+/// box is exactly TANGENT to the pocket edge at `y = 10` and whether
+/// tangency counts as overlap decides the row rather than the scoping
+/// does. At `r = 6` the regressed slab reaches `y = 12`, a strict
+/// overlap, while the trim-scoped arc box stops at `y = 6` — so the row
+/// reds if either level regresses, the face clip or the conic edge box
+/// under it. It is also #347's own headline radius.
 #[test]
-fn the_r5_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
+fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     let tol = Tol::witness();
-    let plate = rounded_plate(80.0, 40.0, 5.0, 8.0);
+    let plate = rounded_plate(80.0, 40.0, 6.0, 8.0);
     let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
 
     // The cut runs at all — the door this row used to name is shut.
-    topo::subtract(&plate, &pocket, tol).expect("r = 5 cuts since the boxes were trim-scoped");
+    topo::subtract(&plate, &pocket, tol).expect("r = 6 cuts since the boxes were trim-scoped");
 
     // The corner round at (5, 5), by geometry rather than by key.
     let corner = plate
@@ -386,13 +393,13 @@ fn the_r5_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
             matches!(
                 plate.get_surface(f.surface),
                 Some(geom::Surface::Cylinder { origin: o, radius, .. })
-                    if (*radius - 5.0).abs() < 1e-9
-                        && (o.x - 5.0).abs() < 1e-9
-                        && (o.y - 5.0).abs() < 1e-9
+                    if (*radius - 6.0).abs() < 1e-9
+                        && (o.x - 6.0).abs() < 1e-9
+                        && (o.y - 6.0).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
-        .expect("the corner round at (5, 5)");
+        .expect("the corner round at (6, 6)");
 
     // The pocket's y = 10 wall edge, likewise.
     let wall_edge = pocket

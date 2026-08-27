@@ -1058,6 +1058,17 @@ fn curved_face_arm<T: Decide>(
                 geom_brep::circle_residual_curvature_bound(&surface, center, axis, radius, u_ref)
                     .map_or(carrier_margin, |f2| {
                         let (t0, t1) = curve.params();
+                        // The line row's vertex CLAMP does not port
+                        // here, and the reason is the curve: along a
+                        // line the residual is exactly quadratic, so
+                        // "the vertex is outside the span" is a
+                        // statement about a parabola and is decided by
+                        // the endpoint gap alone. Along a circle it is
+                        // a degree-≤2 TRIGONOMETRIC polynomial with up
+                        // to four critical parameters, so an endpoint
+                        // gap says nothing about where its minimum
+                        // sits. The unclamped chord-dip charge is what
+                        // is available without solving for them.
                         let dip = f2 * (t1 - t0).powi(2) * T::from_f64(0.125);
                         let r_u = geom_brep::implicit_residual(&surface, pu);
                         let r_v = geom_brep::implicit_residual(&surface, pv);
@@ -1187,12 +1198,22 @@ fn curved_face_arm<T: Decide>(
         // computation in `max` and `min`:
         //   dip ≤ max(0, q/2 − |m|) / 4
         // — no division, EXACTLY ZERO when the vertex is outside the
-        // segment, exact again at the centred vertex (`m = 0` gives
-        // `q/8`, the true worst case), and never more than a factor
-        // two loose between. The old `q/8` charged the centred-vertex
-        // dip to every edge whatever its endpoint gap, which is what
-        // made a pocket wall 2 mm clear of a corner round read as a
-        // pierce (#347's measured `r ≥ 5` bound).
+        // segment, and exact again at the centred vertex (`m = 0`
+        // gives `q/8`, the true worst case).
+        //
+        // Between those two it is loose, and the looseness is worth
+        // stating truthfully rather than flatteringly: the ratio of
+        // charge to true dip is `q / (2(q/2 − |m|))`, which is 1 at
+        // `m = 0`, 4 at `m = 3q/8`, and UNBOUNDED as `|m|` approaches
+        // `q/2`. What stays bounded is the ABSOLUTE charge, which
+        // vanishes linearly there — so the multiplicative claim fails
+        // exactly where the quantity being multiplied is going to
+        // zero, and the bound never charges more than `q/8`.
+        //
+        // The old `q/8` charged the centred-vertex dip to every edge
+        // whatever its endpoint gap, which is what made a pocket wall
+        // 2 mm clear of a corner round read as a pierce (#347's
+        // measured `r ≥ 5` bound).
         //
         // Conservative direction is unchanged: a too-large charge only
         // sends more pairs to the typed frontier door, never accepts.

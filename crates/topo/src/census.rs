@@ -1310,6 +1310,11 @@ fn boundary_axial<T: Decide>(
                             v_ref: SpanBox::vector(c_axis.cross(u_ref)),
                             semi_u,
                             semi_v,
+                            params: body
+                                .curves
+                                .get(e.curve)
+                                .and_then(CurveGeom::certified)
+                                .map(geom_brep::EdgeCurve::params),
                         },
                     };
                     let sp =
@@ -1407,8 +1412,8 @@ fn edge_reach<T: Decide>(
                     &crate::boolean::boxes::SpanBox::point(center),
                     &crate::boolean::boxes::SpanBox::vector(u_ref),
                     &crate::boolean::boxes::SpanBox::vector(v_ref),
-                    semi_u,
-                    semi_v,
+                    crate::boolean::boxes::Span::exact(semi_u),
+                    crate::boolean::boxes::Span::exact(semi_v),
                     t0,
                     t1,
                 ),
