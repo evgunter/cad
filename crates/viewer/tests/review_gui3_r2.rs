@@ -57,7 +57,11 @@ fn rect(w: f64, h: f64) -> Node<ProfileProgram> {
     })
 }
 
-fn push(doc: &Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
+fn push(
+    doc: &Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
@@ -308,7 +312,12 @@ fn opening_a_file_and_saving_it_straight_back_reproduces_its_bytes() {
             .is_none()
     );
     let again = dir.join("again.pncad");
-    assert!(reopened.perform(SessionOp::Save(again.clone())).refusal.is_none());
+    assert!(
+        reopened
+            .perform(SessionOp::Save(again.clone()))
+            .refusal
+            .is_none()
+    );
     let second = std::fs::read_to_string(&again).expect("the file is readable");
     assert_eq!(first, second, "open → save with no edits changed the bytes");
 
@@ -355,7 +364,12 @@ fn a_save_taken_after_an_undo_persists_only_the_path_the_cursor_is_on() {
     session.perform(SessionOp::Undo);
 
     let file = dir.join("short.pncad");
-    assert!(session.perform(SessionOp::Save(file.clone())).refusal.is_none());
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
     assert_eq!(
         session.history().len(),
         4,
