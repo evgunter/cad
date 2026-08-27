@@ -116,10 +116,8 @@ impl ViewerApp {
     /// than opening an empty window — an empty viewport is the one
     /// failure mode a user cannot diagnose.
     pub fn new(cc: &eframe::CreationContext<'_>, tol: Tol) -> Result<Self, StartupError> {
-        let delta =
-            DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
-        let (document, _root) =
-            scene::plate_with_hole(tol).map_err(StartupError::Document)?;
+        let delta = DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
+        let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
         let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
 
@@ -127,8 +125,7 @@ impl ViewerApp {
             .wgpu_render_state
             .as_ref()
             .ok_or(StartupError::NoWgpuRenderState)?;
-        let renderer =
-            ViewportRenderer::new(&render_state.device, render_state.target_format);
+        let renderer = ViewportRenderer::new(&render_state.device, render_state.target_format);
         render_state
             .renderer
             .write()
@@ -213,15 +210,15 @@ impl eframe::App for ViewerApp {
         });
 
         egui::CentralPanel::no_frame().show(ui, |ui| {
-                let mut behavior = ViewerBehavior {
-                    document: &self.document,
-                    delta: self.delta,
-                    scene: &self.scene,
-                    revision: self.revision,
-                    camera: &mut self.camera,
-                    input: self.input,
-                    status: &mut self.status,
-                };
+            let mut behavior = ViewerBehavior {
+                document: &self.document,
+                delta: self.delta,
+                scene: &self.scene,
+                revision: self.revision,
+                camera: &mut self.camera,
+                input: self.input,
+                status: &mut self.status,
+            };
             self.tree.ui(&mut behavior, ui);
         });
     }
@@ -409,11 +406,8 @@ pub fn initial_layout() -> Tree<Pane> {
     let side = tiles.insert_tab_tile(vec![recipe, view]);
     // Three quarters of the width to the viewport: the side panel is
     // GUI-3's seat, not this unit's subject.
-    let linear = egui_tiles::Linear::new_binary(
-        egui_tiles::LinearDir::Horizontal,
-        [viewport, side],
-        0.75,
-    );
+    let linear =
+        egui_tiles::Linear::new_binary(egui_tiles::LinearDir::Horizontal, [viewport, side], 0.75);
     let root = tiles.insert_container(egui_tiles::Container::Linear(linear));
     Tree::new("viewer_tree", root, tiles)
 }

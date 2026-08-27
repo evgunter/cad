@@ -25,8 +25,8 @@
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProfileProgram,
-    ProductError, RecipeNodeId, apply, evaluate, product,
+    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProductError,
+    ProfileProgram, RecipeNodeId, apply, evaluate, product,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
@@ -163,8 +163,8 @@ impl SceneMesh {
             }
         }
         let indices = (0..positions.len() as u32).collect();
-        let bounds = Aabb::from_points(mesh.positions.iter().copied())
-            .ok_or(SceneError::EmptyMesh)?;
+        let bounds =
+            Aabb::from_points(mesh.positions.iter().copied()).ok_or(SceneError::EmptyMesh)?;
         Ok(Self {
             positions,
             normals,
@@ -223,13 +223,8 @@ impl SceneMesh {
 /// an `EditError` would be a worse example than one that reports it.
 pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
     // 60 × 40 × 8 mm, hole ⌀24 mm on centre. Canonical metres.
-    let outline = LoopProgram::polygon([
-        (0.0, 0.0),
-        (0.060, 0.0),
-        (0.060, 0.040),
-        (0.0, 0.040),
-    ])
-    .map_err(SceneDocError::Dimension)?;
+    let outline = LoopProgram::polygon([(0.0, 0.0), (0.060, 0.0), (0.060, 0.040), (0.0, 0.040)])
+        .map_err(SceneDocError::Dimension)?;
     let hole = LoopProgram::Circle {
         centre: [length(0.030)?, length(0.020)?],
         radius: length(0.012)?,

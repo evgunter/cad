@@ -286,14 +286,7 @@ impl Camera {
         let half_h = (half_v.tan() * aspect).atan();
         let half = half_v.min(half_h);
         let distance = radius * FRAMING_MARGIN / half.sin();
-        Self::new(
-            centre,
-            distance,
-            self.yaw,
-            self.pitch,
-            self.fov_y,
-            radius,
-        )
+        Self::new(centre, distance, self.yaw, self.pitch, self.fov_y, radius)
     }
 
     /// The point the view orbits.
