@@ -505,8 +505,27 @@ pub enum ValidationError {
     /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
     /// exemption by the predicate, like every other one here.)
     TransverseNotIntrinsic {
-        /// The definitely-transverse edge whose description is
-        /// conventional.
+        /// The definitely-transverse edge whose locus the modeler
+        /// declared.
+        edge: EdgeKey,
+    },
+    /// Tier 3, **the transience fence** (U2's Q2 as corrected by Evan
+    /// 2026-08-27): a body at rest carries an edge still described by
+    /// the SCAFFOLDING door — a sketch pushforward standing in for a
+    /// description while the edge's surfaces do not exist yet.
+    ///
+    /// The door is legal and load-bearing: an Euler-op ring's null
+    /// edges and a sweep's struts are certified before any surface
+    /// they could be charted in exists. What makes it legal is that
+    /// they are TRANSIENT. An edge that reaches a valid body has two
+    /// faces, so it has a chart, so it can say where its locus lies —
+    /// and a scaffold at rest says instead that a construction stopped
+    /// half-way and nobody noticed. The fence is transience, not
+    /// "pre-body": `MappedCurve` measurably reached rest through the
+    /// boolean join's re-description lanes and the fillet's struts,
+    /// which is exactly what "pre-body" failed to catch.
+    ScaffoldAtRest {
+        /// The edge still carrying a scaffolding description.
         edge: EdgeKey,
     },
     /// Tier 3, the symmetric must-carry (OQ7's two-level shape, level
@@ -1269,17 +1288,24 @@ impl fmt::Display for ValidationError {
             ),
             Self::TransverseNotIntrinsic { edge } => write!(
                 f,
-                "edge {edge:?} is definitely transverse at every interior sample but \
-                 carries a conventional MappedCurve description — transverse edges must \
+                "edge {edge:?} is definitely transverse at every interior sample but its \
+                 locus is recorded as DECLARED by a sketch entity — transverse edges must \
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
+            ),
+            Self::ScaffoldAtRest { edge } => write!(
+                f,
+                "edge {edge:?} is still described by the scaffolding door (a sketch \
+                 pushforward standing in for a description) in a body at rest — the door \
+                 is for edges whose surfaces do not exist yet, and this edge has two \
+                 faces, so it has a chart to be described in (U2's transience fence)"
             ),
             Self::TangentNotIntrinsic { edge } => write!(
                 f,
                 "edge {edge:?} is a jet-determinate tangency (definitely smooth at \
                  every interior sample, second-order separation definitely positive — \
-                 the surfaces DETERMINE the locus) but carries a conventional \
-                 MappedCurve description — such edges must be described intrinsically \
+                 the surfaces DETERMINE the locus) but its locus is recorded as \
+                 DECLARED by a sketch entity — such edges must be described intrinsically \
                  as the TangentIntersection of their faces' surfaces (prefer-intrinsic \
                  one order up; a G2 join is exempt by its zero-side \
                  second-order margin, never by a list)"
@@ -2039,6 +2065,17 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         else {
             continue;
         };
+        // **The transience fence** (U2's Q2 as corrected): the
+        // scaffolding door is for edges whose surfaces do not exist
+        // yet. This edge has two faces — the lookup above answered —
+        // so it has a chart, and a scaffold here is a construction
+        // that stopped half-way.
+        if matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::Scaffold(_)
+        ) {
+            errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
+        }
         let adjacent = match curve.description() {
             geom_brep::EdgeDescription::Intersection { s1, s2, .. }
             | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
@@ -2054,6 +2091,9 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 c.surface == fs_plus && c.surface == fs_minus
             }
             geom_brep::EdgeDescription::Chart(c) => c.surface == fs_plus || c.surface == fs_minus,
+            // A scaffold names no surface; the fence above is the
+            // complaint it earns, and stacking a second one on the
+            // same edge would report one fault twice.
             geom_brep::EdgeDescription::Scaffold(_) => true,
         };
         if !adjacent {
@@ -4325,7 +4365,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 64;
+        const VARIANTS: usize = 65;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4392,6 +4432,7 @@ mod tests {
                 ValidationError::NonpositiveTorusTube { .. } => 61,
                 ValidationError::ApproxCertification { .. } => 62,
                 ValidationError::ApproxLaneUnsupported { .. } => 63,
+                ValidationError::ScaffoldAtRest { .. } => 64,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4536,6 +4577,7 @@ mod tests {
                 cause: indeterminate(),
             },
             ValidationError::TransverseNotIntrinsic { edge: e },
+            ValidationError::ScaffoldAtRest { edge: e },
             ValidationError::TangentNotIntrinsic { edge: e },
             ValidationError::LoopRoleInverted {
                 face: t.face_a,
