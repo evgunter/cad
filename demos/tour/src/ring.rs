@@ -266,6 +266,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ring.body.edges().count(),
         ring.body.faces().count(),
     );
+    // The census, pinned ABSOLUTELY and not only door-to-door: each
+    // shell is a two-arc profile fully revolved — 2 half-tube walls,
+    // 2 seam meridians, 2 full-period rims, 2 vertices — so the solid
+    // carries twice that. A face reorder cannot move these numbers,
+    // but a face appearing or vanishing fails here rather than only
+    // shifting the tessellation baseline's per-scene total.
+    assert_eq!((v, e, f), (4, 8, 4), "census");
 
     // Finding 1, settled by execution: the same ring through the
     // recipe layer, and the two doors agree entity for entity.
