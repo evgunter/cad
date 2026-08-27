@@ -197,16 +197,19 @@ const SPOUT_DIR: Vec3<f64> = Vec3 {
     z: 0.0,
 };
 
-/// The handle's spine radius — half the chord between its two roots on
-/// the belly wall, so the unextended window is exactly a semicircle.
+/// The handle's spine radius: half the chord between its two roots on
+/// the belly wall, so the unextended window is exactly a semicircle and
+/// the handle stands one radius clear of the pot at its widest. The
+/// roots span 46.875 mm of the belly's 78.125 mm of height.
 const HANDLE_R: f64 = 6.0 / 256.0;
 /// The handle's tube radius.
 const HANDLE_TUBE: f64 = 1.0 / 128.0;
 /// The handle's spine centre, ON the belly wall at the belly's own
-/// mid-height.
+/// mid-height — so the semicircle's two ends land on the wall and its
+/// far side stands `HANDLE_R` proud of it.
 const HANDLE_C: Point3<f64> = Point3 {
     x: R_BELLY,
-    y: 14.0 / 256.0,
+    y: (Y_FOOT + Y_SHOULDER) / 2.0,
     z: 0.0,
 };
 /// How far past the semicircle each end of the handle runs, in radians
@@ -281,7 +284,7 @@ fn bellied_meridian(tol: Tol) -> ProfileLoop<f64> {
         .expect("the foot")
         .arc_to(
             Center {
-                c: Point2::new(0.0, 1.0 / 16.0),
+                c: Point2::new(0.0, Y_MOUTH / 2.0),
                 winding: ArcSweep::Ccw,
                 p: Point2::new(R_NECK, Y_MOUTH),
             },
@@ -506,9 +509,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // is vacuous and `wall_clearance` is what stands in for it: every
     // antiparallel non-adjacent planar pair must clear 2t. The OUTWARD
     // normal is the stored one turned by the face's sense bit, which is
-    // what the gate reads and what a scan that trusted the surface
-    // alone would get wrong — three of this pot's four planar charts
-    // store `+y`.
+    // what the gate reads and what a scan trusting the surface alone
+    // would get wrong: a revolve stores its caps' planes with one
+    // normal and lets the face's orientation say which way each looks,
+    // so a sense-blind scan finds NO antiparallel pair on this pot at
+    // all. The count that stored `+y` goes in the note, measured.
     let planes: Vec<(f64, f64)> = sharp
         .faces()
         .filter_map(|(_, f)| match sharp.get_surface(f.surface) {
@@ -518,6 +523,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             _ => None,
         })
         .collect();
+    let stored_plus = planes.len()
+        - sharp
+            .faces()
+            .filter(|(_, f)| {
+                matches!(sharp.get_surface(f.surface),
+                    Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
+            })
+            .count();
     let mut clearance = f64::INFINITY;
     for (i, a) in planes.iter().enumerate() {
         for b in &planes[i + 1..] {
@@ -932,8 +945,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              walls need {:.7} m, so `wall_clearance` — which is what stands in for a \
              plane's vacuous reach margin — does not bind; the tightest cylinder has \
              {reach} m of realized inner radius left. Note the sense bit in that scan: \
-             three of this pot's four planar charts STORE +y and only the face's own \
-             orientation says which way each looks. THE BELLY IS SQUARED, AND THAT IS \
+             {stored_plus} of this pot's {} planar FACES store a +y normal and only the \
+             face's own orientation says which way each looks, so a sense-blind scan \
+             finds no antiparallel pair here at all. THE BELLY IS SQUARED, AND THAT IS \
              THE SCENE'S FIRST FINDING: the same pot with its shoulders turned into one \
              sphere zone REFUSES (wall 1) — and so does a cone frustum, and so does a \
              triangular prism, so the class is OBLIQUE junctions and not curvature \
@@ -942,7 +956,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              passes tiers 1-3, but each designated half-disc comes back carrying a full \
              RING, the result is genus {} where the verb's own docs say a cup is genus \
              0, and it will not tessellate (wall 2) — so the scene ships the SEALED \
-             hollow, which is why this teapot has no opening. THE LID. 5/10/5 sharp — an \
+             hollow, which is why this teapot has no opening. AND THE SEALED HOLLOW \
+             CANNOT LEAVE AS STEP: a multi-shell CURVED solid refuses \
+             CurvedShellClassification, the standing gate this scene declares at the \
+             body and probes on every pass — the fourth live probe of one gate, with \
+             klein's wall 6, `ring`'s and `hollowtorus`'s, all four retiring together. \
+             Its manifest entry carries a null step, so the OCC lane — whose subject is \
+             FreeCAD re-tessellating OUR STEP — draws this cell from the lid, the spout \
+             and the handle and says the pot was skipped, rather than substituting the \
+             STL and putting a cell in that montage that LOOKS like OCC evidence and is \
+             none. THE LID. 5/10/5 sharp — an \
              ANNULAR profile mints one FULL wall per segment where the pot's \
              axis-touching profile mints half-walls — and 6/12/6 rolled, the annulus \
              band's own (+1, +2, +1). The band is the ring-free torus ({band_major}, \
@@ -971,6 +994,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             props.surface_area,
             voids[0].volume,
             2.0 * WALL,
+            planes.len(),
             genus(&cup),
             R_KNOB - ROLL,
         )),
