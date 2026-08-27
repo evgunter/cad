@@ -1028,12 +1028,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
 
     /// This carrier's spec view (for re-certification).
     fn spec(&self) -> EdgeCurveSpec<T> {
-        EdgeCurveSpec {
-            description: self.restated_description(),
-            carrier: self.carrier.clone(),
-            param_start: self.param_start,
-            param_end: self.param_end,
-        }
+        self.restated_spec()
     }
 }
 
@@ -1050,6 +1045,20 @@ impl<T: Real> EdgeCurve<T> {
     /// nothing else, so its image is whatever that chart's own mint
     /// makes it, which is what keeps a seam a seam when the chart
     /// underneath it moves.
+    /// This edge restated as the SPEC a construction would hand in —
+    /// description ([`EdgeCurve::restated_description`]), carrier and
+    /// interval, all verbatim. The door a consumer goes through to
+    /// move an edge's DESCRIPTION without touching its geometry.
+    #[must_use]
+    pub fn restated_spec(&self) -> EdgeCurveSpec<T> {
+        EdgeCurveSpec {
+            description: self.restated_description(),
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+        }
+    }
+
     #[must_use]
     pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
         let declared = match self.authority {
