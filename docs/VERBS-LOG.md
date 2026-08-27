@@ -1732,3 +1732,26 @@ is unblocked. Lane swept. Also banked: the zero-jobs queued run
 superseded run with mergeable CLEAN and never start; an
 empty-commit re-roll reads as docs-only; a real code commit is
 the reliable re-roll).
+
+## DEMO2 REPORTED GREEN; ORDINAL 83 CLAIMED, REVIEW DISPATCHED (2026-08-27)
+
+Three scenes (#1054): hollowelbow (the bore visible opaque; the
+cross-scene mesh pin — the hollow door's outer walls face-for-face
+equal to the solid tube's committed 17,152, so a sizing fork
+between the doors now REDS instead of shifting a total),
+hollowtorus (genus 2 through the parameter door; the STEP
+frontier pinned self-retiring on the exact variant — one gate,
+three probes retiring together with klein wall 6 and ring), and
+budfillet (the fillets proven by assertions, not pixels: census
+3×(+1,+2,+1), the spine re-derived from scene constants, ΔV
+bracketed by the corner-square Pappus bound). Two refusals
+pinned, not worked around: the natural three-rim spelling
+refuses (mouth+lip share the pucker cone — the grain is one call
+per disjoint-support set, and the surviving lip+bore one-call
+case is pinned too); the bore-rim selector gap gets one more
+register consumer. #986's four-face prediction measured six (the
+wedge caps are faces). 18 baseline rows pure-additive per the
+runbook. Ordinal 83 claimed (main at #1060's merge); single
+fable review dispatched against frozen head 27a6efba, aimed at
+the pins' TEETH (would the mesh pin actually red on a door
+fork?) and the independent re-derivations.
