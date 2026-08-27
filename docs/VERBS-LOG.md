@@ -1635,3 +1635,26 @@ bracket width in the pruning direction (fix: widen). NOTE-3
 invokes the class rule on three unswept siblings; NOTE-4 adopts
 the bracket.py 6mm flip as the unit's own point. Fix pass
 dispatched with probe adoption; reviewer lane swept.
+
+## OFF-D PR-2 REPORTED GREEN; ORDINAL 82 CLAIMED, REVIEW DISPATCHED (2026-08-27)
+
+Shell exists (#1048): sealed = the degenerate no-crossing arm
+exactly as ratified (every chart's inward offset assembled and
+handed to insert_void with the collapse meter's own decides as
+Carried{Positive}; no SSI, no census, pinned structurally);
+opened = the counterpart lifted OUTWARD onto the designated
+face's surface then kfmrh — the rim is a plain ring loop on an
+existing surface, genus rises, nothing opens; the adjudication
+fence untripped. Klein re-authoring recorded blocked-not-retired
+on the absent plane×torus C5 arm (closed form, scheduled) — with
+cone×cylinder, the two arms the whole revolved demo corpus waits
+on (banked). Three root-cause deviations fixed in place (the
+chart-group door replace_faces_offset; the WitnessMidpoint
+re-anchor; revert's plane-normal trap). #1019 measured: tens of
+ms release, the O(n²) term invisible; the issue's own wanted
+fixture measured UNBUILDABLE (Approx faces cannot move) — posted
+to #1019. Ordinal 82 claimed; single fable review dispatched
+against frozen head 259fde04, aimed hardest at the one possible
+wrong-answer hideout: the per-face-local evidence vs global
+clearance (over-thick slab, colliding-cavity dumbbell — the
+failure must be LOUD).
