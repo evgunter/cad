@@ -2741,7 +2741,19 @@ mod tests {
     fn probe_arc_extent_contains_adversarial_arcs() {
         let tilt = Vec3::new(1.0, 2.0, 3.0).normalize();
         let (tu, tv) = tilt.orthonormal_basis();
-        let cases: Vec<(&str, Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64, f64)> = vec![
+        /// One sampled arc case: name, centre, the two reference
+        /// directions, the two semi-axes, and the parameter span.
+        type ArcCase = (
+            &'static str,
+            Point3<f64>,
+            Vec3<f64>,
+            Vec3<f64>,
+            f64,
+            f64,
+            f64,
+            f64,
+        );
+        let cases: Vec<ArcCase> = vec![
             // near-full turn, extrema mid-segment (phase 0.1)
             (
                 "near-full-turn",
