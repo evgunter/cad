@@ -54,44 +54,64 @@ fn probe_nested_instance_overlap_at_three_prime() {
     );
 }
 
-/// PROBE (claim 3): a bogus PATCH record naming the two touching
-/// coplanar faces of a stacked-cube assembly. The face-granularity
-/// backing rung will treat the corner v-v events as SUBORDINATE to the
-/// record — the probe checks the record itself cannot silently bless
-/// the assembly (its own confirm must refuse somehow: contradicted,
-/// stale, escalated, or unsupported).
+/// PROBE (claim 3): a PATCH record naming two coplanar faces of a
+/// stacked-cube assembly. The face-granularity backing rung treats the
+/// v-v events those faces hold as SUBORDINATE to the record, so the
+/// record's own confirmation is all that stands between a fabricated
+/// record and a blessed assembly.
+///
+/// **RE-BLESSED at #1063, deliberately, fixture UNMOVED** — the same
+/// correction as `m9_2_census_door.rs`'s R1 twin, and for the same
+/// reason. The original record is TRUE about this geometry (two
+/// stacked cubes really are in conformal rest contact at z = 1), and
+/// the probe passed only because Door 2 declined every cross-key pair
+/// regardless of what the record said. The row now states both halves
+/// on the one fixture: the true record certifies, the fabricated one
+/// is refused.
 #[test]
 fn probe_bogus_planar_patch_record_never_silently_blesses() {
     let a = cube_scaled_at(1.0, 0.0, 0.0, 0.0);
     let b = cube_scaled_at(1.0, 0.0, 0.0, 1.0);
     let body = assembly(&a, &b);
-    // The touching pair: A's top face (z = 1, outward +z) and B's
+    // The interface pair: A's top face (z = 1, outward +z) and B's
     // bottom face (z = 1, outward -z).
-    let mut top = None;
-    let mut bottom = None;
-    for (k, f) in body.faces() {
-        if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface)
-            && (origin.z - 1.0).abs() < 1e-12
-        {
-            let out = if f.sense { *normal } else { -*normal };
-            if out.z > 0.5 {
-                top = Some(k);
-            } else if out.z < -0.5 {
-                bottom = Some(k);
+    let z_facing = |z: f64, sign: f64| {
+        let mut found = None;
+        for (k, f) in body.faces() {
+            if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
+                let out = if f.sense { *normal } else { -*normal };
+                if (origin.z - z).abs() < 1e-12 && out.z * sign > 0.5 {
+                    found = Some(k);
+                }
             }
         }
-    }
-    let mut records = ContactRecords::default();
-    records.patches.push(PatchContact {
-        face_a: top.expect("A top"),
-        face_b: bottom.expect("B bottom"),
-    });
+        found.expect("a z-facing planar face")
+    };
+    let patch = |fa, fb| ContactRecords {
+        patches: vec![PatchContact {
+            face_a: fa,
+            face_b: fb,
+        }],
+        ..ContactRecords::default()
+    };
+    let records = patch(z_facing(1.0, 1.0), z_facing(1.0, -1.0));
     let verdict = validate_pseudomanifold(&body, &records, Tol::witness());
-    println!("bogus planar patch verdict: {verdict:?}");
+    println!("interface patch verdict: {verdict:?}");
+    assert_eq!(
+        verdict,
+        Ok(()),
+        "the interface record is true about this geometry: the declared \
+         pair's shared world carrier certifies it (#1063)"
+    );
+    // The fabrication, on the same fixture: the two OUTER faces, two
+    // metres apart. Nothing about the backing rung may rescue it.
+    let fake = patch(z_facing(0.0, -1.0), z_facing(2.0, 1.0));
+    let verdict = validate_pseudomanifold(&body, &fake, Tol::witness());
+    println!("fabricated patch verdict: {verdict:?}");
     assert!(
         verdict.is_err(),
         "MAJOR if this fails: a fabricated patch record silently blessed \
-         a touching assembly while suppressing its corner events"
+         an assembly while suppressing the events its faces hold"
     );
 }
 
