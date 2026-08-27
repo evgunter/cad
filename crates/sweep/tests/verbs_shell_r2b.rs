@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
@@ -135,11 +135,17 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
             .map(|&(rad, y0, y1)| core::f64::consts::PI * rad * rad * (y1 - y0))
             .sum()
     };
+    // The cavity is the boundary offset inward by `t` — every STEP
+    // plane moves by `t` along its own normal too, so the stations
+    // shift as well as the radii: the outward step at y = 0.20 faces
+    // DOWN and moves up to 0.23; the inward step at y = 0.40 faces UP
+    // and moves down to 0.37; the base moves up to `t`; the mouth
+    // plane does not move, because the mouth is open.
     let solid = stack(&[(0.30, 0.0, 0.20), (0.44, 0.20, 0.40), (0.34, 0.40, h)]);
     let cav = stack(&[
-        (0.30 - t, t, 0.20),
-        (0.44 - t, 0.20, 0.40),
-        (0.34 - t, 0.40, h),
+        (0.30 - t, t, 0.20 + t),
+        (0.44 - t, 0.20 + t, 0.40 - t),
+        (0.34 - t, 0.40 - t, h),
     ]);
     let props = topo::mass_properties(&cup, tol).expect("props");
     println!(
