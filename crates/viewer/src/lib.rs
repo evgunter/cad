@@ -53,8 +53,10 @@
 pub mod camera;
 pub mod docio;
 pub mod evalseam;
+pub mod frame;
 pub mod history;
 pub mod input;
+pub mod pick;
 pub mod props;
 pub mod scene;
 pub mod session;
@@ -73,8 +75,14 @@ pub use evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluat
 #[cfg(not(target_family = "wasm"))]
 pub use evalseam::{SpawnError, ThreadEvaluator};
 pub use history::{History, HistoryId};
-pub use input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+pub use pick::{
+    Highlight, IdMap, IdMapError, PatchId, PickError, PickIndex, PickIndexError, cursor_projection,
+    highlight,
+};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
-pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, SceneStats};
-pub use session::{DocSession, Landing, OpOutcome, Refusal, Selection, SessionOp};
+pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
+pub use session::{
+    DocSession, FaceSelection, Landing, OpOutcome, Refusal, Selection, SessionOp, Standing,
+};
 pub use tree::{RowStatus, TreeRow};
