@@ -49,6 +49,10 @@ mod verbs_offc_consumer;
 mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
+#[path = "shellfix1_r1_probes.rs"]
+mod shellfix1_r1_probes;
+#[path = "shellfix1_bitdump.rs"]
+mod shellfix1_bitdump;
 
 #[path = "bitdump.rs"]
 mod bitdump;
