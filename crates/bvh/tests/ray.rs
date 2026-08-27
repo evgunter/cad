@@ -40,7 +40,7 @@ fn items(cands: &[RayCandidate]) -> Vec<usize> {
 #[test]
 fn zero_direction_on_slab_boundary_is_a_candidate() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
-    // dir.x = 0, origin.x == min_x = 0: t0 = 0 · ∞ = NaN on x.
+    // dir.x = 0, origin.x == min_x = 0: on the closed bound = inside.
     let r = ray([0.0, 0.5, -1.0], [0.0, 0.0, 1.0]);
     let out = tree.ray(&r);
     assert_eq!(items(&out), vec![0]);
@@ -115,7 +115,7 @@ fn entry_beyond_f64_range_stays_a_candidate_with_finite_t_enter() {
 }
 
 /// A negative-zero direction component behaves like positive zero
-/// (`1/−0.0 = −∞`): on-boundary stays a candidate through the NaN arm.
+/// (`−0.0 == 0.0` takes the exact arm): on-boundary stays a candidate.
 #[test]
 fn negative_zero_direction_on_boundary_is_a_candidate() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
