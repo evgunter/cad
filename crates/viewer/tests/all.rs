@@ -49,6 +49,8 @@ mod panel_edits;
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
+#[path = "review_gui2_r1.rs"]
+mod review_gui2_r1;
 #[path = "review_gui3_r1.rs"]
 mod review_gui3_r1;
 #[path = "review_gui3_r2.rs"]
