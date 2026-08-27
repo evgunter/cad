@@ -41,6 +41,8 @@ mod aggregator_headers;
 mod determinism;
 #[path = "ray.rs"]
 mod ray;
+#[path = "ray_r2.rs"]
+mod ray_r2;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 

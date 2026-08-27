@@ -91,6 +91,10 @@ test-utils = { path = "../test-utils" }
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
+# The GUI-1 pick differential's varying seed + effort dial
+# (memories/test-suite-cost): a dependency-free leaf crate, dev-only,
+# the same harness row every other randomized sweep in the tree takes.
+test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
