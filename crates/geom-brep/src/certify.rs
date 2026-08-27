@@ -1810,8 +1810,229 @@ mod tests {
         (keys, move |k| map.get(k).cloned())
     }
 
+    /// **D2's measured row, fixture `cylinder-seam`: 0 ULP.** The
+    /// seam arm traded the implicit-form residual for
+    /// `|C − S(P)|` and the recorded maximum did NOT move
+    /// (2.5000002068509275e-10 m either way): on a cylinder the
+    /// implicit residual IS the radial drift, and so is the distance
+    /// to the chart image of the same drifted ruling. Measured, not
+    /// assumed — the two are different expressions that happen to
+    /// agree bitwise on this class.
+    const D2_SEAM_ULPS: i64 = 0;
+    /// **D2's measured row, fixture `plane-iso-offset-t0`: 1907 ULP**
+    /// (legacy 2.5000002068519134e-10 m, now 2.5000002068509275e-10 m
+    /// — a move of ~1e-21 m, eleven orders below ε).
+    ///
+    /// This is the move D2 predicted and forbade laundering: the
+    /// legacy expression walked `v0 + (v1 − v0)·frac` on the SCHEDULE
+    /// FRACTION, while a `Pcurve` is by contract a function of the
+    /// carrier's own parameter, so the collapsed meter evaluates
+    /// `(v0 − slope·t0) + slope·t`. The two are equal in ℝ and not in
+    /// `f64`. The fixture's interval deliberately does not start at
+    /// zero, which is what makes the difference visible at all.
+    const D2_ISO_ULPS: i64 = 1907;
+
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
         EdgeCurveSpec::line_between(p0, p1)
+    }
+
+    // ------------------------------------------------------------------
+    // **D2's bit-diff row**: the collapse's effect on
+    // `Certificate.max_residual`, MEASURED per fixture rather than
+    // asserted.
+    //
+    // The three pre-collapse conventional forms did not measure the
+    // same thing — a seam stated its on-surface residual through the
+    // IMPLICIT form, an iso curve through `|C − S(u, v)|` with `v`
+    // affine in the SCHEDULE FRACTION, a mapped source against a
+    // pushforward with no surface at all — so a single meter cannot
+    // reproduce all three bit for bit, and pinning it per lane would
+    // re-import the per-class branching the collapse exists to
+    // remove. What is owed instead is honesty: each fixture's delta
+    // is measured here, in ULPs, and moves only when the arithmetic
+    // moves.
+    //
+    // Each row states the legacy expression VERBATIM — not a
+    // re-association chosen to make a number match — and compares it
+    // against what certification now records.
+    // ------------------------------------------------------------------
+
+    /// ULP distance between two finite same-sign `f64`s.
+    fn ulps(a: f64, b: f64) -> i64 {
+        let (x, y) = (a.to_bits() as i64, b.to_bits() as i64);
+        (x - y).abs()
+    }
+
+    /// The pre-collapse SEAM meter, verbatim: endpoint pins, then per
+    /// sample the implicit-form residual and the two seam predicates.
+    fn legacy_seam_max(
+        spec: &EdgeCurveSpec<f64>,
+        surface: &Surface<f64>,
+        start: Point3<f64>,
+        end: Point3<f64>,
+    ) -> f64 {
+        let (t0, t1) = (spec.param_start, spec.param_end);
+        let mut m = spec.carrier.eval(t0).distance(start);
+        m = m.max(spec.carrier.eval(t1).distance(end));
+        for i in 0..CERT_SAMPLES {
+            let p = spec.carrier.eval(sample_param(t0, t1, i));
+            m = m.max(implicit_residual(surface, p).abs());
+            if let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
+                m = m.max(w.dot(v_ref).abs());
+                m = m.max((0.0 - w.dot(u_ref)).max(0.0).abs());
+            }
+        }
+        m
+    }
+
+    /// The pre-collapse ISO meter, verbatim — `v0 + (v1 − v0)·frac`
+    /// on the schedule FRACTION, which is the arithmetic order the
+    /// collapse necessarily changes (a `Pcurve` is a function of the
+    /// carrier's own parameter).
+    fn legacy_iso_max(
+        spec: &EdgeCurveSpec<f64>,
+        surface: &Surface<f64>,
+        u: f64,
+        v0: f64,
+        v1: f64,
+        start: Point3<f64>,
+        end: Point3<f64>,
+    ) -> f64 {
+        let (t0, t1) = (spec.param_start, spec.param_end);
+        let mut m = spec.carrier.eval(t0).distance(start);
+        m = m.max(spec.carrier.eval(t1).distance(end));
+        for i in 0..CERT_SAMPLES {
+            let p = spec.carrier.eval(sample_param(t0, t1, i));
+            let frac = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            let v = v0 + (v1 - v0) * frac;
+            m = m.max(p.distance(surface.eval(u, v)));
+        }
+        m
+    }
+
+    #[test]
+    fn d2_bit_diff_row_is_measured_per_fixture() {
+        // ---- Fixture "cylinder-seam": the seam ruling of a radius-2
+        // cylinder about +z, seam at +x. Legacy: implicit residual +
+        // the two predicates. Now: |C − S(P)| + the same two
+        // predicates (D1 keeps them).
+        let r = 2.0;
+        let cyl = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let (keys, lookup) = table(vec![cyl]);
+        // Perturbed INSIDE the band: an exact ruling makes every meter
+        // answer a bitwise zero, which measures nothing. `d` is the
+        // radial drift a real construction leaves behind, and it is
+        // what the two meters disagree about.
+        let d = eps() * 0.25;
+        let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
+        let seam_spec = EdgeCurveSpec {
+            description: EdgeGeometry::Seam { surface: keys[0] },
+            carrier: Curve3::Line {
+                origin: p0,
+                dir: Vec3::unit_z(),
+            },
+            param_start: 0.0,
+            param_end: 3.0,
+        };
+        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, band())
+            .expect("the seam certifies")
+            .certificate;
+        let legacy = legacy_seam_max(&seam_spec, &lookup(keys[0]).unwrap(), p0, p1);
+        let seam_delta = ulps(cert.max_residual, legacy);
+
+        // ---- Fixture "plane-iso-offset-t0": an iso curve of a PLANE
+        // chart over an interval that does NOT start at zero — the
+        // case that isolates the re-parameterization, since the
+        // legacy expression walks the schedule fraction and the
+        // collapsed one walks the carrier parameter.
+        let plane = Surface::Plane {
+            origin: Point3::new(0.25, -0.5, 1.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (pk, plookup) = table(vec![plane]);
+        let (u, v0, v1) = (0.3_f64, 0.7_f64, 2.9_f64);
+        let s_at = |v: f64| plookup(pk[0]).unwrap().eval(u, v);
+        let (q0, q1) = (s_at(v0), s_at(v1));
+        // The carrier is arc-length parameterized, so the interval's
+        // length is the chord's; only its OFFSET is free, and a
+        // nonzero offset is the whole point of the fixture.
+        let t0 = 1.7_f64;
+        let t1 = t0 + q0.distance(q1);
+        let dir = (q1 - q0) / q0.distance(q1);
+        // The same in-band drift, off the chart in the surface's own
+        // normal: the residual the two arithmetic orders evaluate.
+        let drift = Vec3::unit_z() * (eps() * 0.25);
+        let iso_spec = EdgeCurveSpec {
+            description: EdgeGeometry::IsoCurve {
+                surface: pk[0],
+                u,
+                v0,
+                v1,
+            },
+            carrier: Curve3::Line {
+                origin: q0 + drift - dir * t0,
+                dir,
+            },
+            param_start: t0,
+            param_end: t1,
+        };
+        let iso_cert =
+            EdgeCurve::certify(iso_spec.clone(), q0 + drift, q1 + drift, &plookup, band())
+                .expect("the plane iso certifies")
+                .certificate;
+        let iso_legacy = legacy_iso_max(
+            &iso_spec,
+            &plookup(pk[0]).unwrap(),
+            u,
+            v0,
+            v1,
+            q0 + drift,
+            q1 + drift,
+        );
+        let iso_delta = ulps(iso_cert.max_residual, iso_legacy);
+
+        // ---- Fixture "mapped-line": the fenced scaffolding arm. Its
+        // meter is untouched by the collapse, so its delta is the
+        // control: it must be exactly zero.
+        let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
+        let mapped = line_spec(a, b);
+        let (_, empty) = table(vec![]);
+        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, band())
+            .expect("the mapped line certifies")
+            .certificate;
+        let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
+        mapped_legacy = mapped_legacy.max(mapped.carrier.eval(mapped.param_end).distance(b));
+        let EdgeGeometry::MappedCurve(mc) = mapped.description else {
+            panic!("line_between describes a MappedCurve");
+        };
+        for i in 0..CERT_SAMPLES {
+            let p = mapped
+                .carrier
+                .eval(sample_param(mapped.param_start, mapped.param_end, i));
+            let s = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            mapped_legacy = mapped_legacy.max(p.distance(mc.eval(s)));
+        }
+        let mapped_delta = ulps(mapped_cert.max_residual, mapped_legacy);
+
+        // The measured row. Pinned, so a later arithmetic change to
+        // the meter has to restate it rather than slip through.
+        assert_eq!(
+            (seam_delta, iso_delta, mapped_delta),
+            (D2_SEAM_ULPS, D2_ISO_ULPS, 0),
+            "D2 bit-diff row moved — cylinder-seam {seam_delta} ULP \
+             (legacy {legacy:e} m, now {:e} m), plane-iso-offset-t0 {iso_delta} ULP \
+             (legacy {iso_legacy:e} m, now {:e} m), mapped-line {mapped_delta} ULP. \
+             Re-measure and RESTATE the row; never re-associate the meter to \
+             make a number match (D2)",
+            cert.max_residual,
+            iso_cert.max_residual,
+        );
     }
 
     #[test]
