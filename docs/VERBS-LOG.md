@@ -1825,3 +1825,18 @@ byte 180, parity 0 → R1 opus + R2 fable, frozen head 5da23569,
 read-side isolation in both briefs. The mixed-arc-and-line loop
 blind spot (half-disc, slot, rounded rectangle still
 polygonized) stated in the PR and left for the register.
+
+## ORDINAL COLLISION WITH PCURVE; PIERCE'S DUAL RENUMBERS 84 → 85 (2026-08-27)
+
+PCURVE claimed 84 for P-1a ON MAIN (#1074) after my PIERCE claim
+had been logged only to this branch — main-is-authority resolves
+it their way (the ASM precedent's rule doing exactly its job).
+PIERCE's dual is ordinal 85: slot byte 180 parity 0 (R1 opus +
+R2 fable), frozen head 5da23569, unchanged otherwise. Process
+correction adopted: ordinal claims now go to main IMMEDIATELY at
+claim time. Separately, BOTH ordinal-85 reviewers died mid-run —
+R1 on an auth gap (the account re-logged), R2 on the fable usage
+limit — and were resumed from transcript per the death-recovery
+rule; if R2's limit still binds at resume, the v6 budget valve
+question opens (every-2nd-row duals) rather than a silent
+downgrade.
