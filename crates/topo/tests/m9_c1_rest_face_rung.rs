@@ -100,6 +100,16 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 /// their regions overlap in no area at all — so every event the
 /// configuration induces lies outside the declared pair's own
 /// interface.
+/// The INSET seat: the post wholly within the shelf's underside, its
+/// cap sharing no boundary with it — how legs are actually set under a
+/// top, and the shape the demo had to author while gap 2 was open.
+fn inset_seat() -> (Body<f64>, FaceKey, FaceKey) {
+    seat(
+        &[(0.10, 0.09), (0.22, 0.09), (0.22, 0.21), (0.10, 0.21)],
+        &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+    )
+}
+
 fn line_contact_seat() -> (Body<f64>, FaceKey, FaceKey) {
     seat(
         &[(0.0, 0.30), (0.12, 0.30), (0.12, 0.42), (0.0, 0.42)],
@@ -107,10 +117,14 @@ fn line_contact_seat() -> (Body<f64>, FaceKey, FaceKey) {
     )
 }
 
-/// The residue a declared face pair leaves at this door whatever the
-/// geometry: the pair's own confirmation, which the cross-key chart
-/// door declines rather than answering. Read in ONE place, so the day
-/// that door answers, every row here moves together.
+/// The residue a declared face pair leaves when its two trims share no
+/// AREA: the confirm door refuses the pair typed. A boundary touch is
+/// not an overlap the area machinery decides in either direction, and
+/// the door says so rather than certifying or refuting.
+///
+/// Since #1063 this is no longer what a CHART-divergent pair earns —
+/// the world carrier answers those (`census_g2_carrier.rs`) — so a row
+/// reaching it now says something about the GEOMETRY.
 fn pair_declined(errors: &[ValidationError], face_a: FaceKey) {
     assert_eq!(
         errors,
@@ -126,6 +140,13 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey) {
 /// INVARIANT: a declared face pair backs every event its own seat
 /// induces, vertex-on-edge and the edge-edge overlap those events
 /// bound included. Nothing about the seat is a hard finding.
+///
+/// **And since #1063 the pair itself CERTIFIES**, so the flush seat —
+/// the obvious way to draw a post under a shelf — leaves no residue at
+/// all. The two descriptions share no `SurfaceKey` and no `GeomSource`;
+/// their shared world carrier is the chart, the region walk refuses the
+/// shared trim edge as a touching boundary, and the interior-witness
+/// rung proves the disc. This is #943's whole repro, certified.
 #[test]
 fn a_declared_flush_seat_leaves_no_undeclared_contact() {
     let (body, post_top, shelf_bottom) = flush_seat();
@@ -135,7 +156,46 @@ fn a_declared_flush_seat_leaves_no_undeclared_contact() {
         "the seat's own induced events are backed by the pair that \
          declared it: {errors:?}"
     );
-    pair_declined(&errors, post_top);
+    assert_eq!(
+        errors,
+        [],
+        "the declared flush seat certifies whole — no residue: {errors:?}"
+    );
+}
+
+/// INVARIANT (argument-order symmetry at the CENSUS, not just at the
+/// predicate): the seat's declaration says the same thing whichever
+/// face it names first. `world_carrier` takes A's frame as the pair's
+/// representative, and the lemma at that function is what makes the
+/// choice invisible in the answer.
+#[test]
+fn the_flush_seat_certifies_in_both_argument_orders() {
+    let (body, post_top, shelf_bottom) = flush_seat();
+    assert_eq!(
+        errors(&body, &declared(post_top, shelf_bottom)),
+        [],
+        "cap first",
+    );
+    assert_eq!(
+        errors(&body, &declared(shelf_bottom, post_top)),
+        [],
+        "underside first",
+    );
+}
+
+/// INVARIANT (acceptance 4: certifying flush must not certify
+/// everything): an INSET seat — the post wholly inside the shelf's
+/// underside, sharing no boundary — certifies too, and by the ordinary
+/// region walk rather than the witness rung. The two seats agreeing is
+/// what retires the demo's inset.
+#[test]
+fn the_inset_seat_certifies_too() {
+    let (body, post_top, shelf_bottom) = inset_seat();
+    assert_eq!(
+        errors(&body, &declared(post_top, shelf_bottom)),
+        [],
+        "an inset seat's trims overlap in plain area",
+    );
 }
 
 /// INVARIANT (the scan-to-bless ban, F1): the rung consults
