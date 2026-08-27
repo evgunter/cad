@@ -13,7 +13,7 @@
 //!   `Curve3::Line`/`Circle` under `MappedCurve::PlacedSegment` and
 //!   certifies today.
 //! - **Wall–wall seams** are the genuinely new class (item 6(iii)):
-//!   [`geom_brep::EdgeDescription::IsoCurve`] over the wall's boundary
+//!   an iso image of over the wall's boundary
 //!   row (`geom_brep::boundary_iso_u` — a control-net copy, no
 //!   arithmetic), certified through the metric residual
 //!   `|C(t) − S(u, v(t))|` at the CERT schedule.

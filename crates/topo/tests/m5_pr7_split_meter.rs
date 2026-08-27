@@ -20,7 +20,7 @@
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
-use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Vec3};

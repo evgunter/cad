@@ -569,7 +569,9 @@ fn nurbs_iso_derive<T: Decide>(
         // that follows, which compares the chart's boundary column
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
-        geom_brep::EdgeDescription::Chart(_) if matches!(carrier, geom::Curve3::Circle { .. }) => {
+        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+            if matches!(carrier, geom::Curve3::Circle { .. }) =>
+        {
             let Some(payload) = surface.spline_chart() else {
                 return Err(refuse("an arc cap rim on a non-spline chart"));
             };
@@ -636,7 +638,9 @@ fn nurbs_iso_derive<T: Decide>(
                 )),
             }
         }
-        geom_brep::EdgeDescription::Chart(_) if matches!(carrier, geom::Curve3::Line { .. }) => {
+        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+            if matches!(carrier, geom::Curve3::Line { .. }) =>
+        {
             let plx = (cu1 - cu0) / span;
             let p0x = cu0 - (cu1 - cu0) * t0 / span;
             let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand), [cv0, cv1])?;
@@ -728,10 +732,10 @@ fn nurbs_iso_derive<T: Decide>(
             }
         }
         _ => Err(refuse(
-            "no iso derivation for this description kind on a NURBS chart — only \
-             IsoCurve seams, boundary-iso Intersection seams, Line cap rims and CIRCLE \
-             cap rims have exact chart images (the trimmed-NURBS pcurve lane is the \
-             cut-loft unit's)",
+            "no iso derivation for this locus on a NURBS chart — only chart images of \
+             this chart, iso-line images of the neighbouring wall, boundary-iso \
+             Intersection seams, and LINE or CIRCLE cap rims have exact chart images \
+             (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
         )),
     }
 }

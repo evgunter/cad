@@ -35,9 +35,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
-use geom_brep::{
-    EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache,
-};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::Body;

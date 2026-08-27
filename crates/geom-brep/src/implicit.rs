@@ -462,7 +462,7 @@ fn circle_residual_harmonics<T: Real>(
 /// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
 /// `w` the radial component of `p` relative to the surface's own
 /// anchor/axis and `v_ref = axis × u_ref` — the pieces the
-/// [`crate::EdgeDescription::Seam`] residuals are built from. `None` for
+/// a seam chart image residuals are built from. `None` for
 /// the plane (not periodic — a seam description on it is malformed) and
 /// for [`Surface::Nurbs`] (unimplemented).
 pub(crate) fn seam_frame<T: Real>(

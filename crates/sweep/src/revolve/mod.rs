@@ -33,7 +33,7 @@
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
-//!   [`geom_brep::EdgeDescription::Seam`] `{ surface }` — except meridians
+//!   the seam image `{ surface }` — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
 //!   plane chart is not periodic, so `Seam` is malformed on it and the
 //!   edge honestly keeps its conventional `MappedCurve` description —

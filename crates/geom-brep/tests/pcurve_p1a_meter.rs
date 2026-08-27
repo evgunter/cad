@@ -13,7 +13,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescription,
+    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec,
     EdgeDescriptionSpec, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve,
     implicit_residual,
 };
@@ -316,7 +316,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 #[cfg(feature = "interval")]
 mod at_intervals {
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescription};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Band, Bounds, Interval, Point3, Real, Vec3};
 
     fn iv(x: f64) -> Interval {

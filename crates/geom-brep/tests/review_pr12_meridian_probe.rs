@@ -7,7 +7,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKey,
+    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey,
     tangent_certificate_lane,
 };
 use geom_core::Tol;

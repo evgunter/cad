@@ -127,7 +127,7 @@ impl<T: Real> std::error::Error for IsoRowError<T> {}
 /// **The `u = const` boundary row of a chart, selected by the stored
 /// parameter** — [`boundary_iso_u`] with the end decided rather than
 /// passed, which is what a consumer holding an
-/// [`crate::EdgeDescription::IsoCurve`]'s `u` actually has.
+/// an iso chart image's `u` actually has.
 ///
 /// Returns the row together with the DOMAIN endpoint it sits at, so
 /// the caller re-states the description against the chart's own float

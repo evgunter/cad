@@ -76,7 +76,7 @@
 //! on the [`JoinLane::BoolPlanar`] arm, the partner wall's, arriving by
 //! value because the planar side has no chart to compute one from.
 
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, chart_pcurve};
+use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use slotmap::SecondaryMap;

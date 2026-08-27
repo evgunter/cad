@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
-use geom_brep::{EdgeDescriptionSpec, Pcurve, PcurveCache};
+use geom_brep::{Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 
 /// The tight band the reviewed row only reaches at

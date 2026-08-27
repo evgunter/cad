@@ -8,7 +8,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
 

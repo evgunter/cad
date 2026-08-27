@@ -15,7 +15,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
