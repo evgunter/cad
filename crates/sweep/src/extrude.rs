@@ -815,11 +815,16 @@ fn sweep_loop<T: Decide>(
             // minted through the scaffolding door because the wall did
             // not exist yet; now it does, so the edge is described
             // where it RESTS — as an image in that one chart (D3's
-            // transience fence). On a PERIODIC wall the strut IS the
-            // chart's parameterization seam and owes D1's two seam
-            // predicates besides; on a plane there is no seam to be.
-            let seam = !matches!(s_prev, Surface::Plane { .. });
-            let spec = EdgeCurveSpec::line_between(qs[j], qs[j] + w).at_rest_in_chart(k_prev, seam);
+            // transience fence).
+            //
+            // NOT as the chart's SEAM, even on a periodic wall: the
+            // seam is the `u_ref` half-plane meridian specifically, and
+            // an extruded wall's chart is not aimed at its own wrap
+            // edge — the wrap lands on the antipodal meridian, where
+            // D1's wrong-side excess is the whole diameter. The strut
+            // is an ordinary chart image and owes the one meter.
+            let spec =
+                EdgeCurveSpec::line_between(qs[j], qs[j] + w).at_rest_in_chart(k_prev, false);
             body.set_edge_curve(struts[j].edge, spec, tol)?;
             continue;
         }
