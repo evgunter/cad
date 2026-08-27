@@ -38,7 +38,11 @@ struct Q {
 
 impl Q {
     fn new(n: i128, d: i128) -> Self {
-        if d < 0 { Self { n: -n, d: -d } } else { Self { n, d } }
+        if d < 0 {
+            Self { n: -n, d: -d }
+        } else {
+            Self { n, d }
+        }
     }
     fn zero() -> Self {
         Self { n: 0, d: 1 }
@@ -270,7 +274,10 @@ fn candidates_are_a_superset_of_the_exact_integer_truth() {
     seen.require(
         "draws with a zero direction component",
         5,
-        &format!("the 0 x inf NaN corner was never entered; {}", fuzz::replay()),
+        &format!(
+            "the 0 x inf NaN corner was never entered; {}",
+            fuzz::replay()
+        ),
     );
     seen.require(
         "draws containing a zero-extent (plane) box",
@@ -441,7 +448,11 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
     };
     let out = tree.ray(&in_face);
     assert_eq!(out.len(), 1, "a ray in a face plane still meets the box");
-    assert!(out[0].t_enter <= 3.0, "t_enter {} is a lower bound", out[0].t_enter);
+    assert!(
+        out[0].t_enter <= 3.0,
+        "t_enter {} is a lower bound",
+        out[0].t_enter
+    );
     // Along the edge x = 1, z = 1, travelling +y.
     let along_edge = Ray {
         origin: Point3::new(1.0, -3.0, 1.0),
@@ -449,7 +460,11 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
     };
     let out = tree.ray(&along_edge);
     assert_eq!(out.len(), 1, "a ray along an edge still meets the box");
-    assert!(out[0].t_enter <= 3.0, "t_enter {} is a lower bound", out[0].t_enter);
+    assert!(
+        out[0].t_enter <= 3.0,
+        "t_enter {} is a lower bound",
+        out[0].t_enter
+    );
     // Grazing a single corner.
     let corner = Ray {
         origin: Point3::new(1.0, 1.0, -3.0),
@@ -531,7 +546,10 @@ fn overflow_in_the_slab_subtraction_drops_a_true_intersection() {
     let t = 3.35e8f64;
     let half = -1e300 * (t * 0.5);
     let x = (1.7e308 + half) + half;
-    assert!(x >= b.min_x && x <= b.max_x, "x({t}) = {x} is inside the box");
+    assert!(
+        x >= b.min_x && x <= b.max_x,
+        "x({t}) = {x} is inside the box"
+    );
     assert!(t >= b.min_y && t <= b.max_y, "y({t}) is inside the box");
     assert_eq!(
         tree.ray(&r).len(),
