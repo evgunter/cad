@@ -1,6 +1,101 @@
 //! **The teapot** — `shell`'s designated demo, and what it measured.
 //!
-//! PLACEHOLDER MODULE DOCS — filled in after the assertions settle.
+//! The register has named this scene since 2026-08-09: *"the Utah
+//! teapot is this verb's designated demo — a vessel is a shelled
+//! revolve; the demo queues behind the verb."* The verb landed at
+//! #1048. This is the demo, and its job is not to look like a teapot:
+//! it is to be the first thing outside `shell`'s own acceptance corpus
+//! that asks the verb for a real part and to report, in numbers, what
+//! came back.
+//!
+//! Four bodies, and they are FOUR SOLIDS rather than one. That is the
+//! honest exit shape (the lily precedent), and everything below says
+//! which parts of it are the kernel's answer and which are the
+//! modeller's:
+//!
+//! - **the pot** — one `revolve` of one meridian, hollowed by `shell`
+//!   into a wall and a cavity in one solid. Drawn see-through, because
+//!   a cavity is invisible in an opaque render at every camera (the
+//!   hollow ring's founding reason, on this verb's own shape).
+//! - **the lid** — a second `revolve`, its knob's top rim rolled
+//!   through the one-edge annulus band. Rendered LIFTED above the
+//!   mouth: an exploded view. No mate is authored and none is implied
+//!   — declared contact is M9's territory, and a scene that faked one
+//!   here would be claiming a certification nothing issued.
+//! - **the spout** — a cone-frustum tube, built about its own axis and
+//!   placed by `transform_rigid`.
+//! - **the handle** — one `tube_along_arc` window, its two roots
+//!   buried in the belly wall.
+//!
+//! # Findings this scene records (the demo-purpose rule)
+//!
+//! 1. **`shell` survives exactly ONE junction shape, and it is not
+//!    about curvature.** The verb replaces one chart at a time and
+//!    re-anchors the neighbours' edges on carriers that have not moved
+//!    yet, so a junction survives exactly when the neighbouring
+//!    surface is invariant under the moved face's own offset motion:
+//!    a plane normal to a cylinder's axis, both ways, and nothing
+//!    else. The pot's belly is therefore SQUARED — foot, shoulder,
+//!    belly, shoulder, neck, all right angles — and the arc a potter
+//!    would draw is wall 1. The class is not curvature: a right prism
+//!    on a TRIANGLE refuses the same way, and a cone frustum between
+//!    two caps refuses the same way, while a box and an L-prism
+//!    hollow. `tests/verbs_teapot.rs` is that table, its sweep, and
+//!    the sweep's stated blind spot. This is not a gap the verb
+//!    announced: `shell`'s acceptance corpus is a box, a cylinder
+//!    between two caps and a tube between two caps — every fixture in
+//!    the surviving class, and the class was never named.
+//! 2. **The OPENED arm is wrong on every solid of revolution.** This
+//!    scene was specified to be `shell_open`'s first consumer past
+//!    acceptance, opening the pot at its mouth so the wall's thickness
+//!    shows as an annular rim. `shell_open` returns a body and the body
+//!    passes tiers 1, 2 and 3 — and each designated half-disc comes
+//!    back carrying a full RING, the result is genus 1 where
+//!    `topo::shell`'s own module docs say *"one opening gives a cup,
+//!    which is genus 0"*, and it will not tessellate: the CDT refuses
+//!    an insertion on a mouth half-disc. That is wall 2, and the table
+//!    shows it is not a tolerance lottery — five wall thicknesses,
+//!    mouth radii from 41 mm to 1 m, three chord budgets, and the
+//!    simplest fixture there is (a cylindrical drum), all the same
+//!    answer. The acceptance corpus opens BOXES, and a box's cap is
+//!    one face; a full revolve's is two half-discs sharing a chart,
+//!    which is exactly the case the rim lift was routed through the
+//!    group door to serve. So the pot ships SEALED, and this teapot
+//!    has no opening — which is the finding, rendered.
+//! 3. **A steam vent is what makes the lid's knob filletable.** The
+//!    one-edge annulus band carves a CLOSED latitude rim, and a full
+//!    revolve mints one only from an ANNULAR profile; a profile that
+//!    touches the axis mints half-walls whose rims are two open arcs.
+//!    So the lid is bored — a vent through the finial, which is a real
+//!    teapot's answer as well as the kernel's — and the pot beside it,
+//!    which touches the axis at both ends, has no filletable rim
+//!    anywhere on it. The register's ARMS-1 row states this bound; the
+//!    scene is where a part met it while trying to be a part.
+//! 4. **The teapot is four solids because the operand gate has no arm
+//!    for either join.** handle ∪ pot is torus × cylinder; spout ∪ pot
+//!    is cone × plane. Both refuse `CurvedPairUnsupported`, pinned in
+//!    walls 3 and 4 with the payload carried verbatim into the panel's
+//!    note. Read what the second one NAMES: the spout's outer cone
+//!    against a PLANE of the pot — not the belly wall the spout
+//!    actually pierces. The gate is pair-scoped and box-conservative,
+//!    so it reports the first pair whose boxes MAY meet, and a reader
+//!    who took the refusal's text for the cause would be reading the
+//!    wrong pair (the wall-7 lesson). The schedule is the banked
+//!    germ-chord lanes and #1057's two C5 arms.
+//! 5. **A spout the shape of a spout is not authorable at all.** What
+//!    a potter draws is a swept curved section — a canal or a loft
+//!    along a bent spine. `sweep_body` cannot round the U-turn a real
+//!    spout takes and there is no variable-section sweep, so the shape
+//!    on screen is a straight cone frustum tilted into place: a spout
+//!    the way a lathe would make one. Recorded as a register note
+//!    rather than worked around, because a hand-built stand-in would
+//!    be evidence about this file and not about the library.
+//!
+//! # What this scene deliberately does NOT do
+//!
+//! No kernel change, no route widened, no gate softened. Every one of
+//! the five findings above is a live probe or an executed table, and
+//! each carries the sentence that retires it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -346,6 +441,45 @@ fn describe<T, E: core::fmt::Debug>(outcome: &Result<T, E>) -> String {
     }
 }
 
+/// The genus of `body` by the Euler–Poincaré identity
+/// `v − e + f − r = 2(s − g)`, summed over shells.
+fn genus(body: &Body<f64>) -> i64 {
+    let (v, e, f) = (
+        body.vertices().count() as i64,
+        body.edges().count() as i64,
+        body.faces().count() as i64,
+    );
+    let r: i64 = body.faces().map(|(_, x)| x.rings.len() as i64).sum();
+    body.shells().count() as i64 - (v - e + f - r) / 2
+}
+
+/// The pot's own stack of cylindrical segments, as `(radius, height)`
+/// pairs — the OUTER solid when `d` is zero, and the sealed cavity's
+/// when `d` is the wall: every radius shrinks by `d`, the belly's
+/// segment loses a wall at each shoulder, and the foot's and the
+/// neck's keep their heights because each is bounded by one shoulder
+/// and one cap, which move the same way.
+fn pot_stack(d: f64) -> [(f64, f64); 3] {
+    [
+        (R_FOOT - d, Y_FOOT),
+        (R_BELLY - d, Y_SHOULDER - Y_FOOT - 2.0 * d),
+        (R_NECK - d, Y_MOUTH - Y_SHOULDER),
+    ]
+}
+
+/// The area of the pot's boundary at inward offset `d`: the base cap,
+/// the three walls, the two shoulder annuli and the mouth cap.
+fn pot_area(d: f64) -> f64 {
+    let [(rf, hf), (rb, hb), (rn, hn)] = pot_stack(d);
+    PI * rf * rf
+        + 2.0 * PI * rf * hf
+        + annulus(rb, rf)
+        + 2.0 * PI * rb * hb
+        + annulus(rb, rn)
+        + 2.0 * PI * rn * hn
+        + PI * rn * rn
+}
+
 // ---------------------------------------------------------------------
 // The scene
 // ---------------------------------------------------------------------
@@ -366,17 +500,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          each cut at the two seam meridians into a pair of half-walls"
     );
 
-    // ---- the gates, MEASURED off the body before the verb runs ----
+    // ---- the gates, MEASURED off the operand before the verb runs ----
     //
     // A plane's own reach is unbounded, so its per-face collapse margin
     // is vacuous and `wall_clearance` is what stands in for it: every
-    // antiparallel non-adjacent planar pair must clear 2t. The curved
-    // faces carry the reach margins that ARE definite. Both are read
-    // off the operand rather than recited from the stations above.
+    // antiparallel non-adjacent planar pair must clear 2t. The OUTWARD
+    // normal is the stored one turned by the face's sense bit, which is
+    // what the gate reads and what a scan that trusted the surface
+    // alone would get wrong — three of this pot's four planar charts
+    // store `+y`.
     let planes: Vec<(f64, f64)> = sharp
         .faces()
         .filter_map(|(_, f)| match sharp.get_surface(f.surface) {
-            Some(Surface::Plane { origin, normal, .. }) => Some((origin.y, normal.y)),
+            Some(Surface::Plane { origin, normal, .. }) => {
+                Some((origin.y, if f.sense { normal.y } else { -normal.y }))
+            }
             _ => None,
         })
         .collect();
@@ -388,6 +526,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             }
         }
     }
+    assert!(
+        clearance.is_finite(),
+        "this pot HAS antiparallel planar pairs — a scan that found none read the \
+         stored normal without its face's sense bit"
+    );
     assert!(
         clearance > 2.0 * WALL,
         "the closest antiparallel planar pair clears {clearance} m and two walls need {}",
@@ -405,95 +548,73 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "every cylinder's realized inner radius is positive; the tightest has {reach} m left"
     );
 
-    // ---- the mouth's CHART, and the opened shell ----
-    let mouth = plane_chart_at(&sharp, Y_MOUTH);
+    // ---- the sealed hollow: the body the scene SHIPS ----
+    let pot = pncad::topo::shell(&sharp, WALL, FIT_TOL, band, tol)
+        .unwrap_or_else(|e| panic!("the pot hollows, got {e}"));
+    let (pv, pe, pf) = (
+        pot.vertices().count(),
+        pot.edges().count(),
+        pot.faces().count(),
+    );
     assert_eq!(
-        mouth.len(),
+        (pv, pe, pf),
+        (28, 52, 28),
+        "the operand's 14/26/14, twice: the cavity is the same boundary offset inward, \
+         inserted whole through the shared void door"
+    );
+    assert_eq!(
+        pot.shells().count(),
         2,
-        "the mouth is one plane worn by TWO half-disc faces — a full revolve's seam \
-         cut — and the rim lift moves a chart as one"
+        "the outer boundary and the cavity, in ONE solid"
     );
-    let cup = pncad::topo::shell_open(&sharp, WALL, &mouth, FIT_TOL, band, tol)
-        .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"));
-    let (cv, ce, cf) = (
-        cup.vertices().count(),
-        cup.edges().count(),
-        cup.faces().count(),
-    );
-    assert_eq!(
-        (cv, ce, cf),
-        (28, 52, 26),
-        "the operand's 14/26/14 doubled, less the mouth's two half-discs, which die in \
-         the rim surgery: the cavity's counterpart is what is consumed, not the \
-         designated face"
-    );
-    assert_eq!(
-        cup.shells().count(),
-        1,
-        "the rim FUSES the cavity into the boundary — a cup is closed and has one shell; \
-         nothing opens (D1's manifold-first stance is untouched)"
-    );
-    let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
-    assert_eq!(
-        rings, 2,
-        "one ring per designated HALF-disc: the chart is lifted as one and each of its \
-         two faces comes back annular"
-    );
-    for k in &mouth {
-        assert_eq!(
-            cup.get_face(*k)
-                .expect("the designated face survives as the rim")
-                .rings
-                .len(),
-            1,
-            "each mouth half-disc carries exactly one ring"
-        );
-    }
+    assert_eq!(genus(&pot), 0, "two sphere-like shells, no handles");
 
-    // ---- the cup against its closed forms ----
-    //
-    // The outer solid is a stack of three cylindrical segments; the
-    // cavity is the same stack shrunk by one wall in every direction,
-    // with the neck's segment running all the way to the MOUTH PLANE
-    // because that is where the lift put the cavity's counterpart.
-    let v_out = stack_volume(&[
-        (R_FOOT, Y_FOOT),
-        (R_BELLY, Y_SHOULDER - Y_FOOT),
-        (R_NECK, Y_MOUTH - Y_SHOULDER),
-    ]);
-    let v_cav = stack_volume(&[
-        (R_FOOT - WALL, Y_FOOT),
-        (R_BELLY - WALL, Y_SHOULDER - Y_FOOT - 2.0 * WALL),
-        (R_NECK - WALL, Y_MOUTH - Y_SHOULDER + WALL),
-    ]);
+    // The wall as a NUMBER, against the two stacks — and the cavity's
+    // capacity asked for DIRECTLY rather than inferred from a
+    // difference, which is the number a potter actually wants.
+    let v_out = stack_volume(&pot_stack(0.0));
+    let v_cav = stack_volume(&pot_stack(WALL));
     let v_want = v_out - v_cav;
-    let a_want = {
-        let outer = PI * R_FOOT * R_FOOT
-            + 2.0 * PI * R_FOOT * Y_FOOT
-            + annulus(R_BELLY, R_FOOT)
-            + 2.0 * PI * R_BELLY * (Y_SHOULDER - Y_FOOT)
-            + annulus(R_BELLY, R_NECK)
-            + 2.0 * PI * R_NECK * (Y_MOUTH - Y_SHOULDER);
-        let inner = PI * (R_FOOT - WALL) * (R_FOOT - WALL)
-            + 2.0 * PI * (R_FOOT - WALL) * Y_FOOT
-            + annulus(R_BELLY - WALL, R_FOOT - WALL)
-            + 2.0 * PI * (R_BELLY - WALL) * (Y_SHOULDER - Y_FOOT - 2.0 * WALL)
-            + annulus(R_BELLY - WALL, R_NECK - WALL)
-            + 2.0 * PI * (R_NECK - WALL) * (Y_MOUTH - Y_SHOULDER + WALL);
-        outer + annulus(R_NECK, R_NECK - WALL) + inner
-    };
-    let cup_props = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
+    let a_want = pot_area(0.0) + pot_area(WALL);
+    let props = pncad::topo::mass_properties(&pot, tol).expect("the pot's props");
     assert!(
-        ((cup_props.volume - v_want) / v_want).abs() < 1e-12,
-        "cup V = {} vs the wall's own closed form {v_want}",
-        cup_props.volume
+        ((props.volume - v_want) / v_want).abs() < 1e-12,
+        "pot V = {} vs the wall's own closed form {v_want}",
+        props.volume
     );
     assert!(
-        ((cup_props.surface_area - a_want) / a_want).abs() < 1e-12,
-        "cup A = {} vs the closed form {a_want}",
-        cup_props.surface_area
+        ((props.surface_area - a_want) / a_want).abs() < 1e-12,
+        "pot A = {} vs the closed form {a_want}",
+        props.surface_area
     );
-    assert_eq!(cup_props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    let classes = pncad::topo::classify_shells(&pot, tol).expect("per-shell classification");
+    let voids: Vec<_> = classes
+        .iter()
+        .filter(|c| c.role == pncad::topo::ShellRole::Void)
+        .collect();
+    assert_eq!(
+        voids.len(),
+        1,
+        "one cavity, one Void shell — DECIDED, not declared"
+    );
+    assert!(
+        ((voids[0].volume + v_cav) / v_cav).abs() < 1e-12,
+        "the pot holds {} m³ against the cavity stack's own {v_cav}, negated by the \
+         orientation convention",
+        voids[0].volume
+    );
+    let outers: Vec<_> = classes
+        .iter()
+        .filter(|c| c.role == pncad::topo::ShellRole::Outer)
+        .collect();
+    assert_eq!(outers.len(), 1, "one outer boundary");
+    assert!(
+        ((outers[0].volume - v_out) / v_out).abs() < 1e-12,
+        "the outer shell encloses {} m³ against the outer stack's {v_out}",
+        outers[0].volume
+    );
+    let capacity_l = v_cav * 1000.0;
 
     // ---- the lid ----
     let plain_lid = revolved(lid_meridian(tol), tol);
@@ -546,9 +667,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         }
     };
     // The band re-derived from the two tangency conditions rather than
-    // read back from the arm: on a cylinder of radius R_KNOB the ball's
-    // centre rides at R_KNOB - r; on a plane ⊥ the axis it rides r
-    // below it. Both are lines in the meridian and they cross once.
+    // read back from the arm that minted it: on a cylinder of radius
+    // R_KNOB the rolling ball's centre rides at R_KNOB - r; on a plane
+    // normal to the axis it rides r below it. Both are lines in the
+    // meridian half-plane, and they cross once.
     assert!(
         (band_minor - ROLL).abs() < 1e-12 && (band_major - (R_KNOB - ROLL)).abs() < 1e-12,
         "the band is the torus (R_KNOB - roll, roll) = ({}, {ROLL}); got ({band_major}, \
@@ -565,9 +687,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "a curved band is ring-free: one cycle, two closed trim circles and a slit"
     );
 
-    // The SHARP lid against its closed forms — the dome by Archimedes,
-    // the rest by the stack — and the roll then bounded against that
-    // twin rather than against a remembered number.
+    // The SHARP lid against its closed forms — the dome's area by
+    // Archimedes, the rest by the stack — and the roll then bounded
+    // against that twin rather than against a remembered number.
     let (v_dome, a_dome) = zone(DOME_R, DOME_C, LID_BASE, Y_KNOB);
     let v_lid = v_dome + stack_volume(&[(R_KNOB, Y_TOP - Y_KNOB)])
         - stack_volume(&[(R_VENT, Y_TOP - LID_BASE)]);
@@ -608,7 +730,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         + annulus(SPOUT_R1, SPOUT_R1 - SPOUT_WALL);
     let spout_props = pncad::topo::mass_properties(&spout, tol).expect("the spout's props");
     // Asserted AFTER the placement, which is the point: the closed
-    // forms are stated in the spout's OWN frame and the rigid map is
+    // forms are stated in the spout's OWN frame, so the rigid map is
     // what has to have left them alone.
     assert!(
         ((spout_props.volume - v_spout) / v_spout).abs() < 1e-12,
@@ -654,21 +776,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // ---- the walls ----
     //
     // Every one of these is ATTEMPTED here, on every pass, and pinned
-    // by its own EXACT typed refusal: a different refusal or a success
-    // fails the tour, so the findings list above cannot rot behind a
-    // frontier that moved.
+    // by its own EXACT typed refusal: a different refusal, or a
+    // success, fails the tour — so the findings list in the module
+    // docs cannot rot behind a frontier that moved.
 
     // WALL 1 — the pot the model wanted. The stepped meridian above is
     // not a stylistic choice; it is what survives, and this is where
     // that is measured rather than claimed.
     let bellied = revolved(bellied_meridian(tol), tol);
-    let bellied_mouth = plane_chart_at(&bellied, Y_MOUTH);
     crate::walls::wall(
         "teapot",
         1,
-        "shell the pot with a BELLY — the same widest radius, the same mouth, the \
+        "hollow the pot with a BELLY — the same widest radius, the same mouth, the \
          shoulders turned into one sphere zone about a centre on the axis",
-        pncad::topo::shell_open(&bellied, WALL, &bellied_mouth, FIT_TOL, band, tol),
+        pncad::topo::shell(&bellied, WALL, FIT_TOL, band, tol),
         |e| {
             matches!(
                 e,
@@ -676,24 +797,63 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     if matches!(**b, ReplaceFaceError::ReanchorOffCarrier { .. })
             )
         },
-        "replace `vessel_meridian` with `bellied_meridian` — one arc for three \
-         segments — re-derive the cup's closed forms from the zone rather than the \
-         stack, and delete this probe together with the junction table in \
-         `tests/verbs_teapot.rs`",
+        "replace `vessel_meridian` with `bellied_meridian` — one arc for three segments \
+         — re-derive the pot's closed forms from the spherical zone rather than the \
+         cylinder stack, and delete the junction table in `tests/verbs_teapot.rs` with \
+         this probe",
     );
 
-    // WALL 2 — the handle joined to the pot. A curved x curved pair at
-    // the operand gate; the germ roster has no arm for it.
-    //
-    // Each union is run ONCE and its refusal is carried into the
-    // panel's note verbatim, so the number in the caption and the
-    // number the probe pinned cannot be two different measurements.
-    let handle_union = pncad::topo::union(&cup, &handle, tol);
-    let handle_refusal = describe(&handle_union);
+    // WALL 2 — the OPENED mouth. `shell_open` returns Ok and the body
+    // passes tiers 1-3, so this probe is not on the verb: it is on
+    // what the result turns out to be. Two measurements, and the
+    // second is the one that stops the scene shipping it.
+    let mouth = plane_chart_at(&sharp, Y_MOUTH);
+    assert_eq!(
+        mouth.len(),
+        2,
+        "the mouth is one PLANE worn by two half-disc faces — a full revolve's seam cut \
+         — and the rim lift moves a chart as one"
+    );
+    let cup = pncad::topo::shell_open(&sharp, WALL, &mouth, FIT_TOL, band, tol)
+        .unwrap_or_else(|e| panic!("the opened arm still returns a body, got {e}"));
+    assert_eq!(
+        pncad::topo::validate_geometric(&cup, tol),
+        Ok(()),
+        "and it still passes tier 3, which is exactly why the defect below needs a probe"
+    );
+    let cup_rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+    assert_eq!(
+        (cup_rings, genus(&cup)),
+        (2, 1),
+        "MEASURED, not wanted: the rim surgery gives EACH designated half-disc a full \
+         ring, and the result is genus 1 where `topo::shell`'s own module docs say \
+         \"one opening gives a cup, which is genus 0\". When this reads (0, 0) the \
+         chart-group rim lift has been fixed on a revolved cap: retire wall 2, ship the \
+         OPENED pot as the scene's vessel instead of the sealed one, and move the \
+         `step_at_frontier` pin — a one-shell cup exports"
+    );
     crate::walls::wall(
         "teapot",
         2,
-        "join the handle to the vessel (union, both roots buried in the belly wall)",
+        "tessellate the pot opened at its mouth (the body `shell_open` returned)",
+        pncad::mesh::tessellate(&cup, DELTA, tol),
+        |e| matches!(e, pncad::mesh::TessellateError::Triangulation { .. }),
+        "ship the OPENED pot as the vessel and drop the sealed one — see the assertion \
+         above this probe, which is the same retirement",
+    );
+
+    // WALL 3 — the handle joined to the pot. A curved x curved pair at
+    // the operand gate; the germ roster has no arm for it.
+    //
+    // Each union is run ONCE and its refusal carried into the panel's
+    // note verbatim, so the payload the caption quotes and the payload
+    // the probe pinned cannot be two different measurements.
+    let handle_union = pncad::topo::union(&pot, &handle, tol);
+    let handle_refusal = describe(&handle_union);
+    crate::walls::wall(
+        "teapot",
+        3,
+        "join the handle to the vessel (union; both roots buried in the belly wall)",
         handle_union,
         |e| {
             matches!(
@@ -707,23 +867,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 }
             )
         },
-        "make the teapot ONE solid: union the handle and the spout into the vessel, \
-         drop these two probes, and re-state the montage caption, which currently says \
-         four solids",
+        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
+         walls 3 and 4, and re-state the montage caption, which currently says four solids",
     );
 
-    // WALL 3 — the spout joined to the pot. A DIFFERENT pair, and it
+    // WALL 4 — the spout joined to the pot. A DIFFERENT pair, and it
     // is not the pair the model cares about: the gate is pair-scoped
-    // and box-conservative, so the face it names is the first whose
-    // box MAY meet one of the other operand's — here the spout's outer
-    // cone against the pot's base disc, not the belly wall the spout
-    // actually pierces.
-    let spout_union = pncad::topo::union(&cup, &spout, tol);
+    // and box-conservative, so the faces it names are the first whose
+    // boxes MAY meet — here the spout's outer cone against a PLANE of
+    // the pot, not the belly wall the spout actually pierces.
+    let spout_union = pncad::topo::union(&pot, &spout, tol);
     let spout_refusal = describe(&spout_union);
     crate::walls::wall(
         "teapot",
-        3,
-        "join the spout to the vessel (union, the root buried in the belly)",
+        4,
+        "join the spout to the vessel (union; the root buried in the belly)",
         spout_union,
         |e| {
             matches!(
@@ -737,131 +895,119 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 }
             )
         },
-        "make the teapot ONE solid: union the handle and the spout into the vessel, \
-         drop these two probes, and re-state the montage caption, which currently says \
-         four solids",
-    );
-
-    // WALL 4 — the SEALED pot as STEP. The cup shipped below is one
-    // shell and exports; seal the same shell instead of opening it and
-    // the body is a multi-shell CURVED solid, which the writer's
-    // outward/void classifier has closed forms for planar faces only.
-    // This is the fourth live probe of ONE gate, and they retire
-    // together.
-    let sealed = pncad::topo::shell(&sharp, WALL, FIT_TOL, band, tol)
-        .unwrap_or_else(|e| panic!("the pot seals, got {e}"));
-    assert_eq!(
-        sealed.shells().count(),
-        2,
-        "sealed: the outer boundary and the cavity, in one solid"
-    );
-    crate::walls::wall(
-        "teapot",
-        4,
-        "export the SEALED pot (a curved two-shell solid) as AP214 STEP",
-        pncad::step_export::step_string(
-            &sealed,
-            &pncad::step_export::StepOptions {
-                product_name: "teapotsealed".into(),
-                ..Default::default()
-            },
-            tol,
-        ),
-        |e| {
-            matches!(
-                e,
-                pncad::step_export::StepExportError::CurvedShellClassification { .. }
-            )
-        },
-        "retire ALL FOUR probes of this one gate together: klein's WALL 6, the `ring` \
-         scene's `step_at_frontier`, `tubewall::hollowtorus`'s, and this one — and \
-         update docs/KERNEL-VERBS.md's hollow-ring STEP row, which names them",
+        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
+         walls 3 and 4, and re-state the montage caption, which currently says four solids",
     );
 
     vec![Stop {
         name: "teapot",
-        caption: "THE TEAPOT (FOUR solids: the shelled pot, the lid lifted, and the \
+        caption: "THE TEAPOT (FOUR solids: the hollow pot, the lid lifted, and the \
                   spout and handle it will not join)"
             .to_string(),
         montage: true,
         story: "shell's designated demo. The pot is ONE revolved profile hollowed by \
-                `shell_open` and opened at its mouth, where the wall's thickness shows \
-                as an annular rim. The lid is a SECOND solid, rendered lifted — an \
-                exploded view, not a mate. The spout and the handle are two more \
-                solids: their unions with the pot are attempted on every pass and \
-                REFUSE, so what the montage shows is an assembly of four bodies \
-                sitting where a teapot's parts sit",
-        ops: "revolve(meridian, +y, Full) -> shell_open(pot, t = 7.8125 mm, [the \
-              mouth's CHART]) for the vessel; revolve + fillet_edges(the knob's top \
-              rim) for the lid; revolve + transform_rigid for the spout; \
-              tube_along_arc for the handle. Four walls pinned: the belly shell, both \
-              unions, and the SEALED pot's STEP export",
+                `shell`: a cavity the size of the tea, inside a wall 7.8 mm thick, in \
+                one solid — drawn see-through, because a cavity cannot be read from an \
+                opaque render at any camera. The lid is a SECOND solid, rendered lifted: \
+                an exploded view, not a mate. The spout and the handle are two more, \
+                and their unions with the pot are attempted on every pass and REFUSE — \
+                so what the montage shows is four bodies sitting where a teapot's parts \
+                sit, not a teapot",
+        ops: "revolve(meridian, +y, Full) -> shell(pot, t = 7.8125 mm) for the vessel; \
+              revolve + fillet_edges(the knob's top rim) for the lid; revolve + \
+              transform_rigid for the spout; tube_along_arc for the handle. Four walls \
+              pinned: the bellied pot's hollow, the OPENED pot's mesh, and both unions",
         delta: DELTA,
         note: Some(format!(
-            "THE VESSEL. {cv} vertices, {ce} edges, {cf} faces in ONE shell — the \
-             sharp pot's 14/26/14 doubled, less the mouth's two half-discs, which the \
-             rim surgery consumes. The mouth is one PLANE worn by two half-disc faces \
-             (a full revolve cuts every wall at its two seam meridians), so the \
-             designation is a CHART and the lift moves it as one; each half comes back \
-             with exactly one ring, {rings} in the body. V = {:.9} m³ and A = {:.9} m² \
-             against the closed forms of the wall — the outer stack of three \
-             cylindrical segments less the cavity's, whose neck segment runs to the \
-             MOUTH PLANE because that is where the lift put the cavity's counterpart. \
-             Zero enclosure pad. The gates, measured on the operand before the verb \
+            "THE VESSEL. {pv} vertices, {pe} edges, {pf} faces over TWO shells in one \
+             solid — the operand's 14/26/14 twice, since the cavity is that same \
+             boundary offset inward and inserted whole through the shared void door. \
+             Genus 0. V = {:.9} m³ of WALL against the difference of two closed-form \
+             cylinder stacks, and A = {:.9} m² against the two boundaries' own; zero \
+             enclosure pad. The capacity is asked for DIRECTLY rather than inferred: \
+             `classify_shells` gives the cavity the Void role and its signed volume is \
+             {:.9} m³, the cavity stack's own {capacity_l:.4} LITRES negated by the \
+             orientation convention. The gates, measured on the operand before the verb \
              ran: the closest antiparallel planar pair clears {clearance} m where two \
              walls need {:.7} m, so `wall_clearance` — which is what stands in for a \
              plane's vacuous reach margin — does not bind; the tightest cylinder has \
-             {reach} m of realized inner radius left. THE BELLY IS NOT AUTHORED AS AN \
-             ARC, AND THAT IS THIS SCENE'S FIRST FINDING: the same pot with its \
-             shoulders turned into one sphere zone REFUSES (wall 1), and so does a \
-             cone frustum, and so does a triangular prism — the class is OBLIQUE \
-             junctions, not curvature (`tests/verbs_teapot.rs` carries the table). \
-             THE LID. 5/10/5 sharp — an ANNULAR profile mints one FULL wall per \
-             segment where the pot's axis-touching profile mints half-walls — and \
-             6/12/6 rolled, the annulus band's own (+1, +2, +1). The band is the torus \
-             ({band_major}, {band_minor}), which is ({}, {ROLL}) re-derived here from \
-             the two tangency lines rather than read back from the arm that minted it, \
-             ring-free, centred one roll below the knob's top. ΔV = {dv_lid:.9} m³, \
-             inside the corner-square bound {pappus_cap:.9}. The steam vent is what \
-             makes that rim a CLOSED edge at all: bore the finial and the profile is \
-             annular; leave it solid and the rim is two arcs over two half-discs, which \
-             the one-edge annulus band does not carve. NO MATE IS AUTHORED — the lid \
-             renders {LIFT} m above the mouth and the two bodies are strangers to the \
-             kernel; declared contact is M9's. THE SPOUT AND THE HANDLE. Both build \
-             and both check against closed forms — the spout as a difference of cone \
-             frusta, asserted AFTER `transform_rigid` placed it, so the map's isometry \
-             is part of the receipt; the handle by Pappus on its own disc. Neither \
-             JOINS. handle ∪ vessel: {handle_refusal}. spout ∪ vessel: {spout_refusal}. \
-             Both are the pair-scoped operand gate naming a germ PAIR with no wired \
-             arm, and note what the second one names — the spout's outer CONE against \
-             a PLANE of the pot, not the belly wall the spout actually pierces: box \
-             overlap is a MAY, and the gate reports the first pair whose boxes may \
-             meet. The schedule is the banked germ-chord lanes (DESIGN frontier (d)) \
-             and #1057's two C5 arms. A lofted or canal-swept spout — the shape a \
-             potter would draw — is not authorable at all: the register carries that \
-             as a note, and this scene does not hack around it",
-            cup_props.volume,
-            cup_props.surface_area,
+             {reach} m of realized inner radius left. Note the sense bit in that scan: \
+             three of this pot's four planar charts STORE +y and only the face's own \
+             orientation says which way each looks. THE BELLY IS SQUARED, AND THAT IS \
+             THE SCENE'S FIRST FINDING: the same pot with its shoulders turned into one \
+             sphere zone REFUSES (wall 1) — and so does a cone frustum, and so does a \
+             triangular prism, so the class is OBLIQUE junctions and not curvature \
+             (`tests/verbs_teapot.rs` carries the table and its blind spot). THE MOUTH \
+             IS THE SECOND: `shell_open` at the mouth's chart RETURNS a body and it \
+             passes tiers 1-3, but each designated half-disc comes back carrying a full \
+             RING, the result is genus {} where the verb's own docs say a cup is genus \
+             0, and it will not tessellate (wall 2) — so the scene ships the SEALED \
+             hollow, which is why this teapot has no opening. THE LID. 5/10/5 sharp — an \
+             ANNULAR profile mints one FULL wall per segment where the pot's \
+             axis-touching profile mints half-walls — and 6/12/6 rolled, the annulus \
+             band's own (+1, +2, +1). The band is the ring-free torus ({band_major}, \
+             {band_minor}), which is ({}, {ROLL}) re-derived here from the two tangency \
+             lines rather than read back from the arm that minted it, centred one roll \
+             below the knob's top. ΔV = {dv_lid:.9} m³, inside the corner-square bound \
+             {pappus_cap:.9}. The steam vent is what makes that rim a CLOSED edge at \
+             all: bore the finial and the profile is annular; leave it solid and the rim \
+             is two arcs over two half-discs, which the one-edge annulus band does not \
+             carve. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
+             the two bodies are strangers to the kernel; declared contact is M9's. THE \
+             SPOUT AND THE HANDLE. Both build and both check against closed forms — the \
+             spout as a difference of cone frusta, asserted AFTER `transform_rigid` \
+             placed it, so the map's isometry is part of the receipt; the handle by \
+             Pappus on its own disc. Neither JOINS. handle ∪ vessel: {handle_refusal}. \
+             spout ∪ vessel: {spout_refusal}. Both are the pair-scoped operand gate \
+             naming a germ PAIR with no wired arm, and note what the second one names — \
+             the spout's outer CONE against a PLANE of the pot, not the belly wall the \
+             spout actually pierces: box overlap is a MAY, and the gate reports the \
+             first pair whose boxes may meet. The schedule is the banked germ-chord \
+             lanes (DESIGN frontier (d)) and #1057's two C5 arms. A lofted or \
+             canal-swept spout — the shape a potter would draw — is not authorable at \
+             all; the register carries that as a note and this scene does not hack \
+             around it",
+            props.volume,
+            props.surface_area,
+            voids[0].volume,
             2.0 * WALL,
+            genus(&cup),
             R_KNOB - ROLL,
         )),
-        // The teapot's axis is +y and its spout, handle and lid knob
-        // all lie in the world z = 0 plane, so a camera near -z sees
-        // the silhouette a teapot is recognised by. Off it by 10
-        // degrees toward the spout, and 22 up: enough elevation that
-        // the mouth's annular RIM reads as an ellipse rather than a
-        // line, and little enough that the lid's lift stays a visible
-        // GAP rather than foreshortening onto the rim.
+        // The pot's axis is +y and its spout, handle and lid knob all
+        // lie in the world z = 0 plane, so a camera near -z sees the
+        // silhouette a teapot is recognised by. Ten degrees off it
+        // toward the spout, and 22 up: enough elevation that the
+        // shoulders and the lid's dome read as ellipses rather than
+        // lines, and little enough that the lid's lift stays a visible
+        // GAP rather than foreshortening onto the mouth.
         view: View {
             elev: 22.0,
             azim: -100.0,
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("teapotvessel", [0.78, 0.74, 0.68], cup),
-            SceneBody::plain("teapotlid", [0.62, 0.66, 0.72], rolled.body),
-            SceneBody::plain("teapotspout", [0.78, 0.74, 0.68], spout),
-            SceneBody::plain("teapothandle", [0.62, 0.66, 0.72], handle),
+            // See-through for the hollow ring's reason, on this verb's
+            // own shape: the subject is a CAVITY, and no camera reads
+            // one from an opaque render.
+            SceneBody::plain("teapotvessel", [0.72, 0.70, 0.66], pot)
+                .transparent(45)
+                .step_at_frontier(
+                    |e| {
+                        matches!(
+                            e,
+                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                        )
+                    },
+                    "the writer's outward/void classifier has grown a curved arm. Retire \
+                     ALL FOUR probes of this one gate together: klein's WALL 6, the \
+                     `ring` scene's `step_at_frontier`, `tubewall::hollowtorus`'s and \
+                     this one, and update docs/KERNEL-VERBS.md's hollow-ring STEP row, \
+                     which names them",
+                ),
+            SceneBody::plain("teapotlid", [0.58, 0.64, 0.72], rolled.body),
+            SceneBody::plain("teapotspout", [0.72, 0.70, 0.66], spout),
+            SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle),
         ],
     }]
 }
