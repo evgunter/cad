@@ -1658,3 +1658,14 @@ against frozen head 259fde04, aimed hardest at the one possible
 wrong-answer hideout: the per-face-local evidence vs global
 clearance (over-thick slab, colliding-cavity dumbbell — the
 failure must be LOUD).
+
+## CYLCYL PR-B MERGED (#1044, 2026-08-27) — ordinal-80 row; the bracket rounds at 6 mm
+
+Row CYLCYL-B in MODEL-AB-LOG. The germ lane's conservatism story
+is done: carrier-slab scoping at both box levels (face clip +
+arc-scoped edge box, now bracket-span-sound per MIN-4), the
+clamped span-dip, and bracket.py at its natural 6 mm with the
+awkwardness note retired. #347 stays open on the union half,
+which waits on the curved pierce/split substrate unit (spec next
+from the orchestrator). Lane swept. In flight: ordinal 82
+(#1048's shell review).
