@@ -1684,3 +1684,15 @@ carries the resolution entry; design-conversation PR opened for
 the 👍. Also per Evan: #1051 filed (workflow_dispatch CI runs
 with requested lane/ε — retires most full local batteries), and
 briefs tightened to targeted-local-plus-drawn-point.
+
+## #990 ENTRY CORRECTED PER EVAN: NO PAYLOAD PROJECTION (2026-08-27)
+
+Evan caught that shape 2 was residue: with request validity
+dissolved at the signature, the caller's number is always at hand
+as f64 and the TUBEWALL case cannot recur. Derived quantities are
+deliberately NOT echoed outside the seams — an f64 payload is a
+branchable channel, the same unmetered decision surface at one
+remove — so threshold-plus-variant-name is now the rule, and a
+door wanting a derived echo is asking to be a seam. The queued
+payload-projection unit is CANCELLED; the real.rs entry and
+#1052 amended.

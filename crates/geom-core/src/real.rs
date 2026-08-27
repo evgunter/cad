@@ -589,15 +589,20 @@ pub trait Real:
 ///    the invalid value cannot reach the door at all in the newtype
 ///    form. A door that takes its request in `T` is the thing to fix,
 ///    not to allowlist.
-/// 2. **Refusal payloads get ONE sanctioned projection** (to be built
-///    as its own unit): a loudly-named `geom-core` helper for
-///    error-payload construction only, which
-///    `scripts/gates/bounds-allowlist.sh` recognizes BY NAME while
-///    still firing on raw endpoint reads. It is display, not
-///    decision: nothing may branch on its result, and the gate's
-///    recognizer plus review are the fence. Until it lands, the
-///    TUBEWALL posture (report the run's threshold, document why)
-///    remains the honest fallback.
+/// 2. **Refusal payloads need nothing new — (1) already covers them.**
+///    With caller values validated at `f64` before lifting, a refusing
+///    door still holds the caller's own number and echoes it freely;
+///    #990's motivating case (TUBEWALL reporting the run's threshold
+///    instead of the caller's number) cannot recur. What remains are
+///    DERIVED quantities — margins, realized radii, values that exist
+///    only at `T` — and those are deliberately NOT echoed outside the
+///    ratified seams: an `f64` in an error payload is a branchable
+///    channel, i.e. the same unmetered decision surface at one remove,
+///    so the honest spelling outside a seam is the variant name plus
+///    the run's threshold (TUBEWALL's posture — now the rule, not a
+///    fallback). A door that wants to echo a derived margin is asking
+///    to be a seam, ratified individually (the fillet battery is the
+///    precedent). No general projection helper exists, by this ruling.
 ///
 /// For genuine decisions nothing changes: the metered predicate layer
 /// is the only spelling — it IS the "definite sign or indeterminate"
