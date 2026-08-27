@@ -28,8 +28,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    implicit_residual, sample_param,
+    CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, implicit_residual, sample_param,
 };
 use geom_core::{Band, Point3, Vec3};
 

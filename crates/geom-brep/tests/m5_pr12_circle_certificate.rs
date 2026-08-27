@@ -17,8 +17,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey,
-    tangent_certificate_lane, tangent_jet,
+    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane,
+    tangent_jet,
 };
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};

@@ -14,9 +14,8 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec,
-    EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, SurfaceKey, classify_dihedral,
-    newell_plane,
+    CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
+    MappedCurve, NewellError, SketchSegment, SurfaceKey, classify_dihedral, newell_plane,
 };
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};

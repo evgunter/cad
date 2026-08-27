@@ -26,7 +26,10 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
+use geom_brep::{
+    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
+    PcurveCertifyError, PcurveCheck,
+};
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
