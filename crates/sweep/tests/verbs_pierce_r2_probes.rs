@@ -132,9 +132,7 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
             let v = topo::mass_properties(&out.body, tol).unwrap().volume;
             let truth = half + 0.25 * 0.25 * 2.0 - overlap;
             let silent_wrong = half + 0.25 * 0.25 * 2.0;
-            println!(
-                "half-disc union volume {v}; truth {truth}; silent-wrong {silent_wrong}"
-            );
+            println!("half-disc union volume {v}; truth {truth}; silent-wrong {silent_wrong}");
             assert!(
                 (v - silent_wrong).abs() > 1e-9,
                 "MIXED-LOOP SILENT WRONG BODY: {v} (double-counted overlap)"
@@ -162,7 +160,9 @@ fn r2_the_1032_declaration_measurement_reproduces() {
         ProfileVertex::new(p2(2.5, 2.0), 1.0),
         ProfileVertex::new(p2(1.5, 2.0), 1.0),
     ]);
-    let plate_profile = Profile::new(SP::xy(), vec![outer, hole]).validate(tol).unwrap();
+    let plate_profile = Profile::new(SP::xy(), vec![outer, hole])
+        .validate(tol)
+        .unwrap();
     let plate = extrude(&plate_profile, Extrusion::Distance(1.0), tol)
         .unwrap()
         .body;
@@ -207,8 +207,9 @@ fn r2_the_1032_declaration_measurement_reproduces() {
         boss_walls.len()
     );
 
-    let count_undecidable = |contacts: &topo::ContactRecords| {
-        match topo::validate_pseudomanifold(&body, contacts, tol) {
+    let count_undecidable =
+        |contacts: &topo::ContactRecords| match topo::validate_pseudomanifold(&body, contacts, tol)
+        {
             Ok(()) => 0,
             Err(errs) => {
                 for e in &errs {
@@ -220,8 +221,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
                     .filter(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. }))
                     .count()
             }
-        }
-    };
+        };
     let undeclared = count_undecidable(&topo::ContactRecords::default());
     let mut declared = topo::ContactRecords::default();
     for &pw in &plate_walls {

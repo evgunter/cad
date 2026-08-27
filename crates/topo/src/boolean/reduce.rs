@@ -1865,7 +1865,9 @@ mod r2_probes {
                 while k > hi + TAU {
                     k -= TAU;
                 }
-                (lo..=hi).contains(&k) || (lo..=hi).contains(&(k + TAU)) || (lo..=hi).contains(&(k - TAU))
+                (lo..=hi).contains(&k)
+                    || (lo..=hi).contains(&(k + TAU))
+                    || (lo..=hi).contains(&(k - TAU))
             };
             assert!(contains_mod(t), "t={t} not represented in [{lo}, {hi}]");
         }
@@ -1917,7 +1919,11 @@ mod r2_probes {
                 Interval::from_f64(t1),
                 lift_p(p),
             );
-            assert!(got.hi() - got.lo() < 1e-9, "t={t}: width {}", got.hi() - got.lo());
+            assert!(
+                got.hi() - got.lo() < 1e-9,
+                "t={t}: width {}",
+                got.hi() - got.lo()
+            );
             let truth = circle_split_param(&carrier64, center64, t0, t1, p);
             assert!(got.lo() <= truth && truth <= got.hi(), "t={t}");
         }
