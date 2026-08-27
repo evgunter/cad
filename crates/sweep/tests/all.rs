@@ -236,6 +236,8 @@ mod verbs_arms3;
 mod verbs_chamfer;
 #[path = "verbs_cylcyl_probe.rs"]
 mod verbs_cylcyl_probe;
+#[path = "verbs_pierce.rs"]
+mod verbs_pierce;
 #[path = "verbs_cylcyl_r1_review_probes.rs"]
 mod verbs_cylcyl_r1_review_probes;
 #[path = "verbs_cylcylb_r1_blinded_probes.rs"]

@@ -83,38 +83,41 @@ fn probe_cross_instance_conformal_wall_touch_at_three_prime() {
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("cross-instance conformal wall touch, undeclared: {verdict:?}");
-    // OBSERVED (a1b78954): the gate refuses LOUDLY — but not through
-    // any conformal arm (the walls' keys are distinct, so the arm
-    // never pairs them). The boss's wall joint-line edges cross the
-    // plate's top/bottom face planes at points exactly ON the hole's
-    // rim circle (the faces' trim boundary), and contfp classifies
-    // those on-boundary grazes as In, so the touch surfaces as
-    // `EdgeFacePierce` — a class the PR itself calls categorically
-    // UNDECLARABLE. Consequences pinned here: (1) A5 holds — the
-    // undeclared touch is never blessed; (2) the finding's CLASS is
-    // wrong — the geometry touches (gap == 0), it does not cross, and
-    // a legitimate boss-in-hole assembly has no declarable recourse;
-    // (3) the census envelope statement does not name this
-    // distinct-carrier conformal class either way.
+    // The gate refuses LOUDLY, and not through any conformal arm (the
+    // walls' keys are distinct, so that arm never pairs them). What it
+    // refuses AS is the curved-proximity undecidable: cross-solid
+    // faces within reach, at least one with a curved carrier or a
+    // curved boundary.
+    //
+    // This row used to observe `EdgeFacePierce` and to record, in this
+    // comment, that the class was WRONG — the geometry touches
+    // (gap == 0), it does not cross. The mechanism is now named and
+    // gone: the boss's wall joint-line edges cross the plate's
+    // top/bottom face planes at points exactly ON the hole's rim
+    // circle, and the point-in-face walk was deciding a `Circle`
+    // boundary through its CHORD, which for a rim arc runs through the
+    // face INTERIOR — so an on-rim graze read as `In` and the touch
+    // surfaced as a pierce. The exact arc rows decide it now. Pinned:
+    // (1) A5 holds — the undeclared touch is never blessed; (2) no
+    // pierce is invented for a grazing edge; (3) the census envelope
+    // statement still does not name this distinct-carrier conformal
+    // class.
     let errs = verdict.expect_err("the undeclared cross-instance touch must not bless");
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::UndeclaredContact {
-                contact: topo::CensusContact::EdgeFacePierce { .. },
-                ..
-            }
-        )),
-        "observed refusal shape (grazing joint edges as pierces): {errs:?}"
+        errs.iter()
+            .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+        "observed refusal shape (curved proximity, undecidable): {errs:?}"
     );
     assert!(
         !errs.iter().any(|e| matches!(
             e,
             topo::ValidationError::UndeclaredContact {
-                contact: topo::CensusContact::ConformalPatch { .. },
+                contact: topo::CensusContact::EdgeFacePierce { .. }
+                    | topo::CensusContact::ConformalPatch { .. },
                 ..
             }
         )),
-        "the conformal arm cannot see distinct-key pairs (shared-key scope): {errs:?}"
+        "no pierce is invented for a graze, and the conformal arm cannot see \
+         distinct-key pairs (shared-key scope): {errs:?}"
     );
 }

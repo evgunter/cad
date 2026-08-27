@@ -1414,23 +1414,11 @@ fn split_at<T: Decide>(
 /// Two carriers have an exact point parameter and both are taken:
 ///
 /// - **`Line`**: the projection `t = (p − origin)·dir`.
-/// - **`Circle`**: the azimuth, anchored at the SPAN MIDPOINT rather
-///   than at the seam. Writing `m = (t₀ + t₁)/2` and `δ = t − m`, the
-///   mid frame `(r̂, τ̂)` is read from the public evaluators — `r̂·radius
-///   = eval(m) − center`, `τ̂·radius = deriv(m)` — and `δ = atan2(w·τ̂,
-///   w·r̂)` with `w = p − center`. Both arguments carry the same
-///   positive factor `radius`, which `atan2` quotients away, so no
-///   division enters and no frame is re-derived here.
-///
-///   **The mid anchor is what removes the branch cut**, and that is
-///   why the parameter is not `atan2` about the seam plus a winding
-///   correction: an edge span is at most one period, so `|δ| ≤ π` and
-///   the PRINCIPAL branch is already the right one — there is no `k·2π`
-///   to select, hence no ordering decision and no lane fork (the
-///   interval scalar's `atan2` is an enclosure of the same value, and
-///   a span that straddles the cut widens it rather than mis-selecting
-///   a branch). Where the enclosure is too wide to place `t` strictly
-///   inside the span, `split_edge`'s own interiority trilean escalates.
+/// - **`Circle`**: the mid-anchored azimuth ([`circle_split_param`],
+///   which carries the derivation and the reason it needs no branch
+///   selection). Where an interval enclosure of it is too wide to
+///   place `t` strictly inside the span, `split_edge`'s own
+///   interiority trilean escalates.
 ///
 /// `p` must lie ON the carrier for the azimuth to name the event: the
 /// distance from `p` to the circle (radial and axial misses folded, the
@@ -1490,10 +1478,7 @@ fn split_other_at_point<T: Decide>(
                 Err(diag) => return Err(BooleanError::Escalated { diag }),
             }
             let (t0, t1) = curve.params();
-            let mid = (t0 + t1) * T::from_f64(0.5);
-            let r_mid = curve.carrier().eval(mid) - center;
-            let tau_mid = curve.carrier().deriv(mid);
-            mid + w.dot(tau_mid).atan2(w.dot(r_mid))
+            circle_split_param(curve.carrier(), center, t0, t1, p)
         }
         geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_) => {
             return Err(BooleanError::PointSplitCarrierUnsupported {
@@ -1503,6 +1488,42 @@ fn split_other_at_point<T: Decide>(
         }
     };
     split_at(y, y_is, edge, t, tol)
+}
+
+/// The carrier parameter of a point on a `Circle` carrier, expressed
+/// in the span `[t0, t1]`'s own period — the split parameter of the
+/// `Circle` arm above, and pure carrier arithmetic.
+///
+/// Writing `m = (t₀ + t₁)/2` and `δ = t − m`, the mid frame is read
+/// from the public evaluators (`r̂·radius = eval(m) − center`,
+/// `τ̂·radius = deriv(m)`) and `δ = atan2(w·τ̂, w·r̂)` with
+/// `w = p − center`. The common positive factor `radius` on both
+/// arguments is `atan2`'s to quotient away, so no division enters and
+/// no frame is re-derived here.
+///
+/// **The mid anchor is what removes the branch cut.** An edge span is
+/// at most one period, so `|δ| ≤ π` and `atan2`'s principal branch is
+/// already the right one: there is no `k·2π` to select, hence no
+/// ordering decision and no lane fork — the interval scalar's `atan2`
+/// encloses the same value, and a span straddling the cut widens the
+/// enclosure rather than mis-selecting a branch. An anchor at the SEAM
+/// would need that selection, and the selection is what `Real` cannot
+/// order.
+///
+/// `p` off the carrier answers about its radial projection; the
+/// caller owns the on-carrier precondition.
+fn circle_split_param<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    center: Point3<T>,
+    t0: T,
+    t1: T,
+    p: Point3<T>,
+) -> T {
+    let mid = (t0 + t1) * T::from_f64(0.5);
+    let w = p - center;
+    let r_mid = carrier.eval(mid) - center;
+    let tau_mid = carrier.deriv(mid);
+    mid + w.dot(tau_mid).atan2(w.dot(r_mid))
 }
 
 /// Requeues both children of a just-split edge (parent keeps the
@@ -1529,4 +1550,154 @@ fn requeue<T: Decide>(
     worklist.push_back((parent, next_face));
     worklist.push_back((child, next_face));
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use core::f64::consts::{PI, TAU};
+
+    use geom_core::{Point3, Vec3};
+
+    use super::circle_split_param;
+
+    /// A circle in an exactly-orthonormal tilted frame: an integer
+    /// orthogonal triple over 3, so the frame is unit and orthogonal
+    /// to rounding-free precision.
+    fn tilted() -> (geom::Curve3<f64>, Point3<f64>) {
+        let center = Point3::new(-0.5, 4.0, 1.25);
+        (
+            geom::Curve3::Circle {
+                center,
+                axis: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+                radius: 2.5,
+                u_ref: Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
+            },
+            center,
+        )
+    }
+
+    fn axis_aligned() -> (geom::Curve3<f64>, Point3<f64>) {
+        let center = Point3::new(1.0, 2.0, 3.0);
+        (
+            geom::Curve3::Circle {
+                center,
+                axis: Vec3::unit_z(),
+                radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            center,
+        )
+    }
+
+    /// The parameter is recovered on the span's OWN period, for spans
+    /// placed anywhere on the parameter line — including one that
+    /// straddles the seam and one that sits entirely on negative
+    /// parameters, which is exactly what a seam-anchored `atan2` plus
+    /// a winding correction would have to select a branch for.
+    #[test]
+    fn the_split_parameter_recovers_the_point_on_the_spans_own_period() {
+        for (carrier, center) in [axis_aligned(), tilted()] {
+            for (t0, t1) in [
+                (0.0, PI),
+                (0.4, 2.9),
+                (-5.0, -2.0),
+                (2.5, 2.5 + TAU * 0.9),
+                (PI, 3.0 * PI),
+            ] {
+                for f in [0.05, 0.25, 0.5, 0.75, 0.95] {
+                    let t = t0 + (t1 - t0) * f;
+                    let p = carrier.eval(t);
+                    let got = circle_split_param(&carrier, center, t0, t1, p);
+                    assert!(
+                        (got - t).abs() < 1e-12,
+                        "span ({t0}, {t1}) at {t}: got {got}"
+                    );
+                    assert!(got > t0 && got < t1, "span ({t0}, {t1}) at {t}: {got}");
+                }
+            }
+        }
+    }
+
+    /// A FULL-period span has no interior seam problem either: the mid
+    /// anchor sits half a turn from both endpoints, so the two points
+    /// nearest the seam land just inside the span rather than a
+    /// period away.
+    #[test]
+    fn a_full_period_span_places_both_seam_neighbours_inside_itself() {
+        let (carrier, center) = axis_aligned();
+        for t in [1e-6, TAU - 1e-6, PI - 0.1, PI + 0.1] {
+            let got = circle_split_param(&carrier, center, 0.0, TAU, carrier.eval(t));
+            assert!((got - t).abs() < 1e-9, "at {t}: got {got}");
+        }
+    }
+
+    /// The answer is about the point's RADIAL PROJECTION — the
+    /// caller's on-carrier precondition is what makes that the event's
+    /// own parameter, and this row says what the arithmetic does
+    /// without it.
+    #[test]
+    fn an_off_carrier_point_answers_about_its_radial_projection() {
+        let (carrier, center) = axis_aligned();
+        let t = 1.1;
+        let on = carrier.eval(t);
+        // Push off the circle radially and axially.
+        let off = on + (on - center) * 0.3 + Vec3::unit_z() * 0.7;
+        let got = circle_split_param(&carrier, center, 0.0, PI, off);
+        assert!((got - t).abs() < 1e-12, "got {got}");
+    }
+
+    /// The interval lane runs the SAME body — no fork, no measured
+    /// constant gating one — and its answer encloses the `f64` one.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn the_interval_lane_encloses_the_f64_parameter() {
+        use geom_core::{Bounds, Real, interval::Interval};
+
+        let center64 = Point3::new(1.0, 2.0, 3.0);
+        let carrier64 = geom::Curve3::Circle {
+            center: center64,
+            axis: Vec3::unit_z(),
+            radius: 1.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let lift_p = |p: Point3<f64>| {
+            Point3::new(
+                Interval::from_f64(p.x),
+                Interval::from_f64(p.y),
+                Interval::from_f64(p.z),
+            )
+        };
+        let lift_v = |v: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(v.x),
+                Interval::from_f64(v.y),
+                Interval::from_f64(v.z),
+            )
+        };
+        let carrier = geom::Curve3::Circle {
+            center: lift_p(center64),
+            axis: lift_v(Vec3::unit_z()),
+            radius: Interval::from_f64(1.5),
+            u_ref: lift_v(Vec3::unit_x()),
+        };
+        for t in [0.3, 1.1, 2.7] {
+            let p = carrier64.eval(t);
+            let got64 = circle_split_param(&carrier64, center64, 0.0, PI, p);
+            let got = circle_split_param(
+                &carrier,
+                lift_p(center64),
+                Interval::from_f64(0.0),
+                Interval::from_f64(PI),
+                lift_p(p),
+            );
+            assert!(
+                got.lo() <= got64 && got64 <= got.hi(),
+                "at {t}: f64 {got64} outside [{}, {}]",
+                got.lo(),
+                got.hi()
+            );
+            assert!(got.lo() > 0.0 && got.hi() < PI, "at {t}: not strictly inside");
+        }
+    }
 }

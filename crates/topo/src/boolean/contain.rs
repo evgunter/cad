@@ -78,7 +78,16 @@ pub fn contfp<T: Decide>(
     }
 
     // Interior/exterior: inside the outer loop AND outside every ring.
-    match point_in_loop(body, face_data.outer, normal, q, band)? {
+    // WHICH walk reads a loop is the loop's own shape — an all-arc
+    // loop bounds a disc and is read by its radius ([`loop_disc`]),
+    // everything else by the ray-parity polygon walk.
+    let inside = |lk| -> Result<LoopContainment, ContainError> {
+        if let Some(disc) = loop_disc(body, lk, band)? {
+            return disc_side(disc, q, band);
+        }
+        Ok(point_in_loop(body, lk, normal, q, band)?)
+    };
+    match inside(face_data.outer)? {
         LoopContainment::Out => return Ok(FaceContainment::Out),
         LoopContainment::In => {}
         LoopContainment::OnBoundary => {
@@ -89,7 +98,7 @@ pub fn contfp<T: Decide>(
         }
     }
     for &ring in &face_data.rings {
-        match point_in_loop(body, ring, normal, q, band)? {
+        match inside(ring)? {
             LoopContainment::Out => {}
             LoopContainment::In => return Ok(FaceContainment::Out),
             LoopContainment::OnBoundary => {
@@ -101,6 +110,89 @@ pub fn contfp<T: Decide>(
         }
     }
     Ok(FaceContainment::In)
+}
+
+/// The circle a loop bounds when EVERY one of its edges is an arc of
+/// one circle — the planar analog of the curved door's iso-bounded
+/// class ([`curved_face_containment`]). `None` on any other boundary
+/// shape: the honest remainder the caller's ray-parity walk owns.
+///
+/// **The walk needs this because a polygon cannot express an arc.**
+/// [`point_in_loop`]'s contract is the planar POLYGON through a loop's
+/// vertices — a cylinder cap's loop has two vertices, so its polygon
+/// is the segment between them, the disc's whole interior reads `Out`,
+/// and a box driven through a cap unions as two disjoint solids with
+/// the overlap counted twice.
+///
+/// The circle is read from the first edge; every later edge must agree
+/// with it on one metre-valued row folding centre offset, radius
+/// difference and axis tilt (levered at the radius). The axis enters
+/// only through `cross`, which is blind to its sign — two arcs of one
+/// circle may run in opposite senses and are still arcs of the same
+/// point set, which is all this asks.
+///
+/// **That row decides nothing about `q`.** A point reaching here is
+/// definitely off every boundary arc by more than the band (the
+/// boundary pre-pass owns the near-boundary case), so arcs whose
+/// circles agree to within the band cannot disagree about which side
+/// of them `q` lies on. Anything the row does not call `Zero` — an
+/// escalation included — is simply not this class.
+fn loop_disc<T: Decide>(
+    body: &Body<T>,
+    r#loop: crate::entity::LoopKey,
+    band: Band,
+) -> Result<Option<(Point3<T>, Vec3<T>, T)>, ContainError> {
+    let mut circle: Option<(Point3<T>, Vec3<T>, T)> = None;
+    for (_, he, _) in loop_cycle_points(body, r#loop)? {
+        let edge_key = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
+        let carrier = body
+            .get_edge(edge_key)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .map(|c| c.carrier().clone());
+        let Some(geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        }) = carrier
+        else {
+            return Ok(None);
+        };
+        match circle {
+            None => circle = Some((center, axis, radius)),
+            Some((c0, a0, r0)) => {
+                let d = (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
+                match decide("bool_face_disc_carrier", Margin::of(d), band) {
+                    Ok(Sign::Zero) => {}
+                    Ok(Sign::Positive | Sign::Negative) | Err(_) => return Ok(None),
+                }
+            }
+        }
+    }
+    Ok(circle)
+}
+
+/// Which side of a [`loop_disc`] circle `q` lies on. `q` is on the
+/// face's plane by [`contfp`]'s contract, so the in-plane radial
+/// distance is the whole question.
+fn disc_side<T: Decide>(
+    (center, axis, radius): (Point3<T>, Vec3<T>, T),
+    q: Point3<T>,
+    band: Band,
+) -> Result<LoopContainment, ContainError> {
+    let w = q - center;
+    let radial = w - axis * w.dot(axis);
+    match decide(
+        "bool_face_disc_radius",
+        Margin::of(radius - radial.norm()),
+        band,
+    ) {
+        Ok(Sign::Positive) => Ok(LoopContainment::In),
+        Ok(Sign::Negative) => Ok(LoopContainment::Out),
+        Ok(Sign::Zero) => Ok(LoopContainment::OnBoundary),
+        Err(diag) => Err(ContainError::Escalated(diag)),
+    }
 }
 
 /// **Boundary containment** for an on-carrier point against a CURVED
@@ -640,5 +732,27 @@ mod tests {
             FaceContainment::OnVertex(ring_vertex),
             "the ring vertex must win over the outer edge's interior"
         );
+    }
+
+    /// The disc class is a CLASS, and this is its gate: a loop of
+    /// straight edges is not one, whatever its shape, so the walk that
+    /// can read it keeps the loop. Without this the radius row would
+    /// answer about a circle no boundary edge rides.
+    #[test]
+    fn a_polygon_loop_is_not_the_disc_class() {
+        let holed = crate::fixtures::ops_holed_box(Tol::witness());
+        let body = holed.body;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut loops = 0;
+        for (_, f) in body.faces() {
+            for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                loops += 1;
+                assert!(
+                    loop_disc(&body, lk, band).expect("the box walks").is_none(),
+                    "a straight-edged loop bounds no disc"
+                );
+            }
+        }
+        assert!(loops > 0, "the fixture must have loops to check");
     }
 }
