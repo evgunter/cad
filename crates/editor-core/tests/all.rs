@@ -187,6 +187,8 @@ mod m9_d1_r2_probes;
 mod placedunion_schema_v12;
 #[path = "respell_schema_v9.rs"]
 mod respell_schema_v9;
+#[path = "review_gui1_r1.rs"]
+mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
