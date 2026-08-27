@@ -355,60 +355,86 @@ fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
     );
 }
 
-/// #347's bracket at r = 5, verified at the MECHANISM rather than the
-/// door: the refusal must name the pocket's y = 10 LINE edge (the one
-/// whose x-span [8, 28] enters the corner carrier's slab) against the
-/// corner-round CYLINDER face at (5, 5) r = 5 — the two datums of the
-/// carrier-slab + span-dip re-diagnosis. Key formatting is not pinned;
-/// the named entities' geometry is.
+/// #347's bracket verified at the MECHANISM rather than the door —
+/// **and the mechanism is now retired, so the row asserts its absence
+/// at the same two datums.**
+///
+/// As written for the substrate, this row pinned the refusal's payload:
+/// the pocket's `y = 10` LINE edge (whose x-span `[8, 28]` entered the
+/// corner CARRIER's slab) against the corner-round CYLINDER face.
+/// Keeping it green by keeping the refusal is not an option a moved
+/// baseline allows, so it is re-aimed rather than deleted: the same two
+/// entities are looked up by geometry, and what is asserted is that
+/// they are no longer a candidate PAIR.
+///
+/// **At `r = 6`, not `r = 5`, and the radius is load-bearing.** The
+/// blinded review measured the `r = 5` form green under a REVERTED
+/// scoping, which makes it no regression guard at all: the round at
+/// `(5, 5)` has a carrier slab of `x, y ∈ [0, 10]`, so its regressed
+/// box is exactly TANGENT to the pocket edge at `y = 10` and whether
+/// tangency counts as overlap decides the row rather than the scoping
+/// does. At `r = 6` the regressed slab reaches `y = 12`, a strict
+/// overlap, while the trim-scoped arc box stops at `y = 6` — so the row
+/// reds if either level regresses, the face clip or the conic edge box
+/// under it. It is also #347's own headline radius.
 #[test]
-fn the_r5_bracket_refusal_names_the_pocket_edge_and_the_corner_wall() {
+fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     let tol = Tol::witness();
-    let plate = rounded_plate(80.0, 40.0, 5.0, 8.0);
+    let plate = rounded_plate(80.0, 40.0, 6.0, 8.0);
     let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
-    let err = topo::subtract(&plate, &pocket, tol).expect_err("r = 5 refuses today");
-    let BooleanError::CurvedPierceUnsupported {
-        operand,
-        face,
-        edge,
-        ..
-    } = err
-    else {
-        panic!("expected the pierce door, got {err:?}");
-    };
-    let (edge_body, face_body) = match operand {
-        topo::boolean::Operand::A => (&plate, &pocket),
-        topo::boolean::Operand::B => (&pocket, &plate),
-    };
-    let carrier = edge_body
-        .get_edge(edge)
-        .and_then(|e| edge_body.get_curve_geom(e.curve))
-        .and_then(|g| match g {
-            topo::CurveGeom::Certified(c) => Some(c.carrier().clone()),
-            _ => None,
+
+    // The cut runs at all — the door this row used to name is shut.
+    topo::subtract(&plate, &pocket, tol).expect("r = 6 cuts since the boxes were trim-scoped");
+
+    // The corner round at (5, 5), by geometry rather than by key.
+    let corner = plate
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                plate.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { origin: o, radius, .. })
+                    if (*radius - 6.0).abs() < 1e-9
+                        && (o.x - 6.0).abs() < 1e-9
+                        && (o.y - 6.0).abs() < 1e-9
+            )
         })
-        .expect("the named edge resolves");
-    let geom::Curve3::Line { origin, dir } = carrier else {
-        panic!("the named edge is the pocket LINE, got {carrier:?}");
-    };
+        .map(|(k, _)| k)
+        .expect("the corner round at (6, 6)");
+
+    // The pocket's y = 10 wall edge, likewise.
+    let wall_edge = pocket
+        .edges()
+        .find(|(_, e)| {
+            matches!(
+                pocket.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified),
+                Some(c) if matches!(c.carrier(),
+                    geom::Curve3::Line { origin, dir }
+                        if (origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9)
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the pocket's y = 10 edge");
+
+    // The claim, read off the sweep's OWN candidate list: the round's
+    // face box is the quarter ring its ARC occupies (`x, y ∈ [0, 5]`),
+    // not the carrier slab (`[0, 10]`), so the pocket edge at `y = 10`
+    // never pairs with it. `2r > 8` stops meaning anything.
+    //
+    // `examined` is the exact path's candidate set, so this asserts
+    // about the pair the substrate's refusal named — not about a
+    // downstream verdict that could go the right way for a wrong
+    // reason.
+    let (_, b_trace) = topo::boolean::sweep_traces(
+        &plate,
+        &pocket,
+        topo::boolean::SweepStrategy::Realized,
+        None,
+        tol,
+    )
+    .expect("the sweep runs");
     assert!(
-        (origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9,
-        "the y = 10 pocket edge"
-    );
-    let surf = face_body
-        .get_face(face)
-        .and_then(|f| face_body.get_surface(f.surface))
-        .expect("the named face resolves");
-    let geom::Surface::Cylinder {
-        origin: o, radius, ..
-    } = surf
-    else {
-        panic!("the named face is the corner round, got {surf:?}");
-    };
-    assert!((*radius - 5.0).abs() < 1e-9, "r = 5");
-    assert!(
-        (o.x - 5.0).abs() < 1e-9 && (o.y - 5.0).abs() < 1e-9,
-        "corner at (5, 5), got {o:?}"
+        !b_trace.examined.contains(&(wall_edge, corner)),
+        "the pocket's y = 10 edge is still a candidate against the corner round"
     );
 }
 
