@@ -222,7 +222,8 @@ the table.
   docs say *"one opening gives a cup, which is genus 0"*, and
   `mesh::tessellate` refuses `Triangulation` on a mouth half-disc at
   every δ. It is NOT the `mesh::planar` sub-floor lottery of #555:
-  swept over five wall thicknesses, mouth radii from 41 mm to 1 m and
+  swept over five wall thicknesses, mouth radii at two scales (41.25 mm
+  and 46.875 mm — 14% apart, one cluster — and 1 m) and
   three chord budgets, every case gives the same two wrong numbers,
   including the simplest fixture there is (a cylindrical drum opened
   at its top). A BOX opened at its top is correct — genus 0, one ring,
