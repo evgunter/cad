@@ -59,6 +59,7 @@ fn wall_pcurve_kinds(body: &Body<f64>, face: FaceKey) -> Vec<&'static str> {
                 Pcurve::IsoArc { .. } => "IsoArc",
                 Pcurve::Harmonic { .. } => "Harmonic",
                 Pcurve::Fitted(_) => "Fitted",
+                Pcurve::General(_) => "General",
             }
         })
         .collect()
