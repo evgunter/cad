@@ -1,6 +1,6 @@
 # PCURVE — the edge-description unification program (plan)
 
-**STATUS: PROPOSED — awaiting Evan's ratification.** A third
+**STATUS: RATIFIED (Evan, PR #1061, 2026-08-27).** A third
 concurrent program beside LIB (usable-as-a-library) and VERBS
 (kernel breadth), opened at M9's close on Evan's direction. Its
 subject is the work U2 ratified and deliberately did NOT schedule:
