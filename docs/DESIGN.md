@@ -1673,7 +1673,7 @@ Each layer depends only on the layers below it.
 | `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation service (preview/commit, epochs, cancelation). No rendering dependency — most of "the GUI project" is library work that ships and tests before a pixel exists. See `docs/GUI-DESIGN.md` |
 | `quantity` | Typed quantities at the API boundary (D6): `Length`, `Angle`, and the unit constants the façade re-exports |
 | `pncad` / `pncad-py` | The authoring façade (LIBRARY-DESIGN U1 — one crate to depend on, a prelude, f64-first signatures) and its PyO3 bindings, which speak the document layer (L3) |
-| `viewer` | Not yet a crate (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split) |
+| `viewer` | Not yet a crate (GUI last; sequenced after usable-as-library). Architecture: `docs/GUI-DESIGN.md` (G1 three-layer split; every operation the GUI performs — select, hide, free-move, camera — is itself API on `editor-core`/layer-3 state, testable with no renderer present) |
 
 The API-first discipline falls out of this: every layer below `viewer` *is* the product,
 exercised entirely by tests and code-driven models (CadQuery/OpenSCAD-style

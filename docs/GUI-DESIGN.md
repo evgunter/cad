@@ -84,9 +84,15 @@ convention):**
   exactly one *committed* `DocEdit` on release — one undo step, one
   document transition. Same shape either way; commit is the one that
   enters the history (ratified in-conversation 2026-07-19).
-- **Layer 3 is headless-testable**: replay synthetic event streams in
-  CI, assert on emitted edit sequences. Only pixel-painting escapes
-  unit tests.
+- **Every operation the GUI performs is itself API** (Evan,
+  2026-08-27): "select this object", "hide this part", "free-move
+  this instance", a camera move — each is a typed operation on
+  `editor-core` or layer-3 state values, callable with no renderer
+  present; rendering is a pure view of the state those operations
+  produce. Nothing is expressible only as a widget interaction.
+- **Layer 3 is headless-testable** (the consequence of the rule
+  above): replay synthetic event streams in CI, assert on emitted
+  edit sequences. Only pixel-painting escapes unit tests.
 
 The edit vocabulary is the **single API surface** shared by the GUI,
 language bindings (Python), macro recording, headless tests, and —
