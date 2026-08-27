@@ -570,6 +570,47 @@ pub trait Real:
 /// compound bound in either operand order, and a **sole**
 /// [`CertifiedBounds`] does not fire.
 ///
+/// **Resolution of #990 (ratified 2026-08-27, Evan's ruling in the
+/// issue conversation): the two non-decision shapes, and why neither
+/// needs a seam.** VERBS-TUBEWALL met a gap twice: a new door outside
+/// the seams had (1) no non-metered spelling for *request validity*
+/// (refusing a nonsensical caller input like `thickness ≤ 0` without
+/// minting a K-corpus row that meters the CALLER), and (2) no way to
+/// echo the *caller's own offending value* in a refusal payload (no
+/// `f64` out of a `T: Decide`). Both dissolve without touching this
+/// rule's class, because neither is a kernel decision:
+///
+/// 1. **Request validity dissolves at the signature.** Caller-intent
+///    magnitudes enter doors as plain `f64` — or, where the constraint
+///    is expressible in the type, as a validating newtype whose
+///    constructor is the single refusal site — and are lifted into `T`
+///    only after validation. `topo::shell`'s `thickness` is the
+///    pattern. No bracket is ever read, no row meters the caller, and
+///    the invalid value cannot reach the door at all in the newtype
+///    form. A door that takes its request in `T` is the thing to fix,
+///    not to allowlist.
+/// 2. **Refusal payloads need nothing new — (1) already covers them.**
+///    With caller values validated at `f64` before lifting, a refusing
+///    door still holds the caller's own number and echoes it freely;
+///    #990's motivating case (TUBEWALL reporting the run's threshold
+///    instead of the caller's number) cannot recur. What remains are
+///    DERIVED quantities — margins, realized radii, values that exist
+///    only at `T` — and those are deliberately NOT echoed outside the
+///    ratified seams: an `f64` in an error payload is a branchable
+///    channel, i.e. the same unmetered decision surface at one remove,
+///    so the honest spelling outside a seam is the variant name plus
+///    the run's threshold (TUBEWALL's posture — now the rule, not a
+///    fallback). A door that wants to echo a derived margin is asking
+///    to be a seam, ratified individually (the fillet battery is the
+///    precedent). No general projection helper exists, by this ruling.
+///
+/// For genuine decisions nothing changes: the metered predicate layer
+/// is the only spelling — it IS the "definite sign or indeterminate"
+/// trilean, plus the two things a bare helper lacks (the NAME in the
+/// verdict log, and escalation as the forced disposition of
+/// indeterminate). A free-floating bounds-comparison helper would be
+/// the #701 `Enclosure` evasion with better manners, and stays out.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
