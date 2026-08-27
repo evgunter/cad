@@ -47,6 +47,8 @@ mod input_mapping;
 mod panel_edits;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
+#[path = "review_gui3_r1.rs"]
+mod review_gui3_r1;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
 #[path = "scene_build.rs"]
