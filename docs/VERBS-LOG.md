@@ -1946,3 +1946,15 @@ flipping wall 2 (PR-2, M). #968 proper (wall 1's torus×torus with
 the tangency disposition) stays banked; LILYWELD's machinery is
 deliberately the reusable half its checklist names. Recorded on
 #1059; dispatching to block VERBS-6 slot 2 beside SHELLFIX.
+
+## THE #1090 RULING ADOPTED AND SELF-APPLIED (2026-08-27)
+
+Evan's rule via PCURVE: relaxations recorded per arm; asymmetric
+pairs score nothing; 3(e) extends to orchestrator-made asymmetry.
+Self-applied at the same standard: PIERCE's pair is excluded
+under 3(e)'s letter (both arms killed mid-run and resumed —
+complete reports, identical briefs, but interrupted is
+interrupted; PCURVE excluded their comparable pair). VERBS state:
+tally 0/8, clean pairs toward twelve: 1 (TEAPOT). Ledger row
+corrected in place. Scheduling consequence adopted: under mutex
+saturation, stagger duals rather than touch briefs.
