@@ -29,8 +29,9 @@
 mod common;
 
 use common::{ball, cone, cube, cut_cylinder, die_pips, donut, lily_lantern, notched, washer};
+use geom::Surface;
 use geom_core::Point2;
-use geom_surfaces::Surface;
+use geom_core::Tol;
 use profile::RawLoop;
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
 
@@ -51,7 +52,7 @@ fn assert_flip_refuses(body: &Body<f64>, face: FaceKey, label: &str) {
     let flipped = body
         .flipped_face_sense_for_tests(face)
         .expect("live face key");
-    let errs = validate_geometric(&flipped)
+    let errs = validate_geometric(&flipped, Tol::witness())
         .expect_err(&format!("{label}: a sense-flipped curved face must refuse"));
     assert!(
         errs.iter()
@@ -75,7 +76,6 @@ fn flip_all(body: &Body<f64>) -> Body<f64> {
 /// whose material lies radially OUTSIDE it, so S11 mints `sense:
 /// false` with the winding still interior-left.
 fn countersink() -> Body<f64> {
-    use geom_core::Tolerance;
     use profile::{Profile, ProfileLoop, SketchPlane};
     use sweep::{Revolution, RevolveAxis, revolve};
     let lp = ProfileLoop::polygon([
@@ -85,7 +85,7 @@ fn countersink() -> Body<f64> {
         Point2::new(0.5, 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     revolve(
         &profile,
@@ -94,6 +94,7 @@ fn countersink() -> Body<f64> {
             dir: geom_core::Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -105,7 +106,10 @@ fn countersink() -> Body<f64> {
 #[test]
 fn washer_cylinder_walls_both_directions() {
     let body = washer();
-    assert!(validate_geometric(&body).is_ok(), "honest washer green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest washer green"
+    );
     let walls = faces_where(&body, |s| matches!(s, Surface::Cylinder { .. }));
     assert_eq!(walls.len(), 2, "washer: outer wall + bore");
     assert!(
@@ -123,7 +127,10 @@ fn washer_cylinder_walls_both_directions() {
 #[test]
 fn notched_walls_both_directions() {
     let body = notched();
-    assert!(validate_geometric(&body).is_ok(), "honest notched green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest notched green"
+    );
     let walls = faces_where(&body, |s| matches!(s, Surface::Cylinder { .. }));
     assert_eq!(walls.len(), 2, "notched: convex + concave wall");
     assert!(
@@ -140,7 +147,10 @@ fn notched_walls_both_directions() {
 #[test]
 fn cone_lateral_flip_refuses() {
     let body = cone();
-    assert!(validate_geometric(&body).is_ok(), "honest cone green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest cone green"
+    );
     let laterals = faces_where(&body, |s| matches!(s, Surface::Cone { .. }));
     assert!(!laterals.is_empty(), "cone: lateral faces present");
     for (k, sense) in laterals {
@@ -156,7 +166,7 @@ fn cone_lateral_flip_refuses() {
 fn countersink_cone_bore_both_directions() {
     let body = countersink();
     assert!(
-        validate_geometric(&body).is_ok(),
+        validate_geometric(&body, Tol::witness()).is_ok(),
         "honest countersink green (S11 negative control for the cone arm)"
     );
     let bores = faces_where(&body, |s| matches!(s, Surface::Cone { .. }));
@@ -172,7 +182,10 @@ fn countersink_cone_bore_both_directions() {
 #[test]
 fn lily_lantern_zone_and_pucker_flips_refuse() {
     let body = lily_lantern();
-    assert!(validate_geometric(&body).is_ok(), "honest lantern green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest lantern green"
+    );
     let zones = faces_where(&body, |s| matches!(s, Surface::Sphere { .. }));
     let cones = faces_where(&body, |s| matches!(s, Surface::Cone { .. }));
     assert!(!zones.is_empty() && !cones.is_empty(), "zone + pucker");
@@ -191,7 +204,10 @@ fn lily_lantern_zone_and_pucker_flips_refuse() {
 #[test]
 fn die_pips_dimple_flip_refuses() {
     let body = die_pips();
-    assert!(validate_geometric(&body).is_ok(), "honest die green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest die green"
+    );
     let dimples = faces_where(&body, |s| matches!(s, Surface::Sphere { .. }));
     let (k, sense) = *dimples.first().expect("die: dimple caps present");
     assert!(!sense, "dimple caps are native sense false (S11)");
@@ -202,7 +218,10 @@ fn die_pips_dimple_flip_refuses() {
 #[test]
 fn donut_torus_flips_refuse() {
     let body = donut();
-    assert!(validate_geometric(&body).is_ok(), "honest donut green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest donut green"
+    );
     let bands = faces_where(&body, |s| matches!(s, Surface::Torus { .. }));
     assert_eq!(bands.len(), 2, "donut: two torus half-bands");
     for (k, sense) in bands {
@@ -220,14 +239,17 @@ fn donut_torus_flips_refuse() {
 #[test]
 fn ball_half_flip_stays_exempt_residual() {
     let body = ball();
-    assert!(validate_geometric(&body).is_ok(), "honest ball green");
+    assert!(
+        validate_geometric(&body, Tol::witness()).is_ok(),
+        "honest ball green"
+    );
     let bands = faces_where(&body, |s| matches!(s, Surface::Sphere { .. }));
     assert_eq!(bands.len(), 2, "ball: two rimless half-bands");
     let flipped = body
         .flipped_face_sense_for_tests(bands[0].0)
         .expect("live face key");
     assert!(
-        validate_geometric(&flipped).is_ok(),
+        validate_geometric(&flipped, Tol::witness()).is_ok(),
         "the half-flipped rimless ball is the documented residual: V = 0, Zero-exempt"
     );
 }
@@ -246,7 +268,7 @@ fn whole_body_inversions_refuse() {
         ("lily_lantern", lily_lantern()),
     ] {
         let inverted = flip_all(&body);
-        let errs = validate_geometric(&inverted)
+        let errs = validate_geometric(&inverted, Tol::witness())
             .expect_err(&format!("{label}: whole-body inversion must refuse"));
         assert!(
             errs.iter()
@@ -262,7 +284,8 @@ fn whole_body_inversions_refuse() {
 #[test]
 fn whole_body_inverted_ball_stays_negative_volume() {
     let inverted = flip_all(&ball());
-    let errs = validate_geometric(&inverted).expect_err("inverted ball must refuse");
+    let errs =
+        validate_geometric(&inverted, Tol::witness()).expect_err("inverted ball must refuse");
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::NegativeVolume)),
@@ -285,7 +308,8 @@ fn planar_control_unchanged() {
     let flipped = body
         .flipped_face_sense_for_tests(face)
         .expect("live face key");
-    let errs = validate_geometric(&flipped).expect_err("flipped cube face must refuse");
+    let errs =
+        validate_geometric(&flipped, Tol::witness()).expect_err("flipped cube face must refuse");
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::LoopRoleInverted { .. })),
@@ -314,7 +338,7 @@ fn planar_control_unchanged() {
 fn cut_cylinder_conic_trim_residual_stays_green() {
     let body = cut_cylinder();
     assert!(
-        validate_geometric(&body).is_ok(),
+        validate_geometric(&body, Tol::witness()).is_ok(),
         "honest cut_cylinder green"
     );
     let walls = faces_where(&body, |s| matches!(s, Surface::Cylinder { .. }));
@@ -322,17 +346,17 @@ fn cut_cylinder_conic_trim_residual_stays_green() {
     for &(k, _) in &walls {
         let flipped = body.flipped_face_sense_for_tests(k).expect("live face key");
         assert!(
-            validate_geometric(&flipped).is_ok(),
+            validate_geometric(&flipped, Tol::witness()).is_ok(),
             "conic-trimmed wall flip is the documented residual: both layers exempt"
         );
     }
     let inverted = flip_all(&body);
     assert!(
-        validate_geometric(&inverted).is_ok(),
+        validate_geometric(&inverted, Tol::witness()).is_ok(),
         "whole-body-inverted cut_cylinder stays green (residual): quadrature volume \
          is winding-derived and the trimmed wall is exempt"
     );
-    let v = topo::mass_properties(&inverted)
+    let v = topo::mass_properties(&inverted, Tol::witness())
         .expect("volume computes")
         .volume;
     assert!(

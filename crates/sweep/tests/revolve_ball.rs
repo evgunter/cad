@@ -17,8 +17,9 @@
 
 mod revolve_common;
 
+use geom::Surface;
 use geom_brep::EdgeGeometry;
-use geom_surfaces::Surface;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
@@ -28,21 +29,15 @@ use sweep::{Revolution, RevolvedKind, revolve};
 /// (bulge tan(π/4) = 1), closed by the on-axis diameter. CCW.
 fn half_disc() -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ])
 }
 
 #[test]
 fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     let vp = validated(vec![half_disc()]);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(counts(&t.body), (2, 2, 2, 0));
     // Both band faces share ONE sphere surface (the only surface).
@@ -73,6 +68,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     assert_eq!(meridians.len(), 2);
     let arc_edge = meridians[0].expect("canonical segment 0 is the arc");
     assert!(meridians[1].is_none(), "axis segment omitted");

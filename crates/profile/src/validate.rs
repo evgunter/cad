@@ -41,7 +41,7 @@
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
-//! Every decision goes through the [`crate::k_stats::decide`] funnel
+//! Every decision goes through the [`geom_core::k_stats::decide`] funnel
 //! with one of these names — the unit of the K-experiment margin
 //! statistics:
 //!
@@ -101,12 +101,12 @@
 
 use core::fmt;
 
+use geom_core::k_stats::decide;
 use geom_core::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
-    Tolerance, Vec2,
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol,
+    Vec2,
 };
 
-use crate::k_stats::decide;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::{Profile, ProfileLoop, ProfileVertex};
 
@@ -243,10 +243,11 @@ impl fmt::Display for FilletLegCarrier {
 }
 
 /// Why a fillet corner admits **no** tangent circle of the requested
-/// radius (the [`ProfileError::NoCornerForFillet`] payload — the
-/// situation `docs/PATHS-DESIGN.md` §2 (the Fillet section) names for
-/// the v2 algebra's `.fillet(r)`, reached here through the v1
-/// constructor door).
+/// radius (the finer split inside
+/// [`crate::path::PathNoCornerReason::NoTangentCircle`], carried by
+/// [`crate::PathError::NoCornerForFillet`] — the situation
+/// `docs/PATHS-DESIGN.md` §2 (the Fillet section) names for the
+/// algebra's `.fillet(r)`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoCornerReason {
     /// The two offset carriers (each leg's carrier pushed `r` toward
@@ -259,7 +260,7 @@ pub enum NoCornerReason {
     /// Tangent circles of radius `r` exist, but every one of them
     /// touches a leg **past the corner** — the arc would round a corner
     /// the legs do not actually reach (the branch rule's corner-side
-    /// extent test, `docs/M5-S2-SPEC.md` §1).
+    /// extent test).
     NoCornerSideCandidate,
 }
 
@@ -276,35 +277,12 @@ impl fmt::Display for NoCornerReason {
     }
 }
 
-/// The recourse for a corner whose legs already meet **smoothly**
-/// tangentially — the single carrier of this user situation's text (the
-/// two-tolerance discipline, D4 ¶1 addendum; the shape
-/// `docs/M5-S6-SPEC.md` builds for the whole kernel): the same sentence
-/// is rendered whether the turn margin is exactly zero or merely
-/// in-band, and the margin rides the payload as data.
-const FILLET_TANGENT_CORNER_RECOURSE: &str = "there is no corner to round — the legs already run into each other tangentially at any \
-     precision you could care about; keep the legs and declare the tangency \
-     (the joint's index in the loop's tangent_joints), or move the geometry so a corner exists (or lower the \
-     tolerance)";
-
-/// The recourse for a **reverse**-tangent corner: the legs double back
-/// on each other, so there is no corner *and* no declaration door.
-///
-/// `docs/PATHS-DESIGN.md` §4 item 1 makes reverse-tangency its own
-/// refusal class for exactly this reason — the kernel's material-wedge
-/// invariant refuses cusp wedges in any solid built from such a
-/// profile, so `declare_tangent` would only move the failure downstream
-/// (review MINOR-2: advising it here was wrong). The front door for
-/// cusps is #131, which is tabled, and the refusal says so rather than
-/// implying a door exists.
-const FILLET_CUSP_CORNER_RECOURSE: &str = "there is no corner to round and no tangency to declare — a doubled-back corner is a \
-     cusp, which the kernel refuses in any solid built from this profile (#131 is the tabled \
-     question of a front door for cusps); move the geometry so the legs leave the corner in \
-     different directions";
-
 /// The recourse for an in-band corner **turn**, where the constructor
 /// has admitted it cannot classify the margin and therefore cannot say
-/// which of the two degenerate classes above it is looking at.
+/// which of the two degenerate corner classes it is looking at
+/// (smooth-tangent, whose recourse is declaring the tangency, or
+/// reverse-tangent — a cusp, which the kernel refuses; #131 is the
+/// tabled front door).
 ///
 /// Deliberately names both doors. The two-tolerance discipline asks for
 /// one sentence per user situation, and the situation here is precisely
@@ -314,12 +292,13 @@ const FILLET_CUSP_CORNER_RECOURSE: &str = "there is no corner to round and no ta
 const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
      the tolerance: if the legs run smoothly into each other, keep them and declare the \
      tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
-     kernel refuses it (#131); otherwise move the geometry so a real corner exists (or lower \
+     kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
      the tolerance)";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
-/// in-band escalation alike (see [`FILLET_TANGENT_CORNER_RECOURSE`]).
+/// in-band escalation alike (the two-tolerance discipline, D4 ¶1
+/// addendum: one message and one recourse per user situation).
 /// Also carries `fillet_leg_reach`, whose situation is the same one:
 /// whether a corner of this radius exists on the corner side at all
 /// (review MINOR-1).
@@ -328,7 +307,7 @@ const FILLET_NO_CORNER_RECOURSE: &str =
 
 /// The recourse for a corner whose offset lever is too short to place a
 /// tangent point within ε — one sentence for the definite refusal
-/// ([`ProfileError::FilletOffsetLeverTooShort`]) and for the in-band
+/// ([`crate::PathError::FilletOffsetLeverTooShort`]) and for the in-band
 /// escalation of `fillet_offset_lever` alike (D4 ¶1's clause (iv): a new
 /// definite arm inherits its in-band sibling's one story).
 ///
@@ -398,119 +377,6 @@ pub enum ProfileError {
         first: SegmentRef,
         /// The other.
         second: SegmentRef,
-    },
-    /// The fillet constructor's requested radius does not fit its
-    /// corner: a computed tangent point falls outside its leg's extent
-    /// (the setback exceeds the leg's length — `r·tan(φ/2)` on a
-    /// straight leg, the arc length `R·Δθ` back from the corner on a
-    /// circular one), so the arc would never approach the corner the
-    /// caller asked to round — refused at construction
-    /// (the fillet constructors behind `.fillet(r)`; the constructor-door
-    /// sibling of `TangentJointOutOfRange`: the tangent joint the
-    /// radius determines is out of the leg's range).
-    FilletDoesNotFit {
-        /// The (first, in incoming→outgoing order) overrun leg.
-        leg: FilletLeg,
-        /// The overrun leg's carrier kind, carrying the angular margin
-        /// for circular legs (M5 S2).
-        carrier: FilletLegCarrier,
-        /// The computed tangent setback from the corner along the leg,
-        /// in meters (an arc length on a circular leg) — an `f64`
-        /// **diagnostic** (the enclosure's lower bound at interval
-        /// scalars; for messages, not for re-deciding).
-        setback: f64,
-        /// The overrun leg's length in meters (same diagnostic
-        /// channel; an arc length on a circular leg).
-        leg_length: f64,
-    },
-    /// The fillet corner's legs meet **tangentially** (or reverse the
-    /// path onto itself): there is no corner to round. Refused at
-    /// construction rather than guessed — the fillet's whole contract
-    /// is that tangency is constructed and declared, so a corner that
-    /// is already tangent wants the declaration, not an arc (M5 S2;
-    /// `docs/PATHS-DESIGN.md` §4 item 1 is the same situation in the
-    /// v2 algebra).
-    ///
-    /// **PATHS lowering divergence (M5 S2, review MINOR-2)**: §4 item 1
-    /// splits this into TWO classes — smooth-tangent, whose recourse is
-    /// `.tangent()` (here `declare_tangent`), and reverse-tangent, which
-    /// has *no* declaration door because the material-wedge invariant
-    /// refuses cusp wedges downstream, and which names #131 as the front
-    /// door that does not exist yet. This error keeps both classes in one
-    /// variant, discriminated by `reversed`, and renders the two
-    /// recourses accordingly. The v2 lowering should split the variant;
-    /// v1 keeps one because the constructor reaches both through the
-    /// single `fillet_corner_turn` gate, and an in-band turn margin
-    /// cannot commit to either class.
-    FilletCornerAlreadyTangent {
-        /// `true` when the outgoing leg leaves along the **reverse** of
-        /// the incoming tangent (a cusp / doubled-back corner) rather
-        /// than continuing along it.
-        reversed: bool,
-        /// The turn margin `sin φ · arm` in meters (the classified
-        /// quantity; `f64` diagnostic channel).
-        margin: f64,
-        /// The lever arm the turn was metered at, meters (D4 ¶1: an
-        /// angle means nothing without one).
-        arm: f64,
-    },
-    /// No circle of the requested radius rounds the fillet corner —
-    /// the offset carriers do not meet, or every tangent circle touches
-    /// a leg past the corner. Named for the situation
-    /// `docs/PATHS-DESIGN.md` §2 (Fillet) reserves in the v2 algebra
-    /// (`NoCornerForFillet` — "parallel/non-intersecting carriers, or an
-    /// intersection behind the ray start"; [`NoCornerReason`] is the
-    /// finer split of those two), reached here through the v1
-    /// constructor.
-    NoCornerForFillet {
-        /// Which of the two ways the corner failed to exist.
-        reason: NoCornerReason,
-        /// The requested radius, meters (`f64` diagnostic channel).
-        radius: f64,
-    },
-    /// The fillet corner exists and a tangent circle of the requested
-    /// radius exists, but its **tangent point cannot be certified**: the
-    /// leg's offset radius ρ = R − σ·τ·r — the lever the tangent point
-    /// is recovered over, by projecting the fillet centre back onto the
-    /// leg's carrier — is shorter than the least lever the run's band
-    /// supports at this corner's scale, so the recovered point would sit
-    /// further than ε off the carrier it claims to be on (D4 ¶2: every
-    /// derived item carries a residual bound, and a construction that
-    /// cannot meet it refuses rather than absorbing the error).
-    ///
-    /// The situation in one sentence: **the fillet radius is too close
-    /// to the leg's own carrier radius** (that is what collapses ρ),
-    /// at a corner whose carriers are far apart relative to it. The
-    /// derivation of the least lever is on
-    /// `sugar::ArcCarrier::offset_circles`; the constant it uses is
-    /// measured, not chosen (M8).
-    FilletOffsetLeverTooShort {
-        /// The leg whose offset lever is short.
-        leg: FilletLeg,
-        /// That leg's carrier radius R, meters (`f64` diagnostic
-        /// channel).
-        carrier_radius: f64,
-        /// Its signed offset radius ρ = R − σ·τ·r, meters — negative
-        /// when the fillet swallows the leg's carrier.
-        offset_radius: f64,
-        /// The least |ρ| the band supports here, meters.
-        least_lever: f64,
-        /// The classified margin |ρ| − `least_lever`, meters.
-        margin: f64,
-    },
-    /// A fillet leg has no extent to round against: a zero-length
-    /// straight leg, a zero-radius arc carrier, or an arc leg whose
-    /// sweep is empty. The corner's turn cannot be metered there (D4
-    /// ¶1's lever arm collapses — the `dihedral_arm` gate's profile
-    /// sibling), so no classification is honest and the constructor
-    /// refuses typed.
-    FilletLegDegenerate {
-        /// The leg with the collapsed extent (the smaller arm, when
-        /// both collapse).
-        leg: FilletLeg,
-        /// The collapsed lever arm in meters (`f64` diagnostic
-        /// channel).
-        arm: f64,
     },
     /// A declared-tangent joint index ([`crate::ProfileLoop::tangent_joints`])
     /// is not a vertex index of its loop.
@@ -627,61 +493,6 @@ impl fmt::Display for ProfileError {
                 "tangential contact between {first} and {second}: touching without \
                  crossing is semantically indeterminate — {COINCIDENCE_RECOURSE} (D4)"
             ),
-            Self::FilletDoesNotFit {
-                leg,
-                carrier,
-                setback,
-                leg_length,
-            } => write!(
-                f,
-                "fillet radius does not fit: the tangent setback {setback} m exceeds \
-                 the {carrier} {leg}'s length {leg_length} m — {FILLET_FIT_RECOURSE}"
-            ),
-            Self::FilletCornerAlreadyTangent {
-                reversed,
-                margin,
-                arm,
-            } => {
-                let (kind, recourse) = if *reversed {
-                    (
-                        "the legs double back on each other (a cusp)",
-                        FILLET_CUSP_CORNER_RECOURSE,
-                    )
-                } else {
-                    (
-                        "the legs continue smoothly into each other",
-                        FILLET_TANGENT_CORNER_RECOURSE,
-                    )
-                };
-                write!(
-                    f,
-                    "fillet corner: {kind} — turn margin {margin} m at lever arm {arm} m; \
-                     {recourse}"
-                )
-            }
-            Self::NoCornerForFillet { reason, radius } => write!(
-                f,
-                "no corner for a fillet of radius {radius} m: {reason} — \
-                 {FILLET_NO_CORNER_RECOURSE}"
-            ),
-            Self::FilletOffsetLeverTooShort {
-                leg,
-                carrier_radius,
-                offset_radius,
-                least_lever,
-                margin,
-            } => write!(
-                f,
-                "fillet corner: the {leg}'s offset lever rho {offset_radius} m (carrier \
-                 radius {carrier_radius} m) is shorter than the {least_lever} m this \
-                 corner's scale needs at the run's tolerance (margin {margin} m), so the \
-                 tangent point on that carrier cannot be certified — \
-                 {FILLET_OFFSET_LEVER_RECOURSE}"
-            ),
-            Self::FilletLegDegenerate { leg, arm } => write!(
-                f,
-                "fillet {leg} has no extent (lever arm {arm} m) — {FILLET_LEG_EXTENT_RECOURSE}"
-            ),
             Self::TangentJointOutOfRange {
                 loop_index,
                 joint,
@@ -733,14 +544,14 @@ impl fmt::Display for ProfileError {
             ),
             Self::MultipleOuterLoops { outer_loops } => write!(
                 f,
-                "profile has {} outer boundaries {:?}; one face region per profile at M2",
+                "profile has {} outer boundaries {:?}; one face region per profile",
                 outer_loops.len(),
                 outer_loops
             ),
             Self::NestingTooDeep { loop_index, depth } => write!(
                 f,
                 "loop {loop_index} nests at depth {depth}; only outer boundaries \
-                 (depth 0) and holes (depth 1) are supported at M2"
+                 (depth 0) and holes (depth 1) are supported"
             ),
             Self::RayCastingExhausted {
                 loop_index,
@@ -748,7 +559,7 @@ impl fmt::Display for ProfileError {
             } => write!(
                 f,
                 "containment of loop {loop_index} in loop {against_loop}: every \
-                 candidate ray grazed — escalating rather than guessing (Q1)"
+                 candidate ray grazed — escalating rather than guessing"
             ),
             Self::Escalated { site, source } => {
                 write!(f, "validation escalated {site}: {source}")?;
@@ -775,8 +586,8 @@ impl fmt::Display for ProfileError {
                 // fillet predicate renders the SAME recourse sentence as
                 // its definite refusal — one message and one recourse per
                 // user situation below eps_input, the margin riding the
-                // payload (D4 ¶1 addendum; docs/M5-S6-SPEC.md's shape,
-                // composed from these shared carriers).
+                // payload (D4 ¶1 addendum; M5 S6's shape, composed
+                // from these shared carriers).
                 if matches!(site, EscalationSite::Fillet) {
                     match source.predicate {
                         Some("fillet_corner_turn") => {
@@ -789,8 +600,9 @@ impl fmt::Display for ProfileError {
                         // clearances, not with the fit gate (review
                         // MINOR-1): its situation is whether a corner of
                         // this radius exists on the corner side, and its
-                        // definite refusal is `NoCornerForFillet`, so the
-                        // trio renders one sentence end to end.
+                        // definite refusal is the path door's
+                        // `PathError::NoCornerForFillet`, so the trio
+                        // renders one sentence end to end.
                         Some(
                             "fillet_offset_line_circle"
                             | "fillet_offset_circles_external"
@@ -804,7 +616,8 @@ impl fmt::Display for ProfileError {
                         }
                         // The conditioning gate's in-band arm (M8): the
                         // same one story as its definite sibling
-                        // `FilletOffsetLeverTooShort`, per D4 ¶1 (iv).
+                        // `PathError::FilletOffsetLeverTooShort`, per
+                        // D4 ¶1 (iv).
                         Some("fillet_offset_lever") => {
                             write!(f, " — {FILLET_OFFSET_LEVER_RECOURSE}")?;
                         }
@@ -831,7 +644,7 @@ pub enum LoopRole {
 }
 
 /// A validated segment's classified carrier, exposed read-only for
-/// sweeps (PR 4 lowers `Arc` to a `geom-curves` circle carrier and
+/// sweeps (PR 4 lowers `Arc` to a `geom` circle carrier and
 /// `Line` to a line carrier at sweep time).
 #[derive(Debug, Clone, Copy)]
 pub enum SegmentKind<T: Real> {
@@ -908,6 +721,101 @@ impl<T: Real> ValidatedLoop<T> {
     pub fn tangent_joints(&self) -> &[usize] {
         &self.tangent_joints
     }
+
+    /// **Which segment is the fillet at corner k?** — every arc
+    /// segment this loop declares TANGENT at both of its junctions, in
+    /// CANONICAL segment order.
+    ///
+    /// **Authored order is not preserved, and entry `k` is not the
+    /// k-th fillet you wrote.** Validation canonicalizes: it rotates
+    /// the chain to its lex-min vertex, and it REVERSES a loop wound
+    /// the wrong way for its role — so a hole authored with fillets
+    /// `[r1, r2]` answers `[r2, r1]`. Correlate by
+    /// [`BlendArc::segment`] (a canonical index, which is the only
+    /// index this layer has) or by the arc data itself, which is
+    /// self-identifying; do not index by authoring position.
+    ///
+    /// A corner fillet leaves exactly this shape behind: an arc that
+    /// meets both legs tangentially, with both junctions declared (and
+    /// verified — validation refuses an unmet declaration). So the
+    /// answer is STRUCTURAL — it reads [`ValidatedLoop::tangent_joints`],
+    /// decides nothing, and compares no floats. That is what makes it
+    /// a replacement for the alternative every caller wrote instead:
+    /// scanning the segments for "the arc whose radius equals R",
+    /// which finds the wrong arc as soon as two blends share a radius,
+    /// and silently finds nothing when the stored radius drifts an
+    /// ulp.
+    ///
+    /// **What it reports, exactly.** Any tangent-continuous arc
+    /// answers, not only arcs an author reached through fillet sugar —
+    /// a full circle lowered as two tangent semicircles presents the
+    /// same shape and is listed too. This is a read of the loop's
+    /// structure, not a verdict about intent, and the docs say so
+    /// rather than the answer guessing.
+    ///
+    /// ```
+    /// use geom_core::{Point2, Tol};
+    /// use profile::{ArcSweep, Center, Open, Profile, SegmentKind, SketchPlane, Start};
+    ///
+    /// let tol = Tol::witness();
+    /// // The tour rocker's eye slot: two R = 1 lobes meeting tip to
+    /// // tip, the TOP tip filleted at R = 1/4, the bottom left sharp.
+    /// let tip = 0.75f64.sqrt();
+    /// let eye = Open
+    ///     .arc_fillet_arc(
+    ///         Center {
+    ///             c: Point2::new(-0.5, 0.0),
+    ///             winding: ArcSweep::Ccw,
+    ///             p: Point2::new(0.0, -tip),
+    ///         },
+    ///         0.25,
+    ///         Center {
+    ///             c: Point2::new(0.5, 0.0),
+    ///             winding: ArcSweep::Ccw,
+    ///             p: Start,
+    ///         },
+    ///         tol,
+    ///     )
+    ///     .expect("the near candidate resolves the tip");
+    /// let slot = Profile::new(SketchPlane::xy(), vec![eye.into()])
+    ///     .validate(tol)
+    ///     .expect("the eye slot validates");
+    ///
+    /// // One filleted corner, found by structure — no radius scan.
+    /// let blends = slot.loops()[0].blend_arcs();
+    /// assert_eq!(blends.len(), 1);
+    /// match blends[0].kind {
+    ///     SegmentKind::Arc { center, radius, .. } => {
+    ///         assert!((radius - 0.25).abs() < 1e-12);
+    ///         assert!(center.x.abs() < 1e-12);
+    ///     }
+    ///     SegmentKind::Line => panic!("a fillet is an arc"),
+    /// }
+    /// ```
+    #[must_use]
+    pub fn blend_arcs(&self) -> Vec<BlendArc<T>> {
+        let n = self.segments.len();
+        let tangent_at = |v: usize| self.tangent_joints.binary_search(&v).is_ok();
+        (0..n)
+            .filter(|&j| matches!(self.segments[j].kind, SegmentKind::Arc { .. }))
+            .filter(|&j| tangent_at(j) && tangent_at((j + 1) % n))
+            .map(|j| BlendArc {
+                segment: j,
+                kind: self.segments[j].kind,
+            })
+            .collect()
+    }
+}
+
+/// One blend arc of a validated loop: which canonical segment it is,
+/// and the arc data the classifier gave it.
+#[derive(Clone, Copy, Debug)]
+pub struct BlendArc<T: Real> {
+    /// The canonical segment index within the loop (segment `j` runs
+    /// from vertex `j` to vertex `j + 1 mod n`).
+    pub segment: usize,
+    /// The classified carrier — always [`SegmentKind::Arc`] here.
+    pub kind: SegmentKind<T>,
 }
 
 /// A validated, canonicalized profile — the only thing sweeps accept.
@@ -986,8 +894,8 @@ impl<T: Decide> Profile<T> {
     /// escalation (in-band margin, poisoned coordinate) surfaces as
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
-    pub fn validate(&self, tol: Tolerance) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ProfileError::Band)?;
+    pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
@@ -1472,8 +1380,16 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
             SegKind::Arc(g) => {
                 let theta = four * s.bulge.atan();
                 // Circular-segment correction: (r²/2)(θ − sin θ),
-                // doubled here since we accumulate 2A.
-                twice_area = twice_area + g.radius * g.radius * (theta - theta.sin());
+                // doubled here since we accumulate 2A. `r²` is the tight
+                // square, and here it is the tight square of something
+                // already known nonnegative: `Seg::radius` is
+                // `signed_radius.abs()`, so at `Interval` the enclosure
+                // has `lo >= 0` and the plain product's four-corner
+                // minimum IS the tight square. The conversion changes no
+                // bound at any instantiation — it is here so the file
+                // spells a square the one way the rule names, not
+                // because this site was wide.
+                twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
                 perimeter = perimeter + g.radius * theta.abs();
             }
         }

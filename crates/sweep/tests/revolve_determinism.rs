@@ -10,7 +10,7 @@ mod revolve_common;
 use core::f64::consts::FRAC_PI_2;
 use profile::RawLoop;
 
-use geom_core::Tolerance;
+use geom_core::Tol;
 use geom_core::{Point2, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
@@ -19,14 +19,8 @@ use sweep::{Revolution, RevolveAxis, revolve};
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {
     let half_disc = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let triangle = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
     let washer = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
@@ -44,7 +38,7 @@ fn rebuild_is_byte_identical_and_volumes_positive() {
     for (i, (loops, rev)) in shapes().into_iter().enumerate() {
         let build = || {
             let vp = validated(loops.clone());
-            revolve(&vp, axis_y(), rev).unwrap()
+            revolve(&vp, axis_y(), rev, Tol::witness()).unwrap()
         };
         let a = build();
         let b = build();
@@ -64,23 +58,25 @@ fn dual_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
     let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
         ProfileLoop::new(
-            lp.vertices
+            lp.vertices()
                 .iter()
-                .map(|v| ProfileVertex {
-                    pos: Point2::new(Dual::constant(v.pos.x), Dual::constant(v.pos.y)),
-                    bulge: Dual::constant(v.bulge),
+                .map(|v| {
+                    ProfileVertex::new(
+                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
+                        Dual::constant(v.bulge()),
+                    )
                 })
                 .collect(),
         )
     };
     for (i, (loops, rev)) in shapes().into_iter().enumerate() {
         let vp = validated(loops.clone());
-        let f = revolve(&vp, axis_y(), rev).unwrap();
+        let f = revolve(&vp, axis_y(), rev, Tol::witness()).unwrap();
         let dp = Profile::new(
             SketchPlane::<Dual64>::xy(),
             loops.iter().map(&lift).collect(),
         )
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
         let drev = match rev {
             Revolution::Full => Revolution::Full,
@@ -90,7 +86,7 @@ fn dual_value_channel_matches_f64_bitwise() {
             origin: Point2::new(Dual::constant(0.0), Dual::constant(0.0)),
             dir: Vec2::new(Dual::constant(0.0), Dual::constant(1.0)),
         };
-        let d = revolve(&dp, daxis, drev).unwrap();
+        let d = revolve(&dp, daxis, drev, Tol::witness()).unwrap();
         // Value channel bit-identity: compare every point coordinate.
         let f_pts: Vec<f64> = f.body.points().flat_map(|(_, p)| [p.x, p.y, p.z]).collect();
         let d_pts: Vec<f64> = d

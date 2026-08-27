@@ -22,12 +22,17 @@ import unittest
 
 import pncad
 from pncad import (
+    ArcSide,
     ArcSweep,
+    Bulge,
+    Center,
     BooleanOp,
     Doc,
     Node,
     Open,
     Start,
+    Radius,
+    Via,
     circle,
     circle_split,
     deg,
@@ -94,17 +99,19 @@ class TestTheLatticeWalks(unittest.TestCase):
         self.assertEqual(loop.vertex_count, 3)
 
     def test_the_three_arc_binding_modes(self):
+        # One leg verb, three spec MODES: the mode is the binding, and
+        # which modes a state admits is the admissibility matrix.
         via = (
             Open.at((1 * m, 0 * m))
-            .arc_via((0 * m, 1 * m), (-1 * m, 0 * m))
+            .arc_to(Via((0 * m, 1 * m), (-1 * m, 0 * m)))
             .line_to(Start)
         )
         centre = (
             Open.at((1 * m, 0 * m))
-            .arc_center(ORIGIN, (-1 * m, 0 * m), ArcSweep.Ccw)
+            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)))
             .line_to(Start)
         )
-        bulge = Open.at((1 * m, 0 * m)).arc_to((-1 * m, 0 * m), 1.0).line_to(Start)
+        bulge = Open.at((1 * m, 0 * m)).arc_to(Bulge((-1 * m, 0 * m), 1.0)).line_to(Start)
         for name, loop in [("via", via), ("centre", centre), ("bulge", bulge)]:
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
@@ -114,49 +121,74 @@ class TestTheLatticeWalks(unittest.TestCase):
         # identity, not a junction claim.
         loop = (
             Open.at((1 * m, 0 * m))
-            .arc_center(ORIGIN, (0 * m, 1 * m), ArcSweep.Ccw)
+            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (0 * m, 1 * m)))
             .arc_continue((-1 * m, 0 * m))
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 3)
 
-    def test_the_carrier_bound_anchor_and_close(self):
-        # The rocker eye's lens: entry on the right lobe's carrier, one
-        # fillet, closed on the left lobe's (PATHS §2b).
+    def test_the_fused_verb_authors_both_carriers_and_closes(self):
+        # The rocker eye's lens: the entry side rides the left lobe's
+        # carrier, one fillet rounds the tip, and the arrival rides the
+        # right lobe's carrier back to the entry — ONE authoring act,
+        # because an arc and the fillet that trims it are one decision.
         tip = math.sqrt(0.75)
-        loop = (
-            Open.at_on((0 * m, -tip * m), (-0.5 * m, 0 * m), ArcSweep.Ccw)
-            .fillet(0.25 * m)
-            .to_on(Start, (0.5 * m, 0 * m), ArcSweep.Ccw)
+        loop = Open.arc_fillet_arc(
+            Center((-0.5 * m, 0 * m), ArcSweep.Ccw, (0 * m, -tip * m)),
+            0.25 * m,
+            Center((0.5 * m, 0 * m), ArcSweep.Ccw, Start),
         )
         self.assertEqual(loop.vertex_count, 3)
 
-    def test_the_straight_arrival_off_an_arc_departure(self):
-        # §2b route 3: the entry rides the R = 5 circle, the fillet
-        # opens against that carrier, and `at_toward` binds the
-        # straight arrival's anchor AND its director in one act. The
-        # corner is DERIVED (the ray meets the circle at (±4, 3)); the
-        # reach gate discards the root the anchor never came from.
+    def test_a_straight_arrival_off_a_fused_arc_incoming(self):
+        # The entry side rides the R = 5 circle, the fillet opens
+        # against that carrier, and the arrival is the ordinary
+        # straight pair. The corner is DERIVED (the ray meets the
+        # circle at (±4, 3)); the reach gate discards the root the
+        # anchor never came from.
         loop = (
-            Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
-            .fillet(0.5 * m)
-            .at_toward((0 * m, 3 * m), -1.0, 0.0)
+            Open.arc_fillet(Center(ORIGIN, ArcSweep.Ccw, (5 * m, 0 * m)), 0.5 * m)
+            .at((0 * m, 3 * m))
+            .toward(-1.0, 0.0)
             .line(3 * m)
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 4)
 
-    def test_a_straight_departure_refuses_the_route_three_door(self):
-        # The door's fence: two straight carriers are the generic
-        # `.at().toward()` pair's business, and the refusal says so.
-        with self.assertRaises(pncad.PathError) as caught:
-            (
-                Open.at((0 * m, 0 * m))
-                .toward(1.0, 0.0)
-                .fillet(0.5 * m)
-                .at_toward((3 * m, 3 * m), 0.0, 1.0)
-            )
-        self.assertEqual(caught.exception.variant, "arc_carrier_spelling")
+    def test_the_on_carrier_tip_re_authors_its_carrier_by_radius(self):
+        # An on-carrier tip carries position and tangent and nothing
+        # else, so the verb that continues it AUTHORS the carrier:
+        # `Radius` re-derives the centre from those two bits, which is
+        # why tangency there needs nothing value-matched. Here the
+        # derived centre IS the authored boss centre, exactly.
+        loop = (
+            Open.at((5.05 * m, -1.6 * m))
+            .toward(2.1, 0.8)
+            .fillet_arc(0.5 * m, Center((7 * m, 0 * m), ArcSweep.Ccw, (8.5 * m, 0 * m)))
+            .arc_fillet(Radius(1.5 * m, ArcSide.Left), 0.5 * m)
+            .at((4.05 * m, 1.35 * m))
+            .toward(-4.1, 0.3)
+            .line(1 * m)
+            .line_to(Start)
+        )
+        self.assertEqual(loop.vertex_count, 6)
+
+    def test_sharp_after_an_arc_arrival_takes_an_ordinary_director(self):
+        # The interior arc arrival lands on an ordinary directed point
+        # (the run to the hard anchor is emitted at the verb), so a
+        # SHARP continuation is an ordinary director + leg — the
+        # spelling the retired on-carrier state made unrepresentable.
+        loop = (
+            Open.at((5.05 * m, -1.6 * m))
+            .toward(2.1, 0.8)
+            .fillet_arc(0.5 * m, Center((7 * m, 0 * m), ArcSweep.Ccw, (8.5 * m, 0 * m)))
+            .angle(2.6 * rad)
+            .line(1 * m)
+            .line_to(Start)
+        )
+        # Entry, trim, fillet arc, hard anchor, leg end: five vertices,
+        # the authored anchor among them as a genuine sharp corner.
+        self.assertEqual(loop.vertex_count, 5)
 
     def test_the_complete_loop_carrier_forms_are_one_step(self):
         self.assertEqual(circle(ORIGIN, 1 * m).step_count, 1)
@@ -225,7 +257,6 @@ class TestTheOffLatticeStatesAreAbsent(unittest.TestCase):
 
     def test_the_entry_cannot_close_on_a_start_that_does_not_exist_yet(self):
         self.assertFalse(hasattr(Open, "to"))
-        self.assertFalse(hasattr(Open, "to_on"))
 
 
 class TestRefusalsFireAtTheCallSite(unittest.TestCase):

@@ -1,9 +1,9 @@
-//! Linear maps of the 2-D/3-D tangent spaces.
+//! Linear maps of the 3-D tangent space.
 //!
 //! See the [module docs](super) for the affine/linear split: a matrix here
-//! is a linear endomorphism of the tangent space — it acts on
-//! [`Vec2`]/[`Vec3`], never directly on points (affine maps, which also
-//! move points, are [`super::Affine2`]/[`super::Affine3`]).
+//! is a linear endomorphism of the tangent space — it acts on [`Vec3`],
+//! never directly on points (affine maps, which also move points, are
+//! [`super::Affine3`]).
 //!
 //! Storage is column-major through *named column fields* (`c0`, `c1`,
 //! `c2`), each a vector — the columns are the images of the standard basis
@@ -13,17 +13,8 @@
 
 use core::ops::Mul;
 
-use crate::linalg::{Vec2, Vec3};
+use crate::linalg::Vec3;
 use crate::real::Real;
-
-/// A linear map of the 2-D tangent space, stored as two named columns.
-#[derive(Clone, Copy, Debug)]
-pub struct Mat2<T: Real> {
-    /// The first column — the image of the basis vector (1, 0).
-    pub c0: Vec2<T>,
-    /// The second column — the image of the basis vector (0, 1).
-    pub c1: Vec2<T>,
-}
 
 /// A linear map of the 3-D tangent space, stored as three named columns.
 #[derive(Clone, Copy, Debug)]
@@ -34,68 +25,6 @@ pub struct Mat3<T: Real> {
     pub c1: Vec3<T>,
     /// The third column — the image of the basis vector (0, 0, 1).
     pub c2: Vec3<T>,
-}
-
-impl<T: Real> Mat2<T> {
-    /// Builds a matrix from its columns (the images of the basis
-    /// vectors).
-    pub fn from_cols(c0: Vec2<T>, c1: Vec2<T>) -> Self {
-        Self { c0, c1 }
-    }
-
-    /// The identity map.
-    pub fn identity() -> Self {
-        Self::from_cols(Vec2::unit_x(), Vec2::unit_y())
-    }
-
-    /// The transpose. Pure field shuffling — no arithmetic, so
-    /// bit-exact, and an exact involution.
-    pub fn transpose(self) -> Self {
-        Self::from_cols(
-            Vec2::new(self.c0.x, self.c1.x),
-            Vec2::new(self.c0.y, self.c1.y),
-        )
-    }
-
-    /// The determinant, evaluated exactly as the fixed two-product
-    /// difference `c0.x·c1.y − c0.y·c1.x` (D9: the association is part of
-    /// the contract). Note this is `c0.perp_dot(c1)` — the signed area of
-    /// the parallelogram spanned by the columns — and shares its
-    /// evaluation order bit-identically.
-    pub fn determinant(self) -> T {
-        self.c0.perp_dot(self.c1)
-    }
-
-    /// The rotation by `angle` radians (counterclockwise for positive
-    /// angles in the right-handed x-y frame), built from one
-    /// [`Real::sin_cos`] call: columns `(cos, sin)` and `(−sin, cos)`.
-    /// Orthogonality and unit determinant hold to rounding, not exactly —
-    /// downstream code must not assume `R·Rᵀ` is bit-identical to the
-    /// identity.
-    pub fn rotation(angle: T) -> Self {
-        let (s, c) = angle.sin_cos();
-        Self::from_cols(Vec2::new(c, s), Vec2::new(-s, c))
-    }
-
-    /// The inverse via the adjugate: columns `(c1.y, −c0.y)` and
-    /// `(−c1.x, c0.x)`, each scaled by `1/det` — with `det` computed
-    /// bit-identically to [`Mat2::determinant`], one reciprocal `1/det`,
-    /// and one multiply per entry (fixed order, D9).
-    ///
-    /// **Total.** A singular map divides by a zero determinant: entries
-    /// become non-finite (±∞, or NaN where a zero adjugate entry meets
-    /// the infinite reciprocal) and flow onward as poison per the crate's
-    /// totality policy. A *near*-singular map returns finite entries
-    /// magnified by 1/det — deciding whether a map is invertible enough
-    /// is a predicate-layer question (determinant sign and margin), not
-    /// this method's.
-    pub fn inverse(self) -> Self {
-        let inv_det = T::one() / self.determinant();
-        Self::from_cols(
-            Vec2::new(self.c1.y, -self.c0.y) * inv_det,
-            Vec2::new(-self.c1.x, self.c0.x) * inv_det,
-        )
-    }
 }
 
 impl<T: Real> Mat3<T> {
@@ -141,7 +70,16 @@ impl<T: Real> Mat3<T> {
     ///
     /// Evaluation order (fixed, D9), with `(s, c) = angle.sin_cos()` and
     /// `t = 1 − c`: each off-diagonal entry is `((t·nᵢ)·nⱼ) ± (s·nₖ)` and
-    /// each diagonal entry is `((t·nᵢ)·nᵢ) + c`, exactly as parenthesized.
+    /// each diagonal entry is `(t·(nᵢ²)) + c`, exactly as parenthesized.
+    /// The diagonal's square is the tight square (`powi(2)`), taken
+    /// before the `t` scale: at `Interval` the plain `(t·nᵢ)·nᵢ` treats
+    /// the two `nᵢ` factors as independent, so an axis component whose
+    /// enclosure straddles zero gives the diagonal a spurious sign
+    /// excursion. Unlike the off-diagonals — genuine mixed products,
+    /// which stay as written — the diagonal is a scaled square, and `t`
+    /// is arbitrary, so this association is not the `f64` product's:
+    /// the two differ by a rounding and that difference is visible in
+    /// `f64` output.
     /// Orthogonality and unit determinant hold to rounding, not exactly.
     pub fn rotation_about(axis: Vec3<T>, angle: T) -> Self {
         let n = axis.normalize();
@@ -149,9 +87,9 @@ impl<T: Real> Mat3<T> {
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);
         Self::from_cols(
-            Vec3::new(t * x * x + c, t * x * y + s * z, t * x * z - s * y),
-            Vec3::new(t * x * y - s * z, t * y * y + c, t * y * z + s * x),
-            Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z * z + c),
+            Vec3::new(t * x.powi(2) + c, t * x * y + s * z, t * x * z - s * y),
+            Vec3::new(t * x * y - s * z, t * y.powi(2) + c, t * y * z + s * x),
+            Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z.powi(2) + c),
         )
     }
 
@@ -180,30 +118,6 @@ impl<T: Real> Mat3<T> {
             Vec3::new(r0.y, r1.y, r2.y) * inv_det,
             Vec3::new(r0.z, r1.z, r2.z) * inv_det,
         )
-    }
-}
-
-/// Matrix-vector application `m * v`: the linear combination of columns
-/// `(c0·v.x + c1·v.y)`, evaluated exactly in that fixed order
-/// componentwise (each output component is `(c0ᵢ·x) + (c1ᵢ·y)`), D9.
-impl<T: Real> Mul<Vec2<T>> for Mat2<T> {
-    type Output = Vec2<T>;
-
-    fn mul(self, rhs: Vec2<T>) -> Vec2<T> {
-        self.c0 * rhs.x + self.c1 * rhs.y
-    }
-}
-
-/// Matrix composition `a * b` — apply `b` first, then `a` (standard
-/// function-composition order: `(a * b) * v = a * (b * v)` in exact
-/// arithmetic). Column `j` of the product is `a * (column j of b)`, the
-/// fixed matrix-vector order above; in floating point the two sides of
-/// the composition law differ by reassociation rounding.
-impl<T: Real> Mul for Mat2<T> {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self {
-        Self::from_cols(self * rhs.c0, self * rhs.c1)
     }
 }
 
@@ -294,17 +208,12 @@ mod tests {
         ] {
             assert_vec3_bits_eq(Mat3::identity() * v, v);
         }
-        let v2 = Vec2::new(-4.5, 0.375);
-        let w2 = Mat2::identity() * v2;
-        assert_eq!(w2.x.to_bits(), v2.x.to_bits());
-        assert_eq!(w2.y.to_bits(), v2.y.to_bits());
     }
 
     #[test]
     fn determinant_of_identity_is_one() {
         // All products are of exact 0s and 1s: det(I) is exactly 1.
         assert_eq!(Mat3::<f64>::identity().determinant(), 1.0);
-        assert_eq!(Mat2::<f64>::identity().determinant(), 1.0);
     }
 
     #[test]
@@ -316,9 +225,6 @@ mod tests {
         for c in [z3.c0, z3.c1, z3.c2] {
             assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
         }
-        let z2 = Mat2::from_cols(Vec2::<f64>::zero(), Vec2::zero()).inverse();
-        assert!(z2.c0.x.is_nan() && z2.c0.y.is_nan());
-        assert!(z2.c1.x.is_nan() && z2.c1.y.is_nan());
     }
 
     #[test]
@@ -333,6 +239,81 @@ mod tests {
         }
     }
 
+    /// The diagonal is `(t·nᵢ²) + c`, **bit-exactly and not
+    /// `((t·nᵢ)·nᵢ) + c`** — the association the doc comment states, at
+    /// an input that can tell the two apart.
+    ///
+    /// `t = 1 − cos θ` is arbitrary, so the two spellings differ by a
+    /// rounding on most oblique axes — unlike `vec.rs`'s `±1`-scaled
+    /// twin, which is exact either way.
+    ///
+    /// **DO NOT DELETE THIS AS REDUNDANT. It is the only thing in the
+    /// tree that objects.** Every committed artifact — every golden,
+    /// render, STEP export and k-lint row — rotates about an axis whose
+    /// components are `0` or `±1`, and there
+    /// `(t·0)·0 = t·(0²) = 0` and `(t·1)·1 = t·(1²) = t` make the two
+    /// associations identical. So re-associating this diagonal back
+    /// would move `f64` output for real callers with an **oblique**
+    /// axis while the entire committed corpus stayed byte-identical and
+    /// green. That was measured, not assumed: the conversion that
+    /// introduced this test changed 34.6% of random (θ, axis) diagonals
+    /// and re-cut no golden anywhere.
+    ///
+    /// The tree's one other oblique-axis bit-exact rotation row
+    /// (`editor-core/tests/asm2a_instantiate.rs`) cannot help: its
+    /// oracle re-spells the caller's own expression and so moves with
+    /// the code. That is smell-scan **S215**, and this doc comment is
+    /// the reason it is only a finding rather than a hole.
+    ///
+    /// **The angles are swept, not hand-picked.** Whether a given θ
+    /// separates the two spellings depends on libm's `sin_cos` to the
+    /// last ulp, so a hardcoded pair is a fixture that can silently
+    /// stop discriminating under a libm bump. The sweep asserts
+    /// instead that *some* angle in it discriminates each of the three
+    /// diagonals, which fails loudly if that ever stops being true.
+    #[test]
+    fn rotation_diagonal_takes_the_square_before_the_scale() {
+        // The RAW axis goes in: `rotation_about` normalizes internally,
+        // so handing it a pre-normalized vector normalizes twice and the
+        // expectation below would be modelling a different axis. (This
+        // test caught exactly that mistake being made in it.)
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let mut discriminating = [false; 3];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let r = Mat3::rotation_about(axis, theta);
+            // `Real::sin_cos`, NOT std's inherent `f64::sin_cos`. The
+            // kernel routes transcendentals through the pure-Rust `libm`
+            // crate BECAUSE the platform libm differs in the last ulp
+            // (D9; `real.rs`'s `libm_vs_std_divergence_census` measures
+            // it at ~3% of samples, max 1 ulp). At this precision that
+            // difference is the whole test, so std's method is the wrong
+            // oracle here — as this test demonstrated by rejecting it.
+            let (_, c) = <f64 as Real>::sin_cos(theta);
+            let t = 1.0 - c;
+            let got = [r.c0.x, r.c1.y, r.c2.z];
+            for (i, ni) in [n.x, n.y, n.z].into_iter().enumerate() {
+                let want = t * <f64 as Real>::powi(ni, 2) + c;
+                assert_eq!(
+                    got[i].to_bits(),
+                    want.to_bits(),
+                    "diagonal {i} at theta={theta}: {} vs documented t*n^2+c {}",
+                    got[i],
+                    want
+                );
+                if want.to_bits() != ((t * ni) * ni + c).to_bits() {
+                    discriminating[i] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating, [true; 3],
+            "no angle in the sweep separates ((t*n)*n)+c from (t*n^2)+c for \
+             every diagonal — this test no longer guards the association"
+        );
+    }
+
     proptest! {
         /// transpose ∘ transpose is the identity *bit-exactly*: transpose
         /// is pure field shuffling, no arithmetic anywhere.
@@ -343,23 +324,6 @@ mod tests {
             assert_vec3_bits_eq(tt.c0, m.c0);
             assert_vec3_bits_eq(tt.c1, m.c1);
             assert_vec3_bits_eq(tt.c2, m.c2);
-        }
-
-        /// R·Rᵀ ≈ I for 2-D rotations. Error budget: libm sin/cos are
-        /// within ~1 ulp of exact (absolute ≤ ~2.3e-16 since |s|,|c| ≤ 1),
-        /// so each entry of R·Rᵀ — a two-term sum of products of s and c —
-        /// carries ≤ ~2·2(input) + 3(product/sum roundings) ≈ 7 quantities
-        /// of order EPSILON: ≤ ~1.6e-15. Asserted at 4e-15 (few-ulp bound
-        /// with ~2.5× slack). Same budget for det = c² + s².
-        #[test]
-        fn rotation2_orthogonal_and_special(theta in angle()) {
-            let r = Mat2::<f64>::rotation(theta);
-            let p = r * r.transpose();
-            prop_assert!((p.c0.x - 1.0).abs() <= 4e-15);
-            prop_assert!((p.c1.y - 1.0).abs() <= 4e-15);
-            prop_assert!(p.c0.y.abs() <= 4e-15);
-            prop_assert!(p.c1.x.abs() <= 4e-15);
-            prop_assert!((r.determinant() - 1.0).abs() <= 4e-15);
         }
 
         /// R·Rᵀ ≈ I for Rodrigues rotations. Error budget: the normalized
@@ -379,7 +343,8 @@ mod tests {
             prop_assert!((r.determinant() - 1.0).abs() <= 2e-13);
         }
 
-        /// Rodrigues about the z axis reproduces the 2-D rotation
+        /// Rodrigues about the z axis reproduces the standard 2-D
+        /// rotation block — columns `(cos, sin)` and `(−sin, cos)` —
         /// embedded in the x-y plane. With n = (0, 0, 1) exactly
         /// (normalization of a unit basis vector is exact: 1/1), every
         /// `t·nᵢ·nⱼ` term is a signed zero or `t`, so the 2×2 block
@@ -390,12 +355,12 @@ mod tests {
         /// re-add rounds once at ≤ EPSILON/2). Everything is therefore
         /// within 5e-16 of the embedded 2-D rotation entrywise.
         #[test]
-        fn rodrigues_z_axis_matches_embedded_rotation2(theta in angle()) {
+        fn rodrigues_z_axis_matches_embedded_planar_rotation(theta in angle()) {
             let r3 = Mat3::<f64>::rotation_about(Vec3::unit_z(), theta);
-            let r2 = Mat2::<f64>::rotation(theta);
+            let (s, c) = theta.sin_cos();
             let embedded = Mat3::from_cols(
-                Vec3::new(r2.c0.x, r2.c0.y, 0.0),
-                Vec3::new(r2.c1.x, r2.c1.y, 0.0),
+                Vec3::new(c, s, 0.0),
+                Vec3::new(-s, c, 0.0),
                 Vec3::unit_z(),
             );
             assert_mat3_entrywise_close(r3, embedded, 5e-16);
@@ -450,23 +415,6 @@ mod tests {
         fn rotation_inverse_is_transpose_within_bound(axis in vec3(), theta in angle()) {
             let r = Mat3::rotation_about(axis, theta);
             assert_mat3_entrywise_close(r.inverse(), r.transpose(), 1e-12);
-        }
-
-        /// 2-D analogue of the above: for a 2-D rotation the adjugate is
-        /// exactly the transpose's entries (pure field shuffles of ±s and
-        /// c — no arithmetic), so the only error is det = c² + s² ≈ 1
-        /// within ~4e-15 (rotation2 budget) entering through the one
-        /// reciprocal and one multiply per entry: ≤ ~5e-15 per entry.
-        /// Asserted at 1e-13 (slack for the unmodeled constants).
-        #[test]
-        fn rotation2_inverse_is_transpose_within_bound(theta in angle()) {
-            let r = Mat2::<f64>::rotation(theta);
-            let inv = r.inverse();
-            let t = r.transpose();
-            prop_assert!((inv.c0.x - t.c0.x).abs() <= 1e-13);
-            prop_assert!((inv.c0.y - t.c0.y).abs() <= 1e-13);
-            prop_assert!((inv.c1.x - t.c1.x).abs() <= 1e-13);
-            prop_assert!((inv.c1.y - t.c1.y).abs() <= 1e-13);
         }
     }
 }

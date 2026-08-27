@@ -27,11 +27,11 @@
 //! is documented at each impl; the wire records the one unified
 //! [`ArcData`](super::program::ArcData) enum.
 
-use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};
-use crate::k_stats::decide;
 use crate::sugar::ArcSweep;
 
 /// A monomorphized handle on the arc-carrier resolution machinery
@@ -41,7 +41,7 @@ use crate::sugar::ArcSweep;
 /// later complete the arrival call through this pointer without ever
 /// naming the bound.
 pub(crate) type ArcResolver<T> =
-    fn(FilletSide<T>, FilletSide<T>, T, Tolerance) -> Result<ArcFilletTrims<T>, PathError<T>>;
+    fn(FilletSide<T>, FilletSide<T>, T, Tol) -> Result<ArcFilletTrims<T>, PathError<T>>;
 
 // ------------------------------------------------------------------
 // Bare state values (the binding bits, nothing else).
@@ -60,7 +60,7 @@ pub struct DirectedPoint<T: Real> {
 /// An opened fillet whose incoming side is the tangent RAY of the
 /// directed point it consumed (§2c round 10: bare `fillet` ⇔ ray
 /// extension, uniform across incomings). **No carrier field exists**:
-/// the old carrier-keyed wall (`ArcCarrierSpelling` at resolution) is
+/// the old carrier-keyed wall (a spelling refusal at resolution) is
 /// unwritable against this type.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PendingRay<T: Real> {
@@ -104,7 +104,7 @@ pub(crate) enum Pending<T: Real> {
 
 impl<T: Real> Pending<T> {
     /// The fillet radius (mode-independent).
-    pub fn radius(&self) -> T {
+    pub(crate) fn radius(&self) -> T {
         match self {
             Pending::Ray(p) => p.radius,
             Pending::Arc(p) => p.radius,
@@ -112,7 +112,7 @@ impl<T: Real> Pending<T> {
     }
 
     /// The incoming side as the resolution machinery's value.
-    pub fn side(&self) -> FilletSide<T> {
+    pub(crate) fn side(&self) -> FilletSide<T> {
         match self {
             Pending::Ray(p) => FilletSide {
                 anchor: p.origin,
@@ -198,7 +198,7 @@ pub struct Via<T: Real, Tgt> {
 
 /// Mode `Center { c, winding, p }`: the arc about an authored centre.
 /// `Center@Point` supplies the direction retroactively (exactly what
-/// `at_on` was); `Center@Directed` is EXCLUDED — the bound direction
+/// the carrier-bound entry did); `Center@Directed` is EXCLUDED — the bound direction
 /// would have to value-match the derived tangent (§2c round 6).
 #[derive(Clone, Copy, Debug)]
 pub struct Center<T: Real, Tgt> {
@@ -359,6 +359,6 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
 
 /// Re-exported director construction so arrival builders normalize
 /// components through the ONE shared door.
-pub(crate) fn director<T: Decide>(dx: T, dy: T) -> Result<Dir<T>, PathError<T>> {
-    unit_from_components(dx, dy)
+pub(crate) fn director<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, PathError<T>> {
+    unit_from_components(dx, dy, tol)
 }

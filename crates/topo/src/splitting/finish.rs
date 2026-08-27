@@ -45,12 +45,14 @@
 use geom_core::{Decide, Real, Vec3};
 use slotmap::SecondaryMap;
 
-use super::join::{CompletedSection, SplitJoinError, loop_points_of};
+use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction};
 use crate::body::Body;
+use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
-use geom_surfaces::Surface;
+use geom::Surface;
+use geom_core::Tol;
 
 /// One side of a split result: a real body, or the typed empty side
 /// (the plane missed the material on that side entirely — never an
@@ -103,7 +105,7 @@ pub struct SplitNaming {
     /// the verdict vector — N4's covariance).
     pub sections: Vec<(FaceKey, PlaneSide)>,
     /// Chord-mef fragment rows: `(new face, divided-from face)` in
-    /// mint order, call-time keys ([`super::join`]'s `ChordJoiner`
+    /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
     pub face_fragments: Vec<(FaceKey, FaceKey)>,
@@ -194,11 +196,11 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::Corrupt => write!(f, "split finish: traversal failed (corrupt body)"),
             Self::Euler(e) => write!(f, "split finish: euler operation refused: {e}"),
-            Self::Band(e) => write!(f, "split finish: no classification band: {e:?}"),
+            Self::Band(e) => write!(f, "split finish: no classification band: {e}"),
             Self::DescribeEscalated { edge, diag } => write!(
                 f,
                 "split finish: section-boundary dihedral escalated at edge {edge:?} \
-                 while minting its description: {diag:?}"
+                 while minting its description: {diag}"
             ),
         }
     }
@@ -217,6 +219,7 @@ pub(super) fn split_finish<T: Decide>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     let mut body = red.body;
     let solid = single_solid(&body)?;
@@ -292,10 +295,10 @@ pub(super) fn split_finish<T: Decide>(
     // `Intersection`; definitely-smooth ones (a flush ON-face
     // neighbor: the surfaces under-determine the locus) keep their
     // conventional chord per D2; escalations refuse typed. ----
-    let band = geom_core::Band::linear().map_err(SplitFinishError::Band)?;
+    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let section_faces: Vec<FaceKey> = section_side.keys().collect();
     for face in section_faces {
-        describe_section_boundary(&mut body, face, band)?;
+        describe_section_boundary(&mut body, face, band, tol)?;
     }
 
     // ---- Distribution: movefac every shell of the solid. ----
@@ -348,6 +351,7 @@ fn describe_section_boundary<T: Decide>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
+    tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
@@ -399,13 +403,13 @@ fn describe_section_boundary<T: Decide>(
                 .and_then(crate::null::CurveGeom::certified)
                 .cloned();
             let conic = existing.as_ref().and_then(|c| match c.carrier() {
-                geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                     let (t0, t1) = c.params();
                     let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
                     let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
                     Some((c.clone(), mid, arm))
                 }
-                geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => None,
+                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => None,
             });
             let (witness, arm) = match &conic {
                 Some((_, mid, arm)) => (*mid, *arm),
@@ -437,7 +441,7 @@ fn describe_section_boundary<T: Decide>(
                             spec
                         }
                     };
-                    body.set_edge_curve(edge, spec)?;
+                    body.set_edge_curve(edge, spec, tol)?;
                 }
                 // Smooth: the conventional chord stays (D2).
                 Ok(geom_brep::DihedralClass::Smooth) => {}
@@ -615,9 +619,10 @@ pub(crate) fn carve<T: Decide>(
     }
 
     // ---- Removal (crate-internal arena surgery; deterministic). ----
-    if let Some(solid_data) = body.solids.get_mut(solid) {
-        solid_data.shells.retain(|s| keep.contains(s));
-    }
+    let Some(solid_data) = body.solids.get_mut(solid) else {
+        unreachable!("carve: `solid` resolved above and nothing has been removed yet")
+    };
+    solid_data.shells.retain(|s| keep.contains(s));
     for &shell in &drop {
         body.shells.remove(shell);
         body.shell_provenance.remove(shell);

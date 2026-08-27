@@ -48,19 +48,10 @@ YOUR OWN account.** Resolve it at session start from your own
 agent dir: `agent-<id>/plugin/claude/anthropic/.claude.json →
 oauthAccount.emailAddress` (the id is in your memory-directory
 path). Other accounts' alerts are informational — do not pause
-your lanes for them — EXCEPT as peer-recovery input (Evan, #350):
-when another account's alert fires, note its RESET TIME; at/after
-that time, if that account's orchestrator looks dead (no lane
-activity, no away-channel traffic), find its tmux session
-(`tmux list-panes -a`, `capture-pane` to check for the
-usage-credits dialog) and `send-keys` the dialog's
-wait-until-reset/continue option to wake it. Two-reviver race
-(Evan's concern, M8 orchestrator's fix, #350): the reviver first
-takes `flock -n
-~/.local/share/cad-work/locks/revive-<account>.lock` — only the
-winner runs send-keys; the loser logs and walks away (flock
-releases on process death, the build-slot discipline). Relay to
-Evan only if the wake fails.
+your lanes for them, and do not act on them: cross-account
+revival was tried and dropped (2026-08-18). Judging another
+session dead from outside is unreliable, and the recovery action
+was keystroke injection into someone else's session.
 
 **Orchestrator protocol on its events** (scoped to your account):
 - `USAGE WARN` (≥90%): wind down that account's lanes — finish the

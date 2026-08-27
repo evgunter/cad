@@ -1,45 +1,62 @@
-//! The Probe-lane half of `review_s2.rs` (adversarial e2e review probes
-//! for M5 S2, arc-leg fillet sugar): the F3 finding — k_stats gate
-//! sequence invariance within a corner class.
+//! The Probe-lane half of the M5 S2 review probes (arc-carrier fillet
+//! corners): the F3 finding — k_stats gate sequence invariance within a
+//! corner class, driven through the §2c fused family.
 //!
 //! Split out because `Probe` — the K-telemetry recording scalar — is
 //! gated behind the `probe` cargo feature: it is a `Real` instantiation,
 //! so every generic-over-`Real` body monomorphizes at it, and the
-//! default build has no reason to pay for a diagnostics scalar. The
-//! rest of the review suite (the F1/F2 fuzz, the MAJOR-1 attribution
-//! pin, the enclosing case) is f64 and stays ungated in `review_s2.rs`;
-//! only this file carries the whole-file gate.
+//! default build has no reason to pay for a diagnostics scalar; only
+//! this file carries the whole-file gate.
+//!
+//! A corner is DERIVED here, so a carrier pair that meets twice
+//! contributes both roots' gate blocks. The invariance claim is
+//! unaffected — it is about the sequence being the same for the same
+//! corner CLASS, not about its length.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p profile --features probe --test all -- review_s2_probe::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
-
-use common::tol;
 use geom_core::Point2;
-use profile::{ArcSweep, FilletLegShape, ProfileLoop};
+use geom_core::Tol;
+use profile::{ArcSweep, Center, Open};
 
 /// F3: the recorded predicate-name sequence must be data-independent
 /// within a corner class (fixed classification order, all four
 /// per-candidate gates always fired).
+///
+/// Both rows leave the tip ON the arrival carrier rather than closing:
+/// the gate sequence is the fused verb's own, and a closing segment
+/// would only add predicates from a different door.
 #[test]
 fn gate_sequence_is_data_independent_within_a_class() {
     use geom_core::Real;
-    use profile::k_stats::{self, Probe};
+    use geom_core::k_stats::{self, Probe};
 
     let pp = |x: f64, y: f64| Point2::new(Probe::from_f64(x), Probe::from_f64(y));
+    let pr = Probe::from_f64;
+    // The incoming ray leaves the origin along +x; the arrival carrier
+    // is about (cx, 0) through the point below it, so the corner (2, 0)
+    // is derived rather than authored.
     let seq_line_arc = |cx: f64, r: f64| {
         k_stats::start_recording();
-        ProfileLoop::builder(pp(0.0, 0.0))
-            .fillet_corner(
-                FilletLegShape::Line,
-                pp(2.0, 0.0),
-                FilletLegShape::Arc {
-                    center: pp(cx, 0.0),
-                    sweep: ArcSweep::Ccw,
+        Open.at(pp(0.0, 0.0))
+            .toward(pr(1.0), pr(0.0), Tol::witness())
+            .expect("the incoming ray runs +x")
+            .fillet_arc(
+                pr(r),
+                Center {
+                    c: pp(cx, 0.0),
+                    winding: ArcSweep::Ccw,
+                    p: pp(cx, -(cx - 2.0).abs()),
                 },
-                pp(cx, -(cx - 2.0).abs()),
-                Probe::from_f64(r),
-                tol(),
+                Tol::witness(),
             )
             .expect("constructs");
         k_stats::take_samples()
@@ -50,25 +67,23 @@ fn gate_sequence_is_data_independent_within_a_class() {
     let a = seq_line_arc(3.0, 0.5);
     let b = seq_line_arc(3.5, 0.25);
     assert_eq!(a, b, "line-by-arc gate sequence varies with data");
-    let s3 = 3.0f64.sqrt();
     let seq_arc_arc = |r: f64| {
         k_stats::start_recording();
-        ProfileLoop::builder(pp(1.0, 0.0))
-            .fillet_corner(
-                FilletLegShape::Arc {
-                    center: pp(-1.0, 0.0),
-                    sweep: ArcSweep::Ccw,
-                },
-                pp(0.0, s3),
-                FilletLegShape::Arc {
-                    center: pp(1.0, 0.0),
-                    sweep: ArcSweep::Ccw,
-                },
-                pp(-1.0, 0.0),
-                Probe::from_f64(r),
-                tol(),
-            )
-            .expect("constructs");
+        Open.arc_fillet_arc(
+            Center {
+                c: pp(-1.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: pp(1.0, 0.0),
+            },
+            pr(r),
+            Center {
+                c: pp(1.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: pp(-1.0, 0.0),
+            },
+            Tol::witness(),
+        )
+        .expect("constructs");
         k_stats::take_samples()
             .iter()
             .map(|s| s.predicate)
@@ -77,8 +92,8 @@ fn gate_sequence_is_data_independent_within_a_class() {
     let c = seq_arc_arc(0.5);
     let d = seq_arc_arc(0.3);
     assert_eq!(c, d, "arc-by-arc gate sequence varies with data");
-    // Per-candidate block: reach, reach, fit, fit — all four, both
-    // candidates, no short-circuit.
+    // The last derived corner's per-candidate block: reach, reach,
+    // fit, fit — all four, both candidates, no short-circuit.
     let tail: Vec<_> = c.iter().rev().take(8).rev().copied().collect();
     assert_eq!(
         tail,

@@ -84,6 +84,31 @@ impl Frame {
         }
     }
 
+    /// The frame denoting an affine map — the inverse of
+    /// [`Frame::affine`], for the mate solve's poses coming back from
+    /// the coset algebra (ASM-R2a D-5).
+    ///
+    /// A BIT-exact identity map returns [`Frame::IDENTITY`] verbatim,
+    /// the same rule [`Frame::compose`] follows: an unmated instance's
+    /// solved relative pose must land on the identity's own bits, or
+    /// the mate-less document's evaluation would differ from the
+    /// pre-mate one by a rounding step that never happened.
+    pub fn from_affine(a: geom_core::Affine3<f64>) -> Self {
+        let out = Self {
+            columns: [
+                [a.linear.c0.x, a.linear.c0.y, a.linear.c0.z],
+                [a.linear.c1.x, a.linear.c1.y, a.linear.c1.z],
+                [a.linear.c2.x, a.linear.c2.y, a.linear.c2.z],
+            ],
+            translation: [a.translation.x, a.translation.y, a.translation.z],
+        };
+        if out.is_identity_bits() {
+            Self::IDENTITY
+        } else {
+            out
+        }
+    }
+
     /// Whether every stored coordinate is finite.
     pub fn is_finite(&self) -> bool {
         self.columns

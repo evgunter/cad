@@ -1,133 +1,99 @@
 {
+  "what": "STRUCTURAL manifest for the M4 PR 8a Band 4 corpus: what each document is, how many recipe nodes it has, and how many of them fall in the downstream cone of its latency row's parameter edit. Machine-independent and exact — nothing about a box, a build profile or a load average can move these numbers, which is why they live apart from the timings.",
+  "timings_live_elsewhere": "docs/perf-data/rebuild-latency/ — one file per merge to main, written and committed by ci.yml's `rebuild latency (reporting)` job on a hosted runner. Append-only (a run adds a filename, never edits one), so concurrent merges cannot conflict. m4_pr8_latency.rs diffs its `vs base` columns against the NEWEST entry: on a PR that is main's last hosted measurement, on main it is the previous merge. There is no baseline to refresh and no refresh env var.",
+  "why_split": "Timings and structure shared one file until 2026-08-17, and the timings rotted it. Three developer-workstation refreshes disagreed by 90-98% on every row (die full: 51661.1 ms -> ~985.9 ms -> 1103.5 ms) with contention ruled out by a verified-quiet re-run, leaving an untested build/environment hypothesis nobody ever captured side by side; the file's own provenance ended up declaring cross-refresh comparison meaningless, and docs/PERF-SCAN-2026-08.md §0 had to label every absolute-millisecond claim in the repo provisional as a result. Splitting along the rot line fixes the cause: the half that cannot rot is pinned here and ASSERTED (a nodes/cone mismatch fails the row), and the half that can is produced by one reproducible box class and accumulated rather than overwritten. The disputed_measurement argument is not resolved retroactively — those three refreshes stay incomparable — it simply cannot recur, because every history entry now records its own build environment.",
+  "status": "The TIMINGS are REPORTING ONLY — measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on a millisecond. The STRUCTURE below is a real assertion: m4_pr8_latency.rs requires the manifest to cover the corpus exactly (no missing rows, no stale keys) and every nodes/cone pair to match what it measures.",
+  "maintaining": "Hand-maintained. A document that legitimately changes shape moves its nodes/cone here in the same PR, with the reason in the PR body; a new corpus document adds a row; a retired one deletes its row. The row fails loudly either way, so this file cannot silently fall behind the corpus.",
   "documents": {
     "boss_union": {
       "about": "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
-      "cone": 2,
-      "full_ms": 21.7,
-      "incremental_ms": 15.44,
-      "nodes": 5
+      "nodes": 5,
+      "cone": 2
     },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
-      "cone": 5,
-      "full_ms": 113.3,
-      "incremental_ms": 86.84,
-      "nodes": 18
+      "nodes": 18,
+      "cone": 5
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
-      "cone": 3,
-      "full_ms": 123.0,
-      "incremental_ms": 125.74,
-      "nodes": 9
+      "nodes": 9,
+      "cone": 3
     },
     "cut_cylinder": {
       "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
-      "cone": 2,
-      "full_ms": 3.2,
-      "incremental_ms": 2.66,
-      "nodes": 4
+      "nodes": 4,
+      "cone": 2
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
-      "cone": 1,
-      "full_ms": 11.2,
-      "incremental_ms": 4.97,
-      "nodes": 4
+      "nodes": 4,
+      "cone": 1
     },
     "die": {
       "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
-      "cone": 3,
-      "full_ms": 1106.1,
-      "incremental_ms": 100.37,
-      "nodes": 77
+      "nodes": 77,
+      "cone": 3
     },
     "die_composed": {
       "about": "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the pip-rim torus band in one body",
-      "cone": 3,
-      "full_ms": 2450.6,
-      "incremental_ms": 1958.17,
-      "nodes": 8
+      "nodes": 8,
+      "cone": 3
     },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
-      "cone": 2,
-      "full_ms": 25.2,
-      "incremental_ms": 32.73,
-      "nodes": 3
+      "nodes": 3,
+      "cone": 2
     },
     "die_pips": {
       "about": "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
-      "cone": 2,
-      "full_ms": 11.7,
-      "incremental_ms": 8.68,
-      "nodes": 7
+      "nodes": 7,
+      "cone": 2
+    },
+    "die_tool": {
+      "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
+      "nodes": 7,
+      "cone": 2
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
-      "cone": 12,
-      "full_ms": 102.3,
-      "incremental_ms": 100.72,
-      "nodes": 15
+      "nodes": 15,
+      "cone": 12
+    },
+    "heat_sink_fins": {
+      "about": "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
+      "nodes": 3,
+      "cone": 2
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "cone": 2,
-      "full_ms": 33.0,
-      "incremental_ms": 1.48,
-      "nodes": 15
+      "nodes": 15,
+      "cone": 2
     },
     "loft_prism": {
       "about": "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
-      "cone": 1,
-      "full_ms": 2.5,
-      "incremental_ms": 3.0,
-      "nodes": 4
+      "nodes": 4,
+      "cone": 1
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
-      "cone": 2,
-      "full_ms": 100.6,
-      "incremental_ms": 18.53,
-      "nodes": 11
+      "nodes": 11,
+      "cone": 2
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
-      "cone": 2,
-      "full_ms": 147.2,
-      "incremental_ms": 79.6,
-      "nodes": 11
+      "nodes": 11,
+      "cone": 2
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
-      "cone": 3,
-      "full_ms": 310.6,
-      "incremental_ms": 201.14,
-      "nodes": 14
+      "nodes": 14,
+      "cone": 3
     },
     "plate_param": {
       "about": "the parametric scene: a plate whose two hole radii are one DocParam",
-      "cone": 2,
-      "full_ms": 43.3,
-      "incremental_ms": 40.7,
-      "nodes": 5
+      "nodes": 5,
+      "cone": 2
     }
-  },
-  "provenance": {
-    "disputed_measurement": "UNRESOLVED, and this refresh is the third data point. M4 PR 8a review MIN-3 measured every row 90-94% lower than the 2026-07-25/26 numbers (die full 985.9 ms vs ~14-17 s) and blamed contention; those two refreshes reproduced each other within +/-20% and blamed a differently-optimised build. The M5 PR 12 refresh below lands on MIN-3's side (die full 1103.5 ms, i.e. -98% against the superseded 51661.1 ms) on a verified-quiet machine, which rules contention OUT as the explanation for the gap and leaves a build/environment difference (RUSTFLAGS / CARGO_PROFILE_* / target dir / toolchain) as the standing hypothesis - untested, because nobody has yet captured the two environments side by side. Treat cross-refresh comparisons of the absolute numbers as meaningless until someone does; see 'portability'.",
-    "epsilon": "CAD_TOLERANCE_EPS unset (the bootstrap default) - the row is ambient-eps agnostic by design.",
-    "load_conditions": "Measured with ZERO other cargo build/test lanes running (verified immediately before the run: zero cargo/rustc processes, 1-minute load average 0.82, a parallel agent lane's release build having just drained), RUSTFLAGS unset, no CARGO_PROFILE_* overrides; the only rustflag in effect is the committed x86-64-v3 CPU floor in .cargo/config.toml. A SECOND refresh attempted 25 minutes later, with another lane active, read 20-30x HIGHER on every row (die full 26641.5 ms) and was DISCARDED - a live demonstration that this file means nothing unless the zero-lane check passes, and the reason 'refreshed_under' now records the load average as well as the process count.",
-    "machine": "developer workstation (WSL2, 8 cores, ~9 GB RAM) shared with other agent build lanes.",
-    "method": "median of 3 runs in one process, std::time::Instant, sequential evaluation schedule (EvalOptions::default()).",
-    "portability": "BOX-RELATIVE. Absolute milliseconds do not transfer between machines or load states; only the SHAPE is the signal (relative cost per document, and the full-vs-incremental ratio). Expect large +/-% on the first hosted-CI run and re-refresh from CI when hosted Actions returns.",
-    "profile": "cargo test dev profile: opt-level 0 for the kernel crates, opt-level 2 only for spade and mesh (root Cargo.toml). NOT release-representative.",
-    "refresh_with": "CAD_LATENCY_BASELINE_REFRESH=1 cargo test -p editor-core --test m4_pr8_latency -- --nocapture",
-    "refreshed_by": "M6-5 (ev/m6-5-selection), 2026-08-06 - the corpus gained die_composed, so ONE row was grafted and NOTHING was re-timed. A full refresh was run and DISCARDED: every pre-existing row read 20-25x higher than the committed values (die_fillet full 1001.4 ms vs 25.9 ms), the exact signature 'load_conditions' says means a contended machine (1-minute load 2.85, a parallel review lane active). The die_composed numbers below were measured in that same contended run and are therefore NOT comparable with the rows around them - they exist so the coverage row has its key, not as a datum. Re-refresh the WHOLE file from a verified-quiet machine or hosted CI before reading any cross-row comparison that involves die_composed. M5 PR 12 fix pass F5 (ev/m5-pr12-fillets), 2026-08-03 - the corpus gained die_pips, so every row was re-measured in one run rather than one row being grafted onto a 2026-07-26 file. ALL ELEVEN pre-existing rows moved by -92% to -98%; that is an environment shift, not a speedup this PR earned - see 'disputed_measurement'. The `documents` block is exactly that run's table, with one hand edit and no re-timing: the run also emitted a `die_fillet` row, and that document was pulled back out of the registry afterwards (it refuses at the Interval scalar - see corpus/die_fillet.rs), so its row was DELETED rather than left behind as a stale key.",
-    "status": "REPORTING ONLY - measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on these numbers.",
-    "what": "Per-document full-rebuild and incremental-recompute wall-clock medians for the M4 PR 8a Band 4 corpus."
-  },
-  "refreshed_under": {
-    "cargo_rustc_procs": 1,
-    "mem_total_kb": 10184312
   }
 }

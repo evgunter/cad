@@ -28,7 +28,8 @@
 //! whose geometry is not dyadic (arcs) carry no mass pin and are
 //! pinned on validity + counts instead.
 
-#![allow(dead_code)] // shared across test binaries; not all use all of it
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -38,6 +39,7 @@ use editor_core::{
     evaluate,
 };
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::Body;
 
 pub mod boss;
@@ -46,7 +48,9 @@ pub mod die;
 pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
+pub mod die_tool;
 pub mod heatsink;
+pub mod heatsink_union;
 pub mod islands;
 pub mod loft_prism;
 pub mod plate_param;
@@ -110,7 +114,7 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(&self.doc, &self.bump)
+        apply(&self.doc, &self.bump, Tol::witness())
             .expect("corpus bump edit must apply")
             .doc
     }
@@ -141,6 +145,13 @@ pub fn documents() -> Vec<CorpusDoc> {
         // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
         die_pips::document(),
+        // LIB-PLACEDUNION's two register payoffs, each the grouped
+        // TWIN of a document already here (`heat_sink`; the die tour's
+        // pip tool): the ungrouped originals stay, so the two are
+        // asserted against each other rather than against a re-derived
+        // oracle (`lib_placedunion.rs`).
+        heatsink_union::document(),
+        die_tool::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -184,7 +195,13 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
     doc: &ProfileDoc,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The per-node failure report of an evaluation (empty when green).
@@ -212,7 +229,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 12] = [
+pub const NODE_KINDS: [&str; 13] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -227,6 +244,8 @@ pub const NODE_KINDS: [&str; 12] = [
     "Boolean",
     "Transform",
     "Pattern",
+    // LIB-PLACEDUNION: the ratified A′ group boolean.
+    "PlacedUnion",
     // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
     // M6-3 (the loft body assembles; `loft_prism` is registered).
     // `Sweep` alone stays at zero: its NODE lane waits on the
@@ -259,7 +278,7 @@ pub const EDIT_KINDS: [&str; 14] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 9] = [
+pub const SUB_KINDS: [&str; 11] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::Point",
@@ -269,6 +288,13 @@ pub const SUB_KINDS: [&str; 9] = [
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
+    // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
+    // is deliberately NOT listed: no corpus document needs one, and a
+    // listed-but-uncovered sub-kind would fail the tally. The circular
+    // rule is exercised directly in `lib_placedunion.rs`, and it shares
+    // `stepped_map` with the pattern node that the corpus does cover.
+    "PlacedUnion::Linear",
+    "PlacedUnion::Explicit",
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
@@ -291,6 +317,15 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
+            // Refused at the edit door (a pattern's count is its slot),
+            // so no corpus document can carry one — named here only
+            // because the match is exhaustive on purpose.
+            PatternKind::Explicit(_) => "Pattern::Explicit",
+        }],
+        Node::PlacedUnion { kind, .. } => vec![match kind {
+            PatternKind::Linear { .. } => "PlacedUnion::Linear",
+            PatternKind::Circular { .. } => "PlacedUnion::Circular",
+            PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/`BooleanOp`/
@@ -306,6 +341,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Declare { .. }
+        | Node::Mate { .. }
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -322,9 +358,11 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
+        Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
+        Node::Mate { .. } => "Mate",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

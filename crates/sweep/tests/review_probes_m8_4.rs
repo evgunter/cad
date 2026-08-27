@@ -10,20 +10,18 @@
 //! at all.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::Curve3;
+use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::{NurbsSurface, Surface};
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};
 
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge: 0.0,
-        };
+        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
@@ -37,13 +35,13 @@ fn offset_square_prism() -> Body<f64> {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
 }
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
@@ -156,7 +154,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             }),
         )
         .expect("the exactly-planar wall restates as a plane");
-    let eps = Tolerance::get().eps;
+    let eps = Tol::witness().get().eps;
     match body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
@@ -169,6 +167,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             param_start: t0,
             param_end: t1,
         },
+        Tol::witness(),
     ) {
         Ok(_) => {
             assert!(
@@ -280,7 +279,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     );
     println!(
         "P-E @ eps={:e}: u = {}, v slope {}",
-        Tolerance::get().eps,
+        Tol::witness().get().eps,
         p0.x,
         pl.y
     );
@@ -319,6 +318,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
                 param_start: t0,
                 param_end: t1,
             },
+            Tol::witness(),
         )
         .expect_err("a NURBS × NURBS pair has no certificate and must refuse at attachment");
     println!("P-F refusal: {err:?}");

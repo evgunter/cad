@@ -8,13 +8,13 @@
 use std::collections::BTreeMap;
 
 use geom_core::Real;
-use geom_core::tolerance::Tolerance;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId};
+use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
 #[derive(
@@ -61,13 +61,22 @@ impl DocParam {
 
     /// Bit-semantic equality (spec D7): continuous values compare by
     /// BITS (`0.0` ≠ `-0.0` here), everything else structurally.
+    ///
+    /// EXHAUSTIVE on purpose, on BOTH sides of the pair: the mismatched
+    /// pairs are spelled out rather than swept up, so a future
+    /// `DocParam` variant must say how it compares here or the compile
+    /// breaks. A wildcard would have answered `false` for a new variant
+    /// against ITSELF — two equal parameters reported as differing,
+    /// through [`Doc::bit_eq`] and `diff.rs`, which is D7's replay
+    /// identity and the document diff reading the same wrong answer.
     pub fn bit_eq(&self, other: &DocParam) -> bool {
         match (self, other) {
             (Self::Continuous { dim: da, value: va }, Self::Continuous { dim: db, value: vb }) => {
                 da == db && va.to_bits() == vb.to_bits()
             }
             (Self::Count { value: a }, Self::Count { value: b }) => a == b,
-            _ => false,
+            (Self::Continuous { .. }, Self::Count { .. })
+            | (Self::Count { .. }, Self::Continuous { .. }) => false,
         }
     }
 }
@@ -153,7 +162,7 @@ impl<P> Doc<P> {
     /// committed earlier) — replay's origin (spec D7). The id is
     /// authored data (ASM-1 D-1): there is no id-less document and no
     /// ambient-randomness default.
-    pub fn empty(id: DocumentId) -> Self {
+    pub fn empty(id: DocumentId, tol: Tol) -> Self {
         Self {
             id,
             next_id: 0,
@@ -162,7 +171,7 @@ impl<P> Doc<P> {
             roots: Vec::new(),
             placements: BTreeMap::new(),
             params: BTreeMap::new(),
-            epsilon: Tolerance::get().eps,
+            epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
@@ -172,8 +181,8 @@ impl<P> Doc<P> {
     /// The empty document under a label-derived identity —
     /// [`Self::empty`] ∘ [`DocumentId::derive`], the deterministic
     /// spelling corpus/demos/tests use.
-    pub fn empty_derived(label: &str) -> Self {
-        Self::empty(DocumentId::derive(label))
+    pub fn empty_derived(label: &str, tol: Tol) -> Self {
+        Self::empty(DocumentId::derive(label), tol)
     }
 
     /// The document's stable identity.
@@ -197,14 +206,29 @@ impl<P> Doc<P> {
         &self.roots
     }
 
-    /// The placement frame of `node`'s cluster (A11): the recorded
-    /// frame, or the identity when nothing is recorded — the missing
-    /// entry IS the identity, so this is total.
+    /// The placement frame of `node`'s CLUSTER (A11): the frame
+    /// recorded against the cluster's gauge, or the identity when
+    /// nothing is recorded — the missing entry IS the identity, so
+    /// this is total.
+    ///
+    /// This is the CLUSTER's frame, which places its gauge; an
+    /// instance's own world placement is this composed with its solved
+    /// relative pose ([`crate::mate::SolvedPoses::placement`]). The
+    /// two coincide exactly for a singleton cluster, which is every
+    /// cluster in a mate-less document.
     pub fn placement(&self, node: RecipeNodeId) -> crate::placement::Frame {
         self.placements
-            .get(&node)
+            .get(&crate::mate::gauge_of(self, node))
             .copied()
             .unwrap_or(crate::placement::Frame::IDENTITY)
+    }
+
+    /// Replaces the whole placement registry — the ONE door A11's
+    /// cluster-record maintenance writes through
+    /// ([`crate::mate::solve::reconcile`]), so re-keying is a single
+    /// observable act rather than a scatter of per-row edits.
+    pub(crate) fn set_placements(&mut self, rows: BTreeMap<RecipeNodeId, crate::placement::Frame>) {
+        self.placements = rows;
     }
 
     /// The recorded placement rows, in node order. Rows absent here

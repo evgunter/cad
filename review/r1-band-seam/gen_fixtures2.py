@@ -20,7 +20,8 @@ outer torus bulge, V = 400 pi + 40 pi^2 + 32 pi/3 mm3.
              happens next (silent wrong body vs loud refusal) is the
              point of the probe.
 """
-import math, os
+import math
+import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 

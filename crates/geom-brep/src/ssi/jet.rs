@@ -45,8 +45,8 @@
 //! which poisons the SVD solve, which fails the step's band. Nothing
 //! here decides anything.
 
+use geom::Surface;
 use geom_core::{Point3, Vec3};
-use geom_surfaces::Surface;
 
 /// A Taylor polynomial in `s`, truncated after `s³`, in the **monomial**
 /// basis: `c[0] + c[1]·s + c[2]·s² + c[3]·s³`.
@@ -305,7 +305,9 @@ pub(crate) fn implicit_path_jet(
                 .scale(1.0 / (2.0 * minor_radius))
         }
         // No implicit form (module docs).
-        Surface::Nurbs(_) => Poly3 { c: [f64::NAN; 4] },
+        // No implicit form for a spline stand-in, so no univariate
+        // restriction of one — `Approx` yields the same poison.
+        Surface::Nurbs(_) | Surface::Approx(_) => Poly3 { c: [f64::NAN; 4] },
     }
 }
 

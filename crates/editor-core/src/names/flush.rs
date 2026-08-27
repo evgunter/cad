@@ -89,7 +89,7 @@
 //!   finding is a report about geometry, not a diff against intent,
 //!   and the caller holding the recipe is the one who knows.
 
-use geom_core::{Band, Decide, Indeterminate, MarginDiag};
+use geom_core::{Band, Decide, Indeterminate, MarginDiag, Tol};
 use topo::{Body, FaceKey, PlaneEqError, PlaneRelation, flush_pair_relation};
 
 use crate::doc::Doc;
@@ -188,12 +188,13 @@ pub fn find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>,
     a: RecipeNodeId,
     b: RecipeNodeId,
+    tol: Tol,
 ) -> Result<Vec<FlushFinding>, SelectRefusal> {
     let (Some(NodeResult::Ok(va)), Some(NodeResult::Ok(vb))) = (ev.nodes.get(&a), ev.nodes.get(&b))
     else {
         return Ok(Vec::new());
     };
-    let band = Band::linear().map_err(|_| SelectRefusal::Band)?;
+    let band = Band::linear(tol).map_err(|_| SelectRefusal::Band)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;
     let mut out = Vec::new();
@@ -440,8 +441,9 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     finding: &FlushFinding,
+    tol: Tol,
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
-    declare_all(doc, core::slice::from_ref(finding))
+    declare_all(doc, core::slice::from_ref(finding), tol)
 }
 
 /// Declares a SET of inspected findings in one [`Node::Declare`] —
@@ -455,9 +457,10 @@ pub fn declare<P: Clone + crate::ProfilePayload>(
 pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     findings: &[FlushFinding],
+    tol: Tol,
 ) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
-    let applied = apply(doc, &DocEdit::InsertNode { node }).map_err(DeclareError::Edit)?;
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
     Ok((applied.doc, id))
 }

@@ -101,14 +101,36 @@
 //! `Dual<Interval>` inherits the enclosure semantics, Indeterminate ⇒
 //! subdivision included. Consistently with [`Real`], there is no `signum`.
 //!
-//! # No [`crate::Bounds`] for duals
+//! # [`crate::Bounds`] yes, [`crate::CertifiedEnclosure`] no
 //!
-//! `crate::real::Bounds` is deliberately **not** implemented: a dual's
-//! bracket would have to certify the derivative enclosure too (what would
-//! `lo()` mean — of the value? the pair?), and certification of derivative
-//! enclosures is an M6 design question (tolerance stackups). Until then,
-//! driver code that needs the channels reads the public fields — the same
-//! restricted driver/certification scope as [`crate::Bounds`] itself (L7).
+//! A dual **carries a bracket** and **may not certify** — Wave 0 decision
+//! **D1** of `docs/SMELL-SCAN-2026-08.md` (Evan, 2026-08-19: *a `Dual` may
+//! not certify — at least for now — but it may have `Bounds`*), separable
+//! only because #643 (W1c/S41) made those two traits instead of one.
+//! [`crate::Bounds`] is implemented and is the **value channel's** bracket
+//! with the tangent discarded; [`crate::CertifiedEnclosure`] is not. **The
+//! argument for both halves lives at the `impl Bounds for Dual` below, not
+//! here** — one home, so there is one text to keep in step.
+//!
+//! Reading the derivative channel is still a **driver/harvest** activity
+//! through the public fields, at the same restricted scope as
+//! [`crate::Bounds`] itself (L7). `Bounds` offers no route to it: `lo()`
+//! and `hi()` never see a tangent.
+//!
+//! The refusing half is pinned as a **compiler fact**, here rather than at
+//! the impl because there is no impl to hang it on — it goes red the day
+//! someone writes the certification impl, rather than the day something
+//! certifies wrongly:
+//!
+//! ```
+//! fn brackets<T: geom_core::Bounds>(_t: T) {}
+//! brackets(geom_core::Dual64::constant(1.0));
+//! ```
+//!
+//! ```compile_fail,E0277
+//! fn certifies<T: geom_core::CertifiedEnclosure>(_t: T) {}
+//! certifies(geom_core::Dual64::constant(1.0));
+//! ```
 //!
 //! # Multi-parameter gradients
 //!
@@ -120,7 +142,7 @@
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::predicate::{Band, Decide, Indeterminate, Sign};
-use crate::real::Real;
+use crate::real::{Bounds, Real};
 
 #[cfg(feature = "interval")]
 use crate::interval::Interval;
@@ -704,6 +726,99 @@ where
 {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         self.value.sign_within(band)
+    }
+}
+
+/// **The bracket is the value channel; the tangent is not in it.**
+///
+/// Wave 0 decision **D1** of `docs/SMELL-SCAN-2026-08.md`, ruled by Evan
+/// 2026-08-19: *a `Dual` may not certify — at least for now — but it may
+/// have [`Bounds`].* The two halves are separable only because #643
+/// (W1c/S41) split them into two traits; this takes the first and leaves
+/// the second alone.
+///
+/// # The definition is read off an existing contract
+///
+/// Since #643, [`Bounds`] asks one question: *what bracket does this
+/// value carry?* The module contract above already answers it — the value
+/// channel of a `Dual<T>` build **is** the plain-`T` build, bit-identically
+/// (D9's dual contract) — so whatever brackets the plain run brackets the
+/// dual run's value, with nothing to re-establish per operation. Hence
+/// **delegation** rather than a restated bracket: the degenerate
+/// `lo = hi = value` at `T = f64`, the value enclosure's own endpoints at
+/// `T = Interval`, and poison surfacing as NaN from both accessors because
+/// the base scalar's accessors do.
+///
+/// # Why the tangent is excluded — an EXTENSION of E9, not a reading of it
+///
+/// Labelled an extension deliberately. `docs/ERROR-DESIGN.md` **E9**
+/// (*tangent poison never refuses*) is scoped to **leaf refusal** —
+/// "refusal is decided solely by value-channel predicates and
+/// W-certificates" — and says nothing about [`Bounds::lo`]/[`Bounds::hi`],
+/// which did not exist for a dual when it was written. Calling that a
+/// ratification would be the exact move S44 exists to complain about.
+///
+/// The extension: E9's principle is that the derivative channel must never
+/// make the value channel's verdict worse. Hulling the tangent into
+/// `[lo, hi]` does precisely that — a NaN or unbounded tangent, which E4
+/// expects at a kink and `copysign`'s straddle rule mints deliberately,
+/// would poison a bracket the value channel is entitled to, and every
+/// `Decide + Bounds` seam that refuses on a bracket would then refuse a
+/// dual run its `f64` run passes. Same failure mode, different accessor,
+/// so the same answer is the consistent one. [`Decide`] for `Dual` settled
+/// the identical question by value-part delegation (Q1 residue, PR
+/// #9/#10) and `is_poison` is value-only; a tangent-reading `Bounds` would
+/// be the one accessor of three that disagrees. The derivative stays where
+/// it is read: the public fields, under the same L7 scope as [`Bounds`].
+///
+/// **The cost, said out loud because E4 would otherwise rediscover it.**
+/// E9 pairs "never refuses" with a **forfeiture** half (`per_param`/`rss`
+/// entries report `UnavailableBecause`, E5). `Bounds` carries **no signal**
+/// that the tangent is degraded — `lo()`/`hi()` are the value channel's
+/// whether the tangent is `1.0` or NaN. Intended, but it means E4 must
+/// read the tangent through the public fields; degradation cannot be
+/// recovered from a bracket after the fact.
+///
+/// # This grants no certification right
+///
+/// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
+/// and this impl does not change that: every C9-ring door is bounded by it
+/// and stays uninstantiable at a dual. What opens is the bracket half —
+/// boxes, pruning, the `f64` margin payloads a typed refusal reports,
+/// and **selections**, which are the ones with a condition on them: a
+/// frozen `f64` choice is free of the tangent only while the quantity
+/// chosen is locally constant in the input. `geom::projection::mid` is
+/// where that condition currently fails, and is issue **#874**.
+/// One `Decide + Bounds` door *grants* without that guard
+/// (`topo::separation`, sound at a dual by delegation); the scope rule in
+/// `real.rs` is the home for both that and the fillet seam's obligation.
+///
+/// # On the spelling
+///
+/// `Self: Real` (the supertrait, which for a dual means
+/// `T: KinkJacobian`) plus a **sole** `Bounds` on the base scalar, rather
+/// than the file's usual `T: X + KinkJacobian`. It says the obligation
+/// directly: a dual brackets iff it is a `Real` over a bracket-carrying
+/// scalar.
+///
+/// It is **not** thereby "satisfied by construction": in the equivalent
+/// spelling `T: Bounds + KinkJacobian` this fires
+/// `scripts/gates/bounds-allowlist.sh`, which does not allowlist this
+/// file. It is satisfied by the RULE, not by the grep. That is written up
+/// once, in the gate's header (KNOWN GAP 2), which declares this the
+/// sanctioned spelling of this one impl and pins the evasion with a
+/// self-test case.
+impl<T> Bounds for Dual<T>
+where
+    Self: Real,
+    T: Bounds,
+{
+    fn lo(self) -> f64 {
+        self.value.lo()
+    }
+
+    fn hi(self) -> f64 {
+        self.value.hi()
     }
 }
 
@@ -1428,9 +1543,14 @@ mod tests {
     ///
     /// **Why the value channels legitimately differ:** num-dual routes
     /// transcendentals through std's `Float` (the platform libm), ours
-    /// through the `libm` crate (D9). The census in `real.rs` measured
-    /// their divergence at ≤ 4 ulps over 20k samples with no promise of a
-    /// bound, so transcendental *value* comparisons here are
+    /// through the `libm` crate (D9). The census in `real.rs`
+    /// (`libm_vs_std_divergence_census`) measures their divergence at
+    /// ≤ 4 ulps over 20k samples and *asserts* that bound rather than
+    /// only reporting it — but its scope is `sin`/`cos` over −1000..1000
+    /// only. The other transcendentals compared here (`tan`, `asin`,
+    /// `acos`, `atan`, `atan2`, `powi`) are unmeasured, and neither side
+    /// promises a bound on any of them — so transcendental *value*
+    /// comparisons here are
     /// tolerance-based (generous ulp allowances) and correctly-rounded
     /// operations (`sqrt`, `+`, `−`, `·`) are asserted bit-identical.
     ///
@@ -1982,6 +2102,122 @@ mod tests {
                 "tangent [{dlo}, {dhi}] must enclose 0.6"
             );
             assert!(dhi - dlo < 1e-15);
+        }
+    }
+
+    /// **What the D1 ruling actually returns** (Evan, 2026-08-19; Wave 0
+    /// decision D1 of `docs/SMELL-SCAN-2026-08.md`). Every row here pins
+    /// the *value* of the bracket, not its existence: each one fails if
+    /// [`Bounds`] for [`Dual`] is ever widened to see the tangent, or
+    /// narrowed away from the base scalar's own bracket.
+    mod bracket {
+        use super::*;
+        use crate::real::Bounds;
+
+        /// Tangents chosen to be maximally hostile to any implementation
+        /// that reads them: poison, both infinities, both zeros, and a
+        /// value that would dominate any hull.
+        const HOSTILE_TANGENTS: [f64; 7] = [
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            0.0,
+            -0.0,
+            1e308,
+            -1e308,
+        ];
+
+        /// The bracket IS the value channel, bit for bit, whatever the
+        /// tangent is. Red under any tangent-reading definition: a hull
+        /// of the two channels returns NaN for the `f64::NAN` tangent and
+        /// ±∞ for the infinite ones, none of which is the value.
+        #[test]
+        fn bracket_is_the_value_channel_bitwise_and_ignores_the_tangent() {
+            for value in [0.0, -0.0, 1.0, -2.5, f64::MIN_POSITIVE, 1e308] {
+                for deriv in HOSTILE_TANGENTS {
+                    let d = Dual64::new(value, deriv);
+                    assert_eq!(
+                        Bounds::lo(d).to_bits(),
+                        value.to_bits(),
+                        "lo() must be the value channel bit for bit \
+                         (value {value}, tangent {deriv})"
+                    );
+                    assert_eq!(
+                        Bounds::hi(d).to_bits(),
+                        value.to_bits(),
+                        "hi() must be the value channel bit for bit \
+                         (value {value}, tangent {deriv})"
+                    );
+                }
+            }
+        }
+
+        /// A poisoned value channel surfaces as NaN from BOTH accessors —
+        /// the [`Bounds`] poison convention, inherited from `f64` rather
+        /// than re-implemented. A clean tangent does not launder it.
+        #[test]
+        fn poisoned_value_surfaces_as_nan_from_both_accessors() {
+            let d = Dual64::new(f64::NAN, 1.0);
+            assert!(Bounds::lo(d).is_nan(), "lo() must surface value poison");
+            assert!(Bounds::hi(d).is_nan(), "hi() must surface value poison");
+        }
+
+        /// At `Dual<f64>` the bracket is DEGENERATE: `lo == hi`. Red if
+        /// the impl ever widens the dual's bracket by any amount.
+        #[test]
+        fn dual64_bracket_is_a_point() {
+            for value in [0.0, 1.0, -3.75, 1e-300, 1e300] {
+                for deriv in HOSTILE_TANGENTS {
+                    let d = Dual64::new(value, deriv);
+                    assert_eq!(
+                        Bounds::lo(d).to_bits(),
+                        Bounds::hi(d).to_bits(),
+                        "the dual bracket must be a point (value {value}, \
+                         tangent {deriv})"
+                    );
+                }
+            }
+        }
+
+        /// The justification, executed: after a real `Real`-generic
+        /// computation, the dual run's bracket is bit-identical to the
+        /// `f64` run's — which is the ONLY reason this impl is allowed to
+        /// exist (D9's value-channel contract). Red if the impl stops
+        /// delegating to the base scalar, and red if the value channel
+        /// ever stops being the plain-`f64` computation.
+        #[test]
+        fn bracket_after_a_computation_is_the_f64_runs_bracket() {
+            let plain = hypotenuse(3.0_f64, 4.0_f64);
+            let dual = hypotenuse(Dual64::variable(3.0), Dual64::constant(4.0));
+            assert_eq!(
+                Bounds::lo(dual).to_bits(),
+                Bounds::lo(plain).to_bits(),
+                "the dual run's bracket must be the f64 run's, bit for bit"
+            );
+            assert_eq!(Bounds::hi(dual).to_bits(), Bounds::hi(plain).to_bits());
+            assert!(
+                (dual.deriv - 0.6).abs() < 1e-15,
+                "and the tangent is still there to be read off the field"
+            );
+        }
+
+        /// At `Dual<Interval>` the bracket is the VALUE ENCLOSURE's own
+        /// endpoints — not a point, and not touched by an unbounded
+        /// tangent (E9: tangent poison never refuses). Red if the impl
+        /// hulls the channels together: `[−∞, ∞]` would swallow `[−1, 2]`.
+        #[cfg(feature = "interval")]
+        #[test]
+        fn dual_interval_bracket_is_the_value_enclosure() {
+            use crate::interval::Interval;
+            let d = Dual::new(
+                Interval::from_bounds(-1.0, 2.0),
+                Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY),
+            );
+            assert_eq!(
+                (Bounds::lo(d), Bounds::hi(d)),
+                (-1.0, 2.0),
+                "the bracket must be the value enclosure, tangent ignored"
+            );
         }
     }
 }

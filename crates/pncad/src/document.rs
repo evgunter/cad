@@ -1,4 +1,4 @@
-//! **The document layer's curated surface** (LB13).
+//! **The document layer's curated surface**.
 //!
 //! The façade re-exports the KERNEL crates wholesale (`pncad::topo`,
 //! `pncad::sweep`, …): they are geometry, and a consumer that reaches
@@ -6,9 +6,9 @@
 //! is holding. The document layer is different — its arena keys
 //! (`EntityRef`, `EntityKey`, and the `topo` keys they wrap) are
 //! body-lineage-scoped, meaningful only against the evaluation that
-//! minted them, and `editor-core`'s own rule (G1) is that they never
-//! leave that crate. A whole-crate re-export of `editor_core` handed
-//! them out anyway, one hop past the seal LIB-U5 had just built.
+//! minted them, and `editor-core`'s own rule is that they never
+//! leave that crate. A whole-crate re-export of `editor_core` would
+//! hand them out anyway, one hop past the seal.
 //!
 //! **So the document layer is exposed through THIS list and nothing
 //! else.** What is here is what the façade chose to expose; what is
@@ -26,26 +26,25 @@
 
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
-// one in a typed field rather than only destructure it (LIB-DOORS F4;
-// the #234 usable-but-unnameable residue class).
+// one in a typed field rather than only destructure it.
 pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 
-// Node vocabulary. `BooleanOp` is the DOCUMENT layer's — the recipe
-// node's operation, distinct from `topo::BooleanOp`, the kernel's.
-// The prelude carries the kernel's and cannot carry both under one
-// name, so this module is where document-layer code spells it.
-pub use editor_core::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+// Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
+// carries directly; it is re-exported here so document-layer code can
+// spell the whole node vocabulary through one module.
+pub use editor_core::{
+    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+};
 
 // Expressions and their text door.
-// `ParamEnv` joins them for LIB-SEL1: `select_where` takes one, so a
+// `ParamEnv` joins them because `select_where` takes one, so a
 // caller who cannot spell the type cannot call the door.
 // `DimensionError` is the refusal `Expr`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
-// MATCH on it rather than pre-check the conditions it refuses
-// (LIB-DOORS F5).
+// MATCH on it rather than pre-check the conditions it refuses.
 pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
 
-// Named document parameters (R1-PARAMS, curing LIB-U10's F1).
+// Named document parameters.
 // `ParamName` is a parameter's name — a plain string newtype — and
 // `DocParam` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
@@ -57,10 +56,11 @@ pub use editor_core::{DocParam, ParamName};
 
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
-// the result vocabulary (LIB-DOORS F3/F4): `Evaluation::result` and
+// the result vocabulary: `Evaluation::result` and
 // `Evaluation::node_error` answer in these types, so failed and
-// poisoned nodes are typed data, not a collapsed `None`. LIB-SEL2
-// leans on the same door: the boolean's undeclared-coincidence
+// poisoned nodes are typed data, not a collapsed `None`. The
+// detect/declare protocol leans on the same door: the boolean's
+// undeclared-coincidence
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
@@ -69,7 +69,7 @@ pub use editor_core::{
     NodeErrorKind, NodeResult, NodeValue, SplitSide, ValuePayload, evaluate,
 };
 
-// Persistence (LIB-DOORS F1): the schema-v4 doors, verbatim.
+// Persistence: the schema-v4 doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
 // vocabulary — and every refusal is a typed `PersistError`, whose
 // payload types ride along so each arm is matchable from here
@@ -86,7 +86,7 @@ pub use editor_core::{
     SnapshotError, load, save,
 };
 
-// Document identity and content pins (ASM-1; ASSEMBLY-DESIGN A4).
+// Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —
 // `DocumentId::derive` for deterministic callers, this crate's
 // `workspace::random_document_id` for interactive authoring);
@@ -103,15 +103,15 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
-// Explicit product roots (ASM-ROOTS; ASSEMBLY-DESIGN A10): the
-// ordered root list is read through `Doc::roots` and set through
+// Explicit product roots: the ordered root list is read through
+// `Doc::roots` and set through
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{ProductError, RootFault, product};
 
-// Instantiated parts (ASM-2A; ASSEMBLY-DESIGN A2/A3/A11). `Frame` is
-// the A11 cluster placement a document records per instantiate node
+// Instantiated parts. `Frame` is the cluster placement a document
+// records per instantiate node
 // (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
@@ -123,7 +123,36 @@ pub use editor_core::{
     Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
 };
 
-// Split and inline (ASM-4; ASSEMBLY-DESIGN A4): the first-class
+// Mates: the declaration node's
+// authored payload (`Alignment` over two `MateFrame`s, a
+// `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
+// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
+// cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
+// — the typed refusal every door carries, the way `RootFault` is
+// carried above.
+pub use editor_core::{
+    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
+    relative_freedom_components, solve_document,
+};
+
+// **The assembly at-rest gate** (A5): `assemble` gathers a document's
+// product, mints every solved mate's declaration into its contact
+// record set, and runs the kernel's own tier-3′ door over the two
+// together — the answer to "is this assembly valid at rest", which the
+// authoring vocabulary above can otherwise construct and not check.
+// `Assembly` is the validated result (body, names, certified records,
+// and one `MintedDeclaration` per mate); `AssemblyError` is the typed
+// refusal, and its arms are not interchangeable — a caller must tell a
+// verdict AGAINST the document (`AtRest`) from the declared
+// direction's frontier (`Uncertified`), which is what `AtRestFinding`
+// and `Attribution` carry per finding. `RefusedRef` says why a mate
+// reference named no product face.
+pub use editor_core::{
+    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+};
+
+// Split and inline: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or
 // `workspace::random_document_id`) and leaves an instance behind;
@@ -132,24 +161,37 @@ pub use editor_core::{
 // ordinary recorded edits producing them; persistence of the results
 // is the workspace write side (`workspace::Workspace::create` /
 // `resave`). `InterfaceRecord`/`InterfaceCrossing` are the split
-// seam's crossing-declaration record — uninhabited-empty in v1, the
-// hook R2's mates extend.
+// seam's crossing-declaration record, inhabited by
+// `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
     SplitOutcome, inline, split,
 };
 
-// The pin-update door (ASM-UPD; ASSEMBLY-DESIGN A13). `DocEdit`'s
+// The pin-update door. `DocEdit`'s
 // `UpdateReference` arm is the per-reference primitive;
 // `update_references` is the whole-document ELABORATION over it,
 // returning the ordinary edits and applying none of them (purity =
 // atomicity), and `UpdateError` is its typed refusal. `mixed_pins`
-// is A13 clause 3's multiplicity LINT — a report, never a gate:
+// is the multiplicity LINT — a report, never a gate:
 // one entry per referenced id carrying more than one pin
 // (`PinMultiplicity`), each pin listed with the nodes holding it
 // (`PinSites`). The store-facing convenience that computes the new
 // pin from disk is `workspace::update_to_store`.
 pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
+
+// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its first
+// resident, the connectedness check. `run_checks` REPORTS, never
+// gates (the `mixed_pins` posture: nothing calls it from apply, load,
+// or evaluation); `enforce_checks` is the one refusing path, and the
+// CALLER chooses where to gate on it. Deliberately NOT in the prelude
+// (prelude membership is corpus-measured).
+// `subject_body` resolves a finding's (root, output_ix) attribution
+// back to the flagged body in the same evaluation.
+pub use editor_core::{
+    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
+    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+};
 
 // The profile description node type and its document alias.
 pub use editor_core::{

@@ -4,8 +4,7 @@
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
 //! class promoted to real joint proportions.
 //!
-//! M5 S1 status (the crosslap wire FIRED and was retired): the
-//! declared mated union now BUILDS through the join-stage
+//! M5 S1 status: the declared mated union BUILDS through the join-stage
 //! declared-REST zip — the contact patches (notch floor/ceiling and
 //! the four flush walls) are removed as interior and the seam is
 //! fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop ships the
@@ -24,6 +23,7 @@ use crate::bool_bodies::slab;
 use crate::booleans::{check, describe, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// Beam cross-section 0.5 x 0.5, length 4; notches half-depth (0.25),
 /// exactly beam-width wide, at the crossing x,y ∈ [1.75, 2.25]. All
@@ -33,24 +33,24 @@ const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
 const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
 
 /// Beam A runs along x, notched from the TOP at the crossing.
-fn beam_a<S: Scalar>() -> BooleanBody<S> {
-    let beam: pncad::topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
-    let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
+fn beam_a<S: Scalar>(tol: Tol) -> BooleanBody<S> {
+    let beam: pncad::topo::Body<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol);
+    let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol);
     expect_seamed(
         "beam A notch subtract",
-        check(try_subtract(&beam, &cutter), BEAM_VOL - NOTCH_VOL),
+        check(try_subtract(&beam, &cutter, tol), BEAM_VOL - NOTCH_VOL, tol),
         BEAM_VOL - NOTCH_VOL,
     )
 }
 
 /// Beam B runs along y, notched from the BOTTOM — the two half-depth
 /// notches interlock.
-fn beam_b<S: Scalar>() -> BooleanBody<S> {
-    let beam: pncad::topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
-    let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
+fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
+    let beam: pncad::topo::Body<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol);
+    let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol);
     expect_seamed(
         "beam B notch subtract",
-        check(try_subtract(&beam, &cutter), BEAM_VOL - NOTCH_VOL),
+        check(try_subtract(&beam, &cutter, tol), BEAM_VOL - NOTCH_VOL, tol),
         BEAM_VOL - NOTCH_VOL,
     )
 }
@@ -60,20 +60,22 @@ fn beam_b<S: Scalar>() -> BooleanBody<S> {
 /// glued union (M5 S1 — the REST zip), and the lifted exploded copy.
 /// Returns the undeclared refusal's narration string for the f64 stop
 /// captions.
-pub(crate) fn build<S: Scalar>() -> (
+pub(crate) fn build<S: Scalar>(
+    tol: Tol,
+) -> (
     BooleanBody<S>,
     BooleanBody<S>,
     BooleanBody<S>,
     pncad::topo::Body<S>,
     String,
 ) {
-    let a = beam_a::<S>();
-    let b = beam_b::<S>();
+    let a = beam_a::<S>(tol);
+    let b = beam_b::<S>(tol);
 
     // The UNDECLARED union refuses at the coincidence door (rung (b);
     // post-PR 5 value equality never even classifies).
     let expected = 2.0 * (BEAM_VOL - NOTCH_VOL);
-    let naive = check(try_union(&a.body, &b.body), expected);
+    let naive = check(try_union(&a.body, &b.body, tol), expected, tol);
     let refusal = describe(&naive, expected);
     if !matches!(naive, crate::booleans::Verdict::Refused(_)) {
         panic!(
@@ -88,8 +90,9 @@ pub(crate) fn build<S: Scalar>() -> (
     let glued = expect_seamed(
         "declared mated union (M5 S1 REST zip)",
         check(
-            crate::booleans::try_union_declared(&a.body, &b.body),
+            crate::booleans::try_union_declared(&a.body, &b.body, tol),
             expected,
+            tol,
         ),
         expected,
     );
@@ -106,12 +109,12 @@ pub(crate) fn build<S: Scalar>() -> (
         S::from_f64(0.0),
         S::from_f64(1.25),
     ));
-    let b_lifted = pncad::topo::transform_rigid(&b.body, &lift).expect("lift beam B");
+    let b_lifted = pncad::topo::transform_rigid(&b.body, &lift, tol).expect("lift beam B");
     (a, b, glued, b_lifted, refusal)
 }
 
-pub fn stops() -> Vec<Stop> {
-    let (a, _b, glued, b_lifted, refusal) = build::<f64>();
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let (a, _b, glued, b_lifted, refusal) = build::<f64>(tol);
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
          bit-exact, gated 1e-9); undeclared the mate refuses at the coincidence \
@@ -125,7 +128,16 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "crosslap",
             caption: "cross-lap (glued)".to_string(),
-            montage: true,
+            // Montage cell RETIRED by the M9-5 consolidation, which is
+            // the one demos/README.md's "considered and NOT built"
+            // note said to wait for: `twopeg` shows this cell's whole
+            // claim — a glued union across a declared coincident
+            // PLANAR contact — and adds the two CYLINDRICAL contacts
+            // that did not exist when that note was written, on a
+            // shape that is more part-like than either. The cross-lap
+            // keeps its standalone render, its narration, and every
+            // non-sheet role (corpus, latency, exports).
+            montage: false,
             story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
                     UNIONED into one body through the declared-REST zip (M5 S1) — the \
                     contact patches are interior now; only the seam edges remain",
@@ -147,7 +159,10 @@ pub fn stops() -> Vec<Stop> {
         Stop {
             name: "crosslap_exploded",
             caption: "cross-lap (exploded)".to_string(),
-            montage: true,
+            // Off the sheet with its own glued cell (see above);
+            // `twopeg_apart` is the apart framing the sheet now
+            // carries.
+            montage: false,
             story: "the same joint exploded: beam B lifted by a rigid transform \
                     (re-minted witnesses, #84), the interlocking notches visible",
             ops: "transform_rigid(beam B, +1.25 z) — transform witnesses re-minted",
@@ -163,7 +178,7 @@ pub fn stops() -> Vec<Stop> {
                 // The lifted copy is a TRANSFORM result, not a boolean
                 // result — its contacts don't survive the move; it
                 // validates through the plain tier-3 gate.
-                SceneBody::plain_planar("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
+                SceneBody::plain("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
             ],
         },
     ]

@@ -22,6 +22,8 @@ use geom_core::Decide;
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey};
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::provenance::Provenance;
 
@@ -131,23 +133,27 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         if count <= 1 {
             #[cfg(debug_assertions)]
-            self.assert_euler_postcondition(before, (0, 0, 0, 0, 0, 0, 0), "movefac");
+            self.assert_euler_postcondition(before, ArenaDelta::ZERO, "movefac");
             return Ok(vec![shell]);
         }
         // Per-component face lists, preserving original relative order.
         let mut lists: Vec<Vec<FaceKey>> = vec![Vec::new(); count];
         for &face in &shell_data.faces {
-            // The label exists for every face of the list (labeled above).
-            if let Some(&label) = component.get(face) {
-                lists[label].push(face);
-            }
+            let Some(&label) = component.get(face) else {
+                unreachable!(
+                    "movefac: every face of `shell_data.faces` is labelled by the \
+                     component walk above"
+                )
+            };
+            lists[label].push(face);
         }
         let mut result = vec![shell];
         let mut lists = lists.into_iter();
         let first = lists.next().unwrap_or_default();
-        if let Some(shell_data) = self.get_shell_mut(shell) {
-            shell_data.faces = first;
-        }
+        let Some(shell_data) = self.get_shell_mut(shell) else {
+            unreachable!("movefac: `shell` resolved in the plan phase and this op kills no shell")
+        };
+        shell_data.faces = first;
         for faces in lists {
             let new_shell = self.add_shell(
                 Shell {
@@ -157,20 +163,35 @@ impl<T: Decide> Body<T> {
                 Provenance::Movefac { shell },
             );
             for face in faces {
-                if let Some(face_data) = self.get_face_mut(face) {
-                    face_data.shell = new_shell;
-                }
+                let Some(face_data) = self.get_face_mut(face) else {
+                    unreachable!(
+                        "movefac: every labelled face was resolved by the component walk \
+                         above and this op kills no face"
+                    )
+                };
+                face_data.shell = new_shell;
             }
-            if let Some(solid_data) = self.get_solid_mut(solid) {
-                solid_data.shells.push(new_shell);
-            }
+            let Some(solid_data) = self.get_solid_mut(solid) else {
+                unreachable!(
+                    "movefac: `solid` proven live by the plan phase's `contains_key` and \
+                     this op kills no solid"
+                )
+            };
+            solid_data.shells.push(new_shell);
             result.push(new_shell);
         }
 
         #[cfg(debug_assertions)]
         {
             let minted = isize::try_from(count - 1).unwrap_or(isize::MAX);
-            self.assert_euler_postcondition(before, (0, minted, 0, 0, 0, 0, 0), "movefac");
+            self.assert_euler_postcondition(
+                before,
+                ArenaDelta {
+                    shells: minted,
+                    ..ArenaDelta::ZERO
+                },
+                "movefac",
+            );
         }
         Ok(result)
     }
@@ -180,6 +201,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
@@ -203,12 +225,16 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -217,16 +243,20 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let grow = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: grow.he_plus,
-            he2: grow.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let promoted = body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell, seed.face, promoted.face)
@@ -264,7 +294,7 @@ mod tests {
     /// A connected shell is a deterministic no-op.
     #[test]
     fn movefac_connected_shell_is_a_noop() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let shells = body.movefac(cube.seed.shell).unwrap();
@@ -275,7 +305,7 @@ mod tests {
     /// Stale shell: typed error, body untouched.
     #[test]
     fn movefac_stale_shell_is_typed() {
-        let cube = ops_cube();
+        let cube = ops_cube(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let err = body.movefac(ShellKey::default()).unwrap_err();

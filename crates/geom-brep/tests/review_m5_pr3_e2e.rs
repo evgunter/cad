@@ -10,10 +10,11 @@
 
 use std::sync::Arc;
 
+use geom::{Curve3, NurbsCurve3};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Dual64, Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 
@@ -101,8 +102,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
             )
         })
         .collect();
-    let nd =
-        geom_curves::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
+    let nd = geom::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
     let cd: Curve3<Dual64> = Curve3::Nurbs(Arc::new(nd));
     for t in [0.1, 0.4, 0.62, 0.9] {
         let d = cd.eval(Dual64::variable(t));
@@ -133,7 +133,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
 /// Nurbs carrier with the pinned typed error.
 #[test]
 fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     // Analytic line edge certifies.
     let p0 = Point3::new(0.25, -1.0, 2.0);
     let p1 = Point3::new(1.25, 0.5, 3.5);

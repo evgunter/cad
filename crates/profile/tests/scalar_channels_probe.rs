@@ -8,6 +8,14 @@
 //! default build has no reason to pay for a diagnostics scalar. The
 //! `Dual<f64>` cross-scalar tests stay ungated in `scalar_channels.rs`;
 //! only this file carries the whole-file gate.
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p profile --features probe --test all -- scalar_channels_probe::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,7 +23,8 @@ mod common;
 
 use common::{annulus, lift, near_tangent_hole, profile, tol};
 use geom_core::Sign;
-use profile::k_stats::{self, Probe, SampleOutcome};
+use geom_core::Tol;
+use geom_core::k_stats::{self, Probe, SampleOutcome};
 
 #[test]
 fn probe_records_margin_distributions_without_changing_decisions() {
@@ -80,7 +89,7 @@ fn probe_records_margin_distributions_without_changing_decisions() {
 
 #[test]
 fn probe_records_the_near_tangent_escalation() {
-    let eps = tol().eps;
+    let eps = tol().eps();
     k_stats::start_recording();
     let outcome = lift::<Probe>(&near_tangent_hole(eps)).validate(tol());
     let samples = k_stats::take_samples();
@@ -101,46 +110,56 @@ fn recording_is_opt_in() {
     assert!(k_stats::take_samples().is_empty());
 }
 
-/// **K-funnel registration (M5 S2)**: every gate the arc-leg fillet
-/// constructor takes is a *reified* predicate through the same k_stats
-/// recorder validation uses — so the constructor's margins land in the
-/// K-experiment distribution with the rest of the kernel's. This pins
-/// that all seven fire under recording, with band semantics intact.
+/// **K-funnel registration (M5 S2)**: every gate the arc-carrier fillet
+/// takes is a *reified* predicate through the same k_stats recorder
+/// validation uses — so the corner's margins land in the K-experiment
+/// distribution with the rest of the kernel's. This pins that all eight
+/// fire under recording, with band semantics intact.
+///
+/// Neither corner is closed: an interior arc arrival leaves the tip ON
+/// its carrier, which is all these rows need — the gates fire inside
+/// the fused verb, before any closing segment exists.
 #[test]
 fn probe_records_every_arc_fillet_gate() {
     use geom_core::{Point2, Real};
-    use profile::{ArcSweep, FilletLegShape, ProfileLoop};
+    use profile::{ArcSweep, Center, Open};
 
     let pp = |x: f64, y: f64| Point2::new(Probe::from_f64(x), Probe::from_f64(y));
-    let leg_arc = |cx: f64, cy: f64, sweep| FilletLegShape::Arc {
-        center: pp(cx, cy),
-        sweep,
-    };
+    let pr = Probe::from_f64;
     k_stats::start_recording();
     // line×arc: fires the arm, turn, line/circle-offset, reach and fit
-    // gates.
-    ProfileLoop::builder(pp(0.0, 0.0))
-        .fillet_corner(
-            FilletLegShape::Line,
-            pp(2.0, 0.0),
-            leg_arc(0.0, 0.0, ArcSweep::Ccw),
-            pp(0.0, 2.0),
-            Probe::from_f64(0.5),
-            tol(),
+    // gates. The corner (2, 0) is the +x ray from (0, 0) meeting the
+    // carrier about the origin through (0, 2).
+    Open.at(pp(0.0, 0.0))
+        .toward(pr(1.0), pr(0.0), Tol::witness())
+        .expect("the incoming ray runs +x")
+        .fillet_arc(
+            pr(0.5),
+            Center {
+                c: pp(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: pp(0.0, 2.0),
+            },
+            Tol::witness(),
         )
         .expect("the line×arc fillet constructs at Probe");
-    // arc×arc: fires the two circle-offset clearances as well.
-    let s3 = 3.0f64.sqrt();
-    ProfileLoop::builder(pp(1.0, 0.0))
-        .fillet_corner(
-            leg_arc(-1.0, 0.0, ArcSweep::Ccw),
-            pp(0.0, s3),
-            leg_arc(1.0, 0.0, ArcSweep::Ccw),
-            pp(-1.0, 0.0),
-            Probe::from_f64(0.5),
-            tol(),
-        )
-        .expect("the arc×arc fillet constructs at Probe");
+    // arc×arc: the vesica of two radius-2 carriers whose centres are
+    // two apart, which fires the two circle-offset clearances as well.
+    Open.arc_fillet_arc(
+        Center {
+            c: pp(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: pp(1.0, 0.0),
+        },
+        pr(0.5),
+        Center {
+            c: pp(1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: pp(-1.0, 0.0),
+        },
+        Tol::witness(),
+    )
+    .expect("the arc×arc fillet constructs at Probe");
     let samples = k_stats::take_samples();
     for name in [
         "fillet_corner_arm",

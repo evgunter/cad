@@ -1,11 +1,11 @@
-//! Adversarial-review probes for M6-5 PR-2 (#220). NOT part of the PR.
+//! Adversarial-review probes for the fillet naming work. NOT part of
+//! any one PR.
 //!
-//! P1/P2: door symmetry — the whole-body door's six `FromTarget`
-//! support rows wrap exactly the target's own six face names, and the
-//! surgery door (composed die) lands its surviving supports on
-//! `FromTarget` of names the target's table carries — the same rule.
+//! P1/P2: a shrunk support lands on `FromTarget` of the name the
+//! target's own table carries — on the every-edge cube (P1, a
+//! bijection onto its six face names) and on the composed die (P2).
 //! P3: totality extends beyond the square corpus — a triangular prism
-//! (V=6, E=9, F=5, trivalent) through the whole-body door names all
+//! (V=6, E=9, F=5, trivalent) filleted on every edge names all
 //! 20 + 36 + 18 entities and every name resolves.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -21,13 +21,20 @@ use editor_core::{
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::prism_edges;
+use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
 }
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table_of(
@@ -40,12 +47,12 @@ fn table_of(
     }
 }
 
-/// P1: the whole-body door's `FromTarget` rows are a BIJECTION onto the
+/// P1: the shrunk supports' `FromTarget` rows are a BIJECTION onto the
 /// target's face names — six supports, each wrapping a distinct one of
 /// {Cap(Bottom), Cap(Top), Wall(0..3)}, all kind Face.
 #[test]
-fn p1_whole_body_supports_wrap_exactly_the_targets_face_names() {
-    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes");
+fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
+    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -141,13 +148,13 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
     );
 }
 
-/// P3: totality beyond the square — a triangular prism through the
-/// whole-body door. V=6, E=9, F=5 gives 5+9+6 = 20 faces, 18+18 = 36
+/// P3: totality beyond the square — a triangular prism filleted on
+/// every edge. V=6, E=9, F=5 gives 5+9+6 = 20 faces, 18+18 = 36
 /// edges, 18 vertices; every entity named, every name resolves.
 #[test]
-fn p3_whole_body_totality_holds_for_a_triangular_prism() {
+fn p3_totality_holds_for_a_triangular_prism() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
-    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes");
+    let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(
@@ -168,7 +175,7 @@ fn p3_whole_body_totality_holds_for_a_triangular_prism() {
     let ev = eval(&doc);
     let NodeResult::Ok(v) = ev.nodes.get(&blank).expect("the fillet") else {
         panic!(
-            "the triangular prism refuses the whole-body door: {:?}",
+            "the triangular prism refuses the fillet: {:?}",
             ev.nodes.get(&blank)
         )
     };

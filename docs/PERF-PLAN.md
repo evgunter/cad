@@ -10,6 +10,14 @@ wired per-document full-rebuild and incremental-recompute timings
 into hosted CI as REPORTING rows over the Band 4 corpus (committed
 baseline JSON, box-relative numbers, no threshold gate), exactly the
 measured-not-gated posture F8 ratified; this doc stays advisory.**
+**Update at the 2026-08-14 performance scan
+(`docs/PERF-SCAN-2026-08.md`): §1.3's ranking is now three milestones
+old and four of its six entries have moved. Every expired claim is
+marked inline below with a dated `[STALE …]` / `[SUPERSEDED …]` note
+pointing at the finding that retired it; the original prose is left
+intact, because what this doc believed at M3-start is the record it
+exists to keep. Nothing in §3 (GPU) or §4 (dual-code) was touched by
+the scan — those sections stand as written.**
 Companion to `DESIGN.md`
 (never overrides D1–D9) and
 `GUI-DESIGN.md`. Written at M3-start (2026-07-21) against the M2
@@ -57,17 +65,81 @@ latency-sensitivity), the preview lane's costs are:
    count ~1/√δ per axis, so 100× tighter δ ⇒ ~10⁴× CDT time. Even at
    preview δ, full-body re-tessellation per drag frame is the first
    casualty at Band 4 scale.
+
+   **[STALE 2026-08-14 — wrong in three ways; PERF-SCAN finding 7b,
+   the one benchmarked finding in that report.]** (i) The δ-scaling
+   arithmetic is wrong by ~150× on its own datapoint: the washer's
+   1e-4 → 1e-6 step measures **63×**, not ~10⁴×. (ii) The quadratic is
+   not general. Grid-based curved faces (cylinder/cone/sphere/torus/
+   NURBS) are **near-linear**, and so is a single circular loop; the
+   blow-up is specific to **nested near-cocircular boundaries** — a
+   planar face with a hole. The washer's entire 1.2 s is its two planar
+   annulus faces. (iii) It is not on a preview lane, because there is
+   none: `mesh` is a **dev-dependency** of `editor-core`, absent from
+   `pncad-py`, and its only non-test consumer is the STL writer. So
+   this belongs in the background/export lane, not rank 1 of the
+   preview lane. The remedy half of this doc's advice survives and got
+   stronger — `bulk_load_cdt` measures **35×** on the holed-planar case
+   — but see the D9 hazard in finding 7b: spade 2.15.1's bulk loader
+   iterates a `HashSet` under `RandomState`, so it must not land
+   unpatched. The "hierarchy-hinted insertion" half of the remedy named
+   in `mesh/lib.rs` is a **dead end** (measured 39.26 s vs 39.05 s):
+   the quadratic is the legalization cascade, not point location.
 2. **Booleans/splitting (M3 on)** — the quadratic edge×face sweep
    plus per-pair trilean classification; every boolean node
    downstream of the edit re-runs it.
+
+   **[SUPERSEDED 2026-08-14 — the sweep is no longer quadratic.]**
+   `topo/src/boolean/reduce.rs:432` queries the BVH. Precisely: the
+   brute-force scan is **shipped production code, not test code** — a
+   live runtime arm (`reduce.rs:422`) of the public `SweepStrategy`
+   enum, selectable through `boolean_op_with`. What is true is that no
+   production *caller* selects it: `union`/`intersect`/`subtract` and
+   every internal entry hard-code `SweepStrategy::Realized`, so only
+   the differential suite passes `Idealized`. That is §4.4's
+   idealized/realized pilot working exactly as designed — the O(n²)
+   reference stays compiled and executable so the pin can run both
+   paths and compare, which is the whole point. What replaced it as
+   the boolean's dominant term is **whole-body pcurve re-certification**
+   — `mint_pcurves` clears and re-mints every face on every boolean, so
+   a chain of N booleans on a growing body is quadratic (PERF-SCAN
+   finding 7, nine call sites across five crates). Two further
+   quadratics the M3 ranking did not anticipate: `merge_group` rescans
+   the whole edge arena per kill (finding 11), and `join` is O(n³) with
+   hoistable invariants (finding 13).
 3. **Feature rebuild** — Euler-op sequences are O(entities built)
    with small constants (`crates/topo/src/euler*.rs`); cheap per
    feature, but linear in downstream-DAG size without M4 memoization.
+
+   **[STALE 2026-08-14 — false in release; PERF-SCAN finding 9.]**
+   Kill-direction ops are **O(arena), not O(1)**: `kev`/`kef`/`kvfs`/
+   `kemr`/`split_edge` each pay three full-arena orphan-hygiene scans
+   (`topo/src/body.rs:417-428,440-456,485-494`), one of which allocates
+   a `Vec` per curve. A zip killing n seam edges costs O(n·N). The
+   splice itself is O(loop length) as claimed — the tail is not.
+   Memoization did land and works (11× on `die`), but is **switched
+   off in every shipping caller** (finding 6).
 4. **Validation + certification** — tier 1 is per-op debug-assert
    (absent in release); tier 3 samples per-edge dihedrals and 9-point
    residual schedules (`CERT_SAMPLES`, `geom-brep/src/certify.rs`);
    the 12-pass tier-1/2 pipeline (`topo/src/validate.rs`) is linear
    arena passes. Not the bottleneck; do not optimize.
+
+   **[STALE 2026-08-14 — "do not optimize" is now wrong in three
+   specific ways; PERF-SCAN findings 4, 5, 16.]** The pipeline is 13
+   passes, not 12, and each is not one sweep: tier 1 is ≈40 arena
+   sweeps plus ~13 `SecondaryMap` allocations per call. And: (a) the
+   per-op debug-assert is a **full-body** tier-1 pass, not an O(1)
+   check, making body construction Θ(ops × N) in every CI test row
+   (`euler.rs:1975-1992`, 15 call sites); (b) pass 13 is **quadratic**
+   in null-scaffold curves (`validate.rs:3051-3060`), worst exactly
+   mid-boolean when (a) fires most; (c) **tier 3 — scoped here to the
+   per-commit lane — now runs unconditionally in release** on the
+   boolean, merge, product and step-import paths, and twice over the
+   same entities on the product path. The boolean gate also runs tier 1
+   twice per call (`boolean/ops.rs:1209-1213`). The general claim that
+   validation is linear still holds; the conclusion drawn from it does
+   not.
 
 **Per-commit (~1 s budget).** Full tier-2/3 validation, certified-δ
 tessellation, mass properties. Mass props are divergence-theorem
@@ -101,6 +173,26 @@ architecture; the f64 lane with K·ε escalation IS the fast path.**
 | 4 | Interval subdivision driver | background (M10) | parallelism (§2.2) |
 | 5 | Tier-3 certification/validation | commit | leave alone until profiled |
 | 6 | Mass props, exports | background | leave alone |
+
+**[2026-08-14 status of the table above.]** Four of six entries moved.
+Read this column with it:
+
+| Rank | Status as of the scan |
+|---|---|
+| 1 | **Re-scoped.** Real, but export/background lane — not preview, and quadratic only for nested-cocircular (holed planar) faces. |
+| 2 | **Retired.** BVH landed at M5 PR 8. Replaced by per-op whole-body pcurve re-mint as the boolean's dominant term. |
+| 3 | **Solved, then stranded.** Memoization works (11× on `die`); unreachable from the shipping API. |
+| 4 | **Unchanged and still unbuilt** — M10 has not started. |
+| 5 | **Wrong.** Tier 3 now runs in release on four paths; tier 1 runs twice per boolean and once per Euler op in debug. |
+| 6 | **Unchanged.** Mass props and exports remain cheap; the scan found nothing. |
+
+The scan's own ranking — which supersedes this table for planning
+purposes — leads with a **correctness** item this doc could not have
+foreseen: `face_box` has no NURBS arm, so the BVH introduced in service
+of rank 2 can prune a pair the exact predicate would examine, violating
+the very conservative-superset contract §2.1 makes a D9 obligation.
+Fixing performance is how that class of bug gets in; see PERF-SCAN
+finding 1.
 
 ## 2. CPU-first roadmap
 
@@ -139,6 +231,28 @@ code and its trigger; the trigger is the license to start.
   **conservative-superset contract** is the D9 obligation: a BVH may
   only prune pairs the exact predicate would reject, so the result
   stays a function of exact tests only.
+
+  **[STATUS 2026-08-14 — one consumer extant, two still correctly
+  pending; the contract is currently violated.]** This bullet is a
+  *plan*, and it is on schedule: §5 sequences the BVH at M5 (done —
+  `Bvh::build` is live at `boolean/reduce.rs:420`, the workspace's only
+  call site) and picking at the GUI milestone (not started, because
+  there is no GUI). SSI seeding remains intended and unwired —
+  `geom-brep/src/ssi/exhaust.rs:32-38` still bisects with a linear scan
+  over tubes and says why ("Brute force, deliberately, for now ... PR
+  8's BVH swaps in ... when profiling asks for it"), which is this
+  doc's own trigger discipline working, not a missed delivery. What
+  *was* misleading is `crates/bvh/src/lib.rs:3-5`, which described all
+  three duties in the present tense; corrected 2026-08-14 to mark which
+  are live and which are intended. **The superset contract is broken
+  for NURBS faces**: `boolean/boxes.rs:152-178` has no `Surface::Nurbs` arm and
+  falls through to a hull of the face's *boundary vertices*, which the
+  patch interior bulges past — while the sibling `edge_box` correctly
+  poisons its NURBS arm and `gate_planar` admits NURBS operands. The
+  sound constructor (`geom-surfaces/src/boxes.rs:26`) exists with zero
+  production callers, and the differential suite meant to guarantee the
+  contract builds every scenario from planar bricks. PERF-SCAN
+  finding 1.
 - **Feature-DAG memoization (M4, ratified Band 1).** Not re-argued;
   noted because it converts rank 3 from linear-in-model to
   linear-in-edited-cone — the demo/product difference. D9 makes the
@@ -172,6 +286,26 @@ idiom-2 example); **independent DAG nodes** in M4's evaluation
 service. Euler-op sequences stay serial — each op mutates shared
 arenas, and they are cheap; rank 3 is solved by memoization, not by
 parallelizing surgery.
+
+**[STATUS 2026-08-14 — one of five targets landed, and it is off.]**
+`rayon` is a dependency of `editor-core` alone, and
+`editor-core/src/eval/mod.rs:855` is the **only `par_iter` in the
+workspace**. Of the five targets above, only "independent DAG nodes"
+was built; it is D9-clean as written (indexed map into per-node slots)
+but `EvalOptions::default()` sets `parallel: false` and every shipping
+caller takes the default — `parallel: true` appears once, in a test.
+Tempering expectation for whoever turns it on: the scheduler is
+level-synchronous and the expensive corpus documents are *chains*
+(`heat_sink` is a 5-long union chain, `die` a 21-long subtract chain),
+which are depth-N and width-1, so it will not move those rows.
+
+Of the four unbuilt targets, **per-face tessellation is the cheapest**
+and the blocker is small: `mesh/src/tessellate.rs:81-136` threads a
+`&mut positions` running counter through the face loop, and each lane
+mints grid ids as `positions.len()`. Everything else is already
+read-only per face. Emitting *local* ids into a pre-sized buffer and
+assigning base offsets in a sequential arena-order fold is exactly the
+idiom-1-then-idiom-2 shape above, and is bit-identical. PERF-SCAN §5.
 
 ### 2.3 Micro level (profile-gated; mostly "not yet")
 
@@ -396,6 +530,55 @@ The one still-undelivered item is the Criterion harness (item 1),
 which remains deferrable by its own terms — no `benches/` exists,
 and the trend only has to predate the first optimization PR that
 needs it.)*
+
+**[CORRECTION 2026-08-14.]** Two things in that parenthetical need
+fixing, and the second one now blocks this whole section.
+
+First, **M5's SSI entry did not ship as described.** The BVH landed for
+the boolean sweep; SSI seeding still uses hand-rolled bisection
+(`ssi/exhaust.rs:32-38`). And CDT bulk-loading — "if the corpus shows
+CDT dominance (likely)" — did not land either.
+
+Second, **"deferrable by its own terms" has stopped being true.** The
+harness is not merely undelivered; its absence is now the binding
+constraint on everything else here, for three compounding reasons:
+
+- §2.3 gates every micro-optimization on it ("All premature before the
+  criterion harness (§5) exists to show a win"), so the doc forbids the
+  work until the measurement exists, and the measurement is the one
+  item nobody built. That is a deadlock, not a deferral.
+- The M5/M10 triggers this doc sets for itself ("if the corpus shows
+  CDT dominance", "if certification wall-times demand it") are
+  **unfireable**, because the only corpus timing artifact —
+  `crates/editor-core/tests/baseline/rebuild-latency.json` as it stood
+  before the 2026-08-17 split described below — largely
+  disqualifies itself in its own provenance: three refreshes disagree
+  by 90–98% with contention ruled out, the `die_composed` row is
+  explicitly "not a datum", and the whole file is a dev-profile
+  (opt-level 0) measurement. Only the full-vs-incremental *ratio*
+  within one verified-quiet run is trustworthy.
+- Consequently the 2026-08-14 scan could profile almost nothing: of its
+  ~20 findings, exactly one carries measured numbers, and that one
+  produced the report's largest result (35×) precisely because its
+  author built a harness. That is this item's argument in miniature.
+
+**So item 1 is now the first thing to do, not the last.** The second
+half of that ask — capturing the environment rather than hypothesizing
+it — landed 2026-08-17: hosted CI is the canonical producer of the
+rebuild-latency numbers, `docs/perf-data/rebuild-latency/` accumulates
+one entry per merge to `main`, and every entry carries the build
+environment (runner, nproc, memory, toolchain, RUSTFLAGS,
+`CARGO_PROFILE_*`, debug-assertions, ε). That does not un-disqualify
+the three historical workstation refreshes, and it is not the criterion
+harness item 1 asks for — it is a reporting lane, still ungated — but
+the corpus timings are comparable across merges now, which is the
+precondition the M5/M10 triggers above were missing. Until item 1
+itself lands,
+`docs/k-report-data/`'s predicate decision counts are the better
+evidence base: exact, deterministic, machine-independent, and immune to
+both the profile and contention problems (1 792 926 decisions in the
+1e-9 row alone; it is what localized PERF-SCAN findings 8 and the SSI
+cold-path result).
 
 **Now (during M3) — three cheap things, nothing else:**
 

@@ -18,8 +18,7 @@ Evan's standing instructions for implementation work (given at M0 start,
   too. (Model choice for implementation dispatches is currently
   governed by the coin-flip A/B protocol — see [[model-ab-experiment]];
   design/specs/reviews/rulings stay Fable.)
-  Subagents may spawn their own subagents for large tasks (verified —
-  see [[multi-agent-capabilities]]).
+  Subagents may spawn their own subagents for large tasks.
 - **Continue autonomously** until hitting a major branch point that needs
   Evan's input: automatically any change to a ratified DESIGN.md
   decision, plus important forks discovered during implementation.
@@ -36,7 +35,7 @@ Evan's standing instructions for implementation work (given at M0 start,
   Evan's preference matters. When unsure which kind a decision is,
   treat it as a fork.
 - **Keep an orchestrator log of design decisions made unilaterally**
-  (M0's is `docs/archive/M0-LOG.md`, L-numbered decisions) and generally maintain
+  (L-numbered decisions, the shape M0's used) and generally maintain
   state-of-work knowledge in version control.
 - **Before stopping, write down and commit all crucial state** (log
   updates, memories, in-flight branch status) so the next session can
@@ -51,115 +50,86 @@ in-flight state; delegate implementation with detailed specs citing
 DESIGN.md decisions; review subagent output before merging; escalate to
 Evan only at genuine design forks.
 
-**Standing operational rules (compressed 2026-08-05 by the docs-rot
-unit; the incident narratives that earned them live in this file's
-git history and the M-logs):**
+**Standing operational rules** (the incidents that earned them live
+in git history and the M-logs, not here):
 
-- **Orchestrator switch procedure (Evan, PR #285 comment
-  5230318576, executed 2026-08-09)**: the outgoing orchestrator
-  performs the switch itself — finalize the handoff file
-  (cad-work/handoff-prompt-*.md) with the LIVE resting state incl.
-  per-lane resume instructions for any in-flight agents (they die
-  with the session; lanes survive pushed); push every lane's local
-  commits (if a lane's own agent may be alive and holding git
-  state, note it in the handoff instead of fighting the lock);
-  commit crucial state; then `tmux split-window` a new pane IN THE
-  SAME tmux session + same CLAUDE_CONFIG_DIR (keeps the login),
-  launch `claude` (model fable), send-keys the handoff kickoff,
-  verify the successor is working via capture-pane, and finally
-  kill ONLY YOUR OWN PANE — never the session (the successor lives
-  in it), never the other orchestrator's session.
-- **Session start**: install + arm the scripted monitor suite —
-  `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/` from
-  an up-to-date checkout, then arm each as a persistent Monitor
-  from the INSTALLED copies (checkouts switch refs). The
-  github-away-channel script bakes in both reaction endpoints
-  (issues + pulls — inline-comment 👍s live under the pulls
-  endpoint) and, since 2026-08-12, polls both COMMENT feeds too
-  (issues/comments + pulls/comments): inline review comments used
-  to pass every filter and still never arrive, because only the
-  issues feed was fetched. **Comment filtering (Evan, 2026-08-11)**: the
-  away-channel REQUIRES routing env at arm time (fail-loud —
-  it exits 78 without it); per-comment events are scoped to your
-  own threads, new-issue/PR events stay repo-wide. Arm as:
-  `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
+- **Monitors are tools, not mandates (Evan, 2026-08-22)**: arm, tune,
+  re-cadence, or disarm any of them at will to suit the session's
+  present purposes. The default remains useful at session start —
+  `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`
+  from an up-to-date checkout, then arm the installed copies as
+  persistent Monitors (checkouts switch refs; glob the directory, do
+  not maintain a named list) — but it is a default, not an
+  obligation.
+- **Away-channel arming**: the script fails loud (exit 78) without its
+  routing env. Arm as `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
-  **Branch-prefix convention (an explicit rule, stated as the
-  CLEAN example — Evan, #396):** each program owns ONE short
-  prefix; every unit/lane branch goes under it and the
-  orchestrator branch is `<prefix>orchestrator`. For a program
-  with role tag `(FOO orchestrator)`: unit branches
-  `foo/<unit>`, orchestrator branch `foo/orchestrator`, armed
-  with `CAD_CHANNEL_BRANCH_PREFIXES=foo/` — one prefix, nothing
-  to enumerate. Programs whose live branches predate this
-  standardization arm with their actual prefix list (each
-  session records its own in its handoff; do not maintain a
-  central legacy registry here — it rots, as the seven-prefix
-  kernel-program entry demonstrated) and fold renames in at
-  natural seams; new programs use the clean shape from day one. **Canonical summons
-  keywords (Evan)**: `@ orchestrators` reaches everyone;
-  `@ lib` / `@ m8` / `@ asm` reach one (derived from the tag
-  automatically — no ADDRESSES env needed normally). Two
-  behavioral rules: (i) LEAD EVERY comment you post with your
-  role tag — the leading tag is BOTH the thread subscription
-  AND the self-suppression key (the away-channel drops comments
-  that lead with your own tag: your echoes, since nobody else
-  signs as you; mid-body mentions still summon); (ii) to
-  watch a thread your filter doesn't match, post
-  "(<ROLE> orchestrator) subscribing." on it — the tag in that
-  comment subscribes you from the next poll; (iii) SIGN ISSUE
-  BODIES with your tag when filing — the membership check reads
-  title+body+comments, so a signed filing auto-subscribes you to
-  its thread (and makes authorship visible across the shared
-  account). Sign-off watchlist: the script reads
-  `$CAD_SIGNOFF_WATCHLIST` or DEFAULTS to
-  `~/.local/share/cad-work/signoff-watchlist.txt` — append to the
-  file the ARMED monitor actually reads (2026-08-15: two
-  affordance 👍s went unwatched because entries went to the old
-  `-m7` file while the monitor, armed without the env, polled the
-  default; Evan noticed, not the channel). No usage-limit monitor (dropped,
-  Evan 2026-07-23) — the stopping rule covers it.
-- **Channel to Evan**: questions go out via GitHub as
-  design-conversation PRs (edit the doc to state the question,
-  update in place with the answer) or issues — NEVER comments on
-  merged PRs (he doesn't scan them). Watch 👍 reactions only on
-  comments you explicitly requested sign-off on (watchlist file).
+  Per-comment events are scoped to your own threads; new-issue/PR
+  events stay repo-wide. If you set `CAD_SIGNOFF_WATCHLIST` at arm
+  time, append sign-off entries to THAT file — not the default
+  `~/.local/share/cad-work/signoff-watchlist.txt`.
+- **Branch-prefix convention (Evan, #396)**: each program owns ONE
+  short prefix — unit branches `foo/<unit>`, orchestrator branch
+  `foo/orchestrator`, armed with `CAD_CHANNEL_BRANCH_PREFIXES=foo/`.
+  Programs whose branches predate this arm with their actual prefix
+  list and record it in their own handoff; fold renames in at natural
+  seams. No central legacy registry — it rots.
+- **Away-channel etiquette**: `@ orchestrators` summons everyone,
+  `@ lib` / `@ asm` / `@ m9` summon one. (i) LEAD every comment with
+  your role tag — it is both the thread subscription and the
+  self-suppression key; (ii) to watch a thread your filter misses,
+  post "(<ROLE> orchestrator) subscribing." on it; (iii) SIGN issue
+  bodies you file, which auto-subscribes you and makes authorship
+  visible on the shared account.
+- **Channel to Evan**: questions go out as design-conversation PRs
+  (edit the doc to state the question, update in place with the
+  answer) or issues — NEVER comments on merged PRs, he doesn't scan
+  them. Watch 👍 reactions only on comments you explicitly requested
+  sign-off on.
 - **State-sync PRs (Evan, #96)**: the orchestrator branch must not
-  accumulate a large unmerged delta — open a docs-only PR to main
-  at every pipeline seam.
-- **Local clippy verification is only real from a COLD lint state
-  for touched crates** (2026-08-08, #264's triple-red lesson):
-  cargo replays cached diagnostics at their recording-time
-  severity, so a target linted warm under an allow-warnings
-  invocation passes a later `-D warnings` run un-relinted — a
-  clean exit is a FALSE NEGATIVE. Brief line: verify with
-  `cargo clean -p <touched-crates> && cargo clippy <CI's exact
-  crate list> --all-targets -- -D warnings`.
-- **Every subagent spec header**: OUTPUT DISCIPLINE (≤~150 lines
-  per tool call, chunked reads, skeleton-first writes, reports
-  ≤150 lines — the 64k output limit kills agents that draft whole
-  files in one Write; a transcript poisoned by it must be respawned
-  FRESH, not resumed) and the verbatim verification sentence: "run
-  every build/battery row as a synchronous FOREGROUND Bash call,
-  one at a time, reading each result before the next; NEVER arm
-  waiters, monitors, or background chains for your own
-  builds/tests; when the build-slot queue is busy, a BLOCKING
-  foreground wait is the correct state — re-issue a timed-out
-  call rather than parking" (waiter-parking is endemic without
-  it; the slot-queue flavor — agents assuming the flock will
-  notify them — recurred 3× on 2026-08-08 even with the shorter
-  sentence).
-- **Reviews**: assign reviewers explicit claims to falsify; promote
+  accumulate a large unmerged delta — open a docs-only PR to main at
+  every pipeline seam.
+- **Every implementer dispatch**: point the lane at
+  `docs/prompts/implementer-discipline.md` by path — output discipline,
+  CI-first verification (local runs are an iteration tool, not the
+  record), per-lane target dirs, k-lint and comment style live there. Read it once yourself; do not paste it.
+- **Reviews**: assign reviewers explicit claims to falsify, AND point
+  them at the style lane by path (`docs/prompts/reviewer-style-lane.md` — read it
+  once yourself, do not paste it; dispatcher notes in
+  `docs/REVIEW-STYLE-DISPATCH.md`) — the claims lane is
+  strong on soundness and blind to structure; promote
   reviewer suites into CI after the fix pass
-  ([[review-and-dependency-policy]]). Dual-review sampling per the
-  A/B v3 amendment: every 3rd merged BLINDED-LANE implementation
-  row (both orchestrators' series combined, merge order on main)
-  gets an independent R2 — same brief, own lane, no R1 access;
-  fix pass consumes the adjudicated union.
-- **Two standing brief lines (Evan, 2026-08-08)**: (i) k-lint
-  discipline — "if the k-lint gate fires, do NOT change geometry
-  to silence it; a fired lint is distribution evidence — re-derive
-  the baseline per the K-REPORT runbook or escalate to the
-  orchestrator" (his design, #243 comment 5224869607); (ii)
-  comment style — comments state the INVARIANT, not the history:
-  no retired-type archaeology, no unit tags (#245 nit → #251).
+  ([[review-and-dependency-policy]]). Dual-review sampling per the A/B
+  amendment in `docs/MODEL-AB-LOG.md`, which owns the ordinal.
+- **The foreground rule needs its exception stated, or long jobs die
+  (2026-08-26, M9-5)**: the verbatim foreground sentence ("never arm
+  waiters, monitors, or background chains for your own builds/tests")
+  is written against waiter-parking and is right — but a job that
+  outlives a 600 s foreground call MUST be launched `setsid`-detached
+  from the process group and then polled in the foreground, per
+  [[agent-lane-operations]]. Briefs that carry only the prohibition
+  get the failure it does not cover: an M9-5 chained battery was
+  REAPED by the harness ~30 min into a release build, holding a
+  courtesy slot-turn another program had donated, and produced
+  nothing. Worse than the loss: **a harness-reaped background job is
+  indistinguishable from a completed one** — it announced `killed`
+  and left a slot-holder file that looked ordinary. Put BOTH halves
+  in every implementer brief.
+- **A finding with no durable home cannot warn anyone (2026-08-26,
+  #1023; adopted on the VERBS side the same day)**: at ADJUDICATION
+  time — as part of reading a report, not later — any finding that
+  asserts a CLASS rather than an instance gets a durable home: a log
+  line or an issue. Two instances bought this rule on one day. A
+  banked finding that PREDICTED #1023's defect class lived only in an
+  implementer's report transcript, so when the class fired the
+  citation trail broke at first use and the warning had protected
+  nothing. Separately, M9-3's dual reviews (ordinal 72) were
+  delivered, adjudicated, and then LOST with the orchestrator session
+  that held them — the residue issues survived, so the reviews are
+  attested, but every verdict label, finding count, rubric score and
+  per-phase figure is gone and the ledger row records missing data
+  instead. Corollary for reviews specifically: a report that only
+  ever exists in a session's context is one outage from never having
+  happened.
+
+Handing the session to a successor: [[orchestrator-switch-runbook]].

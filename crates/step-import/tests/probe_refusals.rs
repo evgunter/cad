@@ -2,6 +2,7 @@
 //! mixed content, orphan curve set, 2D-context-only files.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImportError, import_step};
 
 fn box_step() -> String {
@@ -22,7 +23,7 @@ fn mixed_solid_and_wireframe_refuses() {
          #951 = GEOMETRIC_CURVE_SET('',(#952));\n\
          #952 = CIRCLE('',#11,1.);",
     );
-    match import_step(&m, &ImportOptions::default()) {
+    match import_step(&m, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::Structure { what, .. }) => {
             println!("mixed content refuses: {what}");
             assert!(what.contains("wireframe"), "{what}");
@@ -39,7 +40,7 @@ fn orphan_curve_set_refuses() {
          #951 = GEOMETRIC_CURVE_SET('',(#952));\n\
          #952 = CIRCLE('',#11,1.);",
     );
-    match import_step(&m, &ImportOptions::default()) {
+    match import_step(&m, &ImportOptions::default(), Tol::witness()) {
         Err(e) => println!("orphan curve set refuses typed: {e}"),
         other => panic!("an orphan curve set must refuse, got {other:?}"),
     }
@@ -53,7 +54,7 @@ fn a_two_d_context_only_file_is_nothing_to_import() {
                 #1 = ( GEOMETRIC_REPRESENTATION_CONTEXT(2) PARAMETRIC_REPRESENTATION_CONTEXT() REPRESENTATION_CONTEXT('2D SPACE','') );\n\
                 #2 = CARTESIAN_POINT('',(0.,0.));\n\
                 ENDSEC;\nEND-ISO-10303-21;\n";
-    match import_step(text, &ImportOptions::default()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::NothingToImport) => println!("2D-only: NothingToImport"),
         other => panic!("expected NothingToImport, got {other:?}"),
     }

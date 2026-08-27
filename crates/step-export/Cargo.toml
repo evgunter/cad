@@ -1,5 +1,5 @@
 # In-house STEP AP214 analytic-subset EXPORT writer (M4 PR 7; the F6
-# decision — docs/M4-LOG.md 2026-07-23 — adopted nothing at runtime).
+# decision, 2026-07-23 — adopted nothing at runtime).
 # Export layer like `stl`: f64-only, not scalar-generic. Import is M7
 # and deliberately absent here.
 [package]
@@ -30,16 +30,13 @@ probe = ["topo/probe"]
 # certified carriers/surfaces from the geometry crates, the ambient
 # tolerance (STEP uncertainty) from geom-core.
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
 # Building acceptance bodies end-to-end (cube, the M3 pocketed die,
-# boolean-result assemblies) through the public profile/sweep/boolean
-# APIs. The `test-support` feature is `profile`'s banished raw builder
-# (PROFILES-V2 §V6, #377): dev-only, invisible to every `src/`.
-profile = { path = "../profile", features = ["test-support"] }
+# boolean-result assemblies) through the public profile/sweep APIs.
+profile = { path = "../profile" }
 sweep = { path = "../sweep" }
 # Float-printer round-trip property tests.
 proptest = { workspace = true }

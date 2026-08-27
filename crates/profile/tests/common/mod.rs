@@ -3,20 +3,23 @@
 //! Fixtures are built at `f64` and lifted to other scalars via
 //! [`lift`]; geometry that must sit at an ε-relative margin takes the
 //! run's ε explicitly so the multi-ε CI rows genuinely re-exercise the
-//! bands. The run tolerance comes from `Tolerance::get()` — one read
-//! per test process (each integration binary is its own process, so the
-//! geom-core global-state discipline is satisfied).
-#![allow(dead_code)]
+//! bands. The run tolerance comes from `Tol::witness().get()` — one read
+//! per test process, and the crate's suites all run inside the one
+//! aggregated `all` binary, so the geom-core global-state discipline is
+//! satisfied by a single process-wide read.
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Real, Tolerance};
+use geom_core::Tol;
+use geom_core::{Point2, Real};
 use profile::RawLoop;
-use profile::{ClosedLoop, Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
-pub fn tol() -> Tolerance {
-    Tolerance::get()
+pub fn tol() -> Tol {
+    Tol::witness()
 }
 
 /// tan(π/8) = √2 − 1: the bulge of a counterclockwise quarter-circle
@@ -32,16 +35,19 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
         SketchPlane::xy(),
         p.loops
             .iter()
-            .map(|lp| ProfileLoop {
-                vertices: lp
-                    .vertices
-                    .iter()
-                    .map(|v| ProfileVertex {
-                        pos: Point2::new(T::from_f64(v.pos.x), T::from_f64(v.pos.y)),
-                        bulge: T::from_f64(v.bulge),
-                    })
-                    .collect(),
-                tangent_joints: lp.tangent_joints.clone(),
+            .map(|lp| {
+                ProfileLoop::new(
+                    lp.vertices()
+                        .iter()
+                        .map(|v| {
+                            ProfileVertex::new(
+                                Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
+                                T::from_f64(v.bulge()),
+                            )
+                        })
+                        .collect(),
+                )
+                .with_tangent_joints(lp.tangent_joints().to_vec())
             })
             .collect(),
     )
@@ -51,10 +57,7 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::new(
         vs.iter()
-            .map(|&(x, y, bulge)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge,
-            })
+            .map(|&(x, y, bulge)| ProfileVertex::new(Point2::new(x, y), bulge))
             .collect(),
     )
 }
@@ -115,23 +118,40 @@ pub fn rounded_rect(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
     ]);
     // Every joint is an exact quarter-arc/side tangency — declared
     // (the #101 discipline).
-    lp.tangent_joints = (0..lp.vertices.len()).collect();
+    let n = lp.vertices().len();
+    lp = lp.with_tangent_joints((0..n).collect());
     lp
 }
 
 /// The demo bracket's filleted-corner shape: an L with one r = 0.5
-/// tangent fillet, authored through the constructive path (declares
+/// tangent fillet, authored through the PATHS algebra (which declares
 /// its two joints by construction) — the mixed declared/undeclared
 /// fixture (2 tangent joints of 7).
+///
+/// The fillet's corner is never authored: the incoming ray leaves
+/// (3, 1) toward −x, the arrival side runs +y and ends at its own
+/// anchor (1, 3), and the r = 0.5 arc is inserted at the carriers'
+/// intersection, trimming both to T₁ = (1.5, 1) and T₂ = (1, 1.5).
 pub fn bracket() -> ProfileLoop<f64> {
-    profile::test_support::LoopBuilder::start(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(3.0, 0.0))
-        .line_to(Point2::new(3.0, 1.0))
-        .fillet(Point2::new(1.0, 1.0), Point2::new(1.0, 3.0), 0.5)
-        .expect("bracket fillet fits")
-        .line_to(Point2::new(1.0, 3.0))
-        .line_to(Point2::new(0.0, 3.0))
-        .close()
+    let closed = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(3.0, 0.0), Tol::witness())
+        .expect("bottom side")
+        .line_to(Point2::new(3.0, 1.0), Tol::witness())
+        .expect("right side")
+        .toward(-1.0, 0.0, Tol::witness())
+        .expect("the incoming ray leaves (3, 1) toward −x")
+        .fillet(0.5, Tol::witness())
+        .expect("r = 0.5 is a positive radius")
+        .toward(0.0, 1.0, Tol::witness())
+        .expect("the arrival side runs +y")
+        .to(Point2::new(1.0, 3.0), Tol::witness())
+        .expect("the bracket fillet fits both legs")
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
+        .expect("top side")
+        .line_to(Start, Tol::witness())
+        .expect("the straight seam closes");
+    pinned(closed)
 }
 
 /// A lens (lune): a semicircular arc out and a shallower arc back —
@@ -196,7 +216,7 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
 /// subset: wrap the chain's result and keep asserting whatever the test
 /// was already asserting on the loop.
 pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
-    let replayed = match profile::replay(&closed.program) {
+    let replayed = match profile::replay(&closed.program, Tol::witness()) {
         Ok(lp) => lp,
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
@@ -215,17 +235,22 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
 /// where the two sides are the algebra and the hand builder.)
 pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f64>) {
     assert_eq!(
-        lowered.vertices.len(),
-        replayed.vertices.len(),
+        lowered.vertices().len(),
+        replayed.vertices().len(),
         "vertex count: lowered vs replayed"
     );
-    for (i, (a, b)) in lowered.vertices.iter().zip(&replayed.vertices).enumerate() {
-        assert_eq!(a.pos.x.to_bits(), b.pos.x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos.y.to_bits(), b.pos.y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge.to_bits(), b.bulge.to_bits(), "vertex {i} bulge");
+    for (i, (a, b)) in lowered
+        .vertices()
+        .iter()
+        .zip(replayed.vertices())
+        .enumerate()
+    {
+        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
+        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
+        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
     }
-    let mut la = lowered.tangent_joints.clone();
-    let mut lb = replayed.tangent_joints.clone();
+    let mut la = lowered.tangent_joints().to_vec();
+    let mut lb = replayed.tangent_joints().to_vec();
     la.sort_unstable();
     lb.sort_unstable();
     assert_eq!(la, lb, "declared tangent joints (multiset)");

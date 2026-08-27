@@ -1,7 +1,8 @@
 //! STEP (ISO 10303-21 / AP214) export of finished kernel bodies — the
 //! in-house analytic-subset writer (M4 PR 7, discharging the F6
-//! decision: docs/M4-LOG.md 2026-07-23, grounds in
-//! `references/notes/step-spike-report.md`).
+//! decision, 2026-07-23: in-house subset writer, adopt nothing at
+//! runtime — ruststep and truck-stepio stay dev-only parse-back
+//! oracles).
 //!
 //! # What this is, and what it is not
 //!
@@ -207,6 +208,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use geom_core::Tol;
 use topo::{Body, EdgeKey, FaceKey, LoopKey, ShellKey};
 
 mod real;
@@ -239,8 +241,11 @@ pub enum StepExportError {
     /// ELEMENTARY_SURFACE prints (plane, cylinder, cone, sphere,
     /// torus) and since M6-3 described NURBS surfaces print as
     /// `B_SPLINE_SURFACE_WITH_KNOTS`, so the one live case is the
-    /// mvfs "no description yet" NURBS placeholder. Typed refusal,
-    /// never a B-spline approximation of an analytic surface.
+    /// mvfs "no description yet" NURBS placeholder — joined by the
+    /// approximating surface, which refuses rather than print its fit
+    /// as though it were the described geometry (the file has no place
+    /// to carry the certificate that makes the fit honest). Typed
+    /// refusal, never a B-spline approximation of an analytic surface.
     UnsupportedSurface {
         /// The face whose surface is out of subset.
         face: FaceKey,
@@ -460,8 +465,12 @@ impl Default for StepOptions {
 /// [`StepExportError`] — out-of-subset geometry, mid-surgery bodies,
 /// non-finite values, void shells, corrupt structure. Finished planar
 /// bodies from the public construction APIs export cleanly.
-pub fn step_string(body: &Body<f64>, options: &StepOptions) -> Result<String, StepExportError> {
-    writer::write_document(body, options)
+pub fn step_string(
+    body: &Body<f64>,
+    options: &StepOptions,
+    tol: Tol,
+) -> Result<String, StepExportError> {
+    writer::write_document(body, options, tol)
 }
 
 /// [`step_string`], written to an [`std::io::Write`] sink.
@@ -473,8 +482,9 @@ pub fn write_step<W: std::io::Write>(
     body: &Body<f64>,
     options: &StepOptions,
     sink: &mut W,
+    tol: Tol,
 ) -> Result<(), StepExportError> {
-    let document = step_string(body, options)?;
+    let document = step_string(body, options, tol)?;
     sink.write_all(document.as_bytes())
         .map_err(StepExportError::Io)
 }

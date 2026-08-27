@@ -11,6 +11,7 @@ mod common;
 use common::{
     axis_y, ball, cone, donut, dump, eps, l_prism, p2, rounded_prism, validated, washer, wedge,
 };
+use geom_core::Tol;
 use mesh::tessellate;
 use profile::ProfileLoop;
 use profile::RawLoop;
@@ -37,7 +38,7 @@ fn all_dumps(delta: f64) -> String {
         ("donut", donut()),
         ("wedge", wedge()),
     ] {
-        let mesh = tessellate(&body, delta).unwrap();
+        let mesh = tessellate(&body, delta, Tol::witness()).unwrap();
         out.push_str(name);
         out.push('\n');
         out.push_str(&dump(&mesh));
@@ -69,8 +70,33 @@ fn print_dump_hashes() {
 fn survives_eps_row_bitwise_independence() {
     // Re-exec this test binary under each ε row and compare full dump
     // hashes: the mesh must be bitwise a function of (body, δ) alone.
-    // (ε is read once, for pole identification; across sane rows the
-    // identification must not flip for these bodies.)
+    //
+    // What ε is allowed to do in `mesh`, precisely — this comment used
+    // to say "read once, for pole identification", which stopped being
+    // true and stayed on the page (S22's own lesson). `mesh` calls
+    // `Tol::witness().get()` exactly once (`tessellate.rs`) and threads the
+    // value down to three places: pole/apex vertex identification
+    // (`walk`); the banded swept-rectangle domain guard (`curved`,
+    // #648), which only decides whether a face is REFUSED; and the
+    // per-triangle certificate assertion in `trimmed`'s review probe,
+    // absent from a default build.
+    //
+    // What that buys, stated honestly: NO CONSUMER SNAPS A VALUE. The
+    // one that did — the loop-closure snap — is gone (S22, route (ii));
+    // the closing column is now the closing vertex's own azimuth, so
+    // the residue it snapped is identically zero. It does NOT buy "ε
+    // cannot move an emitted coordinate": pole/apex identification is a
+    // CLASSIFICATION, and flipping it substitutes the pole's exact v
+    // for `chart.v_of(p)` and emits two `pole: true` entries instead of
+    // one — both of which reach the UV polygon, the bounding box, the
+    // interior grid and the pole fan. Its ε-dependence is structural.
+    // What this row demonstrates is that it is UNEXERCISED: over these
+    // bodies, at these three ε rows, the classification does not move,
+    // so the mesh is bitwise a function of (body, δ). A body with a
+    // near-pole vertex would be a different question. Nothing in the
+    // tree has one, and whether one is REACHABLE is not established:
+    // `revolve` would very likely refuse the sliver, STEP import is the
+    // plausible route in. Unexercised, not proven impossible.
     let exe = std::env::current_exe().unwrap();
     let mut hashes = Vec::new();
     for row in ["1e-6", "1e-9", "1e-12"] {
@@ -105,8 +131,8 @@ fn survives_delta_sweep_at_fixed_eps_monotone_sane() {
     let body = donut();
     let mut last = 0usize;
     for delta in [0.5, 0.1, 0.02] {
-        let m1 = tessellate(&body, delta).unwrap();
-        let m2 = tessellate(&body, delta).unwrap();
+        let m1 = tessellate(&body, delta, Tol::witness()).unwrap();
+        let m2 = tessellate(&body, delta, Tol::witness()).unwrap();
         assert_eq!(dump(&m1), dump(&m2));
         let n = mesh::validate::triangle_count(&m1);
         assert!(n >= last, "triangle count shrank as delta tightened");
@@ -134,6 +160,7 @@ fn survives_canonically_equal_profile_constructions() {
             &validated(vec![ProfileLoop::polygon(pts)]),
             axis_y(),
             Revolution::Full,
+            Tol::witness(),
         )
         .unwrap()
         .body;
@@ -158,25 +185,19 @@ fn survives_near_axis_vertex_arc_endpoint() {
     // produce a watertight certified mesh — never a broken one.
     let d = 1e-7;
     let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex {
-            pos: p2(d, -1.0),
-            bulge: 1.0,
-        },
-        profile::ProfileVertex {
-            pos: p2(d, 1.0),
-            bulge: 0.0,
-        },
+        profile::ProfileVertex::new(p2(d, -1.0), 1.0),
+        profile::ProfileVertex::new(p2(d, 1.0), 0.0),
     ]);
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
-        .validate(geom_core::Tolerance::get());
+        .validate(geom_core::Tol::witness());
     let Ok(vp) = profile else {
         return; // refused at profile validation on this row — typed, fine
     };
-    match revolve(&vp, axis_y(), Revolution::Full) {
+    match revolve(&vp, axis_y(), Revolution::Full, Tol::witness()) {
         Err(_) => {} // refused typed upstream — fine
         Ok(out) => {
             let body = out.body;
-            match tessellate(&body, 0.05) {
+            match tessellate(&body, 0.05, Tol::witness()) {
                 Err(e) => {
                     // Typed refusal is acceptable; a panic would not be.
                     let _ = e;

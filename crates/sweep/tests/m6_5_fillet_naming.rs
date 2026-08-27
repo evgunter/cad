@@ -13,12 +13,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_core::{Affine3, Band, Point2, Point3, Tolerance, Vec2, Vec3};
-use geom_surfaces::Surface;
+use geom::Surface;
+use geom_core::Tol;
+use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::build::fillet_edges;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::cube;
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
@@ -28,46 +30,26 @@ const PIP_H: f64 = 0.05;
 const R: f64 = 0.05;
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn cube(l: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: Point2::new(x, y),
-                bulge: 0.0,
-            })
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
 }
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -r),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, r),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
+        ProfileVertex::new(Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    let ball = revolve(&vp, axis, Revolution::Full).unwrap().body;
-    topo::transform_rigid(&ball, &Affine3::translation(c)).unwrap()
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 /// The die_composed pip: a ball poled along +Z, centred at `c`.
@@ -80,9 +62,10 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             core::f64::consts::FRAC_PI_2,
         ),
+        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
+    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -114,7 +97,7 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The pipped cube of `corpus/die_composed.rs`, its 12 surviving box
 /// edges and its pip rim's two arcs.
 fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L);
+    let cube0 = cube(DIE_L, Tol::witness());
     let box_keys: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pip = ball_poled_z(PIP_R, Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)));
     let pipped = boolean_op_with(
@@ -123,6 +106,7 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
         &pip,
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .unwrap()
     .body()
@@ -148,7 +132,7 @@ fn fe_single_call_twelve_open_chains_plus_one_closed_rim() {
     assert_eq!(rims.len(), 2, "the pip rim is two arcs");
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band())
+    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness())
         .expect("one call takes the open chains and the closed rim together");
     assert_eq!(out.blend_faces.len(), 12, "one blend per box edge");
     assert_eq!(out.corner_faces.len(), 8, "one octant per box corner");
@@ -164,7 +148,7 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band()).expect("the surgery");
+    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     let mut minted_f: Vec<_> = rec
@@ -281,8 +265,8 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
             "a source vertex vanished without a retirement record"
         );
     }
-    // Faces are never retired by either door — a support shrinks, it
-    // does not die — so the claim there is total.
+    // Faces are never retired — a support shrinks, it does not die —
+    // so the claim there is total.
     for (f, _) in pipped.faces() {
         assert!(
             out.body.get_face(f).is_some(),
@@ -300,7 +284,7 @@ fn the_records_have_the_shape_the_surgery_built() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band()).expect("the surgery");
+    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     assert_eq!(rec.blends.len(), 12);
     assert_eq!(rec.corners.len(), 8);
@@ -317,49 +301,44 @@ fn the_records_have_the_shape_the_surgery_built() {
 }
 
 // ------------------------------------------------------------------
-// The WHOLE-BODY door (M6-5 PR-2).
+// The every-edge request.
 // ------------------------------------------------------------------
 
-/// **The whole-body rebuild keeps records too** — the last naming dead
-/// end in the fillet unit, closed.
+/// **Filleting EVERY edge of the cube is one more request through the
+/// same door**, and its records say so: the twelve blends, eight
+/// octants, trimlines, arcs and feet are recorded mints, and the six
+/// support faces are survivors — no record, because the surgery
+/// shrinks a support in place and it keeps its source key.
 ///
-/// The rebuild mints into a FRESH arena, so it has no survivors at
-/// all: every face, edge and vertex of the result is a recorded mint,
-/// and every source entity is retired. The counts are the module's own
-/// derived result for a die (`V=8, E=12, F=6` → 24 / 48 / 26).
+/// The census is the die's: `V=8, E=12, F=6` rounds to 24 / 48 / 26.
 #[test]
-fn the_whole_body_door_records_every_entity_it_mints() {
-    let cube0 = cube(DIE_L);
+fn the_every_edge_request_records_every_entity_it_mints() {
+    let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, band()).expect("the whole-body rebuild");
-    let rec = out
-        .naming
-        .as_ref()
-        .expect("the whole-body door keeps its records");
+    let out = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
+    let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
-    assert_eq!(rec.supports.len(), 6, "one shrunk support per source face");
     assert_eq!(rec.blends.len(), 12, "one blend per source edge");
     assert_eq!(rec.corners.len(), 8, "one octant per source vertex");
     assert_eq!(rec.trims.len(), 24, "two trimlines per source edge");
     assert_eq!(rec.arcs.len(), 24, "three corner arcs per source vertex");
     assert_eq!(rec.feet.len(), 24, "one foot per (source vertex, support)");
-    // No closed chains reach this door, so no rim row is written.
+    // Every chain here is open, so no rim row is written.
     assert!(rec.bands.is_empty() && rec.rim_trims.is_empty());
     assert!(rec.rim_feet.is_empty() && rec.slits.is_empty());
     assert!(rec.meridian_splits.is_empty() && rec.meridian_remnants.is_empty());
 
-    // The derived result, stated in `build.rs`'s module docs.
     assert_eq!(out.body.faces().count(), 26);
     assert_eq!(out.body.edges().count(), 48);
     assert_eq!(out.body.vertices().count(), 24);
 
-    // TOTALITY, this door's version: every output entity is recorded
-    // exactly once, and there is no survivor branch to fall back on.
+    // TOTALITY: every output entity is a recorded mint or a survivor,
+    // exactly one of the two, with the six shrunk supports the only
+    // face survivors.
     let mut f: Vec<_> = rec
-        .supports
+        .blends
         .iter()
         .map(|(k, _)| *k)
-        .chain(rec.blends.iter().map(|(k, _)| *k))
         .chain(rec.corners.iter().map(|(k, _)| *k))
         .collect();
     let mut e: Vec<_> = rec
@@ -378,9 +357,19 @@ fn the_whole_body_door_records_every_entity_it_mints() {
     dedup(&mut f);
     dedup(&mut e);
     dedup(&mut v);
+    let mut survivors = 0usize;
     for (k, _) in out.body.faces() {
-        assert!(f.contains(&k), "an output face has no record");
+        if !f.contains(&k) {
+            assert!(
+                cube0.get_face(k).is_some(),
+                "an output face is neither a record nor a survivor"
+            );
+            survivors += 1;
+        } else {
+            assert!(cube0.get_face(k).is_none(), "a mint reuses a source key");
+        }
     }
+    assert_eq!(survivors, 6, "the six shrunk supports survive");
     for (k, _) in out.body.edges() {
         assert!(e.contains(&k), "an output edge has no record");
     }
@@ -388,7 +377,8 @@ fn the_whole_body_door_records_every_entity_it_mints() {
         assert!(v.contains(&k), "an output vertex has no record");
     }
 
-    // Every source entity is retired: a fresh arena keeps nothing.
+    // Every source edge and vertex is retired — every edge was
+    // requested, so every corner is fully requested and fuses.
     assert_eq!(rec.dead.edges.len(), 12);
     assert_eq!(rec.dead.vertices.len(), 8);
     for (k, _) in cube0.edges() {
@@ -406,14 +396,11 @@ fn the_whole_body_door_records_every_entity_it_mints() {
 /// key the input never had would name something unnameable; the
 /// emitter would refuse `MissingUpstream`, but the bug belongs here.
 #[test]
-fn every_whole_body_record_names_a_source_entity() {
-    let cube0 = cube(DIE_L);
+fn every_every_edge_record_names_a_source_entity() {
+    let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, band()).expect("the whole-body rebuild");
+    let out = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
-    for (_, src) in &rec.supports {
-        assert!(cube0.get_face(*src).is_some(), "a support names no source");
-    }
     for (_, src) in &rec.blends {
         assert!(cube0.get_edge(*src).is_some(), "a blend names no source");
     }
@@ -434,29 +421,25 @@ fn every_whole_body_record_names_a_source_entity() {
     }
 }
 
-/// **The whole-body rebuild is DETERMINISTIC** — same request, twice,
+/// **The every-edge fillet is DETERMINISTIC** — same request, twice,
 /// identical bodies.
 ///
-/// Named for what it checks (PR-2 review F-D). It does NOT, and
-/// cannot, check bit-PRESERVATION across the change that added
-/// records: both runs are at the same revision, so a geometry shift
-/// introduced by this PR would move them together and go unseen. That
-/// claim was executed out-of-tree instead — the same whole-body
-/// filleted die fingerprinted at the merge base and at HEAD, byte for
-/// byte identical (`Debug` len 111096, hash 93b185d0c0eacb4a on
-/// both) — which is the right shape for a one-time cross-revision
-/// measurement and the wrong shape for a committed row, since the
-/// fingerprint would rot into a golden nobody blessed.
+/// Named for what it checks. It does NOT, and cannot, check
+/// bit-PRESERVATION across a change: both runs are at the same
+/// revision, so a geometry shift introduced by an edit moves them
+/// together and goes unseen here. What pins the bytes is the
+/// `step-export` byte-golden fixture and its `KERNEL_VOLUME_MM3`
+/// sidecar, which are cross-revision by construction.
 #[test]
-fn the_whole_body_rebuild_is_deterministic() {
-    let cube0 = cube(DIE_L);
+fn the_every_edge_fillet_is_deterministic() {
+    let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let a = fillet_edges(&cube0, &edges, R, band()).expect("the rebuild");
-    let b = fillet_edges(&cube0, &edges, R, band()).expect("the rebuild again");
+    let a = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
+    let b = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery again");
     assert_eq!(
         format!("{:?}", a.body),
         format!("{:?}", b.body),
-        "the whole-body rebuild is deterministic"
+        "the fillet is deterministic"
     );
     assert_eq!(a.blend_faces, b.blend_faces);
     assert_eq!(a.corner_faces, b.corner_faces);

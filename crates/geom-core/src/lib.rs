@@ -34,14 +34,15 @@ pub use dual::{Dual, Dual64};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
-pub use linalg::{
-    Affine2, Affine3, FrameError, FrameInput, Mat2, Mat3, Point2, Point3, Vec2, Vec3,
-};
+pub use linalg::{Affine3, FrameError, FrameInput, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
     IndeterminatePayload, Margin, MarginDiag, Sign,
 };
-pub use real::{Bounds, Enclosure, Real};
+pub use real::{Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real};
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
-pub use tolerance::{Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError};
+pub use tolerance::{
+    EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
+    ToleranceReport,
+};

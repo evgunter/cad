@@ -1,5 +1,5 @@
-//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4, and the
-//! `docs/M5-PR6-SPEC.md` sections it mechanizes): the chart-image cache
+//! **Pcurves as per-half-edge certified caches** (M5 PR 6; C4): the
+//! chart-image cache
 //! of an edge's certified 3-D carrier, certified **in meters through
 //! the map**.
 //!
@@ -47,7 +47,7 @@
 //! the surface-composed pcurve and the carrier cache, on the shared
 //! [`crate::CERT_SAMPLES`] schedule, plus a **between-samples envelope**
 //! whose own statement the certificate NAMES
-//! ([`PcurveCertificate::statement`]), because the two lanes do not
+//! ([`PcurveCertificate::statement`]), because the lanes do not
 //! bound the same thing. For the closed-form lane, and for a fitted
 //! image on a NURBS chart, the envelope bounds *that same displacement*
 //! over the whole span. For a fitted image on a periodic ANALYTIC chart
@@ -112,8 +112,8 @@
 //!   azimuth channel of a [`Pcurve::Harmonic`] is `α + β·t` with a
 //!   *single* stored `α` and a winding `β ∈ {−1, 0, +1}`. There is no
 //!   per-sample branch choice to get wrong: the M2 PR 5 meridian
-//!   finding ("nearest-previous per-sample unwrapping is a bug",
-//!   `docs/M2-LOG.md`) is generalized here by making the wrong unwrap
+//!   finding ("nearest-previous per-sample unwrapping is a bug")
+//!   is generalized here by making the wrong unwrap
 //!   **unrepresentable** — a τ jump cannot be expressed. Which branch
 //!   (`α + kτ`) a given half-edge takes is chosen once per face by the
 //!   loop walk in `topo::pcurves` and *certified* by loop continuity
@@ -122,8 +122,13 @@
 //!   that the pcurve's chart-box enclosure lies inside the face's chart
 //!   window ([`ChartWindow`], supplied by the caller — the face's own
 //!   one-branch hull); escaping it is the typed
-//!   [`PcurveCertifyError::TrimEscape`]. Two honesty notes, both
-//!   binding:
+//!   [`PcurveCertifyError::TrimEscape`]. It is a **precondition this
+//!   door requires of its caller**, and what it buys is that it is the
+//!   cache's only BRANCH constraint: on a periodic chart a τ-shifted
+//!   pcurve certifies every other check identically, so this is the
+//!   one check that can tell the two apart. Whether any given caller
+//!   can trip it is that caller's property — `topo::pcurves` records
+//!   that neither of its own can. Two honesty notes, both binding:
 //!   - The window is a conservative *over-approximation* of the trim
 //!     region (a box, not the region bounded by the loop).
 //!     Point-in-trim-region is the tessellation trim-loop consumer's,
@@ -151,12 +156,12 @@
 
 use std::sync::Arc;
 
+use geom::Surface;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
-use geom_curves::{Curve3, NurbsCurve2, NurbsCurve3};
-use geom_surfaces::Surface;
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
@@ -164,20 +169,22 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
 ///
-/// Two variants; the closed enum is the D3 shape.
+/// Four variants; the closed enum is the D3 shape.
 ///
-/// # Why there are two, and what separates them
+/// # What separates them
 ///
 /// [`Pcurve::Harmonic`] is the closed-form image of the C5 table's
 /// (chart, carrier) pairs: exact in the four-dimensional space
 /// `span{1, cos t, sin t, t}`, with an envelope that is a *closed-form
 /// sup bound* over the whole span and nothing sampled.
 ///
-/// [`Pcurve::Fitted`] is the general rung: the 2-D NURBS chart image an
-/// SSI trace produces **on the carrier's own parameter**, by
+/// [`Pcurve::Fitted`] is the general rung, and the one rung no kernel
+/// constructor mints — see [`PcurveCache::certify_fitted`], its sole
+/// door, for what that frontier is waiting on. It is the 2-D NURBS
+/// chart image an SSI trace produces **on the carrier's own parameter**, by
 /// construction rather than by coincidence (the ℝ⁴ trace yields the
 /// 3-D curve and both pcurves as projections of one parameterized
-/// object, and `geom_curves::NurbsCurve2::interpolate_with_params` fits
+/// object, and `geom::NurbsCurve2::interpolate_with_params` fits
 /// them on the carrier's chord parameters — the OQ4 identity). It has
 /// no closed form on either side of the comparison, so its
 /// between-samples obligation is discharged by the **C2.2 control-hull
@@ -186,14 +193,19 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// lane bounds, and [`PcurveFittedLane`] for which scalars can derive
 /// it at all.
 ///
-/// **The `Arc` and the missing `Copy` (M6-2).** `Fitted` carries a
-/// whole spline, so [`Pcurve`] and [`PcurveCache`] are `Clone` and not
-/// `Copy` — the `Surface` payload precedent (M5 PR 3). The variant was
-/// deferred at PR 7 as "a storage item that lands with the PR that
-/// first needs it"; what actually blocked it was that its certificate
-/// could not be *derived* anywhere but `f64` (M5-LOG PR 9c deviation
-/// 2), which is what M6-2's lift of `ssi::enclose`/`ssi::certify`/
-/// `NurbsSurface::project` removed.
+/// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3) are the two
+/// NURBS-chart boundary rungs: both images are exactly straight in UV,
+/// and they are separate variants because their MOVING CHANNEL differs
+/// — `IsoLine`'s is the carrier's own parameter, `IsoArc`'s is the
+/// chart's rational-quadratic Bézier parameter, related to the arc
+/// angle by a transcendental piecewise map. Each variant's own docs
+/// carry the derivation.
+///
+/// **Not `Copy`.** Two variants carry heap payloads — `Fitted` an
+/// `Arc<NurbsCurve2>`, `IsoArc` a `Vec`-backed
+/// [`geom_core::spline::KnotVector`] — so [`Pcurve`] and
+/// [`PcurveCache`] are `Clone` only, and either variant alone is
+/// enough for that. Removing one does not make the enum `Copy`.
 #[derive(Clone, Debug)]
 pub enum Pcurve<T: Real> {
     /// The closed-form chart image
@@ -588,6 +600,44 @@ pub enum PcurveCheck {
     /// The pcurve's chart box against the face's window.
     TrimContainment,
 }
+/// The number a fitted-lane refusal carries, named for what it IS.
+///
+/// The SSI door's definite refusals each measured something different,
+/// and each had already projected it out of an enclosure before the
+/// error was minted. Flattening the three onto one anonymous `f64` —
+/// or worse, onto [`geom_core::MarginDiag::Value`], which additionally
+/// claims the classifier judged it and found it in the band — loses
+/// the only thing a reader needs: what the number means. Naming each
+/// follows `edge_nurbs`' `certified_clearance` precedent, where the
+/// same SSI errors are translated into that lane's vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FittedMagnitude {
+    /// A certificate limb exceeded ε: the limb's own residual bound in
+    /// metres, as projected from its enclosure when the limb refused.
+    /// A definite refusal's quantity — not a classified margin.
+    LimbResidual(f64),
+    /// Limb 3's uniqueness tube straddled zero. The number is a
+    /// **certified clearance**, not a measured extent: it is exactly
+    /// zero whenever the enclosure contains zero, so `0` here reads
+    /// "not certifiably zero-free", never "measured zero". The box
+    /// count is the informative companion (the `edge_nurbs` precedent
+    /// carries the same pair).
+    CertifiedClearance {
+        /// The certified zero-free clearance in metres (0 = none).
+        certified_clearance: f64,
+        /// Boxes in the tube chain.
+        boxes: u32,
+    },
+    /// A certified foot point would not converge: the last distance the
+    /// projection saw, in metres, at the schedule parameter it gave up
+    /// on.
+    LastFootDistance {
+        /// The schedule parameter.
+        t: f64,
+        /// The last distance seen.
+        last_distance: f64,
+    },
+}
 
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -617,9 +667,10 @@ pub enum PcurveCertifyError {
     UnsupportedCarrier,
     /// A [`Pcurve::Fitted`] cache was offered to a scalar with **no
     /// certified fitted lane** — [`PcurveFittedLane`]'s refusing side.
-    /// A dual scalar carries no bracket, so the C9 ring cannot be
-    /// reached from it and the C2.2 hull bound does not exist there;
-    /// the refusal is typed and static rather than a silent success.
+    /// A dual scalar may not certify (D1, 2026-08-19), so the C9 ring
+    /// is not reachable from it and the C2.2 hull bound does not exist
+    /// there; the refusal is typed and static rather than a silent
+    /// success.
     FittedLaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,
@@ -672,9 +723,35 @@ pub enum PcurveCertifyError {
         limb: Option<SsiLimb>,
         /// The refusal's own reason.
         what: &'static str,
-        /// The offending value in metres (NaN for a structural
-        /// refusal that has no margin).
-        value: f64,
+        /// The number this refusal measured, named for what it IS —
+        /// `None` when the refusal is structural and measured nothing.
+        ///
+        /// Deliberately NOT a classified margin. Every value reaching
+        /// here is a definite refusal's own quantity, already projected
+        /// out of an enclosure when the SSI error was minted, so
+        /// dressing it as [`geom_core::MarginDiag::Value`] would assert
+        /// two false things at once: that it is a margin the classifier
+        /// judged, and that it landed inside the band. Escalations —
+        /// the only refusals that DO carry a classified margin — are a
+        /// separate variant ([`PcurveCertifyError::FittedEscalated`]),
+        /// which carries the classifier's diagnostic whole.
+        magnitude: Option<FittedMagnitude>,
+    },
+    /// A fitted-lane classification ESCALATED — D4 ¶3's
+    /// escalate-never-guess, at the SSI door rather than at one of this
+    /// module's own schedule checks.
+    ///
+    /// The classifier's [`Indeterminate`] is carried WHOLE, so the
+    /// margin, the band it was judged against and the predicate's name
+    /// travel together. They are not separable without lying: a margin
+    /// without its band cannot be read (is 1.8e-12 inside the band or
+    /// three decades clear of it?), and the projection this error used
+    /// to perform — margin onto one `f64` — reported `NaN` for every
+    /// interval-lane escalation, which is also what genuine poison
+    /// reports.
+    FittedEscalated {
+        /// The classifier's diagnostic, whole.
+        cause: Indeterminate,
     },
     /// The stored carrier-parameter interval is not forward — the same
     /// `he_plus` contract [`crate::certify::CertifyError::IntervalNotForward`]
@@ -721,23 +798,24 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::UnsupportedChart { chart } => write!(
                 f,
                 "pcurve certification: no {chart}-chart lane covers this pcurve — every \
-                 analytic chart certifies its closed-form (Harmonic) classes since M6-3 \
-                 (walk row 4), a NURBS chart routes through its description-driven \
+                 analytic chart certifies its closed-form (Harmonic) classes, a NURBS \
+                 chart routes through its description-driven \
                  iso/fitted lanes instead of this door, and an image outside the chart's \
                  harmonic family belongs to the fitted lane where one exists"
             ),
             Self::UnsupportedCarrier => write!(
                 f,
                 "pcurve certification: a closed-form (Harmonic) chart image was offered for a \
-                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung is \
-                 LIVE since M6-2 — store the chart image as Pcurve::Fitted and it certifies \
-                 through the control-hull lane"
+                 carrier with no {{1, cos, sin, t}} form. The general fitted/marched rung \
+                 certifies this class through the control-hull lane, but no kernel \
+                 constructor mints one — reaching it means offering the chart image to \
+                 PcurveCache::certify_fitted yourself"
             ),
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted (rung-3) chart image has no certified lane at \
-                 the {scalar} scalar — its C2.2 bound is a C9-ring hull, and this scalar \
-                 carries no bracket to reach the ring with. Replay the body at f64, the \
+                 the {scalar} scalar — its between-samples bound is an exact-arithmetic-ring hull, \
+                 and this scalar may not certify one. Replay the body at f64, the \
                  telemetry probe, or the interval scalar to certify it"
             ),
             Self::FittedMateMissing => write!(
@@ -751,14 +829,40 @@ impl core::fmt::Display for PcurveCertifyError {
                 f,
                 "pcurve certification: the iso-line lane refuses this class — {what}"
             ),
-            Self::FittedCertificate { limb, what, value } => write!(
+            Self::FittedCertificate {
+                limb,
+                what,
+                magnitude,
+            } => write!(
                 f,
-                "pcurve certification: the fitted lane's C2 certificate refused{} — {what} \
-                 (offending value {value:e} m)",
+                "pcurve certification: the fitted lane's certificate refused{} — {what}{}",
                 match limb {
                     Some(l) => format!(" at {}", l.name()),
                     None => String::new(),
+                },
+                match magnitude {
+                    Some(FittedMagnitude::LimbResidual(v)) => format!(" (limb residual {v:e} m)"),
+                    Some(FittedMagnitude::CertifiedClearance {
+                        certified_clearance,
+                        boxes,
+                    }) => format!(
+                        " (certified clearance {certified_clearance:e} m over {boxes} tube \
+                         boxes — zero means no clearance was certified, not a measured zero)"
+                    ),
+                    Some(FittedMagnitude::LastFootDistance { t, last_distance }) => format!(
+                        " (the projection's last distance was {last_distance:e} m at t = {t:e})"
+                    ),
+                    None => String::new(),
                 }
+            ),
+            // The classifier's own payload renderer, plus this module's
+            // site context and the shared recourse tail — the
+            // composition `IndeterminatePayload` exists for.
+            Self::FittedEscalated { cause } => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate escalated — {} ({})",
+                cause.payload(),
+                geom_core::predicate::COINCIDENCE_RECOURSE
             ),
             Self::IntervalNotForward => write!(
                 f,
@@ -784,7 +888,7 @@ impl core::fmt::Display for PcurveCertifyError {
             Self::TrimEscape => write!(
                 f,
                 "pcurve certification: the pcurve leaves its face's chart window — domain \
-                 validity is part of the certificate (C4)"
+                 validity is part of the certificate"
             ),
             Self::Escalated {
                 check,
@@ -801,10 +905,10 @@ impl core::fmt::Display for PcurveCertifyError {
 
 impl std::error::Error for PcurveCertifyError {}
 
-/// **Which sup-norm a certificate's envelope bounds.** The two pcurve
-/// lanes discharge C2.2 by different mechanisms over different
-/// quantities, and a certificate that did not say which would be a
-/// number without a statement.
+/// **Which sup-norm a certificate's envelope bounds.** The pcurve lanes
+/// discharge C2.2 by different mechanisms over different quantities,
+/// and a certificate that did not say which would be a number without a
+/// statement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnvelopeStatement {
     /// `sup |S(P(t)) − C(t)|`, by the closed-form harmonic algebra —
@@ -835,14 +939,19 @@ pub enum EnvelopeStatement {
     /// certified at the [`CERT_SAMPLES`] schedule, as
     /// [`PcurveCertificate::max_residual`] records.
     OnLocusHull,
-    /// `sup |S(P(t)) − C(t)|` for a [`Pcurve::IsoLine`] on a
-    /// **non-rational NURBS chart** (M6-3), by the boundary-row
+    /// `sup |S(P(t)) − C(t)|` for the two NURBS-chart boundary rungs —
+    /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3, whose
+    /// chart column is rational by construction) — by the boundary-row
     /// **control-difference hull**: the traversed iso is a boundary
     /// row of the chart's own control net (a copy, no arithmetic —
     /// `crate::nurbs_iso`), so `S ∘ P` and the carrier-side comparison
     /// live in the same spline space and the partition-of-unity hull
     /// `sup |Σ Nᵢ·Δcᵢ| ≤ max |Δcᵢ|` bounds their difference over the
-    /// whole domain — nothing sampled. The banded axis/side/domain
+    /// whole domain — nothing sampled. The hull needs the two curves to
+    /// share a spline space and (when rational) strictly positive
+    /// weights, not a non-rational chart; M8-3 moved that hypothesis
+    /// from a blanket chart-level gate to the class arms that use it.
+    /// The banded axis/side/domain
     /// snap slacks (the trilean-admitted ε-shell around the exact
     /// axis-aligned family, metered through the chart's
     /// derivative-net stretch bounds) are folded in explicitly,
@@ -893,10 +1002,12 @@ pub struct PcurveCertificate<T: Real> {
 /// PR 11's ratified pattern; `topo/src/props.rs`).
 ///
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
-/// hull bound, and the ring is reached through a scalar's **bracket**.
-/// `f64`, the telemetry probe and the interval scalar all have one;
-/// [`geom_core::Dual`] does not, and never will — a dual number is a
-/// value and a derivative, not an enclosure. So the fitted lane exists
+/// hull bound, and building it is **certification**. `f64`, the
+/// telemetry probe and the interval scalar may certify;
+/// [`geom_core::Dual`] may not — Evan's D1 ruling, 2026-08-19: a dual
+/// carries a bracket (the value channel's) and may still not certify,
+/// which is why `geom_core::CertifiedEnclosure` has no dual impl and
+/// `geom_core::Bounds` now does. So the fitted lane exists
 /// for the first three and is **statically absent** for the fourth,
 /// which is stated here as a refusing impl rather than discovered as a
 /// mysterious failure at run time.
@@ -946,7 +1057,7 @@ pub trait PcurveFittedLane: Decide {
 /// carrier's own parameter (the OQ4 identity). A NURBS *mate* has no
 /// stored image to offer, so that pairing refuses typed inside the SSI
 /// door rather than being invented here.
-fn fitted_lane<T: Decide + geom_core::Bounds>(
+fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
@@ -956,9 +1067,18 @@ fn fitted_lane<T: Decide + geom_core::Bounds>(
     band: Band,
 ) -> Result<Option<SsiCertificate<T>>, PcurveCertifyError> {
     fn operand<T: Real>(s: &Surface<T>) -> SsiOperand<'_, T> {
+        // The catch-all is SPLIT: an approximating surface's chart is
+        // its fit's, so the spline operand is the one that describes
+        // its geometry — routing it to `Analytic` would hand the SSI
+        // limbs an implicit form that does not exist.
         match s {
             Surface::Nurbs(n) => SsiOperand::Nurbs(n),
-            other => SsiOperand::Analytic(other),
+            Surface::Approx(a) => SsiOperand::Nurbs(a.fit()),
+            other @ (Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. }) => SsiOperand::Analytic(other),
         }
     }
     // The certificate's carrier spline: a rung-3 carrier IS one; an
@@ -977,13 +1097,22 @@ fn fitted_lane<T: Decide + geom_core::Bounds>(
             radius,
             u_ref,
         } => {
-            if matches!(surface, Surface::Nurbs(_)) || matches!(mate, Surface::Nurbs(_)) {
+            // `Approx` is included, and it has to be: `operand` three
+            // lines up routes it to `SsiOperand::Nurbs(a.fit())`, so
+            // the very limbs this guard's premise is about — the
+            // parameter-coupled NURBS limbs — are the ones an `Approx`
+            // operand would run. The guard reads the SAME roster its
+            // premise names.
+            let spline_operand =
+                |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
+            if spline_operand(surface) || spline_operand(mate) {
                 return Err(PcurveCertifyError::FittedCertificate {
                     limb: None,
                     what: "a Circle carrier's rational-chain certificate is written for \
-                           analytic operand pairs only (the NURBS limbs are \
+                           analytic operand pairs only (the spline limbs — a Nurbs \
+                           payload's or an approximating surface's fit — are \
                            parameter-coupled to a traced pcurve)",
-                    value: f64::NAN,
+                    magnitude: None,
                 });
             }
             chain = rational_arc_chain(*center, *axis, *radius, *u_ref, t0, t1).ok_or(
@@ -991,7 +1120,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds>(
                     limb: None,
                     what: "the circle arc's rational-quadratic chain refused to build \
                            (degenerate span or malformed structure)",
-                    value: f64::NAN,
+                    magnitude: None,
                 },
             )?;
             &chain
@@ -1007,17 +1136,12 @@ fn fitted_lane<T: Decide + geom_core::Bounds>(
     // D4 ¶1's lever arm of last resort, and it is exactly the scale a
     // uniqueness tube around this carrier can hope to reach.
     let arm = carrier_diameter(carrier);
-    // The band IS built from ε (`Band::linear`), so its zero threshold
-    // is the run tolerance the ladder's floor is stated in.
-    let eps = band.zero();
     crate::ssi::certify_rung3(
         carrier,
         Some(image),
         &operand(mate),
         &operand(surface),
-        arm,
-        geom_core::Bounds::hi(arm),
-        eps,
+        crate::ssi::TubeScale::uniform(arm),
         band,
     )
     .map(Some)
@@ -1111,43 +1235,84 @@ fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
 /// actionable content; see the
 /// [`PcurveCertifyError::FittedCertificate`] docs for what the
 /// flattening buys and, honestly, what it does not.
+///
+/// **Escalations leave by a different door.** They are the only
+/// refusals carrying a margin the classifier judged, and that margin is
+/// unreadable without the band it was judged against, so the whole
+/// `Indeterminate` travels together in
+/// [`PcurveCertifyError::FittedEscalated`]. What remains here is
+/// definite and structural refusals, whose numbers are each named for
+/// what they are ([`FittedMagnitude`]) and are `None` when the refusal
+/// measured nothing.
 fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     use crate::ssi::SsiError as E;
-    let (limb, what, value) = match e {
-        E::CertificateLimb { limb, value } => (Some(limb), "a certificate limb exceeded ε", value),
-        E::TubeStraddles { margin, .. } => (
+    let (limb, what, magnitude) = match e {
+        // An escalation is the ONE refusal that carries a classified
+        // margin, and it leaves through its own door with the
+        // classifier's diagnostic whole.
+        E::Escalated(cause) => return PcurveCertifyError::FittedEscalated { cause },
+        E::CertificateLimb { limb, value } => (
+            Some(limb),
+            "a certificate limb exceeded ε",
+            Some(FittedMagnitude::LimbResidual(value)),
+        ),
+        E::TubeStraddles { margin, boxes } => (
             Some(SsiLimb::Tube),
             "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
-             operand pair — F6 says escalate, never desingularize)",
-            margin,
+             operand pair — escalate, never desingularize)",
+            Some(FittedMagnitude::CertifiedClearance {
+                certified_clearance: margin,
+                boxes,
+            }),
         ),
-        E::FootPointInconclusive { last_distance, .. } => (
+        E::FootPointInconclusive { t, last_distance } => (
             Some(SsiLimb::OnLocus),
             "a certified foot point would not converge",
-            last_distance,
+            Some(FittedMagnitude::LastFootDistance { t, last_distance }),
         ),
-        E::UnsupportedCertificate { what } => (None, what, f64::NAN),
-        E::Escalated(d) => (
+        E::TubeLadderEmpty { .. } => (
+            Some(SsiLimb::Tube),
+            "the uniqueness tube's radius ladder is empty — the carrier's extent is too \
+             small against the run's tolerance for any rung to clear the ladder floor, so \
+             limb 3 never ran and measured nothing",
             None,
-            // The escalating predicate's own NAME is the actionable
-            // part — "which limb's trilean" is what a consumer needs.
-            d.predicate.unwrap_or(
-                "a certificate trilean landed in the sliver band (escalate, never \
-                            guess)",
-            ),
-            match d.margin {
-                geom_core::predicate::MarginDiag::Value(v) => v,
-                _ => f64::NAN,
-            },
         ),
-        _ => (
+        E::TubeProbeSilent { .. } => (
+            Some(SsiLimb::Tube),
+            "no rung of the uniqueness tube's radius ladder produced an enclosure, so \
+             limb 3 has nothing to decide",
+            None,
+        ),
+        E::UnsupportedCertificate { what } => (None, what, None),
+        // Exhaustive BY VARIANT rather than by catch-all: a new
+        // `SsiError` must be dispositioned here deliberately, and the
+        // compiler is what enforces that. These are the structural
+        // refusals whose full text lives at the SSI door; none of them
+        // measured a quantity this lane can name.
+        E::TransversalityBand { .. }
+        | E::ExhaustivenessInconclusive { .. }
+        | E::CellBudget { .. }
+        | E::StepBudget { .. }
+        | E::StepCollapsed { .. }
+        | E::SeedRefinementFailed { .. }
+        | E::SelfCrossingLocus { .. }
+        | E::Fit(_)
+        | E::FitSampleBudget { .. }
+        | E::WrongLane { .. }
+        | E::Band(_)
+        | E::InvalidMarchTol { .. }
+        | E::MarchTolMismatch { .. } => (
             None,
             "the rung-3 certificate refused structurally (see geom_brep::SsiError for the \
              full text at the SSI door)",
-            f64::NAN,
+            None,
         ),
     };
-    PcurveCertifyError::FittedCertificate { limb, what, value }
+    PcurveCertifyError::FittedCertificate {
+        limb,
+        what,
+        magnitude,
+    }
 }
 
 impl PcurveFittedLane for f64 {
@@ -1238,8 +1403,7 @@ where
 /// fields are private, so an uncertified pcurve is unrepresentable
 /// (D4 ¶2 made structural, exactly as for [`crate::EdgeCurve`]).
 ///
-/// `Clone`, not `Copy`, since M6-2: [`Pcurve::Fitted`] carries a
-/// spline behind an `Arc` (the `Surface` payload precedent, M5 PR 3).
+/// `Clone`, not `Copy`, for the reason [`Pcurve`] is not.
 #[derive(Clone, Debug)]
 pub struct PcurveCache<T: Real> {
     pcurve: Pcurve<T>,
@@ -1273,8 +1437,9 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
-    /// is the SSI one, which needs the mate operand and a
-    /// bracket-carrying scalar, and hiding those behind this signature
+    /// is the SSI one, which needs the mate operand and a CERTIFYING
+    /// scalar (`Decide + Bounds + CertifiedEnclosure`), and hiding those
+    /// behind this signature
     /// would put the whole minting pipeline behind a bound it does not
     /// need (a dual body mints closed-form pcurves perfectly well).
     ///
@@ -1354,7 +1519,33 @@ impl<T: Decide> PcurveCache<T> {
 }
 
 impl<T: PcurveFittedLane> PcurveCache<T> {
-    /// Certifies a **fitted** (rung-3) chart image — the M6-2 door.
+    /// Certifies a **fitted** (rung-3) chart image.
+    ///
+    /// **This door has no `src` caller** — the certified route exists,
+    /// and no kernel constructor mints a `Fitted` cache into a body.
+    /// It is nonetheless the lane's only callerless ITEM: the rest is
+    /// reached through [`PcurveCache::recertify`], whose `Fitted` arm
+    /// the tier-3 validator dispatches per half-edge, which is why
+    /// `topo::validate_pcurves` carries the [`PcurveFittedLane`] bound
+    /// at all. That arm cannot execute on a body this workspace
+    /// builds, since this door is the variant's sole origin; it is
+    /// live for a caller who attaches a `Fitted` cache through
+    /// `topo::Body::attach_pcurve`.
+    ///
+    /// Three consumers are waiting on it, in decreasing firmness:
+    ///
+    /// 1. **Mint-side wiring of the general-circle route** — the
+    ///    oblique-trihedron octant faces whose boundary circles are
+    ///    GENERAL sphere circles stay legally uncached because
+    ///    `topo::mint_pcurves` cannot reach this door without the
+    ///    [`PcurveFittedLane`] bound on every constructor. Named as an
+    ///    open frontier in `docs/DESIGN.md`, and currently in **no**
+    ///    milestone plan and no carried-items register.
+    /// 2. The `General` curve-in-UV arm of the ratified pcurve
+    ///    unification (`docs/PCURVE-UNIFY-DESIGN.md` U2), which
+    ///    defines that arm as certifying at this lane's grade.
+    /// 3. The cyl×sphere germ-chord lane, banked with the join-lane
+    ///    analog.
     ///
     /// Same five checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
@@ -1721,7 +1912,9 @@ fn chart_image_harmonic<T: Real>(
                 (Winding::Pos | Winding::Neg, Winding::Pos | Winding::Neg) => None,
             }
         }
-        Surface::Nurbs(_) => None,
+        // A spline chart's image has no harmonic decomposition —
+        // neither the payload's nor an approximating surface's fit.
+        Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -1759,7 +1952,9 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
             ..
         } => major_radius + minor_radius,
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
-        Surface::Plane { .. } | Surface::Nurbs(_) => T::one(),
+        // Non-periodic charts have no azimuth: plane, spline payload,
+        // and an approximating surface's fitted chart alike.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::one(),
     }
 }
 
@@ -1782,7 +1977,7 @@ fn chart_windings<T: Decide>(
     // Which arms, per chart kind: the azimuth arm always exists on a
     // periodic chart; the v arm exists exactly where v is an angle.
     let (u_arm, v_arm) = match *surface {
-        Surface::Plane { .. } | Surface::Nurbs(_) => {
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             // Non-periodic charts have no winding; the value is unused.
             return Ok(ChartWindings::NONE);
         }
@@ -1945,7 +2140,10 @@ fn run_harmonic_checks<T: Decide>(
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
     let chart = chart_name(surface);
-    if matches!(surface, Surface::Nurbs(_)) {
+    // The closed-form lane is the analytic charts'; a spline chart —
+    // the payload's or an approximating surface's fit — goes through
+    // the fitted lane instead.
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
         return Err(PcurveCertifyError::UnsupportedChart { chart });
     }
     let Some(carrier_form) = carrier_harmonic(carrier) else {
@@ -1978,7 +2176,10 @@ fn run_harmonic_checks<T: Decide>(
     // chart's pcurve, metered at the chart's lever arm — the azimuth
     // channel on every periodic chart, and the polar/meridional
     // channel too where it is itself an angle (sphere/torus).
-    if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
+    if !matches!(
+        surface,
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+    ) {
         let Pcurve::Harmonic { p0, pa, pb, pl } = *pcurve else {
             return Err(PcurveCertifyError::UnsupportedCarrier);
         };
@@ -2013,7 +2214,6 @@ fn run_harmonic_checks<T: Decide>(
     let d_a = image_form.a - carrier_form.a;
     let d_b = image_form.b - carrier_form.b;
     let d_l = image_form.l - carrier_form.l;
-    let reach = t0.abs().max(t1.abs());
     // **The snap slack.** Check 1's winding trilean classifies
     // `|pa.x|·r`, `|pb.x|·r` and `|pl.x − β|·r` as Zero anywhere inside
     // the band, so `certify` admits pcurves in an ε-shell OUTSIDE the
@@ -2035,7 +2235,10 @@ fn run_harmonic_checks<T: Decide>(
     // arm). Every term is exactly zero on the minted path.
     let snap_slack = match (surface, pcurve) {
         (_, Pcurve::Harmonic { p0, pa, pb, pl })
-            if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) =>
+            if !matches!(
+                surface,
+                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+            ) =>
         {
             let v_sup = p0.y.abs() + pa.y.abs() + pb.y.abs() + pl.y.abs() * reach;
             let u_arm = azimuth_lever(surface, v_sup);
@@ -2060,7 +2263,8 @@ fn run_harmonic_checks<T: Decide>(
                     (pa.y.abs() + pb.y.abs() + (pl.y - sigma.value::<T>()).abs() * reach)
                         * minor_radius
                 }
-                Surface::Plane { .. } | Surface::Nurbs(_) => T::zero(),
+                // Non-periodic charts snap nothing in v.
+                Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::zero(),
             };
             u_slack + v_slack
         }
@@ -2102,6 +2306,7 @@ fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
         Surface::Sphere { .. } => "sphere",
         Surface::Torus { .. } => "torus",
         Surface::Nurbs(_) => "Nurbs",
+        Surface::Approx(_) => "Approx",
     }
 }
 
@@ -2141,6 +2346,10 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
         // `nurbs_stretch_bounds` carries the Floater weight-ratio
         // factor for exactly this. The placeholder keeps unit arms: it
         // has no net to bound.
+        // The catch-all is SPLIT: an approximating surface's arms are
+        // its FIT's derivative-net bounds — the same statement about
+        // the same chart. Unit arms would under-state in the unsafe
+        // direction here (see the rational note above).
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 (T::one(), T::one())
@@ -2148,7 +2357,10 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
                 nurbs_stretch_bounds(payload)
             }
         }
-        _ => (T::one(), T::one()),
+        Surface::Approx(ref a) => nurbs_stretch_bounds(a.fit()),
+        // A plane chart's parameters are already metres; the cone's
+        // arms are the caller's to supply (see the sphere note above).
+        Surface::Plane { .. } | Surface::Cone { .. } => (T::one(), T::one()),
     }
 }
 
@@ -2183,7 +2395,7 @@ fn chart_arms_at<T: Real>(
 /// structure; a zero divisor (a fully collapsed support) contributes
 /// nothing, per the standard convention. Callers gate rationality —
 /// with weights ≠ 1 this formula does not bound the true derivative.
-fn nurbs_stretch_bounds<T: Real>(s: &geom_surfaces::NurbsSurface<T>) -> (T, T) {
+fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
     let (nu, nv) = s.control_counts();
     // **The rational factor** (M8-3). The control-difference bounds
     // below are POLYNOMIAL convexity facts. For a rational patch the
@@ -2393,7 +2605,10 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
     let boxed = pcurve.chart_box(t0, t1);
-    if !matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
+    if !matches!(
+        surface,
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_)
+    ) {
         // The azimuth headroom is an ANGLE, so it reaches the band
         // through the chart's own lever arm — the cone's taken at the
         // `v` reach that dominates both the pcurve's box and the
@@ -2426,9 +2641,16 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         });
     };
     let envelope = ssi.hull_sup;
+    // The catch-all is SPLIT: an approximating surface's limbs are the
+    // spline composite's, exactly as a `Nurbs` chart's, because the
+    // limbs run against its fit.
     let statement = match surface {
-        Surface::Nurbs(_) => EnvelopeStatement::MapResidualComposite,
-        _ => EnvelopeStatement::OnLocusHull,
+        Surface::Nurbs(_) | Surface::Approx(_) => EnvelopeStatement::MapResidualComposite,
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => EnvelopeStatement::OnLocusHull,
     };
     // The envelope is banded exactly as the closed-form lane's is, and
     // for the same reason: a certificate whose own bound exceeds ε is
@@ -2456,14 +2678,6 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     })
 }
 
-/// **The iso lane's five checks** (M6-3), same fixed order as the
-/// closed-form lane's. What differs: check 1 admits exactly the
-/// non-rational described-NURBS chart, and check 4's sup bound is the
-/// boundary-row control-difference hull
-/// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
-/// axis/side/domain snap slacks folded in — the cylinder lane's
-/// winding-snap idiom transposed. Every slack is exactly zero on the
-/// minted path (the builder mints exact `0`/`1` chart values).
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
@@ -2514,7 +2728,10 @@ fn run_iso_arc_checks<T: Decide>(
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
-    let Surface::Nurbs(payload) = surface else {
+    // The iso lane is the SPLINE chart's — an approximating surface's
+    // fit is one, on the same `(u, v)`, so it enters here rather than
+    // being refused as an unimplemented chart.
+    let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: chart_name(surface),
         });
@@ -2637,8 +2854,8 @@ fn run_iso_arc_checks<T: Decide>(
     // most `Δ·stretch_u` in metres. That quantity is DECIDED here and
     // then PAID into the envelope below — never assumed away.
     //
-    // **A posture change, called out** (the first draft did not): this
-    // check used to be an exact `f64` comparison, whose only outcomes
+    // **A posture change, called out.** This check used to be an exact
+    // `f64` comparison, whose only outcomes
     // were "structure holds" and a definite typed refusal. Routing it
     // through `decide` adds a third — a knot deviation inside the
     // ambiguity band ESCALATES rather than refusing definitely. That
@@ -2837,6 +3054,18 @@ fn side_of<T: Decide>(
     })
 }
 
+/// **The iso lane's five checks** (M6-3), same fixed order as the
+/// closed-form lane's. What differs: check 1 admits any described-NURBS
+/// chart — the blanket non-rational gate it used to carry came off in
+/// M8-3, which moved the rationality hypothesis into the class arms of
+/// check 4, where it is load-bearing per class (the seam class needs
+/// strictly positive weights and one shared spline space; the rim class
+/// still needs weights of exactly 1, for linear precision). Check 4's
+/// sup bound is the boundary-row control-difference hull
+/// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
+/// axis/side/domain snap slacks folded in — the cylinder lane's
+/// winding-snap idiom transposed. Every slack is exactly zero on the
+/// minted path (the builder mints exact `0`/`1` chart values).
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity (the siblings' shape)
 fn run_iso_checks<T: Decide>(
@@ -2850,7 +3079,10 @@ fn run_iso_checks<T: Decide>(
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the certified lane. ----
-    let Surface::Nurbs(payload) = surface else {
+    // The iso lane is the SPLINE chart's — an approximating surface's
+    // fit is one, on the same `(u, v)`, so it enters here rather than
+    // being refused as an unimplemented chart.
+    let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: chart_name(surface),
         });
@@ -3004,7 +3236,7 @@ fn run_iso_checks<T: Decide>(
                 return Err(PcurveCertifyError::IsoUnsupported {
                     what: "a cap-class iso LINE over a non-Line carrier — an arc rim is \
                            minted as `Pcurve::IsoArc`, whose chart parameter is the \
-                           segment's rational-quadratic one (M8-3)",
+                           segment's rational-quadratic one",
                 });
             };
             let v_start = p0.y + pl.y * t0;
@@ -3689,6 +3921,12 @@ pub fn chart_pcurve<T: Decide>(
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
             chart: "Nurbs (representable-unimplemented)",
         }),
+        // The closed-form pcurve mint is the analytic charts'. An
+        // approximating surface's chart is a spline's, so it has no
+        // harmonic image to mint — the fitted lane owns it.
+        Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: "Approx (fitted chart — no closed-form image)",
+        }),
     }
 }
 
@@ -3696,11 +3934,12 @@ pub fn chart_pcurve<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
+    use geom_core::Tol;
 
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.

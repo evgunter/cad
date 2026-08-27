@@ -3,6 +3,7 @@
 //! counts — hunting for panics or hangs.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use step_import::{ImportOptions, import_step};
@@ -70,7 +71,7 @@ fn must_not_panic(tag: &str, text: &str, budget: Duration) {
     let t = Instant::now();
     let owned = text.to_owned();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        import_step(&owned, &ImportOptions::default()).map(|i| i.eps_in())
+        import_step(&owned, &ImportOptions::default(), Tol::witness()).map(|i| i.eps_in())
     }));
     let took = t.elapsed();
     assert!(outcome.is_ok(), "{tag}: PANICKED");

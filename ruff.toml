@@ -1,0 +1,117 @@
+# Ruff — the Python linter for this repo. Run by `scripts/check-python-lint.py`,
+# which is the ONLY invocation: both halves of CI call that script and nothing
+# calls `ruff` directly, so the population this file describes and the
+# population CI checks cannot drift apart.
+#
+# WHY THIS FILE EXISTS AT ALL. Twelve `# noqa` markers were spread over six
+# files, naming rules from three linter namespaces (pycodestyle, pyflakes,
+# ruff's flake8-bandit/blind-except sets), and no Python linter was installed,
+# configured or invoked anywhere in the tree. A `# noqa` is a claim that a check
+# exists and was consciously overridden; with no checker, it is an unverifiable
+# claim that decays silently. Five of the twelve had already decayed — three of
+# them asserting a premise (`import Part` is unused, kept for a side effect)
+# that is false in the file it sits in.
+#
+# WHY ruff.toml AND NOT pyproject.toml. There is no root `pyproject.toml`, and
+# adding one would declare this Rust workspace a Python project. The only
+# pyproject in the tree is `crates/pncad-py/`'s, which carries `[tool.maturin]`
+# and is the wheel's manifest, not a repo-wide config. `ruff.toml` at the root
+# is a config file and nothing else.
+#
+# THE LINTED POPULATION IS DERIVED, NOT ENUMERATED. `ruff check .` walks the
+# tree; `scripts/check-python-lint.py` then reconciles the file set ruff
+# actually visited against `git ls-files '*.py' '*.pyi'` and FAILS on any
+# difference in either direction:
+#   * a tracked Python file ruff skipped  -> a silent hole in the gate;
+#   * a file ruff checked that git does not track -> ruff wandered somewhere it
+#     should not be (a virtualenv, a build tree).
+# So a file added anywhere in the repo is linted the moment it is committed, and
+# an exclusion cannot be quiet. There are no `per-file-ignores` and no
+# `extend-exclude`: every suppression in this repo is either a rule disabled
+# below with its reason, or a `# noqa` at the site with its reason.
+
+# The lowest interpreter any of this code runs under. freecadcmd 1.1.2 (the
+# render and STEP-oracle lane) embeds CPython 3.11; the hosted python-suite job
+# pins 3.12. Pinned rather than inferred: there is no root pyproject for ruff to
+# read `requires-python` from, and an unpinned target-version silently tracks
+# whatever ruff's newest supported release is.
+target-version = "py311"
+
+# EXCLUDE REPLACES RUFF'S DEFAULT LIST ON PURPOSE. Ruff ships a default
+# `exclude` (`.venv`, `node_modules`, `build`, …) that would apply invisibly;
+# spelling the list out means every directory this gate does not read is written
+# down where a reader meets it. `.gitignore` is also honoured (respect-gitignore
+# defaults true), which is what keeps `/target` and `demos/.venv` out — but only
+# `demos/.gitignore` ignores `.venv/`, so a virtualenv made anywhere else in the
+# tree is NOT git-ignored and this list is what stops it being linted. If both
+# mechanisms failed, the reconciliation in `scripts/check-python-lint.py` would
+# still fail the run rather than silently lint a vendored dependency.
+exclude = [".git", ".venv", "venv", "env", "target", "__pycache__"]
+# Applies the list even to paths named explicitly on the command line, so a
+# hand-run `ruff check demos/.venv/...` cannot reach further than CI does.
+force-exclude = true
+
+[lint]
+# THE FIVE RULES THE EXISTING MARKERS NAME — E402, E731 (pycodestyle), F401
+# (pyflakes), S102 (flake8-bandit), BLE001 (flake8-blind-except) — are all
+# inside the families below. A selection that left any of them off would leave
+# their markers exactly as meaningless as they were before ruff existed, in a
+# new way: ruff silently ignores a `# noqa` for a rule that is not enabled.
+#
+# RUF100 is the mechanism that makes this row's defect impossible to repeat
+# quietly. It errors on a `# noqa` that suppresses nothing — a marker for a rule
+# that was disabled, renamed, or that the code no longer trips. Without it a
+# marker can rot in place for as long as it did before, with a linter running
+# the whole time. It is the reason `RUF` is selected as a family.
+#
+# The boundary: rules that assert something is WRONG are in; rules that assert
+# something should be SPELLED differently are out. That line is drawn against a
+# fail-loud repo whose Python is entirely tests, fixture generators, probes,
+# demo drivers and CI scripts — there is no shipped Python product code, so
+# packaging, typing-annotation and docstring families are not describing risks
+# this tree carries.
+select = [
+    "E",    # pycodestyle errors — E402 and E731 live here
+    "W",    # pycodestyle warnings (trailing whitespace, bad line endings)
+    "F",    # pyflakes — F401 lives here; unused names, undefined names
+    "B",    # flake8-bugbear — real bug shapes (loop-variable capture, bare zip)
+    "BLE",  # flake8-blind-except — BLE001 lives here
+    "S",    # flake8-bandit — S102 lives here
+    "PLE",  # pylint's ERROR tier only: things that are outright broken
+    "T10",  # flake8-debugger — a `breakpoint()` left in a CI script
+    "RUF",  # ruff's own rules — RUF100 above all
+]
+
+ignore = [
+    # E501 line-too-long. Adopting a line length is adopting a formatter: 244
+    # lines in the tree exceed 88, and hand-wrapping them all would rewrite
+    # every file this gate has just started reading, in the same commit that
+    # first reads it. `ruff format` is the tool for that and taking it on is a
+    # separate, ratifiable decision — this one is about making twelve markers
+    # mean something.
+    "E501",
+    # S101 assert. flake8-bandit's concern is `assert` being compiled out under
+    # `python -O` in production code. Every `assert` in this tree is in a
+    # unittest case or a probe script whose entire job is to assert; none of it
+    # ships, and none of it runs under -O.
+    "S101",
+    # S603 subprocess-without-shell-equals-true. It fires on every
+    # `subprocess.run([...])` with a non-literal argument, which is what these
+    # scripts do for a living (git, cargo, freecadcmd) — always with a list, and
+    # never through a shell. The rule's own risk is `shell=True`; the list form
+    # is the fix, and the rule flags the fix.
+    "S603",
+    # S607 start-process-with-partial-path. Its fix is to hardcode an absolute
+    # path to `git`, `cargo` or `freecadcmd` — which is wrong on every machine
+    # this repo runs on (three different hosted images, the local gate box, a
+    # FreeCAD AppImage whose prefix is chosen at extract time). PATH resolution
+    # is the portability mechanism here, not a lapse.
+    "S607",
+    # RUF001/002/003 ambiguous-unicode-character. This repo writes ε, ×, →, ≈
+    # and en-dashes in prose and identifiers deliberately, throughout the Rust
+    # side as well. The rule exists to catch homoglyph smuggling; here it would
+    # fire on every tolerance comment.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]

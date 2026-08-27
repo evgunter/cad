@@ -4,9 +4,9 @@
 //!
 //! Born in M4 PR 1 under the ratified M4-PLAN forks: F1 (restrictive
 //! dimension lattice), F4 (node vocabulary), F7 (expression AST with no
-//! conditionals — total by construction) — see `docs/M4-PR1-SPEC.md`
-//! (D1–D9, binding). This crate holds NO geometry evaluation (PR 2) and NO
-//! name resolution (PR 3/4) in its document layer; persistence
+//! conditionals — total by construction). This crate holds NO geometry
+//! evaluation (PR 2) and NO name resolution (PR 3/4) in its document
+//! layer; persistence
 //! (schema v1) arrived in M4 PR 6 as [`persist`].
 //!
 //! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
@@ -17,12 +17,16 @@
 //! instantiation at the profile crate's public description type.
 
 pub mod appearance;
+pub mod assembly;
+pub mod checks;
 pub mod diff;
 pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+mod finding;
 pub mod ident;
+pub mod mate;
 pub mod meta;
 pub mod names;
 pub mod node;
@@ -42,6 +46,13 @@ pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
     Attr, AttrKind, AttrSet, Rgba8,
 };
+pub use assembly::{
+    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+};
+pub use checks::{
+    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
+    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+};
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
@@ -54,6 +65,11 @@ pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
+pub use mate::{
+    Alignment, AxisSense, ClassAdmission, ClusterMaintenance, Coset, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission,
+    clusters, gauge_of, reading_edges, relative_freedom_components, solve_document,
+};
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
@@ -66,8 +82,8 @@ pub use names::{
     edge_frame, face_frame, find_flush_candidates, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId,
-    SlotId, StepArg,
+    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind,
+    PlacementRuleFault, RecipeNodeId, SlotId, StepArg,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -77,7 +93,7 @@ pub use persist::{
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;
-pub use product::{ProductError, product, product_named};
+pub use product::{Product, ProductError, product, product_named, product_recorded};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedProgramError,

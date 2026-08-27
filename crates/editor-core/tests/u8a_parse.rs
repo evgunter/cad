@@ -125,7 +125,7 @@ fn precedence_and_child_order_match_the_ast_descend_indices() {
     assert_eq!(neg_len.dim(), Dimension::Length);
     assert_eq!(
         ev(&neg_len).to_bits(),
-        (-(2.5 * quantity::MM.factor)).to_bits()
+        (-(2.5 * quantity::MM.factor())).to_bits()
     );
 }
 

@@ -10,9 +10,18 @@ cases in one day): "there's never any need for a hard and fast
 rule on local CI. local testing is only useful insofar as it
 speeds up iteration compared to waiting on CI."**
 
-Hosted CI is THE gate. A local run is justified exactly when it
-is likely to surface a failure faster than pushing and letting
-the gate find it — that is the whole calculus. Corollaries:
+Hosted CI is THE gate — the merge gate is hosted Actions (the
+nextest build-once/sharded matrix), `local-scripts/ci-local.sh`
+is its mirror and `gate.sh` a billing-outage fallback only.
+
+**It is also the CHEAP option, and that is the point.** The hosted
+matrix runs its rows in parallel on GitHub hardware; the same rows
+locally are serialized behind one box's cores, and a cold local
+build alone can outlast the whole hosted matrix. Spare the local
+machine
+wherever practical: push and let the gate run. A local run is
+justified exactly when it is likely to surface a failure faster
+than pushing — that is the whole calculus. Corollaries:
 
 - Feature work: the touched-crate suites at default ε (+ the
   Interval lane when the change is scalar-generic) usually pay
@@ -38,4 +47,4 @@ local scope by asking what failures are LIKELY for this change
 shape and what runs surface them in minutes — write that, and
 say "hosted CI proves the rest." Do not enumerate rules; apply
 the principle. Related: [[agent-lane-operations]],
-[[cad-working-style]], [[interval-square-poison]].
+[[cad-working-style]].

@@ -31,6 +31,7 @@ use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use geom_brep::EdgeCurveSpec;
+use geom_core::Tol;
 
 /// What one seam zip did to the arena — the F9-style record the op
 /// stage consumes (M3 PR 6a): every vertex fusion (dead key → kept
@@ -44,6 +45,12 @@ pub(super) struct ZipReport {
     /// The seam edges surviving the zip (the outer cycle's edges), in
     /// cycle order.
     pub seam_edges: Vec<crate::entity::EdgeKey>,
+    /// Seam edges KILLED by this zip as R-interior structure (the
+    /// already-fused runs a slit zip consumes — e.g. the meridian
+    /// seams of a closed cosurface band, which are segments AND
+    /// interior to the contact region). Empty for a plain
+    /// [`zip_seam`].
+    pub interior_edges: Vec<crate::entity::EdgeKey>,
 }
 
 /// Zips one section-face pair (module docs).
@@ -52,6 +59,7 @@ pub(super) fn zip_seam<T: Decide>(
     a_face: FaceKey,
     b_face: FaceKey,
     vmap: &SecondaryMap<VertexKey, VertexKey>,
+    tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     let mut report = ZipReport::default();
@@ -155,6 +163,7 @@ pub(super) fn zip_seam<T: Decide>(
             ring: rs[0],
         },
         EdgeCurveSpec::self_loop_circle_at(p0),
+        tol,
     )?;
     record_kev(body, n0.he_plus, &mut report)?;
     for j in (1..n).rev() {
@@ -166,6 +175,7 @@ pub(super) fn zip_seam<T: Decide>(
             },
             EdgeCurveSpec::self_loop_circle_at(pj),
             FaceSurface::Inherit,
+            tol,
         )?;
         record_kev(body, nj.he_plus, &mut report)?;
         body.kef(rs[(j + 1) % n])?;

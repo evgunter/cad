@@ -164,12 +164,11 @@ evidence, honesty rows) applies at exit.
 ## Process (unchanged)
 
 One implementer + one blinded adversarial reviewer + fix pass;
-binding specs before dispatch (substrate exploration first); A/B
-v4 blocks — **block M8-15's remainder consumes first** (slots
-1..3 = opus, fable, opus from the byte-186 draw), the next block
-opens as M9-16 with the running index preserved; dual-review
-every 3rd by ordinal (next third = 39, the banked same-model
-twin; stopping-rule tally 4-of-6); rows AT MERGE with per-phase
-figures; hosted CI the only gate; demo-class units
-orchestrator-reviewed. M9-LOG opens as the live tail at
-ratification.
+binding specs before dispatch (substrate exploration first); rows
+recorded AT MERGE with per-phase figures; demo-class units
+orchestrator-reviewed; hosted CI the only gate.
+
+The A/B protocol and **all of its live state** — block, slot,
+ordinal, dual-review tally — belong to `docs/MODEL-AB-LOG.md`, and
+are claimed from that ledger ON MAIN at dispatch. No copy of any
+of those numbers lives in this plan. M9-LOG is the live tail.

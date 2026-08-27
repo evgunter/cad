@@ -23,9 +23,10 @@
 mod common;
 
 use common::pinned;
-use geom_core::{Point2, Tolerance, Vec2};
+use geom_core::Tol;
+use geom_core::{Point2, Vec2};
 use profile::RawLoop;
-use profile::{ArcSweep, Open, Profile, ProfileLoop, SketchPlane, Start};
+use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -67,11 +68,16 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         println!("    (");
         println!("        {name:?},");
         println!("        &[");
-        for v in &algebra.vertices {
-            println!("            [{:?}, {:?}, {:?}],", v.pos.x, v.pos.y, v.bulge);
+        for v in algebra.vertices() {
+            println!(
+                "            [{:?}, {:?}, {:?}],",
+                v.pos().x,
+                v.pos().y,
+                v.bulge()
+            );
         }
         println!("        ],");
-        println!("        &{:?},", algebra.tangent_joints);
+        println!("        &{:?},", algebra.tangent_joints());
         println!("    ),");
         // Blessing mode compares the lowering against itself so the rest
         // of the row still runs; the printed table is the new contract.
@@ -85,13 +91,10 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
     let mut lp = ProfileLoop::new(
         table
             .iter()
-            .map(|&[x, y, bulge]| profile::ProfileVertex {
-                pos: p2(x, y),
-                bulge,
-            })
+            .map(|&[x, y, bulge]| profile::ProfileVertex::new(p2(x, y), bulge))
             .collect(),
     );
-    lp.tangent_joints = joints.to_vec();
+    lp = lp.with_tangent_joints(joints.to_vec());
     lp
 }
 
@@ -232,32 +235,36 @@ static FIXTURES: &[(&str, &[[f64; 3]], &[usize])] = &[
 /// by `to_bits`, and the declared-joint SET (declaration order is not
 /// semantic — `tangent_joints` documents set semantics).
 fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
-    assert_eq!(algebra.vertices.len(), hand.vertices.len(), "vertex count");
-    for (i, (a, h)) in algebra.vertices.iter().zip(&hand.vertices).enumerate() {
+    assert_eq!(
+        algebra.vertices().len(),
+        hand.vertices().len(),
+        "vertex count"
+    );
+    for (i, (a, h)) in algebra.vertices().iter().zip(hand.vertices()).enumerate() {
         assert_eq!(
-            a.pos.x.to_bits(),
-            h.pos.x.to_bits(),
+            a.pos().x.to_bits(),
+            h.pos().x.to_bits(),
             "vertex {i} x: {} vs {}",
-            a.pos.x,
-            h.pos.x
+            a.pos().x,
+            h.pos().x
         );
         assert_eq!(
-            a.pos.y.to_bits(),
-            h.pos.y.to_bits(),
+            a.pos().y.to_bits(),
+            h.pos().y.to_bits(),
             "vertex {i} y: {} vs {}",
-            a.pos.y,
-            h.pos.y
+            a.pos().y,
+            h.pos().y
         );
         assert_eq!(
-            a.bulge.to_bits(),
-            h.bulge.to_bits(),
+            a.bulge().to_bits(),
+            h.bulge().to_bits(),
             "vertex {i} bulge: {} vs {}",
-            a.bulge,
-            h.bulge
+            a.bulge(),
+            h.bulge()
         );
     }
-    let mut ta = algebra.tangent_joints.clone();
-    let mut th = hand.tangent_joints.clone();
+    let mut ta = algebra.tangent_joints().to_vec();
+    let mut th = hand.tangent_joints().to_vec();
     ta.sort_unstable();
     ta.dedup();
     th.sort_unstable();
@@ -270,10 +277,10 @@ fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
 /// that the lowered form really is the v1 form the verifier expects).
 fn assert_validate_identically(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
     let va = Profile::new(SketchPlane::xy(), vec![algebra.clone()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("algebra-lowered loop validates");
     let vh = Profile::new(SketchPlane::xy(), vec![hand.clone()])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .expect("hand-built loop validates");
     assert_eq!(
         format!("{:?}", va.loops()),
@@ -289,11 +296,11 @@ fn sharp_triangle_matches_loopbuilder() {
     let (a, b, c) = (p2(0.0, 0.0), p2(4.0, 0.5), p2(1.5, 3.0));
     let algebra = Open
         .at(a)
-        .line_to(b)
+        .line_to(b, Tol::witness())
         .unwrap()
-        .line_to(c)
+        .line_to(c, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded("sharp_triangle_matches_loopbuilder", &algebra);
@@ -309,11 +316,11 @@ fn sharp_arc_chain_matches_loopbuilder() {
     let (b1, b2) = (0.5, 0.2);
     let algebra = Open
         .at(a)
-        .line_to(b)
+        .line_to(b, Tol::witness())
         .unwrap()
-        .arc_to(c, b1)
+        .arc_to(Bulge { p: c, b: b1 }, Tol::witness())
         .unwrap()
-        .arc_to(Start, b2)
+        .arc_to(Bulge { p: Start, b: b2 }, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded("sharp_arc_chain_matches_loopbuilder", &algebra);
@@ -321,10 +328,10 @@ fn sharp_arc_chain_matches_loopbuilder() {
     assert_validate_identically(&algebra, &hand);
 }
 
-/// D3 — declared tangent leg: `.tangent().tangent_arc_to(p)` against
-/// the hand `.declare_tangent().arc_to(p, tan(Δ/2))` with Δ from the
-/// same atan2 — the bulge is bit-identical because both sides evaluate
-/// the same closed-form expression on the same inputs.
+/// D3 — declared tangent leg: `.tangent().tangent_arc_to(p)` lowers to
+/// a joint declared tangent plus the bulge tan(Δ/2), Δ the
+/// tangent-chord angle from atan2 — bit-identical to that closed form
+/// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
     let (a, b, c) = (p2(0.0, 0.0), p2(2.0, 0.0), p2(3.0, 1.0));
@@ -334,22 +341,22 @@ fn tangent_arc_leg_matches_loopbuilder() {
     let expected_bulge = (delta / 2.0).tan();
     let algebra = Open
         .at(a)
-        .line_to(b)
+        .line_to(b, Tol::witness())
         .unwrap()
         .tangent()
-        .tangent_arc_to(c)
+        .tangent_arc_to(c, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     // The INDEPENDENT oracle (it used to be the hand chain's argument;
     // now it is asserted directly): vertex 1's bulge is tan(delta/2)
     // from the documented closed form, bit for bit.
     assert_eq!(
-        algebra.vertices[1].bulge.to_bits(),
+        algebra.vertices()[1].bulge().to_bits(),
         expected_bulge.to_bits(),
         "tangent-arc bulge: {} vs the closed form {}",
-        algebra.vertices[1].bulge,
+        algebra.vertices()[1].bulge(),
         expected_bulge
     );
     let hand = recorded("tangent_arc_leg_matches_loopbuilder", &algebra);
@@ -371,8 +378,8 @@ fn expected_corner(origin: Point2<f64>, th1: f64, anchor: Point2<f64>, th2: f64)
     origin + u1 * t
 }
 
-/// The ratified line×line trim closed form (the docs on
-/// `LoopBuilder::fillet`), re-derived independently: (t1, t2, bulge).
+/// The ratified line×line trim closed form, re-derived independently
+/// from the documented construction: (t1, t2, bulge).
 fn expected_trims(
     head: Point2<f64>,
     corner: Point2<f64>,
@@ -393,15 +400,15 @@ fn expected_trims(
 }
 
 /// D4 — one fillet whose incoming ray origin IS the chain head (the
-/// common authoring shape): the algebra vs `LoopBuilder::fillet` fed
-/// the same virtual corner and the arrival anchor as `next` — the
-/// shared closed form makes the trims, bulge, and declarations
-/// bit-identical; the continuation leg and sharp seam match exactly.
+/// common authoring shape): the algebra against the blessed table, with
+/// the virtual corner and the trims re-derived here from the ratified
+/// closed form — the trims, bulge, and declarations are bit-identical;
+/// the continuation leg and sharp seam match exactly.
 #[test]
 fn single_fillet_after_leg_matches_loopbuilder_fillet() {
     // The entry ray (side 1) departs east from the entry anchor a —
-    // the fillet's incoming ray origin IS the chain head here, exactly
-    // the shape `LoopBuilder::fillet` computes from. The arrival
+    // the fillet's incoming ray origin IS the chain head here. The
+    // arrival
     // carrier is the vertical line through the anchor (6, 2) heading
     // north; the virtual corner is (6, 0).
     let a = p2(0.0, 0.0);
@@ -414,21 +421,21 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
     assert!((corner.x - 6.0).abs() < 1e-12 && corner.y.abs() < 1e-12);
     let algebra = Open
         .at(a)
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .at(anchor)
+        .at(anchor, Tol::witness())
         .unwrap()
-        .angle(north)
+        .angle(north, Tol::witness())
         .unwrap()
         // End the arrival side one unit past the anchor, then close
         // sharply through the top-left.
-        .line(1.0)
+        .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0))
+        .line_to(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded(
@@ -441,10 +448,10 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
 
 /// D5 — the flagship all-rounded square (4 anchors + 4 directions +
 /// seam fillet, the PATHS-DESIGN §3 example): the algebra vs the
-/// fully explicit hand chain a `LoopBuilder` author writes with the
-/// trim points in hand (start at the seam arc's end, declare joint 0,
-/// alternate trimmed sides and fillet arcs, close with the seam arc's
-/// bulge). The hand numbers are re-derived here from the ratified
+/// blessed table, which is the fully explicit vertex chain with the
+/// trim points in hand (start at the seam arc's end, joint 0 declared,
+/// alternating trimmed sides and fillet arcs, closing with the seam
+/// arc's bulge). Those numbers are re-derived here from the ratified
 /// closed forms (corner = ray×carrier, trims/bulge = the documented
 /// line×line form, anchor-based), and every derived vertex is
 /// additionally pinned to its exact intended dyadic location within
@@ -463,29 +470,29 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
 
     let algebra = Open
         .at(m[0])
-        .angle(th[0])
+        .angle(th[0], Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .at(m[1])
+        .at(m[1], Tol::witness())
         .unwrap()
-        .angle(th[1])
+        .angle(th[1], Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .at(m[2])
+        .at(m[2], Tol::witness())
         .unwrap()
-        .angle(th[2])
+        .angle(th[2], Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .at(m[3])
+        .at(m[3], Tol::witness())
         .unwrap()
-        .angle(th[3])
+        .angle(th[3], Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .to(Start)
+        .to(Start, Tol::witness())
         .unwrap();
 
     let algebra = pinned(algebra);
@@ -534,15 +541,14 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
 
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
-    assert_eq!(algebra.vertices.len(), 8);
-    assert_eq!(algebra.tangent_joints.len(), 8);
+    assert_eq!(algebra.vertices().len(), 8);
+    assert_eq!(algebra.tangent_joints().len(), 8);
 }
 
 /// D6 — a fillet arrival bound by `line_to` ("also from arrivals"):
-/// binds the arrival direction toward the target, resolves the
-/// fillet, and ends the side at the target — against the hand
-/// `.fillet(corner, anchor, r)` + `line_to(end)` with the same corner
-/// value.
+/// binds the arrival direction toward the target, resolves the fillet,
+/// and ends the side at the target — against the blessed table built
+/// from the same virtual corner.
 #[test]
 fn arrival_bound_by_line_to_matches_loopbuilder() {
     let a = p2(0.0, 0.0);
@@ -553,17 +559,17 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
     assert!((corner.x - 6.0).abs() < 1e-12 && corner.y.abs() < 1e-12);
     let algebra = Open
         .at(a)
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .at(anchor)
+        .at(anchor, Tol::witness())
         .unwrap()
-        .line_to(end)
+        .line_to(end, Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0))
+        .line_to(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded("arrival_bound_by_line_to_matches_loopbuilder", &algebra);
@@ -583,48 +589,47 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
 #[test]
 fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
-        let algebra = profile::circle(p2(cx, cy), r).unwrap();
+        let algebra = profile::circle(p2(cx, cy), r, Tol::witness()).unwrap();
         let algebra = pinned(algebra);
         let hand = ProfileLoop::new(vec![
-            profile::ProfileVertex {
-                pos: p2(cx + r, cy),
-                bulge: 1.0,
-            },
-            profile::ProfileVertex {
-                pos: p2(cx - r, cy),
-                bulge: 1.0,
-            },
+            profile::ProfileVertex::new(p2(cx + r, cy), 1.0),
+            profile::ProfileVertex::new(p2(cx - r, cy), 1.0),
         ]);
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);
     }
 }
 
-/// G1-2 — `arc_via` against `LoopBuilder::arc_to_via`: the two doors
-/// feed the same three authored points to the same closed form, so the
-/// derived bulge agrees bit-for-bit and the endpoints are verbatim.
+/// G1-2 — `arc_to(Via { q, p })`: the three authored points go through
+/// the documented closed form, so the derived bulge is exactly
+/// `bulge_from_via(a, q, p)` and the endpoints pass through verbatim.
 #[test]
 fn arc_via_matches_loopbuilder_arc_to_via() {
     let (a, via, b) = (p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 0.0));
-    let algebra = Open.at(a).arc_via(via, b).unwrap().line_to(Start).unwrap();
+    let algebra = Open
+        .at(a)
+        .arc_to(Via { q: via, p: b }, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded("arc_via_matches_loopbuilder_arc_to_via", &algebra);
     assert_loops_identical(&algebra, &hand);
     assert_validate_identically(&algebra, &hand);
 }
 
-/// G1-2, closing — `arc_via(v, Start)` against `close_arc_via`: the
-/// two-arc crescent (the lily leaf's shape), whose seam and tip are
-/// both sharp arc-onto-arc junctions.
+/// G1-2, closing — `arc_to(Via { q, p: Start })`: the two-arc crescent
+/// (the lily leaf's shape), whose seam and tip are both sharp
+/// arc-onto-arc junctions.
 #[test]
 fn arc_via_closing_matches_loopbuilder_close_arc_via() {
     let (a, b) = (p2(0.0, 0.0), p2(2.0, 0.0));
     let (out, back) = (p2(1.0, 0.5), p2(1.0, 0.1));
     let algebra = Open
         .at(a)
-        .arc_via(out, b)
+        .arc_to(Via { q: out, p: b }, Tol::witness())
         .unwrap()
-        .arc_via(back, Start)
+        .arc_to(Via { q: back, p: Start }, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded(
@@ -635,21 +640,20 @@ fn arc_via_closing_matches_loopbuilder_close_arc_via() {
     assert_validate_identically(&algebra, &hand);
 }
 
-/// G1-3 — `arc_center` against `LoopBuilder::arc_to_center`, BOTH
-/// windings: the winding is structural, and it is the only thing that
-/// distinguishes the minor arc from the major one on the same three
-/// authored points.
+/// G1-3 — `arc_to(Center { c, winding, p })` in BOTH windings: the
+/// winding is structural, and it is the only thing that distinguishes
+/// the minor arc from the major one on the same three authored points.
 #[test]
 fn arc_center_matches_loopbuilder_in_both_windings() {
     let (a, c, b) = (p2(1.0, 0.0), p2(0.0, 0.0), p2(0.0, 1.0));
     for winding in [profile::ArcSweep::Ccw, profile::ArcSweep::Cw] {
         let algebra = Open
             .at(a)
-            .arc_center(c, b, winding)
+            .arc_to(Center { c, winding, p: b }, Tol::witness())
             .unwrap()
-            .line_to(c)
+            .line_to(c, Tol::witness())
             .unwrap()
-            .line_to(Start)
+            .line_to(Start, Tol::witness())
             .unwrap();
         let algebra = pinned(algebra);
         let hand = recorded(
@@ -666,11 +670,18 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
     // chord and is a shape question, not an authoring one.
     let algebra = Open
         .at(a)
-        .arc_center(c, b, profile::ArcSweep::Ccw)
+        .arc_to(
+            Center {
+                c,
+                winding: profile::ArcSweep::Ccw,
+                p: b,
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .line_to(c)
+        .line_to(c, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded("arc_center_ccw", &algebra);
@@ -696,31 +707,31 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
     let r = 0.5;
     let algebra = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0))
+        .line_to(p2(3.0, 0.0), Tol::witness())
         .unwrap()
-        .line_to(p2(3.0, 1.0))
+        .line_to(p2(3.0, 1.0), Tol::witness())
         .unwrap()
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap()
-        .toward(0.0, 1.0)
+        .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(far)
+        .to(far, Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0))
+        .line_to(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     // The INDEPENDENT oracle for the two DERIVED vertices: both legs are
     // axis-aligned, so the setback is exactly r along each leg from the
     // virtual corner — trim 1 at (corner.x + r, corner.y), trim 2 at
     // (corner.x, corner.y + r), exactly.
-    assert_eq!(algebra.vertices[3].pos.x, corner.x + r);
-    assert_eq!(algebra.vertices[3].pos.y, corner.y);
-    assert_eq!(algebra.vertices[4].pos.x, corner.x);
-    assert_eq!(algebra.vertices[4].pos.y, corner.y + r);
+    assert_eq!(algebra.vertices()[3].pos().x, corner.x + r);
+    assert_eq!(algebra.vertices()[3].pos().y, corner.y);
+    assert_eq!(algebra.vertices()[4].pos().x, corner.x);
+    assert_eq!(algebra.vertices()[4].pos().y, corner.y + r);
     let hand = recorded(
         "bracket_matches_loopbuilder_via_toward_and_far_end_anchor",
         &algebra,
@@ -741,42 +752,48 @@ fn angle_directors_drift_where_toward_is_exact() {
     let build = |exact: bool| {
         let tip = Open
             .at(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
+            .line_to(p2(3.0, 0.0), Tol::witness())
             .unwrap()
-            .line_to(p2(3.0, 1.0))
+            .line_to(p2(3.0, 1.0), Tol::witness())
             .unwrap();
         let opened = if exact {
-            tip.toward(-1.0, 0.0).unwrap()
+            tip.toward(-1.0, 0.0, Tol::witness()).unwrap()
         } else {
-            tip.angle(std::f64::consts::PI).unwrap()
+            tip.angle(std::f64::consts::PI, Tol::witness()).unwrap()
         }
-        .fillet(r)
+        .fillet(r, Tol::witness())
         .unwrap();
         let arrival = if exact {
-            opened.toward(0.0, 1.0).unwrap()
+            opened.toward(0.0, 1.0, Tol::witness()).unwrap()
         } else {
-            opened.angle(std::f64::consts::FRAC_PI_2).unwrap()
+            opened
+                .angle(std::f64::consts::FRAC_PI_2, Tol::witness())
+                .unwrap()
         };
         arrival
-            .to(far)
+            .to(far, Tol::witness())
             .unwrap()
-            .line_to(p2(0.0, 3.0))
+            .line_to(p2(0.0, 3.0), Tol::witness())
             .unwrap()
-            .line_to(Start)
+            .line_to(Start, Tol::witness())
             .unwrap()
     };
     let exact = pinned(build(true));
     let drifted = pinned(build(false));
     // Same shape to any tolerance anyone could care about …
-    for (a, b) in exact.vertices.iter().zip(&drifted.vertices) {
-        assert!((a.pos - b.pos).norm_squared().sqrt() < 1e-12);
-        assert!((a.bulge - b.bulge).abs() < 1e-12);
+    for (a, b) in exact.vertices().iter().zip(drifted.vertices()) {
+        assert!((a.pos() - b.pos()).norm_squared().sqrt() < 1e-12);
+        assert!((a.bulge() - b.bulge()).abs() < 1e-12);
     }
     // … and NOT the same bits: the two trim vertices differ, which is
     // exactly the SAID-not-shape drift that kept the bracket raw.
-    let same_bits = exact.vertices.iter().zip(&drifted.vertices).all(|(a, b)| {
-        a.pos.x.to_bits() == b.pos.x.to_bits() && a.pos.y.to_bits() == b.pos.y.to_bits()
-    });
+    let same_bits = exact
+        .vertices()
+        .iter()
+        .zip(drifted.vertices())
+        .all(|(a, b)| {
+            a.pos().x.to_bits() == b.pos().x.to_bits() && a.pos().y.to_bits() == b.pos().y.to_bits()
+        });
     assert!(
         !same_bits,
         "the angle-director spelling is expected to drift; if it no longer does, \
@@ -803,16 +820,16 @@ fn toward_axis_rays_are_exact() {
         let third = p2(expected.x - dy, expected.y + dx);
         let lowered = Open
             .at(p2(0.0, 0.0))
-            .toward(dx, dy)
+            .toward(dx, dy, Tol::witness())
             .unwrap()
-            .line(2.0)
+            .line(2.0, Tol::witness())
             .unwrap()
-            .line_to(third)
+            .line_to(third, Tol::witness())
             .unwrap()
-            .line_to(Start)
+            .line_to(Start, Tol::witness())
             .unwrap();
         let lowered = pinned(lowered);
-        let v = lowered.vertices[1].pos;
+        let v = lowered.vertices()[1].pos();
         assert_eq!(v.x.to_bits(), expected.x.to_bits(), "toward({dx},{dy}) x");
         assert_eq!(v.y.to_bits(), expected.y.to_bits(), "toward({dx},{dy}) y");
     }
@@ -853,6 +870,7 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
+            Tol::witness(),
         )
         .unwrap();
     let algebra = pinned(algebra);
@@ -865,7 +883,7 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
     // The S8 pick, independently: the fillet arc's centre must be the
     // NEAR pocket (0, √0.3125), not the rival at the sharp tip.
     let want = 0.3125f64.sqrt();
-    let mid = algebra.vertices[1].pos;
+    let mid = algebra.vertices()[1].pos();
     assert!(
         mid.y > 0.0,
         "the trimmed incoming run must reach the TOP tip's pocket, got {mid:?}"
@@ -916,8 +934,8 @@ fn the_derived_circle_by_circle_corner_lands_on_the_authored_one() {
 }
 
 /// **Line × arc**, the second G2 combination: a straight side 1 running
-/// east from the entry, one fillet, and a `to_on` close that comes back
-/// over the circle through the entry point.
+/// east from the entry, and one `fillet_arc(r, Center { .., p: Start })`
+/// whose arrival closes back over the circle through the entry point.
 ///
 /// The corner is DERIVED by the ray×circle form and is exact here by
 /// construction — the ray `y = 0` meets the circle about `(2, −2)`
@@ -937,7 +955,7 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
     let r = 0.3;
     let algebra = Open
         .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
+        .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             r,
@@ -946,6 +964,7 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
+            Tol::witness(),
         )
         .unwrap();
     let algebra = pinned(algebra);
@@ -964,7 +983,7 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
 fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
     let lowered = Open
         .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
+        .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.3,
@@ -973,13 +992,14 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
+            Tol::witness(),
         )
         .unwrap();
     let lowered = pinned(lowered);
     // Vertex 1 is the trim point on the straight side: it must sit
     // short of the FAR corner (4, 0), not of the discarded one at the
     // origin (which would have put it behind the entry).
-    let t1 = lowered.vertices[1].pos;
+    let t1 = lowered.vertices()[1].pos();
     assert!(t1.x > 3.0 && t1.x < 4.0, "trim point on side 1: {t1:?}");
     // On the ray y = 0 to rounding: `t1` is the offset-carrier centre
     // pushed back by the offset normal, so its y is a cancellation
@@ -992,9 +1012,10 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
 /// **LB10 route 3, the mandatory differential row**: a STRAIGHT arrival
 /// off an ARC departure, both ways.
 ///
-/// The entry is bound ON the R = 5 circle at `(5, 0)`, the fillet opens
-/// against that carrier, and `.at_toward((0, 3), −1, 0)` binds the
-/// arrival's anchor and its exact director in one act. The corner is
+/// The entry is bound ON the R = 5 circle at `(5, 0)` by the fused
+/// `arc_fillet(Center { .. }, r)`, which opens the fillet against that
+/// carrier, and `.at((0, 3)).toward(−1, 0)` binds the arrival's anchor
+/// and its exact director. The corner is
 /// DERIVED as the ray × circle intersection and is exact here by
 /// construction — the line `y = 3` meets the circle at `(±4, 3)`, both
 /// representable — so the hand chain, which AUTHORS `(4, 3)`, is fed the
@@ -1016,15 +1037,16 @@ fn straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner() {
                 p: p2(5.0, 0.0),
             },
             r,
+            Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0))
+        .at(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .toward(-1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
-        .line(3.0)
+        .line(3.0, Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap();
     let algebra = pinned(algebra);
     let hand = recorded(
@@ -1035,37 +1057,25 @@ fn straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner() {
     assert_validate_identically(&algebra, &hand);
 }
 
-/// The route-3 door refuses the pair `path.rs` owns: a straight
-/// departure with a straight arrival never reaches the boundary module,
-/// and the refusal NAMES the generic doors rather than falling through
-/// to the two-straight-carriers backstop.
+/// A director naming no direction refuses at the binder itself, BEFORE
+/// any fillet resolution — an arc-incoming fillet is open, but a zero
+/// director names no arrival carrier to resolve against.
 #[test]
-fn at_toward_refuses_a_straight_departure() {
+fn an_arc_carrier_arrival_refuses_a_zero_director() {
     let err = Open
-        .at(p2(0.0, 0.0))
-        .toward(1.0, 0.0)
+        .arc_fillet(
+            profile::Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Tol::witness(),
+        )
         .unwrap()
-        .fillet(0.5)
+        .at(p2(0.0, 3.0), Tol::witness())
         .unwrap()
-        .at_toward(p2(3.0, 3.0), 0.0, 1.0)
-        .unwrap_err();
-    assert!(
-        matches!(err, profile::PathError::ArcCarrierSpelling { site } if site.contains(".at(p).toward(dx, dy)")),
-        "the straight pair is path.rs's business: {err:?}"
-    );
-}
-
-/// A director naming no direction refuses exactly as `.toward` does —
-/// the door binds the same slot, so it inherits the same refusal, and
-/// it fires BEFORE any fillet resolution.
-#[test]
-fn at_toward_refuses_a_zero_director() {
-    let err = Open
-        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
-        .unwrap()
-        .fillet(0.5)
-        .unwrap()
-        .at_toward(p2(0.0, 3.0), 0.0, 0.0)
+        .toward(0.0, 0.0, Tol::witness())
         .unwrap_err();
     assert!(
         matches!(err, profile::PathError::ZeroDirection { .. }),
@@ -1075,15 +1085,24 @@ fn at_toward_refuses_a_zero_director() {
 
 /// A parallel arrival: the line `y = 6` misses the R = 5 circle, so the
 /// carriers admit no corner at all and the refusal is
-/// `CarriersDoNotMeet` — the §2b vocabulary, not a fit failure.
+/// `CarriersDoNotMeet` — no corner exists, not a radius that will not
+/// fit.
 #[test]
-fn at_toward_refuses_carriers_that_never_meet() {
+fn an_arc_carrier_arrival_refuses_carriers_that_never_meet() {
     let err = Open
-        .at_on(p2(5.0, 0.0), p2(0.0, 0.0), ArcSweep::Ccw)
+        .arc_fillet(
+            profile::Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Tol::witness(),
+        )
         .unwrap()
-        .fillet(0.5)
+        .at(p2(0.0, 6.0), Tol::witness())
         .unwrap()
-        .at_toward(p2(0.0, 6.0), -1.0, 0.0)
+        .toward(-1.0, 0.0, Tol::witness())
         .unwrap_err();
     assert!(
         matches!(

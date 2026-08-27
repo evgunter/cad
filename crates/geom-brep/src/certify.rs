@@ -35,7 +35,7 @@
 //!
 //! # The stored parameter interval — a certified cache, not an authority
 //!
-//! `geom-curves`' ratified convention stands: an edge's bounds are
+//! `geom`'s ratified curve convention stands: an edge's bounds are
 //! *derived from its vertices* — the authority is the vertex geometry.
 //! The [`EdgeCurve`] nevertheless **stores** the parameter interval,
 //! as a certified derived cache in exactly the carrier's sense: the
@@ -51,10 +51,10 @@
 //! (no atan2 branch selection). It can never disagree with the vertices
 //! by more than ε without failing loudly — a cache, never a peer.
 
+use geom::Curve3;
+use geom::Surface;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 
 use crate::dihedral::{DihedralClass, classify_dihedral, decide};
 use crate::edge_geometry::EdgeGeometry;
@@ -134,7 +134,7 @@ pub enum CertCheck {
     SeamSide,
     /// IsoCurve: the genuinely metric residual
     /// `|carrier(tᵢ) − S(u, v(tᵢ))|` at a sample (M6-3; the
-    /// wall–wall-seam class of `docs/M5-LOG.md` PR 9c item 6(iii)).
+    /// wall–wall-seam class).
     IsoResidual,
     /// Intersection, plane × NURBS (M7-8): limb 1's largest sampled
     /// on-locus residual over both operands — the closed-form plane
@@ -284,9 +284,9 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "certification: a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
-                 carriers certify as the Intersection of two analytic surfaces \
-                 (M5 PR 9, C12.3), or of one plane and one described NURBS wall through \
-                 the declare-and-check lane (M7-8); NURBS x NURBS has no certificate"
+                 carriers certify as the Intersection of two analytic surfaces, or of \
+                 one plane and one described NURBS wall through the declare-and-check \
+                 lane; NURBS x NURBS has no certificate"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -333,7 +333,7 @@ impl core::fmt::Display for CertifyError {
                  {sample} against band [zero {:e}, escalate {:e}] — the surfaces \
                  under-determine the locus there (a G2 conventional join keeps its \
                  MappedCurve description BY THIS PREDICATE, D2's split); the same \
-                 margin one band-width away escalates as a sliver instead (F6); {}",
+                 margin one band-width away escalates as a sliver instead; {}",
                 band.zero(),
                 band.escalate(),
                 geom_core::COINCIDENCE_RECOURSE
@@ -341,9 +341,9 @@ impl core::fmt::Display for CertifyError {
             Self::TangentCertificateUnsupported => write!(
                 f,
                 "certification: this (carrier, surface-pair) class is outside the jet \
-                 certificate's certified span-bound lane — Line carriers on \
-                 Plane/Cylinder/Sphere pairs are the M5 class (C12.1: per-class \
-                 retirement with its proof; no runtime fallback)"
+                 certificate's certified span-bound lane — the certified class is Line \
+                 carriers on Plane/Cylinder/Sphere pairs (classes retire one at a time, \
+                 each with its proof; no runtime fallback)"
             ),
             Self::Escalated {
                 check,
@@ -408,6 +408,45 @@ impl<T: Real> EdgeCurveSpec<T> {
             param_start: T::zero(),
             param_end: len,
         }
+    }
+
+    /// The conventional ARC spec along an existing CIRCLE carrier
+    /// between the given parameters: the carrier and interval are kept
+    /// verbatim, and the description is the honest pushforward form —
+    /// the start point's trajectory under the rotation about the
+    /// carrier's own axis by the swept angle
+    /// ([`crate::MappedCurve::RevolvedPoint`], the same
+    /// geometry-derived posture as [`Self::line_between`]'s
+    /// `ExtrudedPoint`). This is the conventional description for a
+    /// circular locus the adjacent surfaces UNDER-determine (D2's
+    /// split — e.g. a seam between coplanar faces).
+    ///
+    /// `None` for a non-circle carrier: no other kind has this
+    /// rotation pushforward, and the caller owns its own honest
+    /// refusal there.
+    pub fn arc_of_circle(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
+    where
+        T: SpanLocate,
+    {
+        use geom_core::{Affine3, Point2, Point3};
+        let Curve3::Circle { center, axis, .. } = carrier else {
+            return None;
+        };
+        let start = carrier.eval(t0);
+        Some(Self {
+            description: EdgeGeometry::MappedCurve(
+                crate::edge_geometry::MappedCurve::RevolvedPoint {
+                    point: Point2::new(T::zero(), T::zero()),
+                    place: Affine3::translation(start - Point3::origin()),
+                    axis_origin: center,
+                    axis_dir: axis,
+                    angle: t1 - t0,
+                },
+            ),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        })
     }
 
     /// The canonical full-period self-loop spec at `p`: a unit circle
@@ -494,7 +533,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// resolves the description's arena keys (injected by the owning
     /// body — this layer never touches arenas, see [`crate::keys`]);
     /// `band` is the run's linear band (callers build it once at
-    /// operation entry via `Band::linear()`).
+    /// operation entry via `Band::linear(tol)`).
     ///
     /// The check sequence (fixed order, D9; every check's margin is
     /// meters against `band`):
@@ -588,8 +627,10 @@ impl<T: Decide> EdgeCurve<T> {
 ///
 /// Limb 2 and limb 3 of the plane × NURBS certificate are C9-ring hull
 /// bounds and the foot point is a bracket read, so the honest
-/// derivation needs `T: Decide + Bounds`
-/// ([`crate::EdgeNurbsLane`]'s static split). Raising `certify`'s own
+/// derivation needs `T: Decide + Bounds + CertifiedEnclosure`
+/// ([`crate::EdgeNurbsLane`]'s static split — since #643 the ring door
+/// is `CertifiedEnclosure`, which is what a `Dual` lacks; it has had
+/// `Bounds` since D1, 2026-08-19). Raising `certify`'s own
 /// bound would push `Bounds` through every `T: Decide` signature in
 /// `topo` — hundreds of them, for a capability three of the four
 /// sealed scalars have unconditionally. So the capability is
@@ -600,9 +641,9 @@ impl<T: Decide> EdgeCurve<T> {
 /// has always produced. There is no third outcome — no door accepts
 /// the description without the certificate.
 pub type NurbsLane<'a, T> = &'a dyn Fn(
-    &geom_curves::NurbsCurve3<T>,
+    &geom::NurbsCurve3<T>,
     &Surface<T>,
-    &geom_surfaces::NurbsSurface<T>,
+    &geom::NurbsSurface<T>,
     T,
     Band,
 ) -> Result<
@@ -979,9 +1020,13 @@ fn run_checks<T: Decide>(
     {
         return Err(CertifyError::Unimplemented);
     }
+    // `Approx` refuses here with `Nurbs`, and for the same reason: the
+    // descriptions this resolver serves (`Intersection`, `Seam`) state
+    // their residual through the IMPLICIT form, which a spline
+    // stand-in does not have. Admitting one would meter poison.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
         let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if matches!(s, Surface::Nurbs(_)) {
+        if matches!(s, Surface::Nurbs(_) | Surface::Approx(_)) {
             return Err(CertifyError::Unimplemented);
         }
         Ok(s)
@@ -1023,7 +1068,7 @@ fn run_checks<T: Decide>(
         /// (M7-8): the declare-and-check lane's shape.
         PlaneNurbs {
             plane: Surface<T>,
-            wall: std::sync::Arc<geom_surfaces::NurbsSurface<T>>,
+            wall: std::sync::Arc<geom::NurbsSurface<T>>,
             witness: Point3<T>,
         },
     }
@@ -1553,9 +1598,9 @@ fn run_checks<T: Decide>(
 fn plane_nurbs_pair<T: Real>(
     s1: Option<Surface<T>>,
     s2: Option<Surface<T>>,
-) -> Option<(Surface<T>, std::sync::Arc<geom_surfaces::NurbsSurface<T>>)> {
+) -> Option<(Surface<T>, std::sync::Arc<geom::NurbsSurface<T>>)> {
     let (a, b) = (s1?, s2?);
-    let described = |n: &std::sync::Arc<geom_surfaces::NurbsSurface<T>>| !n.is_placeholder();
+    let described = |n: &std::sync::Arc<geom::NurbsSurface<T>>| !n.is_placeholder();
     match (&a, &b) {
         (Surface::Plane { .. }, Surface::Nurbs(n)) if described(n) => Some((a.clone(), n.clone())),
         (Surface::Nurbs(n), Surface::Plane { .. }) if described(n) => Some((b.clone(), n.clone())),
@@ -1566,18 +1611,19 @@ fn plane_nurbs_pair<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::{Affine3, Point2, Tolerance, Vec3};
+    use geom_core::Tol;
+    use geom_core::{Affine3, Point2, Vec3};
 
     use crate::edge_geometry::{MappedCurve, SketchSegment};
 
     use super::*;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     fn eps() -> f64 {
-        Tolerance::get().eps
+        Tol::witness().get().eps
     }
 
     /// A resolver over a tiny fixed table (keys minted through a local

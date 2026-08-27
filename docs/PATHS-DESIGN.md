@@ -186,26 +186,36 @@ authoring act.
   (endpoint-full from a Point, endpoint-free from a Directed tip)
   plus the two carrier-continuation rows: `Center{c, winding, p}`
   from the ENTRY (the entry bound ON a carrier — the retired
-  `at_on` entry, fused) and `Radius{r, side}` alone from an OnArc
-  tip (an interior arc arrival's directed point): the centre is
-  DERIVED from the tip's binding bits, so tangency holds by
-  construction. `Center@OnArc` is EXCLUDED by the same doctrine
-  as `Center@Directed` — the tip's direction is bound, so an
-  authored centre's derived tangent would have to value-match it,
-  and no direction remains for the centre to supply retroactively
-  (adjudicated at the re-spell unit; authored-once decides).
+  `at_on` entry, fused) and `Radius{r, side}` from any DIRECTED
+  POINT — **arc extension**, the arc analog of ray extension
+  (§2c dissolution amendment below): the centre is DERIVED from
+  the tip's binding bits, so tangency holds by construction, and
+  the incoming run extends FORWARD from the tip along the derived
+  carrier. When that carrier continues the incoming segment's own
+  carrier, the extension MOVES that segment's end vertex to the
+  trim point (the §4 item 4 exemption, exactly as a straight
+  leg's ray extension); otherwise the joint at the tip is a
+  constructed tangency onto a new carrier — sound for every
+  authored `r`. A trim that would eat the tip's authored anchor
+  refuses (`AnchorOutsideTrimmedExtent`). `Center` from a
+  directed tip stays EXCLUDED — the tip's direction is bound, so
+  an authored centre's derived tangent would have to value-match
+  it, and no direction remains for the centre to supply
+  retroactively (authored-once decides).
 - **Line arrivals** keep the uniform builder: `.at(p)` /
   `.angle(θ)` / `.toward(dx, dy)` in either order, the far-end
   `.to(p)`, and the seam `.to(Start)` (straight first side only —
   the seam retrims the entry vertex).
 - **Arc arrivals** are the spec's own completion story:
   `Center{c, winding, p}` is complete at the verb (interior `p`:
-  the tip continues ON the carrier at `p`, the OnArc state;
-  `p: Start`: the close that KEEPS the entry vertex — the retired
-  `to_on`); `Radius{r, side}` derives its centre from the
-  arrival's directed anchor, so both binders stay free; `Via{q, p}`
-  carries its anchor and awaits one director. `Bulge` is never an
-  arrival (no chord exists there).
+  the run to `p` is EMITTED at the verb and the tip is an
+  ORDINARY DIRECTED POINT at `p` — a hard anchor, uniform with
+  line arrivals; the §2c dissolution amendment below retired the
+  OnArc state; `p: Start`: the close that KEEPS the entry vertex
+  — the retired `to_on`); `Radius{r, side}` derives its centre
+  from the arrival's directed anchor, so both binders stay free;
+  `Via{q, p}` carries its anchor and awaits one director.
+  `Bulge` is never an arrival (no chord exists there).
 - Once both carriers are fixed, the r-arc tangent to both is
   inserted at their implicit virtual corner, trimming both — the
   resolution machinery of the retired register, unchanged bit for
@@ -343,16 +353,15 @@ through the same funnel as the other sign gates.
 circle loops and chain loops freely. §6's mixed-authoring rule is read
 at LOOP granularity, as it always was: no loop is half raw.
 
-### 2. `arc_via(via, end)` — the arc through a point (now the
-### `Via { q, p }` mode of `arc_to(spec)` — §2c's unified family;
-### the standalone name is a retired-name door until the consumer
-### re-spell)
+### 2. The arc through a point — the `Via { q, p }` mode of
+### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`
+### name is gone)
 
 **Consumes** a positioned tip, a through-point, and an endpoint.
 **Determines** the arc through those three points. A free arc: the
 junction semantics are `arc_to`'s exactly — on a directed point the §4
-item 1 check runs against the arc's start tangent; `arc_via(v, Start)`
-is a sharp arc seam. It is a LEG, not an arrival: an arc arrival binds
+item 1 check runs against the arc's start tangent;
+`arc_to(Via { q, p: Start })` is a sharp arc seam. It is a LEG, not an arrival: an arc arrival binds
 its carrier through the fused verbs' arrival specs (§2c), never as an
 arc leg from an already-bound arrival point.
 
@@ -370,10 +379,9 @@ the same statement (three collinear points name no arc) and the
 recourse is the same (move it off the chord, or author a line);
 coincident endpoints (`DegenerateArcChord`).
 
-### 3. `arc_center(center, end, winding)` — the arc about a centre
-### (now the `Center { c, winding, p }` mode of `arc_to(spec)` —
-### §2c's unified family; the standalone name is a retired-name
-### door until the consumer re-spell)
+### 3. The arc about a centre — the `Center { c, winding, p }` mode
+### of `arc_to(spec)` (§2c's unified family; the standalone
+### `arc_center` name is gone)
 
 **Consumes** a positioned tip, a centre, an endpoint, and a winding.
 **Determines** the arc from tip to end about that centre, with the
@@ -559,12 +567,21 @@ DECLARATION — a single TRANSITION TABLE, one row per
 (state, verb, kernel fn, next state), macro-expanded (the
 point_state precedent) into all four artifacts: the typed
 method, the driver match arm, the Step variant, and the tag
-entry. Nothing is written twice, so nothing can drift: a
-missing row is missing EVERYWHERE consistently and loudly; an
-inconsistent pair is unwritable because there is no second
-place to write it. The round-9 exhaustiveness pressure rides
-the same table for free (wire enum, replay arms, tags enumerate
-its rows by construction). The V2 drift-proofing differential
+entry. None of those four is written twice, so no two of them
+can drift: a missing row is missing from all four, consistently
+and loudly; an inconsistent pair is unwritable because there is
+no second place to write it. All four are inside `profile`;
+what the table does not reach is at the head of
+`transition_table!`. **The round-9 exhaustiveness pressure does
+NOT ride the same table, and this sentence used to say it did**
+(smell-scan S195, corrected by #836): that pressure is over the
+ARC-MODE enum `ArcData`, the table is over the VERB vocabulary,
+and the three sites round 9 names as matching `ArcData`
+exhaustively — the replay driver's arc dispatchers, the persist
+wire, the tag map — are hand-written, none of them expanded
+from a row. The pressure is real at each of those matches; it
+is bought by hand at every site rather than projected from one
+declaration. The V2 drift-proofing differential
 census RETIRES to one smoke row (it becomes a tautology). The
 entry signatures genuinely differ (typed method vs step data),
 which is why the unification lives at the DECLARATION level —
@@ -592,18 +609,14 @@ measures no compile-time cost and reads cleaner in situ.
 Mechanism details (row/table syntax, emission vocabulary, module
 seam) to the re-spell unit's spec.
 
-**Shipped form (LIB-RESPELL PR-1, ruled by Evan on #531):** the
-one declaration (`step_vocabulary!`) derives the THREE enum-side
-projections — Step variant, Verb tag, `Step::verb()` — while the
-typed methods and driver arms remain hand-written single
-implementations (each arm calls the one typed binder; a deleted
-row breaks both at compile; arm drift is over-strict-only, pinned
-by the blanket replay differential and the census smoke row).
-This is WEAKER than the four-projection invariant above and is
-accepted as the merge state; **the full derivation remains the
-ratified end state**, scheduled as its own follow-up unit
-(LIB-RESPELL-TABLE), with the measured cost estimate in the PR-1
-lane report.
+**Shipped form: the invariant NOW HOLDS (LIB-RTABLE).** The one
+declaration is `transition_table!` in
+`crates/profile/src/path/program.rs`: one row per (state, verb,
+kernel fn, next state), expanded into all four projections — the
+typed method (rustdoc and signature carried by the row, geometry
+by the kernel fn it names), the driver arm, the `Step` variant
+and the `Verb` tag — so deleting a row breaks all four at
+compile, and there is no second place to write a transition.
 
 **The family (line is the unmarked middle-position default):**
 
@@ -680,7 +693,11 @@ lattice doors and plain `fillet(r)` never carry it. MEASURED
 (2026-08-12): every scalar that drives an authoring chain (f64,
 Interval, Probe) implements Bounds; Dual reaches profiles only
 by lifting lowered ProfileLoop data. The bound is free in
-practice either way.
+practice either way. That last sentence is **guarded by the
+compiler** (§Q6) and needs no register: the obligation is a trait
+bound, so a scalar that stopped satisfying it fails to build at
+every arc-involving call site rather than falsifying this
+paragraph quietly.
 
 **Honest residuals:** (a) a generic motif that fillets off a
 RECEIVED tip of unknown leg kind cannot be written — the caller
@@ -721,6 +738,57 @@ in a follow-up unit, which also re-spells the program Step
 vocabulary (pre-release clean break; the v8 step set is not a
 compatibility surface).
 
+### §2c dissolution amendment — OnArc RETIRES (RATIFIED
+### 2026-08-16; Evan's in-chat ruling, ratification delegated
+### on a clean blast-radius census)
+
+The re-spell unit shipped a fifth tip state, `OnArc` (an
+interior arc arrival's tip, its carrier run to the anchor left
+un-emitted for the NEXT fused verb to trim). Evan's ruling: the
+axiom's own state vocabulary is the four binding states and the
+directed point suffices — carrier continuation folds into the
+fused verbs the way `arc_fillet` already folds carrier
+authorship. OnArc is an emission-deferral trick wearing a
+typestate, and it retires:
+
+- **Arc arrivals emit their run at the verb** — the arrival
+  carrier is the verb's own authored spec, so the emission is
+  axiom-clean — and the tip lands as an ordinary directed
+  point at the authored anchor (a HARD anchor, uniform with
+  line arrivals).
+- **Arc extension** replaces the `Radius@OnArc` row: from any
+  directed point, a fused verb's `Radius{r, side}` incoming
+  derives its carrier from the tip's binding bits and extends
+  it FORWARD. Same-carrier continuation moves the incoming
+  segment's end vertex (the §4 item 4 exemption, exactly as
+  ray extension); a different `r` is a legal new tangent
+  carrier with a constructed tangency at the tip — sound for
+  every authored `r`, where the retired row was UNGUARDED for
+  mismatched `r` (`bulge_from_center` computes from angles
+  alone; the emitted run's bulge, claimed centre, and declared
+  tangency went mutually inconsistent — a latent defect this
+  amendment deletes structurally; the implementing unit pins
+  it with an executed probe first).
+- **Sharp-after-arc-arrival is restored**: the directed point
+  takes an ordinary director. This closes the vocabulary gap
+  the #576 §3 continuation-verb proposal named — that proposal
+  is RETIRED (the state deletes instead) — and with it the
+  LoopBuilder shim's last caller class, so the shim DELETES
+  and #377 closes.
+- **Deletions**: `OnArc`, `OnArcIncoming`, `TipState::OnArc`,
+  the `DynTip::OnArc` replay arm, Python's `PathOnArc` + its
+  arrival-builder returns (the builders re-target the directed
+  point), and every doc surface that teaches the state.
+- **What is unchanged**: shipped geometry — the census
+  (2026-08-16, in LIB-LOG) found the fit gate already refuses
+  a trim that would eat the authored anchor
+  (`AnchorOutsideTrimmedExtent`), so every constructing chain
+  already has its trim at/after the anchor and re-emits the
+  IDENTICAL final vertex chain; `p: Start` closes; the entry
+  fused rows. The all-blended-loop entry gap is NOT addressed
+  here — it lives in the entry/seam machinery and stays a
+  named gap.
+
 ## 3. Surface vocabulary
 
 | Form | Lattice transition | Notes |
@@ -735,11 +803,11 @@ compatibility surface).
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
 | `fillet_arc(r, spec)` | Directed \| leg end → per spec | line incoming, ARC arrival (see arrival rows below) |
-| `arc_fillet(spec, r)` | Entry \| Point \| Directed \| OnArc → Open | fused arc incoming, line arrival |
+| `arc_fillet(spec, r)` | Entry \| Point \| Directed → Open | fused arc incoming (arc extension from a directed point), line arrival |
 | `arc_fillet_arc(spec, r, spec₂)` | as `arc_fillet` → per spec₂ | fused arc incoming, arc arrival |
-| arrival `Center{c, w, p}` | (open fillet) → OnArc; `p: Start` → complete loop | complete at the verb; interior `p` KEEPS the tip on the carrier; `Start` keeps the entry vertex |
-| arrival `Radius{r, side}` | (open fillet) → builder → OnArc | centre DERIVED from the directed anchor the binders supply |
-| arrival `Via{q, p}` | (open fillet) → builder → OnArc; `p: Start` closes | anchor in the spec; one director pending |
+| arrival `Center{c, w, p}` | (open fillet) → directed Point; `p: Start` → complete loop | complete at the verb; interior `p` is a HARD anchor (run emitted, ordinary directed point); `Start` keeps the entry vertex |
+| arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
+| arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes | anchor in the spec; one director pending |
 | `Start` | directed-point VALUE | targeting it closes, structurally |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
@@ -748,9 +816,11 @@ compatibility surface).
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
-| **RETIRED-NAME DOORS** (delete with the consumer re-spell) | | |
-| `arc_to(p, bulge)` / `arc_via(via, p)` / `arc_center(c, p, w)` | Point → Point | record the unified `ArcData` steps; rename onto `arc_to(spec)` at the consumer re-spell |
-| `at_on` / `to_on` / `at_toward` | — | §2b compat shim over the §2c kernel rows (doc-hidden; identical bits; record the fused steps) |
+
+The retired-name doors (`arc_to(p, bulge)` / `arc_via` / `arc_center`
+as standalone verbs, and the §2b compat trio `at_on` / `to_on` /
+`at_toward`) are DELETED: the consumer re-spell moved every call site
+onto the rows above, so the surface has one spelling per act.
 
 All-rounded square (4 anchors + 4 directions; every mᵢ a real
 on-path point, e.g. a side midpoint):
@@ -802,6 +872,11 @@ the §2b register: `ArcCarrierSpelling` and the doctrine-level
 `FilletCarrierUnsupported` — under the §2c axiom a carrier-keyed
 refusal is unwritable (contact ON a carrier is the fused verb;
 bare `fillet` is ray extension; `nurbs_fillet` is an absent verb).
+What survives of the first is not carrier-keyed and so keeps its
+own name: `ArcLegOnOpenFillet`, a sharp arc LEG reached while a
+fillet is still open — the arrival's carrier is authored INSIDE
+`fillet_arc`/`arc_fillet_arc`, so a leg departing an
+already-positioned arrival point would claim that direction twice.
 Compile-time, from §2a: `circle`'s result is a loop, so no chain
 verb follows it; `.toward` is a second director exactly as
 `.angle` is; the far-end `.to(p)` needs the position slot empty
@@ -820,11 +895,13 @@ and the angle slot bound.
    construction; otherwise move the geometry (or lower the
    tolerance)". The margin rides the payload as data; the message
    never forks on exactly-on vs in-band. Within ε_input of the
-   REVERSE direction refuses as a cusp (reverse-tangent class):
-   no declaration door exists — the kernel's material-wedge
-   invariant refuses cusp wedges in any solid built from such a
-   profile; the refusal names #131 (the tabled higher-level
-   question) as the front door that does not exist yet.
+   REVERSE direction refuses as a cusp (reverse-tangent class).
+   Declared cusps are legal kernel geometry (D1 tier 3's declared
+   second-order wedge arm; #131 ruled 2026-08-23), but the
+   authoring door — a cusp analogue of `.tangent()` that authors
+   the reverse-tangent junction exactly and emits the declaration
+   — is unbuilt (#941); until it ships the junction refuses, and
+   the refusal names the absent verb.
 2. **No tangency without declaration**: tangency enters only via
    `.tangent()` or fillet construction; the lowering emits the
    declared flags — declaration by construction, never inference.
@@ -842,6 +919,22 @@ and the angle slot bound.
    `same_carrier: true` (identity, not tangency); the post-fillet
    continuation is exempt by construction — it extends the same
    leg rather than minting a collinear neighbor.
+
+**OPEN (#433) — the lattice and `validate` disagree about EXACT
+collinearity, and the disposition is Evan's.** A junction whose
+turn is exactly zero is, to invariant 1, tangent at any precision:
+the lattice refuses it and names `.tangent()` as the recourse.
+`validate` accepts the same three points as loop DATA, because a
+straight run subdivided at an interior vertex is well-formed
+geometry — it is what STEP import and raw authored loops routinely
+produce, and nothing there claims tangency. So the two rules are
+not measuring the same thing: one gates an AUTHORING act (what did
+you mean by this corner?), the other gates a DATA shape (is this
+loop well formed?). The three candidate dispositions are on the
+table — admit exact collinearity in the junction check, tighten
+`validate` to refuse it, or rule the divergence INTENTIONAL with
+the reason stated at both sites — and the unit that raised it
+proposes the third; until it is ruled, neither site changes.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
@@ -885,7 +978,9 @@ runtime but unreachable through the surface.
 Decided during review (details in #124): mixed authoring is OUT —
 a loop is authored either in the algebra or as a raw vertex+bulge
 chain, never both (representation uniqueness); declared cusps are
-TABLED to #131 with cusps refused here; there is no
+legal at the kernel (#131 ruled into D1 tier 3's declared
+second-order wedge arm) with the authoring verb banked at #941 —
+cusps refuse here until it ships; there is no
 path-concatenation operator (builder functions instead).
 
 **PQ4 — mid-carrier seams: DECIDED (Evan, in-session,

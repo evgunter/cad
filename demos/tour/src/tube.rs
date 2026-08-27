@@ -27,11 +27,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Vec3};
-use pncad::geom_surfaces::Surface;
 use pncad::sweep::{TubeWindow, tube_along_arc};
 
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// Major radius (`m6_tube.rs::R`).
 const R: f64 = 2.0;
@@ -44,7 +45,7 @@ const T0: f64 = 0.25;
 const T1: f64 = 1.75;
 
 /// The tube-door stop.
-pub fn stops() -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<Stop> {
     let tube = tube_along_arc::<f64>(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::unit_y(),
@@ -52,6 +53,7 @@ pub fn stops() -> Vec<Stop> {
         R,
         TubeWindow::Arc { t0: T0, t1: T1 },
         MINOR,
+        tol,
     )
     .expect("the wedge builds")
     .body;

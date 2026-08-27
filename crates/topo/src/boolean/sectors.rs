@@ -13,7 +13,10 @@
 //! sectors[k+1].end` — the shared-bound chain the reclassification
 //! neighbor propagation walks. Wide (≥ 180°) sectors are convexly
 //! subdivided at an interior direction (PR 2's derivation: the cone
-//! argument needs < 180°), pushed as two chained entries.
+//! argument needs < 180°), pushed as two chained entries. The arm /
+//! wideness / subdivision-direction rungs themselves are
+//! [`crate::sector_shape`] — one implementation, shared with the
+//! splitting lane, called here under this lane's K names.
 //!
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
@@ -37,13 +40,14 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap.
 
-use geom_brep::{EntersMaterial, enters_material};
+use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::reduce::face_plane;
 use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_face::{SectorCarrier, SectorFaceError};
+use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// One (convex) sector of a vertex neighborhood.
@@ -61,11 +65,11 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     pub end_edge: bool,
     /// The sector's face and outward normal.
     pub face: FaceKey,
-    /// The face's outward unit normal at the base vertex — the CHART
-    /// normal times the face's `sense_sign` (S10), applied once in
-    /// [`sector_face`]. Consumers pair it with the stored orbit order
-    /// and must NOT re-apply the sense.
-    pub normal: Vec3<T>,
+    /// The face's outward unit normal at the base vertex, minted once
+    /// in [`sector_face`] from the CHART normal and the face's `sense`
+    /// bit (S10). Consumers pair it with the stored orbit order and
+    /// must NOT re-apply the sense — the type says the sense is in.
+    pub normal: OutwardNormal<T>,
     /// The metering arm (shorter bounding chord, in meters).
     pub arm: T,
 }
@@ -123,8 +127,8 @@ pub(super) fn build_sectors<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .ok_or_else(|| corrupt(operand, vertex))?;
         match curve.carrier() {
-            geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => Ok(p_end - p_base),
-            geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(p_end - p_base),
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                 let (t0, t1) = curve.params();
                 let tangent = if he == edge.he_plus {
                     curve.carrier().deriv(t0)
@@ -143,37 +147,25 @@ pub(super) fn build_sectors<T: Decide>(
         let dir_end = chord(he)?; // this entry's own chord = CCW-last
         let dir_start = chord(next_he)?; // next chord = CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he)?;
-        let arm = dir_end.norm().min(dir_start.norm());
-        match decide("bool_sector_arm", Margin::of(arm), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => return Err(invalid_escalation(band, "bool_sector_arm")),
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
-        }
-        let (u_end, u_start) = (dir_end.normalize(), dir_start.normalize());
-        // Wideness (PR 2's derivation): sin θ = (start × end)·n metered
-        // at the arm; positive ⇒ convex; negative ⇒ reflex; zero-band ⇒
-        // disambiguate by cosine. Sense-invariant as written: the
-        // bounds come from the STORED orbit order, which `revert`
-        // reverses in the same breath as it flips the sense bit, so
-        // both factors change sign and the product does not — applying
-        // `sense_sign` here on top of `sector_face`'s would
-        // double-count and read every convex corner as reflex.
-        let reflex_margin = Margin::levered(u_start.cross(u_end).dot(normal), arm);
-        let bisec = match decide("bool_sector_reflex", reflex_margin, band) {
-            Ok(Sign::Positive) => None,
-            Ok(Sign::Negative) => Some(-((u_start + u_end).normalize())),
-            Ok(Sign::Zero) | Err(_) => {
-                let straight_margin = Margin::levered(u_start.dot(u_end), arm);
-                match decide("bool_sector_straight", straight_margin, band) {
-                    Ok(Sign::Negative) => Some(normal.cross(u_start)),
-                    Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(normal.cross(u_start)),
-                    Ok(Sign::Positive | Sign::Zero) => {
-                        return Err(invalid_escalation(band, "bool_sector_straight"));
-                    }
-                    Err(diag) => return Err(BooleanError::Escalated { diag }),
-                }
-            }
-        };
+        // The three sector-shape rungs — metering arm, wideness, and
+        // the subdivision direction (PR 2's derivation: the cone
+        // argument needs < 180°) — are [`crate::sector_shape`]: ONE
+        // implementation, called from here and from the splitting
+        // lane's neighborhood walk, under the one pooled set of K names
+        // (smell scan S5; #652 pooled them). This is a call, not a
+        // copy.
+        //
+        // The sense-invariance argument for the `normal` passed here is
+        // NOT restated: it is the contract of `sector_shape`'s `normal`
+        // parameter, which is the one place a caller has to read it.
+        // The value arrives typed, so it cannot be the wrong one.
+        let SectorShape {
+            arm,
+            unit_own: u_end,
+            unit_next: u_start,
+            bisector: bisec,
+        } = sector_shape(dir_end, dir_start, normal, he == next_he, band)
+            .map_err(|diag| BooleanError::Escalated { diag })?;
         match bisec {
             None => sectors.push(BoolSector {
                 he,
@@ -214,73 +206,55 @@ pub(super) fn build_sectors<T: Decide>(
     Ok(sectors)
 }
 
-/// The sector's face + outward normal at the base vertex. Planes take
-/// the stored normal (the M3 path); `Cylinder`/`Sphere` faces (M5
-/// PR 9) take the LOCAL chart normal at the vertex — the same
-/// convention the splitting lane's PR 5 sector machinery established.
-/// Kinds without a wired sector arm refuse typed (C12.1, per arm).
+/// The sector's face + outward normal at the base vertex.
 ///
-/// **Every arm is multiplied by the face's `sense_sign`** (S10): all
-/// three read a chart normal and hand it back as the face's OUTWARD
-/// normal, and the chart is the only encoding of orientation they
-/// have, so the sense bit is authoritative here. The plane arm gets
-/// it through [`face_plane`]; the curved arms multiply in place.
+/// The walk and the normals are [`crate::sector_face`] — ONE
+/// implementation, called from here and from the splitting lane's
+/// sector walk (smell scan S5). What stays here is this lane's
+/// adaptation of it, and only that: the boolean error type, whose
+/// every arm carries the [`Operand`] the shared walk has no notion of.
+/// All three wired arms — `Plane`, `Cylinder`, `Sphere` (M5 PR 9) —
+/// are live on this side; kinds without one refuse typed (C12.1, per
+/// arm).
 ///
-/// This function is the chokepoint for the whole vertex-vertex lane.
-/// Everything downstream of [`BoolSector::normal`] — `within`,
-/// `side_code`, `sector_overlap`, the wideness/bisector algebra above,
-/// `insert::germ_dir`, `vtxfac::pierce_germ_dir` — is then
-/// sense-invariant GIVEN this source, and must not multiply again:
-/// those sites pair the normal with the STORED orbit/loop traversal,
-/// which `revert` flips in the same breath as the sense bit, so a
-/// second factor would cancel the first and re-break what this fixes.
+/// The normal arrives as an [`OutwardNormal`] with the face's `sense`
+/// folded in (S10), minted at the shared chokepoint — which makes that
+/// chokepoint the source for the whole vertex-vertex lane. Everything
+/// downstream of [`BoolSector::normal`] — `within`, `side_code`,
+/// `sector_overlap`, the wideness/bisector algebra above,
+/// `insert::germ_dir`, `vtxfac::pierce_germ_dir` — is sense-invariant
+/// GIVEN this source and must not multiply again: those sites pair the
+/// normal with the STORED orbit/loop traversal, which `revert` flips in
+/// the same breath as the sense bit, so a second factor would cancel
+/// the first and re-break what this fixes.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(FaceKey, Vec3<T>), BooleanError> {
-    let mate = body.mate(he).ok_or_else(|| corrupt(operand, vertex))?;
-    let parent = body
-        .get_half_edge(mate)
-        .ok_or_else(|| corrupt(operand, vertex))?
-        .parent_loop;
-    let face = body
-        .get_loop(parent)
-        .ok_or_else(|| corrupt(operand, vertex))?
-        .face;
-    if let Some(plane) = face_plane(body, face) {
-        return Ok((face, plane.normal)); // outward: `face_plane` folded the sense in
-    }
-    let p = *body
-        .get_point(
-            body.get_vertex(vertex)
-                .ok_or_else(|| corrupt(operand, vertex))?
-                .point,
-        )
-        .ok_or_else(|| corrupt(operand, vertex))?;
-    let face_data = body
-        .get_face(face)
-        .ok_or_else(|| corrupt(operand, vertex))?;
-    let sense = face_data.sense_sign::<T>();
-    let surface = body
-        .get_surface(face_data.surface)
-        .ok_or_else(|| corrupt(operand, vertex))?;
-    match surface {
-        geom_surfaces::Surface::Cylinder { origin, axis, .. } => {
-            let w = p - *origin;
-            let radial = w - *axis * w.dot(*axis);
-            Ok((face, radial.normalize() * sense))
-        }
-        geom_surfaces::Surface::Sphere { center, .. } => {
-            Ok((face, (p - *center).normalize() * sense))
-        }
-        s => Err(BooleanError::CurvedBooleanUnsupported {
+) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
+    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+        // The shared walk names the entity that did not resolve; this
+        // lane's corruption arm carries the operand and a VERTEX, so
+        // the payload is narrowed here the same way the splitting
+        // lane's is — a vertex names itself, anything else falls back
+        // to the base vertex (issue #695).
+        SectorFaceError::Corrupt(EntityId::Vertex(v)) => corrupt(operand, v),
+        SectorFaceError::Corrupt(_) => corrupt(operand, vertex),
+        SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
-            kind: geom_brep::SurfaceKind::of(s),
-        }),
+            kind,
+        },
+    })?;
+    // Exhaustive on purpose, exactly as the splitting wrapper is: a
+    // fifth carrier arm added to the shared walk must be a compile
+    // error in BOTH lanes, not silently accepted by the one whose
+    // downstream algebra happens not to read the carrier.
+    match resolved.carrier {
+        SectorCarrier::Plane | SectorCarrier::Cylinder | SectorCarrier::Sphere => {}
     }
+    Ok((resolved.face, resolved.normal))
 }
 
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
@@ -297,11 +271,143 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 /// applied (module docs; the 15.7 sign resolution).
 pub(super) fn side_code<T: Decide>(
     dir: Vec3<T>,
-    face_normal: Vec3<T>,
+    face_normal: OutwardNormal<T>,
     arm: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     match enters_material(dir, face_normal, arm, band) {
+        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
+        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
+        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
+        Err(diag) => Err(BooleanError::Escalated { diag }),
+    }
+}
+
+/// The **second-order lump** of a declared-`Tangent` sector pair
+/// (CONTACT-DESIGN C7/C12.2 at the boolean lump sites): first-order
+/// data ties along a tangency by definition, so the side a
+/// geometrically-ON sector is treated on descends one order — which
+/// side does the sector's face CURVE to, relative to the other face's
+/// material?
+///
+/// The margin is the existing second-order sector trilean's
+/// (`tangent_sector_order2{,_arm}`,
+/// [`geom_brep::enters_material_order2`]): the
+/// relative transverse curvature of the two carriers — the departing
+/// transverse curve's acceleration on the sector's carrier measured
+/// RELATIVE to the other carrier's own curving, signed against the
+/// other face's outward normal — as the displacement it induces at
+/// the sector's lever arm. Against a plane the partner curvature is
+/// zero and the margin is the departure's own normal curvature (the
+/// trilean's documented planar reading, reached bit-identically).
+/// The transverse direction comes from the DEV-1 closed-form locus
+/// ([`super::rest::tangent_locus`], the same rows the door's witness
+/// derivation runs): the descent exists exactly where the witness
+/// lane reaches, and nowhere else.
+///
+/// Verdicts: definitely curving into the other body's material ⇒
+/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is the
+/// isolated osculating point whose residue the verified declaration
+/// bridges (C4's #175 clause) — the pair is locally conformal to
+/// every order the kernel measures, and the declaration's verified
+/// opposed material sides make that the Eq. 15.3 ⁻ lump; an in-band
+/// margin escalates (an osculating pair is a sliver at this ε — F6).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn tangent_lump<T: Decide>(
+    sector_surface: &geom::Surface<T>,
+    other_surface: &geom::Surface<T>,
+    other_outward: OutwardNormal<T>,
+    p: geom_core::Point3<T>,
+    op: super::BooleanOp,
+    on_side: Operand,
+    sector_face: FaceKey,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
+    let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
+        Ok(TangentLocus::Line { dir, .. }) => dir,
+        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+        // The sector pair read geometrically ON while the carriers are
+        // definitely apart or crossing: the same self-contradiction
+        // family as a coplanar sector with definitely-distinct planes.
+        Err(TangentLocusError::NotTangent { .. }) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "declared-Tangent sector pair with definitely non-tangent carriers",
+            });
+        }
+        // Outside the DEV-1 closed-form lane no witness exists and no
+        // descent does either — the C5 typed refusal, same as every
+        // unopened arm.
+        Err(TangentLocusError::Unsupported { .. }) => {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: on_side,
+                face: sector_face,
+                kind: geom_brep::SurfaceKind::of(sector_surface),
+            });
+        }
+    };
+    let n_ref = other_outward.vec();
+    // Transverse in-tangent-plane direction (the jet family's d̂ =
+    // n̂ × τ̂; quadratic consumption, so τ̂'s sign is immaterial).
+    let d_hat = n_ref.cross(locus_dir).normalize();
+    match tangent_relative_side(
+        sector_surface,
+        other_surface,
+        other_outward,
+        p,
+        d_hat,
+        arm,
+        band,
+    )? {
+        SideCode::In => Ok(SideCode::In),
+        SideCode::Out => Ok(SideCode::Out),
+        // The exact-zero osculating residue, bridged by the verified
+        // declaration (doc above): locally conformal with verified
+        // opposed senses IS the Eq. 15.3 ⁻ posture.
+        SideCode::On => Ok(super::tables::eq15_3_lump(
+            op,
+            on_side,
+            super::plane_eq::PlaneRelation::SameOpposite,
+        )),
+    }
+}
+
+/// **The per-direction second-order side** of a declared-`Tangent`
+/// sector pair: which side of the OTHER face's material does the
+/// sector's carrier lie on along direction `d` from the tie point —
+/// the relative graph-over-the-shared-tangent-plane acceleration
+/// `z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref)` differenced across the two
+/// carriers (the jet chain's own denominator-carries-the-sign
+/// construction), classified through the existing second-order
+/// trilean (rows `tangent_sector_order2{,_arm}`). `On` is the honest
+/// exact-zero: the direction rides the tangency locus (a curve on
+/// either carrier along it separates at no order this kernel
+/// measures) — the ON-direction machinery downstream adjudicates it,
+/// exactly as a first-order On flows to the recl edge engine.
+pub(super) fn tangent_relative_side<T: Decide>(
+    sector_surface: &geom::Surface<T>,
+    other_surface: &geom::Surface<T>,
+    other_outward: OutwardNormal<T>,
+    p: geom_core::Point3<T>,
+    d: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let n_ref = other_outward.vec();
+    let d_hat = d.normalize();
+    let graph_accel = |s: &geom::Surface<T>| {
+        let g = geom_brep::implicit_gradient(s, p);
+        T::zero() - geom_brep::implicit_hessian_form(s, p, d_hat) / g.dot(n_ref)
+    };
+    let rel_accel = graph_accel(sector_surface) - graph_accel(other_surface);
+    match geom_brep::enters_material_order2(
+        n_ref * rel_accel,
+        T::one(),
+        geom_brep::ReferenceNormal::of_face_outward(other_outward),
+        arm,
+        band,
+    ) {
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
         Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
@@ -338,8 +444,8 @@ pub(super) fn within<T: Decide>(
     strict: bool,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal), s.arm);
-    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal), s.arm);
+    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
+    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
     let t1 =
         decide("bool_sector_within", c1, band).map_err(|diag| BooleanError::Escalated { diag })?;
     let t2 =
@@ -403,7 +509,7 @@ pub(super) fn pair_search<T: Decide>(
     let mut records = Vec::new();
     for (i, sa) in a_sectors.iter().enumerate() {
         for (j, sb) in b_sectors.iter().enumerate() {
-            let int = sa.normal.cross(sb.normal);
+            let int = sa.normal.vec().cross(sb.normal.vec());
             let arm = sa.arm.min(sb.arm);
             let coplanar = match decide(
                 "bool_faces_parallel",
@@ -451,9 +557,10 @@ pub(super) fn pair_search<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// The 15.7 sign resolution, mirror-pinned (F3): against a face
@@ -463,7 +570,7 @@ mod tests {
     /// suspect side of ch. 15 erratum 4, resolved by derivation.
     #[test]
     fn mirror_check_side_codes() {
-        let n = Vec3::new(0.0, 0.0, 1.0);
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let b = band();
         assert_eq!(
             side_code(Vec3::new(0.3, 0.0, -1.0), n, 1.0, b).unwrap(),
@@ -487,7 +594,7 @@ mod tests {
             start_edge: true,
             end_edge: true,
             face: FaceKey::default(),
-            normal: Vec3::new(normal[0], normal[1], normal[2]),
+            normal: OutwardNormal::from_chart(Vec3::new(normal[0], normal[1], normal[2]), true),
             arm: 1.0,
         }
     }
@@ -536,5 +643,180 @@ mod tests {
         // n_a=+z > 0 ⇒ Out; B's end (+x): On.
         assert_eq!(r.sa, (SideCode::On, SideCode::Out));
         assert_eq!(r.sb, (SideCode::Out, SideCode::On));
+    }
+
+    // -----------------------------------------------------------------
+    // The second-order Tangent lump (M9-3 PR-A item 4): three-outcome
+    // honest on the existing `tangent_sector_order2` rows, driven on
+    // raw carriers through the DEV-1 locus.
+    // -----------------------------------------------------------------
+
+    fn plate_top() -> geom::Surface<f64> {
+        crate::fixtures::plane_surface(
+            geom_core::Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        )
+    }
+
+    /// A y-axis cylinder at height `zc`, radius `r`.
+    fn y_cyl(zc: f64, r: f64) -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: geom_core::Point3::new(2.0, 0.0, zc),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: r,
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        }
+    }
+
+    /// A cylinder resting ON a plate top (external tangency along the
+    /// ruling): the wall sector definitely curves AWAY from the
+    /// plate's material ⇒ Out; the mirrored question (the plate's
+    /// sector against the cylinder's material) is Out too.
+    #[test]
+    fn tangent_lump_external_tangency_is_out_both_ways() {
+        let b = band();
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        // The plate top's outward normal at the touch: +z.
+        let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let lump = tangent_lump(
+            &y_cyl(1.5, 0.5),
+            &plate_top(),
+            plate_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::B,
+            FaceKey::default(),
+            0.5,
+            b,
+        )
+        .unwrap();
+        assert_eq!(lump, SideCode::Out);
+        // The cylinder wall's outward normal at the bottom ruling: -z
+        // (radially away from the axis, solid wall).
+        let wall_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true);
+        let lump = tangent_lump(
+            &plate_top(),
+            &y_cyl(1.5, 0.5),
+            wall_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.5,
+            b,
+        )
+        .unwrap();
+        assert_eq!(lump, SideCode::Out);
+    }
+
+    /// Internal tangency with the sector INSIDE the other body's
+    /// material (a thin solid cylinder internally tangent inside a
+    /// fat one): the thin wall curves definitely INTO the fat one's
+    /// material ⇒ In.
+    #[test]
+    fn tangent_lump_nested_internal_tangency_is_in() {
+        let b = band();
+        // Fat solid cylinder r=0.5 about (x=2, z=1.5); thin r=0.25
+        // about (x=2, z=1.25); both touch z=1 at the shared ruling.
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        let fat_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true);
+        let lump = tangent_lump(
+            &y_cyl(1.25, 0.25),
+            &y_cyl(1.5, 0.5),
+            fat_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.25,
+            b,
+        )
+        .unwrap();
+        assert_eq!(lump, SideCode::In);
+    }
+
+    /// Three-outcome honesty on the metered row: the SAME external
+    /// tangency at three lever arms — definite (Out), in-band
+    /// (escalates, an osculating pair is a sliver at this ε), and
+    /// exactly-zero displacement (the isolated osculating residue the
+    /// verified declaration bridges: the Eq. 15.3 minus-lump, In for
+    /// a Union A-sector).
+    #[test]
+    fn tangent_lump_is_three_outcome_honest_on_the_arm() {
+        let b = band();
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let run = |arm: f64| {
+            tangent_lump(
+                &y_cyl(1.5, 0.5),
+                &plate_top(),
+                plate_out,
+                p,
+                super::super::BooleanOp::Union,
+                Operand::A,
+                FaceKey::default(),
+                arm,
+                b,
+            )
+        };
+        // sagitta = kappa_rel * arm^2 / 2 = arm^2 (kappa_rel = 2
+        // here), so the arms are derived from the run's band and the
+        // three rows hold at every sampled ε.
+        assert_eq!(run(0.5).unwrap(), SideCode::Out);
+        let inband_arm = (b.zero() * b.escalate()).sqrt().sqrt();
+        match run(inband_arm) {
+            Err(BooleanError::Escalated { diag }) => {
+                assert_eq!(diag.predicate, Some("tangent_sector_order2"));
+            }
+            other => panic!("an in-band sagitta must escalate: {other:?}"),
+        }
+        let zero_arm = (b.zero() * 0.5).sqrt();
+        assert_eq!(run(zero_arm).unwrap(), SideCode::In);
+    }
+
+    /// The self-contradiction and out-of-lane arms stay typed: a
+    /// definitely-apart pair at the lump site is the classification
+    /// invariant family; a kind pair outside the DEV-1 lane keeps the
+    /// C5 typed refusal.
+    #[test]
+    fn tangent_lump_refuses_typed_off_the_lane() {
+        let b = band();
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        match tangent_lump(
+            &y_cyl(2.5, 0.5),
+            &plate_top(),
+            plate_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.5,
+            b,
+        ) {
+            Err(BooleanError::ClassificationInvariant { .. }) => {}
+            other => panic!("definitely-apart carriers at a lump site: {other:?}"),
+        }
+        let sphere = geom::Surface::Sphere {
+            center: geom_core::Point3::new(2.0, 0.5, 2.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        match tangent_lump(
+            &sphere,
+            &plate_top(),
+            plate_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.5,
+            b,
+        ) {
+            Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
+            other => panic!("sphere tangency is outside the DEV-1 lane: {other:?}"),
+        }
     }
 }

@@ -12,17 +12,21 @@ scene order so the two sheets are cell-for-cell comparable.
 `--title=TEXT` overrides the sheet title (the wild-corpus sheet is not
 the demo tour, so it must not claim the tour's title). A scene
 whose render is missing gets a labeled placeholder cell (reason from
-<renderdir>/<name>.fail.txt when present) — never a silent gap.
+<renderdir>/<name>.fail.txt when present) — never a silent gap. A
+scene whose render exists but is deliberately EMPTY says so too, from
+<renderdir>/<name>.note.txt: a lane that had nothing to draw and a
+lane that wedged both produce a blank cell, and the two must not look
+the same.
 
 Usage: python compose_montage.py <outdir> <renderdir>
            [--montage=NAME] [--banner=TEXT] [--title=TEXT]
 """
 
-import json
 import sys
 import textwrap
 from pathlib import Path
 
+import manifest
 import matplotlib
 
 matplotlib.use("Agg")
@@ -62,6 +66,24 @@ def placeholder(ax, name, renderdir):
     )
 
 
+def note_stamp(ax, name, renderdir):
+    """Neutral stamp for a cell that is blank ON PURPOSE.
+
+    Deliberately NOT the failure placeholder: no box, no red, no
+    "FAILED". This cell is a gate the tour declared and pinned, not
+    something that went wrong, and a reader who cannot tell the two
+    apart learns the wrong thing from the sheet.
+    """
+    note = renderdir / f"{name}.note.txt"
+    if not note.exists():
+        return
+    ax.text(
+        0.5, 0.5, textwrap.fill(note.read_text().strip(), 34),
+        transform=ax.transAxes, ha="center", va="center",
+        fontsize=8, color="0.35", family="monospace", style="italic",
+    )
+
+
 def main():
     args = sys.argv[1:]
     montage_name = "montage.png"
@@ -78,21 +100,18 @@ def main():
         else:
             pos.append(a)
     outdir, renderdir = Path(pos[0]), Path(pos[1])
-    scenes = [
-        s
-        for s in json.loads((outdir / "scenes.json").read_text())
-        if s.get("montage", True)
-    ]
+    scenes = [s for s in manifest.read_scenes(outdir) if s.montage]
     rows = -(-len(scenes) // COLS)
     fig = plt.figure(figsize=(3.4 * COLS, 3.1 * rows), dpi=120)
     for i, scene in enumerate(scenes, start=1):
         ax = fig.add_subplot(rows, COLS, i)
-        png = renderdir / f"{scene['name']}.png"
+        png = renderdir / f"{scene.name}.png"
         if png.exists():
             ax.imshow(trim(plt.imread(png)))
+            note_stamp(ax, scene.name, renderdir)
         else:
-            placeholder(ax, scene["name"], renderdir)
-        ax.set_title(scene["caption"], fontsize=11, pad=3)
+            placeholder(ax, scene.name, renderdir)
+        ax.set_title(scene.caption, fontsize=11, pad=3)
         ax.set_axis_off()
     if banner:
         fig.suptitle(title, fontsize=15, y=0.995, va="top")

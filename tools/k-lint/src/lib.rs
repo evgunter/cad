@@ -57,11 +57,17 @@
 //!
 //! These rows are a SNAPSHOT at the head where they were cut, not a
 //! mirror of main — same contract as `m4-*` and `m5-*`. A fresh sweep
-//! at a later main can carry additional predicates (e.g.
-//! `path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m) and still
-//! lint 0 at every row; the baseline is re-cut when the DISTRIBUTION
-//! moves — a new floor, a filled gap, an ε-coupled family — not on
-//! every merge.
+//! at a later main can therefore disagree with the baseline's ROSTER in
+//! both directions, and has: it can carry predicates the baseline never
+//! saw (`path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m), and
+//! since #661 pooled the six `bool_sector_*` / `split_sector_*` names
+//! into `sector_{arm,reflex,straight}` it also DROPS six the baseline
+//! still lists — 233 committed here, 231 at today's main. Neither
+//! direction reaches this lint, which lints the fresh rows it was
+//! handed and never compares them to the committed files; the thresholds
+//! below are the only thing the baseline supplies. The baseline is
+//! re-cut when the DISTRIBUTION moves — a new floor, a filled gap, an
+//! ε-coupled family — not on every merge and not on a rename.
 //!
 //! The ε-INDEPENDENT distribution is still sharply bimodal (full
 //! histogram: docs/K-REPORT.md, M7 addendum) — 1,348,461 ambient

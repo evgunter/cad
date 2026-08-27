@@ -8,17 +8,34 @@
 #   local-scripts/render-hosted.sh --on-demand          # render fresh instead
 #   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
 #
-# TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
-# branch renders all four lanes and gates them (ci.yml's `renders` job
-# calls render.yml with `gate: true`), so once your branch has a CI run
-# the frames already exist — a dispatch would render the same tree a
-# second time, for ~5 more runner-minutes and no new information.
-# `--on-demand` is for what CI has not covered: an unpushed branch, no
-# CI run yet, or a deliberate re-render at a different scene budget.
+# FIRST, THE SHORT ANSWER: YOU PROBABLY WANT `git pull`, NOT THIS
+# SCRIPT (2026-08-17). CI now RE-BASELINES all four lanes itself. A PR
+# run whose render differs REPORTS it with a neutral check ("!", not
+# "x") naming the cells; main's own run then COMMITS them. So the frames
+# arrive by merging and pulling, not by installing. So the ordinary flow is: push, wait for CI, `git pull`,
+# look at the frames. Nothing to download, nothing to install.
 #
-# It takes the CI run WHATEVER ITS CONCLUSION. A stale committed lane is
-# what makes the render gate fail, so the failing run is precisely the
-# one whose artifact you want; lanes upload before the gate compares.
+# ALL FOUR LANES RE-BASELINE, uv included — there is no lane left that
+# needs a manual install after an ordinary CI run. What this script is
+# still genuinely good for on a PR: LOOKING at the new cells before you
+# merge, since the PR run reports them rather than committing them.
+#
+# WHAT THIS SCRIPT IS STILL FOR:
+#   * A DISPATCH AIMED AT A BARE SHA, which has no branch to commit to;
+#     those runs report the drift and name this command, as before.
+#   * `--on-demand` renders CI has not covered: an unpushed branch, no
+#     CI run yet, or a deliberate re-render at a different scene budget.
+#   * `--verify`, the byte-exactness round trip (see below).
+#
+# TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
+# branch renders all four lanes (ci.yml's `renders` job calls
+# render.yml), so once your branch has a CI run the frames already
+# exist — a dispatch would render the same tree a second time, for ~5
+# more runner-minutes and no new information.
+#
+# It takes the CI run WHATEVER ITS CONCLUSION: a run can still fail for
+# a wedged pass or the matplotlib-fallback assertion, and lanes upload
+# before any of that is decided, so the artifact is there either way.
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).
@@ -58,17 +75,28 @@ RUN_ID=""
 ON_DEMAND=0
 # The lane jobs, by the name each ends with. A dispatched render.yml run
 # names them exactly; called from ci.yml they arrive prefixed ("render
-# lanes / kernel montage"), so the match is on the SUFFIX and one list
-# serves both. This is what lets the poll wait for the render rather
-# than for a whole CI run — the lanes settle in ~3 minutes, CI in ~12.
-RENDER_JOBS_RE='(demo tour \(scene inputs\)|uv trim-loop sheet|kernel montage|freecad montage|wild-corpus montage)$'
+# lanes / freecad montages (kernel + freecad)"), so the match is on the
+# SUFFIX and one list serves both. This is what lets the poll wait for the
+# render rather than for a whole CI run — the lanes settle in ~3 minutes,
+# CI in ~12.
+#
+# TWO JOBS, FIVE LANES (2026-08-22). render.yml merged its five lane jobs
+# into two — the three renderer-free ones into `scene inputs + uv sheet +
+# wild montage`, the two FreeCAD ones into `freecad montages (kernel +
+# freecad)` — to stop paying five runner setups, two 821 MB FreeCAD cache
+# restores and two apt installs for work that shares all of it. Every lane
+# still uploads its own artifact under its own name, which is what the
+# download path below actually keys on; this regex only decides which jobs
+# the PROGRESS DISPLAY waits for and reports.
+RENDER_JOBS_RE='(scene inputs \+ uv sheet \+ wild montage|freecad montages \(kernel \+ freecad\))$'
 REF=""
 SCENE_TIMEOUT=""
 INSTALL=1
 VERIFY=0
-# Outer stop. The FreeCAD legs are capped at 90 min by the workflow, the
-# tour at 45; queueing on top of that is the slack.
-POLL_BUDGET_MIN=150
+# Outer stop. The merged FreeCAD job is capped at 150 min by the workflow
+# (two lanes on one runner) and the scene-inputs job at 75; queueing on top
+# of that is the slack.
+POLL_BUDGET_MIN=200
 POLL_INTERVAL=20
 
 usage() {
@@ -144,17 +172,23 @@ lanes_of() {
 # ------------------------------------------------------- take CI's render
 
 # THE DEFAULT IS TO TAKE, NOT TO RENDER. ci.yml's `renders` job calls
-# render.yml as a gate on every push that builds anything, so a pushed
-# branch's newest CI run already holds all four lanes' artifacts — the
-# same bytes a dispatch would produce, from the same pipeline, at no
-# extra runner cost. Rendering again would render the same tree twice,
-# so that is the flag (`--on-demand`) and this is the default.
+# render.yml on every push that builds anything, so a pushed branch's
+# newest CI run already holds all four lanes' artifacts — the same
+# bytes a dispatch would produce, from the same pipeline, at no extra
+# runner cost. Rendering again would render the same tree twice, so
+# that is the flag (`--on-demand`) and this is the default.
+#
+# NOTE THAT TAKING IS USUALLY UNNECESSARY NOW (2026-08-17): a lane that
+# drifted has already been re-baselined and COMMITTED by that same run,
+# so `git pull` gets you the frames and this script gets you a copy of
+# what you already have. What is left for it: a bare-SHA dispatch (no
+# branch to commit to), `--verify`, `--no-install`, and pulling a
+# specific run's bytes for comparison.
 #
 # The run is taken WHATEVER ITS CONCLUSION, which is the point rather
-# than a leniency: a render gate fails precisely when the committed lane
-# is stale, and that run's artifact is what makes it current. The
-# artifacts are uploaded before the gate step runs, so a failed gate
-# still has them.
+# than a leniency: a run can still fail on a wedged pass or the
+# matplotlib-fallback assertion, and the artifacts are uploaded before
+# any of that is decided, so a failed run still has them.
 if [ "$ON_DEMAND" = 0 ] && [ -z "$RUN_ID" ]; then
     if [ -z "$REF" ]; then
         REF="$(git rev-parse --abbrev-ref HEAD)"

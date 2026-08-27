@@ -11,8 +11,8 @@
 //! | `Split`        | full — `above` / `below` as optional bodies |
 //! | `Instances`    | full — a list of bodies |
 //! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
-//! | `Profile`      | KIND ONLY — LQ4 forbids shipping sketch geometry to Python before the v2 switch |
-//! | `Declarations` | KIND ONLY — SEL1/U5 owns the naming projection; deferred, not blocked |
+//! | `Profile`      | KIND ONLY — sketch geometry does not ship to Python before the v2 switch |
+//! | `Declarations` | KIND ONLY — the naming projection is deferred, not blocked |
 //!
 //! The two kind-only rows are SCOPE decisions, not capability limits.
 //! Being precise about which, because the distinction is load-bearing:
@@ -20,17 +20,13 @@
 //! * `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
 //!   wholesale re-exported — this very module's sibling uses
 //!   `pncad::profile` to build sketches. Projecting a profile back to
-//!   Python is therefore perfectly possible; it is **ruled out**, by
-//!   LQ4's "Python never ships the opaque-profile intermediate
-//!   state". Sketch read-back belongs to the unit that binds the v2
-//!   program representation, after SWITCH-E.
+//!   Python is therefore perfectly possible; it is **ruled out**:
+//!   Python never ships the opaque-profile intermediate state.
+//!   Sketch read-back belongs with the v2 program representation.
 //! * `StableName` is likewise prelude-curated with public fields, so
-//!   Declarations is reachable too. It is deferred because the naming
-//!   /selection projection is SEL1's subject, and binding a
-//!   provisional shape here would fork it.
-//!
-//! Neither row is "no accessor exists"; an earlier revision of this
-//! comment claimed that, and it was false.
+//!   Declarations is reachable too. It is deferred because the
+//!   naming/selection projection is a design subject of its own, and
+//!   binding a provisional shape here would fork it.
 
 use std::sync::Arc;
 
@@ -40,8 +36,9 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{export_error_tag, node_error_tag};
+use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
+use pncad::tolerance::Tol;
 use pncad::topo;
 
 /// Raise `EvaluationError` with a stable `reason` tag.
@@ -49,8 +46,8 @@ use pncad::topo;
 /// `kind`, `through` and `finding` are ALWAYS present on the
 /// exception — `None` where the reason has no failing kind, no
 /// poisoning ancestor, or no refusal-menu payload — so stub-guided
-/// code can read them without an `AttributeError` trap (the R1/R2
-/// NOTE on over-promising stubs).
+/// code can read them without an `AttributeError` trap — a stub that
+/// over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -74,14 +71,13 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
 
 /// Raise `EvaluationError` for a node that ITSELF failed: the payload
 /// is the `NodeErrorKind`'s stable tag plus the node id; the message
-/// is the kernel error's own `Display` prose (F6, reopened on
-/// review — never a `Debug` dump).
+/// is the kernel error's own `Display` prose — never a `Debug` dump.
 fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
     };
-    // The refusal MENU (register R3, LIB-PYG5): an undeclared-contact
+    // The refusal MENU: an undeclared-contact
     // refusal carries its candidate declaration as a typed
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
@@ -133,7 +129,7 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("through", through_obj),
         ("finding", py.None().into_any()),
     ];
-    // The message is the root cause's `Display` prose (F6): the node
+    // The message is the root cause's `Display` prose: the node
     // never ran, so the honest sentence names the ancestor's problem.
     let message = match root {
         Some(error) => {
@@ -186,7 +182,7 @@ impl MassProperties {
 
 /// A solid body — an OPAQUE handle.
 ///
-/// §L3 forbids arena keys crossing; a body crosses as a handle whose
+/// Arena keys never cross; a body crosses as a handle whose
 /// interior is reachable only through curated doors.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -198,11 +194,12 @@ pub(crate) struct Body {
 impl Body {
     /// Volume, area, and their certified pads.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        let props = topo::mass_properties(&self.inner).map_err(|err| {
+        let tol = Tol::witness();
+        let props = topo::mass_properties(&self.inner, tol).map_err(|err| {
             typed_err(
                 py,
                 ErrorClass::Validation,
-                format!("{err:?}"),
+                err.to_string(),
                 &[(
                     "reason",
                     PyString::new(py, "mass_properties_failed")
@@ -231,10 +228,11 @@ impl Body {
 
     /// Geometric validation only.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
+        let tol = Tol::witness();
         self.run_validator(
             py,
             "validate_geometric",
-            topo::validate_geometric(&self.inner),
+            topo::validate_geometric(&self.inner, tol),
         )
     }
 }
@@ -243,11 +241,14 @@ impl Body {
     /// Shared shape for the validator doors, which all return
     /// `Result<(), Vec<ValidationError>>`.
     ///
-    /// `ValidationError` has no `Display` and no curated tag mapping,
-    /// so the exception carries the failure COUNT as structured data
-    /// and the `Debug` rendering as the human message. Per-variant
-    /// tags are the same mechanical work `crate::tags` does for edits,
-    /// deferred with the rest of the read-back surface.
+    /// `ValidationError` has no curated tag mapping, so the exception
+    /// carries the failure COUNT as structured data and a rendering of
+    /// the whole list as the human message. Per-variant tags are the
+    /// same mechanical work `crate::tags` does for edits, deferred
+    /// with the rest of the read-back surface — and so is the choice
+    /// to render the list with `Debug`: the enum does implement
+    /// `Display`, one prose sentence with recourse per finding, and
+    /// nothing composes it here.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -425,7 +426,7 @@ impl Value {
     }
 }
 
-/// The result of evaluating a document: the GQ2 per-node result DAG.
+/// The result of evaluating a document: the per-node result DAG.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
     inner: d::Evaluation<f64>,
@@ -443,7 +444,7 @@ impl Evaluation {
     /// The node's successful value.
     ///
     /// A node that produced NO value raises with the REAL typed cause
-    /// (LIB-DOORS F3; the U9S `no_value` placeholder is gone):
+    /// — never a placeholder:
     /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
     /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
     /// and the message renders the kernel's own `NodeError`.
@@ -478,7 +479,7 @@ impl Evaluation {
     }
 
     /// **Every edge name of `node`'s output body, as of THIS
-    /// evaluation** — the U7 materializer, crossing as text.
+    /// evaluation** — the name materializer, crossing as text.
     ///
     /// This is the door a `Node.fillet` selection comes through, and
     /// it MATERIALIZES rather than queries: it answers for the
@@ -490,7 +491,7 @@ impl Evaluation {
     /// The answer is the WHOLE kind, and each string is an OPAQUE
     /// identifier: its internal structure is not API (see
     /// `doc::name_text`), so narrowing the set is a SELECTOR's job —
-    /// [`Self::select`] and [`Self::select_where`] (LIB-PYSEL), which
+    /// [`Self::select`] and [`Self::select_where`], which
     /// answer in the same alphabet.
     ///
     /// Empty when the node has no value, no name table, or no edges.
@@ -524,8 +525,8 @@ impl Evaluation {
     ///
     /// The answer is the same opaque texts the whole-kind
     /// materializers speak, ready for `Node.fillet` unread: narrowing
-    /// happens through this door, never by parsing a name (the
-    /// ordinal-28 ruling — name text is an identifier, not a value).
+    /// happens through this door, never by parsing a name (name text
+    /// is an identifier, not a value).
     ///
     /// Infallible like `select`: empty when `node` has no value, no
     /// name table, or nothing matches.
@@ -546,8 +547,8 @@ impl Evaluation {
     /// concatenate for a geometric union.
     ///
     /// Same materializer contract and same opaque-text alphabet as
-    /// [`Self::select`] (the ordinal-28 ruling: the binding narrows,
-    /// your code never reads inside a name).
+    /// [`Self::select`]: the binding narrows, your code never reads
+    /// inside a name.
     ///
     /// Raises `SelectRefusal`, typed, where the Rust door refuses:
     /// exact atoms are total and cannot refuse, but a DECIDED atom's
@@ -563,8 +564,16 @@ impl Evaluation {
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
+        let tol = Tol::witness();
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
-        match pncad::select::select_where(&self.inner, node.0, &selector.0, &atoms, &self.params) {
+        match pncad::select::select_where(
+            &self.inner,
+            node.0,
+            &selector.0,
+            &atoms,
+            &self.params,
+            tol,
+        ) {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
         }
@@ -572,8 +581,8 @@ impl Evaluation {
 
     /// **The cross-body flush-plane candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
-    /// detect/declare protocol (SELECT-DESIGN §3; LIB-PYG5, audit
-    /// G5): the C4 verifier run in candidate-generation mode, so a
+    /// detect/declare protocol: the verifier run in
+    /// candidate-generation mode, so a
     /// finding can never disagree with the boolean's own
     /// verify-at-use.
     ///
@@ -597,7 +606,8 @@ impl Evaluation {
         a: &NodeId,
         b: &NodeId,
     ) -> PyResult<Vec<super::flush::FlushFinding>> {
-        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0) {
+        let tol = Tol::witness();
+        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0, tol) {
             Ok(findings) => Ok(findings
                 .into_iter()
                 .map(super::flush::FlushFinding)
@@ -619,8 +629,8 @@ impl Evaluation {
     }
 
     /// Export the single body `node` denotes as a STEP (AP214 Part 21)
-    /// exchange-file string (LIB-DOORS F2: the document-layer export
-    /// door, `pncad::export::step_for_node` — one construction site
+    /// exchange-file string (the document-layer export door,
+    /// `pncad::export::step_for_node` — one construction site
     /// for "which body does this node denote", shared with Rust).
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
@@ -632,11 +642,12 @@ impl Evaluation {
         node: &NodeId,
         product_name: Option<String>,
     ) -> PyResult<String> {
+        let tol = Tol::witness();
         let mut options = pncad::step_export::StepOptions::default();
         if let Some(name) = product_name {
             options.product_name = name;
         }
-        pncad::export::step_for_node(&self.inner, node.0, &options)
+        pncad::export::step_for_node(&self.inner, node.0, &options, tol)
             .map_err(|err| export_err(py, *node, &err))
     }
 
@@ -674,9 +685,9 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
-        // `Product` is the WHOLE-DOCUMENT door's refusal (ASM-ROOTS
-        // D-4): it names product roots, not this call's node, so it
-        // adds no field here. The arm is spelled out because the match
+        // `Product` is the WHOLE-DOCUMENT door's refusal: it names
+        // product roots, not this call's node, so it adds no field
+        // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::UnknownNode { .. }
         | E::NodeFailed { .. }
@@ -688,15 +699,22 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
 }
 
 /// Parse a STEP text with the kernel's own importer and adopt its
-/// solid as an opaque `Body` handle — the §L3 journey's round-trip
+/// solid as an opaque `Body` handle — the one-shot journey's round-trip
 /// oracle ("the exported file PARSES"), bound so the Python suite can
 /// assert it without reaching past the module.
 #[pyfunction]
 pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
-    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default()) {
+    let tol = Tol::witness();
+    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
+    {
         Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
             inner: Arc::new(body),
         }),
+        // Not a refusal variant: the import SUCCEEDED and produced
+        // the other arm of `StepImport`, which this door does not
+        // adopt. Its tag is the arm's name and shares the namespace
+        // with `step_import_error_tag`'s, which contains no
+        // `wireframe`.
         Ok(pncad::step_import::StepImport::Wireframe { .. }) => Err(typed_err(
             py,
             ErrorClass::StepImport,
@@ -706,11 +724,21 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
                 PyString::new(py, "wireframe").unbind().into_any(),
             )],
         )),
+        // The tag is the importer's own, through `crate::tags`. Every
+        // arm of `StepImportError` is reachable here, and the entity
+        // id and line that would tell them apart live in the message
+        // prose — so one literal for all twenty-one would make them
+        // indistinguishable to a caller.
         Err(err) => Err(typed_err(
             py,
             ErrorClass::StepImport,
-            format!("{err:?}"),
-            &[("variant", PyString::new(py, "refused").unbind().into_any())],
+            err.to_string(),
+            &[(
+                "variant",
+                PyString::new(py, step_import_error_tag(&err))
+                    .unbind()
+                    .into_any(),
+            )],
         )),
     }
 }
@@ -721,12 +749,14 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 /// failed — ask the returned object.
 #[pyfunction]
 pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
+    let tol = Tol::witness();
     Evaluation {
         inner: d::evaluate::<f64>(
             &doc.inner,
             None,
             &d::CancelToken::new(),
             &d::EvalOptions::default(),
+            tol,
         ),
         params: doc.inner.param_env::<f64>(),
     }

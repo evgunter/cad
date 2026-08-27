@@ -6,21 +6,27 @@ declares unrepresentable, plus the typed-quantity boundary.
 """
 
 from pncad import (
+    ArcSide,
+    Bulge,
     Cmp,
     CurveKind,
     Doc,
+    DocEdit,
     EntityKind,
+    Frame,
     GeomPred,
     NamePat,
     Node,
     NodeId,
     Open,
+    PatternKind,
     SegPat,
     SegTag,
     Selector,
     SketchPlane,
     Start,
     SurfaceKind,
+    Sweep,
     circle,
     deg,
     evaluate,
@@ -124,9 +130,15 @@ evaluate(doc).select(solid, NamePat.any())  # ty: error
 # Patterns are immutable values: the builder verbs return NEW ones.
 NamePat.any().kind = EntityKind.Edge  # ty: error
 
-# `at_toward` is the fillet ARRIVAL door: a plain point's angle slot is
-# bound by `.angle`/`.toward`, and there is no pending fillet to resolve.
-Open.at((0 * mm, 0 * mm)).at_toward((1 * mm, 0 * mm), 1.0, 0.0)  # ty: error
+# The endpoint-FREE modes need a departure tangent to sweep about, so
+# they are not among the modes a bare point admits: the pair is a
+# missing row of the matrix, not a refusal.
+Open.at((0 * mm, 0 * mm)).arc_to(Sweep(1 * mm, ArcSide.Left, 90 * deg))  # ty: error
+
+# `Bulge` is chord-relative, so it is not an ARRIVAL mode: an arrival
+# has no chord yet.
+_open_fillet = Open.at((0 * mm, 0 * mm)).toward(1.0, 0.0)
+_open_fillet.fillet_arc(1 * mm, Bulge((5 * mm, 5 * mm), 0.5))  # ty: error
 
 # LIB-PYG5. The declare doors take FINDINGS — values from the
 # detector — never name text or bare pairs; the detector takes node
@@ -135,3 +147,23 @@ doc.declare_all(["some-name-text", "another"])  # ty: error
 doc.declare("name-text")  # ty: error
 Node.declare([("a", "b")])  # ty: error
 evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
+
+# LIB-PYPU. A spacing is a Length, not a bare number: the typed
+# quantity is the whole point of the boundary.
+PatternKind.linear((1.0, 0.0, 0.0), 0.5)  # ty: error
+
+# A rule is a PatternKind; a Frame is a placement, not a rule.
+Node.placed_union(solid, 5, Frame.translation((0 * m, 0 * m, 0 * m)))  # ty: error
+
+# The explicit door lists FRAMES, never raw coordinate triples.
+Node.placed_union_at(solid, [(0 * m, 0 * m, 0 * m)])  # ty: error
+
+# A frame's translation reads back dimensioned, and it is READ-ONLY:
+# the value is frozen.
+Frame.translation((0 * m, 0 * m, 0 * m)).origin = (1 * m, 0 * m, 0 * m)  # ty: error
+
+# The count is the STRUCTURAL slot's integer, not a Length.
+Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: error
+
+# The narrowed count edit takes a ParamName, never bare text.
+DocEdit.bind_count_param(solid, "fins")  # ty: error

@@ -114,6 +114,12 @@ pub enum DimensionError {
     /// A persisted display-unit symbol outside quantity's closed table
     /// (the load door's strict-vocabulary refusal; the wire form stores
     /// the symbol as text).
+    ///
+    /// Raised at exactly one place — `persist::wire`'s rebuild, where
+    /// the symbol arrives as a STRING out of a file and
+    /// `quantity::unit_by_symbol` can genuinely fail. Construction
+    /// cannot raise it: since #650 sealed `quantity::UnitDef`, every
+    /// row a caller can hold is a table row.
     UnknownDisplayUnit {
         /// The unrecognized symbol.
         symbol: String,
@@ -182,49 +188,118 @@ pub struct Expr {
 /// `Expr` by ~40 bytes and tripped `large_enum_variant` on
 /// `DocEdit::InsertNode`; the ROW is derivable from the identity, so
 /// the identity is what is stored — resolved back through
-/// [`Lit::unit_def`] at every read).
+/// [`Lit::unit_def`] at every read. That measurement is pinned by the
+/// `size_of::<Lit>()` assertion below.)
+///
+/// The identity is the row's POSITION in [`quantity::UNITS`], not a
+/// second spelling of the six units: no unit symbol is written as CODE
+/// anywhere in this crate's `src`, and both directions here go
+/// through the table, so there is no mirror to hand-sync.
+///
+/// What that buys, exactly — the promise is narrower than "no edit
+/// anywhere", and this crate's own tests say so. Re-checked against the
+/// suites as they stand:
+///
+/// * **Reordered** in `quantity`: no edit at all, in `src` or in the
+///   suites. Nothing here holds an opinion about the order —
+///   `switch_display_units.rs`'s wire golden deliberately compares
+///   membership as a SET so that stays true. (It is not silent either:
+///   `quantity`'s own suite pins the six symbols IN ORDER, so a reorder
+///   is a decision taken there rather than a surprise here.)
+/// * **Added**: no edit to `src`. In the suites,
+///   `switch_display_units.rs`'s wire golden goes red — deliberately,
+///   so a new unit cannot land unpinned. `tests/u8a_parse.rs`'s two
+///   proptest generators enumerate the six symbols by hand and do NOT
+///   go red; they silently under-cover, so they want an edit that
+///   nothing announces.
+/// * **Renamed**: no edit to `src`. `u8a_parse.rs`'s generators go red
+///   (the old symbol stops parsing), and so do
+///   `switch_display_units.rs`'s golden and its `table_row` fixtures.
+///
+/// The index carries **no compatibility contract**: it is never
+/// persisted (the wire stores the SYMBOL — `persist::wire`), never
+/// enters expression identity, keys or [`Expr::literal_bits`] (D7),
+/// and is minted afresh at every construction and load.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UnitSym {
-    /// `quantity::MM`.
-    Mm,
-    /// `quantity::CM`.
-    Cm,
-    /// `quantity::M`.
-    M,
-    /// `quantity::IN`.
-    In,
-    /// `quantity::DEG`.
-    Deg,
-    /// `quantity::RAD`.
-    Rad,
-}
+pub(crate) struct UnitSym(u8);
+
+// The code is one byte, so the table it indexes must fit in one. Six
+// rows today; a table that grew past 255 rows fails the BUILD here.
+// Nothing would truncate without it — `from_def`'s `u8::try_from`
+// refuses — but that refusal is an `unreachable!`, i.e. a crash rather
+// than a wrong answer. Failing the BUILD is the only answer that is
+// neither.
+const _: () = assert!(
+    quantity::UNITS.len() <= u8::MAX as usize,
+    "the display-unit code is one byte: this table has outgrown its code space"
+);
 
 impl UnitSym {
     /// The table row this code names.
     fn def(self) -> quantity::UnitDef {
-        match self {
-            Self::Mm => quantity::MM.def(),
-            Self::Cm => quantity::CM.def(),
-            Self::M => quantity::M.def(),
-            Self::In => quantity::IN.def(),
-            Self::Deg => quantity::DEG.def(),
-            Self::Rad => quantity::RAD.def(),
-        }
+        // Total: the index is minted only by `from_def`, as a position
+        // in the very table indexed here, and the field is private to
+        // this module, so out of range is unconstructable — this is
+        // not `Span`'s shape (S14), where a `pub` type with a `pub`
+        // constructor made the invalid state reachable by misuse.
+        // Out of range would therefore be a kernel bug observable in a
+        // branch: D2 addendum row 4, `unreachable!` with a message
+        // rather than `index out of bounds: the len is 6 ...`.
+        let Some(row) = quantity::UNITS.get(usize::from(self.0)) else {
+            unreachable!(
+                "display-unit code {} is not a row of quantity::UNITS ({} rows), yet the \
+                 code is minted only by `from_def`, as a position in this very table, and \
+                 `UnitSym`'s field is private to this module",
+                self.0,
+                quantity::UNITS.len()
+            )
+        };
+        *row
     }
 
-    /// The code for a table row, by symbol — `None` for a `UnitDef`
-    /// outside the closed table (refused by the caller as an unknown
-    /// unit; the vocabulary stays closed).
-    fn from_def(u: &quantity::UnitDef) -> Option<Self> {
-        match u.symbol {
-            "mm" => Some(Self::Mm),
-            "cm" => Some(Self::Cm),
-            "m" => Some(Self::M),
-            "in" => Some(Self::In),
-            "deg" => Some(Self::Deg),
-            "rad" => Some(Self::Rad),
-            _ => None,
-        }
+    /// The code for a table row, by symbol — TOTAL, exactly as
+    /// [`Self::def`] is total in the other direction.
+    ///
+    /// **Symbol-keyed is sufficient because the symbol DETERMINES the
+    /// row (issue #650, closed structurally).** Every `UnitDef` a
+    /// caller can hold is a COPY OF A TABLE ROW — the seal, and why no
+    /// whole-row re-check was added here, are stated once on
+    /// [`quantity::UnitDef`]'s rustdoc. So matching on `symbol` alone
+    /// selects the row the caller already had, and it always finds one.
+    ///
+    /// Both impossible branches take D2 addendum row 4, the same answer
+    /// [`Self::def`] takes for its unconstructable index: a check for a
+    /// state the type system excludes is dead code pretending to be a
+    /// guard, so the state is announced as a kernel bug rather than
+    /// carried as a typed refusal a caller could believe in.
+    ///
+    /// [`DimensionError::UnknownDisplayUnit`] is NOT dead — it is
+    /// raised by `persist::wire`, where a display-unit SYMBOL arrives
+    /// as a string out of a file and `quantity::unit_by_symbol` really
+    /// can fail. That is the one reachable, input-driven off-table
+    /// case, and it keeps its typed refusal (D2 addendum row 1). What
+    /// went away is the CONSTRUCTION site of that variant, which could
+    /// only fire for a `UnitDef` no caller can build.
+    fn from_def(u: &quantity::UnitDef) -> Self {
+        let Some(i) = quantity::UNITS
+            .iter()
+            .position(|row| row.symbol() == u.symbol())
+        else {
+            unreachable!(
+                "display unit {:?} is not a row of quantity::UNITS ({} rows), yet UnitDef is \
+                 sealed and every row a caller can hold is a copy of one",
+                u.symbol(),
+                quantity::UNITS.len()
+            )
+        };
+        // The const assertion above bounds the table at 255 rows, so
+        // this conversion cannot refuse either — same row 4.
+        let Ok(code) = u8::try_from(i) else {
+            unreachable!(
+                "quantity::UNITS is pinned to at most u8::MAX rows, yet row {i} has no one-byte code"
+            )
+        };
+        Self(code)
     }
 }
 
@@ -244,6 +319,35 @@ pub(crate) struct Lit {
     pub(crate) display_unit: Option<UnitSym>,
 }
 
+// PR #291 MAJOR-2, as a compile-time row rather than a remembered
+// measurement: `Lit` stores the one-byte CODE, never the row.
+// Inlining `quantity::UnitDef` (32 bytes) into this struct took it to
+// 40 and grew every `Expr` with it, tripping `large_enum_variant` on
+// `DocEdit::InsertNode`.
+//
+// What this pin adds, stated precisely: the ORIGINAL detector is
+// still armed — `large_enum_variant` is default-on in clippy's `perf`
+// group and CI runs `cargo clippy --workspace --all-targets -D
+// warnings` — so a repeat was never entirely unguarded. What is
+// unguarded is the MARGIN. Whether a regrowth re-crosses that lint's
+// 200-byte threshold depends on `DocEdit`'s size, which nothing
+// tracks, and `Lit` is a struct, so it trips no enum lint on its own.
+// This assertion moves the guard onto the thing that actually
+// regressed, and makes it exact rather than threshold-dependent.
+//
+// It pins the PADDED size, and claims no more: re-inlining the row
+// goes red here, and so does any growth past 16 bytes, but the six
+// padding bytes beside the one-byte code are free (adding a
+// `[u8; 6]` field here still compiles).
+//
+// (`Expr` itself is not pinned: its size is the largest `ExprKind`
+// variant and moves for unrelated reasons. `Lit` is where the
+// regression would enter.)
+const _: () = assert!(
+    core::mem::size_of::<Lit>() == 16,
+    "a literal is one f64 plus a one-byte display-unit code"
+);
+
 impl Lit {
     /// The stored unit's table row, if any.
     pub(crate) fn unit_def(&self) -> Option<quantity::UnitDef> {
@@ -259,6 +363,44 @@ impl PartialEq for Lit {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
     }
+}
+
+/// The two-operand [`ExprKind`] variants, as a PATTERN taking the two
+/// operand sub-patterns.
+///
+/// Four matches partition `ExprKind` by arity — `Expr::child`'s two
+/// arms, `param_refs` and `literal_bits` — and each wrote the same
+/// seven names out. Sharing them as patterns keeps every one of those
+/// matches exhaustive: a new variant absent from this macro breaks all
+/// four builds, and its arity is one decision at one site.
+macro_rules! binary_kind {
+    ($a:pat, $b:pat) => {
+        ExprKind::Add($a, $b)
+            | ExprKind::Sub($a, $b)
+            | ExprKind::Mul($a, $b)
+            | ExprKind::Div($a, $b)
+            | ExprKind::Atan2($a, $b)
+            | ExprKind::Min($a, $b)
+            | ExprKind::Max($a, $b)
+    };
+}
+
+/// The one-operand [`ExprKind`] variants — see [`binary_kind`].
+macro_rules! unary_kind {
+    ($a:pat) => {
+        ExprKind::Neg($a)
+            | ExprKind::Sin($a)
+            | ExprKind::Cos($a)
+            | ExprKind::Tan($a)
+            | ExprKind::CountToScalar($a)
+    };
+}
+
+/// The zero-operand (leaf) [`ExprKind`] variants — see [`binary_kind`].
+macro_rules! leaf_kind {
+    () => {
+        ExprKind::Literal(_) | ExprKind::CountLiteral(_) | ExprKind::Param(_)
+    };
 }
 
 /// The node vocabulary of the AST (private: constructors check dims).
@@ -361,7 +503,7 @@ impl Expr {
         dim: Dimension,
         unit: quantity::UnitDef,
     ) -> Result<Self, DimensionError> {
-        let unit_dim = match unit.quantity {
+        let unit_dim = match unit.quantity() {
             quantity::UnitQuantity::Length => Dimension::Length,
             quantity::UnitQuantity::Angle => Dimension::Angle,
         };
@@ -371,10 +513,9 @@ impl Expr {
                 literal: dim,
             });
         }
-        // The closed-vocabulary door: only table rows have codes.
-        let sym = UnitSym::from_def(&unit).ok_or_else(|| DimensionError::UnknownDisplayUnit {
-            symbol: unit.symbol.to_string(),
-        })?;
+        // Total since the #650 seal: a `UnitDef` is a table row, so
+        // it has a code (see `UnitSym::from_def`).
+        let sym = UnitSym::from_def(&unit);
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {
@@ -579,30 +720,15 @@ impl Expr {
     /// The child at ExprPath index `i` (spec D5: operands in argument
     /// order), or `None` past the arity.
     pub fn child(&self, i: u8) -> Option<&Expr> {
-        use ExprKind as K;
         match (&self.kind, i) {
-            (
-                K::Add(a, _)
-                | K::Sub(a, _)
-                | K::Mul(a, _)
-                | K::Div(a, _)
-                | K::Atan2(a, _)
-                | K::Min(a, _)
-                | K::Max(a, _),
-                0,
-            ) => Some(a),
-            (
-                K::Add(_, b)
-                | K::Sub(_, b)
-                | K::Mul(_, b)
-                | K::Div(_, b)
-                | K::Atan2(_, b)
-                | K::Min(_, b)
-                | K::Max(_, b),
-                1,
-            ) => Some(b),
-            (K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a), 0) => Some(a),
-            _ => None,
+            (binary_kind!(a, _), 0) | (unary_kind!(a), 0) => Some(a),
+            (binary_kind!(_, b), 1) => Some(b),
+            // EXHAUSTIVE on the KIND axis, open on the index axis: a
+            // new variant must be given an arity here or the compile
+            // breaks. A wildcard would give it arity ZERO silently, and
+            // `descend`/`ExprPath` would then walk off the tree at a
+            // node that does have children.
+            (binary_kind!(_, _) | unary_kind!(_) | leaf_kind!(), _) => None,
         }
     }
 
@@ -615,20 +741,11 @@ impl Expr {
     /// The parameter names this expression references, with their
     /// recorded dimensions (used by `apply`'s re-check, spec D6).
     pub fn param_refs(&self, out: &mut Vec<(ParamName, Dimension)>) {
-        use ExprKind as K;
         match &self.kind {
-            K::Param(name) => out.push((name.clone(), self.dim)),
-            K::Literal(_) | K::CountLiteral(_) => {}
-            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
-                a.param_refs(out);
-            }
-            K::Add(a, b)
-            | K::Sub(a, b)
-            | K::Mul(a, b)
-            | K::Div(a, b)
-            | K::Atan2(a, b)
-            | K::Min(a, b)
-            | K::Max(a, b) => {
+            ExprKind::Param(name) => out.push((name.clone(), self.dim)),
+            ExprKind::Literal(_) | ExprKind::CountLiteral(_) => {}
+            unary_kind!(a) => a.param_refs(out),
+            binary_kind!(a, b) => {
                 a.param_refs(out);
                 b.param_refs(out);
             }
@@ -640,20 +757,11 @@ impl Expr {
     /// — the bit-semantic comparison substrate (spec D7: replay is
     /// bit-identical, so the comparators must not be bit-blind).
     pub fn literal_bits(&self, out: &mut Vec<u64>) {
-        use ExprKind as K;
         match &self.kind {
-            K::Literal(lit) => out.push(lit.value.to_bits()),
-            K::CountLiteral(_) | K::Param(_) => {}
-            K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) | K::CountToScalar(a) => {
-                a.literal_bits(out);
-            }
-            K::Add(a, b)
-            | K::Sub(a, b)
-            | K::Mul(a, b)
-            | K::Div(a, b)
-            | K::Atan2(a, b)
-            | K::Min(a, b)
-            | K::Max(a, b) => {
+            ExprKind::Literal(lit) => out.push(lit.value.to_bits()),
+            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
+            unary_kind!(a) => a.literal_bits(out),
+            binary_kind!(a, b) => {
                 a.literal_bits(out);
                 b.literal_bits(out);
             }
@@ -715,7 +823,11 @@ impl Expr {
             (K::Cos(_), 0) => Self::cos(rebuilt),
             (K::Tan(_), 0) => Self::tan(rebuilt),
             (K::CountToScalar(_), 0) => Self::count_to_scalar(rebuilt),
-            _ => return None,
+            // EXHAUSTIVE on the KIND axis (the `child` rule): a new
+            // variant must be given a rebuild here or the compile
+            // breaks. A wildcard would refuse to rebuild it — an edit
+            // to a valid path silently reported as off-tree.
+            (binary_kind!(_, _) | unary_kind!(_) | leaf_kind!(), _) => return None,
         };
         Some(res)
     }
@@ -840,6 +952,56 @@ pub enum EvalError {
     /// door's).
     NonFiniteResult,
 }
+
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM and, where the fault has a lever, its one recourse. The
+// enum stays the machine contract; composing layers (the evaluation
+// service's `Expr` slot arm) FORWARD this rendering rather than
+// re-stating it.
+impl core::fmt::Display for EvalError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownParam(name) => write!(
+                f,
+                "parameter {:?} has no binding in the evaluation environment — declare \
+                 the document parameter or fix the reference",
+                name.0
+            ),
+            Self::ParamDimensionMismatch {
+                name,
+                expected,
+                found,
+            } => write!(
+                f,
+                "parameter {:?} is referenced as {expected:?} but bound as {found:?}",
+                name.0
+            ),
+            Self::CountExprInContinuousEval => f.write_str(
+                "a Count expression does not evaluate continuously — promote it \
+                 explicitly through count_to_scalar",
+            ),
+            Self::ContinuousExprInCountEval { found } => write!(
+                f,
+                "a {found:?} expression does not evaluate as a Count — counts are exact \
+                 and never inferred from a continuous value"
+            ),
+            Self::CountOverflow => {
+                f.write_str("exact Count arithmetic overflowed (a count never wraps)")
+            }
+            Self::CountToScalarOutOfRange(count) => write!(
+                f,
+                "count {count} is outside the exactly-promotable range — a promoted \
+                 count must fit i32 so its f64 embedding is exact"
+            ),
+            Self::NonFiniteResult => f.write_str(
+                "the evaluated result is not finite — the arithmetic overflowed or hit \
+                 a pole (1/0, 0/0); fix the expression or the values feeding it",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for EvalError {}
 
 /// Evaluate a continuous expression to a raw `T` in kernel units —
 /// units erase at this boundary (GQ5). Generic over the scalar (spec

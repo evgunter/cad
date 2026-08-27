@@ -22,8 +22,8 @@ Run it against a built module:
 
 (or `maturin develop` in a virtualenv, which does the staging for you)
 
-The journey ends at a real STEP file (LIB-DOORS F2 closed the export
-gap: `Evaluation.step_string` is the document-layer door), and the
+The journey ends at a real STEP file (`Evaluation.step_string` is
+the document-layer export door), and the
 script then re-reads its own output with the kernel's importer — the
 file must exist AND parse, asserted rather than assumed.
 """
@@ -35,12 +35,15 @@ import tempfile
 from pncad import BooleanOp, Doc, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
-# The plate's corner radius. It is BOUNDED at 4 mm, and the bound is
-# the pocket's: a corner round of radius r rides a carrier circle
-# spanning x in [0, 2r], and a Boolean refuses when a cutter's plane
-# crosses that carrier — even where it stays clear of the arc itself.
-# The pocket's x = 8 mm wall therefore requires 2r <= 8. See #347.
-CORNER = 3 * mm
+# The plate's corner radius: the natural one for this plate. It was
+# held at 3 mm while the kernel boxed a corner round by the whole
+# CARRIER circle it rides (x in [0, 2r]) rather than by the quarter arc
+# it occupies, which made the pocket's x = 8 mm wall a candidate against
+# the round whenever 2r > 8 and refused the cut. That is fixed (#1044:
+# the conic edge box and the wall face box are trim-scoped, and the
+# line-clearance bound clamps its vertex to the segment), so the bound
+# is gone and the demo asks for what it actually wants.
+CORNER = 6 * mm
 
 
 def rounded_plate(doc, width, height, radius, thickness):
@@ -134,7 +137,7 @@ def main():
     assert abs(props.volume - expected) < 1e-15, (props.volume, expected)
 
     # Export STEP through the document layer (build -> measure ->
-    # export, the whole §L3 journey), then prove the file is real:
+    # export, the whole one-shot journey), then prove the file is real:
     # it exists, and the kernel's own importer parses it back to a
     # solid with the same volume.
     step = ev.step_string(lightened, product_name="bracket")

@@ -40,7 +40,7 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::plane_eq::PlaneEqError;
-use super::reduce::face_plane;
+use super::reduce::{face_outward_normal, face_plane};
 use super::sectors::{build_sectors, side_code};
 use super::tables::eq15_3_lump;
 use super::{
@@ -52,6 +52,7 @@ use crate::entity::HalfEdgeKey;
 use crate::euler::MevSite;
 use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Output of one vertex-on-face classification.
 #[derive(Debug)]
@@ -83,10 +84,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     op: BooleanOp,
     declared: &super::DeclaredPairs,
     band: Band,
+    tol: Tol,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
-    let plane =
-        face_plane(pierced_body, contact.face).ok_or(BooleanError::ClassificationInvariant {
+    // Both halves of the pierced face's oriented datum, from the one
+    // door: `plane` for the plane algebra, `n_pierced` for the
+    // material-side verdicts, which take the typed normal so the
+    // `sense_sign` cannot be dropped on the way.
+    let (plane, n_pierced) = face_plane(pierced_body, contact.face)
+        .zip(face_outward_normal(pierced_body, contact.face))
+        .ok_or(BooleanError::ClassificationInvariant {
             what: "pierced face lost its plane",
         })?;
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
@@ -94,32 +101,65 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Entries = the bounds in orbit order (entry k = sector k's END
     // bound: real chord or subdivision bisector), classed against the
-    // pierced face's plane via the F3 primitive. `plane.normal` is the
-    // pierced face's OUTWARD normal (S10, threaded by `face_plane`) —
-    // In/Out here is a material verdict and reads backwards off a
-    // chart normal on a reversed face.
+    // pierced face's plane via the F3 primitive. `n_pierced` is the
+    // pierced face's OUTWARD normal (S10, minted by
+    // `face_outward_normal`) — In/Out here is a material verdict and
+    // would read backwards off a chart normal on a reversed face,
+    // which is why the primitive takes the typed one.
     let mut entries = Vec::with_capacity(n);
     for s in &sectors {
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge,
-            class: side_code(s.end, plane.normal, s.arm, band)?,
+            class: side_code(s.end, n_pierced, s.arm, band)?,
         });
     }
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
     for (k, s) in sectors.iter().enumerate() {
-        let m = Margin::levered(s.normal.cross(plane.normal).norm(), s.arm);
+        let m = Margin::levered(s.normal.vec().cross(plane.normal).norm(), s.arm);
         match decide("bool_sector_coplanar", m, band) {
             Ok(Sign::Zero) => {}
             Ok(_) => continue,
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
-        // A CURVED sector whose local normal is plane-parallel at the
-        // pierce point is a tangent (touching) contact — the M5
-        // envelope's typed frontier (C7/OQ5: no curved coplanar-lump
-        // arm exists; touching curved configurations refuse).
-        let Some(sector_plane) = face_plane(piercing_body, s.face) else {
+        let pierced_op = piercing.other();
+        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        // Declared-`Tangent` (distinct carriers touching): the lump
+        // verdict is the second-order sector trilean — which side the
+        // sector's carrier CURVES to relative to the pierced face's
+        // material ([`super::sectors::tangent_lump`]).
+        if class == Some(crate::contact::ContactClass::Tangent) {
+            let surface_of = |body: &Body<T>, f| {
+                body.get_face(f)
+                    .and_then(|face| body.get_surface(face.surface))
+                    .cloned()
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "declared-Tangent face lost its surface",
+                    })
+            };
+            let s_sector = surface_of(piercing_body, s.face)?;
+            let s_pierced = surface_of(pierced_body, contact.face)?;
+            let p = piercing_body
+                .get_vertex(vertex)
+                .and_then(|v| piercing_body.get_point(v.point))
+                .copied()
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "pierce vertex lost its point",
+                })?;
+            let lump = super::sectors::tangent_lump(
+                &s_sector, &s_pierced, n_pierced, p, op, piercing, s.face, s.arm, band,
+            )?;
+            entries[k].class = lump;
+            entries[(k + 1) % n].class = lump;
+            continue;
+        }
+        // The conformal (carrier) lump. The sector's oriented carrier
+        // description generalizes the plane one (`face_carrier` folds
+        // the face sense exactly as `face_plane` does — S10); a kind
+        // outside the `Rest` ladder's inventory (cone, torus, NURBS)
+        // keeps the C5 typed refusal.
+        let Some(sector_carrier) = super::rest::face_carrier(piercing_body, s.face) else {
             let kind = piercing_body
                 .get_face(s.face)
                 .and_then(|f| piercing_body.get_surface(f.surface))
@@ -130,9 +170,31 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         };
-        let pierced_op = piercing.other();
-        // Oriented sources (S10): `sector_plane` and `plane` are both
-        // OUTWARD normals, so rung 1's syntactic Same± verdict has to
+        let declared_rest = class == Some(crate::contact::ContactClass::Rest);
+        // C8: a CURVED on-carrier sector is opened by a VERIFIED
+        // declaration and by nothing else — undeclared touching keeps
+        // this typed frontier refusal. The recourse is a declared
+        // Tangent/Rest contact (vocabulary CONTACT-DESIGN C4), under
+        // which classification descends to the carrier ladder or the
+        // C7 sector trilean instead of refusing.
+        if !declared_rest && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
+        {
+            let kind = piercing_body
+                .get_face(s.face)
+                .and_then(|f| piercing_body.get_surface(f.surface))
+                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: piercing,
+                face: s.face,
+                kind,
+            });
+        }
+        let pierced_carrier = super::carrier_eq::CarrierDesc::Plane {
+            origin: plane.origin,
+            normal: plane.normal,
+        };
+        // Oriented sources (S10): both descriptions carry OUTWARD
+        // material sides, so rung 1's syntactic Same± verdict has to
         // see the face senses as well as the surfaces' `orient` tags.
         let (g1, g2) = (
             super::reduce::face_plane_source(piercing_body, s.face),
@@ -141,27 +203,29 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let id = super::PlaneIdentity {
             s1: g1.as_ref(),
             s2: g2.as_ref(),
-            declared: declared.declares_rest(piercing, s.face, pierced_op, contact.face),
+            declared: declared_rest,
         };
-        let rel = match super::oriented_plane_eq(&sector_plane, &plane, id, s.arm, band) {
-            Ok(super::PlaneRelation::Distinct) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "geometrically coplanar sector with definitely-distinct plane",
-                });
-            }
-            Ok(rel) => rel,
-            Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
-            Err(PlaneEqError::Undeclared { diag, relation }) => {
-                return Err(BooleanError::UndeclaredCoincidence {
-                    diag,
-                    pair: [(piercing, s.face), (pierced_op, contact.face)],
-                    relation,
-                });
-            }
-            Err(PlaneEqError::Contradicted(diag)) => {
-                return Err(BooleanError::DeclarationContradicted { diag });
-            }
-        };
+        let rel =
+            match super::carrier_eq::carrier_eq(&sector_carrier, &pierced_carrier, id, s.arm, band)
+            {
+                Ok(super::PlaneRelation::Distinct) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "geometrically coplanar sector with definitely-distinct plane",
+                    });
+                }
+                Ok(rel) => rel,
+                Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+                Err(PlaneEqError::Undeclared { diag, relation }) => {
+                    return Err(BooleanError::UndeclaredCoincidence {
+                        diag,
+                        pair: [(piercing, s.face), (pierced_op, contact.face)],
+                        relation,
+                    });
+                }
+                Err(PlaneEqError::Contradicted(diag)) => {
+                    return Err(BooleanError::DeclarationContradicted { diag });
+                }
+            };
         let lump = eq15_3_lump(op, piercing, rel);
         entries[k].class = lump;
         entries[(k + 1) % n].class = lump;
@@ -369,6 +433,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         },
         p,
         geom_brep::EdgeCurveSpec::line_between(p_u, p),
+        tol,
     )?;
     // (2) detach as an empty-loop ring at the pierce vertex.
     let kemr = pierced_body.kemr(chord.he_plus, chord.he_minus)?;
@@ -453,7 +518,7 @@ fn pierce_germ_dir<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
-    let int = s.normal.cross(plane_normal);
+    let int = s.normal.vec().cross(plane_normal);
     match decide("bool_germ_line", Margin::levered(int.norm(), s.arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {

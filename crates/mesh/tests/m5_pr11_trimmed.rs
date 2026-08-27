@@ -9,7 +9,8 @@
 use profile::RawLoop;
 use std::collections::HashMap;
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
@@ -23,27 +24,23 @@ const DELTAS: [f64; 3] = [0.1, 0.01, 0.001];
 
 fn disc() -> ValidatedProfile<f64> {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(-R, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(R, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
 fn halves() -> (Body<f64>, Body<f64>) {
-    let cylinder = extrude(&disc(), Extrusion::Distance(H)).unwrap().body;
+    let cylinder = extrude(&disc(), Extrusion::Distance(H), Tol::witness())
+        .unwrap()
+        .body;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, H / 2.0),
         normal: Vec3::new(PHI.sin(), 0.0, PHI.cos()),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
@@ -59,7 +56,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
     for (label, body) in [("above", &above), ("below", &below)] {
         let mut last_err = f64::INFINITY;
         for delta in DELTAS {
-            let mesh = mesh::tessellate(body, delta).unwrap_or_else(|e| {
+            let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap_or_else(|e| {
                 panic!("{label}: the PR 11 trimmed lane tessellates at {delta}: {e:?}")
             });
             check_mesh(&mesh)
@@ -92,7 +89,7 @@ fn tilted_halves_tessellate_watertight_across_the_delta_schedule() {
 #[test]
 fn shared_edges_consume_one_chord_set() {
     let (above, _) = halves();
-    let mesh = mesh::tessellate(&above, 0.01).unwrap();
+    let mesh = mesh::tessellate(&above, 0.01, Tol::witness()).unwrap();
     let mut uses: HashMap<(u32, u32), u32> = HashMap::new();
     for patch in &mesh.patches {
         for t in &patch.triangles {
@@ -121,8 +118,8 @@ fn shared_edges_consume_one_chord_set() {
 #[test]
 fn trimmed_lane_is_bit_deterministic() {
     let (above, _) = halves();
-    let a = mesh::tessellate(&above, 0.01).unwrap();
-    let b = mesh::tessellate(&above, 0.01).unwrap();
+    let a = mesh::tessellate(&above, 0.01, Tol::witness()).unwrap();
+    let b = mesh::tessellate(&above, 0.01, Tol::witness()).unwrap();
     assert_eq!(a.positions.len(), b.positions.len());
     for (p, q) in a.positions.iter().zip(&b.positions) {
         assert_eq!(p.x.to_bits(), q.x.to_bits());
@@ -145,7 +142,7 @@ fn missing_pcurve_caches_refuse_typed() {
     for he in hes {
         stripped.detach_pcurve(he);
     }
-    match mesh::tessellate(&stripped, 0.01) {
+    match mesh::tessellate(&stripped, 0.01, Tol::witness()) {
         Err(mesh::TessellateError::UnsupportedCurve { note, .. }) => {
             assert!(note.contains("pcurve cache"), "{note}");
         }

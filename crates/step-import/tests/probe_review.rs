@@ -3,6 +3,7 @@
 //! that failed deliberately there now assert the fix.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(name: &str) -> String {
@@ -25,18 +26,23 @@ fn fixture(name: &str) -> String {
 /// `geom-brep/tests/rim_dim_scale_twins.rs`.
 #[test]
 fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if eps != 1e-7 {
         println!("a3: SKIP (needs CAD_TOLERANCE_EPS=1e-7, have {eps:e})");
         return;
     }
-    let imp = import_step(&fixture("cone_trunc"), &ImportOptions::default()).unwrap();
+    let imp = import_step(
+        &fixture("cone_trunc"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let StepImport::Solid { body, .. } = imp else {
         panic!("wireframe")
     };
     assert_eq!(topo::validate(&body), Ok(()));
     assert_eq!(topo::validate_closed(&body), Ok(()));
-    let g = topo::validate_geometric(&body);
+    let g = topo::validate_geometric(&body, Tol::witness());
     println!("a3 tier3 result: {g:?}");
     assert_eq!(g, Ok(()), "the in-band landing is retired: tier 3 is green");
 }
@@ -44,7 +50,7 @@ fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
 /// A3 sweep: every fixture, all three tiers, report refusals/tier-fails.
 #[test]
 fn a3_sweep_all_tiers() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let names = [
         "box",
         "cylinder",
@@ -61,11 +67,11 @@ fn a3_sweep_all_tiers() {
         "twobody_importexport",
     ];
     for name in names {
-        match import_step(&fixture(name), &ImportOptions::default()) {
+        match import_step(&fixture(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
                 let t1 = topo::validate(&body).is_ok();
                 let t2 = topo::validate_closed(&body).is_ok();
-                let t3 = topo::validate_geometric(&body);
+                let t3 = topo::validate_geometric(&body, Tol::witness());
                 if !(t1 && t2 && t3.is_ok()) {
                     println!("a3sweep eps={eps:e} {name}: t1={t1} t2={t2} t3={t3:?}");
                 } else {
@@ -93,7 +99,7 @@ fn a1_inside_out_torus_cannot_slip_through() {
         "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
         "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
     );
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("an inside-out torus must not import at all");
     let text = err.to_string();
     assert!(
@@ -114,7 +120,7 @@ fn a1_reversed_bound_torus() {
         "#18 = FACE_BOUND('',#19,.T.);",
         "#18 = FACE_BOUND('',#19,.F.);",
     );
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("a reversed-bound torus is inside out and must not import");
     assert!(err.to_string().contains("ORIENTATION-INVERTED"), "{err}");
 }
@@ -127,12 +133,12 @@ fn a1_control_box_face_sense_flip() {
         "#17 = ADVANCED_FACE('',(#18),#52,.F.);",
         "#17 = ADVANCED_FACE('',(#18),#52,.T.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1 box-flip: imported; t2={:?} t3={:?}",
                 topo::validate_closed(&body),
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -147,11 +153,11 @@ fn a1_control_sphere_sense_flip() {
         "#17 = ADVANCED_FACE('',(#18),#22,.T.);",
         "#17 = ADVANCED_FACE('',(#18),#22,.F.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1 sphere-flip: imported; t3={:?}",
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -178,7 +184,7 @@ fn a1_flipped_torus_volume() {
         ),
     ] {
         let text = fixture("torus").replace(from, to);
-        let err = import_step(&text, &ImportOptions::default())
+        let err = import_step(&text, &ImportOptions::default(), Tol::witness())
             .err()
             .unwrap_or_else(|| panic!("a1vol {label}: imported, so it was laundered"));
         println!("a1vol {label}: refused — {err}");
@@ -209,24 +215,28 @@ fn a1_double_flipped_torus() {
         body,
         normalizations,
         ..
-    }) = import_step(&text, &ImportOptions::default())
+    }) = import_step(&text, &ImportOptions::default(), Tol::witness())
     else {
         panic!("the equivalent re-encoding of a valid torus must import");
     };
     assert_eq!(normalizations.len(), 1, "still one reported normalization");
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         v > 0.0,
         "a right-side-out ring has positive volume, got {v}"
     );
-    assert_eq!(topo::validate_geometric(&body), Ok(()), "tier 3");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
 }
 
 /// A1, **resolved**: the original imports; the sense-flip does not.
 #[test]
 fn a1_flipped_torus_body_sense() {
     let Ok(StepImport::Solid { body, .. }) =
-        import_step(&fixture("torus"), &ImportOptions::default())
+        import_step(&fixture("torus"), &ImportOptions::default(), Tol::witness())
     else {
         panic!("the stated torus imports")
     };
@@ -237,7 +247,7 @@ fn a1_flipped_torus_body_sense() {
         "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
     );
     assert!(
-        import_step(&flipped, &ImportOptions::default()).is_err(),
+        import_step(&flipped, &ImportOptions::default(), Tol::witness()).is_err(),
         "the sense-flip has no body to carry a sense at all"
     );
 }
@@ -249,7 +259,7 @@ fn a1_bound_flip_torus_senses() {
         "#18 = FACE_BOUND('',#19,.T.);",
         "#18 = FACE_BOUND('',#19,.F.);",
     );
-    assert!(import_step(&text, &ImportOptions::default()).is_err());
+    assert!(import_step(&text, &ImportOptions::default(), Tol::witness()).is_err());
 }
 
 /// A1, **resolved** — the finding's own probe, inverted. It used to
@@ -262,7 +272,8 @@ fn a1_bound_flip_torus_senses() {
 #[test]
 fn a1_torus_halfedge_diff() {
     let sig = |text: &str| {
-        let Ok(StepImport::Solid { body, .. }) = import_step(text, &ImportOptions::default())
+        let Ok(StepImport::Solid { body, .. }) =
+            import_step(text, &ImportOptions::default(), Tol::witness())
         else {
             panic!("expected a body")
         };
@@ -311,7 +322,8 @@ fn a1_torus_halfedge_diff() {
         assert!(
             import_step(
                 &fixture("torus").replace(from, to),
-                &ImportOptions::default()
+                &ImportOptions::default(),
+                Tol::witness(),
             )
             .is_err(),
             "a single flip means an inside-out ring and must refuse"
@@ -326,12 +338,12 @@ fn a1_control_box_bound_flip() {
         "#18 = FACE_BOUND('',#19,.F.);",
         "#18 = FACE_BOUND('',#19,.T.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1bb imported; t2={:?} t3={:?}",
                 topo::validate_closed(&body),
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -360,12 +372,12 @@ fn a1_inside_out_cone_apex() {
     ] {
         let text = orig.replace(from, to);
         assert_ne!(text, orig, "{label}: replacement must hit");
-        match import_step(&text, &ImportOptions::default()) {
+        match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
-                let v = topo::mass_properties(&body).map(|p| p.volume);
+                let v = topo::mass_properties(&body, Tol::witness()).map(|p| p.volume);
                 println!(
                     "a1ca {label}: imported t3={:?} vol={:?}",
-                    topo::validate_geometric(&body),
+                    topo::validate_geometric(&body, Tol::witness()),
                     v
                 );
                 panic!("a1ca {label}: an inside-out cone_apex must refuse pre-body (M6-6 rider)");
@@ -399,7 +411,7 @@ fn a1_cone_apex_flip_senses() {
         "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
         "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
     );
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .err()
         .unwrap_or_else(|| panic!("an inside-out cone_apex must refuse pre-body (M6-6 rider)"));
     let s = err.to_string();
@@ -423,7 +435,7 @@ fn a1_control_cylinder_sense_flip() {
     // cylinder lateral imported tier-3 GREEN with positive volume —
     // is closed from both sides: the kernel's check-6 curved arm
     // refuses the body, and the import rider refuses pre-body.
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .err()
         .unwrap_or_else(|| panic!("an inside-out cylinder wall must refuse pre-body (M6-6 rider)"));
     let s = err.to_string();
@@ -448,7 +460,7 @@ fn a5_off_locus_arc_between_coincident_planes() {
          #902 = DIRECTION('',(0.,1.,0.));\n\
          #903 = DIRECTION('',(1.,0.,0.));",
     );
-    let err = import_step(&text, &ImportOptions::default())
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("an off-locus carrier must not adopt as a conventional curve");
     let s = err.to_string();
     assert!(
@@ -465,7 +477,7 @@ fn a5_nearly_coincident_planes_refuse() {
         "#335 = CARTESIAN_POINT('',(0.5,0.5,1.));",
         "#335 = CARTESIAN_POINT('',(0.5,0.5,1.00001));",
     );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { .. }) => println!("a5b LAUNDERED: imported"),
         Ok(_) => panic!("wireframe"),
         Err(e) => {
@@ -497,7 +509,7 @@ fn a4_wrong_outer_designation_refuses() {
             "#59 = FACE_BOUND('', #58, .T.);",
             "#59 = FACE_OUTER_BOUND('', #58, .T.);",
         );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(_) => println!("a4wo LAUNDERED: imported with wrong outer designation"),
         Err(e) => {
             let s = e.to_string();
@@ -515,9 +527,12 @@ fn a4_inference_on_demoted_bounds() {
         "#39 = FACE_OUTER_BOUND('', #38, .T.);",
         "#39 = FACE_BOUND('', #38, .T.);",
     );
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            println!("a4inf imported t3={:?}", topo::validate_geometric(&body));
+            println!(
+                "a4inf imported t3={:?}",
+                topo::validate_geometric(&body, Tol::witness())
+            );
         }
         Ok(_) => panic!("wireframe"),
         Err(e) => {
@@ -536,7 +551,7 @@ fn a6_unit_edges() {
     // (a) prefixed radian
     let t = orig.replace("SI_UNIT($,.RADIAN.)", "SI_UNIT(.MILLI.,.RADIAN.)");
     assert_ne!(t, orig);
-    match import_step(&t, &ImportOptions::default()) {
+    match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Err(e) => {
             let s = e.to_string();
             println!("a6 angle refused: {}", &s[..s.len().min(110)]);
@@ -546,9 +561,9 @@ fn a6_unit_edges() {
     // (b) MICRO length: volume must scale by 1e-18 vs MILLI's 1e-9.
     let t = orig.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT(.MICRO.,.METRE.)");
     assert_ne!(t, orig);
-    match import_step(&t, &ImportOptions::default()) {
+    match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(&body).unwrap().volume;
+            let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }
         Ok(_) => panic!(),
@@ -565,7 +580,7 @@ fn a6_two_length_scales_refuse() {
         "#167 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.) );",
     );
     assert_ne!(t, orig);
-    match import_step(&t, &ImportOptions::default()) {
+    match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Err(e) => {
             let s = e.to_string();
             println!("a6two refused: {}", &s[..s.len().min(120)]);
@@ -579,12 +594,16 @@ fn a6_two_length_scales_refuse() {
 /// CORPUS_EPS_CEILING refusals actually rest on (F5 linkage).
 #[test]
 fn review_f5_cylinder_refusal_predicate() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if eps != 1e-7 {
         println!("SKIP (needs 1e-7, have {eps:e})");
         return;
     }
-    let got = import_step(&fixture("cylinder"), &ImportOptions::default());
+    let got = import_step(
+        &fixture("cylinder"),
+        &ImportOptions::default(),
+        Tol::witness(),
+    );
     match got {
         Err(e) => println!("FULL REFUSAL: {e:?}"),
         Ok(_) => println!("IMPORTED (no refusal)"),

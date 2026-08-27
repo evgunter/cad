@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `step-export`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 4 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -48,10 +53,6 @@ mod orientation_oracle;
 mod rev_probe;
 #[path = "review_k4_probe.rs"]
 mod review_k4_probe;
-// `review_pad_probe.rs` (`print_enclosures`) retired 2026-08-13: it
-// asserted nothing, and `kernel_sidecars.rs` pins the same fixtures'
-// volume AND pad byte-exactly. File deleted, so this list and
-// `every_suite_file_is_aggregated` stay in agreement.
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

@@ -17,9 +17,11 @@
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
 //! DECIDES (the carrier-meet and angular advance/reach gates) and reads
-//! the selection channel, in that order. It carries `sugar.rs`'s
-//! ratified justification verbatim, because it is the same rule on the
-//! same channel: **a representation-level choice between
+//! the selection channel, in that order. The justification is
+//! [`crate::fillet_select`]'s, which is where the S8 rule has its one
+//! home — restated here only because this file's allowlist line needs
+//! a purpose-matched sentence of its own; the rule itself is the same
+//! rule on the same channel: **a representation-level choice between
 //! already-classified constructions, never a re-decision of geometry**
 //! (M5 S8; the ruling's "plain deterministic selection rule, not a Q1
 //! predicate" — no funnel entry, no escalation arm, no error). The
@@ -58,11 +60,11 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
-use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tolerance, Vec2};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
-use crate::k_stats::decide;
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
@@ -72,14 +74,14 @@ use crate::validate::FilletLegCarrier;
 /// A fillet side's carrier, as the algebra binds it: a straight ray, or
 /// a circle about a centre with a structural winding.
 ///
-/// The circular spelling is what `.at_on`/`.to_on` bind; the radius is
+/// The circular spelling is what a `Center`-mode side binds; the radius is
 /// never authored — it is `|anchor − centre|`, carried squared.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SideCarrier<T: Real> {
     /// The line through the side's anchor along this **unit** ray.
     Ray(Vec2<T>),
     /// The circle through the side's anchor about `centre`, swept
-    /// `winding` (structural, as in `arc_center`).
+    /// `winding` (structural, as in the `Center` mode).
     Circle {
         /// The carrier circle's centre.
         centre: Point2<T>,
@@ -438,9 +440,9 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     incoming: FilletSide<T>,
     arrival: FilletSide<T>,
     radius: T,
-    tol: Tolerance,
+    tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
-    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(PathError::Band)?;
+    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
     // and the other root is usually the one they meant. A corner that
@@ -500,6 +502,17 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             Err(ArcTrimRefusal::Escalated(source)) => {
                 return Err(PathError::Escalated { source });
             }
+            // The M8 conditioning gate ABORTS the resolve exactly as an
+            // escalation does, and for the same reason: a joint space
+            // one of whose members the band cannot CERTIFY (a tangent
+            // point over an unsupported lever) cannot be honestly
+            // ranked. Falling through to another corner's build would
+            // let the twin corner of a near-tangent carrier pair mask
+            // the refusal — the silent-build class the gate exists to
+            // keep refused at every band.
+            Err(refusal @ ArcTrimRefusal::OffsetLeverTooShort { .. }) => {
+                return Err(map_refusal(refusal, radius));
+            }
             Err(refusal) => {
                 if build_refused.is_none() {
                     build_refused = Some(map_refusal(refusal, radius));
@@ -531,7 +544,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 }
 
 // ------------------------------------------------------------------
-// The carrier-aware binder family (§3a; LB6 for `.to_on`).
+// The carrier-aware binder family (§3a; LB6 for the closing arrival).
 //
 // These doors live HERE, not in `path.rs`, for the reason the module
 // docs give: resolving an arc-carrier fillet reaches the lifted ladder,
@@ -541,12 +554,12 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 // ------------------------------------------------------------------
 
 /// The carrier's unit tangent at `p`, in the travel sense `winding`
-/// names — the DERIVED direction an `.at_on`/`.to_on` binding puts in
+/// names — the DERIVED direction a `Center`-mode binding puts in
 /// the angle slot. Written as `Leg::at_corner` writes it (τ·(P−O)⟂/R),
 /// so the two doors agree at the bit.
 ///
 /// The radius is gated definitely positive on the same funnel predicate
-/// `arc_center` uses: an anchor at the centre names no tangent.
+/// the `Center` leg mode uses: an anchor at the centre names no tangent.
 pub(crate) fn carrier_tangent<T: Decide>(
     p: Point2<T>,
     centre: Point2<T>,
@@ -569,7 +582,7 @@ pub(crate) fn carrier_tangent<T: Decide>(
 
 /// The scalar obligation the arc-carrier arrival binders impose, NAMED.
 ///
-/// `at_on` (the fillet-arrival form) and `to_on` run the S8 selection
+/// The interior arc arrival and the closing one both run the S8 selection
 /// ladder, so they are `Decide + Bounds` honestly — the compound bound
 /// this file is allowlisted for. The replay driver
 /// ([`super::program::replay`]) must be able to call them, so its own

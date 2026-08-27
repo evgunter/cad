@@ -1,18 +1,15 @@
-//! **The dead end, demonstrably closed** (M6-5 PR-2).
+//! **A filleted body is nameable downstream.**
 //!
-//! For a milestone the whole-body fillet door emitted the EMPTY name
-//! table: its rebuild mints every face fresh, and it kept no birth
-//! records, so there was nothing to emit honestly. That was loud
-//! rather than silent — every downstream reference into such a body
-//! failed to resolve, and an appearance record targeting one was a
-//! typed loss — but it was still a dead end: no op could be written
-//! that consumed a filleted body BY NAME.
+//! A fillet that kept no birth records would emit an EMPTY name
+//! table, and every downstream reference into such a body would fail
+//! to resolve — loud rather than silent, but still a dead end: no op
+//! could be written that consumed a filleted body BY NAME.
 //!
-//! This file is the proof it is gone — and it is careful about which
-//! part is proved by what.
+//! This file is the proof it is not one — and it is careful about
+//! which part is proved by what.
 //!
 //! **Demonstrated here.** Three production consumers resolve names
-//! through a whole-body fillet's table: the APPEARANCE store lands an
+//! through an every-edge fillet's table: the APPEARANCE store lands an
 //! attribute on a blend face the fillet minted, with zero typed
 //! losses; the RESOLVE ladder (M4 PR 4's reference/hit-test door)
 //! answers `Resolved` for every one of the seven roles this door
@@ -49,17 +46,24 @@ use editor_core::{
     evaluate,
 };
 use fixture::prism_edges;
+use geom_core::Tol;
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
 }
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
+    let a = apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
     let id = a.record.minted.expect("a minted id");
     (a.doc, id)
 }
@@ -101,21 +105,20 @@ fn table_of(
     }
 }
 
-/// The die blank: a unit cube with EVERY edge blended — the whole-body
-/// door, the one that used to name nothing. Returns the document, the
-/// extrude and the fillet.
+/// The die blank: a unit cube with EVERY edge blended. Returns the
+/// document, the extrude and the fillet.
 fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m6_5_downstream");
+    let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, blank) = insert(&doc, Node::fillet(cube, len(0.125), prism_edges(cube, 4)));
     (doc, cube, blank)
 }
 
-/// **The whole-body door names its result.** Twenty-six faces,
+/// **An every-edge fillet names its result.** Twenty-six faces,
 /// forty-eight edges, twenty-four vertices, plus the body row — all
 /// named, none by matching.
 #[test]
-fn a_whole_body_fillet_emits_a_full_name_table() {
+fn an_every_edge_fillet_emits_a_full_name_table() {
     let (doc, _, blank) = filleted_blank();
     let ev = eval(&doc);
     let table = table_of(&ev, blank);
@@ -136,8 +139,8 @@ fn a_whole_body_fillet_emits_a_full_name_table() {
     assert!(!table.is_empty(), "the empty-table dead end is gone");
 
     // The roles are the fillet vocabulary, and a shrunk support reads
-    // as `FromTarget` — the SAME name the surgery door gives it,
-    // where that face is a survivor rather than a fresh mint.
+    // as `FromTarget`: the surgery leaves that face in place, so it is
+    // a survivor rather than a mint and takes its source's own name.
     let mut supports = 0usize;
     for (n, _) in table.iter() {
         match n.path.first().expect("a role path") {
@@ -193,6 +196,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
             name: blend.clone(),
             attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(9, 8, 7)),
         },
+        Tol::witness(),
     )
     .expect("the appearance edit applies")
     .doc;
@@ -217,10 +221,10 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
 }
 
 /// **The resolve ladder resolves fillet-minted names.** The hit-test /
-/// reference door (M4 PR 4) answers `Resolved` for every role the
-/// whole-body fillet mints — blend, octant, trimline, corner arc,
+/// reference door (M4 PR 4) answers `Resolved` for every role an
+/// every-edge fillet mints — blend, octant, trimline, corner arc,
 /// foot, and the shrunk support — so a reference INTO a filleted body
-/// is now an ordinary reference.
+/// is an ordinary reference.
 #[test]
 fn every_fillet_minted_role_resolves_through_the_ladder() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
@@ -252,14 +256,14 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
     assert_eq!(
         seen.len(),
         7,
-        "every whole-body fillet role is exercised, got {seen:?}"
+        "every fillet role is exercised, got {seen:?}"
     );
 }
 
 /// **The boolean consumer, ATTEMPTED and pinned** (M6-5 PR-2
 /// deviation 1).
 ///
-/// The spec's §5 row is a boolean over a whole-body-filleted body.
+/// The spec's §5 row is a boolean over a fully filleted body.
 /// The NAMING half is ready — the two rows above show the fillet's
 /// names resolving and composing — but the kernel's boolean cannot
 /// take a body carrying sphere OCTANTS at all: it refuses
@@ -330,6 +334,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
         },
+        Tol::witness(),
     )
     .expect("the bump applies")
     .doc;
@@ -348,7 +353,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
 }
 
 // ------------------------------------------------------------------
-// `all_edges`, the whole-body materializer (review F-1).
+// `all_edges`, the every-edge materializer (review F-1).
 // ------------------------------------------------------------------
 
 /// **`all_edges` is what a caller uses to select everything.** The
@@ -363,8 +368,8 @@ fn the_downstream_reference_survives_an_upstream_bump() {
 /// `all_edges` hands back for an extruded square IS the set
 /// `die_fillet` authors by hand through `prism_edges`.
 #[test]
-fn all_edges_materializes_exactly_the_authored_whole_body_set() {
-    let doc = ProfileDoc::empty_derived("m6_5_downstream");
+fn all_edges_materializes_exactly_the_authored_every_edge_set() {
+    let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = eval(&doc);
 
@@ -392,6 +397,7 @@ fn all_edges_materializes_exactly_the_authored_whole_body_set() {
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
         },
+        Tol::witness(),
     )
     .expect("the bump applies")
     .doc;
@@ -402,7 +408,7 @@ fn all_edges_materializes_exactly_the_authored_whole_body_set() {
     assert_eq!(stored, materialized, "the materialized set froze");
     match eval(&bumped).nodes.get(&blank) {
         Some(NodeResult::Ok(_)) => {}
-        other => panic!("the frozen whole-body selection must still build, got {other:?}"),
+        other => panic!("the frozen every-edge selection must still build, got {other:?}"),
     }
 }
 
@@ -412,7 +418,7 @@ fn all_edges_materializes_exactly_the_authored_whole_body_set() {
 /// for the refusal, not two.
 #[test]
 fn all_edges_of_a_nameless_node_is_empty() {
-    let doc = ProfileDoc::empty_derived("m6_5_downstream");
+    let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, p) = insert(
         &doc,
         Node::Profile(fixture::desc(

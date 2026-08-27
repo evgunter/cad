@@ -9,6 +9,14 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+# Makes `test_support` — the fixtures this crate's tests build on —
+# nameable from this crate's `tests/` binaries. A `tests/` file is a
+# SEPARATE crate, so it can name neither a `#[cfg(test)]` item nor a
+# `pub(crate)` one; without this feature every suite mints its own copy
+# of the fixture and the copies drift (S52). Off by default and enabled
+# only through the self-dev-dependency below, so it is on exactly for
+# this crate's own tests and off for every normal build.
+test-support = []
 # Forwards geom-core's certified interval scalar so the sweep operations
 # run at `Interval` — exercised by the feature-gated test files in CI's
 # interval lane.
@@ -34,24 +42,46 @@ probe = [
 [dependencies]
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 profile = { path = "../profile" }
+# PLAIN edge — no features. This entry carried `features =
+# ["sweep-testing"]` until S52 measured what that did: cargo unifies
+# features across a build graph, so the featured edge turned topo's
+# FAILURE-INJECTION doors on for every production dependent of `sweep`,
+# and a downstream crate compiled `--release` naming
+# `topo::PlantedDegradation`. The comment here claimed the opposite at
+# the time. `scripts/gates/test-features-dev-only.sh` now enforces it.
 topo = { path = "../topo" }
 
 [dev-dependencies]
-# The banished raw builder (PROFILES-V2 §V6, #377): these suites'
-# fixtures predate the PATHS lattice and are pinned bit-for-bit, so they
-# keep spelling them with `LoopBuilder` — which lives behind `profile`'s
-# test-support feature and is reachable ONLY from a dev-dependency like
-# this one. Nothing in any `src/` sees it.
-profile = { path = "../profile", features = ["test-support"] }
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests without exposing it to production dependents. A
+# dev-dependency is in no consumer's build graph, and a flagless
+# `cargo build [--release]` does not build test targets, so this is the
+# only edge that ever enables the feature. (`cargo build --all-targets`
+# DOES build them, and cargo then unifies the feature into the lib
+# artifact of that same invocation — an explicit test-inclusive build,
+# not a production one.)
+sweep = { path = ".", features = ["test-support"] }
+# `sweep-testing` for the same reason editor-core's dev-dependency
+# carries it: several suites here run the §4.4 differential pair and
+# name `SweepStrategy::Idealized`, which is reference surface gated out
+# of production builds. Dev-dependencies are the only place it is on —
+# gated, not asserted.
+topo = { path = "../topo", features = ["sweep-testing"] }
 # Watertightness backstop for the fillet acceptance row (M5 PR 12): the
 # rounded die is tessellated and `mesh::validate::check_mesh`ed. `mesh`
 # dev-depends on `sweep` in turn; cargo permits cycles that run through
 # dev-dependencies (neither ever enters the other's build graph).
 mesh = { path = "../mesh" }
 proptest = { workspace = true }
+# The one home for a randomized sweep's seed and effort dial
+# (`CAD_FUZZ_SEED` / `CAD_FUZZ_EFFORT`). `test-utils` is a dev-only
+# leaf no shipped build reaches, which is why the ambient-environment
+# gate allowlists its `fuzz.rs` by REACHABILITY — a suite here that
+# rolled its own env dial would be a second channel with no such
+# argument behind it.
+test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

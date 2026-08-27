@@ -1,5 +1,5 @@
 //! Persistent naming (M4 PR 3; NAMING-DESIGN N1–N4 made concrete —
-//! ratified #74, binding; spec `docs/M4-PR3-SPEC.md` D1–D6).
+//! ratified #74, binding).
 //!
 //! A [`StableName`] is a **derivation path**: the minting recipe node
 //! plus an op-typed [`RolePath`] of closed-enum [`RoleSeg`]s (N1).
@@ -33,7 +33,7 @@ mod table;
 
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{empty, name_pattern};
+pub(crate) use emit::{empty, name_pattern, name_placed_union};
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
@@ -49,6 +49,7 @@ pub use geompred::{
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
 };
+pub(crate) use role::name_free_seg;
 pub use role::{
     CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
     RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
@@ -57,7 +58,7 @@ pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, selec
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**
-/// — the materializer for a whole-body fillet selection (M6-5, the
+/// — the materializer for an every-edge fillet selection (M6-5, the
 /// F-a ruling).
 ///
 /// [`crate::Node::Fillet`] has no "all edges" variant on purpose: a

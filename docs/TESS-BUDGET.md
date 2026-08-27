@@ -1,19 +1,35 @@
 # The tessellation budget — measuring over-tessellation (issue #320)
 
-**Status: measurement complete, no fix applied.** #320 asked whether
-the NURBS-wall grid sizing is "honestly tight … or systematically
-over-conservative", and asked for measurement first. This is the
-measurement, the instrument that produced it, and what the numbers say
-a fix would have to do. The shipped certificate path is unchanged: the
-work here is an instrument beside it, not a change to it.
+**Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
+merged as #594; its binding spec was deleted with the other
+closed-unit artifacts and is recoverable through
+`docs/DOC-LEDGER.md`), and the SPLIT half is FIXED (TESS-SPLIT):
+the shipped point selection is now the cell minimizer on the same
+certified ellipse under the ratified A = 16 first-fundamental-form
+aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
+`NurbsFaceBound::split_steps` are the statement of record), with
+the realized-lattice sliver machinery in force over it — the
+post-fix split ratio reads ~1.0 at constraint-inactive cells and
+the CSV's `cap_bands`/`snap_bands` columns say which constraint
+bound the rest.** #320 asked whether the NURBS-wall grid
+sizing is "honestly tight … or systematically over-conservative", and
+asked for measurement first. This document is that measurement, the
+instrument that produced it, and what the numbers said a fix would
+have to do — kept as the pre-fix record. Since TESS-SPAN the shipped
+schedule sizes each knot-span cell from its own certified bound, so
+the `span` factor below is REALIZED and the meter's columns were
+re-derived ("The columns after TESS-SPAN", below); since TESS-SPLIT
+the split factor is realized too, under the ratified aspect policy
+below.
 
 ## The instrument
 
-Three pieces, each usable on its own:
+Four pieces, each usable on its own:
 
 | piece | what it is |
 |---|---|
-| `mesh::budget` | A per-face meter inside the kernel, behind the crate's `budget` feature. Armed, it records one row per face: chart, triangles, the grid the lane used, the whole-patch Hessian bound, and what CHEAPER grids the same certificates admit. |
+| `mesh::budget` | The per-face MEASUREMENTS, taken inside the kernel behind the crate's `budget` feature — and only what nothing downstream can recover: the trim box, the cells the schedule built, the certified bounds the sizing read, the worst per-triangle certificate, and (armed for it) the sampled deviation. One hand-off per NURBS face. No schema, no arithmetic, no assertion. |
+| `tools/tess-meter` | Everything downstream of the measurements: the counterfactual schedules, the split optimizer, the row for every face (a planar cap's chart and triangle count are in the body and the mesh, so the meter is not asked to report them), and the CSV. Outside the kernel workspace, because a change to how the numbers are READ must not reach the lane that produces them. |
 | `mesh::nurbs_cert::nurbs_cell_bounds` | The certificate assembly reported PER KNOT-SPAN CELL instead of maxed over the patch. A second path, deliberately, so the shipped bound stays bit-identical. Its honesty is falsified cell by cell against densely sampled true second partials. |
 | `demo-tour tess-budget` → `tools/tess-lint` | The sweep (every tour scene, one CSV) and the consumer (report + regression gate). Same two-halves shape as the K-telemetry sweep and `k-lint`. |
 
@@ -37,16 +53,23 @@ two configurations from drifting. `arm`/`take` exist ONLY in the armed
 half, so a build without the feature fails to compile the sweep rather
 than writing an empty CSV.
 
-The module itself is `pub` only under the feature (`pub(crate)`
-otherwise, which is all the inert half needs), and so are the row types
-— `Mode`, `NurbsBudget`, `FaceBudget`, the CSV. A default build exports
-no part of the meter. What stays compiled either way is exactly what
-the shared call sites name: `Chart`, `Sizing`, `DEV_SAMPLES`, and the
-no-op recorders.
+The MEASUREMENT TYPES (`FaceMeasure`, `CellMeasure`) are public either
+way: they are the contract with `tools/tess-meter`, which reads them
+without needing the instrument compiled in, and they are data. What the
+feature gates is the instrument — `Mode`, `arm`, `take`, the
+thread-local, and the recording the lane does between them.
 
 The default `cargo test` therefore exercises the inert half; the armed
 half has its own CI row (`cargo test -p mesh --features budget`),
-mirrored in `local-scripts/ci-local.sh`.
+mirrored in `local-scripts/ci-local.sh`. That row also carries the
+per-triangle certificate falsifier
+(`probe_review::z1_per_triangle_certificate_falsification`), which
+drives the deviation pass at 12 samples per edge and asserts on
+`worst_ratio`. **The assertion is in the suite, not in the lane**: the
+kernel reduces the samples to the largest `|S − Π| / (cert + ε)` any
+sample on any triangle of the face reached, which is the per-triangle
+claim as one number, so no build of the kernel can turn
+`tessellate`'s typed-error contract into a panic.
 
 The sweep resamples `|S − Π|` on every emitted triangle unless
 `--sizing-only` is passed; without that pass it costs one tessellation
@@ -55,16 +78,122 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1025 face rows, cut at the head this document was written against,
-WITH the resampling pass — its `worst_dev` column is where the
-total-slack figures below come from). CI runs the sweep
-`--sizing-only` and gates on REGRESSION against it: a scene's mesh
-growing, a face's sizing getting wastefuller, or a scene silently
+(WITH the resampling pass). Its row count is the file's own and grows
+with the tour — 1,075 at the TESS-SPLIT re-cut, and every re-cut since
+is an ordinary commit under "Re-cutting the baseline" below — so read
+the file, not this sentence, for the current count.
+It is NOT the cut this document's measurement was taken from and its
+numbers are not the ones quoted below: "The finding" reports 1,025
+faces and 390,100 grid cells against the shipped whole-patch schedule
+of the time, where the committed file's own `grid_cells` sum is
+46,102 (the TESS-SPAN re-cut's was 163,182), and the total-slack
+figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
+figures below as the pre-fix record they are labelled as. CI runs the
+sweep `--sizing-only` and gates on REGRESSION against it: a scene's
+mesh growing, a face's sizing getting wastefuller, or a scene silently
 dropping out of the sweep. The gate reads triangle counts and the
 sizing columns only, so the resampling is a cost the gate has no use
 for; re-cutting the baseline drops the flag.
 
-## What the four numbers mean
+## The columns after TESS-SPAN
+
+TESS-SPAN moved the shipped schedule onto the per-cell sizing this
+document measured, which would have blinded a meter whose "shipped
+grid" column was defined as the whole-patch product. The CSV was
+re-derived (spec D-4) so BOTH regression kinds stay visible:
+
+* `grid_cells` — the grid the lane ACTUALLY built (per-cell), read off
+  the sizing hand-off. The gate's numerator.
+* `patch_cells` (with `nu`, `nv`, `muu`, `muv`, `mvv`) — the retired
+  whole-patch-sup schedule, recomputed by the meter as a
+  COUNTERFACTUAL. `patch_cells / grid_cells` is the **held** span
+  gain; a silent revert to whole-patch sizing multiplies `grid_cells`
+  by it, which fires the triangle gate and the slack gate both.
+* `span_cells` — **removed.** It was identically `grid_cells` (the
+  same `band_schedule` sum, `Σ nuc·nvc`), so the **agreement** ratio
+  built on it was 1.00 by arithmetic rather than by check, and neither
+  of its two numbers counted a realised candidate. It is gone rather
+  than re-derived — see "Why there is no realisation column", below.
+* `opt_cells`, `span_opt_cells` — as before (cheapest split under the
+  whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
+  gate's per-face recoverable-slack ratio, now carrying the split
+  factor PLUS the banding and malign-snap forfeits, summed.
+
+What guards `band_schedule` itself: (i) the per-triangle certificate —
+`NurbsCellGrid::cert` reads the raw per-cell bounds independent of the
+schedule, so an undersizing bug ends in refinement then a typed
+refusal, and is falsified per-triangle under the `budget` feature's
+deviation mode; (ii) this gate's growth rules against the committed
+baseline; (iii) the committed render cells. **The stated blind spot: a
+schedule bug that makes the grid COARSER while still certifying is
+invisible to a growth-only gate** — accepted because the certificate
+is the guarantee, and recorded here so the gate is not read as more
+than it is.
+
+## Why there is no realisation column
+
+The removed column was described as verifying the lane's REALISATION
+of the schedule — candidate generation, dedup, counting. It never did.
+The question the removal answers is not "how do we make that number
+real" but "is a realisation check worth having", and the answer is no,
+for four reasons that are about the check rather than about its cost:
+
+1. **A realisation ratio cannot see the blind spot named above.** That
+   blind spot is a SCHEDULE bug. A realisation ratio divides what the
+   lane built by what the schedule asked for, so a wrong schedule
+   moves both sides together and the ratio stays where it was. The
+   paragraph above is not the specification for such a check; it is
+   the reason the check is not the guard, and it already names the
+   three things that are.
+
+2. **Both directions of a genuine realisation failure are watched by
+   instruments that read the mesh rather than a predicted count — one
+   of them exactly, the other approximately.** Realise the grid
+   COARSER than the schedule asked and the triangles are larger than
+   the cell bound admits, so the per-triangle certificate — computed
+   from the realised triangle's own uv extents, per triangle, with no
+   tolerance — refuses. That direction is caught exactly. Realise it
+   DENSER (a dedup that stops deduping, a band emitted twice) and the
+   triangle count grows, which is the gate's first rule — but that
+   rule is a SCENE TOTAL at `GROWTH_TOLERANCE`, so a densification
+   worth less than 5% of a whole scene's triangles passes it, and the
+   slack rule cannot help because its numerator `grid_cells` is the
+   schedule's own sum and never sees realisation. The dense direction
+   is therefore bounded rather than caught. A realisation ratio would
+   not close that gap either — see 3, which is why its tolerance
+   could not be set any tighter than this one.
+
+3. **The ratio would have no principled target, so its tolerance
+   could only be read off the baseline.** `per_cell_candidates` states
+   the mismatch itself: a shared cut line carries the union of BOTH
+   adjacent bands' column points, candidates outside the trim box are
+   dropped, and the end columns of each band are excluded. A realised
+   point count is therefore a function of band structure and trim box
+   that equals neither `Σ nuc·nvc` nor any other stated value. Any
+   tolerance on it would have to be widened until today's sweep went
+   green — which is the objection this document already makes to
+   absolute thresholds, one level down.
+
+4. **Nothing consumed it.** The gate reads triangle counts and
+   `grid_cells / span_opt_cells`; the agreement ratio reached one
+   printed figure and one report column and decided nothing.
+
+**The third option, named so the rejection is on the record: keep a
+realisation column with an honest name and NO assertion, as a reported
+number.** Since the old column was a literal duplicate of
+`grid_cells`, that option is not "keep it" but "build a new one" — and
+4 says nothing wanted the number while 2 says the realised total is
+already reported, as `triangles`, from the mesh rather than from a
+count of candidates. A second reported number that nothing reads and
+that duplicates an existing one in a different unit is what was just
+removed.
+
+`grid_cells` remains and is still the schedule's own sum; what it is
+is stated where it is declared. The report prints `held / split /
+total`; `tess-lint`'s gate rules are unchanged in shape (triangle
+growth, per-face recoverable slack growth, vanished scenes).
+
+## What the four numbers meant (pre-fix record)
 
 All four are ratios of GRID CELL COUNTS over the same trim box with the
 same `ceil` discipline, so they compare directly.
@@ -208,6 +337,34 @@ scripts/tess_budget_sweep.sh docs/tess-budget-data/tess-budget-baseline.csv
 and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
+
+**A re-cut that FOLDS IN uncovered scenes restores coverage, it does
+not verify it.** This is the sentence to read before treating a fold as
+good news, whoever is doing it. Folding an uncovered scene into the
+baseline buys comparison FROM NOW ON; it cannot recover the window the
+scene spent outside the gate. Whatever happened to its sizing in that
+interval is unaudited and is not recoverable from the sweep data, so the
+values a fold blesses are **current-state, not verified-optimal** — if
+the scene regressed in the window, the fold enshrines the regression as
+the new reference. *Coverage restored* is not *coverage verified*, and
+only an audit closes the gap.
+
+Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
+predated five scenes already on the tour — `diechamfer` 68,
+`benchlayout` 30, `diechamferblank` 26, `bench` 18, `hollowring` 4 =
+**146 face rows** — swept, measured, printed and compared against
+NOTHING on every run, while the gate reported clean. M9-5's own
+baseline change was its 47 new rows only; the five scenes' fold was
+executed by VERBS-TESSFOLD WITH the audit this section demands: each
+scene's values verified against an expectation the fold does not
+itself define (the chamfer scenes row-for-row against their
+filleted/pipped twins, `hollowring` exactly against the torus grid
+step (`mesh::sizing::torus_grid_step`), the bench scenes against
+their introducing PR's claim and the box-face arithmetic) before
+landing as reference. The class —
+a comparison gate whose coverage decays silently as the corpus
+outgrows its reference, while its verdict stays green by not looking —
+is **#1038**, sibling to #1023, and stays open past the fold.
 
 ## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 

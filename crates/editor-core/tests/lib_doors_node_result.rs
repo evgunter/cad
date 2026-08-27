@@ -13,6 +13,7 @@ use editor_core::{
     BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
+use geom_core::Tol;
 use profile::SketchPlane;
 
 /// A square profile `[0,s]²` on the xy-plane, as a loop program.
@@ -36,9 +37,11 @@ fn square(s: f64) -> Node<ProfileProgram> {
 /// document plus the failing and poisoned ids.
 fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
-    let mut doc = ProfileDoc::empty_derived("lib_doors_node_result");
+    let mut doc = ProfileDoc::empty_derived("lib_doors_node_result", Tol::witness());
     let insert = |doc: &mut ProfileDoc, node| {
-        let applied = doc.apply(&DocEdit::InsertNode { node }).unwrap();
+        let applied = doc
+            .apply(&DocEdit::InsertNode { node }, Tol::witness())
+            .unwrap();
         *doc = applied.doc;
         applied.record.minted.unwrap()
     };
@@ -80,7 +83,13 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 #[test]
@@ -132,8 +141,11 @@ fn ok_and_absent_nodes_answer_none() {
 /// F6 (reopened on the PR #308 review): the refusal enums render as
 /// PROSE — problem statements, not the payloads' `Debug` guts. Pins
 /// one message per new `Display` (EditError, NodeError/-Kind,
-/// DimensionError, ProgramRefusal) plus the no-guts property on the
-/// live coincidence refusal.
+/// DimensionError, ProgramRefusal), the no-guts property on the live
+/// coincidence refusal, and the same property over every arm of
+/// [`forwarding_cases`] — a forwarded payload carries whatever its own
+/// `Display` renders, so the no-guts rule is only as wide as the set
+/// of payloads something actually renders.
 #[test]
 fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
@@ -146,6 +158,18 @@ fn refusals_render_as_prose_not_debug_guts() {
     let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
     assert_eq!(literal.to_string(), "a literal value must be finite");
+
+    // The fourth `Display` this suite claims to pin. Its validate arm
+    // holds a `profile::ProfileError`, so it forwards rather than
+    // re-stating — the same rule as `NodeErrorKind`'s payload arms.
+    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::EmptyProfile);
+    assert_eq!(
+        program.to_string(),
+        format!(
+            "the replayed loops failed profile validation: {}",
+            profile::ProfileError::EmptyProfile
+        )
+    );
 
     // The live failure: the coincident Boolean's message states the
     // problem and the two-armed recourse (since R3 the refusal is the
@@ -172,5 +196,298 @@ fn refusals_render_as_prose_not_debug_guts() {
         "Indeterminate",
     ] {
         assert!(!message.contains(guts), "Debug guts leaked: {message}");
+    }
+
+    // Every forwarded payload, to the depth the workspace nests them.
+    // A `{` here means some layer below rendered a struct with `{:?}`
+    // and the forwarding carried it out through the FFI.
+    for kind in forwarding_cases() {
+        let rendered = kind.to_string();
+        for guts in ["{", "MarginDiag", "Value("] {
+            assert!(
+                !rendered.contains(guts),
+                "Debug guts leaked through a forwarded payload: {rendered}"
+            );
+        }
+    }
+
+    // The metadata version door: three payload arms, one of which used
+    // to be reported as another. Each must say its own thing, and the
+    // message must not read as the "v" field being absent when it is
+    // the map that is. `EditError` renders IDENTIFIERS via `Debug`
+    // deliberately (its own `Display` header states why: an identifier
+    // IS the location), so the property asserted here is the payload
+    // one — the variant's name never reaches the prose.
+    for (error, expected) in [
+        (editor_core::MetaVersionError::NotAMap, "is not a map"),
+        (
+            editor_core::MetaVersionError::MissingVersion,
+            "no \"v\" entry",
+        ),
+        (
+            editor_core::MetaVersionError::VersionNotInt,
+            "not an integer",
+        ),
+    ] {
+        let message = EditError::MetaUnversioned {
+            name: editor_core::StableName {
+                kind: editor_core::EntityKind::Body,
+                node: RecipeNodeId(1),
+                path: vec![editor_core::RoleSeg::OutputBody],
+            },
+            key: "provenance".to_string(),
+            error,
+        }
+        .to_string();
+        assert!(message.contains(expected), "{error:?} rendered: {message}");
+        for guts in ["NotAMap", "MissingVersion", "VersionNotInt"] {
+            assert!(!message.contains(guts), "Debug guts leaked: {message}");
+        }
+    }
+}
+
+/// The forwarding roster: one `NodeErrorKind` arm per payload-owning
+/// crate, plus the deepest nesting the workspace actually builds
+/// (`Split` → `SplitFinishError` → `BandError`, three layers of
+/// forwarding under one node arm). Two properties are asserted over
+/// it — that each arm forwards its payload, and that none of them
+/// leaks `Debug` structure — because both are properties of the same
+/// roster and a fixture that holds one should hold the other.
+fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
+    use editor_core::NodeErrorKind as K;
+    let name = |kind| editor_core::StableName {
+        kind,
+        node: RecipeNodeId(3),
+        path: vec![editor_core::RoleSeg::OutputBody],
+    };
+    vec![
+        K::Profile(profile::ProfileError::EmptyProfile),
+        K::Expr {
+            slot: editor_core::SlotId::Distance,
+            source: editor_core::EvalError::NonFiniteResult,
+        },
+        K::DeclareResolve {
+            error: Box::new(editor_core::ResolveError::NodeGone {
+                name: name(editor_core::EntityKind::Face),
+                edit: editor_core::RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(3),
+                },
+            }),
+        },
+        K::FilletSelectionResolve {
+            error: Box::new(editor_core::ResolveError::Ambiguous {
+                name: name(editor_core::EntityKind::Edge),
+                candidates: vec![],
+                tie: editor_core::TieWitness {
+                    node: RecipeNodeId(3),
+                    at: name(editor_core::EntityKind::Edge),
+                    width: 2,
+                },
+            }),
+        },
+        K::WitnessBifurcation(editor_core::WitnessBifurcation {
+            kind: editor_core::BifurcationKind::FoldProximity,
+            margin: editor_core::BranchMarginEvidence {
+                margin: 2e-10,
+                band_zero: 1e-9,
+                band_escalate: 1e-8,
+            },
+            implicated: vec![editor_core::Implicated::Constraint(1)],
+            witness_age: editor_core::WitnessAge {
+                solved_under: vec![],
+                at_solve: vec![],
+            },
+        }),
+        K::PlacementRule(editor_core::PlacementRuleFault::NonFiniteFrame { index: 3 }),
+        K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
+        K::Revolve(sweep::RevolveError::DegenerateAxis),
+        K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
+        K::Loft(sweep::LoftError::SeamStructure),
+        K::Fillet(sweep::fillet::FilletError::RepeatedEdge {
+            edge: topo::EdgeKey::default(),
+        }),
+        K::Transform(topo::transform::TransformError::NurbsPlaceholder),
+        K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(
+            geom_core::BandError::Empty {
+                zero: 1.0,
+                escalate: 0.5,
+            },
+        ))),
+    ]
+}
+
+/// **A `NodeErrorKind` arm that holds a kernel refusal RENDERS it.**
+/// The variant carries the typed error for a caller who can match; the
+/// message is the whole channel for one who cannot, and the bindings'
+/// `kind` attribute is the discriminant alone — so an arm that names
+/// the op and stops has spent the payload's class, keys and recourse
+/// on nothing.
+///
+/// **Representative, not exhaustive**, and nothing makes it
+/// exhaustive: `NodeErrorKind` cannot be enumerated at runtime and a
+/// hand-kept roster of arms is the very shape this repo keeps
+/// retiring. [`forwarding_cases`] is the roster, and a new arm wrapping a new
+/// kernel error is not covered by it; the module comment on the
+/// `Display` impl is what states the rule for such an arm.
+#[test]
+fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
+    use editor_core::NodeErrorKind as K;
+
+    for kind in forwarding_cases() {
+        let rendered = kind.to_string();
+        let payload = match &kind {
+            K::Profile(e) => e.to_string(),
+            K::Expr { source, .. } => source.to_string(),
+            K::DeclareResolve { error } => error.to_string(),
+            K::FilletSelectionResolve { error } => error.to_string(),
+            K::WitnessBifurcation(e) => e.to_string(),
+            K::PlacementRule(e) => e.to_string(),
+            K::Extrude(e) => e.to_string(),
+            K::Revolve(e) => e.to_string(),
+            K::Skin(e) => e.to_string(),
+            K::Loft(e) => e.to_string(),
+            K::Fillet(e) => e.to_string(),
+            K::Transform(e) => e.to_string(),
+            K::Split(e) => e.to_string(),
+            other => panic!("add the new case's payload here: {other:?}"),
+        };
+        assert!(
+            rendered.ends_with(&payload),
+            "the arm dropped its payload: rendered {rendered:?}, payload {payload:?}"
+        );
+        assert!(
+            rendered.len() > payload.len(),
+            "the arm must still name the failing op: {rendered:?}"
+        );
+    }
+}
+
+/// **The document layer's own payload types render their own story**
+/// (the D54 set: `EvalError`, `ResolveError`, `WitnessBifurcation`,
+/// `PlacementRuleFault`) — each message states the problem in prose,
+/// carries its one recourse where the fault has one, and none of them
+/// leaks `Debug` structure. One case per `Display`, plus the arms
+/// whose recourse phrasing is load-bearing.
+#[test]
+fn the_document_layers_own_payloads_render_their_own_stories() {
+    use editor_core::{
+        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError, ParamName,
+        PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
+        WitnessBifurcation,
+    };
+
+    let name = |kind| StableName {
+        kind,
+        node: RecipeNodeId(5),
+        path: vec![RoleSeg::OutputBody],
+    };
+    let cases: Vec<(String, &[&str])> = vec![
+        (
+            EvalError::UnknownParam(ParamName::new("width")).to_string(),
+            &[
+                "\"width\"",
+                "has no binding",
+                "declare the document parameter",
+            ],
+        ),
+        (
+            EvalError::NonFiniteResult.to_string(),
+            &["not finite", "pole"],
+        ),
+        (
+            ResolveError::Vanished {
+                name: name(EntityKind::Face),
+                diagnosis: Diagnosis::PredicateFlip {
+                    predicate: "coincidence",
+                    from: geom_core::Sign::Zero,
+                    to: geom_core::Sign::Positive,
+                },
+                last_good: None,
+            }
+            .to_string(),
+            &[
+                "face name minted by node 5",
+                "no longer resolves",
+                "predicate coincidence flipped",
+            ],
+        ),
+        (
+            ResolveError::NodeGone {
+                name: name(EntityKind::Vertex),
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(5),
+                },
+            }
+            .to_string(),
+            &["vertex name", "node 5 was deleted", "explicit rebind"],
+        ),
+        (
+            WitnessBifurcation {
+                kind: BifurcationKind::AmbiguousBasin,
+                margin: BranchMarginEvidence {
+                    margin: 2e-10,
+                    band_zero: 1e-9,
+                    band_escalate: 1e-8,
+                },
+                implicated: vec![],
+                witness_age: WitnessAge {
+                    solved_under: vec![],
+                    at_solve: vec![],
+                },
+            }
+            .to_string(),
+            &[
+                "well-separated solution basins",
+                "margin 2e-10",
+                "re-solve to record a fresh witness",
+            ],
+        ),
+        (
+            PlacementRuleFault::CountSpelling.to_string(),
+            &["disagree about how many placements"],
+        ),
+        (
+            PlacementRuleFault::ImproperFrame {
+                index: 2,
+                determinant: -1.0,
+            }
+            .to_string(),
+            &["placement 2 is improper (mirroring)"],
+        ),
+    ];
+    for (rendered, expected) in cases {
+        for needle in expected {
+            assert!(rendered.contains(needle), "{needle:?} not in: {rendered}");
+        }
+        // The negative pin class: prose, never a Debug dump — no
+        // struct braces, no variant name.
+        for guts in [
+            "{",
+            "UnknownParam",
+            "NodeGone",
+            "PredicateFlip",
+            "AmbiguousBasin",
+        ] {
+            assert!(!rendered.contains(guts), "Debug guts leaked: {rendered}");
+        }
+    }
+    // The W3 layer-2 vocabulary ban, pinned on the rendering: the
+    // refusal is a certificate outcome, never a DOF slogan.
+    let refused = WitnessBifurcation {
+        kind: BifurcationKind::ResidualFailure,
+        margin: BranchMarginEvidence {
+            margin: 0.0,
+            band_zero: 1e-9,
+            band_escalate: 1e-8,
+        },
+        implicated: vec![],
+        witness_age: WitnessAge {
+            solved_under: vec![],
+            at_solve: vec![],
+        },
+    }
+    .to_string();
+    for banned in ["over-constrained", "under-constrained", "converge"] {
+        assert!(!refused.contains(banned), "W3 banned phrase: {refused}");
     }
 }

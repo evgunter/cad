@@ -134,6 +134,31 @@ impl Default for KeyHasher {
 /// the scalars evaluation instantiates at (f64, Interval, and the
 /// K-telemetry `Probe`); a new scalar joins by stating its exact
 /// representation here.
+///
+/// # `Dual` is not one of them — the negative row for E4's door
+///
+/// Wave 0 decision **D1** (2026-08-19) gave `Dual` `geom_core::Bounds`,
+/// which was the blocker `SMELL-SCAN`'s S2 named for
+/// [`crate::eval::evaluate`]`::<Dual64>` — E4's stated sensitivity
+/// mechanism. It was not the only one: **this** trait has no `Dual`
+/// impl, and closing that is issue **#687**, a decision about whether the
+/// seed enters the memo's content key rather than a formality.
+///
+/// Pinned as a compiler fact rather than as prose, so it goes red the day
+/// `#687` lands — which is the day `crates/editor-core/tests/e4_dual_door.rs`
+/// and S44's D1 record stop being true:
+///
+/// ```compile_fail,E0277
+/// fn feeds_content_bits<T: editor_core::eval::ContentBits>(_t: T) {}
+/// feeds_content_bits(geom_core::Dual64::constant(1.0));
+/// ```
+///
+/// beside the passing companion, so the row is measuring a real bound:
+///
+/// ```
+/// fn feeds_content_bits<T: editor_core::eval::ContentBits>(_t: T) {}
+/// feeds_content_bits(1.0_f64);
+/// ```
 pub trait ContentBits: Real {
     /// Feed this value's exact representation to the hasher.
     fn feed(&self, h: &mut KeyHasher);

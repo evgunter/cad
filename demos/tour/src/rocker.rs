@@ -22,15 +22,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::Tolerance;
 use pncad::profile::{
-    ArcSweep, Open, Profile, ProfileLoop, SegmentKind, SketchPlane, Start, ValidatedProfile,
+    ArcSide, ArcSweep, Center, Open, Profile, ProfileLoop, Radius, SegmentKind, SketchPlane, Start,
+    ValidatedProfile,
 };
 use pncad::sweep::{Extrusion, extrude};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::p2;
+use pncad::geom_core::Tol;
 
 /// Hub circle: centre (0, 0), R = 2.5 — the plate's big bearing boss.
 const HUB: (f64, f64, f64) = (0.0, 0.0, 2.5);
@@ -89,7 +90,7 @@ fn eye_fillet_center_y() -> f64 {
 /// oracle, verified at its own tolerances — never byte-identity with a
 /// previous spelling, and nothing in this file is fitted to make a
 /// rounding cancel.
-fn outline<S: Scalar>() -> ProfileLoop<S> {
+fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
     let (hx, hy, hr) = HUB;
     let (bx, by, br) = BOSS;
     let blend = S::from_f64(R_BLEND);
@@ -99,38 +100,72 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
     // (heading east into the knee). Only the RATIO of a direction is
     // read, so these are the sides' slopes, written exactly.
     Open.at(p2::<S>(5.05, -1.6))
-        .toward(S::from_f64(2.1), S::from_f64(0.8))
+        .toward(S::from_f64(2.1), S::from_f64(0.8), tol)
         .expect("the keel runs east")
-        // keel → boss: the arrival rides the boss circle, entering it at
-        // its east point.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_on(p2(bx + br, by), p2(bx, by), ArcSweep::Ccw)
+        // keel → boss: a straight incoming side, an ARC arrival that
+        // rides the boss circle and enters it at its east point — one
+        // fused verb, radius and arrival authored together.
+        .fillet_arc(
+            blend,
+            Center {
+                c: p2(bx, by),
+                winding: ArcSweep::Ccw,
+                p: p2(bx + br, by),
+            },
+            tol,
+        )
         .expect("keel→boss blend fits")
-        // boss → upper flank: the departure is ON the boss carrier and
-        // the arrival is straight — the §2b route-3 door.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_toward(p2(4.05, 1.35), S::from_f64(-4.1), S::from_f64(0.3))
+        // boss → upper flank: the incoming side runs ON the boss
+        // carrier, so the verb re-authors it from the tip's own bits —
+        // the carrier radius and the side its centre sits on (left of
+        // travel is CCW) — and the arrival is straight.
+        .arc_fillet(
+            Radius {
+                r: S::from_f64(br),
+                side: ArcSide::Left,
+            },
+            blend,
+            tol,
+        )
         .expect("boss→flank blend fits")
+        .at(p2(4.05, 1.35), tol)
+        .expect("the upper flank's anchor fits the blend")
+        .toward(S::from_f64(-4.1), S::from_f64(0.3), tol)
+        .expect("the upper flank runs back west")
         // upper flank → hub: back onto the big circle, entered at its
         // west point — the very point the raw spelling used as its seam,
         // now an anchor and not a vertex.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_on(p2(hx - hr, hy), p2(hx, hy), ArcSweep::Ccw)
+        .fillet_arc(
+            blend,
+            Center {
+                c: p2(hx, hy),
+                winding: ArcSweep::Ccw,
+                p: p2(hx - hr, hy),
+            },
+            tol,
+        )
         .expect("flank→hub blend fits")
-        // hub → lower flank: route 3 again, off the hub carrier.
-        .fillet(blend)
-        .expect("a definitely positive blend radius")
-        .at_toward(p2(3.0, -1.75), S::from_f64(2.0), S::from_f64(-0.5))
+        // hub → lower flank: arc incoming off the hub carrier, straight
+        // arrival, again in one verb.
+        .arc_fillet(
+            Radius {
+                r: S::from_f64(hr),
+                side: ArcSide::Left,
+            },
+            blend,
+            tol,
+        )
         .expect("hub→keel blend fits")
+        .at(p2(3.0, -1.75), tol)
+        .expect("the lower flank's anchor fits the blend")
+        .toward(S::from_f64(2.0), S::from_f64(-0.5), tol)
+        .expect("the lower flank runs east")
         // the keel knee, and the seam: two straight legs, so this is the
         // line×line door the bracket has used since #101, closing onto
         // side 1 through `Start`.
-        .fillet(S::from_f64(R_KNEE))
+        .fillet(S::from_f64(R_KNEE), tol)
         .expect("a definitely positive knee radius")
-        .to(Start)
+        .to(Start, tol)
         .expect("keel knee fillet fits")
         .into()
 }
@@ -145,40 +180,55 @@ fn outline<S: Scalar>() -> ProfileLoop<S> {
 /// rival sat.
 ///
 /// **Authored through the PATHS algebra (LIB-G2 §4)** — the whole loop
-/// in three binders, and NEITHER tip is written down.
+/// is ONE fused verb, and NEITHER tip is written down.
 ///
-/// The entry is bound ON the right lobe (`at_on`: anchor + centre +
-/// winding, the tangent derived), the fillet opens, and `to_on` closes
-/// on the LEFT lobe through `Start`. The top corner is DERIVED as the
-/// two carriers' circle×circle intersection — the squared-radius form
-/// lands it bitwise on the `(0, √¾)` a hand author would type — and the
-/// bottom tip is kept, because `to_on` closes on a *different* carrier
-/// and that vertex is a genuine two-carrier junction (`to(Start)` would
-/// retrim it away). Bit-identity with the raw `fillet_corner` chain is
-/// pinned in `profile`'s differential suite.
-fn eye<S: Scalar>() -> ProfileLoop<S> {
+/// `arc_fillet_arc` states the corner's three parts in a single
+/// authoring act: the incoming side ON the right lobe (`Center`, so
+/// anchor + centre + winding, the tangent derived), the blend radius,
+/// and the arrival on the LEFT lobe closing through `Start`. The top
+/// corner is DERIVED as the two carriers' circle×circle intersection —
+/// the squared-radius form lands it bitwise on the `(0, √¾)` a hand
+/// author would type — and the bottom tip is kept, because the arrival
+/// closes on a *different* carrier and that vertex is a genuine
+/// two-carrier junction (`to(Start)` would retrim it away).
+/// Bit-identity with the raw `fillet_corner` chain is pinned in
+/// `profile`'s differential suite.
+fn eye<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
     let tip = eye_tip();
-    Open.at_on(p2(0.0, -tip), p2(-0.5, 0.0), ArcSweep::Ccw)
-        .expect("the eye's bottom tip lies on the right lobe's carrier")
-        .fillet(S::from_f64(R_EYE))
-        .expect("a definitely positive eye radius")
-        .to_on(Start, p2(0.5, 0.0), ArcSweep::Ccw)
-        .expect("the near candidate resolves the eye slot's tip")
-        .into()
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-0.5, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(0.0, -tip),
+        },
+        S::from_f64(R_EYE),
+        Center {
+            c: p2(0.5, 0.0),
+            winding: ArcSweep::Ccw,
+            p: Start,
+        },
+        tol,
+    )
+    .expect("the near candidate resolves the eye slot's tip")
+    .into()
 }
 
 /// The validated rocker profile: outline + eye slot.
-pub fn profile<S: Scalar>() -> ValidatedProfile<S> {
-    Profile::new(SketchPlane::xy(), vec![outline(), eye()])
-        .validate(Tolerance::get())
+pub fn profile<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
+    Profile::new(SketchPlane::xy(), vec![outline(tol), eye(tol)])
+        .validate(tol)
         .expect("the fillet-authored rocker profile validates")
 }
 
 /// The plate: profile extruded 1/2 m.
-pub fn rocker<S: Scalar>() -> pncad::topo::Body<S> {
-    extrude(&profile::<S>(), Extrusion::Distance(S::from_f64(0.5)))
-        .expect("extrude rocker")
-        .body
+pub fn rocker<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
+    extrude(
+        &profile::<S>(tol),
+        Extrusion::Distance(S::from_f64(0.5)),
+        tol,
+    )
+    .expect("extrude rocker")
+    .body
 }
 
 /// The S8 witness, read back off the VALIDATED profile: the one arc
@@ -196,7 +246,7 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     // the moment two blends shared a radius, and nothing at all if
     // the stored radius drifted an ulp.
     let eye_loop = vp.loops().last().expect("the profile has loops");
-    let blends = pncad::sweep::readback::blend_arcs(eye_loop);
+    let blends = eye_loop.blend_arcs();
     let [blend] = blends.as_slice() else {
         panic!(
             "the eye slot has exactly one filleted corner, found {}",
@@ -231,8 +281,8 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
 /// refreshed the sheet without flipping the flag back. The rocker is
 /// now the sheet's profile-fillet cell, which is what let the bracket
 /// cell retire.
-pub fn stops() -> Vec<Stop> {
-    let note = eye_pick_narration(&profile::<f64>());
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let note = eye_pick_narration(&profile::<f64>(tol));
     vec![Stop {
         name: "rocker",
         // Short — montage captions share the panel's width, and this
@@ -254,6 +304,6 @@ pub fn stops() -> Vec<Stop> {
             azim: -70.0,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain("rocker", [0.85, 0.72, 0.32], rocker())],
+        bodies: vec![SceneBody::plain("rocker", [0.85, 0.72, 0.32], rocker(tol))],
     }]
 }

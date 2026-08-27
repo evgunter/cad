@@ -1,8 +1,16 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties: the boolean edge×face sweep's candidate
-//! generation (first consumer, M5 PR 8), SSI seeding and the C3
-//! exhaustiveness subdivision (PR 7's wiring), viewport picking later.
+//! One tree, several duties — **one of them wired so far**:
+//!
+//! - **Boolean edge×face sweep** candidate generation — LIVE since
+//!   M5 PR 8 (`topo::boolean::reduce`).
+//! - **SSI seeding / C3 exhaustiveness subdivision** — INTENDED, not
+//!   yet wired. `geom_brep::ssi::exhaust` still enumerates cells by
+//!   recursive bisection with a linear scan over tubes, and says so
+//!   ("Brute force, deliberately, for now"): this tree swaps in under
+//!   that module's already-merged differential suite when profiling
+//!   asks for it. Nothing in the C3 contract changes when it does.
+//! - **Viewport picking** — INTENDED, blocked on there being a GUI.
 //!
 //! # The conservative-superset contract (load-bearing)
 //!
@@ -47,11 +55,16 @@
 //! `real.rs`, Bounds scope rule (the CI discipline grep allowlists
 //! exactly these seams).
 //!
-//! # The SSI-cell seam (PR 7, wiring deferred — API must not preclude)
+//! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
+//!
+//! The seam is unwired: `geom-brep` does not depend on this crate,
+//! and the marcher subdivides with its own boxes. The deferral is
+//! live and has no date.
 //!
 //! Items are addressed by dense input index, so any payload (entity
-//! keys today; C3 subdivision cells carrying C9 enclosures at PR 7)
-//! rides in a caller-side parallel array indexed the same way. Cells
+//! keys today; C3 subdivision cells carrying C9 enclosures if the seam
+//! is wired) rides in a caller-side parallel array indexed the same
+//! way. Cells
 //! with payloads need no change here: the box tree *is* the
 //! subdivision structure, the payloads live beside it.
 

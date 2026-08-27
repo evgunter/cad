@@ -111,6 +111,76 @@ use crate::dihedral::decide;
 use super::SsiError;
 use super::system::LocalSystem;
 
+/// The **candidate generator's** step tolerance, in meters.
+///
+/// The marcher is deliberately untrusted: it runs in `f64`, it makes no
+/// trilean decision, and every number it produces is re-derived by the
+/// certificate through the run's [`Band`] before anything is claimed.
+/// [`SSI_NEWTON_TOL`] and [`SSI_STEP_DEVIATION`] scale this value into
+/// that generator's convergence tolerance and between-sample deviation
+/// budget.
+///
+/// It is a distinct type — not a bare `f64` beside the `Band` — because
+/// the two are the *same quantity* on every door that certifies, and a
+/// second `f64` copy of the run tolerance is exactly the shape that
+/// lets a caller march at one tolerance and certify at another.
+///
+/// **Outside this crate the only constructor is
+/// [`MarchTol::from_band`].** A tolerance that is not the run band's is
+/// mintable only inside `ssi`, and only one door — the uncertified
+/// trace — reaches for it, from a bare `f64` its own caller named.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MarchTol(f64);
+
+impl MarchTol {
+    /// The generator's tolerance derived from the run's band — the run
+    /// tolerance ε itself, since a linear [`Band`]'s `zero()` **is** ε,
+    /// stored unmodified by `Band::new`.
+    ///
+    /// A tolerance built any other way cannot cross the certifying
+    /// seam — the finishers refuse with
+    /// [`SsiError::MarchTolMismatch`] — so the marcher's spacing, the
+    /// accounting floor and the certificate's floors are one number by
+    /// enforcement rather than by intent.
+    #[must_use]
+    pub fn from_band(band: Band) -> Self {
+        Self(band.zero())
+    }
+
+    /// A generator tolerance **deliberately decoupled** from the run
+    /// band, for the door that returns no certificate.
+    ///
+    /// Private to `ssi` on purpose: a `pub` version of this is the
+    /// second ε entering under a nicer name, and a maintainer editing a
+    /// certifying door is the caller who would reach for it. The only
+    /// legitimate use is measuring the marcher against itself — how the
+    /// fitted pair's deviation scales as the generator is tightened,
+    /// independently of the ambient tolerance the run is banded at.
+    ///
+    /// A decoupled march is **not** a hole in the certificate. Every
+    /// floor and every trilean downstream is stated in the `Band`, so a
+    /// generator run at some other tolerance can only produce a *worse
+    /// carrier*, which then certifies honestly at the band or refuses
+    /// on one of the three limbs.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::InvalidMarchTol`] when `meters` is not finite and
+    /// strictly positive — a typed refusal, never a silent clamp.
+    pub(super) fn decoupled(meters: f64) -> Result<Self, SsiError> {
+        if !(meters.is_finite() && meters > 0.0) {
+            return Err(SsiError::InvalidMarchTol { value: meters });
+        }
+        Ok(Self(meters))
+    }
+
+    /// The tolerance in meters — the `f64` the untrusted lane consumes.
+    #[must_use]
+    pub fn meters(self) -> f64 {
+        self.0
+    }
+}
+
 /// Fixed Newton-refinement cap per step (D9 — never data-dependent).
 pub const SSI_NEWTON_ITERS: usize = 8;
 
@@ -220,14 +290,15 @@ pub struct Trace<const N: usize> {
 /// Everything the stepper needs that is not the system: the named
 /// domain, the lever arms, and the budgets.
 #[derive(Clone, Copy, Debug)]
-pub struct MarchContext<const N: usize> {
+pub(crate) struct MarchContext<const N: usize> {
     /// The domain box in state coordinates, `[lo, hi]` per coordinate.
     pub domain: [[f64; 2]; N],
     /// The caller's named feature extent, in meters — the lever arm of
     /// last resort and the scale of the step clamps.
     pub extent: f64,
-    /// The run's tolerance (ε), in meters.
-    pub eps: f64,
+    /// The candidate generator's step tolerance. Derived from the run
+    /// band on every certifying door — see [`MarchTol`].
+    pub tol: MarchTol,
     /// Step budget.
     pub max_steps: usize,
 }
@@ -268,7 +339,7 @@ pub(crate) fn march<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
 {
-    let mut x = newton_refine(sys, seed, ctx.eps)
+    let mut x = newton_refine(sys, seed, ctx.tol)
         .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
     let seed_state = x;
     let mut states = vec![x];
@@ -399,7 +470,7 @@ where
                     // behind it. Same value to within an ulp, but the
                     // D9 promise ("libm-only, bit-replayable") is only
                     // true of the sqrt route.
-                    ((24.0 * SSI_STEP_DEVIATION * ctx.eps) / (kappa3d * kappa3d * kappa3d))
+                    ((24.0 * SSI_STEP_DEVIATION * ctx.tol.meters()) / (kappa3d * kappa3d * kappa3d))
                         .sqrt()
                         .sqrt()
                         / speed
@@ -434,7 +505,7 @@ where
         }
 
         // ---- 6. Newton refinement to the surface pair ----
-        let Some(refined) = newton_refine(sys, next, ctx.eps) else {
+        let Some(refined) = newton_refine(sys, next, ctx.tol) else {
             // A step that will not settle is a step into nothing: end
             // the branch honestly rather than record a bad sample.
             return Err(SsiError::SeedRefinementFailed { mode: mode.name() });
@@ -537,12 +608,12 @@ where
 pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
     sys: &S,
     mut x: [f64; N],
-    eps: f64,
+    step_tol: MarchTol,
 ) -> Option<[f64; N]>
 where
     S: LocalSystem<M, N>,
 {
-    let tol = SSI_NEWTON_TOL * eps;
+    let tol = SSI_NEWTON_TOL * step_tol.meters();
     for _ in 0..SSI_NEWTON_ITERS {
         let f = sys.residual(&x);
         let mut worst = 0.0f64;
@@ -707,7 +778,7 @@ fn push_boundary<const M: usize, const N: usize, S>(
         for (i, v) in t.iter_mut().enumerate() {
             *v = inside[i] + (outside[i] - inside[i]) * m;
         }
-        match newton_refine(sys, t, ctx.eps) {
+        match newton_refine(sys, t, ctx.tol) {
             Some(r) if within(&r, &ctx.domain) => {
                 lo = m;
                 best = Some(r);
@@ -787,4 +858,45 @@ where
         min_sigma: fwd.min_sigma.min(bwd.min_sigma),
         steps: fwd.steps + bwd.steps,
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{MarchTol, SsiError};
+    use geom_core::Band;
+
+    /// The bridge, stated as a row: a marcher tolerance derived from a
+    /// band **is** that band's coincidence threshold. Nothing scales it,
+    /// pads it, or rounds it — the marcher's step rule and the
+    /// certificate's floors are the same number, so a run cannot march
+    /// at one tolerance and certify at another.
+    #[test]
+    fn a_derived_march_tolerance_is_the_bands_own_zero() {
+        for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
+            let band = Band::new(zero, 10.0 * zero).unwrap();
+            assert_eq!(MarchTol::from_band(band).meters(), band.zero());
+        }
+    }
+
+    /// The decoupled constructor is the only other door, and it refuses
+    /// typed rather than clamping: a generator tolerance that is not a
+    /// length is a caller error, not a value to repair silently.
+    #[test]
+    fn a_decoupled_march_tolerance_refuses_typed_on_a_non_length() {
+        for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY] {
+            match MarchTol::decoupled(bad) {
+                Err(SsiError::InvalidMarchTol { value }) => {
+                    assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
+                    let msg = format!("{}", SsiError::InvalidMarchTol { value });
+                    assert!(
+                        msg.contains("MarchTol::from_band"),
+                        "the recourse sentence: {msg}"
+                    );
+                }
+                other => panic!("expected a typed refusal for {bad:e}, got {other:?}"),
+            }
+        }
+        assert_eq!(MarchTol::decoupled(1.0e-9).unwrap().meters(), 1.0e-9);
+    }
 }

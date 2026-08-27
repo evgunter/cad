@@ -25,6 +25,7 @@ use editor_core::{
     StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
 use fixture::{ang, desc, insert, len, scl, step};
+use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
 /// pins the DIFF/RESOLVE engine's semantics, whose evidence substrate
@@ -38,7 +39,7 @@ fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
         boolean_sweep: topo::SweepStrategy::Idealized,
         ..EvalOptions::default()
     };
-    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts)
+    evaluate::<f64>(doc, prior, &CancelToken::new(), &opts, Tol::witness())
 }
 
 fn block(
@@ -84,7 +85,7 @@ struct Slide {
 }
 
 fn slide_union(tx: f64) -> Slide {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
@@ -200,7 +201,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
 #[test]
 fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     // PR 3's symmetric U cutter: two prong fragments of B's caps tie.
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, p) = insert(
         doc,
@@ -278,7 +279,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
 #[test]
 fn ranked_reference_widens_to_the_tied_base_row() {
     // Real edge keys to populate the synthetic table with.
-    let src = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let src = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (src, ext) = block(src, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let sev = run(&src, None);
     let mut edges = sev
@@ -298,7 +299,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let (e1, e2) = (edges.next().unwrap(), edges.next().unwrap());
 
     // A one-node doc whose table we hand-build.
-    let mut doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let mut doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (d, node) = insert(doc, Node::declare_rest(vec![]));
     doc = d;
     let base = StableName {
@@ -317,6 +318,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(table),
+            contacts: Arc::new(topo::ContactRecords::default()),
             verdicts: Arc::new(vec![]),
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -366,7 +368,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
 
 #[test]
 fn deleting_a_named_node_strands_names_as_node_gone() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
@@ -397,7 +399,7 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
 
 #[test]
 fn never_minted_node_reports_foreign_not_deleted() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, _a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let ev = run(&doc, None);
     let foreign = name1(
@@ -497,7 +499,7 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
 
 #[test]
 fn pattern_count_shrink_diagnoses_structural_param() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pattern) = insert(
         doc,
@@ -666,7 +668,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
 
 #[test]
 fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, u) = insert(
@@ -730,7 +732,7 @@ fn rebind_suggestions_offer_wrapping_derivations() {
 
 #[test]
 fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let ev = run(&doc, None);
@@ -744,6 +746,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
                 node: Node::declare_rest(vec![(cap_a.clone(), cap_b.clone())])
             },
             &ev,
+            Tol::witness(),
         )
         .is_ok()
     );
@@ -762,6 +765,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             node: Node::declare_rest(vec![(cap_a.clone(), bogus.clone())]),
         },
         &ev,
+        Tol::witness(),
     )
     .unwrap_err();
     assert_eq!(
@@ -779,10 +783,70 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             &DocEdit::InsertNode {
                 node: Node::declare_rest(vec![(cap_a, cap_c)])
             },
-            &ev, // stale: c not evaluated here
+            &ev,
+            Tol::witness(),
         )
         .is_ok(),
         "forward references defer to evaluation-time resolution"
+    );
+}
+
+/// The same door, same obligation, for the OTHER payloads that carry a
+/// name. A fillet's selection is checkable exactly when a `Declare`
+/// pair is — the minting node evaluated `Ok` — so a typo role on an
+/// evaluated node is refused here rather than surviving to the fillet's
+/// own resolution.
+#[test]
+fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve_fillet_door", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let ev = run(&doc, None);
+    let rim = name1(
+        EntityKind::Edge,
+        a,
+        RoleSeg::RimEdge(
+            CapEnd::Top,
+            editor_core::ProfileEdgeRef {
+                loop_index: 0,
+                segment: 0,
+            },
+        ),
+    );
+    assert!(
+        apply_with_names(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::fillet(a, len(0.1), vec![rim.clone()])
+            },
+            &ev,
+            Tol::witness(),
+        )
+        .is_ok(),
+        "a selection the tables carry passes"
+    );
+    let bogus = name1(
+        EntityKind::Edge,
+        a,
+        RoleSeg::RimEdge(
+            CapEnd::Top,
+            editor_core::ProfileEdgeRef {
+                loop_index: 7,
+                segment: 7,
+            },
+        ),
+    );
+    let err = apply_with_names(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::fillet(a, len(0.1), vec![bogus.clone()]),
+        },
+        &ev,
+        Tol::witness(),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        editor_core::EditError::NameUnresolvedInEvaluation { name: bogus }
     );
 }
 
@@ -858,7 +922,7 @@ fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
     // for a painted partner must be derivations WRAPPING it, never
     // fragments of the OTHER body that merely recorded a side-of
     // verdict against its plane, and never a kind Rebind refuses.
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, _a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
     let (doc, bp) = insert(
         doc,
@@ -946,7 +1010,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // parameter — the only honest evidence is the recipe edit at the
     // boolean node, and it is on the vanished name's path.
     let build = |use_c: bool| {
-        let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+        let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
         let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
         // General position (no coplanar planes with A): B pierces A's
         // slab, strictly inside in y, poking out above and below.
@@ -1056,7 +1120,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
 fn grandparent_repoint_rederives_the_grandchild_names() {
     use editor_core::{NodeResult, ValuePayload};
     let build = |use_c: bool| {
-        let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+        let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
         let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, x) = insert(
@@ -1110,7 +1174,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
     // No prior run, no cascade, no recorded qualifier delta: the
     // documented total fallback — the recorded reference disagrees
     // with the recipe as it stands, the cause not in evidence.
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve");
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pattern) = insert(
         doc,
@@ -1191,6 +1255,7 @@ fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(t),
+            contacts: Arc::new(topo::ContactRecords::default()),
             verdicts: Arc::new(vec![]),
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
@@ -1226,7 +1291,7 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
     // nothing (the population-cancel shape), yet the diagnosis is an
     // honest PredicateFlip derived from recorded data.
     let (doc, n) = insert(
-        ProfileDoc::empty_derived("m4_pr4_resolve"),
+        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
         Node::declare_rest(vec![]),
     );
     let (doc, m) = insert(doc, Node::declare_rest(vec![]));

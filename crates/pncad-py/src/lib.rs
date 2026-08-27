@@ -9,12 +9,12 @@
 //!
 //! # What this crate binds
 //!
-//! LIBRARY-DESIGN §L3 fixes the layer: **Python speaks
+//! The layer is fixed: **Python speaks
 //! `Doc`/`DocEdit`/`evaluate`/persist, never an arena key.** There is
 //! no parallel direct-at-kernel binding surface — the one-shot user
 //! ("build a bracket, export STEP") is served by a small document, not
 //! by a second API. This crate therefore wraps exactly the curated
-//! document surface `pncad` re-exports, plus the §L4 typed quantities
+//! document surface `pncad` re-exports, plus the typed quantities
 //! at the boundary.
 //!
 //! # Build shape
@@ -27,6 +27,7 @@
 //! compiles and tests.
 
 pub mod errors;
+pub mod identity;
 pub mod tags;
 
 #[cfg(feature = "python")]

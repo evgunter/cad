@@ -22,9 +22,9 @@
     clippy::unreachable
 )]
 
+use geom::Surface;
 use geom_brep::implicit_residual;
 use geom_core::{Point3, RingInterval, Vec3};
-use geom_surfaces::Surface;
 use test_utils::fuzz;
 
 /// Uniform in `[-1, 1)`, the shape the reviewer's probe drew.

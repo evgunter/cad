@@ -15,10 +15,10 @@
 
 use core::f64::consts::PI;
 
+use geom::Curve3;
+use geom::Surface;
 use geom_brep::{implicit_residual, tangent_jet};
 use geom_core::{Point3, Vec3};
-use geom_curves::Curve3;
-use geom_surfaces::Surface;
 use sweep::fillet::Convexity;
 use sweep::fillet::blend::{corner_ball, plane_plane_blend, plane_sphere_blend};
 
@@ -183,6 +183,8 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         p(0.0, 0.0, c),
         big_r,
         r,
+        // The pip's dimple: material OUTSIDE the ball.
+        false,
     );
     let h = c + r;
     let s = ((big_r + r).powi(2) - h * h).sqrt();
@@ -230,6 +232,78 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     assert!((cb.z + r * (big_r - c) / (big_r + r)).abs() < 1e-12);
 }
 
+/// **The pair's other configuration: a CONVEX sphere.** A solid of
+/// revolution's latitude rim meets its flat face from the other side —
+/// the material is INSIDE the sphere, so the rolling ball rides the
+/// `R − r` offset sphere, not the `R + r` one, and the blend eats
+/// INWARD on the flat face instead of widening a hole. Closed forms
+/// for the unit dome (plane z = 0 with outward normal −z, sphere of
+/// radius R at the origin, rim the equator): `h = r`,
+/// `s = √((R − r)² − r²)`, torus centre `(0, 0, r)`, plane trimline the
+/// circle of radius `s` at `z = 0`, sphere trimline
+/// `R·s/(R − r)` — and `s < a = R`, the shrink.
+#[test]
+fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
+    let (big_r, r) = (1.0, 0.05);
+    let b = plane_sphere_blend(
+        p(0.0, 0.0, 0.0),
+        v(0.0, 0.0, -1.0),
+        v(1.0, 0.0, 0.0),
+        p(0.0, 0.0, 0.0),
+        big_r,
+        r,
+        true,
+    );
+    let h = r;
+    let s = ((big_r - r).powi(2) - h * h).sqrt();
+    assert!(s < big_r, "s = {s} must fall inside the rim radius {big_r}");
+    let Surface::Torus {
+        center,
+        major_radius,
+        minor_radius,
+        ..
+    } = b.surface
+    else {
+        panic!("a plane–sphere blend is a torus");
+    };
+    assert!(
+        (center - p(0.0, 0.0, r)).norm() < 1e-14,
+        "the ball rests ABOVE the plane"
+    );
+    assert!((major_radius - s).abs() < 1e-12);
+    assert!((minor_radius - r).abs() < 1e-15);
+    assert!(
+        major_radius > minor_radius,
+        "the spine is a ring torus, which is what #889's net also checks at rest"
+    );
+    let Curve3::Circle {
+        center: ca,
+        radius: ra,
+        ..
+    } = b.trim_a.0
+    else {
+        panic!("a circular trimline on the plane");
+    };
+    assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
+    assert!(
+        (b.trim_a.1 - (big_r - s)).abs() < 1e-12,
+        "the plane-side setback is a − s: the flat face SHRINKS"
+    );
+    let Curve3::Circle {
+        center: cb,
+        radius: rb,
+        ..
+    } = b.trim_b.0
+    else {
+        panic!("a circular trimline on the sphere");
+    };
+    assert!((rb - big_r * s / (big_r - r)).abs() < 1e-12);
+    assert!(
+        (cb.z - r * big_r / (big_r - r)).abs() < 1e-12,
+        "the contact circle sits ABOVE the plane, on the sphere"
+    );
+}
+
 /// The rim blend's two trimlines are genuine TANGENCY loci with a
 /// second-order separation bounded away from zero: on the plane
 /// `|κ_rel| = 1/r` (the tube against a flat face), on the sphere
@@ -257,6 +331,8 @@ fn the_rim_trimlines_are_tangency_loci_with_definite_second_order_separation() {
         p(0.0, 0.0, c),
         big_r,
         r,
+        // The pip's dimple: material OUTSIDE the ball.
+        false,
     );
     for (support, trim, want) in [
         (&plane, &b.trim_a.0, 1.0 / r),

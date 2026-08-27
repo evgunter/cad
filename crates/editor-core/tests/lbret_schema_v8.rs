@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 /// The pre-bump bytes, kept verbatim as the refusal fixture (the file
 /// `m4_pr6_golden.rs` pinned as LIVE until this bump).
@@ -29,12 +30,14 @@ const V7: &str = include_str!("golden/v7_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved twice since this row was written (LIB-RESPELL's v9 §2c
-    // re-spell, then ASM-UPD's v10 `UpdateReference` arm) — the
-    // convention is that a bump updates every pin it invalidates, so
-    // the number stays exact here. Named for the PROPERTY rather than
-    // the number, since the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 11);
+    // Moved four times since this row was written (LIB-RESPELL's v9
+    // §2c re-spell, ASM-UPD's v10 `UpdateReference` arm, M9-1's v11
+    // declaration class, LIB-PLACEDUNION's v12 group boolean, then
+    // ASM-R2a's v13 `Node::Mate` arm) — the convention is that a bump
+    // updates every pin it invalidates, so the number stays exact
+    // here. Named for the PROPERTY rather than the number, since the
+    // number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 14);
 }
 
 #[test]
@@ -47,7 +50,7 @@ fn the_checked_in_v7_file_is_really_v7() {
 /// step that does not exist.
 #[test]
 fn v7_refuses_too_old() {
-    match load(V7) {
+    match load(V7, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -64,7 +67,7 @@ fn v7_refuses_too_old() {
 /// The recourse is the standing one — regenerate, never a shim.
 #[test]
 fn the_refusal_names_the_regenerate_recourse() {
-    let err = load(V7).expect_err("v7 refuses");
+    let err = load(V7, Tol::witness()).expect_err("v7 refuses");
     assert!(
         err.to_string().contains(REGENERATE_RECOURSE),
         "the refusal must carry the regenerate recourse: {err}"

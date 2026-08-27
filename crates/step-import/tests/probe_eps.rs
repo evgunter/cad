@@ -4,6 +4,7 @@
 //! whether eps_in comes back RAISED.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn box_step() -> String {
@@ -27,7 +28,7 @@ fn declared_uncertainty_is_never_raised_to_a_floor() {
     ] {
         let m = base.replace("1.E-07", declared);
         assert!(m.contains(declared));
-        match import_step(&m, &ImportOptions::default()) {
+        match import_step(&m, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { eps_in, .. }) => {
                 println!("declared {declared} mm -> eps_in {eps_in:e} m (want {want_m:e})");
                 assert!(
@@ -41,7 +42,14 @@ fn declared_uncertainty_is_never_raised_to_a_floor() {
     }
     // And the explicit override, below and above the window.
     for over in [1e-15f64, 1e-3] {
-        match import_step(&base, &ImportOptions { eps_in: Some(over) }) {
+        match import_step(
+            &base,
+            &ImportOptions {
+                eps_in: Some(over),
+                ..ImportOptions::default()
+            },
+            Tol::witness(),
+        ) {
             Ok(i) => {
                 println!("override {over:e} -> eps_in {:e}", i.eps_in());
                 assert_eq!(i.eps_in(), over, "the override must be verbatim");

@@ -35,6 +35,12 @@
 //! duplicate entry is what makes dangling null edges fall out of the
 //! generic run scan.
 //!
+//! The arm / wideness / subdivision-direction rungs this section
+//! derives are implemented ONCE, in [`crate::sector_shape`], and
+//! called from here and from the boolean lane's sector walk under each
+//! lane's own K names (smell scan S5). The derivation stays here; the
+//! code lives there.
+//!
 //! The subdivision direction need not be the exact bisector — ANY
 //! interior direction with both sub-angles < 180° is valid. We use:
 //! definite reflex ⇒ `−normalize(a + b)` (the true bisector of the
@@ -46,72 +52,81 @@
 //! both take the duplicate path — the deliberate, documented posture
 //! for this one predicate (the decisive side verdicts stay strict).
 
+use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::rules;
 use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_face::{SectorCarrier, SectorFaceError};
+use crate::sector_shape::{SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
-/// base vertex** and whether the surface is a plane. For a `Plane` the
-/// normal is the stored one (the M3 path); for a `Cylinder` (M5 PR 5)
-/// it is the chart-outward radial at the vertex point — the local
-/// normal every sector predicate meters through. Kinds the gate
-/// refuses are typed here too (unreachable post-gate).
+/// base vertex** and whether the surface is a plane.
 ///
-/// **Both arms are multiplied by the face's `sense_sign`** (S10):
-/// each reads a chart normal and returns it as the face's OUTWARD
-/// normal, and the chart is the only orientation encoding they have.
-/// This is the splitting lane's chokepoint, the twin of the boolean's
-/// `boolean::sectors::sector_face`: `rules::apply_rule_a`'s
-/// `enters_material` call, the reflex/bisector algebra below, and the
-/// departure trileans all consume this value and are sense-invariant
-/// GIVEN it — they pair it with the STORED orbit order, which `revert`
-/// reverses together with the sense bit, so a second `sense_sign`
-/// factor at any of those sites would cancel this one.
+/// The walk and the normals are [`crate::sector_face`] — ONE
+/// implementation, called from here and from the boolean lane's sector
+/// walk (smell scan S5). What stays here is this lane's adaptation of
+/// it, and only that: the split lane's error type, the planar flag
+/// `rules::apply_rule_a` branches on, and the `Sphere` refusal.
+///
+/// **`Sphere` refuses here rather than there.** The shared walk has a
+/// wired sphere arm — the boolean lane executes it (M5 PR 9) — and
+/// this lane does not, so the refusal is typed here (C12.1, per arm)
+/// rather than left to the gate.
+///
+/// It is worth being exact about WHY the arm is unreachable, because
+/// the obvious answer is wrong: it is not that the F5 operand gate
+/// ([`super::classify`]) runs first. [`super::classify_neighborhood`]
+/// is public, deliberately, so tests and the joining step can inspect
+/// classification on their own, and on that path no gate runs at all.
+/// What makes a sphere-carried sector unreachable through the public
+/// door is that the operand cannot have one: `split_reduce` gates, and
+/// the only other way in hands the caller a body it built through the
+/// Euler ops, where the surface a face carries comes from
+/// `set_face_surface`. A sphere-carried face therefore reaches this
+/// arm only from INSIDE the crate — which is exactly where its test
+/// row lives.
+///
+/// The normal arrives as an [`OutwardNormal`] with the face's `sense`
+/// folded in (S10), minted at the shared chokepoint. Everything
+/// downstream of it here — `rules::apply_rule_a`'s `enters_material`
+/// call, the sector-shape rungs, the departure trileans — is
+/// sense-invariant GIVEN that value and must not multiply again: those
+/// sites pair it with the STORED orbit order, which `revert` reverses
+/// together with the sense bit, so a second `sense_sign` factor would
+/// cancel this one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(FaceKey, Vec3<T>, bool), SplitReduceError> {
-    let corrupt = SplitReduceError::CorruptOperand { vertex };
-    let mate = body
-        .mate(he)
-        .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let half_edge = body.get_half_edge(mate).ok_or(corrupt)?;
-    let r#loop = body
-        .get_loop(half_edge.parent_loop)
-        .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let face_key = r#loop.face;
-    let face = body
-        .get_face(face_key)
-        .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-    let sense = face.sense_sign::<T>();
-    match body.get_surface(face.surface) {
-        Some(geom_surfaces::Surface::Plane { normal, .. }) => Ok((face_key, *normal * sense, true)),
-        Some(geom_surfaces::Surface::Cylinder { origin, axis, .. }) => {
-            let p = *body
-                .get_point(
-                    body.get_vertex(vertex)
-                        .ok_or(SplitReduceError::CorruptOperand { vertex })?
-                        .point,
-                )
-                .ok_or(SplitReduceError::CorruptOperand { vertex })?;
-            let w = p - *origin;
-            let radial = w - *axis * w.dot(*axis);
-            Ok((face_key, radial.normalize() * sense, false))
+) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
+    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+        // The shared walk names the entity that did not resolve; this
+        // lane's public corruption arm carries a VERTEX, so the payload
+        // is narrowed here rather than lost upstream: a vertex names
+        // itself, anything else falls back to the base vertex the
+        // caller asked about. Widening `CorruptOperand` to an
+        // `EntityId` is a public-API change in a type re-exported into
+        // four crates — issue #695.
+        SectorFaceError::Corrupt(EntityId::Vertex(v)) => {
+            SplitReduceError::CorruptOperand { vertex: v }
         }
-        Some(s) => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: face_key,
-            kind: geom_brep::SurfaceKind::of(s),
-        }),
-        None => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: face_key,
-            kind: geom_brep::SurfaceKind::Nurbs,
+        SectorFaceError::Corrupt(_) => SplitReduceError::CorruptOperand { vertex },
+        SectorFaceError::Unsupported { face, kind } => {
+            SplitReduceError::CurvedBooleanUnsupported { face, kind }
+        }
+    })?;
+    match resolved.carrier {
+        SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
+        SectorCarrier::Cylinder => Ok((resolved.face, resolved.normal, false)),
+        SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
+            face: resolved.face,
+            kind: geom_brep::SurfaceKind::Sphere,
         }),
     }
 }
@@ -150,10 +165,10 @@ fn chord<T: Decide>(
         .and_then(crate::null::CurveGeom::certified)
         .ok_or_else(corrupt)?;
     match curve.carrier() {
-        geom_curves::Curve3::Line { .. } | geom_curves::Curve3::Nurbs(_) => {
+        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
         }
-        geom_curves::Curve3::Circle { .. } | geom_curves::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2
@@ -234,10 +249,16 @@ pub fn classify_neighborhood<T: Decide>(
                 // for rule (b)'s adjudication (never guess); in-band
                 // escalates (F6 — an osculating pair is a sliver).
                 Ok(Sign::Zero) => {
+                    // The reference side here is the SPLIT PLANE's
+                    // normal: an operation input that DEFINES
+                    // Above/Below, belonging to no face and with no
+                    // `sense_sign` to fold in. Its type says so —
+                    // `enters_material`'s face slot would not accept
+                    // it, and this slot does not accept a bare vector.
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
-                        plane.normal,
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal),
                         dir_a.norm(),
                         band,
                     ) {
@@ -265,60 +286,23 @@ pub fn classify_neighborhood<T: Decide>(
         });
 
         // Wideness of the sector CW-after `he` (bounded by `he` and the
-        // next orbit edge): margin (b̂ × â)·n · arm = sin(interior
-        // angle) metered at the shorter bounding chord.
+        // next orbit edge), and the subdivision direction it implies:
+        // the three rungs are [`crate::sector_shape`] — ONE
+        // implementation, called from here and from the boolean lane's
+        // sector walk, under the one pooled set of K names (smell scan
+        // S5; #652 pooled them). This is a call, not a copy. The derivation the
+        // module docs above carry — why convex subdivision, why the
+        // wideness trilean has no escalation cliff — is what that
+        // shared body implements.
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
         let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
-        let arm = dir_a.norm().min(dir_b.norm());
-        match decide("split_sector_arm", Margin::of(arm), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => {
-                return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
-                    band,
-                    predicate: Some("split_sector_arm"),
-                }));
-            }
-            Err(diag) => return Err(sliver(diag)),
-        }
-        let (unit_a, unit_b) = (dir_a.normalize(), dir_b.normalize());
-        let reflex_margin = Margin::levered(unit_b.cross(unit_a).dot(n_face), arm);
-        let wide = match decide("split_sector_reflex", reflex_margin, band) {
-            Ok(Sign::Positive) => None, // convex: cone argument holds
-            // Definite reflex, θ ∈ (π, 2π): −(â + b̂) is the true
-            // bisector of the reflex span (the collapse â + b̂ → 0
-            // happens only at θ → π, which lands in the Zero band
-            // below, never here).
-            Ok(Sign::Negative) => Some(-((unit_a + unit_b).normalize())),
-            // sin θ coincident with zero (or in-band): θ is near π, 0,
-            // or 2π — disambiguate by the cosine (for unit chords sin
-            // and cos cannot both vanish, so this second margin is
-            // definite whenever the first is not).
-            Ok(Sign::Zero) | Err(_) => {
-                let straight_margin = Margin::levered(unit_a.dot(unit_b), arm);
-                match decide("split_sector_straight", straight_margin, band) {
-                    // θ ≈ π (straight): 90° into the interior is a
-                    // valid subdivision throughout the band.
-                    Ok(Sign::Negative) => Some(n_face.cross(unit_b)),
-                    // θ ≈ 0 or ≈ 2π. A one-edge orbit (strut vertex)
-                    // is the legitimate full-circle sector; a spike
-                    // corner between two distinct edges is
-                    // ill-conditioned geometry — escalate, never
-                    // guess an interior direction.
-                    Ok(Sign::Positive | Sign::Zero) if he == next_he => Some(n_face.cross(unit_b)),
-                    Ok(Sign::Positive | Sign::Zero) => {
-                        return Err(sliver(geom_core::Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
-                            band,
-                            predicate: Some("split_sector_straight"),
-                        }));
-                    }
-                    Err(diag) => return Err(sliver(diag)),
-                }
-            }
-        };
+        let SectorShape {
+            arm,
+            bisector: wide,
+            ..
+        } = sector_shape(dir_a, dir_b, n_face, he == next_he, band).map_err(sliver)?;
         if let Some(bisector) = wide {
             let margin = Margin::levered(bisector.dot(plane.normal), arm);
             let class = match decide("split_bisector_side", margin, band) {
@@ -338,4 +322,47 @@ pub fn classify_neighborhood<T: Decide>(
     rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
     rules::apply_rule_b(vertex, &mut entries)?;
     Ok(entries)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::fixtures::prism;
+    use geom_core::Tol;
+
+    /// The split lane has no sphere arm and says so BY NAME, on the
+    /// shared walk's report rather than by re-matching the surface —
+    /// the arm the S5 unification created, which had no row until the
+    /// fix pass.
+    #[test]
+    fn a_sphere_carried_sector_refuses_by_name() {
+        let p = prism(3, Tol::witness());
+        let face = p.face_side[0];
+        let mut body = p.body;
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New(geom::Surface::Sphere {
+                center: geom_core::Point3::new(0.0, 0.0, 0.0),
+                radius: 2.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }),
+        )
+        .unwrap();
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
+            panic!("the side face's outer loop is a cycle");
+        };
+        let orbit_he = body.mate(first).unwrap();
+        let vertex = body.get_half_edge(orbit_he).unwrap().start;
+        match sector_face(&body, vertex, orbit_he) {
+            Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
+                assert_eq!(f, face);
+                assert_eq!(kind, geom_brep::SurfaceKind::Sphere);
+            }
+            other => panic!("expected the typed sphere refusal, got {other:?}"),
+        }
+    }
 }

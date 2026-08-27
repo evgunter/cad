@@ -20,10 +20,16 @@
 //!   a whole `u`-line in the chart while being perfectly shut in space);
 //! - a loop wound the wrong way, so the even-odd interior would be the
 //!   complement of the intended one — checked against the face's own
-//!   [`topo::Face::sense`] bit rather than against CCW, because a bore
+//!   [`pncad::topo::Face::sense`] bit rather than against CCW, because a bore
 //!   or a concave groove carries `sense = false` and its outer loop is
-//!   then legitimately CW. 879 of the 982 M7 faces are checkable this
-//!   way and all 879 agree; the alarm is reserved for a contradiction;
+//!   then legitimately CW. Not every face is checkable this way — a
+//!   chart with a branch jump has no meaningful shoelace, and a face
+//!   whose loops could not be walked has no measurement at all — so
+//!   the tour prints how many were checked and **fails on any
+//!   contradiction**: these charts are the kernel's own output, so a
+//!   winding that disagrees with `sense` is a kernel regression. The
+//!   counts are that printed line and are not restated here, because
+//!   the corpus grows and the sentence would not;
 //! - a seam crossing on a periodic chart — a cylinder's `u` is
 //!   2π-periodic, and a loop that crosses the seam draws as a jump
 //!   across the strip;
@@ -57,8 +63,9 @@
 //!
 //! # The failure arm has no fixture (stated, not hidden)
 //!
-//! [`draw_failure`] is unexercised by the corpus: all 982 faces of the
-//! M7 tour walk clean, and forging one that does not would mean
+//! [`draw_failure`] is unexercised by the corpus: every face of the
+//! tour walks clean (the run prints the unwalkable count, and it is
+//! zero), and forging one that does not would mean
 //! hand-building a corrupt body here, at the demo layer, purely to feed
 //! a drawing routine. The arm stands as the tripwire for a real
 //! regression rather than as tested code — the same posture
@@ -69,10 +76,10 @@
 
 use std::fmt::Write as _;
 
+use pncad::geom::Curve3;
+use pncad::geom::Surface;
 use pncad::geom_brep::Pcurve;
-use pncad::geom_core::{Band, Point2, Point3};
-use pncad::geom_curves::Curve3;
-use pncad::geom_surfaces::Surface;
+use pncad::geom_core::{Band, Point2, Point3, Tol};
 use pncad::topo::{Body, HalfEdgeKey, LoopBoundary, LoopKey};
 
 /// Samples per curved half-edge image (a straight carrier draws with 2).
@@ -93,8 +100,6 @@ const COLOR_FITTED: &str = "#c1590a";
 /// One face's manifest entry, written to `<outdir>/uv.json` for the
 /// montage composer.
 pub struct FaceDump {
-    /// The tour scene the body belongs to.
-    pub scene: String,
     /// The body's tour label (its STL/STEP stem).
     pub body: String,
     /// The face's ordinal in `body.faces()` order.
@@ -138,6 +143,7 @@ fn chart_of(surface: &Surface<f64>) -> (&'static str, bool) {
         Surface::Sphere { .. } => ("sphere", true),
         Surface::Torus { .. } => ("torus", true),
         Surface::Nurbs(_) => ("nurbs", true),
+        Surface::Approx(_) => ("approx", true),
     }
 }
 
@@ -270,7 +276,7 @@ pub struct FaceStats {
     /// nonzero: a shoelace over a ring that contains a branch jump
     /// integrates across a discontinuity that is not boundary.
     pub area: f64,
-    /// [`topo::Face::sense`]: `true` iff the material side agrees with
+    /// [`pncad::topo::Face::sense`]: `true` iff the material side agrees with
     /// the chart normal. A bore, a concave groove or an inward cone
     /// wall carries `false`, and its outer loop is then legitimately
     /// **CW** in the chart — which is why the winding is checked
@@ -290,9 +296,12 @@ pub struct FaceStats {
     /// face that touches a chart singularity or a seam — a spherical
     /// fillet corner running through the pole shows a chart jump of
     /// exactly π/2 while being perfectly closed in 3-D, because at the
-    /// pole a whole `u`-line IS one point. Measured over the M7 corpus:
-    /// 103 of 982 faces have such a jump, every one of them exactly
-    /// π/2, π or 2π; genuine round-off never exceeds 9.4e-16.
+    /// pole a whole `u`-line IS one point. The tour prints how many
+    /// faces carry such a jump and the worst value of each measure per
+    /// run: on the corpora seen so far every jump is exactly π/2, π or
+    /// 2π and genuine round-off stays at the 1e-15 scale, and it is
+    /// that printed line — not this comment — that says so about the
+    /// tree you are looking at.
     pub gap: f64,
     /// The worst chart-space jump across the same junctions — kept
     /// because it is the seam/pole *structure*, printed only when it is
@@ -349,10 +358,10 @@ fn measure(loops: &[Vec<Traversal>], sense: bool) -> (Vec<Vec<(f64, f64)>>, Face
 
 /// Emits one SVG per face of `body` under `<outdir>/uv/`, returning the
 /// manifest entries.
-pub fn emit(scene: &str, label: &str, body: &Body<f64>, outdir: &str) -> Vec<FaceDump> {
+pub fn emit(label: &str, body: &Body<f64>, outdir: &str, tol: Tol) -> Vec<FaceDump> {
     let dir = format!("{outdir}/uv");
     std::fs::create_dir_all(&dir).expect("create uv dir");
-    let band = Band::linear().expect("the run tolerance yields a valid linear band");
+    let band = Band::linear(tol).expect("the run tolerance yields a valid linear band");
 
     let mut dumps = Vec::new();
     for (ord, (fk, face)) in body.faces().enumerate() {
@@ -393,7 +402,6 @@ pub fn emit(scene: &str, label: &str, body: &Body<f64>, outdir: &str) -> Vec<Fac
         };
         std::fs::write(format!("{dir}/{svg_name}"), svg).expect("write uv svg");
         dumps.push(FaceDump {
-            scene: scene.to_string(),
             body: label.to_string(),
             face: ord,
             chart,
@@ -716,6 +724,18 @@ fn escape(s: &str) -> String {
 
 /// The manifest the montage composer reads (hand-rolled JSON, matching
 /// `scenes.json`'s house style).
+///
+/// It carries exactly the eight keys the composer reads, and no more:
+/// `svg` to open the cell, `body` and `face` to name and order it,
+/// `curved` and `note` to decide which class it is in, `body`+`chart`
+/// to group it, and `forms`+`loops`+`face` to rank within a group.
+/// The measured facts of the walk — half-edge and cache
+/// counts, signed area, `sense`, the winding verdict, the closure gap
+/// and the chart jump — are NOT here. Each is drawn into the cell's
+/// own SVG, which is where a reader meets it, and the corpus-wide
+/// aggregate of the same numbers is printed by the run that measures
+/// them (see the uv-lane block in `main`). A second copy in a file
+/// nothing reads is a third place for them to disagree.
 pub fn manifest_json(dumps: &[FaceDump]) -> String {
     let entries: Vec<String> = dumps
         .iter()
@@ -726,26 +746,16 @@ pub fn manifest_json(dumps: &[FaceDump]) -> String {
             };
             let forms: Vec<String> = d.stats.forms.iter().map(|f| format!("\"{f}\"")).collect();
             format!(
-                "  {{\"scene\": \"{}\", \"body\": \"{}\", \"face\": {}, \"chart\": \"{}\", \
-                 \"svg\": \"{}\", \"curved\": {}, \"loops\": {}, \"half_edges\": {}, \
-                 \"cached\": {}, \"forms\": [{}], \"area\": {:e}, \"sense\": {}, \
-                 \"winding_ok\": {}, \"gap\": {:e}, \"chart_jump\": {:e}, \
-                 \"note\": {note}}}",
-                d.scene,
+                "  {{\"body\": \"{}\", \"face\": {}, \"chart\": \"{}\", \
+                 \"svg\": \"{}\", \"curved\": {}, \"loops\": {}, \
+                 \"forms\": [{}], \"note\": {note}}}",
                 d.body,
                 d.face,
                 d.chart,
                 d.svg,
                 d.curved,
                 d.stats.loops,
-                d.stats.half_edges,
-                d.stats.cached,
-                forms.join(", "),
-                d.stats.area,
-                d.stats.sense,
-                d.stats.winding_ok,
-                d.stats.gap,
-                d.stats.chart_jump
+                forms.join(", ")
             )
         })
         .collect();

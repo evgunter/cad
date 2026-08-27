@@ -11,15 +11,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
-use geom_curves::NurbsCurve3;
 use profile::RawLoop;
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
 
 fn ring() -> f64 {
-    Band::linear().expect("band").zero()
+    Band::linear(Tol::witness()).expect("band").zero()
 }
 
 /// A1: arc → NURBS exactness, densely, over adversarial bulges
@@ -311,7 +312,7 @@ fn review_half_turn_path_builds_on_the_float_knife_edge() {
         Point2::new(0.3, 0.2),
         Point2::new(0.0, 0.2),
     ])];
-    match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2) {
+    match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2, Tol::witness()) {
         Ok(_) => { /* the executed truth: sin(pi) != 0 in f64 */ }
         Err(SkinError::PathTangentReversal { station }) => panic!(
             "the anti-parallel arm now fires at station {station} — the frame gained a \
@@ -346,7 +347,7 @@ fn review_vanishing_tangent_refuses_typed() {
         Point2::new(0.3, 0.2),
         Point2::new(0.0, 0.2),
     ])];
-    match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2) {
+    match sweep_geometry(&profile, Affine3::identity(), &path, 3, 2, Tol::witness()) {
         Err(SkinError::PathTangentReversal { station: 0 }) => {}
         other => panic!("a vanishing tangent must refuse at station 0, got {other:?}"),
     }
@@ -380,7 +381,7 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
         Affine3::identity(),
         Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let g = sweep::skin::loft_geometry(&[was_open.clone(), was_open], &places, 1)
+    let g = sweep::skin::loft_geometry(&[was_open.clone(), was_open], &places, 1, Tol::witness())
         .expect("the closed-by-construction pair skins to a tube");
     assert_eq!(g.walls[0].len(), 4, "four vertices, four walls — closed");
 }
@@ -390,7 +391,7 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
 /// counts.
 #[test]
 fn review_ragged_column_rows_get_a_shaped_refusal() {
-    use geom_curves::fit::{FitError, interpolate_columns};
+    use geom::curves::fit::{FitError, interpolate_columns};
     let rows = vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![2.0]];
     match interpolate_columns(&[0.0, 0.5, 1.0], 2, &rows) {
         Err(FitError::RaggedRows {

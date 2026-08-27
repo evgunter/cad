@@ -37,6 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 use common::{mapped_cube, prism_z};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, BooleanError, union};
 
@@ -68,7 +69,8 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
     // M4 PR 5: the coplanar top/bottom contacts are declared so the
     // classification reaches the edge-edge lane (undeclared, it now
     // refuses earlier at the coincidence door — rung (b)).
-    let err = topo::union_with(&a, &b, &common::flush_declarations(&a, &b)).unwrap_err();
+    let err =
+        topo::union_with(&a, &b, &common::flush_declarations(&a, &b), Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ClassificationInvariant { .. }),
         "expected the edge-edge lane's typed refusal, got {err:?}"
@@ -94,7 +96,7 @@ fn tilted_saddle_corner_refuses_typed() {
         )
     });
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let err = union(&a, &b).unwrap_err();
+    let err = union(&a, &b, Tol::witness()).unwrap_err();
     // JoinDesync ONLY (review tightening): the frontier is known to be
     // JoinDesync; accepting PairingMismatch here would mask the D8
     // witness this suite exists to hunt — if the guard ever fires,
@@ -133,7 +135,7 @@ fn tilt_sweep_no_silent_mispair() {
                 )
             };
             let b = mapped_cube(map);
-            match union(&a, &b) {
+            match union(&a, &b, Tol::witness()) {
                 // Gated success (tier 1–2 + volume backstop inside).
                 Ok(_) => {}
                 Err(BooleanError::PairingMismatch { .. }) => {

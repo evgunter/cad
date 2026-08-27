@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `step-import`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 26 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -83,8 +88,14 @@ mod review_r1_tier_gate_probes;
 mod roundtrip;
 #[path = "rw2_probes.rs"]
 mod rw2_probes;
+#[path = "s58_iso_rectangle.rs"]
+mod s58_iso_rectangle;
+#[path = "split_iso_side.rs"]
+mod split_iso_side;
 #[path = "tier_gate.rs"]
 mod tier_gate;
+#[path = "verbs_chamfer_roundtrip.rs"]
+mod verbs_chamfer_roundtrip;
 #[path = "wild.rs"]
 mod wild;
 

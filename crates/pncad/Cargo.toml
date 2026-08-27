@@ -23,8 +23,7 @@ interval = [
     "editor-core/interval",
     "geom-brep/interval",
     "geom-core/interval",
-    "geom-curves/interval",
-    "geom-surfaces/interval",
+    "geom/interval",
     "mesh/interval",
     "profile/interval",
     "step-export/interval",
@@ -48,8 +47,7 @@ probe = [
     "editor-core/probe",
     "geom-brep/probe",
     "geom-core/probe",
-    "geom-curves/probe",
-    "geom-surfaces/probe",
+    "geom/probe",
     "mesh/probe",
     "profile/probe",
     "step-export/probe",
@@ -65,8 +63,7 @@ probe = [
 editor-core = { path = "../editor-core" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 mesh = { path = "../mesh" }
 profile = { path = "../profile" }
 quantity = { path = "../quantity" }

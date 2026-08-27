@@ -2,8 +2,8 @@
 //! certified carrier caches, the dihedral classification predicate, and
 //! Newell face equations (M2 PR 3).
 //!
-//! This crate sits between the evaluators (`geom-curves` /
-//! `geom-surfaces`) and the arena store (`topo`): it defines **what an
+//! This crate sits between the evaluators (`geom`) and the arena
+//! store (`topo`): it defines **what an
 //! edge's geometry is** ([`EdgeGeometry`] — a description, never a bare
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier
@@ -21,6 +21,22 @@
 //! intersection by march-then-certify, with the full three-limb C2
 //! certificate and the in-op exhaustiveness subdivision that makes
 //! "every branch found" a theorem or a typed refusal.
+//!
+//! [`offset_surface`] is the analytic offset mint: the analytic kinds
+//! close under normal offset by struct-update on public fields, with
+//! the door-owned degeneracy refusals (the realized-radius floor, the
+//! torus ring convention) decided before any mint — see [`offset`].
+//!
+//! [`offset_fit`] is the approximating half that [`offset`]'s NURBS
+//! arm refuses into: the Book's §9.4 grid interpolation plus a
+//! refine-until-certified loop, and the two-limb certificate of
+//! `sup ‖S_fit − (S + d·n)‖`. It stands on two meters
+//! ([`offset_meters`]) — a certified LOWER bound on `‖S_u × S_v‖`
+//! (the tree's first inf-side surface bound; the offset is undefined
+//! where the normal degenerates) and the collapse headroom `|d|`
+//! against the patch's certified curvature reach — both read off
+//! [`patch_bound`]'s per-cell control-hull enclosures, which are also
+//! what `mesh`'s tessellation deviation certificate consumes.
 //!
 //! The geometry-arena key types ([`PointKey`], [`CurveKey`],
 //! [`SurfaceKey`]) are defined here (descriptions reference surfaces by
@@ -47,6 +63,10 @@ pub mod intersect;
 pub mod keys;
 pub mod newell;
 pub mod nurbs_iso;
+pub mod offset;
+pub mod offset_fit;
+pub mod offset_meters;
+pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
@@ -60,10 +80,12 @@ pub use certify::{
 pub use dihedral::{DihedralClass, classify_dihedral};
 pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
-pub use enters::{EntersMaterial, enters_material, enters_material_order2};
+pub use enters::{
+    EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
+};
 pub use implicit::{
-    circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_residual,
+    circle_residual_curvature_bound, circle_residual_extremes, curvature_lever_arm,
+    implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
     EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
@@ -72,7 +94,12 @@ pub use intersect::{
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
-pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
+pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_row};
+pub use offset::{ConeOffset, OffsetError, offset_surface};
+pub use offset_fit::{
+    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
+    fit_offset, recertify_approx,
+};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

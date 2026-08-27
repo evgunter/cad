@@ -2,7 +2,7 @@
 //!
 //! The global tolerance commits exactly ONCE PER PROCESS, and this suite
 //! needs to be the first thing to touch it. `tests/all.rs` aggregates
-//! every suite into one binary (one process under `cargo test`), and six
+//! every suite into one binary (one process under `cargo test`), and
 //! other suites there touch `Tolerance` — so this cannot simply assert
 //! against the ambient global: whichever suite ran first would have
 //! committed it, and `init` would return `AlreadyInitialized`.
@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::{Tolerance, ToleranceError};
 
 /// The real assertions. `#[ignore]`d because it is only valid as the sole
@@ -33,7 +34,7 @@ fn explicit_init_probe() {
 
     // get() returns the explicitly installed value (env vars, if any, are
     // never consulted on this path)...
-    assert_eq!(Tolerance::get(), tolerance);
+    assert_eq!(Tol::witness().get(), tolerance);
     // ...and no env error is recorded.
     assert!(Tolerance::env_init_errors().is_empty());
 
@@ -48,7 +49,7 @@ fn explicit_init_probe() {
     );
 
     // The committed value is unchanged.
-    assert_eq!(Tolerance::get(), tolerance);
+    assert_eq!(Tol::witness().get(), tolerance);
     println!("TOLERANCE_INIT_PROBE_OK");
 }
 

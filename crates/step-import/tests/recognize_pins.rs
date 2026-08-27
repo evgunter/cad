@@ -26,6 +26,7 @@
 mod common;
 
 use common::{SOLID_FIXTURES, fixture};
+use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use step_import::{
@@ -45,7 +46,19 @@ fn promotions(
 }
 
 fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64)>) {
-    match import_step(text, &ImportOptions::default()) {
+    let options = if who.contains("kiss") {
+        // The corner kiss is declared through the M9-2 import channel
+        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
+        ImportOptions {
+            declared_contacts: vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
+            ..ImportOptions::default()
+        }
+    } else {
+        ImportOptions::default()
+    };
+    match import_step(text, &options, Tol::witness()) {
         Ok(StepImport::Solid {
             body,
             normalizations,
@@ -125,8 +138,8 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
         "identical promotions (bit-identical patches)"
     );
     let (v1, v2) = (
-        topo::mass_properties(&base).unwrap().volume,
-        topo::mass_properties(&body).unwrap().volume,
+        topo::mass_properties(&base, Tol::witness()).unwrap().volume,
+        topo::mass_properties(&body, Tol::witness()).unwrap().volume,
     );
     assert_eq!(v1.to_bits(), v2.to_bits(), "volume bit-identical");
 }
@@ -137,10 +150,7 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
 /// cylinder track's own-corpus exercise.
 fn straight_arc_prism() -> topo::Body<f64> {
     let arc_section = || -> sweep::Section {
-        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge,
-        };
+        let v = |x: f64, y: f64, bulge: f64| profile::ProfileVertex::new(Point2::new(x, y), bulge);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0, 0.0),
             // tan(π/8): a quarter-circle bulge on the +x side.
@@ -155,7 +165,7 @@ fn straight_arc_prism() -> topo::Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the straight arc prism builds")
         .body
 }
@@ -174,10 +184,7 @@ fn straight_arc_prism() -> topo::Body<f64> {
 /// rest, which is what the arc prism's rational wall cannot be.
 fn offset_square_prism() -> topo::Body<f64> {
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex {
-            pos: Point2::new(x, y),
-            bulge: 0.0,
-        };
+        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![profile::ProfileLoop::new(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
@@ -191,7 +198,7 @@ fn offset_square_prism() -> topo::Body<f64> {
         Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
 }
@@ -226,11 +233,16 @@ fn offset_square_prism() -> topo::Body<f64> {
 #[test]
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("the offset square prism exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the offset square prism exports");
 
     // ---- The half that WORKS: the body is first-class at rest. ----
-    let own = import_step(&text, &ImportOptions::default()).expect("our own dialect imports");
+    let own = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect("our own dialect imports");
     let StepImport::Solid {
         body: own_body,
         normalizations,
@@ -250,8 +262,10 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // THE POINT the arc prism cannot make: tier-valid at rest as
     // `Ok(())`, not as parity with a refusing twin. The integral
     // wall's patch flux is computable, so nothing here is banked.
-    topo::validate_geometric(own_body).expect("tier-valid AT REST — the integral wall quadratures");
-    topo::validate_geometric(&native).expect("its native twin too: parity here is Ok(())");
+    topo::validate_geometric(own_body, Tol::witness())
+        .expect("tier-valid AT REST — the integral wall quadratures");
+    topo::validate_geometric(&native, Tol::witness())
+        .expect("its native twin too: parity here is Ok(())");
 
     // With OUR bytes the bitwise rung answers, so declare-and-check is
     // never reached — the measurement behind the finding above.
@@ -263,20 +277,20 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 
     // ---- The half the Intersection arm opened: a foreign
     // restatement, first-class and charted. ----
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let foreign = text.replace(
         "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0));",
         "#90 = CARTESIAN_POINT('', (0.0, -1.0, 1.0000000000000002));",
     );
     assert_ne!(text, foreign, "the foreign restatement applied");
-    match import_step(&foreign, &ImportOptions::default()) {
+    match import_step(&foreign, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             assert!(
                 eps >= 1e-9,
                 "the seam's certified sup does not fit inside an ε_in finer than its own \
                  rounding — a first-class import there would be a widened gate"
             );
-            topo::validate_geometric(&body)
+            topo::validate_geometric(&body, Tol::witness())
                 .expect("the foreign restatement is tier-valid at rest, exactly like our own");
             let seams = plane_nurbs_seams(&body);
             assert_eq!(
@@ -374,11 +388,15 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 #[test]
 fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("the arc prism exports");
-    let eps = geom_core::Tolerance::get().eps;
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the arc prism exports");
+    let eps = geom_core::Tol::witness().get().eps;
 
-    match import_step(&text, &ImportOptions::default()) {
+    match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         // **First-class, end to end.** The three exactly-planar walls
         // promote, the arc wall stays NURBS under the honest envelope,
         // the seam between them certifies through the declare-and-check
@@ -391,7 +409,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 "the seam's certified sup is ~6.3e-12 m — a first-class import at a \
                  finer ε_in would be a widened gate"
             );
-            topo::validate_geometric(&body)
+            topo::validate_geometric(&body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
             let seams = plane_nurbs_seams(&body);
             assert_eq!(
@@ -500,8 +518,12 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
 #[test]
 fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     let native = straight_arc_prism();
-    let text = step_export::step_string(&native, &step_export::StepOptions::default())
-        .expect("the arc prism exports");
+    let text = step_export::step_string(
+        &native,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("the arc prism exports");
     // #127 is the middle control point of #129, the B-spline carrier
     // of EDGE_CURVE #130 — the seam this unit certifies.
     let doctored = text.replace(
@@ -511,7 +533,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     assert_ne!(text, doctored, "the falsifier applied");
 
     let Err(StepImportError::Adoption { id, attempts }) =
-        import_step(&doctored, &ImportOptions::default())
+        import_step(&doctored, &ImportOptions::default(), Tol::witness())
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
     };
@@ -549,16 +571,16 @@ fn plane_nurbs_seams(
     body: &topo::Body<f64>,
 ) -> Vec<(
     geom_brep::keys::CurveKey,
-    geom_surfaces::Surface<f64>,
-    geom_surfaces::NurbsSurface<f64>,
+    geom::Surface<f64>,
+    geom::NurbsSurface<f64>,
 )> {
     let surfaces: std::collections::BTreeMap<_, _> = body.surfaces().collect();
     let described = |k| match surfaces.get(&k) {
-        Some(geom_surfaces::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
+        Some(geom::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
         _ => None,
     };
     let plane = |k| match surfaces.get(&k) {
-        Some(p @ geom_surfaces::Surface::Plane { .. }) => Some((*p).clone()),
+        Some(p @ geom::Surface::Plane { .. }) => Some((*p).clone()),
         _ => None,
     };
     body.curves()

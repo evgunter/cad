@@ -10,6 +10,7 @@
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -21,7 +22,7 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(geom_core::Tolerance::get())
+        .validate(geom_core::Tol::witness())
         .unwrap()
 }
 
@@ -48,7 +49,8 @@ fn assert_encloses(what: &str, enclosure: Interval, analytic: f64) {
 }
 
 fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
-    let props = mass_properties(body).expect("interval mass properties must compute");
+    let props =
+        mass_properties(body, Tol::witness()).expect("interval mass properties must compute");
     assert_encloses(&format!("{what} volume"), props.volume, volume);
     assert_encloses(&format!("{what} area"), props.surface_area, area);
 }
@@ -66,6 +68,7 @@ fn l_prism_interval_encloses_closed_forms() {
     let body = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -75,30 +78,42 @@ fn l_prism_interval_encloses_closed_forms() {
 #[test]
 fn ball_interval_encloses_closed_forms() {
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: Interval::from_f64(0.0),
-        },
+        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
 }
 
 #[test]
 fn cone_interval_encloses_closed_forms() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "cone", PI / 3.0, PI * (SQRT_2 + 1.0));
 }
 
 #[test]
 fn washer_interval_encloses_closed_forms() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "washer", 3.0 * PI, 12.0 * PI);
 }
 
@@ -109,6 +124,7 @@ fn wedge_interval_encloses_closed_forms() {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(Interval::from_f64(FRAC_PI_2)),
+        Tol::witness(),
     )
     .unwrap();
     check(&t.body, "wedge", 3.0 * PI / 4.0, 3.0 * PI + 2.0);
@@ -120,30 +136,24 @@ fn wedge_interval_encloses_closed_forms() {
 fn f64_value_within_interval_enclosure() {
     // Ball at both scalars.
     let lp_i = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, -1.0),
-            bulge: Interval::from_f64(1.0),
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: Interval::from_f64(0.0),
-        },
+        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
+        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
-    let t_i = revolve(&validated(vec![lp_i]), axis_y(), Revolution::Full).unwrap();
-    let enc = mass_properties(&t_i.body).unwrap().volume;
+    let t_i = revolve(
+        &validated(vec![lp_i]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    let enc = mass_properties(&t_i.body, Tol::witness()).unwrap().volume;
 
     let lp_f = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(0.0, -1.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: Point2::new(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
+        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp_f = Profile::new(SketchPlane::xy(), vec![lp_f])
-        .validate(geom_core::Tolerance::get())
+        .validate(geom_core::Tol::witness())
         .unwrap();
     let t_f = revolve(
         &vp_f,
@@ -152,14 +162,27 @@ fn f64_value_within_interval_enclosure() {
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
+        Tol::witness(),
     )
     .unwrap();
-    let v_f = mass_properties(&t_f.body).unwrap().volume;
+    let v_f = mass_properties(&t_f.body, Tol::witness()).unwrap().volume;
+    // The `Interval` enclosure must CONTAIN the f64 value, and be
+    // narrow. Widening the admitted band by the enclosure's own width
+    // — which is what this row did — makes every degradation of the
+    // enclosure satisfy it twice over: once by admitting more, once by
+    // moving the endpoints out. Measured, no widening is needed: the
+    // enclosure is [4.188790204786388, 4.188790204786391] and the f64
+    // value sits inside it, 8.9e-16 from the midpoint. The ceiling is
+    // 28x the measured 3.6e-15 width.
     let width = enc.hi() - enc.lo();
     assert!(
-        enc.lo() - width <= v_f && v_f <= enc.hi() + width,
+        enc.lo() <= v_f && v_f <= enc.hi(),
         "f64 volume {v_f} vs enclosure [{}, {}]",
         enc.lo(),
         enc.hi()
+    );
+    assert!(
+        width < 1e-13,
+        "the revolve enclosure is {width} wide on a {v_f} body"
     );
 }

@@ -46,8 +46,15 @@
 //! adjacent surface, D4 ¶2) rather than exactly on the surface, and
 //! f64 rounding of the evaluations themselves. The honest promise is
 //! therefore δ + ε (+ rounding); grid sizing targets δ/2 so the slack
-//! never decides in practice. ε is never *read* for sizing — mesh
-//! structure is a function of (body, δ) alone (D9).
+//! never decides in practice.
+//!
+//! **No sizing function reads ε**, and *"mesh structure is a function
+//! of (body, δ)"* holds **for every body in the tree** — a statement
+//! about the tree, not a theorem, and weaker than *"ε cannot move an
+//! emitted coordinate"*, which is false. ε arrives once, in
+//! [`fn@tessellate`]; `sizing::SizingTols`'s doc states what its reads may do
+//! and where that claim stops, and `tests/all.rs`'s
+//! `the_eps_inventory_is_pinned` computes where they are (D9).
 //!
 //! # Watertightness and the memo-key contract
 //!
@@ -56,8 +63,12 @@
 //! polyline endpoints are the topology vertices' points bitwise. Every
 //! boundary polyline segment is inserted as a CDT constraint in both
 //! adjacent faces, so the two triangulations conform to the same
-//! segments and the mesh is watertight by construction (validated by
-//! [`validate::check_mesh`]).
+//! segments and the mesh is watertight by construction.
+//! [`validate::check_mesh`] re-derives that over an emitted mesh and
+//! is what the acceptance suites run — but **[`fn@tessellate`] does
+//! not call it**, so a mesh whose construction argument failed is
+//! returned as `Ok` unless the caller runs it — a qualifier this crate
+//! now carries at every site that names `check_mesh` as a backstop.
 //!
 //! **Invariant (ratified via PR #32): per-face tessellation is a pure
 //! function of (face surface, loops, per-edge chord points, δ).** This
@@ -109,6 +120,18 @@
 //! this crate. Every face this build mints has `sense: true`, so that
 //! read is `· 1.0` and the mesh is bitwise unchanged.
 //!
+//! The walk assigns each iso side's constant coordinate once per ISO
+//! SIDE — not per point, and (since #653) not per edge either, so a
+//! side carried by several edges is bitwise straight too. It was per
+//! EDGE for a milestone, which left a multiply-carried side only
+//! ANALYTICALLY straight and, under a general rigid placement, ulps
+//! apart; `walk::iso_side_starts` groups the edges into runs and gives
+//! each run one coordinate. `curved`'s domain guard still bands its
+//! comparison in metres, now as a backstop rather than as the thing
+//! that keeps valid parts from being refused. A rim-anchored loop's
+//! closure is exact for a second, independent reason: it takes its
+//! column from the closing vertex itself (S22).
+//!
 //! Periodic charts are
 //! unwrapped by continuity along the walk (chord steps are capped at
 //! π/4, so branch choice is unambiguous); a full-2π patch traverses its
@@ -117,7 +140,22 @@
 //! poles and the cone apex are chart singularities handled from the
 //! loop structure — they enter the CDT as duplicated UV corner points
 //! whose triangles collapse-and-drop into a fan around the single pole
-//! mesh vertex; `Surface::normal` is never sampled anywhere (winding
+//! mesh vertex. The collapse yields ONE fan, rather than two
+//! overlapping ones, only while the interior grid separates the two
+//! corner points; `curved::pole_columns` is what guarantees that
+//! (issue #678 — at `nu == 2` a single equidistant column gives both
+//! corners a fan over it and the identified edge is used four times).
+//! The `debug_assert` that re-derives the conclusion over each pole
+//! patch is `#[cfg(debug_assertions)]`, which cargo's release default
+//! compiles out — so whether a release build carries more than the
+//! floor is a manifest setting, and the root `Cargo.toml` currently
+//! sets `debug-assertions = true` for `[profile.release]` (a
+//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
+//! `curved`'s module header states what runs where, and why the
+//! `debug_assert` — not a typed refusal — is the settled mechanism for
+//! that state (`SMELL-SCAN-2026-08.md` S65, ruled row 5 in #884).
+//!
+//! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
 //! bands (no rim in the loop) disambiguate their azimuth half via the
 //! loop's 3-D area vector, taken into the chart frame through the
@@ -141,16 +179,35 @@
 //!
 //! # Performance (documented characteristic)
 //!
-//! Wall-clock is **quadratic in per-face point count** on the CDT
-//! insertion path (`spade` point location during sequential insertion;
-//! measured on a washer body: ~19 ms at δ = 1e-4, ~1.2 s at 1e-6, over
-//! 11 minutes at 1e-9). Point counts scale like 1/√δ per axis, so each
-//! 100× tightening of δ costs ~100× more triangles and ~10⁴× more CDT
-//! time. Fine-tolerance STL export (PR 7) should expect this; the
+//! Wall-clock on the CDT insertion path is **quadratic for faces whose
+//! boundary is two or more nested near-cocircular loops** — a planar
+//! face with a hole (washer, plate-with-hole, counterbore, boss∪plate,
+//! die pip) — and **near-linear otherwise**. It is NOT general in
+//! per-face point count: a swept UV rectangle and a single circular
+//! loop both run near-linearly at the same point counts an annulus
+//! chokes on. Fine-tolerance STL export should expect this; the
 //! [`TessellateError::ResolutionOverflow`] 2²⁴ cap bounds *allocation*,
-//! not wall-clock — a δ well inside the cap can still take hours. A
-//! bulk-loading or hierarchy-hinted insertion is the known remedy if a
-//! real use case needs it.
+//! not wall-clock — a δ well inside the cap can still take hours.
+//!
+//! Neither insertion order nor `spade`'s hint generators rescue it: the
+//! cost is the flip/legalization cascade against a degenerate
+//! cocircular hull, not point location.
+//!
+//! **Bulk loading is the remedy that works** — `spade`'s
+//! `bulk_load_cdt` is more than an order of magnitude faster on a large
+//! annulus, and the gap grows with point count. It has NOT been
+//! adopted, and it must not be adopted against stock `spade` 2.15.1:
+//! that version's bulk loader iterates a `std::collections::HashSet`
+//! under the default randomly-seeded `RandomState` on its
+//! skipped-vertex/skipped-edge paths, which fire on cocircular input —
+//! exactly ours — and would let mesh bytes vary run to run, violating
+//! D9. Upstream a `Vec`/`BTreeSet` fix and `[patch.crates-io]` it
+//! first.
+//!
+//! The measurements behind all of this live in
+//! `docs/PERF-SCAN-2026-08.md` (finding 7b), which is where the perf
+//! lane re-takes them. Nothing here has a mechanical guard and nothing
+//! can: every figure is a wall-clock timing on a named box.
 //!
 //! # Scalar policy (judgment call, reported in the PR)
 //!
@@ -160,27 +217,27 @@
 //! topology or feed anything back into a body, so the Q1 reified-
 //! predicate discipline does not apply (its comparisons are honest
 //! display-layer choices, backstopped by the per-triangle certificates
-//! and [`validate::check_mesh`]). Genericity over `Real` would buy
+//! — which [`fn@tessellate`] does check — and by
+//! [`validate::check_mesh`], which it does not; see above).
+//! Genericity over `Real` would buy
 //! nothing here (a mesh of intervals is not a displayable artifact) and
 //! `spade` wants f64 coordinates; D8 replay at other scalars reaches
 //! display through the f64 lane.
 
-// The tessellation budget meter (issue #320). PUBLIC only under its
-// own feature: with the feature off the module is the inert half —
-// `armed() -> false` plus a handful of no-op recorders the
-// tessellation lane calls unconditionally — which is nothing a caller
-// outside this crate can use, so a default build does not export it.
-// `pub` in both configurations would leave a permanently visible
-// surface on the kernel crate whose only consumer is a diagnostic.
-#[cfg(feature = "budget")]
+// The tessellation budget meter's kernel half (issue #320). Public in
+// both configurations, because its measurement types are the CONTRACT
+// with the consumer half (`tools/tess-meter`), which reads them
+// without needing the instrument compiled in. What the feature gates
+// is the instrument itself: `arm` and `take` exist only in the live
+// half, so a build without the feature exports the measurement types,
+// a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
-#[cfg(not(feature = "budget"))]
-pub(crate) mod budget;
 pub mod cert;
-pub mod chords;
+mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
+pub mod sizing;
 mod tessellate;
 mod trimmed;
 pub mod types;
@@ -189,78 +246,3 @@ pub mod walk;
 
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
-
-/// REVIEW PROBE support (dead in normal runs): per-triangle
-/// certificate headroom stats, **thread-local** (R1 of the M8-5 PR,
-/// MINOR-2): tessellation runs entirely on the calling thread, so
-/// arming and stats scoped to the arming thread make the armed
-/// evidence rows reproducible under a parallel test runner — a
-/// concurrent test's tessellations can no longer contaminate the
-/// driving test's `take()`. Soundness never depended on this (every
-/// recorded sample is also assert-checked in place in `trimmed`);
-/// this is about the EVIDENCE being attributable.
-pub mod probe_stats {
-    use std::cell::Cell;
-    thread_local! {
-        /// (worst measured deviation, its cert, max ratio d/cert,
-        /// count) — this thread's accumulator.
-        static STATS: Cell<(f64, f64, f64, u64)> = const { Cell::new((0.0, 0.0, 0.0, 0)) };
-        /// Is the falsifier armed on this thread?
-        static ARMED: Cell<bool> = const { Cell::new(false) };
-    }
-    /// Arm/disarm the falsifier for tessellations on THIS thread.
-    pub fn arm(on: bool) {
-        ARMED.with(|a| a.set(on));
-    }
-    /// Is the falsifier armed? **Explicit [`arm`] only.**
-    ///
-    /// This used to also answer true for a `NURBS_PROBE` environment
-    /// variable — the reviewer's original manual drive, kept as a
-    /// convenience after M8-5's MIN-1 made the suite self-arming. That
-    /// was a BACK CHANNEL INTO SHIPPED CODE and it is gone:
-    ///
-    /// * it was ambient and process-wide, so a variable in a
-    ///   deployment environment silently switched on a 91-sample
-    ///   resampling of every emitted triangle — measured at 7.9 s →
-    ///   19.8 s on the demo tour's release binary, same binary, same
-    ///   arguments, ~71M extra surface evaluations;
-    /// * and the sampling block asserts, so it also converted
-    ///   [`crate::tessellate()`]'s typed [`TessellateError`] contract
-    ///   into a PANIC — chosen by the environment rather than by the
-    ///   caller.
-    ///
-    /// Nothing in the tree read it (the suites use [`arm`]), so its
-    /// removal costs no coverage. The module is still `pub` and still
-    /// unconditionally compiled, which is the remaining exposure —
-    /// gating it the way [`crate::budget`] is gated is issue #558, and
-    /// the standing rule it came from is
-    /// `memories/telemetry-gating.md`.
-    ///
-    /// [`TessellateError`]: crate::types::TessellateError
-    pub fn armed() -> bool {
-        ARMED.with(Cell::get)
-    }
-    /// Record one sample: measured deviation `d` against its
-    /// triangle's certificate `cert`.
-    pub fn record(d: f64, cert: f64) {
-        STATS.with(|c| {
-            let mut s = c.get();
-            if d > s.0 {
-                s.0 = d;
-                s.1 = cert;
-            }
-            if cert > 0.0 {
-                let r = d / cert;
-                if r > s.2 {
-                    s.2 = r;
-                }
-            }
-            s.3 += 1;
-            c.set(s);
-        });
-    }
-    /// Take-and-reset this thread's accumulated stats.
-    pub fn take() -> (f64, f64, f64, u64) {
-        STATS.with(|c| c.replace((0.0, 0.0, 0.0, 0)))
-    }
-}

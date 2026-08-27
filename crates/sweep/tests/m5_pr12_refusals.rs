@@ -9,7 +9,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Band, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{
@@ -20,18 +21,18 @@ use sweep::fillet::{CornerConfig, FilletError, FilletSite, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
-fn tol() -> Tolerance {
-    Tolerance::get()
+fn tol() -> Tol {
+    Tol::witness()
 }
 
 fn band() -> Band {
-    Band::new(tol().eps, tol().k * tol().eps).unwrap()
+    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a
 /// classification (the S2 trio idiom).
 fn in_band() -> f64 {
-    5.0 * tol().eps
+    5.0 * tol().eps()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -42,21 +43,41 @@ fn boxy() -> Body<f64> {
     let lp = ProfileLoop::new(
         [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
-/// A cylinder: a three-arc circle extruded. Its rim edges are
-/// plane–cylinder, which is a support pair NO analytic arm covers —
-/// the canal-surface lane's front door.
+/// A **toroidal spool**: an annular meridian whose outer wall is an
+/// off-axis 60° ARC, revolved about the sketch y-axis. That wall is
+/// a TORUS, and a torus support is outside every analytic arm's table —
+/// the canal-surface lane's front door, where the rolling ball's spine
+/// is neither a line nor a circle.
+fn spool(rev: sweep::Revolution<f64>) -> Body<f64> {
+    // A 60° arc about (1.5, 0) of radius 0.5, so it meets the base at a
+    // square corner and the top at a 30° one — neither joint tangent,
+    // which is what keeps the profile's own validator out of the way.
+    let bulge = (core::f64::consts::FRAC_PI_6 / 2.0).tan();
+    let (ex, ey) = (1.75, 0.25 * 3.0f64.sqrt());
+    sweep::test_support::revolved_about_y(
+        vec![
+            ProfileVertex::new(p2(0.5, 0.0), 0.0),
+            ProfileVertex::new(p2(2.0, 0.0), bulge),
+            ProfileVertex::new(p2(ex, ey), 0.0),
+            ProfileVertex::new(p2(0.5, ey), 0.0),
+        ],
+        rev,
+        tol(),
+    )
+}
+
+/// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
@@ -64,52 +85,16 @@ fn cylinder() -> Body<f64> {
         p2(0.5 * th.cos(), 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(0.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(120.0),
-            bulge: b120,
-        },
-        ProfileVertex {
-            pos: at(240.0),
-            bulge: b120,
-        },
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
-}
-
-/// A "D" prism: a square with one side replaced by a circular arc,
-/// extruded. Its top cap borders three planar walls and ONE cylinder
-/// wall, so a planar chain on that cap terminates at a vertex whose
-/// third edge is plane–cylinder.
-fn dee() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: 0.4,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below
@@ -125,7 +110,11 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 }
 
 // ---------------------------------------------------------------------
-// §3 — every `CornerConfig` tag and both `RunOutPolicy` names.
+// §3 — every `CornerConfig` tag `corner_config` itself can reach, and
+// both `RunOutPolicy` names. The one tag that is NOT reachable here is
+// `SeamVertex`: it is recognized from the vertex's own structure before
+// any valence is read as a corner configuration, so it is pinned
+// through the front door instead (`verbs_arms3`).
 // ---------------------------------------------------------------------
 
 /// A valence-four vertex: no spherical triangle, so no octant patch.
@@ -142,7 +131,7 @@ fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
             ..
         }) => {
             assert_eq!(valence, 4);
-            assert_eq!(policy, RunOutPolicy::RunOutStopAtVertex);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
         }
         other => panic!("expected an N-edge corner refusal, got {other:?}"),
     }
@@ -165,7 +154,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
             corner: CornerConfig::DependentNormals,
             policy,
             ..
-        }) => assert_eq!(policy, RunOutPolicy::RunOutStopAtVertex),
+        }) => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
         other => panic!("expected a dependent-normals refusal, got {other:?}"),
     }
 }
@@ -189,7 +178,7 @@ fn corner_tag_mixed_convexity_names_feather() {
             ..
         }) => {
             assert_eq!(convex, 1);
-            assert_eq!(policy, RunOutPolicy::RunOutFeather);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
         }
         other => panic!("expected a mixed-convexity refusal, got {other:?}"),
     }
@@ -215,8 +204,10 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
 
 /// A **same-surface smooth split** (the cylinder's two wall faces meet
 /// on one cylinder) is refused by predicate 5 with a margin of
-/// EXACTLY zero: the supports share a tangent plane, so there is no
-/// wedge for a ball to roll into. Pinned because it is the honest
+/// EXACTLY zero. Here the supports really do share a tangent plane —
+/// both sides are the same surface by construction, so the dihedral
+/// sine is structurally zero and there is no wedge for a ball to
+/// roll into. Pinned because it is the honest
 /// pre-construction answer for a whole class of requests a user will
 /// make by accident (selecting every edge of a curved body).
 #[test]
@@ -230,7 +221,7 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
                     .and_then(|h| body.get_loop(h.parent_loop))
                     .and_then(|l| body.get_face(l.face))
                     .and_then(|f| body.get_surface(f.surface))
-                    .is_some_and(|s| matches!(s, geom_surfaces::Surface::Cylinder { .. }))
+                    .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
             })
         })
         .map(|(k, _)| k)
@@ -255,8 +246,12 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
 /// neighbouring edge, which is the reporting rule under test.
 #[test]
 fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
-    let body = dee();
-    // A top-cap edge whose two supports are both planes.
+    // A PARTIAL revolve of the spool: its sweep-end caps are planar, and
+    // a planar chain on one of them terminates where the TORUS wall's
+    // meridian arrives — an edge no analytic arm resolves, which makes
+    // the CORNER unclassifiable rather than that edge's own refusal.
+    let body = spool(sweep::Revolution::Partial(1.0));
+    // A cap edge whose two supports are both planes.
     let planar = body
         .edges()
         .find(|(_, e)| {
@@ -265,7 +260,7 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
                     .and_then(|h| body.get_loop(h.parent_loop))
                     .and_then(|l| body.get_face(l.face))
                     .and_then(|f| body.get_surface(f.surface))
-                    .is_some_and(|s| matches!(s, geom_surfaces::Surface::Plane { .. }))
+                    .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
             })
         })
         .map(|(k, _)| k);
@@ -282,23 +277,23 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
             ..
         }) = run_battery(&req, band())
         {
-            assert_eq!(policy, RunOutPolicy::RunOutStopAtVertex);
+            assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex));
             saw = true;
         }
     }
     assert!(
         planar.is_some() && saw,
-        "the D-prism has a planar chain terminating at a curved neighbour"
+        "the partial spool has a planar chain terminating at a torus neighbour"
     );
 }
 
-/// The canal-surface lane's front door: a plane–cylinder support pair
-/// has a general rolling-ball spine, so the blend is a canal surface
+/// The canal-surface lane's front door: a plane–TORUS support pair is
+/// outside the analytic-arm table, so its blend needs the canal surface
 /// — the kernel's first approximating SURFACE, banked as its own
 /// reviewed unit. The refusal NAMES it.
 #[test]
 fn spine_unsupported_names_the_canal_surface_unit() {
-    let body = cylinder();
+    let body = spool(sweep::Revolution::Full);
     let rim = body
         .edges()
         .find(|(_, e)| {
@@ -309,14 +304,14 @@ fn spine_unsupported_names_the_canal_surface_unit() {
                     let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
                     Some(matches!(
                         body.get_surface(f.surface)?,
-                        geom_surfaces::Surface::Plane { .. }
+                        geom::Surface::Torus { .. }
                     ))
                 })
                 .collect();
             kinds.len() == 2 && kinds[0] != kinds[1]
         })
         .map(|(k, _)| k)
-        .expect("a plane–cylinder rim edge");
+        .expect("a plane–torus rim edge");
     let req = FilletRequest {
         body: &body,
         edges: vec![rim],
@@ -455,7 +450,7 @@ fn trio_convexity_sign() {
     // Fix pass F6: a tangential edge gets its OWN situation, not a
     // convexity DISAGREEMENT with a chain verdict that was never taken.
     assert!(matches!(flat, FilletError::TangentialEdge { .. }));
-    assert!(format!("{flat}").contains("no wedge"));
+    assert!(format!("{flat}").contains("no definite wedge side"));
     // In band.
     let escalated = convexity_at(
         Vec3::new(1.0, 0.0, 0.0),
@@ -527,6 +522,11 @@ fn trio_corner_independence() {
 /// The recourse sentences are shared CONSTANTS, so the definite and
 /// escalated arms of one user situation cannot drift apart — this row
 /// is what would catch a future edit that inlines one of them.
+///
+/// The list is hand-kept and nothing forces it to stay complete —
+/// Rust cannot enumerate a module's constants — so the standing check
+/// on completeness is `fillet::recourse_tests`' exhaustive match over
+/// the variants that append them.
 #[test]
 fn every_recourse_sentence_is_reachable_from_both_arms() {
     let p = Point3::new(0.0, 0.0, 0.0);
@@ -540,6 +540,10 @@ fn every_recourse_sentence_is_reachable_from_both_arms() {
         sweep::fillet::FILLET3_CONVEXITY_RECOURSE,
         sweep::fillet::FILLET3_CORNER_RECOURSE,
         sweep::fillet::FILLET3_SPINE_KIND_RECOURSE,
+        sweep::fillet::FILLET3_ASSEMBLY_RECOURSE,
+        sweep::fillet::FILLET3_RING_RECOURSE,
+        sweep::fillet::FILLET3_BODY_RECOURSE,
+        sweep::fillet::FILLET3_GEOMETRY_RECOURSE,
     ] {
         assert!(!s.is_empty());
         assert!(

@@ -31,6 +31,7 @@ mod common;
 use std::path::PathBuf;
 
 use common::census;
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// The imports-class corpus: files that import to a first-class,
@@ -164,7 +165,7 @@ fn oracle(name: &str) -> Oracle {
 }
 
 fn solid(name: &str) -> (topo::Body<f64>, f64) {
-    match import_step(&wild(name), &ImportOptions::default()) {
+    match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, eps_in, .. }) => (body, eps_in),
         Ok(StepImport::Wireframe { .. }) => panic!("{name}: a solid was expected"),
         Err(e) => panic!("{name}: {e}"),
@@ -228,7 +229,7 @@ const WILD_EPS_CEILING: f64 = 1e-8;
 /// skip. Three rows call it; running the sweep here ran the whole
 /// corpus three extra times for one claim.
 fn wild_scale_gate(row: &str) -> bool {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if (WILD_EPS_FLOOR..=WILD_EPS_CEILING).contains(&eps) {
         return true;
     }
@@ -249,13 +250,13 @@ fn wild_scale_gate(row: &str) -> bool {
 /// foreign file the kernel cannot certify at the ambient tolerance is
 /// REFUSED, not handed out wrong.
 fn assert_sub_tolerance_obligation(row: &str) {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let mut certified = 0;
     for name in WILD_IMPORTS
         .iter()
         .chain(WILD_REFUSALS.iter().map(|(n, _)| n))
     {
-        match import_step(&wild(name), &ImportOptions::default()) {
+        match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
                 assert_eq!(
                     topo::validate(&body),
@@ -267,7 +268,7 @@ fn assert_sub_tolerance_obligation(row: &str) {
                     Ok(()),
                     "{row}/{name}: tier 2 at ε {eps:e}"
                 );
-                match topo::validate_geometric(&body) {
+                match topo::validate_geometric(&body, Tol::witness()) {
                     Ok(()) => certified += 1,
                     Err(errs) => {
                         assert!(
@@ -324,9 +325,14 @@ fn wild_files_import_and_agree_with_the_oracle() {
 
         assert_eq!(topo::validate(&body), Ok(()), "{name}: tier 1");
         assert_eq!(topo::validate_closed(&body), Ok(()), "{name}: tier 2");
-        assert_eq!(topo::validate_geometric(&body), Ok(()), "{name}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&body, Tol::witness()),
+            Ok(()),
+            "{name}: tier 3"
+        );
 
-        let props = topo::mass_properties(&body).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let props =
+            topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
         let volume_mm3 = props.volume * 1e9;
         let tolerance = 1e-11 * e.volume_mm3.abs() + props.volume_pad * 1e9;
         assert!(
@@ -342,6 +348,15 @@ fn wild_files_import_and_agree_with_the_oracle() {
 /// something committed here, so a regression in one of the legs
 /// cannot pass this suite by importing a corpus that stopped
 /// exercising it.
+///
+/// **Sibling, same job, same crate:** `freecad.rs`'s
+/// `the_committed_freecad_corpus_still_says_what_chart_and_units_quote`
+/// pins the FreeCAD corpus's dialect facts. The two ask different
+/// questions on purpose — this row is `any(corpus contains X)`, because
+/// its claim is *"each gap is present in something committed"*; that one
+/// is all-or-none per file, because `chart`'s and `units`' claims are
+/// universally quantified over their corpus. A third corpus claim
+/// belongs beside whichever of these matches its quantifier.
 #[test]
 fn the_committed_corpus_still_carries_the_dialects_it_was_chosen_for() {
     let all: Vec<String> = WILD_IMPORTS
@@ -430,10 +445,10 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             product_name: name.to_owned(),
             ..step_export::StepOptions::default()
         };
-        let first =
-            step_export::step_string(&body, &options).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let first = step_export::step_string(&body, &options, Tol::witness())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
         let Ok(StepImport::Solid { body: again, .. }) =
-            import_step(&first, &ImportOptions::default())
+            import_step(&first, &ImportOptions::default(), Tol::witness())
         else {
             panic!("{name}: the re-import must be a solid");
         };
@@ -456,14 +471,16 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         // not zero; the sharper claims still hold exactly — the
         // census above, and the byte-identical second export below.
         let (v1, v2) = (
-            topo::mass_properties(&body).unwrap().volume,
-            topo::mass_properties(&again).unwrap().volume,
+            topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+            topo::mass_properties(&again, Tol::witness())
+                .unwrap()
+                .volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
-        let second = step_export::step_string(&again, &options).unwrap();
+        let second = step_export::step_string(&again, &options, Tol::witness()).unwrap();
         assert_eq!(
             first, second,
             "{name}: the second export must be byte-identical"
@@ -497,7 +514,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
         if name.contains("dm1-id-214") {
             continue;
         }
-        let err = import_step(&wild(name), &ImportOptions::default())
+        let err = import_step(&wild(name), &ImportOptions::default(), Tol::witness())
             .err()
             .unwrap_or_else(|| panic!("{name}: this fixture must refuse"));
         let message = err.to_string();
@@ -576,7 +593,7 @@ fn the_band_re_mint_reports_its_normalizations() {
     ];
     for (name, expected) in rows {
         let Ok(StepImport::Solid { normalizations, .. }) =
-            import_step(&wild(name), &ImportOptions::default())
+            import_step(&wild(name), &ImportOptions::default(), Tol::witness())
         else {
             panic!("{name}: the band fixture imports first-class since M7-5");
         };
@@ -611,11 +628,9 @@ fn the_band_re_mint_reports_its_normalizations() {
 /// must come back with a *result*: imported or refused, never a
 /// panic, never a hang.
 ///
-/// This is the row the corpus exists for. The triage that chose these
-/// files measured 0 imports and 28 typed refusals across 28 foreign
-/// files with zero panics; that outcome is the fail-loud contract
-/// meeting data nobody here wrote, and it is worth an assertion that
-/// can never be quietly dropped as the subset widens.
+/// This is the row the corpus exists for: the fail-loud contract
+/// meeting data nobody here wrote, worth an assertion that can never
+/// be quietly dropped as the subset widens.
 /// **Two cells, because in-window the corpus is already swept.**
 ///
 /// INVARIANT: every one of the 13 committed fixtures goes through
@@ -644,7 +659,7 @@ fn no_wild_file_panics() {
         .copied()
         .collect();
     assert_eq!(names.len(), 13, "the whole committed wild corpus");
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     if (WILD_EPS_FLOOR..=WILD_EPS_CEILING).contains(&eps) {
         println!(
             "no_wild_file_panics: ambient ε {eps:e} m is inside [{WILD_EPS_FLOOR:e}, \
@@ -710,7 +725,9 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         &text,
         &ImportOptions {
             eps_in: Some(2.5e-7),
+            ..ImportOptions::default()
         },
+        Tol::witness(),
     )
     .expect("imports under an override");
     assert_eq!(overridden.eps_in(), 2.5e-7, "the per-call override wins");

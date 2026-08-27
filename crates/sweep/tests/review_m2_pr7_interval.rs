@@ -11,6 +11,7 @@
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -21,15 +22,12 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 }
 
 fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Interval> {
-    ProfileVertex {
-        pos: p2(x, y),
-        bulge: Interval::from_f64(b),
-    }
+    ProfileVertex::new(p2(x, y), Interval::from_f64(b))
 }
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(geom_core::Tolerance::get())
+        .validate(geom_core::Tol::witness())
         .unwrap()
 }
 
@@ -54,7 +52,8 @@ fn assert_encloses(what: &str, enclosure: Interval, analytic: f64) {
 }
 
 fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
-    let props = mass_properties(body).expect("interval mass properties must compute");
+    let props =
+        mass_properties(body, Tol::witness()).expect("interval mass properties must compute");
     assert_encloses(&format!("{what} volume"), props.volume, volume);
     assert_encloses(&format!("{what} area"), props.surface_area, area);
 }
@@ -63,7 +62,13 @@ fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
 #[test]
 fn frustum_interval_encloses_reviewer_forms() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(1.0, 1.0)]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(
         &t.body,
         "frustum",
@@ -82,7 +87,13 @@ fn cup_interval_encloses_reviewer_forms() {
         p2(1.5, 0.5),
         p2(0.0, 0.5),
     ]);
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     check(&t.body, "cup", 4.625 * PI, 20.5 * PI);
 }
 
@@ -93,6 +104,7 @@ fn quarter_donut_interval_encloses_reviewer_forms() {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(Interval::from_f64(FRAC_PI_2)),
+        Tol::witness(),
     )
     .unwrap();
     check(&t.body, "quarter donut", PI * PI / 4.0, PI * PI + PI / 2.0);
@@ -106,6 +118,7 @@ fn dome_wedge_interval_encloses_reviewer_forms() {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(Interval::from_f64(FRAC_PI_2)),
+        Tol::witness(),
     )
     .unwrap();
     check(&t.body, "dome wedge", PI / 6.0, 5.0 * PI / 4.0);
@@ -118,6 +131,7 @@ fn major_arc_prism_interval_encloses_reviewer_forms() {
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
     )
     .unwrap();
     check(&t.body, "pac-man prism", 0.75 * PI, 3.0 * PI + 2.0);
@@ -131,6 +145,7 @@ fn two_hole_plate_interval_encloses_reviewer_forms() {
     let t = extrude(
         &validated(vec![outer, round, square]),
         Extrusion::Distance(Interval::from_f64(1.0)),
+        Tol::witness(),
     )
     .unwrap();
     check(&t.body, "two-hole plate", 32.0 - PI, 96.0);

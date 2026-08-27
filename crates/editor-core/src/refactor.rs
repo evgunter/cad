@@ -24,8 +24,13 @@
 //!
 //! # Placements move with the cut (A11), one frame is hoisted
 //!
-//! When the cut is EXACTLY one placement cluster (v1: one instantiate
-//! node), its frame is HOISTED: the part document holds the copy
+//! The cut must be a union of WHOLE placement clusters — a torn
+//! cluster refuses [`SplitError::TornCluster`], because A11 puts the
+//! frame on the cluster and a torn one has one frame and two homes.
+//! When the cut is EXACTLY one placement cluster — its instances and
+//! the mates holding them together, nothing else (ASM-4 D-2 rider ii,
+//! re-keyed by ASM-R2a now that mates make a cluster multi-node) — its
+//! frame is HOISTED: the part document holds the copy
 //! unplaced (identity) and the remainder's new instance is placed at
 //! the cluster's old frame — D-2's "placed at the cluster's old
 //! frame", and the shape a reusable part wants (its world pose belongs
@@ -70,13 +75,14 @@
 //! crossing the cut (a product's name table deliberately carries no
 //! root body rows, so the wrapped body name could never resolve).
 //!
-//! # Interface records (the R2 hook)
+//! # Interface records
 //!
-//! Every mate edge crossing the cut becomes the remainder instance's
-//! [`crate::InterfaceRecord`] — vacuously none in v1, where no mate
-//! vocabulary exists ([`crate::InterfaceCrossing`] is uninhabited), so
-//! the split mints the instance with the EMPTY record. The type is in
-//! the format now so R2 extends it instead of retrofitting it.
+//! Every mate EDGE whose two ends land on opposite sides of the cut
+//! becomes one [`crate::InterfaceCrossing::Mate`] entry in the
+//! remainder instance's [`crate::InterfaceRecord`] (ASM-R2b D-4, the
+//! hook ASM-4 left). A mate that is not an edge between two instances
+//! contributes nothing however its names fall, and a split that
+//! crosses no mate edge mints the EMPTY record.
 //!
 //! # Determinism (D6/D9)
 //!
@@ -91,12 +97,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{Qualifier, RoleSeg, StableName};
-use crate::node::{Node, PatternKind, RecipeNodeId};
+use crate::names::{Qualifier, RoleSeg, StableName, name_free_seg};
+use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
+use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
 /// between the two documents' node id spaces.
@@ -131,6 +138,28 @@ pub enum SplitError {
         input: RecipeNodeId,
         /// Whether the CONSUMER is the cut-side endpoint.
         consumer_is_cut: bool,
+    },
+    /// The cut TEARS a placement cluster: some of the cluster's
+    /// instances are cut and some are kept (ASM-R2a; review MAJOR-2).
+    ///
+    /// A11 puts the frame on the CLUSTER, so a torn cluster has one
+    /// frame and two homes; splitting it would have to invent which
+    /// side keeps it and re-mint the other from a relative pose that
+    /// now crosses a document seam — machinery no ratified rule
+    /// supplies. The cut must be a union of WHOLE clusters, which is
+    /// what this module's docs have promised since ASM-4 and what
+    /// mates made checkable. Refused naming the cluster and the
+    /// instance on the far side of the tear; the repair is to widen
+    /// the cut to the whole cluster, or to delete the mates that hold
+    /// it together first.
+    TornCluster {
+        /// The cluster's gauge (its document-order-first instance).
+        gauge: RecipeNodeId,
+        /// The first member, in document order, on the opposite side
+        /// of the cut from the gauge.
+        instance: RecipeNodeId,
+        /// Whether the GAUGE is the cut-side endpoint.
+        gauge_is_cut: bool,
     },
     /// A cut node references a document parameter that a kept node
     /// also references. The parameter can move or stay, but it cannot
@@ -199,6 +228,25 @@ impl core::fmt::Display for SplitError {
             Self::EmptyCut => f.write_str("split: the cut set is empty"),
             Self::UnknownCutNode { id } => {
                 write!(f, "split: cut entry {} is not a live node", id.0)
+            }
+            Self::TornCluster {
+                gauge,
+                instance,
+                gauge_is_cut,
+            } => {
+                let (cut, kept) = if *gauge_is_cut {
+                    (gauge.0, instance.0)
+                } else {
+                    (instance.0, gauge.0)
+                };
+                write!(
+                    f,
+                    "split: the cut tears the placement cluster gauged at node {} (node {cut} is \
+                     cut, node {kept} is kept) — the frame lives on the CLUSTER, so the cut \
+                     must be a union of WHOLE clusters; widen the cut, or delete the mates \
+                     holding the cluster together first",
+                    gauge.0
+                )
             }
             Self::PartIdCollides { id } => write!(
                 f,
@@ -487,9 +535,17 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
     })
 }
 
-/// One segment of [`remap_name`]'s rewrite. The match is EXHAUSTIVE on
-/// purpose (the walk_names rule): a future [`RoleSeg`] variant
-/// embedding names must be classified here or the compile breaks.
+/// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
+/// by whether the variant embeds a [`StableName`], recursing into the
+/// ones that do. Not to be confused with `eval::anchor`'s function of
+/// the same name, which partitions the same enum by whether it embeds a
+/// PROFILE LOCATOR and deliberately does not recurse.
+///
+/// The match is EXHAUSTIVE on purpose (the walk_names rule): a future
+/// [`RoleSeg`] variant embedding names must be
+/// classified here or the compile breaks — or, if it embeds no name,
+/// added to [`crate::names::name_free_seg`], which is the one place
+/// that answer is written for this and its two sibling matches.
 #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
 fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     use RoleSeg as R;
@@ -507,23 +563,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     };
     Ok(match seg {
         // Name-free segments cross verbatim.
-        R::OutputBody
-        | R::Cap(_)
-        | R::Lateral(_)
-        | R::RimEdge(..)
-        | R::LateralEdge(_)
-        | R::CapVertex(..)
-        | R::Band(_)
-        | R::BandRim(_)
-        | R::BandRimPi(_)
-        | R::BandPi(_)
-        | R::Meridian(..)
-        | R::MeridianVertex(..)
-        | R::RevolveCap(_)
-        | R::Pole(_)
-        | R::AxisEdge(_)
-        | R::SplitBody(_)
-        | R::SectionFace { .. } => seg.clone(),
+        name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
         R::Seam { a, b } => R::Seam {
@@ -603,6 +643,27 @@ enum RemapMiss {
     Input(RecipeNodeId),
     /// A name whose local ids the map lacks.
     Name(Box<StableName>),
+}
+
+/// Rewrites a placement rule's id references: the circular rule's datum
+/// axis is the only one the vocabulary carries (a linear rule is pure
+/// expressions, an explicit rule pure frames). Shared by both
+/// placement-rule nodes so their seam behavior cannot drift apart.
+///
+/// # Errors
+///
+/// The first [`RemapMiss`].
+fn remap_rule(
+    kind: &PatternKind,
+    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+) -> Result<PatternKind, RemapMiss> {
+    Ok(match kind {
+        PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
+        PatternKind::Circular { axis, step } => PatternKind::Circular {
+            axis: id(*axis)?,
+            step: step.clone(),
+        },
+    })
 }
 
 /// Rewrites a node payload's id references — DAG inputs AND
@@ -686,13 +747,12 @@ fn remap_node(
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
             count: count.clone(),
-            kind: match kind {
-                PatternKind::Linear { .. } => kind.clone(),
-                PatternKind::Circular { axis, step } => PatternKind::Circular {
-                    axis: id(*axis)?,
-                    step: step.clone(),
-                },
-            },
+            kind: remap_rule(kind, &id)?,
+        },
+        Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
+            input: id(*input)?,
+            count: count.clone(),
+            kind: remap_rule(kind, &id)?,
         },
         Node::Declare { pairs } => Node::Declare {
             pairs: pairs
@@ -701,6 +761,20 @@ fn remap_node(
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),
+        // A mate's references cross the cut like any other name
+        // reference: both heads remap, or the cut severed the mate and
+        // the remap MISSES loudly.
+        Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        } => Node::Mate {
+            a: nm(a)?,
+            b: nm(b)?,
+            class: *class,
+            alignment: *alignment,
+        },
     })
 }
 
@@ -713,17 +787,6 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
         }
     }
     refs.into_iter().map(|(name, _)| name).collect()
-}
-
-/// The names a node's PAYLOAD references (Declare pairs, fillet
-/// selections) — the document-data sites the split's re-anchoring
-/// rewrites, beside the appearance keys.
-fn payload_names(node: &Node<ProfileProgram>) -> Vec<&StableName> {
-    match node {
-        Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
-        Node::Fillet { selection, .. } => selection.iter().collect(),
-        _ => Vec::new(),
-    }
 }
 
 // ---- Split ----
@@ -744,6 +807,7 @@ pub fn split(
     doc: &ProfileDoc,
     cut: &BTreeSet<RecipeNodeId>,
     part_id: DocumentId,
+    tol: Tol,
 ) -> Result<SplitOutcome, SplitError> {
     if cut.is_empty() {
         return Err(SplitError::EmptyCut);
@@ -786,15 +850,61 @@ pub fn split(
             }
         }
     }
-    // The hoisted-frame case: the cut is exactly one placement cluster
-    // (v1: one instantiate node — module docs).
-    let hoisted = match cut.iter().next() {
-        Some(&only)
-            if cut.len() == 1 && matches!(doc.node(only), Some(Node::InstantiatePart { .. })) =>
-        {
-            Some(only)
+    // A11's cluster precondition, checked FOR REAL now that mates can
+    // make a cluster multi-node (this module's docs have promised the
+    // re-check since ASM-4; review MAJOR-2 found it missing). Run
+    // beside the severed-edge check, before anything moves: a torn
+    // cluster is a refusal, not a case the hoist below silently
+    // declines to handle.
+    for members in crate::mate::clusters(doc) {
+        let Some(&gauge) = members.first() else {
+            continue;
+        };
+        let gauge_is_cut = cut.contains(&gauge);
+        if let Some(&instance) = members.iter().find(|id| cut.contains(id) != gauge_is_cut) {
+            return Err(SplitError::TornCluster {
+                gauge,
+                instance,
+                gauge_is_cut,
+            });
         }
-        _ => None,
+    }
+    // The hoisted-frame case: the cut is exactly one placement CLUSTER
+    // (ASM-4's D-2 amendment, rider ii — re-keyed here now that A12's
+    // mates make a cluster multi-node; the pre-mate reading, "exactly
+    // one instantiate node", is the singleton case of this one).
+    //
+    // Two conditions, and each says something the frame move needs:
+    // the cut's instances all belong to ONE cluster (else there is no
+    // single frame to hoist), and the cut carries nothing but that
+    // cluster and the mates holding it together (else the part
+    // document owns material the hoisted frame does not place).
+    //
+    // WHOLENESS is not a third condition here — the torn-cluster
+    // precondition above already refused every partial cluster, so a
+    // cluster reached by the cut is entirely inside it. That is the
+    // load-bearing difference from the shape this predicate had before
+    // the review: it used to FILTER torn clusters out of the count,
+    // which made a torn cluster look like an absent one and let the
+    // hoist proceed while the torn frame was dropped (MAJOR-2).
+    let hoisted = {
+        let cut_instances: Vec<RecipeNodeId> = cut
+            .iter()
+            .copied()
+            .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+            .collect();
+        let gauges: BTreeSet<RecipeNodeId> = crate::mate::clusters(doc)
+            .into_iter()
+            .filter(|members| members.iter().any(|m| cut_instances.contains(m)))
+            .filter_map(|members| members.first().copied())
+            .collect();
+        let only_cluster_and_its_mates = cut.iter().all(|&id| {
+            cut_instances.contains(&id) || matches!(doc.node(id), Some(Node::Mate { .. }))
+        });
+        match gauges.iter().next() {
+            Some(&gauge) if gauges.len() == 1 && only_cluster_and_its_mates => Some(gauge),
+            _ => None,
+        }
     };
     // Parameters: referenced by cut nodes → copied into the part;
     // referenced by BOTH sides → refused (no silent sharing). The
@@ -830,7 +940,7 @@ pub fn split(
             continue;
         }
         let Some(node) = doc.node(id) else { continue };
-        for name in payload_names(node) {
+        for name in node.payload_names() {
             if !derivation_nodes(name).is_subset(cut) {
                 return Err(SplitError::PartNameReachesRemainder {
                     node: id,
@@ -866,7 +976,7 @@ pub fn split(
             continue;
         }
         let Some(node) = doc.node(id) else { continue };
-        for name in payload_names(node) {
+        for name in node.payload_names() {
             classify(name)?;
         }
     }
@@ -884,13 +994,13 @@ pub fn split(
         .collect();
 
     // ---- The part document, as recorded edits from empty ----
-    let mut part = Doc::empty(part_id);
+    let mut part = Doc::empty(part_id, tol);
     let mut part_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let part_apply = |part: &mut ProfileDoc,
                       edits: &mut Vec<DocEdit<ProfileProgram>>,
                       edit: DocEdit<ProfileProgram>|
      -> Result<(), SplitError> {
-        *part = apply(part, &edit)
+        *part = apply(part, &edit, tol)
             .map_err(|error| SplitError::PartEdit {
                 error: Box::new(error),
             })?
@@ -984,9 +1094,66 @@ pub fn split(
             DocEdit::SetRoots { roots: part_roots },
         )?;
     }
-    let pin = content_pin(&part).map_err(|error| SplitError::Pin {
+    let pin = content_pin(&part, tol).map_err(|error| SplitError::Pin {
         error: Box::new(error),
     })?;
+
+    // ---- The interface record (ASM-R2b D-4; A4's seam) ----
+    //
+    // INVARIANT: a mate CROSSES iff its two references land on
+    // opposite sides of the cut. A mate with both ends inside is
+    // part-internal (its names rebind wholesale and it declares
+    // nothing about the seam); a mate with both ends outside never
+    // touched the cut. Collected in the pre-split document's node
+    // order, which is what makes the record D9-deterministic.
+    //
+    // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
+    // A4 says "every mate EDGE crossing the cut", and an A12 reading
+    // edge exists only when BOTH heads are live instances. A mate with
+    // a DANGLING head — a reference to non-instance geometry, or to a
+    // node not in the document — is therefore not an edge and
+    // contributes NO crossing, however its names fall across the cut.
+    // The ruling's reason is the one that matters here: such a mate
+    // never solved, so a record minted from it would be
+    // trusted-at-rest state, which AQ8's ratification condition
+    // forbids. The mate itself stays in the document (N5) and its
+    // names rebind like any other; it simply says nothing about the
+    // seam.
+    let is_mate_edge_end =
+        |name: &StableName| matches!(doc.node(name.node), Some(Node::InstantiatePart { .. }));
+    let mut crossings: Vec<InterfaceCrossing> = Vec::new();
+    for &id in doc.order() {
+        if cut.contains(&id) {
+            continue;
+        }
+        let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
+            continue;
+        };
+        // The edge gate, before the sides are even looked at.
+        if !(is_mate_edge_end(a) && is_mate_edge_end(b)) {
+            continue;
+        }
+        let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
+        let (outer, inner) = match (inside(a), inside(b)) {
+            (false, true) => (a, b),
+            (true, false) => (b, a),
+            _ => continue,
+        };
+        // The part-side reference is stored in the PART's own names:
+        // that is what the part's product answers to, and what
+        // re-verification resolves against. `classify` above already
+        // refused a name that straddles, so the remap is total here —
+        // and it refuses typed rather than assuming so.
+        let inner = remap_name(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
+            name: Box::new(inner.clone()),
+        })?;
+        crossings.push(InterfaceCrossing::Mate {
+            mate: id,
+            class: *class,
+            outer: outer.clone(),
+            inner,
+        });
+    }
 
     // ---- The remainder, as recorded edits from the input ----
     let mut remainder = doc.clone();
@@ -995,7 +1162,7 @@ pub fn split(
                      edits: &mut Vec<DocEdit<ProfileProgram>>,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
-        let applied = apply(remainder, &edit).map_err(|error| SplitError::RemainderEdit {
+        let applied = apply(remainder, &edit, tol).map_err(|error| SplitError::RemainderEdit {
             error: Box::new(error),
         })?;
         *remainder = applied.doc;
@@ -1006,7 +1173,10 @@ pub fn split(
         &mut remainder,
         &mut remainder_edits,
         DocEdit::InsertNode {
-            node: Node::instantiate_part(DocRef { id: part_id, pin }),
+            node: Node::instantiate_part_with(
+                DocRef { id: part_id, pin },
+                InterfaceRecord { crossings },
+            ),
         },
     )?;
     let Some(instance) = minted else {
@@ -1103,10 +1273,15 @@ pub fn split(
 /// own ([`crate::Frame::compose`]). Pure — `doc` is untouched; undo is
 /// keeping it.
 ///
-/// The instance's interface record needs no re-anchoring in v1: it is
-/// provably empty ([`crate::InterfaceCrossing`] is uninhabited). When
-/// R2 inhabits it, inline must splice the crossings back into local
-/// declarations.
+/// The instance's INTERFACE RECORD dissolves here (ASM-R2b D-4, the
+/// inverse of split's populate): each crossing's part-side reference
+/// is re-anchored to the local name the splice minted, which is
+/// exactly what the wrapped-name rebind below does to the mate that
+/// declared it — so once every crossing's inner name is confirmed to
+/// land locally, the record has no remaining content and goes with the
+/// deleted instance. Confirmed, not assumed: a crossing that does not
+/// re-anchor refuses [`InlineError::StrandedPartName`] rather than
+/// being dropped with the node.
 ///
 /// # Errors
 ///
@@ -1116,11 +1291,15 @@ pub fn inline(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
     resolver: &dyn PartResolver,
+    tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
     };
-    let Node::InstantiatePart { doc_ref, .. } = node else {
+    let Node::InstantiatePart {
+        doc_ref, interface, ..
+    } = node
+    else {
         return Err(InlineError::NotAnInstance { node: instance });
     };
     for &by in doc.order() {
@@ -1132,7 +1311,7 @@ pub fn inline(
         }
     }
     let part = resolver
-        .resolve(doc_ref)
+        .resolve(doc_ref, tol)
         .map_err(|failure| InlineError::Unresolved { failure })?;
     if part.epsilon().to_bits() != doc.epsilon().to_bits() {
         return Err(InlineError::EpsilonSeam {
@@ -1176,7 +1355,7 @@ pub fn inline(
     };
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
-        for name in payload_names(node) {
+        for name in node.payload_names() {
             classify(name)?;
         }
     }
@@ -1203,7 +1382,7 @@ pub fn inline(
                 edits: &mut Vec<DocEdit<ProfileProgram>>,
                 edit: DocEdit<ProfileProgram>|
      -> Result<(), InlineError> {
-        *current = apply(current, &edit)
+        *current = apply(current, &edit, tol)
             .map_err(|error| InlineError::Edit {
                 error: Box::new(error),
             })?
@@ -1328,6 +1507,17 @@ pub fn inline(
                 to,
             },
         )?;
+    }
+    // The record dissolves (ASM-R2b D-4, and the function docs): every
+    // crossing's part-side reference must land on a spliced local
+    // name. The declaration itself survives in the mate node, which is
+    // in the host and whose wrapped reference the loop above just
+    // re-anchored — so the record's job ends here, CHECKED.
+    for crossing in &interface.crossings {
+        let InterfaceCrossing::Mate { inner, .. } = crossing;
+        remap_name(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
+            name: Box::new(inner.clone()),
+        })?;
     }
     step(
         &mut current,

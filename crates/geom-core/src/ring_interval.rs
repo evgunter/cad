@@ -1,7 +1,7 @@
 //! The **C9 interval ring**: a small, MIT-clean, always-compiled
 //! enclosure type with `±`, `×`, `÷` and integer powers, and nothing
 //! else. This is the arithmetic every M5 fitted-cache certification
-//! stands on (`docs/CURVED-DESIGN.md` C9, C2.2; `docs/M5-PR2-SPEC.md`).
+//! stands on (`docs/CURVED-DESIGN.md` C9, C2.2).
 //!
 //! # Two interval roles, deliberately distinct
 //!
@@ -69,8 +69,9 @@
 //! lower bound is raised back to `0.0`. That is a fact about the reals,
 //! not a claim about floating-point exactness, and it is what keeps
 //! even powers of zero-straddling quantities from acquiring a spurious
-//! negative lower bound (`memories/interval-square-poison.md` — the
-//! bug class that cost M2 three separate occurrences).
+//! negative lower bound — the bug class that cost M2 three separate
+//! occurrences, and that ci.yml's "interval-square powi(2) allowlist"
+//! step now gates tree-wide.
 //!
 //! # Determinism (D9)
 //!
@@ -79,7 +80,7 @@
 //! are bit-identical on every conforming platform, and every reduction
 //! order in this module is the written one.
 
-use crate::real::Enclosure;
+use crate::real::{CertifiedEnclosure, Enclosure};
 
 /// One representable step down; `next_down(-inf) = -inf`, the correct
 /// lower bound for an already-unbounded side.
@@ -152,6 +153,42 @@ impl RingInterval {
         Self { lo, hi }
     }
 
+    /// Reads a scalar's bracket into the ring through the **certified**
+    /// door, poisoning a scalar that may not certify.
+    ///
+    /// This is the C9 ring's one body for a lane scalar taken whole.
+    /// Every crossing S41 names reaches it: five call it directly, and
+    /// the rest go through `geom-core`'s own `spline::hull::bracket` and
+    /// `geom-brep`'s `ssi::enclose::ring`, which are one-line wrappers
+    /// over it. (A crossing that reads only *one* end of the bracket,
+    /// such as a symmetric pad built from `hi`, is a different operation
+    /// and spells its own refusal.) It is a method rather than the
+    /// three-line spelling at each call site
+    /// for the same reason [`Self::clamped_to`] is: the hazard is the
+    /// bracket door, which never refuses. `Interval` records a domain
+    /// violation in its decoration, not its endpoints — `sqrt([−1, 4])`
+    /// is `[0, 2]` at `Trv` — and the ring has two states and no
+    /// *decoration* channel. It does have a domain-violation channel:
+    /// [`Self::is_poison`], which is where its own certified door reads
+    /// the refusal. The two are not the same thing, and only the second
+    /// survives the crossing — which is why a violation an operand
+    /// records in a decoration has to be read HERE, while the decoration
+    /// is still there to read. Whatever is built from the crossing is a
+    /// certificate, so a scalar that carries a sound bracket its
+    /// computation is not entitled to must become poison here, where the
+    /// decoration is still readable, rather than a plausible bound
+    /// nothing downstream can question.
+    ///
+    /// [`Bounds::lo`](crate::Bounds::lo)/[`hi`](crate::Bounds::hi) into
+    /// [`Self::from_bounds`] is the *driver's* spelling and stays
+    /// available: reading a bracket is not certifying it.
+    pub fn from_certified<T: CertifiedEnclosure>(x: T) -> Self {
+        match x.certified_bracket() {
+            Some((lo, hi)) => Self::from_bounds(lo, hi),
+            None => Self::poison(),
+        }
+    }
+
     /// The smallest enclosure containing both arguments. Poison in
     /// either argument poisons the hull — a hull that quietly dropped a
     /// poisoned member would certify geometry it never bounded.
@@ -163,6 +200,32 @@ impl RingInterval {
             lo: if a.lo < b.lo { a.lo } else { b.lo },
             hi: if a.hi > b.hi { a.hi } else { b.hi },
         }
+    }
+
+    /// The intersection with the window `[lo, hi]` — narrowing an
+    /// enclosure by a fact known independently of the arithmetic that
+    /// produced it (`cos` lies in `[−1, 1]` however the series was
+    /// summed).
+    ///
+    /// **Poison first**, and that is the whole reason this is a method
+    /// rather than the two-line spelling at each call site. The hazard is
+    /// not about decorations and does not depend on the interval scalar
+    /// being in the build: NaI and the empty enclosure already surface as
+    /// NaN endpoints from storage, and `RingInterval` poison is NaN by
+    /// construction, so the swallow below is reachable in a plain `f64`
+    /// build too. `f64::max` and `f64::min` return the *non*-NaN operand,
+    /// so
+    /// `from_bounds(x.lo().max(lo), x.hi().min(hi))` resurrects a
+    /// poisoned enclosure as the window itself — a plausible, sound-
+    /// looking bracket with no argument behind it, which is the
+    /// laundering D4 ¶2 exists to prevent. A poisoned enclosure, a NaN
+    /// window, and a window disjoint from the enclosure all yield
+    /// poison.
+    pub fn clamped_to(self, lo: f64, hi: f64) -> Self {
+        if self.is_poison() || lo.is_nan() || hi.is_nan() {
+            return Self::poison();
+        }
+        Self::from_bounds(self.lo.max(lo), self.hi.min(hi))
     }
 
     /// The exact zero enclosure `[0, 0]`.
@@ -232,6 +295,25 @@ impl RingInterval {
     }
 }
 
+/// The ring refuses exactly on poison. It has two states and no
+/// decorations, so [`RingInterval::is_poison`] IS its domain-violation
+/// channel: a poisoned ring stands for no real, and a pair of NaN
+/// endpoints is not a bracket of anything. Every other ring is a sound
+/// bracket read straight off storage.
+///
+/// The refusal is this door's own rather than a loan from
+/// [`RingInterval::from_bounds`]. Handing back `Some((NaN, NaN))` and
+/// leaving a downstream constructor to reject it is precisely what the
+/// trait's method doc excludes: what a generic `T: CertifiedEnclosure`
+/// consumer is promised is a bracket, not a NaN it has to re-check, and
+/// no consumer is obliged to funnel the pair through a constructor that
+/// happens to catch it.
+impl crate::real::CertifiedEnclosure for RingInterval {
+    fn certified_bracket(self) -> Option<(f64, f64)> {
+        (!self.is_poison()).then_some((self.lo, self.hi))
+    }
+}
+
 impl Enclosure for RingInterval {
     fn lo(self) -> f64 {
         self.lo
@@ -282,7 +364,7 @@ impl RingInterval {
     /// zero. `[-a, b]` squared is `[0, max(a², b²)]`, but the product
     /// of two *independent* enclosures `[-a, b] · [-a, b]` is
     /// `[-ab, …]`: a spurious negative lower bound that poisons a
-    /// downstream `sqrt` (`memories/interval-square-poison.md`).
+    /// downstream `sqrt`.
     ///
     /// The zero lower bound of a straddling square is exact — a fact
     /// about the reals — so it is not widened.
@@ -538,7 +620,7 @@ mod tests {
 
     #[test]
     fn even_powers_of_straddling_enclosures_keep_lower_bound_zero() {
-        // The memories/interval-square-poison lesson, at the ring.
+        // The zero-straddling-square lesson, at the ring.
         let x = ri(-3.0, 2.0);
         assert!(x.sqr().lo() == 0.0 && x.sqr().hi() >= 9.0);
         for n in [2, 4, 6, 8, 10, 12] {
@@ -561,7 +643,12 @@ mod tests {
         assert!(x.powi(0).contains(1.0) && x.powi(0).width() == 0.0);
         assert!(x.powi(1).lo() == 2.0 && x.powi(1).hi() == 3.0);
         assert!(x.powi(-2).contains(1.0 / 9.0) && x.powi(-2).contains(0.25));
-        // i32::MIN must not overflow the exponent.
-        assert!(!x.powi(i32::MIN).is_poison() || true);
+        // i32::MIN must not overflow the exponent: the magnitude goes
+        // through `unsigned_abs`, and the overflowed positive power is
+        // the honest `[MAX, +inf]` rather than poison, so its
+        // reciprocal is a finite underflowed bracket of zero.
+        let tiny = x.powi(i32::MIN);
+        assert!(!tiny.is_poison(), "{tiny:?}");
+        assert!(tiny.contains(0.0) && tiny.hi() < 1e-300, "{tiny:?}");
     }
 }

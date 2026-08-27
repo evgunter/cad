@@ -52,17 +52,22 @@
 //!   solids happen to sit in different arena order, a false negative is
 //!   possible. Per-shell the encoding is genuinely canonical.
 //! - **Geometry payloads other than vertex points are ignored** —
-//!   curve/surface payloads AND their sharing patterns. At M1 they are
-//!   `Placeholder` ballast whose anchors are construction-history
-//!   artifacts (`mef` shares the parent's surface, `mfkrh` must mint a
-//!   fresh one), so including them would make legitimate
-//!   `kfmrh ∘ mfkrh` roundtrips compare unequal. Real geometry
-//!   comparison is an M2+ tolerance question (D4), never bit equality.
+//!   curve/surface payloads AND their sharing patterns. Which surface
+//!   key a face carries is a construction-history artifact (`mef`
+//!   shares the parent's; `mfkrh` takes whichever `FaceSurface` arm the
+//!   caller names, and cannot restore the key `kfmrh` reaped), so
+//!   including them would make legitimate `kfmrh ∘ mfkrh` roundtrips
+//!   compare unequal. Real geometry comparison is a tolerance question
+//!   (D4), never bit equality.
 //! - **Edge intrinsic direction (`he_plus` vs `he_minus`) is ignored**:
 //!   it is a stored representation bit that kill∘make roundtrips
-//!   legitimately flip (`mev` always re-mints old → new), and at M1 no
-//!   geometry hangs off it yet. The oriented manifold structure itself
-//!   IS compared (via `next`/mate).
+//!   legitimately flip (`mev` always re-mints old → new). Geometry
+//!   *does* hang off it — an edge's carrier runs forward from
+//!   `start(he_plus)` to `end(he_plus)` (`crate::entity`) — but the
+//!   carrier is itself ignored by the bullet above, so a flipped bit
+//!   and the re-minted curve that follows it are invisible together.
+//!   The oriented manifold structure itself IS compared (via
+//!   `next`/mate).
 //! - **Provenance is ignored**: it records history, not structure, and
 //!   roundtrips legitimately rewrite it (a re-made entity is a new
 //!   birth).
@@ -485,6 +490,7 @@ fn loop_sig(body: &Body<f64>, loop_key: LoopKey) -> String {
 #[cfg(test)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
@@ -505,12 +511,16 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 pt(1.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         body
     }
@@ -522,9 +532,12 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let circle = body
-            .mef_chord(MefSite::Lone {
-                r#loop: seed.r#loop,
-            })
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         body.mev_line(
             MevSite::Fan {
@@ -532,6 +545,7 @@ mod tests {
                 he2: circle.he_minus,
             },
             pt(1.0, 0.0, 0.0),
+            Tol::witness(),
         )
         .unwrap();
         body
@@ -539,8 +553,8 @@ mod tests {
 
     #[test]
     fn identical_builds_have_identical_forms() {
-        let a = ops_cube();
-        let b = ops_cube();
+        let a = ops_cube(Tol::witness());
+        let b = ops_cube(Tol::witness());
         assert_eq!(canonical_form(&a.body), canonical_form(&b.body));
         assert!(isomorphic(&a.body, &b.body));
     }
@@ -568,13 +582,17 @@ mod tests {
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(2.0, 0.0, 0.0), // elsewhere
+                pt(2.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         assert!(!isomorphic(&a, &body));
     }
@@ -584,7 +602,7 @@ mod tests {
         // Cycle::first is a representation-internal anchor; rotating it
         // must not change the canonical form (the kill ops re-anchor
         // loops unconditionally, so roundtrips depend on this).
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let before = canonical_form(&t.body);
         let mut rotated = t.body.clone();
         let loops: Vec<_> = rotated.loops().map(|(k, _)| k).collect();
@@ -603,7 +621,7 @@ mod tests {
     fn form_is_invariant_under_emanating_choice() {
         // Vertex::emanating names an arbitrary orbit member; re-anchoring
         // it must not change the form.
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let before = canonical_form(&t.body);
         let mut reanchored = t.body.clone();
         let vertices: Vec<_> = reanchored.vertices().map(|(k, _)| k).collect();
@@ -620,8 +638,8 @@ mod tests {
 
     #[test]
     fn cube_is_not_the_holed_box() {
-        let cube = ops_cube();
-        let holed = ops_holed_box();
+        let cube = ops_cube(Tol::witness());
+        let holed = ops_holed_box(Tol::witness());
         assert!(!isomorphic(&cube.body, &holed.body));
     }
 
@@ -640,19 +658,27 @@ mod tests {
                         r#loop: seed.r#loop,
                     },
                     pt(1.0, 0.0, 0.0),
+                    Tol::witness(),
                 )
                 .unwrap();
             let split_faces = body
-                .mef_chord(MefSite::Chords {
-                    he1: seg.he_plus,
-                    he2: seg.he_minus,
-                })
+                .mef_chord(
+                    MefSite::Chords {
+                        he1: seg.he_plus,
+                        he2: seg.he_minus,
+                    },
+                    Tol::witness(),
+                )
                 .unwrap();
             // Two hole anchors planted from face A's side (seg.he_plus
             // lives in the new face after mef; its mate in the old).
             let plant = |body: &mut Body<f64>, at, x| {
                 let strut = body
-                    .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, 0.0, 0.0))
+                    .mev_line(
+                        MevSite::Fan { he1: at, he2: at },
+                        pt(x, 0.0, 0.0),
+                        Tol::witness(),
+                    )
                     .unwrap();
                 body.kemr(strut.he_plus, strut.he_minus).unwrap()
             };
@@ -692,6 +718,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 pt(1.0, 0.0, 0.0),
+                Tol::witness(),
             )
             .unwrap();
         let plant = |body: &mut Body<f64>, x| {
@@ -702,6 +729,7 @@ mod tests {
                         he2: seg.he_minus,
                     },
                     pt(x, 0.0, 0.0),
+                    Tol::witness(),
                 )
                 .unwrap();
             body.kemr(strut.he_plus, strut.he_minus).unwrap()

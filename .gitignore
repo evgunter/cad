@@ -15,3 +15,5 @@ demos/tour/target/
 demos/wild/target/
 tools/k-lint/target/
 tools/tess-lint/target/
+tools/tess-meter/target/
+/target-*

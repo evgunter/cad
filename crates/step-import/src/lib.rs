@@ -1,7 +1,7 @@
 //! STEP (ISO 10303-21 / AP214) import of the analytic subset the
 //! kernel exports — D7's "import is adoption, not admission" made
 //! executable for the first slice: the corpus `step-export` writes
-//! (M7-1; `docs/M7-1-SPEC.md`).
+//! (M7-1).
 //!
 //! # What this is
 //!
@@ -107,8 +107,7 @@
 //!
 //! Both `B_SPLINE_SURFACE_WITH_KNOTS` arms import — the non-rational
 //! simple record and the `RATIONAL_B_SPLINE_SURFACE` complex
-//! instance — retiring the old named M7 frontier by the S9 flip its
-//! refusal text predicted. Wall–wall seams adopt through the
+//! instance. Wall–wall seams adopt through the
 //! **IsoCurve rung** (the carrier bitwise-matched against the
 //! adjacent walls' `boundary_iso_u` columns, certified through the
 //! iso residual lane), cap rims through the conventional rung's
@@ -131,7 +130,7 @@
 //! (the banked rational-patch-flux lane), so the at-rest gate below
 //! refuses them at import until that lane lands.
 //!
-//! # The wild (M7-4; `docs/M7-4-SPEC.md`)
+//! # The wild (M7-4)
 //!
 //! The subset above is what the writer emits. What translators emit
 //! is a *dialect* of it, and reading files nobody here authored is
@@ -170,7 +169,7 @@
 //! ring — `topo` has no volume construction for one, so the body
 //! would not be tier-3 valid — and edges the D7 ladder cannot
 //! certify, the same refusal it has always been. Open CASCADE's
-//! seamless periodic band, formerly in this list, NORMALIZES since
+//! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
 //! ([`NormalizationKind::SeamlessPeriodicBand`]); band shapes on
 //! other charts keep a typed refusal naming that re-mint as the
@@ -188,10 +187,12 @@ mod normalize;
 mod parse;
 mod recognize;
 mod recognize_curve;
+mod signed_zero;
 mod units;
 
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 
+use geom_core::Tol;
 use topo::Body;
 
 /// A boundary-graph census: what a region contributes to the body.
@@ -441,6 +442,35 @@ pub struct ImportOptions {
     /// the file's declaration. Must be finite and strictly positive
     /// when given ([`StepImportError::InvalidEpsOverride`]).
     pub eps_in: Option<f64>,
+    /// **The import-side declaration channel** (M9-2, D7 step 4's
+    /// residue): contact declarations the adopting CALLER attaches to
+    /// this import, resolved against the assembled body and certified
+    /// by the SAME tier-3′ gate a native declared-contact body runs —
+    /// there is no import-only validity path (the #276/#260 one-gate
+    /// ruling). A file has no arena keys to declare with, so the
+    /// channel is POSITION-anchored; an anchor that does not resolve
+    /// is [`StepImportError::DeclarationUnresolved`], never dropped.
+    pub declared_contacts: Vec<ImportContact>,
+}
+
+/// One position-anchored import declaration (module docs at
+/// [`ImportOptions::declared_contacts`]).
+///
+/// The kernel-side currency these resolve INTO is
+/// [`topo::ContactRecords`] — the boolean 3′ records, same type, no
+/// adapter. The vertex-rest anchor is the shipped arm (the touching-
+/// assembly class the corpus holds); face-granularity anchors extend
+/// here when their first import consumer lands, through the same
+/// resolve-or-refuse posture.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ImportContact {
+    /// Two vertices of the assembled body coincide at `at` and are
+    /// declared at REST: resolves to the exactly-two vertices within
+    /// the gate band of the anchor and mints their `VvContact`.
+    VertexRest {
+        /// The anchor position (model metres).
+        at: [f64; 3],
+    },
 }
 
 /// A successful import: what the file's shape representation supports.
@@ -468,9 +498,7 @@ pub enum StepImport {
         /// invariant is a flux SUM: on a multi-solid body an
         /// inside-out solid can hide behind a right-side-out one.)
         ///
-        /// The M7-3 statement it replaces — "tier-valid to the tier
-        /// its native twin certifies to" — no longer has a case to
-        /// cover: a body whose native twin refuses tier 3 (the
+        /// A body whose native twin refuses tier 3 (the
         /// rational-walled loft, whose volume quadrature names the
         /// banked rational lane) does not arrive here at all; the gate
         /// hands back its verdicts as
@@ -518,7 +546,7 @@ pub enum StepImport {
         /// carrier, not of what a body later does with it; a wireframe
         /// whose promotions were silent would be the one place in this
         /// crate where a description changed without being reported.
-        curves: Vec<geom_curves::Curve3<f64>>,
+        curves: Vec<geom::Curve3<f64>>,
         /// As [`StepImport::Solid::eps_in`].
         eps_in: f64,
         /// The curve promotions applied to `curves` (#327), by
@@ -582,7 +610,11 @@ impl StepImport {
 /// refuses ([`StepImportError::TierInvalid`]). Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
-pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, StepImportError> {
+pub fn import_step(
+    text: &str,
+    options: &ImportOptions,
+    tol: Tol,
+) -> Result<StepImport, StepImportError> {
     if let Some(eps) = options.eps_in
         && !(eps.is_finite() && eps > 0.0)
     {
@@ -625,13 +657,13 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             let mut record = Vec::with_capacity(model.instances.len());
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let one = assemble::build_one_solid(spec)?;
+                let one = assemble::build_one_solid(spec, tol)?;
                 let one = match instance.placed {
                     Some(entities::Placed {
                         map: Some(map),
                         transform,
                         ..
-                    }) => topo::transform_rigid(&one, &map)
+                    }) => topo::transform_rigid(&one, &map, tol)
                         .map_err(|source| StepImportError::Placement { transform, source })?,
                     _ => one,
                 };
@@ -641,9 +673,9 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
                 // subjects are the same body, so this call is skipped
                 // as an identity, never as an exemption.
                 if model.instances.len() > 1 {
-                    gate(&one, Some(spec.id))?;
+                    gate(&one, Some(spec.id), tol)?;
                 }
-                topo::graft_disjoint(&mut body, &one).map_err(|source| {
+                topo::graft_disjoint(&mut body, &one, tol).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,
                         source: Box::new(source),
@@ -706,17 +738,21 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
             // mapped geometry, so no tier-3 verdict is a function of
             // the placement — and it costs nothing in honesty.
             //
-            // Tier 3, not the 3′ form: the tier-3′ census gate is the
-            // currency of DECLARED-contact bodies (`BooleanBody`), and
-            // an imported body declares none. **Scope, stated
-            // honestly**: 3′ on an empty contact record is tier 3 plus
-            // the census actually run, which is strictly stronger, so
-            // an imported assembly whose parts TOUCH is checked less
-            // than its native twin — the touch is neither declared nor
-            // discovered here (F1 forbids scan-to-bless). Import-side
-            // declared contacts are banked with the M8 contact
-            // program (D7 step 4).
-            gate(&body, None)?;
+            // **The 3′ form, with the import-side declaration
+            // channel resolved** (M9-2, D7 step 4 executed): the
+            // aggregate body is held to `validate_pseudomanifold` —
+            // the SAME gate a native declared-contact body runs,
+            // against exactly the records the adopting caller's
+            // declarations resolve to (empty when none were given).
+            // Consequence, stated plainly: an imported assembly whose
+            // parts TOUCH now refuses UNDECLARED at this gate — the
+            // census discovers the touch and F1 forbids blessing it —
+            // and certifies WITH the declaration. The
+            // per-solid gates above stay tier 3: contact is an
+            // aggregate-body fact, and the aggregate census sweeps
+            // every entity of every instance.
+            let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
+            gate3(&body, &records, tol)?;
             Ok(StepImport::Solid {
                 body,
                 eps_in,
@@ -741,6 +777,62 @@ pub fn import_step(text: &str, options: &ImportOptions) -> Result<StepImport, St
 /// validation logic that could drift from the kernel's (D9 engineering
 /// convention 2). If this function ever grows a condition, the gate has
 /// grown an opinion.
-fn gate(body: &topo::Body<f64>, solid: Option<u64>) -> Result<(), StepImportError> {
-    topo::validate_geometric(body).map_err(|errors| StepImportError::TierInvalid { solid, errors })
+fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), StepImportError> {
+    topo::validate_geometric(body, tol)
+        .map_err(|errors| StepImportError::TierInvalid { solid, errors })
+}
+
+/// The aggregate subject's gate: the tier-3′ form over the resolved
+/// declaration records — the same function a native declared-contact
+/// body's caller runs, with the same no-opinion contract as [`gate`].
+fn gate3(
+    body: &topo::Body<f64>,
+    records: &topo::ContactRecords,
+    tol: Tol,
+) -> Result<(), StepImportError> {
+    topo::validate_pseudomanifold(body, records, tol).map_err(|errors| {
+        StepImportError::TierInvalid {
+            solid: None,
+            errors,
+        }
+    })
+}
+
+/// Resolves the position-anchored import declarations against the
+/// assembled body into the kernel's contact-record currency
+/// ([`ImportContact`] docs). Resolution is exact-arithmetic proximity
+/// at ε_in (the import's own input tolerance — anchors are FILE-side
+/// data, so they resolve at the file's tolerance, not the kernel
+/// band): an anchor with anything other than exactly two coincident
+/// vertices refuses typed.
+fn resolve_declarations(
+    body: &topo::Body<f64>,
+    contacts: &[ImportContact],
+    eps_in: f64,
+) -> Result<topo::ContactRecords, StepImportError> {
+    let mut records = topo::ContactRecords::default();
+    for c in contacts {
+        match *c {
+            ImportContact::VertexRest { at } => {
+                let mut hits = Vec::new();
+                for (vk, v) in body.vertices() {
+                    let Some(p) = body.get_point(v.point) else {
+                        continue;
+                    };
+                    let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
+                    if d2 <= eps_in.powi(2) {
+                        hits.push(vk);
+                    }
+                }
+                let [a, b] = hits[..] else {
+                    return Err(StepImportError::DeclarationUnresolved {
+                        at,
+                        found: hits.len(),
+                    });
+                };
+                records.vv.push(topo::VvContact { a, b });
+            }
+        }
+    }
+    Ok(records)
 }

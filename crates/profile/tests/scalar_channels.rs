@@ -33,9 +33,9 @@ fn skeleton_f64(vp: &ValidatedProfile<f64>) -> Skeleton {
                     .zip(lp.segments())
                     .map(|(v, s)| {
                         (
-                            v.pos.x.to_bits(),
-                            v.pos.y.to_bits(),
-                            v.bulge.to_bits(),
+                            v.pos().x.to_bits(),
+                            v.pos().y.to_bits(),
+                            v.bulge().to_bits(),
                             kind_code(&s.kind),
                         )
                     })
@@ -56,9 +56,9 @@ fn skeleton_dual(vp: &ValidatedProfile<Dual64>) -> Skeleton {
                     .zip(lp.segments())
                     .map(|(v, s)| {
                         (
-                            v.pos.x.value.to_bits(),
-                            v.pos.y.value.to_bits(),
-                            v.bulge.value.to_bits(),
+                            v.pos().x.value.to_bits(),
+                            v.pos().y.value.to_bits(),
+                            v.bulge().value.to_bits(),
                             dual_kind_code(&s.kind),
                         )
                     })
@@ -108,7 +108,7 @@ fn dual_rejects_with_the_identical_typed_error() {
     for fixture in [
         profile(vec![bowtie()]),
         tangent_hole(),
-        near_tangent_hole(tol().eps),
+        near_tangent_hole(tol().eps()),
         arc_kisses_line(),
     ] {
         let f_err = fixture.validate(tol()).expect_err("fixture rejects at f64");
@@ -130,14 +130,16 @@ fn dual_with_seeded_derivatives_still_decides_by_value_only() {
             .iter()
             .map(|lp| {
                 profile::ProfileLoop::new(
-                    lp.vertices
+                    lp.vertices()
                         .iter()
-                        .map(|v| profile::ProfileVertex {
-                            pos: geom_core::Point2::new(
-                                Dual::new(v.pos.x, f64::NAN),
-                                Dual::new(v.pos.y, f64::NAN),
-                            ),
-                            bulge: Dual::new(v.bulge, f64::NAN),
+                        .map(|v| {
+                            profile::ProfileVertex::new(
+                                geom_core::Point2::new(
+                                    Dual::new(v.pos().x, f64::NAN),
+                                    Dual::new(v.pos().y, f64::NAN),
+                                ),
+                                Dual::new(v.bulge(), f64::NAN),
+                            )
                         })
                         .collect(),
                 )

@@ -4,7 +4,7 @@
 //! on a body the boolean itself built:
 //!
 //! - the TORUS gate: `union` has no per-class door of its own, so the
-//!   torus must refuse at `reduce::gate_planar` — this is what scopes
+//!   torus must refuse at `reduce::gate_operand_pairs` — this is what scopes
 //!   the containment-fallback finding to the sphere class;
 //! - the RADIAL POKE: a cylinder wall escaping between its own seam
 //!   vertices, the shape that defeats a vertex probe — exact or typed,
@@ -22,7 +22,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::f64::consts::PI;
@@ -35,24 +36,23 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body).unwrap().volume
+    topo::mass_properties(body, Tol::witness()).unwrap().volume
 }
 
 fn boxy(x0: f64, y0: f64, w: f64, h: f64, z0: f64, t: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex {
-                pos: p2(x, y),
-                bulge: 0.0,
-            })
+            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(t)).unwrap().body
+    extrude(&profile, Extrusion::Distance(t), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// 2-arc disc radius `r` centred at origin with seam vertices at
@@ -60,20 +60,16 @@ fn boxy(x0: f64, y0: f64, w: f64, h: f64, z0: f64, t: f64) -> Body<f64> {
 fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     let at = |th: f64| p2(r * th.cos(), r * th.sin());
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: at(phi),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: at(phi + PI),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(at(phi), 1.0),
+        ProfileVertex::new(at(phi + PI), 1.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(len)).unwrap().body
+    extrude(&profile, Extrusion::Distance(len), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// PROBE 1 (charter A3): a TORUS operand. Union has no per-class door;
@@ -83,23 +79,19 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
     let lp = ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(1.1, 0.0),
-            bulge: 1.0,
-        },
-        ProfileVertex {
-            pos: p2(1.9, 0.0),
-            bulge: 1.0,
-        },
+        ProfileVertex::new(p2(1.1, 0.0), 1.0),
+        ProfileVertex::new(p2(1.9, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let torus = revolve(&vp, axis, Revolution::Full).unwrap().body;
+    let torus = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
     let slab = boxy(-3.0, -3.0, 6.0, 6.0, -0.1, 0.2);
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
         match boolean_op_with(
@@ -108,6 +100,7 @@ fn probe_torus_union_is_never_silently_wrong() {
             &torus,
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         ) {
             Err(e) => println!("torus {op:?}: typed refusal: {e:?}"),
             Ok(out) => {
@@ -145,6 +138,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
             &b,
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         ) {
             Err(e) => println!("radial poke {op:?}: typed refusal: {e:?}"),
             Ok(out) => {
@@ -174,9 +168,13 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
         Vec3::new(1.0, 0.0, 0.0),
         -PI / 2.0,
     );
-    let log1 = topo::transform_rigid(&log0, &rot).unwrap();
-    let log =
-        topo::transform_rigid(&log1, &Affine3::translation(Vec3::new(2.0, 0.5, 0.5))).unwrap();
+    let log1 = topo::transform_rigid(&log0, &rot, Tol::witness()).unwrap();
+    let log = topo::transform_rigid(
+        &log1,
+        &Affine3::translation(Vec3::new(2.0, 0.5, 0.5)),
+        Tol::witness(),
+    )
+    .unwrap();
     let r: f64 = 0.7;
     let beta = (0.5 / r).acos();
     let seg = r * r * (beta - beta.sin() * beta.cos()); // area beyond each slab plane
@@ -195,6 +193,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
             &log,
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         ) {
             Err(e) => println!("log {op:?}: typed refusal: {e:?}"),
             Ok(out) => {
@@ -219,7 +218,12 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
 fn probe_contained_cylinder_reaches_the_fallback_soundly() {
     let a = boxy(0.0, 0.0, 3.0, 3.0, 0.0, 1.0);
     let b = disc2(0.3, 0.0, 0.3, 0.4); // wholly interior at (0,0)?? centred origin — move it
-    let b = topo::transform_rigid(&b, &Affine3::translation(Vec3::new(1.5, 1.5, 0.0))).unwrap();
+    let b = topo::transform_rigid(
+        &b,
+        &Affine3::translation(Vec3::new(1.5, 1.5, 0.0)),
+        Tol::witness(),
+    )
+    .unwrap();
     for (op, expect) in [
         (BooleanOp::Intersect, PI * 0.09 * 0.4),
         (BooleanOp::Subtract, 9.0 - PI * 0.09 * 0.4),
@@ -231,6 +235,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
             &b,
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         ) {
             Err(e) => println!("contained boss {op:?}: typed refusal: {e:?}"),
             Ok(out) => {
@@ -255,19 +260,18 @@ fn probe_involution_on_a_boolean_result_body() {
         let at = |th: f64| p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin());
         let lp = ProfileLoop::new(
             (0..3)
-                .map(|i| ProfileVertex {
-                    pos: at(2.0 * PI * i as f64 / 3.0),
-                    bulge: (PI / 6.0).tan(),
-                })
+                .map(|i| ProfileVertex::new(at(2.0 * PI * i as f64 / 3.0), (PI / 6.0).tan()))
                 .collect(),
         );
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
         let profile = Profile::new(plane, vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+            .unwrap()
+            .body
     };
-    let holed = topo::subtract(&plate, &boss)
+    let holed = topo::subtract(&plate, &boss, Tol::witness())
         .unwrap()
         .body()
         .unwrap()
@@ -283,7 +287,7 @@ fn probe_involution_on_a_boolean_result_body() {
     let rev = holed.revert().unwrap();
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
-        topo::validate_geometric(&rev),
+        topo::validate_geometric(&rev, Tol::witness()),
         Err(vec![topo::ValidationError::NegativeVolume])
     );
     assert_eq!(

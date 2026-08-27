@@ -125,8 +125,7 @@
 
 use super::super::knots::{KnotVector, SplineError};
 use super::{
-    BernsteinSpans, ComposeError, CurveRingData, bern_mul_row, binom_row, interior_values,
-    to_bezier_spans_extra,
+    BernsteinSpans, ComposeError, CurveRingData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::ring_interval::RingInterval;
 
@@ -553,8 +552,8 @@ pub fn surface_curve_residual(
     // interior knots (plus the caller's refinement) injected, so every
     // channel lands on one shared span structure.
     let mut merged: Vec<f64> = extra_breaks.to_vec();
-    merged.extend(interior_values(pcurve.kv).iter().map(|(v, _)| *v));
-    merged.extend(interior_values(carrier.kv).iter().map(|(v, _)| *v));
+    merged.extend(pcurve.kv.interior_knots().map(|(v, _)| v));
+    merged.extend(carrier.kv.interior_knots().map(|(v, _)| v));
     merged.sort_by(f64::total_cmp);
     merged.dedup();
 

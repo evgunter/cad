@@ -1,10 +1,36 @@
-//! S8 adversarial review probe: three fuzz-found arc x arc two-survivor
-//! corners (independent re-derivation of the offset/gate machinery in
-//! `review-scratch/s8/dominance_fuzz.rs`), cross-checking that the real
-//! constructor's pick is the componentwise-dominant (smaller-total)
-//! candidate my re-implementation predicts. The tangent point the
-//! builder emits must lie at distance r from the predicted winner's
-//! center and NOT at distance r from the loser's.
+//! S8 adversarial review probe, in two halves that check each other.
+//!
+//! 1. **Against the real constructor**: three fuzz-found arc×arc
+//!    two-survivor corners, each built through the arc-carrier fillet
+//!    door, asserting the emitted tangent point lies at distance r from
+//!    the componentwise-dominant candidate's centre and NOT from the
+//!    loser's. This is the only row that pins the S8 PICK against
+//!    kernel code; the fuzz below re-derives the prediction but never
+//!    calls it.
+//! 2. **The standalone dominance fuzz**: an independent re-derivation
+//!    of the offset/gate machinery (the reviewer's
+//!    `review-scratch/s8/dominance_fuzz.rs`). Over every two-survivor
+//!    corner it finds — arc×arc and line×arc — the smaller-total
+//!    candidate dominates componentwise, so sum, max and every monotone
+//!    combination agree on which candidate the S8 ladder must pick, and
+//!    no enclosing tangency (ρ < 0) ever participates. None of
+//!    `sugar.rs`'s private machinery is used.
+//!
+//! Half 1's three corners have DISTINCT far points — the arc×arc shape
+//! class the §2c dissolution made authorable on the lattice: the entry
+//! fused verb rides carrier 1 from `far1`, the arc arrival emits its
+//! run to the hard anchor `far2`, and the loop closes with the sharp
+//! straight seam `line_to(Start)`. The carriers, radii, corner and
+//! predicted candidates are the fuzz dump's, verbatim; the far ANCHORS
+//! are re-derived on the same carriers — each far enough behind (resp.
+//! ahead of) the corner that BOTH candidates' trims fit, and close
+//! enough that the mirror corner sits behind the incoming anchor —
+//! because the lattice's signed-swept gates bound a side to half a
+//! turn from its anchor (past-the-end classifies Negative rather than
+//! wrapping) while the raw builder's dumped extents ran to nearly a
+//! full turn. The pick under test — which of the corner's two
+//! surviving candidates the ladder returns — is a function of the
+//! carriers and r alone, so re-anchoring the extents does not move it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The fixture coordinates are fuzz-dumped at 17 significant digits (the
 // f64 round-trip length); trimming digits to appease the lint could
@@ -12,9 +38,9 @@
 #![allow(clippy::excessive_precision)]
 
 mod common;
-use common::tol;
 use geom_core::Point2;
-use profile::{ArcSweep, FilletLegShape};
+use geom_core::Tol;
+use profile::{ArcSweep, Center, Open, Start};
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
@@ -32,24 +58,50 @@ fn check(
     win: (f64, f64),
     lose: (f64, f64),
 ) {
-    let lp = profile::test_support::LoopBuilder::start(p2(far1.0, far1.1))
-        .fillet_corner(
-            FilletLegShape::Arc {
-                center: p2(o1.0, o1.1),
-                sweep: s1,
+    let lp = Open
+        .arc_fillet_arc(
+            Center {
+                c: p2(o1.0, o1.1),
+                winding: s1,
+                p: p2(far1.0, far1.1),
             },
-            p2(corner.0, corner.1),
-            FilletLegShape::Arc {
-                center: p2(o2.0, o2.1),
-                sweep: s2,
-            },
-            p2(far2.0, far2.1),
             r,
-            tol(),
+            Center {
+                c: p2(o2.0, o2.1),
+                winding: s2,
+                p: p2(far2.0, far2.1),
+            },
+            Tol::witness(),
         )
         .expect("two-survivor corner must construct")
-        .close_arc_center(p2(o2.0, o2.1), s2);
-    let t1 = lp.vertices[1].pos;
+        .line_to(Start, Tol::witness())
+        .expect("the sharp seam closes")
+        .loop_;
+    let t1 = lp.vertices()[1].pos();
+    // The pick must round the DUMPED corner, not the pair's mirror
+    // crossing (the corner is the +y-side root; the mirror is its
+    // reflection across the centre line): the emitted incoming tangent
+    // point sits strictly nearer the dumped corner.
+    let (c, m) = {
+        let d = (o2.0 - o1.0, o2.1 - o1.1);
+        let len2 = d.0 * d.0 + d.1 * d.1;
+        let v = (corner.0 - o1.0, corner.1 - o1.1);
+        let t = (v.0 * d.0 + v.1 * d.1) / len2;
+        let foot = (o1.0 + t * d.0, o1.1 + t * d.1);
+        (
+            p2(corner.0, corner.1),
+            p2(2.0 * foot.0 - corner.0, 2.0 * foot.1 - corner.1),
+        )
+    };
+    let (dc, dm) = (
+        ((t1.x - c.x).powi(2) + (t1.y - c.y).powi(2)).sqrt(),
+        ((t1.x - m.x).powi(2) + (t1.y - m.y).powi(2)).sqrt(),
+    );
+    assert!(
+        dc < dm,
+        "the emitted trim rounds the mirror crossing, not the dumped corner \
+         (|t1-corner|={dc}, |t1-mirror|={dm})"
+    );
     let dw = ((t1.x - win.0).powi(2) + (t1.y - win.1).powi(2)).sqrt();
     let dl = ((t1.x - lose.0).powi(2) + (t1.y - lose.1).powi(2)).sqrt();
     assert!(
@@ -70,8 +122,8 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
         (0.95562179434455674, 0.0),
         ArcSweep::Ccw,
         (-0.22946874909608578, 1.65519209137498335),
-        (0.06171648071802562, -1.66988258334824113),
-        (2.98666833485438410, 0.13766047285183547),
+        (-0.76140938632480071, -1.48747185270125493),
+        (0.11472866679104776, -1.85391456209179362),
         0.15189083980143034,
         (-0.81863298895661929, 1.27968806714547267),
         (-0.81863298895661929, -1.27968806714547267),
@@ -82,8 +134,8 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
         (3.82055744659083052, 0.0),
         ArcSweep::Ccw,
         (1.17316720402785357, 1.21354460418236210),
-        (0.06048447681684566, 1.68681754289278429),
-        (4.81136266143260016, -2.73855265222345867),
+        (1.47583209002557170, -0.81910404528204495),
+        (4.09329211202486132, -2.89947950588176573),
         0.31664440369683866,
         (1.27464246658060087, 0.50560149083164663),
         (1.27464246658060087, -0.50560149083164663),
@@ -94,8 +146,8 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
         (1.68543221900967244, 0.0),
         ArcSweep::Ccw,
         (0.24842682255474419, 0.89584175565974999),
-        (0.48588598188942012, 0.79256744189472206),
-        (3.15605941461580208, 0.83950736278354254),
+        (-0.71733306129772123, -0.59133883393316000),
+        (1.62811319906494045, -1.69240405653517167),
         0.32427394642951701,
         (-0.25623799695610200, 0.54847219060938479),
         (-0.25623799695610200, -0.54847219060938479),
@@ -118,35 +170,40 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
 mod dominance {
     use std::f64::consts::TAU;
 
-    pub fn signed_swept(from: f64, to: f64, turn: f64) -> f64 {
+    pub(super) fn signed_swept(from: f64, to: f64, turn: f64) -> f64 {
         let s = ((to - from) * turn).rem_euclid(TAU);
         s - TAU * (s / TAU + 0.5).floor()
     }
 
     /// `+1` or `−1` with equal probability.
-    pub fn sign(rng: &mut test_utils::fuzz::Rng) -> f64 {
+    pub(super) fn sign(rng: &mut test_utils::fuzz::Rng) -> f64 {
         if rng.unit() < 0.5 { 1.0 } else { -1.0 }
     }
 
     #[derive(Clone, Copy)]
-    pub struct Arc {
-        pub ox: f64,
-        pub oy: f64,
-        pub r: f64,
-        pub turn: f64,
-        pub corner_angle: f64,
-        pub len: f64,
+    pub(super) struct Arc {
+        pub(super) ox: f64,
+        pub(super) oy: f64,
+        pub(super) r: f64,
+        pub(super) turn: f64,
+        pub(super) corner_angle: f64,
+        pub(super) len: f64,
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct Survivor {
-        pub sb_in: f64,
-        pub sb_out: f64,
+    pub(super) struct Survivor {
+        pub(super) sb_in: f64,
+        pub(super) sb_out: f64,
     }
 
     /// Survivors + signed offset radii for an arc×arc corner (the
     /// reviewer's `classify`, verbatim semantics).
-    pub fn classify(a1: &Arc, a2: &Arc, sgn: f64, r: f64) -> Option<(Vec<Survivor>, f64, f64)> {
+    pub(super) fn classify(
+        a1: &Arc,
+        a2: &Arc,
+        sgn: f64,
+        r: f64,
+    ) -> Option<(Vec<Survivor>, f64, f64)> {
         let rho1 = a1.r - sgn * a1.turn * r;
         let rho2 = a2.r - sgn * a2.turn * r;
         let (r1, r2) = (rho1.abs(), rho2.abs());
@@ -190,7 +247,7 @@ mod dominance {
 
     /// Dominance + no-enclosing bookkeeping for one classified corner.
     /// `stats` = (two-survivor count, violations, enclosing-involved).
-    pub fn tally(surv: &[Survivor], rho1: f64, rho2: f64, stats: &mut (u64, u64, u64)) {
+    pub(super) fn tally(surv: &[Survivor], rho1: f64, rho2: f64, stats: &mut (u64, u64, u64)) {
         if surv.len() != 2 {
             return;
         }

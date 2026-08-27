@@ -5,14 +5,27 @@
 mod common;
 
 use common::{census, fixture};
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 fn import_text(text: &str) -> Result<StepImport, StepImportError> {
-    import_step(text, &ImportOptions::default())
+    import_step(text, &ImportOptions::default(), Tol::witness())
 }
 
 fn solid(text: &str, what: &str) -> topo::Body<f64> {
-    match import_text(text).unwrap_or_else(|e| panic!("{what}: {e}")) {
+    let options = if what.contains("kiss") {
+        // The corner kiss is declared through the M9-2 import channel
+        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
+        ImportOptions {
+            declared_contacts: vec![step_import::ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
+            ..ImportOptions::default()
+        }
+    } else {
+        ImportOptions::default()
+    };
+    match import_step(text, &options, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}")) {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }
@@ -23,7 +36,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         product_name: name.to_owned(),
         ..step_export::StepOptions::default()
     };
-    step_export::step_string(body, &options).unwrap()
+    step_export::step_string(body, &options, Tol::witness()).unwrap()
 }
 
 /// A1: a consistently perturbed radius must flow through import into
@@ -42,7 +55,7 @@ fn a1_perturbed_value_flows_to_reexport() {
             "#8 = CARTESIAN_POINT('', (0.0, -1.25, 0.0));",
         );
     let body = solid(&text, "perturbed ball");
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let expected = 4.0 / 3.0 * std::f64::consts::PI * 1.25f64.powi(3);
     assert!(
         (v - expected).abs() < 1e-9,
@@ -75,7 +88,7 @@ fn a1_small_perturbation_breaks_row1_tolerance() {
             "#8 = CARTESIAN_POINT('', (0.0, -1.0000001, 0.0));",
         );
     let body = solid(&text, "slightly perturbed ball");
-    let props = topo::mass_properties(&body).unwrap();
+    let props = topo::mass_properties(&body, Tol::witness()).unwrap();
     let expect = common::expect_sidecar("ball");
     let expected = expect.kernel_volume_mm3 * 1e-9;
     // Row-1 tolerance for ball (the tightened KERNEL_VOLUME_MM3 form —
@@ -209,8 +222,10 @@ fn d4_reversed_data_lines_still_assemble() {
     let body = solid(&permuted, "reversed die");
     let reference = solid(&text, "die");
     assert_eq!(census(&body), census(&reference));
-    let v1 = topo::mass_properties(&body).unwrap().volume;
-    let v2 = topo::mass_properties(&reference).unwrap().volume;
+    let v1 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let v2 = topo::mass_properties(&reference, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "die");
     let body2 = solid(&e1, "reversed die reimport");
@@ -244,8 +259,10 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
     let body = solid(&renumbered, "renumbered kiss");
     let reference = solid(&text, "kiss");
     assert_eq!(census(&body), census(&reference));
-    let v1 = topo::mass_properties(&body).unwrap().volume;
-    let v2 = topo::mass_properties(&reference).unwrap().volume;
+    let v1 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let v2 = topo::mass_properties(&reference, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "kiss_assembly");
     let body2 = solid(&e1, "renumbered kiss reimport");
@@ -273,7 +290,7 @@ fn f6_face_sense_flip_is_not_healed() {
     match import_text(&text) {
         Err(e) => println!("f6 .T.->.F.: typed refusal: {e}"),
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(&body);
+            let tier3 = topo::validate_geometric(&body, Tol::witness());
             let out = export(&body, "cube");
             let kept = out.contains("ADVANCED_FACE('', (#39), #5, .F.)")
                 || out.matches(", .F.);").count() > 0;
@@ -308,13 +325,14 @@ fn f6_reversed_face_unflip_is_not_healed() {
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(&body);
+            let tier3 = topo::validate_geometric(&body, Tol::witness());
             let out = export(&body, "washer");
             let flipped_back = out.contains(", #5, .F.);");
-            let v = topo::mass_properties(&body).unwrap().volume;
-            let v0 = topo::mass_properties(&solid(&fixture("washer", "step"), "washer"))
-                .unwrap()
-                .volume;
+            let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+            let v0 =
+                topo::mass_properties(&solid(&fixture("washer", "step"), "washer"), Tol::witness())
+                    .unwrap()
+                    .volume;
             // Finding data, not a hard assert: tier-3 detectability of a
             // curved-face sense flip is kernel scope, not import scope.
             println!(
@@ -447,8 +465,8 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
         panic!("both are solids");
     };
     assert_eq!(
-        topo::mass_properties(a).unwrap().volume,
-        topo::mass_properties(b).unwrap().volume,
+        topo::mass_properties(a, Tol::witness()).unwrap().volume,
+        topo::mass_properties(b, Tol::witness()).unwrap().volume,
         "the line's parameter scale is not the line"
     );
     for bad in ["0.0", "-2.0"] {
@@ -508,13 +526,15 @@ fn e5_closed_forms() {
     assert!((pips - 987904868.2836792).abs() < 1e-4);
     // die_pips ulp distance of the imported volume from the sidecar.
     let body = solid(&fixture("die_pips", "step"), "die_pips");
-    let v = topo::mass_properties(&body).unwrap().volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let expected: f64 = 987904868.2836792e-9;
     let ulp = expected.next_up() - expected;
     println!(
         "e5 die_pips imported volume is {:.2} ulps from the sidecar (pad {})",
         (v - expected).abs() / ulp,
-        topo::mass_properties(&body).unwrap().volume_pad
+        topo::mass_properties(&body, Tol::witness())
+            .unwrap()
+            .volume_pad
     );
 }
 
@@ -524,13 +544,20 @@ fn e5_closed_forms() {
 fn h8_eps_in_not_consumed() {
     let text = fixture("cube", "step");
     for eps in [1e-30, 1.0] {
-        let import = import_step(&text, &ImportOptions { eps_in: Some(eps) })
-            .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
+        let import = import_step(
+            &text,
+            &ImportOptions {
+                eps_in: Some(eps),
+                ..ImportOptions::default()
+            },
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("eps_in {eps} must not affect certification: {e}"));
         let StepImport::Solid { body, eps_in, .. } = import else {
             panic!("wireframe?")
         };
         assert_eq!(eps_in, eps);
-        let v = topo::mass_properties(&body).unwrap().volume;
+        let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
         assert_eq!(
             v.to_bits(),
             1.0f64.to_bits(),

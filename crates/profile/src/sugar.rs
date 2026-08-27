@@ -26,11 +26,9 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use geom_core::{
-    Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2,
-};
+use geom_core::k_stats::decide;
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 
-use crate::k_stats::decide;
 use crate::validate::{FilletLeg, NoCornerReason};
 
 /// The sweep direction hint for [`bulge_from_center`] /
@@ -136,10 +134,8 @@ pub fn bulge_from_center<T: Real>(
 }
 
 /// The line×line fillet's computed trim geometry — the output of
-/// [`line_line_fillet_trims`], shared verbatim by the PATHS algebra's
-/// lowering (`crate::path`) and the test-support twin so both doors emit
-/// bit-identical geometry from one closed form (LIB-U2 PR-1; the same
-/// one-door discipline `fillet_corner`'s line×line delegation states).
+/// [`line_line_fillet_trims`], consumed by the PATHS algebra's lowering
+/// (`crate::path`): one closed form, one door (LIB-U2 PR-1).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct LineFilletTrims<T: Real> {
     /// The incoming tangent point `corner − setback·v̂₁`. Meaningful only
@@ -165,11 +161,9 @@ pub(crate) struct LineFilletTrims<T: Real> {
 }
 
 /// A refusal from [`line_line_fillet_trims`], carried at the scalar so
-/// the helper itself needs no bracket read (Bounds scope rule): each
-/// door maps it into its own error vocabulary —
-/// the test-support twin to `ProfileError` with `.lo()`
-/// diagnostics (this file is the ratified fillet-gate seam), the PATHS
-/// lowering to `PathError` with scalar payloads.
+/// the helper itself needs no bracket read (Bounds scope rule): the
+/// PATHS lowering maps it into `PathError` with scalar payloads (this
+/// file is the ratified fillet-gate seam).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum TrimRefusal<T: Real> {
     /// A Negative `fillet_leg_fit`: the tangent setback exceeds the
@@ -209,8 +203,8 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let v1 = corner - head;
     let v2 = next - corner;
     // powi(2)-discipline squares (interval lane: a straddling-zero
-    // factor must not poison the enclosure — memories/
-    // interval-square-poison.md); norm_squared is powi inside.
+    // factor must not poison the enclosure — ci.yml's
+    // "interval-square powi(2) allowlist"); norm_squared is powi inside.
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
     let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
     let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
@@ -301,38 +295,40 @@ pub(crate) enum ArcFilletOutcome<T: Real> {
 
 /// A refusal from [`arc_fillet_trims`], carried at the scalar so the
 /// helper itself needs no bracket read (Bounds scope rule) — the
-/// [`TrimRefusal`] pattern, one level up: each door maps it into its own
-/// error vocabulary, and the test-support twin does so with the
-/// `.lo()` diagnostics through its own mapper.
-///
-/// Some payload fields are read only by the door that maps this into
-/// [`crate::validate::ProfileError`] — the banished raw builder, which
-/// lives behind `test-support` (PROFILES-V2 §V6). The algebra's own
-/// mapper (`path::arc_fillet`) reads the margins it reports and leaves
-/// the rest; the fields stay because they are the CONSTRUCTION's
-/// diagnostics, not one caller's.
+/// [`TrimRefusal`] pattern, one level up: the algebra's mapper
+/// (`path::arc_fillet`) turns it into `PathError`, reading the margins
+/// it reports; the remaining payload fields stay because they are the
+/// CONSTRUCTION's diagnostics, not one caller's.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(not(feature = "test-support"), allow(dead_code))]
 pub(crate) enum ArcTrimRefusal<T: Real> {
     /// `fillet_corner_arm` not Positive: no length scale, so the
     /// corner's angle means nothing. Both arms ride so the door can name
     /// the shorter leg on its own channel.
     LegDegenerate {
-        /// The incoming leg's lever arm.
+        /// The incoming leg's lever arm. Construction diagnostic: the
+        /// surviving door reads only `arm`.
+        #[allow(dead_code)]
         leg_in_arm: T,
-        /// The outgoing leg's lever arm.
+        /// The outgoing leg's lever arm (same status).
+        #[allow(dead_code)]
         leg_out_arm: T,
         /// Their minimum — the gate's margin.
         arm: T,
     },
     /// `fillet_corner_turn` Zero: the legs meet tangentially or double
-    /// back, so there is no corner to cut.
+    /// back, so there is no corner to cut. The payload is the gate's
+    /// own diagnostic; the surviving door maps the VARIANT (to the
+    /// parallel-carriers refusal) and reads none of it — kept because
+    /// it is the CONSTRUCTION's channel, not one caller's.
     AlreadyTangent {
         /// `dir_in · dir_out` — negative means the legs double back.
+        #[allow(dead_code)]
         align: T,
         /// The turn margin in meters.
+        #[allow(dead_code)]
         margin: T,
         /// The lever arm it was levered by.
+        #[allow(dead_code)]
         arm: T,
     },
     /// `fillet_offset_lever` not Positive: the leg's **offset radius**
@@ -387,20 +383,21 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     Band(BandError),
 }
 
-/// The ratified arc-carrier fillet construction (M5 S2), extracted
-/// verbatim from the raw builder's corner door so the twin and
-/// the PATHS algebra lowering share one code path — the
+/// The ratified arc-carrier fillet construction (M5 S2) — the
 /// [`line_line_fillet_trims`] pattern, applied to the offset-carrier
 /// corner.
+///
+/// **One consumer, `path::arc_fillet`'s lowering**, which calls this
+/// ratified construction rather than carrying a second copy of it.
 ///
 /// Runs the arm gate, the turn gate, the offset-carrier intersection and
 /// the per-candidate reach/fit pass, in exactly the shipped order and
 /// with exactly the shipped `decide` sequence, and returns EVERY
 /// surviving candidate rather than one pick. The selection is the
-/// caller's: the test-support twin applies
-/// [`crate::fillet_select::nearest_candidate`] over the diagnostic channel (the S8 rule), and
-/// the algebra applies it over the joint corner×candidate space, which
-/// is why the survivors — not a winner — are what crosses this seam.
+/// caller's: the algebra applies the S8 rule
+/// ([`crate::fillet_select::nearest_joint`]) over the joint
+/// corner×candidate space, which is why the survivors — not a winner —
+/// are what crosses this seam.
 ///
 /// `T: Decide` only: no bracket is read here, so the interval lane's
 /// diagnostics stay at the doors (Bounds scope rule).
@@ -415,9 +412,9 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     outgoing: FilletLegShape<T>,
     next: Point2<T>,
     radius: T,
-    tol: Tolerance,
+    tol: Tol,
 ) -> Result<ArcFilletOutcome<T>, ArcTrimRefusal<T>> {
-    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ArcTrimRefusal::Band)?;
+    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ArcTrimRefusal::Band)?;
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
     let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;
@@ -764,6 +761,15 @@ impl<T: Real> Leg<T> {
     /// displaces the tangent point ALONG its carrier. That one is real,
     /// is not removable here, and is what a conditioning gate should be
     /// measured against — see [`ArcCarrier::offset_circles`].
+    ///
+    /// The residual claim this section makes is pinned, and by name
+    /// (issue #667): `profile/tests/review_s2.rs`'s
+    /// `an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier`
+    /// asserts 8 ulps of the scene magnitude on the worst corner the
+    /// `fillet_offset_lever` gate accepts — 5.3x above everything the
+    /// measured-spoke form produced across 2.4M accepted corners, and 11x
+    /// below what the nominal `R/ρ` form produced there, so restoring
+    /// `R/ρ` fails it immediately.
     fn tangent_point(&self, center: Point2<T>, sgn: T, radius: T) -> Point2<T> {
         match self.arc {
             None => center - left_normal(self.dir) * (sgn * radius),
@@ -841,7 +847,7 @@ impl<T: Real> Leg<T> {
             .map_err(ArcTrimRefusal::Escalated)?
             {
                 // powi(2)-discipline squares: ρ and h both straddle zero
-                // in general (memories/interval-square-poison.md).
+                // in general (ci.yml's "interval-square powi(2) allowlist").
                 Sign::Positive => {
                     let half = (rho.powi(2) - h.powi(2)).sqrt();
                     vec![foot + self.dir * half, foot - self.dir * half]
@@ -896,6 +902,17 @@ impl<T: Real> Leg<T> {
 /// It is a machine-precision count, not a tolerance: ε enters the gate
 /// through the band, so the affordable conditioning loosens at ε = 1e-6 and
 /// tightens at ε = 1e-12 without this number moving.
+///
+/// **What goes red if this stops being true** (issue #667's Q6 — the
+/// guard existed and this site did not name it):
+/// `profile/tests/review_s2.rs`'s
+/// `an_uncertifiable_tangent_point_refuses_instead_of_being_returned`
+/// carries the ε-crossover this constant implies (≈ 2.53e-10) as a
+/// literal, deliberately as a tripwire — moving 128 moves which corners
+/// the gate accepts, and the row makes that a diff on a witness that
+/// says WHICH corners rather than a silent capability change. It is a
+/// guard on the constant, not on the table above: the 300 000-corner
+/// sweeps are a one-shot adversarial search and nothing re-runs them.
 const LEVER_ULPS: f64 = 128.0;
 
 impl<T: Real> ArcCarrier<T> {
@@ -1020,7 +1037,7 @@ impl<T: Real> ArcCarrier<T> {
         // keeps its own (stronger) refusal unchanged.
         //
         // powi(2)-discipline squares: both ρ straddle zero in general
-        // (memories/interval-square-poison.md). No sqrt anywhere — the
+        // (ci.yml's "interval-square powi(2) allowlist"). No sqrt — the
         // law is linear in 1/|ρ₂|, so scale² is wanted as it stands.
         let scale_squared = dist_squared + rho1.powi(2) + rho2.powi(2);
         let least_lever = T::from_f64(LEVER_ULPS * f64::EPSILON) * other.radius * scale_squared

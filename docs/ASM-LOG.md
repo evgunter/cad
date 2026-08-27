@@ -230,3 +230,283 @@ unpinned) filed as #561 and adopted by LIB's bindings queue.
 Remaining pipeline: R2-A dispatches when M9-1 PR-2 merges (it
 shifts to schema 11); R2-B spec finalizes after that merge. Seam
 swept (asm-upd + asm-upd-r1).
+
+## MESH-PROBEGATE MERGED (#579, 2026-08-16); R2-a in re-review
+
+The side-lane pair Evan assigned is half landed: #558's module
+gate merged at the program's first 5/5/5 APPROVE (0 findings
+needing action — the reviewer's own plant, own merge-base build,
+own workflow read). #558 closed. Meanwhile R2-a drew the
+program's first NOT-MERGEABLE-AS-IS (ordinal 50, 2 MAJOR both
+executed-probe-demonstrated: the parallel-axes clocking solve
+gap falsely refusing assemblable two-pin patterns, and the
+torn-cluster silent frame drop); both implementer deviations
+UPHELD as spec amendments (committed); fix pass dispatched,
+re-verification required before merge. TESS-SPAN mid-flight
+(core commit pushed; sweep + baseline re-cut queued behind the
+slot mutex; one usage-window kill absorbed — all three fable
+agents resumed from transcripts). TESS-SPLIT specced, gated on
+TESS-SPAN. R2-b next after M9-2 PR-2 settles.
+
+## ASM-R2A MERGED (#575, 2026-08-16) — mates solve constructively
+
+R2-a landed through the ladder's full designed path: NMAI (2
+executed-probe MAJORs — the parallel-axes clocking gap and the
+torn-cluster frame drop) → substantial implementer-inherited fix
+→ delta re-review APPROVE with the original probes passing and
+the new rows mutation-verified. Both implementer deviations were
+UPHELD as spec amendments (the spec's own row 1 was unsatisfiable
+under its binding table; D-3's wording contradicted ratified A11
+rule 2). Schema landed v13 after TWO mid-flight shifts, each
+caught only by the by-eye constant read — the discipline memory
+is sharpened accordingly (prose is a tripwire, not a guarantee).
+The constructive-solve boundary is now executable: mate chains
+place clusters, UNDER/CONTRADICTORY refuse naming subgroup and
+clash, Δc ≡ 0 by construction. Seam sweep next (asm-r2a +
+asm-r2a-r1). Remaining: TESS-SPAN (sweep + re-cut in flight) →
+TESS-SPLIT; R2-b spec finalization once M9-2 PR-2 settles.
+
+## Seam: checkpoint at usage-window edge (2026-08-18)
+
+RESTING STATE (both fix passes mid-flight, all work committed in
+lanes): **ASM-R2b** PR #591 — review AWF 2/2/3+4 adjudicated
+(MAJ-1 F1 honesty, MAJ-2 unreachability re-scope); fix pass at
+"pncad cross-process D9 row" commit (12061817); remaining: cold
+clippy + final re-merge (by-eye v14 check) + push green + PR
+body/report updates. PR currently shows 4 reds at the PRE-fix
+head — expected to clear at the fix push; diagnose if not.
+**TESS-SPAN** PR #594 — cross-model dual #17 (R1 fable 0/4/5,
+R2 opus 4/5/3, both AWF; reports in cad-work; R2's plant section
+orchestrator-restored after a 500) adjudicated; fix pass has the
+realized-aspect fix + baseline re-cut committed (1aba0704);
+remaining per dispatch: the max-of-cells EXPERIMENT (decides the
+R1-vs-R2 math dispute + the doc claim), SAFE_ASPECT doc ruling,
+meter truth pass, body tail. Then: merge both on green, rows at
+merge (53 single; 54 = cross-model pair #5 toward the 12), sweep
+lanes (asm-r2b, asm-r2b-r1, tess-span, tess-span-r1/r2).
+**Pending Evan**: AQ8 dangling-head addendum 👍 (#592 comment
+5319576300, watchlisted — recommend (b) skip). **Then**:
+TESS-SPLIT dispatches on TESS-SPAN's merge (fable, slot 1;
+RECONCILE its spec with the sliver lesson first — realized
+aspect ≤~4 vs the ratified A=16 FFF cap: distinct quantities,
+but the spec must bind BOTH, cite memories/tessellation-budget);
+ASM-XSPLIT (the AQ8 conversion door) specs after the addendum
+ruling; then the R2 exit walk + assembly demo + program
+wind-down per ASM-PLAN's exit shape.
+
+## ASM-R2B MERGED (#591, 2026-08-18) — R2 IS CLOSED
+
+The program's ratified v1 scope (R1+R2) is code-complete:
+declarations flow the product path, solved mates mint into the
+kernel record set, the assembled A5 gate verifies with
+mate-attributed refusals, the interface record inhabits with
+crossing re-verification, and the update door's clause-4 hook
+executes. The review's two MAJORs were honesty findings that
+IMPROVED the design record: the F1 boundary is now truthfully a
+census Door-2 structural-identity gap (steered to M9 on-thread),
+and the unreachability claim's refutation became AQ8's addendum
+— ruled (b) SKIP and folded same-PR. Remaining before wind-down:
+TESS-SPAN's fix pass lands (1 pending check) → row 54 + merge →
+TESS-SPLIT (spec reconciled with the sliver lesson first); the
+R2 exit walk + assembly demo; ASM-XSPLIT (the AQ8 conversion
+door) as the one banked follow-on unit. Seam sweep: asm-r2b +
+asm-r2b-r1 lanes.
+
+## Checkpoint (2026-08-18, second window edge)
+
+TESS-SPAN #594: dual fix pass COMPLETE (the max-of-cells
+experiment ruled for R1 — both bounds sound, docs honest, shipped
+semantics pinned; realized-aspect fix +3.0% cells, rows hold at
+3.10x / +5.9%); post-R2b conflict resolved; merge-on-green waiter
+armed. At merge: row 54 (cross-model pair #5: R1 fable 0/4/5, R2
+opus 4/5/3, labels diverged/substance converged, the math dispute
+experiment-settled), unit entry, sweep tess-span + r1 + r2 lanes.
+THEN: TESS-SPLIT (fable, ASM-4 slot 1) — reconcile spec with the
+sliver lesson BEFORE dispatch; R2 exit walk + assembly demo;
+ASM-XSPLIT specs on the AQ8 addendum ruling (b, ratified).
+
+## TESS-SPAN MERGED (#594, 2026-08-18) — and session wind-down
+
+The over-tessellation span half closed on the program's FIRST
+CROSS-MODEL dual (ordinal 54, sample #17): R1 fable AWF 0/4/5,
+R2 opus AWF 4/5/3 — labels far apart, substance converged (both
+re-derived the certificate sound, both reproduced every number,
+both demanded the same missing mutation test). The disjoint
+tails were each real and each landed: R2's realized-aspect
+malignity defect and the SAFE_ASPECT doc falsehood; R1's
+refutation of the unit's own "max-of-cells is unsound"
+justification — settled BY EXPERIMENT in the fix pass (dense sup
+never exceeded max-of-cells; docs now say "conservative choice
+of two sound bounds", with the shipped semantics pinned so both
+reviewers' mutation goes red). leaf_a 261,780 → 84,524
+triangles; tour NURBS share 68% → ~34%.
+
+### RESTING STATE (handoff issue filed; this seam is the resume point)
+
+MERGED THIS SESSION: ASM-4 (#525, R1 complete), ASM-UPD (#549),
+MESH-PROBEGATE (#579, #558 closed), ASM-R2a (#575), ASM-R2b
+(#591, R2 CLOSED), TESS-SPAN (#594). RATIFIED: A12 (#522, AQ7),
+A13 (#544, AQ2), AQ8 + its dangling-head addendum (#592, both
+Evan-signed), the TESS aspect policy (#568, A=16 FFF cap).
+**The program's ratified v1 scope (R1+R2) is CODE-COMPLETE.**
+
+QUEUED, IN PRIORITY ORDER:
+1. **TESS-SPLIT** — spec written (docs/TESS-SPLIT-SPEC.md),
+   arm drawn (FABLE, block ASM-4 slot 1), gate now OPEN
+   (TESS-SPAN merged). **Reconcile the spec with TESS-SPAN's
+   sliver lesson BEFORE dispatch**: the ratified A=16 FFF cap
+   and the measured "realized aspect ≤ ~4 or preserve
+   chord/column alignment" constraint are DIFFERENT quantities
+   (3-D vs lattice) and the spec must bind both — see
+   memories/tessellation-budget.md and TESS-SPAN's report.
+2. **R2 exit walk + assembly demo** — ASM-PLAN's exit shape,
+   demo per the demo-purpose rule (real usage, awkwardness
+   recorded not hidden).
+3. **ASM-XSPLIT** — the AQ8 conversion door (crossing mates
+   passed explicitly at split; construction-time refusals bind
+   so only fit defers). Banked, spec not yet written.
+OPEN FINDINGS: the F1 census Door-2 structural-identity gap
+(steered to M9 on #591's thread — ASM's F1 row pins the honest
+boundary meanwhile); #601 (feature-gated test lanes rot — LIB
+owns the guard, ASM's two mesh features already covered).
+PROTOCOL: claims through 56 (LIB-PYPU); next third = 57 (dual,
+cross-model per #572 until 12 pairs — 5 done). Schema at v14
+(ASM-R2b); the by-eye read is the only guard.
+
+## Seam: new orchestrator; TESS-SPLIT spec reconciled (2026-08-23)
+
+Session resumed off #611 after the five-day gap. Main's motion in
+between was SMELL-SCAN, VERBS, and LIB — no ASM state moved, but
+three of its neighbors did: protocol is now v5 (style lane, seam
+2026-08-18 — review figures not comparable across it), claims run
+through 62 (ARCEVAL; 63 is the next third — dual, cross-model per
+#572, 7 pairs done), and `crates/mesh` took the smell-scan style
+passes, the #884 Tol-witness threading, and VERBS-ARMS — so
+TESS-SPLIT's implementer merges a moved substrate. #735 deleted
+ASM-R2a's never-constructed `PairSolve` (provenance + recovery
+SHA on #611's comments; re-mint against a real caller if
+ASM-XSPLIT wants one, don't restore). The queue's step 1
+discharged: TESS-SPLIT-SPEC reconciled with the sliver lesson —
+new D-1a states the two aspect quantities (A=16 FFF cell cap,
+ratified #568, vs realized lattice `s_u/s_v` against
+`SAFE_ASPECT`) and binds both, with the snap machinery kept in
+force, alignment named as the safety where the cap exceeds the
+sliver line, and constraint-active metering split by WHICH bound
+was active; rows 9 (executed sliver safety) and 10 (#782's
+swept-blade finding-13 drift — diagnose then re-pin) added; the
+dangling deleted-spec references (TESS-SPAN-SPEC, ASM-4-SPEC)
+re-anchored to the living code sites and
+docs/prompts/implementer-discipline.md. Next: land the spec on
+main, dispatch TESS-SPLIT (fable, block ASM-4 slot 1, standing
+draw); then the R2 exit walk + assembly demo; ASM-XSPLIT spec
+after.
+
+## Seam addendum: both lanes dispatched (2026-08-23)
+
+Spec landed (#936, merge 7e39b2ed). TESS-SPLIT dispatched (lane
+asm/tess-split, fable, slot 1's standing claim). In parallel,
+**ASM-DEMO** dispatched (lane asm/demo, block ASM-4 slot 3 =
+opus, M / STRUCTURAL pre-logged): the R2 exit demo, brief-as-spec
+— author a real assembly through the public API per the
+demo-purpose rule (two+ part docs by pin, a Pattern, a
+constructively-solving mate chain, materialization with
+instance-qualified names + the A5 at-rest gate, three+ typed
+v1-boundary refusals with recourse naming rungs, split/inline
+acceptance at demo scale, an A13 update-edit with
+re-verification, schema round-trip), NO kernel changes (a needed
+one is a STOP-and-report exit-walk finding), awkwardness
+gap-commented and reported never absorbed, Python-reachability
+surveyed and recorded (bindings gaps filed to LIB, not
+implemented), CI-armed-vs-unarmed assertions stated per #782.
+The exit-walk document (criteria-vs-evidence per the M8
+convention, ASM-PLAN's exit-shape paragraph verbatim) is
+orchestrator work once the demo lands; the walk PR is a design
+conversation — Evan's sign-off closes the program, no self-merge.
+Reviews queue behind both PRs (ordinals claimed from main at each
+review dispatch; 63 = the next third, dual cross-model).
+
+### Seam correction (2026-08-23): ordinals renumbered 63→66, 64→67
+
+The VERBS collision (#952 comment; SSIFLAT/ARMS1/RING recorded
+late via #940, dispatched earlier). ASM-DEMO's dual = ordinal 66,
+sample #21, ninth cross-model pair; TESS-SPLIT's single = 67.
+Dispatches unchanged; the correction entry in MODEL-AB-LOG is
+normative.
+
+## ASM-DEMO MERGED (#938, 2026-08-23) — the exit demo exists
+
+The R2 exit demo is a rendered, CI-gated tour stop: two part
+documents and two assembly documents in a real on-disk workspace
+walk every door v1 shipped — authoring by pin, a pattern, a
+constructively-solving mate chain, minted declarations, the A5
+gate (Ok on the disjoint layout; the declared frontier on the
+mated stand — F2, the known census gap), a four-refusal typed
+walk, split/inline with the composed-node-map name identity
+(the fix pass EXPOSED that inline mints fresh host ids — A4's
+name-resolution identity is the right claim and now the tested
+one), the A13 update door, and a v14-unchanged round trip. The
+dual (ordinal 66, sample #21, the ninth cross-model pair)
+diverged on labels and converged on substance; the fix pass also
+landed the A5 gate on the pncad façade (adjudicated: the
+omission was an accident, not curation — the export guard's
+roster corrected honestly; LIB notified on-thread and in
+LIB-LOG). Eleven library findings: #943 (F3, REFRAMED per Evan —
+the at-rest census wants the boolean lane's existing face-backed
+closure extended, never a mate-side re-implementation of the
+table-with-legs machinery), #944 (alignment-frame-from-face
+door), #945 (mates × patterns non-composition + the A11 rule-4
+drift, EVAN'S RULING NEEDED), #946 (sub-assembly declarations
+lost at the seam), #947 (doubled recourse + missing recourse
+sentences), #948 (parametric loop constructor); F2 stays on the
+#591→M9 steer; F5 on AQ1; the Python assembly gap deposited in
+LIB-LOG as a dispatchable bindings series. Next: the exit-walk
+document (criteria vs evidence, M8 convention) — a design
+conversation for Evan's sign-off. Seam sweep: asm-demo + both
+review worktrees.
+
+## ASM CLOSED at v1 scope (2026-08-23) — the exit walk is ratified
+
+Evan approved the walk directly in-session after his one concern
+— the A11 rule-4 question — resolved into the ratified
+**member-vocabulary rider** (ASSEMBLY-DESIGN, A11: mate heads
+are live InstantiatePart OR pattern-placed instances at their
+derived poses; rules 3–4 bind as written; no algebra change;
+parameters never solved; Instance(i) heads canonical). #945
+converts to the banked implementation unit for it.
+docs/ASM-EXIT-WALK.md is the done-state of record. Still moving
+under this program's flag: **TESS-SPLIT** (PR #951 — review at
+ordinal 67 + fix pass + merge; the orchestrator drives it to
+green before resting) and the banked follow-ons (**ASM-XSPLIT**,
+the #945 rider unit) for whoever picks the flag up next.
+
+## TESS-SPLIT MERGED (#951, 2026-08-23) — #320 closed; session rest
+
+The split half landed through the full designed path: the
+closed-form aspect-capped selection (A=16 through the FFF,
+ratified #568), D-1a executed and biting twice — the reconciled
+spec's own reconciliation obligation caught for real: the new
+selection's tour run refused at 41·δ and 25·δ exactly where the
+retired snap's invariants were AM-GM artifacts, and the
+generalized snap (every band judged; exact patch-count projection
+to a dilation fixpoint) is the minimal closure, reviewer-executed
+both ways. Tour NURBS cells 163,182 → 46,102; with TESS-SPAN,
+#320's leaf_a is 261,780 → 43,798 triangles, a 6.0x total. Row
+67. #950 is the scheduled residual; M9-5's fresh-state pointer
+(row-8 else-arm): the shipped selection is `split_steps` + the
+fixpoint snap, baseline re-cut at 31f052d2.
+
+### RESTING STATE (the program is CLOSED; this is the archive tail)
+
+ASM's v1 scope closed at the ratified exit walk
+(docs/ASM-EXIT-WALK.md — the done-state of record). Everything
+this session moved: TESS-SPLIT-SPEC reconciled (#936) →
+dispatched → MERGED (#951, row 67); ASM-DEMO brief → MERGED
+(#938, row 66, dual sample #21) with the A5 gate joining the
+pncad façade; the exit walk RATIFIED (#955) with the A11
+member-vocabulary rider ratified in ASSEMBLY-DESIGN; issues
+#943–#948 + #950 filed and scheduled; the LIB deposit
+(LIB-LOG tail); the #952 ordinal collision resolved (claims
+discipline adopted). BANKED for a successor: **ASM-XSPLIT**
+(the AQ8 conversion door, spec unwritten) and **#945** (the A11
+rider's implementation unit). All lanes swept; nothing in
+flight. Resume affordance: #611 carries the close-out pointer.

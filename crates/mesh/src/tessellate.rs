@@ -3,13 +3,15 @@
 
 use std::collections::HashMap;
 
-use geom_core::Tolerance;
-use geom_surfaces::Surface;
+use geom::Surface;
+use geom_core::Tol;
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
+use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
+use crate::sizing::{SizingTols, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
@@ -25,22 +27,25 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// tier-3 geometry); tessellation does not re-validate — corrupt input
 /// surfaces as typed errors where cheaply detectable (dangling keys,
 /// `Nurbs` placeholders, certificate failures) and is otherwise
-/// garbage-in/garbage-out on the mesh *values* while
-/// [`crate::validate::check_mesh`] stays available as the backstop.
+/// garbage-in/garbage-out on the mesh *values*.
+/// [`crate::validate::check_mesh`] is the backstop for that, and
+/// **this function does not call it**: it is available to a caller,
+/// and the acceptance suites run it, but nothing on this path does.
 ///
 /// # Errors
 ///
 /// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
 /// placeholder, described NURBS faces outside the trimmed-NURBS
 /// inventory (illegal-rational / C⁰-creased — `nurbs_cert`), unsupported
-/// carriers, rings on curved faces, empty loops, dangling keys,
-/// resolution overflow, certificate failure, CDT insertion failure.
-pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateError> {
+/// carriers, rings on curved faces, a curved face whose iso domain is
+/// not its own UV rectangle, empty loops, dangling keys, resolution
+/// overflow, certificate failure, CDT insertion failure.
+pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
-    let eps = Tolerance::get().eps;
-    let delta_s = chordal * 0.5;
+    let eps = tol.eps();
+    let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
     let mut positions = Vec::new();
@@ -56,14 +61,19 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
         positions.push(*p);
     }
 
+    // Certified whole-patch NURBS bounds, assembled once per face and
+    // shared by both passes that need them (`chords::FaceBounds`).
+    let mut bounds = FaceBounds::new();
+
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let (chords, chord_ts) = compute_chords(body, delta_s, &vids, &mut positions)?;
+    let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
         let points = chords
+            .ids
             .get(&ek)
             .ok_or(TessellateError::MissingEntity {
                 what: "edge chords",
@@ -79,17 +89,13 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
 
     // Per-face dispatch, face-arena order.
     let mut patches = Vec::new();
-    for (ordinal, (fk, face)) in body.faces().enumerate() {
-        // BUDGET METER (dead in normal runs): open this face's row, so
-        // a previous face that REFUSED cannot leave its sizing behind
-        // to be reported under this one's name (`crate::budget`).
-        crate::budget::begin_face();
+    for (fk, face) in body.faces() {
         let surface = body
             .get_surface(face.surface)
             .ok_or(TessellateError::MissingEntity {
                 what: "face surface",
             })?;
-        let tol = crate::curved::Tol {
+        let tol = SizingTols {
             delta: chordal,
             delta_s,
             eps,
@@ -103,50 +109,53 @@ pub fn tessellate(body: &Body<f64>, chordal: f64) -> Result<Mesh, TessellateErro
             // is its only lane. The placeholder still refuses typed
             // inside the lane; illegal-rational/C⁰ classes refuse
             // [`TessellateError::UnsupportedNurbsFace`] there too.
-            Surface::Nurbs(_) => crate::trimmed::tessellate_trimmed(
+            // An approximating surface meshes through the SAME lane,
+            // on its fit: the fit is the geometry, so the triangles it
+            // produces are the face's own. The certificate's bound is
+            // deliberately NOT folded into the mesh tolerance here —
+            // widening `tol` by the fit's ε so the mesh certifies
+            // against the DESCRIPTION is a separate statement, and
+            // this pass makes the plain one.
+            Surface::Nurbs(_) | Surface::Approx(_) => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,
                 surface,
                 &chords,
-                &chord_ts,
                 &mut positions,
                 &tol,
+                &mut bounds,
             )?,
             // The planar lane derives its chart frame from the face's
             // own boundary (planar.rs module docs, #284) — the stored
             // plane axes are deliberately not passed: imported axes
             // carry translator noise that projects valid boundaries
             // below spade's coordinate domain.
-            Surface::Plane { .. } => tessellate_planar(body, fk, &chords, &positions)?,
+            Surface::Plane { .. } => tessellate_planar(body, fk, &chords.ids, &positions)?,
             // Structural routing (M5 PR 11): a conic/B-spline trim
             // carrier means the face is not an iso-rectangle — the
-            // pcurve-driven trimmed lane takes it; iso boundaries keep
-            // the swept-rectangle walk.
+            // pcurve-driven trimmed lane takes it.
+            //
+            // The converse does NOT follow, and S28 is where that was
+            // established: this is a test on carrier KINDS, and iso
+            // carriers (`Line`, `Circle`) can bound a NON-rectangular
+            // domain — a keyway or milled flat on a cylinder is exactly
+            // that shape, and nothing on this path screens loop SHAPE.
+            // So an iso boundary reaching `tessellate_curved` is a
+            // routing decision, not a guarantee about the domain; the
+            // domain itself is checked there
+            // (`curved::require_swept_rectangle`, refusing
+            // [`TessellateError::UnsupportedCurvedDomain`]).
             _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,
                 surface,
                 &chords,
-                &chord_ts,
                 &mut positions,
                 &tol,
+                &mut bounds,
             )?,
-            _ => tessellate_curved(body, fk, surface, &chords, &mut positions, &tol)?,
+            _ => tessellate_curved(body, fk, surface, &chords.ids, &mut positions, &tol)?,
         };
-        // BUDGET METER (dead in normal runs): one row per face, every
-        // chart — "which face IS the scene's cost" is unanswerable if
-        // only the Hessian-sized lane reports (`crate::budget`).
-        if crate::budget::armed() {
-            let chart = match *surface {
-                Surface::Plane { .. } => crate::budget::Chart::Plane,
-                Surface::Cylinder { .. } => crate::budget::Chart::Cylinder,
-                Surface::Cone { .. } => crate::budget::Chart::Cone,
-                Surface::Sphere { .. } => crate::budget::Chart::Sphere,
-                Surface::Torus { .. } => crate::budget::Chart::Torus,
-                Surface::Nurbs(_) => crate::budget::Chart::Nurbs,
-            };
-            crate::budget::finish_face(ordinal, chart, chordal, triangles.len());
-        }
         patches.push(FacePatch {
             face: fk,
             triangles,

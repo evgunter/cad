@@ -1,4 +1,4 @@
-//! Affine maps of the 2-D/3-D affine spaces.
+//! Affine maps of the 3-D affine space.
 //!
 //! See the [module docs](super) for the affine/linear split: an affine map
 //! is a linear part plus a translation. The linear part is the map's
@@ -9,18 +9,8 @@
 
 use core::ops::Mul;
 
-use crate::linalg::{Mat2, Mat3, Point2, Point3, Vec2, Vec3};
+use crate::linalg::{Mat3, Point3, Vec3};
 use crate::real::Real;
-
-/// An affine map of the 2-D affine space: `p ↦ linear·p + translation`.
-#[derive(Clone, Copy, Debug)]
-pub struct Affine2<T: Real> {
-    /// The linear part — the map's differential.
-    pub linear: Mat2<T>,
-    /// The translation part — the image of the coordinate origin, as a
-    /// displacement from it.
-    pub translation: Vec2<T>,
-}
 
 /// An affine map of the 3-D affine space: `p ↦ linear·p + translation`.
 #[derive(Clone, Copy, Debug)]
@@ -30,56 +20,6 @@ pub struct Affine3<T: Real> {
     /// The translation part — the image of the coordinate origin, as a
     /// displacement from it.
     pub translation: Vec3<T>,
-}
-
-impl<T: Real> Affine2<T> {
-    /// Builds an affine map from its linear part and translation.
-    pub fn from_parts(linear: Mat2<T>, translation: Vec2<T>) -> Self {
-        Self {
-            linear,
-            translation,
-        }
-    }
-
-    /// The identity map.
-    pub fn identity() -> Self {
-        Self::from_parts(Mat2::identity(), Vec2::zero())
-    }
-
-    /// The pure translation by `v` (identity linear part).
-    pub fn translation(v: Vec2<T>) -> Self {
-        Self::from_parts(Mat2::identity(), v)
-    }
-
-    /// Applies the map to a point: `linear·p + translation`, where `p`'s
-    /// coordinates are read as the displacement from the coordinate
-    /// origin (the chart identification), the linear part is applied
-    /// (fixed matrix-vector order, see [`Mat2`]'s `Mul`), and the
-    /// translation is added componentwise — in exactly that order (D9).
-    pub fn transform_point(self, p: Point2<T>) -> Point2<T> {
-        let q = self.linear * Vec2::new(p.x, p.y);
-        Point2::new(q.x + self.translation.x, q.y + self.translation.y)
-    }
-
-    /// Applies the map to a tangent vector: the linear part only — the
-    /// pushforward is the differential, and a translation's differential
-    /// is zero, so displacements/directions/normals never feel it.
-    pub fn transform_vec(self, v: Vec2<T>) -> Vec2<T> {
-        self.linear * v
-    }
-
-    /// The inverse map `(L, t)⁻¹ = (L⁻¹, −(L⁻¹·t))`, with `L⁻¹` via the
-    /// adjugate ([`Mat2::inverse`]) and the translation computed in
-    /// exactly that order (apply `L⁻¹`, then negate).
-    ///
-    /// **Total.** A singular linear part poisons every entry through the
-    /// zero-determinant division (see [`Mat2::inverse`]); the poison then
-    /// reaches the translation through `L⁻¹·t`. Invertibility is a
-    /// predicate-layer decision, not this method's.
-    pub fn inverse(self) -> Self {
-        let li = self.linear.inverse();
-        Self::from_parts(li, -(li * self.translation))
-    }
 }
 
 impl<T: Real> Affine3<T> {
@@ -162,30 +102,12 @@ impl<T: Real> Affine3<T> {
 /// Concretely: `linear = a.linear · b.linear`, `translation = a.linear ·
 /// b.translation + a.translation` (fixed order, D9).
 ///
-/// Worked example (2-D): let `r` = rotation by +π/2 about the origin
-/// (`from_parts(Mat2::rotation(π/2), Vec2::zero())`) and `t` =
-/// `translation((1, 0))`. Then `(t * r)` maps the point (1, 0) to
-/// t(r((1, 0))) = t((0, 1)) = **(1, 1)** — rotate first, then shift —
-/// while `(r * t)` maps it to r(t((1, 0))) = r((2, 0)) = **(0, 2)**.
-impl<T: Real> Mul for Affine2<T> {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self {
-        Self::from_parts(
-            self.linear * rhs.linear,
-            self.linear * rhs.translation + self.translation,
-        )
-    }
-}
-
-/// Composition `a * b` — **apply `b` first, then `a`**, matching the
-/// matrix convention: `(a * b).transform_point(p) =
-/// a.transform_point(b.transform_point(p))` in exact arithmetic (in
-/// floating point the two sides differ by reassociation rounding). See
-/// [`Affine2`]'s `Mul` for a worked 2-D example of the order.
-///
-/// Concretely: `linear = a.linear · b.linear`, `translation = a.linear ·
-/// b.translation + a.translation` (fixed order, D9).
+/// Worked example: let `r` = rotation by +π/2 about the z axis through
+/// the origin (`from_parts(Mat3::rotation_about(unit_z, π/2),
+/// Vec3::zero())`) and `t` = `translation((1, 0, 0))`. Then `(t * r)`
+/// maps the point (1, 0, 0) to t(r((1, 0, 0))) = t((0, 1, 0)) =
+/// **(1, 1, 0)** — rotate first, then shift — while `(r * t)` maps it to
+/// r(t((1, 0, 0))) = r((2, 0, 0)) = **(0, 2, 0)**.
 impl<T: Real> Mul for Affine3<T> {
     type Output = Self;
 
@@ -260,13 +182,18 @@ mod tests {
         // The exact example from the `Mul` doc comment, with exactly
         // representable inputs; sin/cos of π/2 are not exact (fl(π/2) is
         // not π/2), hence the small tolerances.
-        let r = Affine2::from_parts(Mat2::rotation(core::f64::consts::FRAC_PI_2), Vec2::zero());
-        let t = Affine2::translation(Vec2::new(1.0, 0.0));
-        let p = Point2::new(1.0, 0.0);
+        let r = Affine3::from_parts(
+            Mat3::rotation_about(Vec3::unit_z(), core::f64::consts::FRAC_PI_2),
+            Vec3::zero(),
+        );
+        let t = Affine3::translation(Vec3::new(1.0, 0.0, 0.0));
+        let p = Point3::new(1.0, 0.0, 0.0);
         let tr = (t * r).transform_point(p);
         assert!((tr.x - 1.0).abs() <= 1e-15 && (tr.y - 1.0).abs() <= 1e-15);
+        assert!(tr.z.abs() <= 1e-15);
         let rt = (r * t).transform_point(p);
         assert!((rt.x - 0.0).abs() <= 1e-15 && (rt.y - 2.0).abs() <= 1e-15);
+        assert!(rt.z.abs() <= 1e-15);
     }
 
     #[test]

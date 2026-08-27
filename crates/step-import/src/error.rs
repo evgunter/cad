@@ -102,9 +102,12 @@ pub enum StepImportError {
         keyword: String,
     },
     /// The file's unit context is outside the subset the kernel
-    /// understands (the writer emits unprefixed `SI_UNIT($, .METRE.)`
-    /// / `.RADIAN.` / `.STERADIAN.`). Parsed, not assumed — a foreign
-    /// unit is a typed refusal until the M7-2 unit ladder.
+    /// understands. Parsed, not assumed. The subset resolves any of the
+    /// sixteen ISO 10303-41 SI prefixes on `.METRE.`, unprefixed
+    /// `.RADIAN.`/`.STERADIAN.`, and `CONVERSION_BASED_UNIT` chains
+    /// against those bases (`crate::units` module docs); a **prefixed**
+    /// angle unit, a scaled steradian, and any other unit context
+    /// refuse here rather than being guessed.
     UnsupportedUnit {
         /// The offending unit entity instance.
         id: u64,
@@ -133,6 +136,19 @@ pub enum StepImportError {
     InvalidEpsOverride {
         /// The rejected value.
         value: f64,
+    },
+    /// A position-anchored import declaration
+    /// ([`crate::ImportContact`]) did not resolve to exactly the
+    /// entities its kind names on the assembled body (M9-2, D7 step
+    /// 4): a declaration that cannot be pinned to real entities is a
+    /// typed refusal, never a silent drop — the same posture as the
+    /// boolean door's dangling-declaration refusal.
+    DeclarationUnresolved {
+        /// The anchor position that failed to resolve.
+        at: [f64; 3],
+        /// How many candidate vertices were found within the gate
+        /// band (a vertex-rest anchor needs exactly two).
+        found: usize,
     },
     /// A real token failed to parse as an f64.
     MalformedReal {
@@ -301,8 +317,8 @@ impl fmt::Display for StepImportError {
             Self::UnsupportedUnit { id, found } => write!(
                 f,
                 "step import: entity #{id} declares unit {found} — the subset covers \
-                 unprefixed SI metre/radian/steradian only (a foreign unit context is \
-                 the M7-2 ladder, refused rather than guessed)"
+                 SI metres under any prefix, unprefixed radians/steradians, and \
+                 CONVERSION_BASED_UNIT chains onto those (refused rather than guessed)"
             ),
             Self::NothingToImport => f.write_str(
                 "step import: the data section carries no MANIFOLD_SOLID_BREP and no \
@@ -318,6 +334,13 @@ impl fmt::Display for StepImportError {
             Self::InvalidEpsOverride { value } => write!(
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
+            ),
+            Self::DeclarationUnresolved { at, found } => write!(
+                f,
+                "step import: the declared contact anchored at {at:?} resolved to {found} \
+                 coincident vertices on the assembled body (a vertex-rest anchor needs \
+                 exactly two) — fix the anchor or remove the declaration; unresolved \
+                 intent never silently drops"
             ),
             Self::MalformedReal { id, token } => write!(
                 f,

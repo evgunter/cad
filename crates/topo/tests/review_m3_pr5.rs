@@ -14,6 +14,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use geom_core::{Band, Decide, Point3};
 use topo::{
     Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, SolidContainment,
@@ -44,14 +45,18 @@ fn uslab() -> Body<f64> {
     .body
 }
 
-type BoolOp<T> =
-    fn(&Body<T>, &Body<T>, &topo::BooleanDeclarations) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(
+    &Body<T>,
+    &Body<T>,
+    &topo::BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run with the author's flush contacts declared (M4
 /// PR 5): operands bitwise untouched, result tier-1+2 valid.
 fn run<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let r = op(a, b, &flush_declarations(a, b)).unwrap();
+    let r = op(a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &r {
@@ -69,7 +74,7 @@ fn body_of<T: Decide>(r: &BooleanResult<T>) -> &BooleanBody<T> {
 }
 
 fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
-    let m = mass_properties(body).unwrap();
+    let m = mass_properties(body, Tol::witness()).unwrap();
     assert_eq!(m.volume, volume, "exact volume");
     assert_eq!(m.surface_area, area, "exact area");
 }
@@ -79,8 +84,8 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
 fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &Body<T>, b: &Body<T>) -> String {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let d = flush_declarations(a, b);
-    let e1 = op(a, b, &d).map(|_| ()).unwrap_err();
-    let e2 = op(a, b, &d).map(|_| ()).unwrap_err();
+    let e1 = op(a, b, &d, Tol::witness()).map(|_| ()).unwrap_err();
+    let e2 = op(a, b, &d, Tol::witness()).map(|_| ()).unwrap_err();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
     assert_eq!(
@@ -198,10 +203,10 @@ fn pocket_orientation_matrix() {
     for (name, x, y, z) in pillars {
         let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = brick::<f64>(x, y, z);
-        match subtract_with(&a, &b, &flush_declarations(&a, &b)) {
+        match subtract_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()) {
             Ok(BooleanResult::Body(body)) => {
                 assert_eq!(validate_closed(&body.body), Ok(()), "{name}");
-                let m = mass_properties(&body.body).unwrap();
+                let m = mass_properties(&body.body, Tol::witness()).unwrap();
                 assert_eq!(m.volume, 7.875, "{name}: SILENT WRONG VOLUME");
                 assert_eq!(m.surface_area, 25.0, "{name}: SILENT WRONG AREA");
             }
@@ -285,10 +290,10 @@ fn flush_pillar_rest_union_honest() {
 fn corner_flush_pillar_union_honest() {
     let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
-    match union_with(&a, &b, &flush_declarations(&a, &b)) {
+    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()) {
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
-            let m = mass_properties(&body.body).unwrap();
+            let m = mass_properties(&body.body, Tol::witness()).unwrap();
             assert_eq!(m.volume, 8.25, "corner-flush union volume");
         }
         Ok(BooleanResult::Empty) => panic!("cannot be empty"),
@@ -337,8 +342,8 @@ fn pinned_refusals_deterministic() {
     let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
     // Undeclared: typed, deterministic, operands untouched.
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let e1 = topo::union(&a, &b).map(|_| ()).unwrap_err();
-    let e2 = topo::union(&a, &b).map(|_| ()).unwrap_err();
+    let e1 = topo::union(&a, &b, Tol::witness()).map(|_| ()).unwrap_err();
+    let e2 = topo::union(&a, &b, Tol::witness()).map(|_| ()).unwrap_err();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched by refusal");
     assert_eq!(
@@ -449,47 +454,47 @@ fn single_prong_cut_nonconvex_cap_subtract() {
 
 #[test]
 fn point_in_solid_complement_and_void() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let cube = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let inside = Point3::new(0.5, 0.5, 0.5);
     let outside = Point3::new(2.0, 2.0, 2.0);
     assert_eq!(
-        point_in_solid(&cube, inside, band).unwrap(),
+        point_in_solid(&cube, inside, band, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     assert_eq!(
-        point_in_solid(&cube, outside, band).unwrap(),
+        point_in_solid(&cube, outside, band, Tol::witness()).unwrap(),
         SolidContainment::Out
     );
     // Complement (reverted cube): material is everything OUTSIDE.
     let comp = cube.revert().unwrap();
     assert_eq!(
-        point_in_solid(&comp, inside, band).unwrap(),
+        point_in_solid(&comp, inside, band, Tol::witness()).unwrap(),
         SolidContainment::Out,
         "complement: cavity is not material"
     );
     assert_eq!(
-        point_in_solid(&comp, outside, band).unwrap(),
+        point_in_solid(&comp, outside, band, Tol::witness()).unwrap(),
         SolidContainment::In,
         "complement: at-infinity side is material"
     );
     // Voided body (3-cube minus unit cube): void is Out, wall is In.
     let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let r = subtract(&a, &b).unwrap();
+    let r = subtract(&a, &b, Tol::witness()).unwrap();
     let voided = &body_of(&r).body;
     assert_eq!(
-        point_in_solid(voided, Point3::new(1.5, 1.5, 1.5), band).unwrap(),
+        point_in_solid(voided, Point3::new(1.5, 1.5, 1.5), band, Tol::witness()).unwrap(),
         SolidContainment::Out,
         "inside the void is not material"
     );
     assert_eq!(
-        point_in_solid(voided, Point3::new(0.5, 1.5, 1.5), band).unwrap(),
+        point_in_solid(voided, Point3::new(0.5, 1.5, 1.5), band, Tol::witness()).unwrap(),
         SolidContainment::In,
         "wall material"
     );
     assert_eq!(
-        point_in_solid(voided, Point3::new(1.0, 1.5, 1.5), band).unwrap(),
+        point_in_solid(voided, Point3::new(1.0, 1.5, 1.5), band, Tol::witness()).unwrap(),
         SolidContainment::OnBoundary,
         "void wall is boundary"
     );
@@ -497,7 +502,7 @@ fn point_in_solid_complement_and_void() {
 
 #[test]
 fn point_in_solid_on_entities_and_grazes() {
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let cube = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     // On a face interior / an edge / a vertex: OnBoundary, typed.
     for q in [
@@ -506,7 +511,7 @@ fn point_in_solid_on_entities_and_grazes() {
         Point3::new(1.0, 1.0, 1.0),
     ] {
         assert_eq!(
-            point_in_solid(&cube, q, band).unwrap(),
+            point_in_solid(&cube, q, band, Tol::witness()).unwrap(),
             SolidContainment::OnBoundary,
             "{q:?}"
         );
@@ -516,15 +521,15 @@ fn point_in_solid_on_entities_and_grazes() {
     // misreport).
     for q in [Point3::new(-1.0, 1.0, 1.0), Point3::new(-1.0, 0.0, 0.0)] {
         assert_eq!(
-            point_in_solid(&cube, q, band).unwrap(),
+            point_in_solid(&cube, q, band, Tol::witness()).unwrap(),
             SolidContainment::Out,
             "{q:?}"
         );
     }
     // Determinism.
     let q = Point3::new(-1.0, 1.0, 1.0);
-    let v1 = point_in_solid(&cube, q, band).unwrap();
-    let v2 = point_in_solid(&cube, q, band).unwrap();
+    let v1 = point_in_solid(&cube, q, band, Tol::witness()).unwrap();
+    let v2 = point_in_solid(&cube, q, band, Tol::witness()).unwrap();
     assert_eq!(v1, v2);
 }
 
@@ -600,11 +605,11 @@ fn revert_oracle_extended_corpus() {
         ),
     ];
     for (name, a, b) in corpus {
-        let direct = subtract(&a, &b).unwrap();
-        let via = topo::intersect(&a, &b.revert().unwrap()).unwrap();
+        let direct = subtract(&a, &b, Tol::witness()).unwrap();
+        let via = topo::intersect(&a, &b.revert().unwrap(), Tol::witness()).unwrap();
         let (d, v) = (body_of(&direct), body_of(&via));
-        let md = mass_properties(&d.body).unwrap();
-        let mv = mass_properties(&v.body).unwrap();
+        let md = mass_properties(&d.body, Tol::witness()).unwrap();
+        let mv = mass_properties(&v.body, Tol::witness()).unwrap();
         assert_eq!(md.volume, mv.volume, "{name}: volume");
         assert_eq!(md.surface_area, mv.surface_area, "{name}: area");
         assert_eq!(

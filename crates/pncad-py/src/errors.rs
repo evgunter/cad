@@ -1,14 +1,17 @@
 //! The binding error taxonomy.
 //!
-//! LIBRARY-DESIGN §L4: failures reach Python as **typed exceptions
-//! carrying the structured error, never strings**. That splits in two:
+//! Failures reach Python as **typed exceptions carrying the
+//! structured error, never strings**. That splits in two:
 //!
-//! * [`DimensionError`] — the boundary refusal a Python user can
+//! * [`QuantityOpMismatch`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time
 //!   (`Length + Angle` is simply not an `impl` in `quantity`). Python
 //!   has no such static gate, so the illegal combination has to become
 //!   a runtime value; making it a STRUCTURED value rather than a
-//!   formatted string is what keeps §L4's promise.
+//!   formatted string is what keeps that promise. It is NOT the
+//!   document layer's `DimensionError`, which is the expression
+//!   layer's ten-arm refusal; the two are unrelated types and this
+//!   one is deliberately not named after it.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
 //!   becomes.
 //!
@@ -36,7 +39,7 @@ pub const fn dimension_tag(dim: Dimension) -> &'static str {
     }
 }
 
-/// The canonical unit a [`Dimension`] is stored in (GQ5: metres and
+/// The canonical unit a [`Dimension`] is stored in (metres and
 /// radians underneath), or `None` for the dimensionless kinds.
 pub const fn canonical_unit(dim: Dimension) -> Option<&'static str> {
     match dim {
@@ -46,12 +49,19 @@ pub const fn canonical_unit(dim: Dimension) -> Option<&'static str> {
     }
 }
 
-/// A dimension mismatch at the Python boundary.
+/// An operator applied to two quantities whose dimensions do not
+/// admit it — `Length + Angle`, at the Python boundary.
 ///
 /// The fields are the payload, not the message: a caller inspects
 /// `err.op`, `err.left`, `err.right` rather than parsing prose.
+///
+/// Raised to Python as the `DimensionError` class. That class name is
+/// the SURFACE spelling and this is the Rust type behind it; the
+/// document layer's own `DimensionError` is a different type entirely
+/// (the expression layer's ten-arm refusal), which is why this one
+/// does not share its name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DimensionError {
+pub struct QuantityOpMismatch {
     /// The operator that was attempted, e.g. `"+"`.
     pub op: &'static str,
     /// Dimension of the left operand.
@@ -60,14 +70,14 @@ pub struct DimensionError {
     pub right: Dimension,
 }
 
-impl DimensionError {
+impl QuantityOpMismatch {
     /// Construct a mismatch record.
     pub const fn new(op: &'static str, left: Dimension, right: Dimension) -> Self {
         Self { op, left, right }
     }
 }
 
-impl fmt::Display for DimensionError {
+impl fmt::Display for QuantityOpMismatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -79,12 +89,11 @@ impl fmt::Display for DimensionError {
     }
 }
 
-impl core::error::Error for DimensionError {}
+impl core::error::Error for QuantityOpMismatch {}
 
-// LIB-DOORS F5: the `LiteralRefusal`/`check_literal` pre-check that
-// used to live here is GONE. `Expr::literal`'s own error type
-// (`pncad::document::DimensionError`) is curated now, so the binding
-// matches the kernel's refusal instead of predicting it; the tag
+// The binding carries no literal pre-check of its own: `Expr::literal`'s
+// own error type (`pncad::document::DimensionError`) is curated, so the
+// binding matches the kernel's refusal instead of predicting it; the tag
 // mapping is `crate::tags::expr_dimension_error_tag`.
 
 /// Which typed Python exception a refusal becomes.
@@ -103,27 +112,49 @@ pub enum ErrorClass {
     Evaluation,
     /// A body that failed a topological or geometric validator.
     Validation,
-    /// A dimension mismatch at the quantity boundary.
+    /// An operator applied to two quantities whose dimensions do not
+    /// admit it ([`QuantityOpMismatch`]). The Python class is
+    /// `DimensionError`.
     Dimension,
     /// A value the expression layer refused (non-finite literal, a
-    /// count written as continuous, ...).
+    /// count written as continuous, ...) — the document layer's
+    /// `DimensionError`, raised on the LITERAL-CONSTRUCTION door.
+    /// The Python class is `LiteralError`.
+    ///
+    /// That type has genuine dimension-mismatch arms too, and `load`
+    /// reaches them (`WireExpr::rebuild` re-runs every check through
+    /// the operator builders), but they arrive as
+    /// [`ErrorClass::Persist`] with the `parse` tag rather than under
+    /// any dimension class — issue #694. Nothing here is routed to
+    /// [`ErrorClass::Dimension`], which is the quantity boundary's
+    /// own check and a different type.
     Literal,
-    /// A save or load the persistence doors refused (LIB-DOORS F1).
+    /// A save or load the persistence doors refused.
     Persist,
-    /// An export the document-layer door refused (LIB-DOORS F2).
+    /// An export the document-layer door refused.
     Export,
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
     /// Geometry the PATHS authoring algebra refused at the call site
     /// (junction checks, `NoCornerForFillet`, the tangent-line close,
-    /// ...) — LIB-PYG1.
+    /// ...).
     Path,
     /// A selection query refused (an in-band decided margin, a tied
-    /// name whose candidates disagree, a non-datum reference, ...) —
-    /// LIB-PYSEL. The Python class keeps the Rust type's own name:
-    /// the refusal IS `SelectRefusal`, crossing.
+    /// name whose candidates disagree, a non-datum reference, ...).
+    /// The Python class keeps the Rust type's own name: the refusal
+    /// IS `SelectRefusal`, crossing.
     Select,
+    /// A frame the linear-algebra constructors refused: a direction
+    /// that was not DEFINITELY usable (coincident points, a roll
+    /// reference along the aim, a zero mirror normal), or a tolerance
+    /// yielding no usable band.
+    Frame,
+    /// A document identity that could not be minted: the OS entropy
+    /// source refused. Identity is not defaultable — a document with
+    /// a made-up id is a document that collides with another part —
+    /// so the refusal surfaces instead.
+    Identity,
 }
 
 impl ErrorClass {
@@ -140,6 +171,8 @@ impl ErrorClass {
             Self::StepImport => "StepImportError",
             Self::Path => "PathError",
             Self::Select => "SelectRefusal",
+            Self::Frame => "FrameError",
+            Self::Identity => "IdentityError",
         }
     }
 }

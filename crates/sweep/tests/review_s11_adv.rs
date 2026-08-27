@@ -16,20 +16,23 @@ mod revolve_common;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::{Band, Point2, Point3, Tolerance};
-use geom_surfaces::Surface;
-use profile::{ArcSweep, FilletLegShape, Profile, ProfileLoop, SketchPlane};
+use geom::Surface;
+use geom_core::Tol;
+use geom_core::{Band, Point3};
+use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::props::mass_properties(body).unwrap().volume
+    topo::props::mass_properties(body, Tol::witness())
+        .unwrap()
+        .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -44,17 +47,21 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 #[test]
 fn adv_mixed_convex_concave_hole() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 6.0), p2(0.0, 6.0)]);
-    let hole = ProfileLoop::builder(p2(2.0, 2.0))
-        .arc_to(p2(4.0, 2.0), 0.5)
-        .line_to(p2(4.0, 4.0))
-        .arc_to(p2(2.0, 4.0), -0.5)
-        .close();
+    let hole = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex::new(p2(2.0, 2.0), 0.5),
+        ProfileVertex::new(p2(4.0, 2.0), 0.0),
+        ProfileVertex::new(p2(4.0, 4.0), -0.5),
+        ProfileVertex::new(p2(2.0, 4.0), 0.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     // Equal-sagitta segments cancel: hole area exactly 4, volume 32.
     assert!((vol(&t.body) - 32.0).abs() < 1e-9, "vol {}", vol(&t.body));
     let mut seen = (0, 0, 0); // (false-cyl, true-cyl, true-plane)
@@ -85,7 +92,11 @@ fn adv_mixed_convex_concave_hole() {
         (Point3::new(3.0, 1.2, 0.5), SolidContainment::In),  // below bite
         (Point3::new(5.5, 3.0, 0.5), SolidContainment::In),
     ] {
-        assert_eq!(point_in_solid(&t.body, p, b).unwrap(), want, "probe {p:?}");
+        assert_eq!(
+            point_in_solid(&t.body, p, b, Tol::witness()).unwrap(),
+            want,
+            "probe {p:?}"
+        );
     }
 }
 
@@ -93,37 +104,41 @@ fn s3() -> f64 {
     3.0_f64.sqrt()
 }
 
-fn leg(cx: f64, cy: f64, sweep: ArcSweep) -> FilletLegShape<f64> {
-    FilletLegShape::Arc {
-        center: Point2::new(cx, cy),
-        sweep,
-    }
-}
-
-/// The S2 vesica eye-slot: both tips of the radius-2 vesica about
-/// (+-1, 0) rounded by arc-arc fillet_corner sugar.
+/// The S2 vesica eye-slot: the radius-2 vesica about (+-1, 0), its
+/// top tip rounded by the fused arc-by-arc fillet.
+///
+/// The entry is the BOTTOM tip at (0, -s3) — a genuine two-carrier
+/// corner, which is what the loop's seam needs: one authoring act
+/// rides the left circle out of it, fillets the top tip, and comes
+/// back down the right circle to close on the entry vertex.
+///
+/// FINDING (recorded, not worked around): the fixture used to round
+/// BOTH tips, and the lattice cannot author that loop at all. Every
+/// junction of an all-blended vesica is a constructed tangency, so the
+/// entry vertex would have to sit mid-arc — a same-carrier seam, which
+/// the junction rule refuses as identity — and the seam-fillet escape
+/// is closed too, because retrimming an ARC first side would slide the
+/// entry off its own carrier (`SeamRetrimsArcFirstSide`). An
+/// all-blended loop needs one straight side to enter on; this one has
+/// none. The sharp tip below is the smallest faithful shape, and it
+/// still exercises the arc-by-arc corner the row is about.
 fn eye_slot(radius: f64) -> ProfileLoop<f64> {
-    ProfileLoop::builder(p2(1.0, 0.0))
-        .fillet_corner(
-            leg(-1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, s3()),
-            leg(1.0, 0.0, ArcSweep::Ccw),
-            p2(-1.0, 0.0),
-            0.3,
-            Tolerance::get(),
-        )
-        .unwrap()
-        .arc_to_center(p2(-1.0, 0.0), p2(1.0, 0.0), ArcSweep::Ccw)
-        .fillet_corner(
-            leg(1.0, 0.0, ArcSweep::Ccw),
-            p2(0.0, -s3()),
-            leg(-1.0, 0.0, ArcSweep::Ccw),
-            p2(1.0, 0.0),
-            radius,
-            Tolerance::get(),
-        )
-        .unwrap()
-        .close_arc_center(p2(-1.0, 0.0), ArcSweep::Ccw)
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(0.0, -s3()),
+        },
+        radius,
+        Center {
+            c: p2(1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: Start,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .loop_
 }
 
 /// A2: extrude the eye slot as an OUTER region -> every wall convex,
@@ -134,11 +149,14 @@ fn eye_slot(radius: f64) -> ProfileLoop<f64> {
 fn adv_eye_slot_outer_and_hole_senses() {
     // Outer rocker.
     let vp = Profile::new(SketchPlane::xy(), vec![eye_slot(0.3)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     for &f in &t.side_faces[0] {
         assert!(sense_of(&t.body, f), "outer vesica walls are all convex");
     }
@@ -147,11 +165,14 @@ fn adv_eye_slot_outer_and_hole_senses() {
     // Same loop as a hole in a 6x6 plate.
     let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, eye_slot(0.3)])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0)).unwrap();
+    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     for &f in &t.side_faces[1] {
         assert!(!sense_of(&t.body, f), "every eye-slot hole wall is concave");
     }
@@ -163,12 +184,12 @@ fn adv_eye_slot_outer_and_hole_senses() {
     );
     let b = band();
     assert_eq!(
-        point_in_solid(&t.body, Point3::new(0.0, 0.0, 0.5), b).unwrap(),
+        point_in_solid(&t.body, Point3::new(0.0, 0.0, 0.5), b, Tol::witness()).unwrap(),
         SolidContainment::Out,
         "slot interior is void"
     );
     assert_eq!(
-        point_in_solid(&t.body, Point3::new(2.5, 2.5, 0.5), b).unwrap(),
+        point_in_solid(&t.body, Point3::new(2.5, 2.5, 0.5), b, Tol::witness()).unwrap(),
         SolidContainment::In
     );
 }
@@ -178,26 +199,31 @@ fn adv_eye_slot_outer_and_hole_senses() {
 #[test]
 fn adv_asymmetric_downward_invariance() {
     let mk = || {
-        ProfileLoop::builder(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0))
-            .arc_to(p2(3.0, 1.0), -0.4) // concave bite on the right edge
-            .line_to(p2(3.0, 2.0))
-            .arc_to(p2(1.0, 2.0), 0.7) // convex bulge on top, off-center
-            .line_to(p2(0.0, 2.0))
-            .close()
+        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+            ProfileVertex::new(p2(0.0, 0.0), 0.0),
+            // concave bite on the right edge
+            ProfileVertex::new(p2(3.0, 0.0), -0.4),
+            ProfileVertex::new(p2(3.0, 1.0), 0.0),
+            // convex bulge on top, off-center
+            ProfileVertex::new(p2(3.0, 2.0), 0.7),
+            ProfileVertex::new(p2(1.0, 2.0), 0.0),
+            ProfileVertex::new(p2(0.0, 2.0), 0.0),
+        ])
     };
     let up = extrude(
         &Profile::new(SketchPlane::xy(), vec![mk()])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.0),
+        Tol::witness(),
     )
     .unwrap();
     let down = extrude(
         &Profile::new(SketchPlane::xy(), vec![mk()])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, -1.0)),
+        Tol::witness(),
     )
     .unwrap();
     assert_all_tiers(&up.body);
@@ -242,7 +268,13 @@ fn adv_reversed_authoring_revolve_same_senses() {
     let ccw = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
     let cw = ProfileLoop::polygon([p2(1.0, 0.0), p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 0.0)]);
     let by_kind = |lp: ProfileLoop<f64>| {
-        let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+        let t = revolve(
+            &validated(vec![lp]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap();
         let mut m: Vec<(String, bool)> = t.walls[0]
             .iter()
             .flatten()
@@ -268,16 +300,28 @@ fn adv_reversed_authoring_revolve_same_senses() {
 /// traversal -> sense false; exact Pappus volume.
 #[test]
 fn adv_bore_groove_torus_band() {
-    let lp = ProfileLoop::builder(p2(1.0, 0.0))
-        .line_to(p2(2.0, 0.0))
-        .line_to(p2(2.0, 1.0))
-        .line_to(p2(1.0, 1.0))
-        .line_to(p2(1.0, 0.75))
-        .arc_to(p2(1.0, 0.25), -1.0)
-        .close();
-    let t = revolve(&validated(vec![lp]), axis_y(), Revolution::Full).unwrap();
+    // Only (1, 0.75) leaves on an arc: the semicircular groove cut
+    // into the bore.
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
+        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 0.0), 0.0),
+        ProfileVertex::new(p2(2.0, 1.0), 0.0),
+        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+        ProfileVertex::new(p2(1.0, 0.75), -1.0),
+        ProfileVertex::new(p2(1.0, 0.25), 0.0),
+    ]);
+    let t = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
-    assert_eq!(topo::validate::validate_geometric(&t.body), Ok(()));
+    assert_eq!(
+        topo::validate::validate_geometric(&t.body, Tol::witness()),
+        Ok(())
+    );
     let expect = 3.0 * PI - (PI * PI / 16.0 + PI / 48.0);
     assert!(
         (vol(&t.body) - expect).abs() < 1e-9,
@@ -317,9 +361,10 @@ fn adv_bore_groove_torus_band() {
 /// **Re-aimed at M5 S12.** When S11 adopted this probe the `mef`
 /// re-mints DID stamp `sense: true`, so an answer here would have been
 /// a silently mis-oriented body and panicking was the right response.
-/// S12 landed the inheritance fix (`mint_loop_and_face` takes the
-/// parent's bit whenever the fragment lands on the parent's surface;
-/// `mfkrh` likewise), so an answer is no longer prima facie wrong — the
+/// S12 landed the inheritance fix (`mint_face_surface_and_sense`
+/// hands `mef`'s re-mint the parent's bit whenever the fragment lands
+/// on the parent's surface; `mfkrh` takes the same decision from the
+/// same helper), so an answer is no longer prima facie wrong — the
 /// row therefore AUDITS an answer instead of rejecting it, and keeps
 /// accepting the typed refusal this washer/box pair still takes (its
 /// door is the annulus-touching lane, not sense inheritance). The
@@ -329,9 +374,14 @@ fn adv_bore_groove_torus_band() {
 #[test]
 fn adv_touching_union_with_reversed_faces_refuses_typed() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let washer = revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .unwrap()
-        .body;
+    let washer = revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     // A box poking through the bottom annulus near x = 1.5.
     let sq = ProfileLoop::polygon([p2(1.2, -0.5), p2(1.8, -0.5), p2(1.8, 0.5), p2(1.2, 0.5)]);
     let plane = SketchPlane::from_frame(
@@ -340,10 +390,12 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
         geom_core::Vec3::new(0.0, 1.0, 0.0),
     );
     let vp = Profile::new(plane, vec![sq])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let boxb = extrude(&vp, Extrusion::Distance(0.4)).unwrap().body;
-    match topo::boolean::union(&washer, &boxb) {
+    let boxb = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body;
+    match topo::boolean::union(&washer, &boxb, Tol::witness()) {
         Err(e) => println!("typed refusal (expected today): {e}"),
         Ok(r) => {
             let out = r.body().expect("non-empty");
@@ -365,7 +417,7 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
                  sense inheritance",
                 vol(&out.body)
             );
-            assert_eq!(topo::validate_geometric(&out.body), Ok(()));
+            assert_eq!(topo::validate_geometric(&out.body, Tol::witness()), Ok(()));
         }
     }
 }

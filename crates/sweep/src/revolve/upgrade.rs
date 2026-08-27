@@ -7,30 +7,17 @@
 //! antipode); all re-descriptions go through `topo`'s certified
 //! `set_edge_curve` door with the carrier and interval kept verbatim.
 
+use geom::Curve3;
 use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, curvature_lever_arm,
     edge_extent, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Margin, Point3, Real};
-use geom_curves::Curve3;
-use topo::{Body, EdgeKey, EulerOpError, FaceKey, SurfaceKey};
+use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
-
-/// Resolves a face's surface key (total: stale keys surface as the
-/// operator-layer typed error). Mirror of extrude's helper.
-pub(super) fn face_surface_key<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<SurfaceKey, RevolveError> {
-    Ok(body
-        .get_face(face)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Face(face),
-        })?
-        .surface)
-}
+use geom_core::Tol;
 
 /// An edge's stored certified carrier: `(carrier, t0, t1, witness,
 /// extent, chord endpoints)` — the mid-parameter witness computed with
@@ -45,23 +32,14 @@ struct EdgeData<T: Real> {
     extent: T,
 }
 
-/// A vertex's point (total: stale keys surface as operator-layer typed
-/// errors).
+/// A vertex's point, with the kernel read-back door's unresolved
+/// reference renamed into the operator layer's stale-key vocabulary
+/// (total: stale keys surface as operator-layer typed errors).
 pub(super) fn vertex_point<T: Real>(
     body: &Body<T>,
     vertex: topo::VertexKey,
 ) -> Result<Point3<T>, RevolveError> {
-    let point_key = body
-        .get_vertex(vertex)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Vertex(vertex),
-        })?
-        .point;
-    Ok(*body
-        .get_point(point_key)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Point(point_key),
-        })?)
+    topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
@@ -115,6 +93,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
     s2: SurfaceKey,
     band: Band,
     sliver: impl FnOnce(geom_core::Indeterminate) -> RevolveError,
+    tol: Tol,
 ) -> Result<(), RevolveError> {
     let data = edge_data(body, edge)?;
     let surf1 = body
@@ -141,7 +120,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 param_start: data.t0,
                 param_end: data.t1,
             };
-            body.set_edge_curve(edge, spec)?;
+            body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
         // **The lane's next retirement, taken (M5 PR 12).** A revolve
@@ -166,7 +145,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                     param_start: data.t0,
                     param_end: data.t1,
                 };
-                body.set_edge_curve(edge, spec)?;
+                body.set_edge_curve(edge, spec, tol)?;
             }
             Ok(())
         }
@@ -187,8 +166,8 @@ pub(super) fn upgrade_intersection<T: Decide>(
 /// conventional description: the intrinsic upgrade is an enrichment,
 /// never a new refusal.
 fn jet_determinate<T: Decide>(
-    s1: &geom_surfaces::Surface<T>,
-    s2: &geom_surfaces::Surface<T>,
+    s1: &geom::Surface<T>,
+    s2: &geom::Surface<T>,
     data: &EdgeData<T>,
     band: Band,
 ) -> bool {
@@ -206,7 +185,7 @@ fn jet_determinate<T: Decide>(
             .min(data.extent);
         let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
         if !matches!(
-            super::decide("tangent_second_order", margin, band),
+            crate::swept::decide("tangent_second_order", margin, band),
             Ok(geom_core::Sign::Positive)
         ) {
             return false;
@@ -224,12 +203,13 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
+    tol: Tol,
 ) -> Result<(), RevolveError> {
     let is_plane = matches!(
         body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
             key: topo::GeomRef::Surface(wall),
         })?,
-        geom_surfaces::Surface::Plane { .. }
+        geom::Surface::Plane { .. }
     );
     if is_plane {
         return Ok(());
@@ -241,6 +221,6 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         param_start: data.t0,
         param_end: data.t1,
     };
-    body.set_edge_curve(edge, spec)?;
+    body.set_edge_curve(edge, spec, tol)?;
     Ok(())
 }

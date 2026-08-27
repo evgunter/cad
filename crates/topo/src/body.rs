@@ -49,9 +49,9 @@
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
 
+use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeGeometry, PcurveCache};
 use geom_core::{Point3, Real};
-use geom_surfaces::Surface;
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::entity::{
@@ -974,6 +974,7 @@ impl<T: Real> Default for Body<T> {
 mod tests {
     use super::*;
     use crate::fixtures::{mvfs_state, pillow, prov};
+    use geom_core::Tol;
 
     fn origin() -> Point3<f64> {
         Point3::origin()
@@ -998,7 +999,7 @@ mod tests {
     fn insertion_roundtrips_through_lookup() {
         // The pillow fixture exercises every adder and patcher; read the
         // whole containment structure back through the lookups.
-        let t = pillow();
+        let t = pillow(Tol::witness());
         let body = &t.body;
 
         let v0 = body.get_vertex(t.vertices[0]).unwrap();
@@ -1069,7 +1070,7 @@ mod tests {
     fn provenance_is_recorded_at_birth_for_every_kind() {
         // The pillow fixture inserts every topology kind (half-edges
         // included — D5 provenance is uniform across all seven arenas).
-        let t = pillow();
+        let t = pillow(Tol::witness());
         let cases = [
             EntityId::Vertex(t.vertices[0]),
             EntityId::HalfEdge(t.hes_a[0]),
@@ -1125,7 +1126,7 @@ mod tests {
 
     #[test]
     fn mate_is_a_computed_involution() {
-        let t = pillow();
+        let t = pillow(Tol::witness());
         // e0's halves are a0 (v0 → v1 in face A) and b0 (v1 → v0 in
         // face B).
         assert_eq!(t.body.mate(t.hes_a[0]), Some(t.hes_b[0]));
@@ -1140,7 +1141,7 @@ mod tests {
 
     #[test]
     fn mate_is_none_on_stale_or_unclaiming_edge() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         assert_eq!(t.body.mate(HalfEdgeKey::default()), None);
         // Repoint e0's plus slot away from a0: e0 no longer claims a0, so
         // a0 has no mate (a corrupt bijection the validator reports).
@@ -1150,7 +1151,7 @@ mod tests {
 
     #[test]
     fn half_edge_end_is_derived_from_next() {
-        let t = pillow();
+        let t = pillow(Tol::witness());
         // a0 runs v0 → v1; its end is the start of its next (a1).
         assert_eq!(t.body.half_edge_end(t.hes_a[0]), Some(t.vertices[1]));
         assert_eq!(t.body.half_edge_end(t.hes_a[1]), Some(t.vertices[0]));
@@ -1159,7 +1160,7 @@ mod tests {
 
     #[test]
     fn loop_cycle_walks_in_next_order() {
-        let t = pillow();
+        let t = pillow(Tol::witness());
         assert_eq!(
             t.body.loop_cycle(t.hes_a[0]),
             Some(vec![t.hes_a[0], t.hes_a[1]])
@@ -1172,9 +1173,43 @@ mod tests {
         assert_eq!(t.body.loop_cycle(HalfEdgeKey::default()), None);
     }
 
+    /// **A `Closed` walk proves `next(first)` resolves.** This is the
+    /// property [`Body::kef`] consumes: it takes `b = next(he)` as
+    /// proven by `loop_cycle(he)` succeeding rather than checking it,
+    /// then passes `b` to a helper that announces on a dead key.
+    ///
+    /// [`Body::bounded_walk`] holds that property twice over — by the
+    /// explicit `contains_key(next)`, and by `step` itself, which is a
+    /// `half_edges.get(..)` and so returns `None` when asked to
+    /// advance from a dead key one iteration later. Either alone
+    /// suffices, which is why reordering the explicit check against
+    /// the `next == first` return does NOT break `kef`: a `next` equal
+    /// to `first` is live by the walk's entry check. What would break
+    /// it is a rewrite that drops both — and dropping both is hard to
+    /// do by accident, because reading `he.next` at all requires
+    /// resolving `he`, so a step proves its own source and the only
+    /// unchecked candidate is a `next` equal to the entry-checked
+    /// `first`. **So this row is a cheap statement of a consumed
+    /// property, not a guard**: no small mutation of `bounded_walk`
+    /// was found that makes it red. Its value is that a future rewrite
+    /// of the walk has to keep the sentence true.
+    #[test]
+    fn a_closed_walk_proves_the_first_step_resolves() {
+        let mut t = pillow(Tol::witness());
+        // Dangle the very link kef consumes: next(first).
+        let first = t.hes_a[0];
+        t.body.get_half_edge_mut(first).unwrap().next = HalfEdgeKey::default();
+        assert_eq!(
+            t.body.loop_cycle(first),
+            None,
+            "a walk whose first step dangles must not report Closed; kef \
+             reads next(he) as proven by this walk succeeding"
+        );
+    }
+
     #[test]
     fn vertex_orbit_visits_the_half_edges_starting_at_the_vertex() {
-        let t = pillow();
+        let t = pillow(Tol::witness());
         // Half-edges starting at v0: a0 (face A) and b1 (face B). Orbit
         // step next(mate(a0)) = next(b0) = b1.
         assert_eq!(
@@ -1193,14 +1228,14 @@ mod tests {
         // Overrun: point a0's next into loop B's cycle — the walk from a0
         // can never return to a0, and must terminate as None rather than
         // spin (D9: the kernel never hangs on any input).
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let b0 = t.hes_b[0];
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().next = b0;
         assert_eq!(t.body.loop_cycle(t.hes_a[0]), None);
         assert_eq!(t.body.vertex_orbit(t.hes_a[1]), None);
 
         // Broken: a stale link mid-walk is also None, not a panic.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let dead = t.body.add_half_edge(
             HalfEdge {
                 edge: t.edges[0],

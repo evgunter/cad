@@ -123,10 +123,11 @@
 //!
 //! `kfmrh(f1, f2)` makes `f2`'s outer loop a ring of `f1` and kills
 //! `f2`. Same shell ⇒ +1 genus (the through-hole finisher, §9.3 step
-//! (l)); **cross-shell is a typed error until M3**
-//! ([`EulerOpError::CrossShell`] — applied across shells the operator
-//! would merge them, and multi-shell solids arrive with M3's
-//! splitting/booleans, per the ratified plan). `f2` must carry **no
+//! (l)); cross-shell within one solid ⇒ **shell fusion** (M3 PR 1),
+//! re-homing `f2`'s shell's surviving faces into `f1`'s shell. Across
+//! **solids** it stays a typed error ([`EulerOpError::CrossSolid`]):
+//! combining bodies is the boolean pipeline's combine step, not an
+//! Euler surgery. `f2` must carry **no
 //! rings** (move them off first with [`Body::ring_move`]); its outer
 //! loop may be `Empty` or `Cycle` — an `Empty` outer becomes an `Empty`
 //! ring of `f1`. No half-edge, vertex, or edge is touched: the
@@ -180,21 +181,24 @@
 //! as its exact inverse:
 //!
 //! ```
-//! use geom_core::Point3;
+//! use geom_core::{Point3, Tol};
 //! use topo::{Body, LoopBoundary, MekrSite, MevSite};
 //!
 //! # fn run() -> Result<(), topo::EulerOpError> {
+//! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! // A strut, then kill it: the far vertex is stranded as an EMPTY RING
 //! // of the face — Mäntylä §9.3 step (g), the hole-planting state.
 //! let strut = body.mev_line(
 //!     MevSite::Fan { he1: seg.he_minus, he2: seg.he_minus },
 //!     Point3::new(2.0, 0.0, 0.0),
+//!     tol,
 //! )?;
 //! let kill = body.kemr(strut.he_plus, strut.he_minus)?;
 //! assert_eq!(
@@ -205,7 +209,7 @@
 //! let restore = body.mekr_chord(MekrSite::EmptyRing {
 //!     target: seg.he_minus,
 //!     ring: kill.ring,
-//! })?;
+//! }, tol)?;
 //! assert_eq!(topo::validate(&body), Ok(()));
 //! assert!(body.get_loop(kill.ring).is_none()); // the ring key died
 //! assert_eq!(body.half_edge_end(restore.he_plus), Some(strut.vertex));
@@ -220,9 +224,13 @@ use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
 };
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
+use crate::live::Live;
 use crate::provenance::Provenance;
+use geom_core::Tol;
 
 /// Where [`Body::mekr`] acts: the site addressing for "make edge, kill
 /// ring".
@@ -433,16 +441,18 @@ impl<T: Decide> Body<T> {
         // The full cycle from he1 (bounded, D9); its split at he2 yields
         // the two survivor sides.
         let cycle = self
-            .loop_cycle(he1)
+            .loop_cycle_live(he1)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
         let position = cycle
             .iter()
-            .position(|&he| he == he2)
+            .position(|member| member.key() == he2)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
         // he1's side (strictly between he1 and he2): becomes the ring.
-        let ring_side: Vec<HalfEdgeKey> = cycle[1..position].to_vec();
+        // The walk resolved every member, so each side's ends arrive at
+        // the splice below already proven.
+        let ring_side: Vec<Live> = cycle[1..position].to_vec();
         // he2's side (strictly between he2 and he1): keeps the old loop.
-        let old_side: Vec<HalfEdgeKey> = cycle[position + 1..].to_vec();
+        let old_side: Vec<Live> = cycle[position + 1..].to_vec();
         let u = he1_data.start;
         let w = he2_data.start;
         for vertex in [u, w] {
@@ -462,7 +472,7 @@ impl<T: Decide> Body<T> {
         // Minting order (documented above): the ring loop only.
         let provenance = Provenance::Kemr { he1, he2 };
         let ring_boundary = match ring_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first },
+            Some(&first) => LoopBoundary::Cycle { first: first.key() },
             None => LoopBoundary::Empty { vertex: w },
         };
         let ring = self.add_loop(
@@ -474,9 +484,12 @@ impl<T: Decide> Body<T> {
         );
         // Move he1's side into the ring and close its cycle.
         for &moved in &ring_side {
-            if let Some(he) = self.get_half_edge_mut(moved) {
-                he.parent_loop = ring;
-            }
+            let Some(he) = self.get_half_edge_mut(moved.key()) else {
+                unreachable!(
+                    "kemr: the ring side's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            he.parent_loop = ring;
         }
         if let (Some(&first), Some(&last)) = (ring_side.first(), ring_side.last()) {
             // last = prev(he2), first = next(he1): closing the ring cycle.
@@ -494,15 +507,17 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(last, first);
         }
         let old_boundary = match old_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first },
+            Some(&first) => LoopBoundary::Cycle { first: first.key() },
             None => LoopBoundary::Empty { vertex: u },
         };
-        if let Some(l) = self.get_loop_mut(loop_key) {
-            l.boundary = old_boundary;
-        }
-        if let Some(face) = self.get_face_mut(face_key) {
-            face.rings.push(ring);
-        }
+        let Some(l) = self.get_loop_mut(loop_key) else {
+            unreachable!("kemr: the loop resolved in the plan phase")
+        };
+        l.boundary = old_boundary;
+        let Some(face) = self.get_face_mut(face_key) else {
+            unreachable!("kemr: the face resolved in the plan phase")
+        };
+        face.rings.push(ring);
         // Kills, with their provenance entries (kill order documented
         // above).
         self.half_edges.remove(he1);
@@ -516,17 +531,28 @@ impl<T: Decide> Body<T> {
             .then_some(edge_data.curve);
         // Emanating (unconditional rule, module docs). When u == w the
         // second write wins — deterministic.
-        let u_anchor = old_side.first().copied();
-        let w_anchor = ring_side.first().copied();
-        if let Some(vertex) = self.get_vertex_mut(u) {
-            vertex.emanating = u_anchor;
-        }
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = w_anchor;
-        }
+        let u_anchor = old_side.first().map(|&member| member.key());
+        let w_anchor = ring_side.first().map(|&member| member.key());
+        let Some(vertex) = self.get_vertex_mut(u) else {
+            unreachable!("kemr: `u` resolved in the plan phase")
+        };
+        vertex.emanating = u_anchor;
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("kemr: `w` resolved in the plan phase")
+        };
+        vertex.emanating = w_anchor;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 1, -2, -1, 0), "kemr");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                loops: 1,
+                half_edges: -2,
+                edges: -1,
+                ..ArenaDelta::ZERO
+            },
+            "kemr",
+        );
         Ok(KemrResult {
             ring,
             killed_edge: edge,
@@ -588,21 +614,35 @@ impl<T: Decide> Body<T> {
         &mut self,
         site: MekrSite,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
         let created = match site {
-            MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve),
-            MekrSite::EmptyRing { target, ring } => self.mekr_empty_ring(site, target, ring, curve),
-            MekrSite::EmptyTarget { target, ring } => {
-                self.mekr_empty_target(site, target, ring, curve)
+            MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve, tol),
+            MekrSite::EmptyRing { target, ring } => {
+                self.mekr_empty_ring(site, target, ring, curve, tol)
             }
-            MekrSite::BothEmpty { target, ring } => self.mekr_both_empty(site, target, ring, curve),
+            MekrSite::EmptyTarget { target, ring } => {
+                self.mekr_empty_target(site, target, ring, curve, tol)
+            }
+            MekrSite::BothEmpty { target, ring } => {
+                self.mekr_both_empty(site, target, ring, curve, tol)
+            }
         }?;
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, -1, 2, 1, 0), "mekr");
+        self.assert_euler_postcondition(
+            before,
+            ArenaDelta {
+                loops: -1,
+                half_edges: 2,
+                edges: 1,
+                ..ArenaDelta::ZERO
+            },
+            "mekr",
+        );
         Ok(created)
     }
 
@@ -616,7 +656,7 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mekr`].
-    pub fn mekr_chord(&mut self, site: MekrSite) -> Result<MekrResult, EulerOpError> {
+    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError> {
         let anchor_of = |body: &Self, r#loop: LoopKey| -> Result<VertexKey, EulerOpError> {
             let loop_data = body.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
                 key: EntityId::Loop(r#loop),
@@ -650,7 +690,7 @@ impl<T: Decide> Body<T> {
             let p_w = self.resolve_vertex_point(w)?;
             EdgeCurveSpec::line_between(p_u, p_w)
         };
-        self.mekr(site, spec)
+        self.mekr(site, spec, tol)
     }
 
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
@@ -699,7 +739,9 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); cross-shell only: one solid
     /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
     /// ([`EulerOpError::FaceHasRings`]); `f2`'s outer loop resolves
-    /// (`StaleKey`).
+    /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
+    /// shell and the shared solid resolve (`StaleKey`) — the fusion
+    /// writes through both.
     ///
     /// # Errors
     ///
@@ -746,39 +788,63 @@ impl<T: Decide> Body<T> {
                 key: EntityId::Loop(ring),
             });
         }
+        if cross_shell {
+            // The fusion re-homes f2's shell's surviving faces and
+            // rewrites the shared solid's shell list; both are keys read
+            // out of the body rather than arguments, so prove them live
+            // here — the mutation below cannot fail midway (atomicity).
+            for &face in &s2_data.faces {
+                if face != f2 && !self.faces.contains_key(face) {
+                    return Err(EulerOpError::StaleKey {
+                        key: EntityId::Face(face),
+                    });
+                }
+            }
+            if !self.solids.contains_key(s2_data.solid) {
+                return Err(EulerOpError::StaleKey {
+                    key: EntityId::Solid(s2_data.solid),
+                });
+            }
+        }
 
         // ---- Mutation (infallible from here on). ----
         // The surviving loop is repointed and demoted; nothing else at
         // the half-edge/vertex/edge level is touched.
-        if let Some(l) = self.get_loop_mut(ring) {
-            l.face = f1;
-        }
-        if let Some(face) = self.get_face_mut(f1) {
-            face.rings.push(ring);
-        }
+        let Some(l) = self.get_loop_mut(ring) else {
+            unreachable!("kfmrh: the ring resolved in the plan phase")
+        };
+        l.face = f1;
+        let Some(face) = self.get_face_mut(f1) else {
+            unreachable!("kfmrh: `f1` resolved in the plan phase")
+        };
+        face.rings.push(ring);
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
             // (deterministic, D9) — then f2's shell dies.
             let moved: Vec<FaceKey> = s2_data.faces.iter().copied().filter(|&f| f != f2).collect();
             for &face in &moved {
-                if let Some(face_data) = self.get_face_mut(face) {
-                    face_data.shell = f1_shell;
-                }
+                let Some(face_data) = self.get_face_mut(face) else {
+                    unreachable!("kfmrh: f2's shell's faces were resolved in the plan phase")
+                };
+                face_data.shell = f1_shell;
             }
-            if let Some(shell) = self.get_shell_mut(f1_shell) {
-                shell.faces.extend(moved);
-            }
-            if let Some(solid) = self.get_solid_mut(s2_data.solid) {
-                solid.shells.retain(|&s| s != f2_shell);
-            }
+            let Some(shell) = self.get_shell_mut(f1_shell) else {
+                unreachable!("kfmrh: f1's shell resolved in the plan phase")
+            };
+            shell.faces.extend(moved);
+            let Some(solid) = self.get_solid_mut(s2_data.solid) else {
+                unreachable!("kfmrh: the shared solid resolved in the plan phase")
+            };
+            solid.shells.retain(|&s| s != f2_shell);
             self.shells.remove(f2_shell);
             self.shell_provenance.remove(f2_shell);
             Some(f2_shell)
         } else {
-            if let Some(shell) = self.get_shell_mut(f1_shell) {
-                shell.faces.retain(|&face| face != f2);
-            }
+            let Some(shell) = self.get_shell_mut(f1_shell) else {
+                unreachable!("kfmrh: f1's shell resolved in the plan phase")
+            };
+            shell.faces.retain(|&face| face != f2);
             None
         };
         self.faces.remove(f2);
@@ -794,9 +860,16 @@ impl<T: Decide> Body<T> {
         self.assert_euler_postcondition(
             before,
             if killed_shell.is_some() {
-                (0, -1, -1, 0, 0, 0, 0)
+                ArenaDelta {
+                    shells: -1,
+                    faces: -1,
+                    ..ArenaDelta::ZERO
+                }
             } else {
-                (0, 0, -1, 0, 0, 0, 0)
+                ArenaDelta {
+                    faces: -1,
+                    ..ArenaDelta::ZERO
+                }
             },
             "kfmrh",
         );
@@ -894,19 +967,22 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible; no-op when the faces coincide). ----
         if from_face != to_face {
-            if let Some(face) = self.get_face_mut(from_face) {
-                face.rings.retain(|&l| l != ring);
-            }
-            if let Some(face) = self.get_face_mut(to_face) {
-                face.rings.push(ring);
-            }
-            if let Some(l) = self.get_loop_mut(ring) {
-                l.face = to_face;
-            }
+            let Some(face) = self.get_face_mut(from_face) else {
+                unreachable!("ring_move: the source face resolved in the plan phase")
+            };
+            face.rings.retain(|&l| l != ring);
+            let Some(face) = self.get_face_mut(to_face) else {
+                unreachable!("ring_move: the destination face resolved in the plan phase")
+            };
+            face.rings.push(ring);
+            let Some(l) = self.get_loop_mut(ring) else {
+                unreachable!("ring_move: the ring resolved in the plan phase")
+            };
+            l.face = to_face;
         }
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, (0, 0, 0, 0, 0, 0, 0), "ring_move");
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
         Ok(())
     }
 
@@ -923,10 +999,11 @@ impl<T: Decide> Body<T> {
         target: HalfEdgeKey,
         ring: HalfEdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
-        let target_data = self.resolve_half_edge(target)?;
-        let ring_data = self.resolve_half_edge(ring)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
         let target_loop = target_data.parent_loop;
         let ring_loop = ring_data.parent_loop;
         if target_loop == ring_loop {
@@ -959,39 +1036,39 @@ impl<T: Decide> Body<T> {
         // The ring's full cycle (bounded, D9): reparented wholesale, and
         // its last member (= prev(ring)) is a splice point.
         let ring_members = self
-            .loop_cycle(ring)
+            .loop_cycle_live(ring)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
         let ring_last = ring_members
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        let target_prev = target_data.prev;
-        if !self.half_edges.contains_key(target_prev) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(target_prev),
-            });
-        }
+        let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
-            if let Some(he) = self.get_half_edge_mut(moved) {
-                he.parent_loop = target_loop;
-            }
+            let Some(he) = self.get_half_edge_mut(moved.key()) else {
+                unreachable!(
+                    "mekr chords: the ring's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            he.parent_loop = target_loop;
         }
         // Splice (module docs diagram): he_plus → ring … prev(ring) →
         // he_minus → target … prev(target) → he_plus.
         self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, ring);
+        self.link_half_edges(he_plus, ring_live);
         self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, target);
+        self.link_half_edges(he_minus, target_live);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(
             target_loop,
             ring_loop,
@@ -1017,9 +1094,10 @@ impl<T: Decide> Body<T> {
         target: HalfEdgeKey,
         ring: LoopKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
-        let target_data = self.resolve_half_edge(target)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
         let target_loop = target_data.parent_loop;
         if target_loop == ring {
             return Err(EulerOpError::SameLoop { r#loop: ring });
@@ -1046,17 +1124,12 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        let target_prev = target_data.prev;
-        if !self.half_edges.contains_key(target_prev) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(target_prev),
-            });
-        }
+        let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
@@ -1065,7 +1138,9 @@ impl<T: Decide> Body<T> {
         // case).
         self.link_half_edges(target_prev, he_plus);
         self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, target);
+        self.link_half_edges(he_minus, target_live);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus));
 
         Ok(MekrResult {
@@ -1085,6 +1160,7 @@ impl<T: Decide> Body<T> {
         target: LoopKey,
         ring: HalfEdgeKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
@@ -1094,7 +1170,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
         let face_key = target_data.face;
-        let ring_data = self.resolve_half_edge(ring)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
         let ring_loop = ring_data.parent_loop;
         if ring_loop == target {
             return Err(EulerOpError::SameLoop { r#loop: target });
@@ -1113,7 +1189,7 @@ impl<T: Decide> Body<T> {
         }
         self.check_ring_not_outer(face_key, ring_loop)?;
         let ring_members = self
-            .loop_cycle(ring)
+            .loop_cycle_live(ring)
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
         let ring_last = ring_members
             .last()
@@ -1123,21 +1199,26 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         for &moved in &ring_members {
-            if let Some(he) = self.get_half_edge_mut(moved) {
-                he.parent_loop = target;
-            }
+            let Some(he) = self.get_half_edge_mut(moved.key()) else {
+                unreachable!(
+                    "mekr empty-target: the ring's members were resolved by the plan phase's bounded walk"
+                )
+            };
+            he.parent_loop = target;
         }
         // Splice: he_plus → ring … prev(ring) → he_minus → he_plus (the
         // target contributes no half-edges; its Empty boundary grows to
         // this cycle — inverse of kemr's old-side-empty case).
-        self.link_half_edges(he_plus, ring);
+        self.link_half_edges(he_plus, ring_live);
         self.link_half_edges(ring_last, he_minus);
         self.link_half_edges(he_minus, he_plus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target, ring_loop, face_key, (u, w), (he_plus, he_minus));
 
         Ok(MekrResult {
@@ -1157,6 +1238,7 @@ impl<T: Decide> Body<T> {
         target: LoopKey,
         ring: LoopKey,
         curve: EdgeCurveSpec<T>,
+        tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
         let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
@@ -1187,7 +1269,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w)?;
+        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
@@ -1195,6 +1277,8 @@ impl<T: Decide> Body<T> {
         // loop — inverse of kemr's both-empty case).
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
+        // The splice is done; past it the halves are ordinary keys.
+        let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(target, ring, face_key, (u, w), (he_plus, he_minus));
 
         Ok(MekrResult {
@@ -1256,7 +1340,7 @@ impl<T: Decide> Body<T> {
         w: VertexKey,
         target_loop: LoopKey,
         certified: geom_brep::EdgeCurve<T>,
-    ) -> (CurveKey, EdgeKey, HalfEdgeKey, HalfEdgeKey) {
+    ) -> (CurveKey, EdgeKey, Live, Live) {
         let provenance = Provenance::Mekr { site };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
@@ -1280,20 +1364,26 @@ impl<T: Decide> Body<T> {
     ) {
         let (u, w) = anchors;
         let (he_plus, he_minus) = halves;
-        if let Some(l) = self.get_loop_mut(target_loop) {
-            l.boundary = LoopBoundary::Cycle { first: he_plus };
-        }
-        if let Some(face_data) = self.get_face_mut(face) {
-            face_data.rings.retain(|&l| l != ring_loop);
-        }
+        let Some(l) = self.get_loop_mut(target_loop) else {
+            unreachable!(
+                "mekr: `target_loop` proven live by the caller's plan phase (mekr_cycles / mekr_empty_ring / mekr_empty_target / mekr_both_empty)"
+            )
+        };
+        l.boundary = LoopBoundary::Cycle { first: he_plus };
+        let Some(face_data) = self.get_face_mut(face) else {
+            unreachable!("mekr: the face resolved in check_ring_not_outer")
+        };
+        face_data.rings.retain(|&l| l != ring_loop);
         self.loops.remove(ring_loop);
         self.loop_provenance.remove(ring_loop);
-        if let Some(vertex) = self.get_vertex_mut(u) {
-            vertex.emanating = Some(he_plus);
-        }
-        if let Some(vertex) = self.get_vertex_mut(w) {
-            vertex.emanating = Some(he_minus);
-        }
+        let Some(vertex) = self.get_vertex_mut(u) else {
+            unreachable!("mekr: `u` resolved in check_anchors")
+        };
+        vertex.emanating = Some(he_plus);
+        let Some(vertex) = self.get_vertex_mut(w) else {
+            unreachable!("mekr: `w` resolved in check_anchors")
+        };
+        vertex.emanating = Some(he_minus);
     }
 }
 
@@ -1301,9 +1391,10 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
 
     use super::*;
-    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, Vertex};
+    use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
     use crate::validate::validate;
@@ -1339,7 +1430,7 @@ mod tests {
     }
 
     /// mvfs + mev(Lone): the segment body (v0 —e0— v1, one loop
-    /// `[he_plus, he_minus]`).
+    /// `[he_plus, he_minus]`, tol).
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
@@ -1349,6 +1440,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         (body, seed, seg)
@@ -1365,6 +1457,7 @@ mod tests {
                     he2: seg.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         (body, seed, seg, strut)
@@ -1382,6 +1475,7 @@ mod tests {
                     he2: e0.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let e2 = body
@@ -1391,6 +1485,7 @@ mod tests {
                     he2: e1.he_minus,
                 },
                 p(3.0),
+                Tol::witness(),
             )
             .unwrap();
         // Pin the cycle the tests below stand on: out along the plus
@@ -1679,7 +1774,7 @@ mod tests {
             },
             prov(),
         );
-        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0)));
+        let curve = body.add_curve(crate::fixtures::test_curve(p(0.0), Tol::witness()));
         let edge = body.add_edge(
             Edge {
                 he_plus: null_he,
@@ -1816,7 +1911,7 @@ mod tests {
     fn kemr_rejects_halves_in_different_loops() {
         // The pillow's rim edges have their halves in the two cap
         // loops; kemr needs an edge occurring twice in ONE loop.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let (he1, he2) = (t.hes_a[0], t.hes_b[0]);
         let expected = EulerOpError::NotSameLoop { he1, he2 };
         assert_err_deep_unchanged(&mut t.body, &expected, |b| b.kemr(he1, he2).unwrap_err());
@@ -1841,7 +1936,7 @@ mod tests {
             target: e0.he_minus,
             ring: e2.he_plus,
         };
-        let restore = body.mekr_chord(site).unwrap();
+        let restore = body.mekr_chord(site, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -1906,10 +2001,13 @@ mod tests {
         let original = starts(&body, strut.he_plus);
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let restore = body
-            .mekr_chord(MekrSite::EmptyRing {
-                target: seg.he_minus,
-                ring: kill.ring,
-            })
+            .mekr_chord(
+                MekrSite::EmptyRing {
+                    target: seg.he_minus,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -1936,10 +2034,13 @@ mod tests {
         // The outer loop is now Empty (the target); the ring holds the
         // whole surviving cycle.
         let restore = body
-            .mekr_chord(MekrSite::EmptyTarget {
-                target: seed.r#loop,
-                ring: seg.he_minus,
-            })
+            .mekr_chord(
+                MekrSite::EmptyTarget {
+                    target: seed.r#loop,
+                    ring: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -1970,10 +2071,13 @@ mod tests {
         let original = starts(&body, seg.he_plus);
         let kill = body.kemr(seg.he_plus, seg.he_minus).unwrap();
         let restore = body
-            .mekr_chord(MekrSite::BothEmpty {
-                target: seed.r#loop,
-                ring: kill.ring,
-            })
+            .mekr_chord(
+                MekrSite::BothEmpty {
+                    target: seed.r#loop,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(starts(&body, restore.he_plus), original);
@@ -2008,24 +2112,28 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles {
-                target: e0.he_plus,
-                ring: e1.he_plus,
-            })
+            b.mekr_chord(
+                MekrSite::Cycles {
+                    target: e0.he_plus,
+                    ring: e1.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
 
     #[test]
     fn mekr_rejects_loops_of_different_faces() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let (target, ring) = (t.hes_a[0], t.hes_b[0]);
         let expected = EulerOpError::NotSameFace {
             target: t.loop_a,
             ring: t.loop_b,
         };
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles { target, ring }).unwrap_err()
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness())
+                .unwrap_err()
         });
     }
 
@@ -2039,10 +2147,13 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles {
-                target: e2.he_plus,
-                ring: e0.he_minus,
-            })
+            b.mekr_chord(
+                MekrSite::Cycles {
+                    target: e2.he_plus,
+                    ring: e0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2054,10 +2165,13 @@ mod tests {
         // EmptyRing with a cycle ring loop.
         let expected = EulerOpError::LoopNotEmpty { r#loop: kill.ring };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::EmptyRing {
-                target: e0.he_minus,
-                ring: kill.ring,
-            })
+            b.mekr_chord(
+                MekrSite::EmptyRing {
+                    target: e0.he_minus,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
         // EmptyTarget with a cycle target loop.
@@ -2065,18 +2179,24 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::EmptyTarget {
-                target: seed.r#loop,
-                ring: e0.he_minus,
-            })
+            b.mekr_chord(
+                MekrSite::EmptyTarget {
+                    target: seed.r#loop,
+                    ring: e0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
         // BothEmpty with cycle loops.
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::BothEmpty {
-                target: seed.r#loop,
-                ring: kill.ring,
-            })
+            b.mekr_chord(
+                MekrSite::BothEmpty {
+                    target: seed.r#loop,
+                    ring: kill.ring,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2090,10 +2210,13 @@ mod tests {
             key: EntityId::HalfEdge(e1.he_plus),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::Cycles {
-                target: e1.he_plus,
-                ring: e0.he_minus,
-            })
+            b.mekr_chord(
+                MekrSite::Cycles {
+                    target: e1.he_plus,
+                    ring: e0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
         // A null loop key as the ring.
@@ -2102,10 +2225,13 @@ mod tests {
             key: EntityId::Loop(dead_loop),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.mekr_chord(MekrSite::EmptyRing {
-                target: e0.he_minus,
-                ring: dead_loop,
-            })
+            b.mekr_chord(
+                MekrSite::EmptyRing {
+                    target: e0.he_minus,
+                    ring: dead_loop,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2127,10 +2253,13 @@ mod tests {
         let expected = EulerOpError::EmptyAnchorsCollide { vertex: t.vertex };
         let target = t.lone_loop;
         assert_err_deep_unchanged(&mut t.body, &expected, |b| {
-            b.mekr_chord(MekrSite::BothEmpty {
-                target,
-                ring: extra,
-            })
+            b.mekr_chord(
+                MekrSite::BothEmpty {
+                    target,
+                    ring: extra,
+                },
+                Tol::witness(),
+            )
             .unwrap_err()
         });
     }
@@ -2145,10 +2274,13 @@ mod tests {
         let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
         let kill_a = body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
         let restore_a = body_a
-            .mekr_chord(MekrSite::Cycles {
-                target: a0.he_minus,
-                ring: a2.he_plus,
-            })
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: a0.he_minus,
+                    ring: a2.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let extra_a = body_a
             .mev_line(
@@ -2157,6 +2289,7 @@ mod tests {
                     he2: a0.he_minus,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap();
 
@@ -2165,10 +2298,13 @@ mod tests {
         let (mut body_b, _seed_b, [b0, b1, b2]) = chain3();
         let kill_b = body_b.kemr(b1.he_plus, b1.he_minus).unwrap();
         let restore_b = body_b
-            .mekr_chord(MekrSite::Cycles {
-                target: b0.he_minus,
-                ring: b2.he_plus,
-            })
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: b0.he_minus,
+                    ring: b2.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let extra_b = body_b
             .mev_line(
@@ -2177,6 +2313,7 @@ mod tests {
                     he2: b0.he_minus,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(deep_snapshot(&body_a), deep_snapshot(&body_b));
@@ -2191,6 +2328,7 @@ mod tests {
                     he2: c0.he_minus,
                 },
                 p(9.0),
+                Tol::witness(),
             )
             .unwrap();
 
@@ -2223,10 +2361,13 @@ mod tests {
         let (mut body_a, _seed_a, [a0, a1, a2]) = chain3();
         body_a.kemr(a1.he_plus, a1.he_minus).unwrap();
         body_a
-            .mekr_chord(MekrSite::Cycles {
-                target: a0.he_minus,
-                ring: a2.he_plus,
-            })
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: a0.he_minus,
+                    ring: a2.he_plus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let (mut body_c, _seed_c, [c0, c1, c2]) = chain3();
         // chain3 is deterministic, so the two histories share their
@@ -2239,16 +2380,22 @@ mod tests {
         // never touched, curve/edge/half-edge slots were re-consumed by
         // the pair).
         let mef1_a = body_a
-            .mef_chord(MefSite::Chords {
-                he1: a0.he_plus,
-                he2: a2.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: a0.he_plus,
+                    he2: a2.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let mef1_c = body_c
-            .mef_chord(MefSite::Chords {
-                he1: c0.he_plus,
-                he2: c2.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: c0.he_plus,
+                    he2: c2.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_ne!(mef1_a.r#loop, mef1_c.r#loop);
         assert_eq!(mef1_a.face, mef1_c.face);
@@ -2260,16 +2407,22 @@ mod tests {
         // One loop-mint later the loop arena has converged too: the
         // second mef agrees on every key.
         let mef2_a = body_a
-            .mef_chord(MefSite::Chords {
-                he1: a2.he_minus,
-                he2: a0.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: a2.he_minus,
+                    he2: a0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         let mef2_c = body_c
-            .mef_chord(MefSite::Chords {
-                he1: c2.he_minus,
-                he2: c0.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: c2.he_minus,
+                    he2: c0.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(mef2_a, mef2_c);
         assert_eq!(validate(&body_a), Ok(()));
@@ -2291,13 +2444,17 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         let split = body
-            .mef_chord(MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            })
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
         (body, seed, seg, split)
@@ -2364,7 +2521,7 @@ mod tests {
         // mfkrh will mint such faces), so the fixture grafts one in raw:
         // pillow + face C with an Empty outer at a lone vertex and its
         // OWN surface, same shell. Tier-1-valid.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let pt = t.body.add_point(p(9.0));
         let v = t.body.add_vertex(
             Vertex {
@@ -2431,6 +2588,63 @@ mod tests {
         });
     }
 
+    /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
+    /// exists for. It is not constructible through the public
+    /// operators (`mvfs` mints one solid per shell), so the second
+    /// shell is re-homed by raw in-crate write — the same adversarial
+    /// posture as the rest of this module's corruption rows.
+    fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
+        let (mut body, seed, _seg, _split) = ops_pillow();
+        let other = body.mvfs(p(9.0)).unwrap();
+        let f1_shell = body.get_face(seed.face).unwrap().shell;
+        let first_solid = body.get_shell(f1_shell).unwrap().solid;
+        body.get_shell_mut(other.shell).unwrap().solid = first_solid;
+        body.get_solid_mut(first_solid)
+            .unwrap()
+            .shells
+            .push(other.shell);
+        body.get_solid_mut(other.solid).unwrap().shells.clear();
+        (body, seed, other)
+    }
+
+    /// The fusion's first plan-phase guard, on the exact corruption it
+    /// exists to refuse. The re-homing walks `f2`'s shell's face list —
+    /// a key read out of the body, not an argument — so
+    /// `kfmrh_rejects_stale_faces`, which corrupts only the two
+    /// ARGUMENTS, cannot reach it. Without the guard the op half-wrote
+    /// the fusion and returned `Ok`.
+    #[test]
+    fn kfmrh_refuses_a_dangling_face_in_f2s_shell() {
+        let (mut body, seed, other) = fused_two_shell_body();
+        let dead = FaceKey::default();
+        body.get_shell_mut(other.shell).unwrap().faces.push(dead);
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Face(dead),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
+    /// The fusion's second guard. Both shells name the same DEAD solid,
+    /// so the `CrossSolid` gate — which only compares the two — passes,
+    /// and the solid guard is the only thing left to catch it. The
+    /// fusion rewrites that solid's shell list.
+    #[test]
+    fn kfmrh_refuses_a_dead_shared_solid() {
+        let (mut body, seed, other) = fused_two_shell_body();
+        let dead = SolidKey::default();
+        let f1_shell = body.get_face(seed.face).unwrap().shell;
+        body.get_shell_mut(f1_shell).unwrap().solid = dead;
+        body.get_shell_mut(other.shell).unwrap().solid = dead;
+        let expected = EulerOpError::StaleKey {
+            key: EntityId::Solid(dead),
+        };
+        assert_err_deep_unchanged(&mut body, &expected, |b| {
+            b.kfmrh(seed.face, other.face).unwrap_err()
+        });
+    }
+
     #[test]
     fn kfmrh_rejects_f2_with_rings() {
         // Give face B (the mef face) a ring — strut + kemr inside its
@@ -2444,6 +2658,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -2487,6 +2702,7 @@ mod tests {
                     he2: seg.he_minus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();

@@ -12,9 +12,16 @@ use editor_core::{
     CancelToken, DocParam, EvalOptions, Evaluation, ParamName, ProfileDoc, evaluate,
 };
 use fixture::{DEPTH, die, step};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// FNV-1a 64 over the tables' deterministic Debug encoding: node ids
@@ -124,6 +131,7 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
         Some(&ev1),
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     );
     assert!(ev2.recomputed > 0, "the edit must recompute its cone");
     let mut changed = 0usize;
@@ -146,6 +154,7 @@ fn memo_reuse_transfers_tables_bit_identically() {
         Some(&ev1),
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     );
     assert_eq!(ev2.recomputed, 0, "unchanged doc must be a full memo hit");
     for id in &ev1.order {

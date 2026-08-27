@@ -5,6 +5,7 @@ use super::*;
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::source::GeomSource;
 use geom_brep::{EdgeCurveSpec, Pcurve};
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 
 fn band() -> Band {
@@ -54,6 +55,7 @@ fn sheet(
     x1: f64,
     y1: f64,
     surface: FaceSurface<f64>,
+    tol: Tol,
 ) -> FaceKey {
     let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
     let (a, b, cc, d) = (c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1));
@@ -64,6 +66,7 @@ fn sheet(
                 r#loop: seed.r#loop,
             },
             b,
+            tol,
         )
         .unwrap();
     let e_bc = body
@@ -73,6 +76,7 @@ fn sheet(
                 he2: e_ab.he_minus,
             },
             cc,
+            tol,
         )
         .unwrap();
     let e_cd = body
@@ -82,6 +86,7 @@ fn sheet(
                 he2: e_bc.he_minus,
             },
             d,
+            tol,
         )
         .unwrap();
     let he_dc = body
@@ -94,6 +99,7 @@ fn sheet(
         },
         EdgeCurveSpec::line_between(d, a),
         surface,
+        tol,
     )
     .unwrap()
     .face
@@ -166,10 +172,19 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
 
 #[test]
 fn probe_same_locus_different_chart_frame_never_certifies() {
+    let tol = Tol::witness();
     // Two bodies, the SAME plane locus, different chart frames
     // (u_ref x vs y). No sources: must diverge.
     let mut ba = Body::<f64>::new();
-    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fa = sheet(
+        &mut ba,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New(xy_plane()),
+        tol,
+    );
     let mut bb = Body::<f64>::new();
     let fb = sheet(
         &mut bb,
@@ -178,6 +193,7 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
         2.0,
         2.0,
         FaceSurface::New(xy_plane_rotated()),
+        tol,
     );
     match chart_region_overlap(&ba, fa, &bb, fb, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
@@ -186,7 +202,15 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
     // Even the BIT-IDENTICAL surface across two sourceless bodies
     // diverges — the structural rung is the whole test.
     let mut bc = Body::<f64>::new();
-    let fc = sheet(&mut bc, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fc = sheet(
+        &mut bc,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New(xy_plane()),
+        tol,
+    );
     match chart_region_overlap(&ba, fa, &bc, fc, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("sourceless cross-body must diverge, got {other:?}"),
@@ -198,8 +222,17 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
 /// happen; the module trusts N6 rather than re-checking the bits.
 #[test]
 fn probe_forged_source_on_divergent_charts() {
+    let tol = Tol::witness();
     let mut ba = Body::<f64>::new();
-    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fa = sheet(
+        &mut ba,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New(xy_plane()),
+        tol,
+    );
     let ka = ba.get_face(fa).unwrap().surface;
     ba.set_surface_source(ka, GeomSource::minted(7, 0)).unwrap();
     let mut bb = Body::<f64>::new();
@@ -210,6 +243,7 @@ fn probe_forged_source_on_divergent_charts() {
         2.0,
         2.0,
         FaceSurface::New(xy_plane_rotated()),
+        tol,
     );
     let kb = bb.get_face(fb).unwrap().surface;
     bb.set_surface_source(kb, GeomSource::minted(7, 0)).unwrap();
@@ -224,8 +258,17 @@ fn probe_forged_source_on_divergent_charts() {
 
 #[test]
 fn probe_reverted_and_placed_sources_diverge() {
+    let tol = Tol::witness();
     let mut ba = Body::<f64>::new();
-    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fa = sheet(
+        &mut ba,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New(xy_plane()),
+        tol,
+    );
     let ka = ba.get_face(fa).unwrap().surface;
     let src = GeomSource::minted(3, 1);
     ba.set_surface_source(ka, src.clone()).unwrap();
@@ -236,7 +279,15 @@ fn probe_reverted_and_placed_sources_diverge() {
         ("other-index", GeomSource::minted(3, 2)),
     ] {
         let mut bb = Body::<f64>::new();
-        let fb = sheet(&mut bb, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+        let fb = sheet(
+            &mut bb,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            FaceSurface::New(xy_plane()),
+            tol,
+        );
         let kb = bb.get_face(fb).unwrap().surface;
         bb.set_surface_source(kb, other).unwrap();
         match chart_region_overlap(&ba, fa, &bb, fb, band()) {
@@ -496,10 +547,19 @@ fn probe_bit_identical_fast_path_is_rotation_stable() {
 
 #[test]
 fn probe_replay_determinism() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let f1 = sheet(
+        &mut body,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New(xy_plane()),
+        tol,
+    );
     let key = body.get_face(f1).unwrap().surface;
-    let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key));
+    let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key), tol);
     let first = chart_region_overlap(&body, f1, &body, f2, band()).unwrap();
     for _ in 0..64 {
         assert_eq!(

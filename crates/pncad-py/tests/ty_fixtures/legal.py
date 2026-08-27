@@ -8,20 +8,27 @@ the guide's own executed blocks.
 
 from pncad import (
     ArcSweep,
+    Bulge,
     BooleanOp,
     CapEnd,
+    Center,
     Cmp,
     ContactClass,
     CurveKind,
     Doc,
+    DocEdit,
     EntityKind,
     FlushFinding,
     FlushRung,
+    Frame,
     GeomPred,
     Length,
     NamePat,
     Node,
     NodeId,
+    ParamName,
+    PatternKind,
+    Via,
     Open,
     PlaneRelation,
     SegPat,
@@ -65,8 +72,9 @@ walked = (
     .line(10 * mm)
     .tangent()
     .tangent_arc_to((0 * mm, 20 * mm))
-    .arc_via((-5 * mm, 10 * mm), (0 * mm, 5 * mm))
-    .arc_center((0 * mm, 0 * mm), (5 * mm, 0 * mm), ArcSweep.Ccw)
+    .arc_to(Via((-5 * mm, 10 * mm), (0 * mm, 5 * mm)))
+    .arc_to(Center((0 * mm, 0 * mm), ArcSweep.Ccw, (5 * mm, 0 * mm)))
+    .arc_to(Bulge((-5 * mm, 0 * mm), 0.5))
     .line_to(Start)
 )
 
@@ -178,16 +186,25 @@ low_faces: list[str] = ev.select_where(
     [GeomPred.surface_kind(SurfaceKind.Plane), near_cutter],
 )
 
-# §2b route 3: a STRAIGHT arrival off a departure bound on an arc
-# carrier — anchor and exact director in one act.
+# The fused verb: the entry side rides an arc carrier the verb itself
+# authors, and the arrival is the ordinary straight pair.
 carrier_corner = (
-    Open.at_on((5 * m, 0 * m), (0 * m, 0 * m), ArcSweep.Ccw)
-    .fillet(0.5 * m)
-    .at_toward((0 * m, 3 * m), -1.0, 0.0)
+    Open.arc_fillet(Center((0 * m, 0 * m), ArcSweep.Ccw, (5 * m, 0 * m)), 0.5 * m)
+    .at((0 * m, 3 * m))
+    .toward(-1.0, 0.0)
     .line(3 * m)
     .line_to(Start)
 )
 carrier_corner_vertices: int = carrier_corner.vertex_count
+
+# The arrival mode decides what the chain becomes: a `Center` anchored
+# at `Start` CLOSES, so this expression is a loop, not a tip.
+lens = Open.arc_fillet_arc(
+    Center((-0.5 * m, 0 * m), ArcSweep.Ccw, (0 * m, -0.866 * m)),
+    0.25 * m,
+    Center((0.5 * m, 0 * m), ArcSweep.Ccw, Start),
+)
+lens_vertices: int = lens.vertex_count
 
 # LIB-PYG5: the detect/declare protocol, typed end to end. Findings
 # are values; the declare doors consume THEM, not name text; the id
@@ -204,3 +221,23 @@ decl_node: NodeId = doc.insert(Node.declare(findings))
 glued: NodeId = doc.insert(
     Node.boolean(BooleanOp.Union, plate, lightened, declare=decl_many)
 )
+
+# LIB-PYPU: the group boolean and its placement vocabulary. Lengths
+# and angles are typed; the count is a plain int (the structural-slot
+# exception); a frame reads back as the dimensioned triple it took.
+here: Frame = Frame.translation((0 * m, 0 * m, 0 * m))
+turned: Frame = Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (1 * m, 0 * m, 0 * m))
+aimed: Frame = Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0))
+swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
+flipped: Frame = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+frame_origin: tuple[Length, Length, Length] = here.origin
+frame_det: float = here.determinant
+
+stepped: PatternKind = PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m)
+spin_axis: NodeId = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+around: PatternKind = PatternKind.circular(spin_axis, 90 * deg)
+listed: PatternKind = PatternKind.explicit([here, turned])
+
+fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
+listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
+count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))

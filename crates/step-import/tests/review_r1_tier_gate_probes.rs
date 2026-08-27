@@ -20,6 +20,7 @@
 
 use std::path::PathBuf;
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use topo::ValidationError;
 
@@ -139,7 +140,7 @@ fn multi_cube(doctors: &[Doctor<'_>]) -> String {
 #[test]
 fn r1_control_single_inverted_cube_refuses_negative_volume() {
     let text = multi_cube(&[(1000, &invert)]);
-    let e = import_step(&text, &ImportOptions::default()).unwrap_err();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
     let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("want the gate's refusal, got: {e:?}");
     };
@@ -175,7 +176,7 @@ fn r1_multisolid_cannot_smuggle_an_inverted_solid_at_any_position() {
         (vec![(1000, inverted), (3000, normal)], 1000u64),
     ] {
         let text = multi_cube(&doctors);
-        let e = import_step(&text, &ImportOptions::default())
+        let e = import_step(&text, &ImportOptions::default(), Tol::witness())
             .expect_err("an inverted solid must refuse whichever position it occupies");
         let StepImportError::TierInvalid { solid, errors } = &e else {
             panic!("want the gate's typed refusal, got: {e:?}");
@@ -204,7 +205,8 @@ fn r1_multisolid_of_honest_solids_still_imports() {
     let identity: &dyn Fn(&str) -> String = &|l: &str| l.to_owned();
     let text = multi_cube(&[(1000, identity), (3000, normal)]);
     let StepImport::Solid { body, .. } =
-        import_step(&text, &ImportOptions::default()).expect("two honest cubes import")
+        import_step(&text, &ImportOptions::default(), Tol::witness())
+            .expect("two honest cubes import")
     else {
         panic!("expected a solid");
     };
@@ -333,7 +335,7 @@ fn perturb_corner_consistently(src: &str, delta: f64) -> String {
 #[test]
 fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
     let src = fixture("../step-export/tests/fixtures/cube.step");
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let (eps, escalate) = (tol.eps, tol.k * tol.eps);
     for (delta, want_escalated) in [
         (2.0 * eps, true),
@@ -345,8 +347,9 @@ fn r1_in_band_vertex_defect_refuses_loudly_at_adoption() {
         let doctored = perturb_corner_consistently(&src, delta);
         let options = ImportOptions {
             eps_in: Some(1000.0 * eps),
+            ..ImportOptions::default()
         };
-        match import_step(&doctored, &options) {
+        match import_step(&doctored, &options, Tol::witness()) {
             Ok(shipped) => panic!("delta {delta:e}: SHIPPED silently: {shipped:?}"),
             Err(e) => {
                 let dbg = format!("{e:?}");
@@ -570,13 +573,13 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     // (where these are the recorded 3/5/8e-8 rad). The far edge's
     // margin is alpha*leg = 100× that, decidedly positive throughout.
     let (leg, h) = (10.0_f64, 0.1_f64);
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     for alpha in [3.0 * eps / h, 5.0 * eps / h, 8.0 * eps / h] {
         let text = sliver_wedge_step(alpha, leg, h);
-        match import_step(&text, &ImportOptions::default()) {
+        match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
                 "alpha={alpha:e}: the in-band wedge SHIPPED as a solid (gate re-run: {:?})",
-                topo::validate_geometric(&body)
+                topo::validate_geometric(&body, Tol::witness())
             ),
             Ok(other) => panic!("alpha={alpha:e}: unexpected non-solid {other:?}"),
             Err(err) => {
@@ -599,36 +602,53 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
     }
 }
 
-/// **R1 FINDING (C4): tier 3 vs empty-contact tier 3' is NOT vacuous
-/// on the committed corpus.** kiss_assembly is a touching two-solid
-/// assembly; the census (which 3' runs and tier 3 defers) sees the
-/// kiss as an UNDECLARED vertex-vertex contact at (1,1,1). The 3'(∅)
-/// gate would REFUSE the very body the shipped tier-3 gate passes —
-/// so "an empty-contact body's 3' ≡ 3" holds only on census-clean
-/// bodies, a precondition import does not check. The ruling's letter
-/// ("the 3' form where declared contacts exist") is followed; this
-/// pins the substantive residue.
+/// **The R1 finding, RETIRED AS PINNED (M9-2)**: the finding recorded
+/// that the shipped tier-3 gate passed the touching kiss the 3′(∅)
+/// form would refuse — the substantive residue of the #260 one-gate
+/// ruling. The shared gate is now the 3′ form over the import-side
+/// declaration channel (D7 step 4), so the residue is GONE in exactly
+/// the pinned direction: the kiss refuses UNDECLARED at import — the
+/// old pin's inversion, exact — and certifies WITH the declared
+/// corner, through the same `validate_pseudomanifold` a native
+/// declared-contact body runs.
 #[test]
-fn r1_finding_kiss_assembly_would_refuse_under_3prime_empty() {
+fn r1_finding_retired_kiss_refuses_undeclared_and_certifies_declared() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
-    let StepImport::Solid { body, .. } = import_step(&text, &ImportOptions::default()).unwrap()
-    else {
-        panic!("kiss_assembly must import as a solid");
+    // WITHOUT: the undeclared corner kiss is the census's finding.
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect_err("the undeclared kiss refuses at the shared 3′ gate");
+    let StepImportError::TierInvalid { errors, .. } = &err else {
+        panic!("expected the gate's refusal, got {err:?}");
     };
-    assert_eq!(
-        topo::validate_geometric(&body),
-        Ok(()),
-        "tier 3 passes (the shipped gate)"
-    );
-    let empty = topo::ContactRecords::default();
-    let errors = topo::validate_pseudomanifold(&body, &empty)
-        .expect_err("3'(empty) refuses the touching assembly");
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-        "the difference is exactly the undeclared kiss: {errors:?}"
+        "the refusal is exactly the undeclared kiss: {errors:?}"
     );
+    // WITH: the declared corner certifies — same file, same gate.
+    let options = ImportOptions {
+        declared_contacts: vec![step_import::ImportContact::VertexRest {
+            at: [1.0, 1.0, 1.0],
+        }],
+        ..ImportOptions::default()
+    };
+    let StepImport::Solid { body, .. } = import_step(&text, &options, Tol::witness()).unwrap()
+    else {
+        panic!("the declared kiss imports as a solid");
+    };
+    assert_eq!(body.solids().count(), 2, "both kissing solids ship");
+    // A wrong anchor is a typed refusal, never a silent drop.
+    let bad = ImportOptions {
+        declared_contacts: vec![step_import::ImportContact::VertexRest {
+            at: [9.0, 9.0, 9.0],
+        }],
+        ..ImportOptions::default()
+    };
+    match import_step(&text, &bad, Tol::witness()) {
+        Err(StepImportError::DeclarationUnresolved { found: 0, .. }) => {}
+        other => panic!("an unresolvable anchor must refuse typed, got {other:?}"),
+    }
 }
 
 /// D9 determinism: importing the same file twice yields byte-identical
@@ -640,8 +660,8 @@ fn r1_import_is_deterministic_for_a_gated_body() {
         "tests/fixtures/band/band_a.stp",
     ] {
         let text = fixture(rel);
-        let a = import_step(&text, &ImportOptions::default()).unwrap();
-        let b = import_step(&text, &ImportOptions::default()).unwrap();
+        let a = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap();
+        let b = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap();
         let (StepImport::Solid { body: ba, .. }, StepImport::Solid { body: bb, .. }) = (a, b)
         else {
             panic!("{rel}: expected solids");

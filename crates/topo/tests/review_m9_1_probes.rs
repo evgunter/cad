@@ -9,6 +9,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
@@ -19,7 +20,7 @@ use topo::{
 };
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -51,16 +52,16 @@ fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     }
 }
 
-fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom_surfaces::Surface<f64> {
-    geom_surfaces::Surface::Plane {
+fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
+    geom::Surface::Plane {
         origin: Point3::new(o[0], o[1], o[2]),
         normal: Vec3::new(n[0], n[1], n[2]),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
-fn xline() -> geom_curves::Curve3<f64> {
-    geom_curves::Curve3::Line {
+fn xline() -> geom::Curve3<f64> {
+    geom::Curve3::Line {
         origin: Point3::new(0.0, 0.0, 0.0),
         dir: Vec3::new(1.0, 0.0, 0.0),
     }
@@ -102,7 +103,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
 /// in-band at 1 m must become a definite distinction at a large arm.
 #[test]
 fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let tilt = eps / 10.0; // sin ~ tilt: sub-band at unit arm
     let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
     let axis = Vec3::new(tilt, 0.0, 1.0).normalize();
@@ -197,7 +198,7 @@ fn probe_tangent_definite_crossing_contradicts() {
 /// actual behaviour the docs deny.
 #[test]
 fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     // A genuine (authored) gap of 3 eps: in the sliver band, so not
     // definite separation — but also NOT the #175 kappa_rel residue.
@@ -265,7 +266,8 @@ fn probe_at_rest_gate_contradicts_a_false_curve_record() {
         }],
         ..ContactRecords::default()
     };
-    let errs = validate_pseudomanifold(&body, &contacts).expect_err("false record must fail");
+    let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
+        .expect_err("false record must fail");
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
@@ -287,12 +289,17 @@ fn probe_patch_contact_is_never_certified_at_rest() {
         }],
         ..ContactRecords::default()
     };
-    let errs =
-        validate_pseudomanifold(&body, &contacts).expect_err("a patch record cannot be confirmed");
+    let errs = validate_pseudomanifold(&body, &contacts, Tol::witness())
+        .expect_err("a patch record cannot be confirmed");
+    // Since M9-2 the certifier EXISTS: two arbitrary brick faces are
+    // DISTINCT carriers, so the fabricated record is CONTRADICTED —
+    // the probe's real claim (a fabricated patch never blesses)
+    // survives with the honest refusal upgraded from
+    // not-yet-certifiable to contradicted.
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
-        "the stated not-yet-certifiable posture must refuse typed: {errs:?}"
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "a fabricated patch record must refuse typed: {errs:?}"
     );
 }
 
@@ -304,7 +311,8 @@ fn probe_records_partialeq_bites_on_mutation() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0));
     let decls = flush_declarations(&a, &b);
-    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls).unwrap() else {
+    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
+    else {
         panic!("union is a body");
     };
     let mut mutated = out.contacts.clone();
@@ -368,7 +376,7 @@ fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
     // And the op refuses it too, at the door, naming the same margin —
     // the gap is closed, and the two sites agree because they share a
     // ladder rather than mirroring one.
-    let err = topo::subtract_with(&c, &slot, &decls)
+    let err = topo::subtract_with(&c, &slot, &decls, Tol::witness())
         .expect_err("a false declaration is no longer a silent no-op at the op");
     match &err {
         topo::BooleanError::ContactContradicted {
@@ -418,7 +426,7 @@ fn probe_declared_pair_direction_still_normalized() {
     let decls = flush_declarations(&a, &b);
     assert!(!decls.coincident_faces.is_empty());
     assert!(
-        topo::union_with(&a, &b, &decls).is_ok(),
+        topo::union_with(&a, &b, &decls, Tol::witness()).is_ok(),
         "declared flush pair verifies through the map exactly as through the set"
     );
     // Class mint honesty: every declaration built by the old helpers

@@ -21,6 +21,7 @@
     clippy::float_cmp
 )]
 
+use geom_core::Tol;
 use step_import::{ImportOptions, PromotedCurveKind, StepImport, import_step};
 
 fn fixture() -> String {
@@ -40,7 +41,8 @@ fn fixture() -> String {
 /// metres and inside the file's own ε_in.
 #[test]
 fn a_certifying_carrier_is_reported_as_data() {
-    let import = import_step(&fixture(), &ImportOptions::default()).expect("the curve set imports");
+    let import = import_step(&fixture(), &ImportOptions::default(), Tol::witness())
+        .expect("the curve set imports");
     let eps_in = import.eps_in();
     let promotions = import.curve_promotions();
     assert_eq!(
@@ -69,12 +71,13 @@ fn a_certifying_carrier_is_reported_as_data() {
 /// wireframe lane promoted silently — it had no report field at all.)
 #[test]
 fn the_reported_promotion_is_the_carrier_that_ships() {
-    let import = import_step(&fixture(), &ImportOptions::default()).expect("the curve set imports");
+    let import = import_step(&fixture(), &ImportOptions::default(), Tol::witness())
+        .expect("the curve set imports");
     let StepImport::Wireframe { ref curves, .. } = import else {
         panic!("a GEOMETRIC_CURVE_SET file is a wireframe");
     };
     assert_eq!(curves.len(), 1);
-    let geom_curves::Curve3::Circle { radius, axis, .. } = curves[0] else {
+    let geom::Curve3::Circle { radius, axis, .. } = curves[0] else {
         panic!("the carrier must ship as a Circle, got {:?}", curves[0]);
     };
     assert!((radius - 0.005).abs() < 1e-15, "r = 5 mm: {radius:e}");
@@ -93,8 +96,10 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
 fn below_its_own_residual_nothing_is_promoted_and_nothing_is_reported() {
     let options = ImportOptions {
         eps_in: Some(1e-18),
+        ..ImportOptions::default()
     };
-    let import = import_step(&fixture(), &options).expect("the curve set still imports");
+    let import =
+        import_step(&fixture(), &options, Tol::witness()).expect("the curve set still imports");
     assert!(
         import.curve_promotions().is_empty(),
         "nothing certifies at 1e-18, got {:?}",
@@ -104,7 +109,7 @@ fn below_its_own_residual_nothing_is_promoted_and_nothing_is_reported() {
         panic!("a GEOMETRIC_CURVE_SET file is a wireframe");
     };
     assert!(
-        matches!(curves[0], geom_curves::Curve3::Nurbs(_)),
+        matches!(curves[0], geom::Curve3::Nurbs(_)),
         "the carrier must ship exactly as stated when nothing certifies"
     );
 }

@@ -21,12 +21,16 @@
 //!
 //! # Placement in this crate (M5 PR 10, numbered deviation 1)
 //!
-//! Skinning needs curves AND surfaces in one place, and `geom-surfaces`
-//! deliberately does not depend on `geom-curves` (its crate docs: the
-//! two are peer evaluators; machinery spanning both belongs one layer
-//! up). `sweep` is that layer for constructions — it already depends on
-//! both, and §10.3/§10.4 are sweep operations by name. The produced
-//! payload is `geom_surfaces::NurbsSurface`, so nothing about the
+//! Not "constructions live here" — `geom` builds NURBS payloads too
+//! (`geom::curves::fit`, which this module calls). The binding reason
+//! is the layering: skinning reads a `profile::ValidatedProfile`
+//! through a `SketchPlane` and a `geom_brep::SketchSegment`, so it
+//! depends on two layers ABOVE `geom` and cannot live below them. Of
+//! the crates that sit above both, `sweep` is the one whose subject
+//! this is — §10.3/§10.4 are sweep operations by name. The import list
+//! below is the check: nothing in it may be pushed down.
+//!
+//! The produced payload is `geom::NurbsSurface`, so nothing about the
 //! surface type moved.
 //!
 //! # Structure selection is f64 (C6/D9)
@@ -42,12 +46,13 @@
 
 use std::sync::Arc;
 
+use geom::NurbsCurve3;
+use geom::NurbsSurface;
+use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
+use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
-use geom_curves::NurbsCurve3;
-use geom_curves::fit::{FitError, interpolate_columns};
-use geom_surfaces::NurbsSurface;
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
@@ -365,21 +370,6 @@ pub fn segment_curve(
 // §5.3 + §5.5: compatibility
 // ---------------------------------------------------------------------
 
-/// The interior knots of `kv` as `(value, multiplicity)`, ascending —
-/// an exact-`f64` structure scan (C6), never a tolerance question.
-fn interior_multiplicities(kv: &KnotVector) -> Vec<(f64, usize)> {
-    let p = kv.degree();
-    let knots = kv.knots();
-    let mut out: Vec<(f64, usize)> = Vec::new();
-    for u in &knots[p + 1..knots.len() - p - 1] {
-        match out.last_mut() {
-            Some((v, m)) if *v == *u => *m += 1,
-            _ => out.push((*u, 1)),
-        }
-    }
-    out
-}
-
 /// Makes section curves COMPATIBLE (Book §10.3's precondition): one
 /// common degree (§5.5 degree elevation) on one common knot vector
 /// (§5.3 knot merging — refine each section by whatever the union
@@ -425,7 +415,7 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
     // the greatest multiplicity any section gives it.
     let mut union: Vec<(f64, usize)> = Vec::new();
     for c in &elevated {
-        for (value, mult) in interior_multiplicities(c.knots()) {
+        for (value, mult) in c.knots().interior_knots() {
             match union.iter_mut().find(|(v, _)| *v == value) {
                 Some((_, m)) => *m = (*m).max(mult),
                 None => union.push((value, mult)),
@@ -436,7 +426,7 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
     let merged: Vec<NurbsCurve3<f64>> = elevated
         .iter()
         .map(|c| {
-            let own = interior_multiplicities(c.knots());
+            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
             let mut add: Vec<f64> = Vec::new();
             for (value, want) in &union {
                 let have = own
@@ -829,13 +819,16 @@ fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f
     let vs = lp.vertices();
     let a = vs[j];
     let b = vs[(j + 1) % vs.len()];
-    if a.bulge == 0.0 {
-        SketchSegment::Line { a: a.pos, b: b.pos }
+    if a.bulge() == 0.0 {
+        SketchSegment::Line {
+            a: a.pos(),
+            b: b.pos(),
+        }
     } else {
         SketchSegment::Arc {
-            a: a.pos,
-            b: b.pos,
-            bulge: a.bulge,
+            a: a.pos(),
+            b: b.pos(),
+            bulge: a.bulge(),
         }
     }
 }
@@ -849,6 +842,7 @@ fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f
 fn validate_sections(
     sections: &[Section],
     places: &[Affine3<f64>],
+    tol: Tol,
 ) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
     sections
         .iter()
@@ -856,7 +850,7 @@ fn validate_sections(
         .enumerate()
         .map(|(i, (loops, place))| {
             Profile::new(SketchPlane::new(*place), loops.clone())
-                .validate(geom_core::Tolerance::get())
+                .validate(tol)
                 .map_err(|source| SkinError::SectionProfile { section: i, source })
         })
         .collect()
@@ -885,6 +879,7 @@ pub fn loft_geometry(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
+    tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -904,7 +899,7 @@ pub fn loft_geometry(
             sections: k,
         });
     }
-    let validated = validate_sections(sections, places)?;
+    let validated = validate_sections(sections, places, tol)?;
     let loops = validated[0].loops().len();
     for (i, s) in validated.iter().enumerate().skip(1) {
         if s.loops().len() != loops {
@@ -990,10 +985,11 @@ pub fn loft_geometry(
 /// carry.
 ///
 /// ```
-/// use geom_core::{Affine3, Point2, Vec3};
+/// use geom_core::{Affine3, Point2, Tol, Vec3};
 /// use profile::RawLoop;
 /// use sweep::{ProfileLoop, Section, loft_parameters};
 ///
+/// let tol = Tol::witness();
 /// let quad = |pts: [(f64, f64); 4]| -> Section {
 ///     vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))]
 /// };
@@ -1009,7 +1005,7 @@ pub fn loft_geometry(
 ///     .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
 ///     .collect();
 ///
-/// let params = loft_parameters(&sections, &places, 2).expect("the sections skin");
+/// let params = loft_parameters(&sections, &places, 2, tol).expect("the sections skin");
 /// // Ends pinned; the middle is the CHORD-length share, not the
 /// // z-share (which would be 1/3): the flare lengthens the first
 /// // chord, giving t = √73 / (√73 + √265).
@@ -1021,6 +1017,7 @@ pub fn loft_parameters(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
+    tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -1040,7 +1037,7 @@ pub fn loft_parameters(
             sections: k,
         });
     }
-    first_strip_parameters(&validate_sections(sections, places)?, places)
+    first_strip_parameters(&validate_sections(sections, places, tol)?, places)
 }
 
 /// The first strip's v-parameters — the whole loft's, by the
@@ -1116,10 +1113,11 @@ pub fn sweep_geometry(
     path: &NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
+    tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let places = sweep_places(place, path, stations)?;
     let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), stations).collect();
-    loft_geometry(&sections, &places, v_degree)
+    loft_geometry(&sections, &places, v_degree, tol)
 }
 
 /// The rigid section placements of a §10.4 path sweep — the

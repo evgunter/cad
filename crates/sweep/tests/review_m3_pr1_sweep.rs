@@ -6,7 +6,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeGeometry;
-use geom_core::{Point2, Tolerance};
+use geom_core::Point2;
+use geom_core::Tol;
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
@@ -18,7 +19,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -26,22 +27,11 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// plus lines - gives cap rims carrying Arc sketch segments.
 fn d_profile() -> ValidatedProfile<f64> {
     validated(vec![ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: p2(0.0, 0.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(1.0, 0.0),
-            bulge: (core::f64::consts::PI / 8.0).tan(), // 90-degree arc
-        },
-        ProfileVertex {
-            pos: p2(1.0, 1.0),
-            bulge: 0.0,
-        },
-        ProfileVertex {
-            pos: p2(0.0, 1.0),
-            bulge: 0.0,
-        },
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        // 90-degree arc
+        ProfileVertex::new(p2(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
+        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ])])
 }
 
@@ -58,12 +48,14 @@ fn l_profile() -> ValidatedProfile<f64> {
 }
 
 /// TARGET 3 (the bulge' formula, checked against the repo's own
-/// convention). SCOPE FINDING pinned here: extruded bodies at rest
-/// carry NO PlacedSegment descriptions (the prefer-intrinsic pass has
-/// already re-described every edge as Intersection), so split_edge's
-/// SketchSegment::restrict lane is unreachable from any current public
-/// at-rest body - this test exercises it at the geom-brep consumer
-/// level instead. With bulge = tan(theta/4), the sub-arc over param
+/// convention). Scope: extruded bodies at rest carry NO PlacedSegment
+/// descriptions (the prefer-intrinsic pass has already re-described
+/// every edge as Intersection), so a public split_edge on an at-rest
+/// extrusion does not reach SketchSegment::restrict; this test
+/// exercises the formula at the geom-brep consumer level. The lane
+/// itself IS reached end-to-end elsewhere - curved booleans and the
+/// fillet verbs split mapped arcs mid-operation, before the
+/// prefer-intrinsic pass runs. With bulge = tan(theta/4), the sub-arc over param
 /// fractions [s0, s1] has theta' = theta * (s1 - s0), so bulge' must
 /// be EXACTLY tan(atan(b) * (s1 - s0)); endpoints are eval(s0)/
 /// eval(s1) bitwise; and the reparameterization law
@@ -120,19 +112,19 @@ fn arc_bulge_restriction_formula_derived_independently() {
 /// radius shrinks it into the band.
 #[test]
 fn split_circle_carrier_intersection_edge() {
-    let out = extrude(&d_profile(), Extrusion::Distance(1.0)).unwrap();
+    let out = extrude(&d_profile(), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let mut body: Body<f64> = out.body;
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let (edge, parent) = body
         .edges()
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?.clone();
-            matches!(c.carrier(), geom_curves::Curve3::Circle { .. }).then_some((k, c))
+            matches!(c.carrier(), geom::Curve3::Circle { .. }).then_some((k, c))
         })
         .expect("the D-body must carry a circular rim");
     let (t0, t1) = parent.params();
     let t = t0 + (t1 - t0) * 0.3;
-    let created = body.split_edge(edge, t).unwrap();
+    let created = body.split_edge(edge, t, Tol::witness()).unwrap();
     // RE-PINNED at the M5 PR 9 fix pass: this row used to pin the
     // NotIsoRectangle/VolumeUncomputable refusal here, and that pin's
     // failure under PR 9 is the EVIDENCE the du_of_rims repair works.
@@ -145,7 +137,7 @@ fn split_circle_carrier_intersection_edge() {
     // direction) group, so a split rim integrates EXACTLY: tier 3
     // holds straight through the split.
     assert_eq!(
-        validate_geometric(&body),
+        validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3 must survive a rim split since the du_of_rims repair"
     );
@@ -177,8 +169,8 @@ fn split_circle_carrier_intersection_edge() {
     // ask for a split whose arc-length margin (angle * radius,
     // r = 1/sqrt(2)) sits inside the zero band although the raw
     // angular margin is above eps.
-    let eps = Tolerance::get().eps;
-    let geom_curves::Curve3::Circle { radius, .. } = parent.carrier().clone() else {
+    let eps = Tol::witness().get().eps;
+    let geom::Curve3::Circle { radius, .. } = parent.carrier().clone() else {
         panic!("circle carrier vanished");
     };
     assert!(radius < 1.0);
@@ -191,7 +183,7 @@ fn split_circle_carrier_intersection_edge() {
     let angular_margin = eps / radius * 0.9; // meters-margin inside band
     assert!(angular_margin > eps, "probe needs r < 0.9 to be meaningful");
     let err = body
-        .split_edge(created.new_edge, c0 + angular_margin)
+        .split_edge(created.new_edge, c0 + angular_margin, Tol::witness())
         .unwrap_err();
     assert!(
         matches!(
@@ -209,21 +201,23 @@ fn split_circle_carrier_intersection_edge() {
 /// involution, D9 determinism, and the exact negated volume.
 #[test]
 fn revert_extruded_prism_posture() {
-    let out = extrude(&l_profile(), Extrusion::Distance(2.0)).unwrap();
+    let out = extrude(&l_profile(), Extrusion::Distance(2.0), Tol::witness()).unwrap();
     let body: Body<f64> = out.body;
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let original = format!("{body:?}");
-    let vol = topo::mass_properties(&body).unwrap().volume;
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
     assert_eq!(format!("{body:?}"), original, "revert mutated its operand");
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
-        validate_geometric(&reverted),
+        validate_geometric(&reverted, Tol::witness()),
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
@@ -245,11 +239,11 @@ fn revert_extruded_prism_posture() {
 /// `revert` is a bitwise involution and a deterministic function.
 #[test]
 fn revert_curved_body_reverts_via_the_sense_bit() {
-    let out = extrude(&d_profile(), Extrusion::Distance(1.0)).unwrap();
+    let out = extrude(&d_profile(), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let body: Body<f64> = out.body;
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let before = format!("{body:?}");
-    let vol = topo::mass_properties(&body).unwrap().volume;
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -278,11 +272,13 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     // The M3 contract, unchanged, on a curved body.
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
-        validate_geometric(&reverted),
+        validate_geometric(&reverted, Tol::witness()),
         Err(vec![ValidationError::NegativeVolume]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
-    let rvol = topo::mass_properties(&reverted).unwrap().volume;
+    let rvol = topo::mass_properties(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
     assert_eq!(
@@ -297,22 +293,26 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
 /// lifecycle on a real consumer body, not a fixture).
 #[test]
 fn split_then_null_lifecycle_on_prism() {
-    let out = extrude(&l_profile(), Extrusion::Distance(1.0)).unwrap();
+    let out = extrude(&l_profile(), Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let mut body: Body<f64> = out.body;
-    let vol0 = topo::mass_properties(&body).unwrap().volume;
+    let vol0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
         .edges()
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?.clone();
-            matches!(c.carrier(), geom_curves::Curve3::Line { .. }).then_some((k, c))
+            matches!(c.carrier(), geom::Curve3::Line { .. }).then_some((k, c))
         })
         .unwrap();
     let (t0, t1) = curve.params();
-    body.split_edge(edge, t0 + (t1 - t0) * 0.5).unwrap();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    body.split_edge(edge, t0 + (t1 - t0) * 0.5, Tol::witness())
+        .unwrap();
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert_eq!(
-        topo::mass_properties(&body).unwrap().volume.to_bits(),
+        topo::mass_properties(&body, Tol::witness())
+            .unwrap()
+            .volume
+            .to_bits(),
         vol0.to_bits(),
         "split changed the prism's exact volume"
     );
@@ -326,10 +326,10 @@ fn split_then_null_lifecycle_on_prism() {
         )
         .unwrap();
     assert!(matches!(
-        topo::mass_properties(&body).unwrap_err(),
+        topo::mass_properties(&body, Tol::witness()).unwrap_err(),
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());
     body.kev(created.he_plus).unwrap();
-    assert_eq!(validate_geometric(&body), Ok(()));
+    assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }

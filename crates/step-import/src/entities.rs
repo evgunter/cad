@@ -14,10 +14,10 @@
 
 use std::collections::BTreeMap;
 
+use geom::{Curve3, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Mat3, Point3, Vec3};
-use geom_curves::{Curve3, NurbsCurve3};
-use geom_surfaces::{NurbsSurface, Surface};
 
 use crate::chart;
 use crate::error::StepImportError;
@@ -26,6 +26,7 @@ use crate::normalize;
 use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
 use crate::recognize_curve;
+use crate::signed_zero;
 use crate::units::{self, UnitKind};
 use crate::{CurvePromotion, FaceCensus, NormalizationKind, StructureNormalization};
 
@@ -315,21 +316,14 @@ fn as_ref(id: u64, value: &Value, expected: &'static str) -> Result<u64, StepImp
 }
 
 /// `value` as a real (`str::parse::<f64>` — bit-exact against the
-/// writer's printer), with **negative zero normalized to `+0.0`**.
-///
-/// `-0.` is common in the foreign dialect (`DIRECTION('',(1.,0.,-0.))`
-/// on nearly every FreeCAD placement). It denotes the same real number
-/// as `0.`, but it is a different f64 bit pattern, and the importer
-/// compares surface records **bitwise** to restore writer-side key
-/// sharing — so two records identical as geometry would fail to share
-/// a key purely on a printed sign. Normalizing here moves no value
-/// (`-0.0 == 0.0`), states one representative, and is the only
-/// normalization the numeric path performs.
+/// writer's printer), with **negative zero normalized to `+0.0`**
+/// through [`crate::signed_zero`], which carries the argument. This is
+/// the only normalization the numeric path performs.
 fn as_real(id: u64, value: &Value, expected: &'static str) -> Result<f64, StepImportError> {
     match value {
         Value::Number(raw) => raw
             .parse::<f64>()
-            .map(|v| if v == 0.0 { 0.0 } else { v })
+            .map(signed_zero::plus_zero_scalar)
             .map_err(|_| StepImportError::MalformedReal {
                 id,
                 token: raw.clone(),
@@ -677,6 +671,12 @@ impl<'a> Resolver<'a> {
                     u_ref,
                 })
             }
+            // Both radii are read VERBATIM: D3's ring convention
+            // `R > r > 0` is not enforced here. It is enforced at rest,
+            // by `topo::validate`'s tier-3 check 1 (`DegenerateTorus`) —
+            // the one net that covers this door and `sweep::revolve`
+            // alike, so a horn or spindle cannot reach a body's rest
+            // state through either.
             "TOROIDAL_SURFACE" => {
                 let expected = "TOROIDAL_SURFACE(name, #placement, major, minor)";
                 let [_, placement, major, minor] = args.as_slice() else {
@@ -1355,7 +1355,7 @@ impl<'a> Resolver<'a> {
                        promotes certified planes and cylinders, and rings on promoted \
                        planes import; the kernel has no volume construction for a \
                        curved face with rings) or a seamless periodic band on a chart \
-                       the M7-5 band re-mint does not cover (cylinder and torus bands \
+                       the band re-mint does not cover (cylinder and torus bands \
                        normalize; a cone or sphere-zone band would take the same \
                        seam-generator re-mint, extended to its chart)",
             });
@@ -1568,9 +1568,9 @@ impl<'a> Resolver<'a> {
         // axis ∓v_ref and reference direction the sphere's own axis
         // starts AT the north pole (angle 0) and reaches the south at
         // angle π, sweeping through u = π and u = 0 respectively.
-        let v_ref = geometry::plus_zero(axis.cross(u_ref));
-        let north = geometry::plus_zero_point(center + axis * radius);
-        let south = geometry::plus_zero_point(center - axis * radius);
+        let v_ref = signed_zero::plus_zero(axis.cross(u_ref));
+        let north = signed_zero::plus_zero_point(center + axis * radius);
+        let south = signed_zero::plus_zero_point(center - axis * radius);
         let (nv, sv) = (self.mint_id(), self.mint_id());
         vertices.insert(nv, north);
         vertices.insert(sv, south);
@@ -1578,7 +1578,7 @@ impl<'a> Resolver<'a> {
             let eid = self.mint_id();
             let carrier = Curve3::Circle {
                 center,
-                axis: geometry::plus_zero(circle_axis),
+                axis: signed_zero::plus_zero(circle_axis),
                 radius,
                 u_ref: axis,
             };

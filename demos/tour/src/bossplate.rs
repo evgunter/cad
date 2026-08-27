@@ -22,22 +22,23 @@
 
 use std::collections::HashMap;
 
-use pncad::geom_core::{Affine3, Point2, Tolerance, Vec3};
+use pncad::geom_core::{Affine3, Point2, Vec3};
 use pncad::profile::{Profile, SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
+use pncad::geom_core::Tol;
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
-fn plate<S: Scalar>() -> Body<S> {
+fn plate<S: Scalar>(tol: Tol) -> Body<S> {
     // Algebra-authored (LIB-U2 PR-2).
-    let lp = crate::paths::path_polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]);
+    let lp = crate::paths::path_polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(tol)
         .unwrap();
-    extrude(&profile, Extrusion::Distance(S::from_f64(1.0)))
+    extrude(&profile, Extrusion::Distance(S::from_f64(1.0)), tol)
         .unwrap()
         .body
 }
@@ -45,7 +46,7 @@ fn plate<S: Scalar>() -> Body<S> {
 /// The boss: radius 0.5 about (2, 2), three 120° arcs, sketched at
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
-fn boss<S: Scalar>() -> Body<S> {
+fn boss<S: Scalar>(tol: Tol) -> Body<S> {
     // The DECLARED-SUBDIVISION carrier (`circle_split`), not `circle`:
     // this boss is deliberately split into THREE 120-degree arcs of one
     // carrier, because the stop's whole point is a transverse curved
@@ -53,15 +54,12 @@ fn boss<S: Scalar>() -> Body<S> {
     // pins the count. `circle` authors no seam at all (its private
     // lowering is the conventional two-semicircle split), so the split
     // count has to be said out loud; `circle_split` is the door that
-    // says it. Before LIB-RETTAIL this was a raw three-vertex
-    // `ProfileLoop` with hand-computed tan(pi/6) bulges — the same
-    // geometry, said in kernel vocabulary that is no longer presented
-    // surface (Evan's ruling on #413).
     let rim = circle_split(
         Point2::new(S::from_f64(2.0), S::from_f64(2.0)),
         S::from_f64(0.5),
         3,
         S::from_f64(0.0),
+        tol,
     )
     .expect("the three-arc rim authors");
     let lp = rim.into();
@@ -70,18 +68,16 @@ fn boss<S: Scalar>() -> Body<S> {
         S::from_f64(0.0),
         S::from_f64(0.4),
     )));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(S::from_f64(1.2)))
+    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
+    extrude(&profile, Extrusion::Distance(S::from_f64(1.2)), tol)
         .unwrap()
         .body
 }
 
 /// The union (a seamed boolean body — 3′ validates with its own
 /// declared contacts, like every boolean stop).
-pub fn build<S: Scalar>() -> BooleanBody<S> {
-    match pncad::topo::union(&plate::<S>(), &boss::<S>())
+pub fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
+    match pncad::topo::union(&plate::<S>(tol), &boss::<S>(tol), tol)
         .expect("the first transverse curved boolean")
     {
         BooleanResult::Body(bb) => bb,
@@ -93,8 +89,8 @@ pub fn build<S: Scalar>() -> BooleanBody<S> {
 /// segment of every seam arc (the z = 1, r = 0.5 circles) is an edge
 /// of exactly TWO triangles — the curved wall's and the ringed top
 /// face's — through the SAME mesh vertex ids.
-fn assert_seam_chords_shared(body: &Body<f64>, delta: f64) -> usize {
-    let mesh = pncad::mesh::tessellate(body, delta).expect("boss∪plate tessellates");
+fn assert_seam_chords_shared(body: &Body<f64>, delta: f64, tol: Tol) -> usize {
+    let mesh = pncad::mesh::tessellate(body, delta, tol).expect("boss∪plate tessellates");
     pncad::mesh::validate::check_mesh(&mesh).expect("watertight");
     let mut uses: HashMap<(u32, u32), u32> = HashMap::new();
     for patch in &mesh.patches {
@@ -135,22 +131,29 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64) -> usize {
 }
 
 /// The showcase stop.
-pub fn stops() -> Vec<Stop> {
-    let bb = build::<f64>();
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let bb = build::<f64>(tol);
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
-    let vol = pncad::topo::mass_properties(&bb.body).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&bb.body, tol).unwrap().volume;
     assert!(
         (vol - expect).abs() < 1e-6,
         "vol(plate∪boss) = {vol}, closed form {expect}"
     );
-    let seam_arcs = assert_seam_chords_shared(&bb.body, 1e-2);
+    let seam_arcs = assert_seam_chords_shared(&bb.body, 1e-2, tol);
     vec![Stop {
         name: "bossplate",
         // Short — montage captions share the panel's width (review
         // NOTE: the long form truncated and collided with its
         // neighbour); the story/note carry the long narration.
         caption: "boss ∪ plate (first curved boolean)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the M9-5 consolidation: `twopeg`
+        // builds FOUR of exactly this transverse curved boolean (two
+        // peg unions, two bore subtracts) on its way to the mate, so
+        // the sheet keeps the op and spends one cell pair instead of
+        // three. This stop keeps its standalone render and its
+        // shared-chord watertightness pin, which is the claim no other
+        // scene makes.
+        montage: false,
         story: "a cylindrical boss unioned into a plate — the milestone's first \
                 transverse curved boolean, rendered",
         ops: "extrude(plate) ∪ extrude(three-arc boss); seam = 3 exact Circle arcs \
@@ -180,7 +183,7 @@ pub fn stops() -> Vec<Stop> {
             if contact_free {
                 SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
             } else {
-                SceneBody::seamed_curved("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
+                SceneBody::seamed("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
             }
         }],
     }]

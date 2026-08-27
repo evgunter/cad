@@ -1,41 +1,309 @@
-//! The clause-(i) debt lane's census count assertion (the standing
-//! rule on [`geom_core::k_stats::decide_flagged`]; the lane is tracked
-//! as issue #214): **no new `decide_flagged` site ships without a
-//! ledger row** in `docs/predicate-dimension-audit.md`. This test pins
-//! the number of SHIPPED call sites (crate `src/` trees — fixtures and
-//! demos carry prose reasons instead of rows and are not counted) to
-//! the ledger's inventory: F2 ×4, F10 ×1 (one loop over seven
-//! rigidity residuals), F13 ×1, F14 ×1, F15 ×1 — **8 sites**.
+//! The clause-(i) debt lane's census (the standing rule on
+//! [`geom_core::k_stats::decide_flagged`]; the lane is tracked as issue
+//! #214): **no new `decide_flagged` site ships without a ledger row**
+//! in `docs/predicate-dimension-audit.md`. Two assertions carry it,
+//! over the SHIPPED call sites only (crate `src/` trees — fixtures and
+//! demos carry prose reasons instead of rows and are not counted):
 //!
-//! Adding a site without updating BOTH the ledger and this count fails
+//! 1. the number of sites matches the ledger's inventory — F2 ×4,
+//!    F10 ×1 (one loop over seven rigidity residuals), F13 ×1, F14 ×1,
+//!    F15 ×1, **8 sites**. This total is hand-synced; see
+//!    [`LEDGER_FLAGGED_SITES`].
+//! 2. every site's `ledger_row` argument names a row the ledger
+//!    actually has. This one is computed from the document.
+//!
+//! (2) is what makes the fourth parameter mean something. Without it
+//! the argument reaches no recorder, no column and no assertion, so a
+//! site citing `"F16"` — or citing a row renumbered out from under it
+//! — reads as a discharged obligation and is a string.
+//!
+//! Adding a site without updating BOTH the ledger and the count fails
 //! the suite; retiring a flagged family (its own unit) decrements it.
-//! The count only moves together with the ledger — the rule enforces
-//! itself.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// The ledger's current shipped `decide_flagged` inventory.
+///
+/// **This number is hand-synced and nothing derives it.** It is kept
+/// level by hand with the audit's own prose inventory; the sibling
+/// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
+/// reads its rows out of the audit and does compute.
 const LEDGER_FLAGGED_SITES: usize = 8;
 
-fn count_in_tree(dir: &Path, hits: &mut Vec<(PathBuf, usize)>) {
+/// One shipped call site: where it is, and the row it cites.
+#[derive(Debug)]
+struct Site {
+    file: PathBuf,
+    line: usize,
+    ledger_row: String,
+}
+
+/// The offset, within the text just after the identifier, of the `(` that
+/// opens the call — skipping whitespace and an optional turbofish.
+///
+/// **A turbofish call is a call.** `decide_flagged::<f64>(…)` is the same
+/// shipped site as `decide_flagged(…)`, and a scan that required `(` to
+/// follow the identifier immediately would skip it silently and leave its
+/// ledger row unverified — the undercount direction this file refuses
+/// everywhere else. The generic *definition* is not swept up with it:
+/// `pub fn decide_flagged<T: Decide>(` has a bare `<`, never `::<`.
+///
+/// **Anything that opens a turbofish and does not resolve to a `(` is a
+/// panic, never a quiet "no call here."** Angle depth is counted over `<`
+/// and `>` alone, so an arrow or a comparison inside the type arguments
+/// breaks the balance — and both the unbalanced case and the
+/// balanced-but-misplaced case stop the census, because a site the scan
+/// cannot read is a site it must not drop. No such site exists today.
+fn skip_turbofish(rest: &str, at: usize) -> usize {
+    let mut k = rest.len() - rest.trim_start().len();
+    if !rest[k..].starts_with("::") {
+        return k;
+    }
+    let after_colons = k + 2;
+    let angle =
+        after_colons + (rest[after_colons..].len() - rest[after_colons..].trim_start().len());
+    if !rest[angle..].starts_with('<') {
+        return k;
+    }
+    let mut depth = 0usize;
+    let mut end = None;
+    for (off, c) in rest[angle..].char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(angle + off + 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let end = end.unwrap_or_else(|| {
+        panic!(
+            "a `decide_flagged::<…>` turbofish at byte {at} has unbalanced angle brackets, so \
+             this census cannot tell a call site from a mention. Rather than skip it — which \
+             would undercount the shipped tree — the census stops here. Spell the site without \
+             a turbofish, or teach `skip_turbofish` the form it uses."
+        )
+    });
+    k = end + (rest[end..].len() - rest[end..].trim_start().len());
+    // A turbofish was consumed, so this IS a call site. If the scan did not
+    // land on its `(`, the angle balance was wrong — an arrow or a comparison
+    // inside the type arguments will do it — and returning quietly here would
+    // drop a shipped site. Stop instead.
+    assert!(
+        rest[k..].starts_with('('),
+        "a `decide_flagged` turbofish at byte {at} did not resolve to a call: after its type \
+         arguments the scan is at {:?}, not `(`. Angle depth is counted over `<` and `>` alone, \
+         so an arrow or comparison inside the type arguments breaks it. The census stops rather \
+         than skipping a shipped site.",
+        &rest[k..rest.len().min(k + 24)]
+    );
+    k
+}
+
+/// Finds every `decide_flagged(…)` call in `text`.
+///
+/// **What this pattern matches**: the identifier, then an optional
+/// turbofish, then `(` — under every import spelling
+/// (`geom_core::k_stats::decide_flagged(`, `k_stats::decide_flagged(`,
+/// and the bare `decide_flagged(` a `use` makes available) and with or
+/// without explicit type arguments ([`skip_turbofish`]). Keying on a
+/// path prefix instead would make the census a statement about how calls
+/// are SPELLED rather than about how many there are.
+///
+/// **What it cannot match, and nothing here would notice:** a call
+/// through a renamed import (`use …::decide_flagged as df;`) and a call
+/// generated by a macro.
+///
+/// **What it recognises as prose is narrower than "a comment", and the
+/// gap is stated because this file's standard is to say exactly what the
+/// pattern sees:** a line whose FIRST non-space characters are `//` is
+/// skipped before the site is read at all. A mention *after* code on the
+/// same line (`foo(); // decide_flagged(x)`) and a mention inside a
+/// `/* … */` block are not recognised, so a malformed one there stops
+/// the census. That is the loud direction and no such text exists, but
+/// it is an overcount, not a blind spot, and the two are different.
+///
+/// **Three near-misses are deliberately NOT blind spots, because each
+/// stops the census instead of being skipped:** a `ledger_row` that is
+/// not a string literal (a `const`, a field, a table entry); a turbofish
+/// whose angle brackets never close; and a turbofish that closes but does
+/// not land on the call's `(`, which an arrow in the type arguments
+/// causes. The asymmetry is the rule this file is built on — a census
+/// that skips a site reports a smaller tree than the one that ships, so
+/// anything it cannot read it refuses to pass over. The converse is why
+/// the line-prefix check runs FIRST, before any of those three: a
+/// commented-out mention on its own line must not stop anything.
+///
+/// **`src/` is this census's proxy for "shipped", and the proxy is not
+/// exact**: an in-file `#[cfg(test)]` module lives in `src/` and ships
+/// in no build, so a `decide_flagged` call written there is COUNTED.
+/// There are none in the tree, and the failure is the safe direction —
+/// the count stops matching and the message names the file and line. The
+/// fix for such a site is to move the fixture to the crate's `tests/`
+/// tree, which this scan does not walk. Teaching this scan to parse Rust
+/// modules is not the fix: it buys a scanner, with blind spots of its
+/// own, to excuse a fixture that had no reason to sit in `src/`.
+fn calls_in(text: &str) -> Vec<(usize, String)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while let Some(rel) = text[i..].find("decide_flagged") {
+        let at = i + rel;
+        i = at + "decide_flagged".len();
+        // Not a longer identifier ending in this name, and not the
+        // definition (`fn decide_flagged<T: Decide>(`, whose next
+        // character is `<`).
+        let prev_ok = at == 0 || {
+            let p = bytes[at - 1];
+            !(p.is_ascii_alphanumeric() || p == b'_')
+        };
+        if !prev_ok {
+            continue;
+        }
+        // Doc and line comments mention the name in prose. This is checked
+        // BEFORE the turbofish scan, not after: that scan stops the census
+        // on anything it cannot read, and a commented-out mention is not a
+        // site, so reading it first would turn prose into a build failure.
+        let line_start = text[..at].rfind('\n').map_or(0, |n| n + 1);
+        if text[line_start..at].trim_start().starts_with("//") {
+            continue;
+        }
+        let rest = &text[i..];
+        let open = skip_turbofish(rest, at);
+        if rest[open..].starts_with('(') {
+            let line = text[..at].lines().count();
+            out.push((line, args_of(&text[i + open + 1..])));
+            i += open + 1;
+        }
+    }
+    out.into_iter()
+        .map(|(line, args)| (line, fourth_argument(&args)))
+        .collect()
+}
+
+/// The raw text of a call's argument list, from just after `(` to its
+/// matching `)`. Tracks string and char literals so a comma or paren
+/// inside a predicate name does not split the list, and strips line
+/// comments so one inside a multi-line call does not either.
+fn args_of(after_open: &str) -> String {
+    let mut depth = 1usize;
+    let mut out = String::new();
+    let mut chars = after_open.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                out.push(c);
+                while let Some(d) = chars.next() {
+                    out.push(d);
+                    if d == '\\' {
+                        if let Some(e) = chars.next() {
+                            out.push(e);
+                        }
+                    } else if d == '"' {
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'/') => {
+                for d in chars.by_ref() {
+                    if d == '\n' {
+                        out.push('\n');
+                        break;
+                    }
+                }
+            }
+            '(' | '[' | '{' => {
+                depth += 1;
+                out.push(c);
+            }
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return out;
+                }
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    panic!("unterminated decide_flagged argument list: {after_open:.120}");
+}
+
+/// The fourth top-level argument, which must be a string literal.
+fn fourth_argument(args: &str) -> String {
+    let mut depth = 0usize;
+    let mut parts = vec![String::new()];
+    let mut chars = args.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                parts.last_mut().unwrap().push(c);
+                while let Some(d) = chars.next() {
+                    parts.last_mut().unwrap().push(d);
+                    if d == '\\' {
+                        if let Some(e) = chars.next() {
+                            parts.last_mut().unwrap().push(e);
+                        }
+                    } else if d == '"' {
+                        break;
+                    }
+                }
+            }
+            '(' | '[' | '{' | '<' => {
+                depth += 1;
+                parts.last_mut().unwrap().push(c);
+            }
+            ')' | ']' | '}' | '>' => {
+                depth = depth.saturating_sub(1);
+                parts.last_mut().unwrap().push(c);
+            }
+            ',' if depth == 0 => parts.push(String::new()),
+            _ => parts.last_mut().unwrap().push(c),
+        }
+    }
+    let fourth = parts
+        .get(3)
+        .unwrap_or_else(|| panic!("decide_flagged call with fewer than 4 arguments: {args:.200}"))
+        .trim();
+    fourth
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .unwrap_or_else(|| {
+            panic!(
+                "a decide_flagged site cites its ledger row as `{fourth}`, not a string literal. \
+                 The census can only verify literals; give the site its row directly, or teach \
+                 this test to resolve the indirection — do not leave it unchecked."
+            )
+        })
+        .to_string()
+}
+
+fn count_in_tree(dir: &Path, hits: &mut Vec<Site>) {
     for entry in std::fs::read_dir(dir).expect("readable src tree") {
         let path = entry.expect("dir entry").path();
         if path.is_dir() {
             count_in_tree(&path, hits);
         } else if path.extension().is_some_and(|e| e == "rs") {
             let text = std::fs::read_to_string(&path).expect("readable source file");
-            let n = text.matches("k_stats::decide_flagged(").count();
-            if n > 0 {
-                hits.push((path.clone(), n));
+            for (line, ledger_row) in calls_in(&text) {
+                hits.push(Site {
+                    file: path.clone(),
+                    line,
+                    ledger_row,
+                });
             }
         }
     }
 }
 
-#[test]
-fn shipped_decide_flagged_sites_match_the_ledger() {
+fn shipped_sites() -> (PathBuf, Vec<Site>) {
     // geom-core sits at <workspace>/crates/geom-core.
     let crates_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -48,12 +316,60 @@ fn shipped_decide_flagged_sites_match_the_ledger() {
             count_in_tree(&src, &mut hits);
         }
     }
-    let total: usize = hits.iter().map(|(_, n)| n).sum();
+    hits.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
+    (crates_root, hits)
+}
+
+#[test]
+fn shipped_decide_flagged_sites_match_the_ledger() {
+    let (_, hits) = shipped_sites();
     assert_eq!(
-        total, LEDGER_FLAGGED_SITES,
+        hits.len(),
+        LEDGER_FLAGGED_SITES,
         "shipped decide_flagged sites diverged from the ledger's inventory \
          (docs/predicate-dimension-audit.md, clause-(i) section; issue #214). \
          A new site needs a ledger row FIRST, then this count moves with it. \
          Sites found: {hits:#?}"
     );
+}
+
+#[test]
+fn every_shipped_site_cites_a_ledger_row_that_exists() {
+    let (crates_root, hits) = shipped_sites();
+    let audit = crates_root
+        .parent()
+        .expect("workspace root")
+        .join("docs/predicate-dimension-audit.md");
+    let text = std::fs::read_to_string(&audit).expect("readable predicate-dimension audit");
+    // Rows are `- **F13** …` bullets; F1's heading carries a
+    // parenthetical before the closing `**`, so the number is read up
+    // to the first non-digit.
+    let rows: BTreeSet<String> = text
+        .lines()
+        .filter_map(|l| l.strip_prefix("- **F"))
+        .map(|r| {
+            let digits: String = r.chars().take_while(char::is_ascii_digit).collect();
+            format!("F{digits}")
+        })
+        .filter(|r| r.len() > 1)
+        .collect();
+    assert!(
+        !rows.is_empty(),
+        "no `- **FNN**` row bullets found in {}: the ledger's format changed and this check \
+         became vacuous",
+        audit.display()
+    );
+    for site in &hits {
+        assert!(
+            rows.contains(&site.ledger_row),
+            "{}:{} cites ledger row `{}`, which {} does not have. The rule the parameter \
+             stands for is that a flagged site is argued for in the audit; a citation that \
+             resolves to nothing is a string. Rows present: {:?}",
+            site.file.display(),
+            site.line,
+            site.ledger_row,
+            audit.display(),
+            rows
+        );
+    }
 }

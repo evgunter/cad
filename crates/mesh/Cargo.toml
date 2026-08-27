@@ -24,28 +24,44 @@ interval = [
 # for why Probe is opt-in (it is a `Real` instantiation, so it
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).
+#
 probe = [
     "geom-core/probe",
     "geom-brep/probe",
     "topo/probe",
 ]
 
-# The tessellation budget meter (issue #320): the per-face telemetry
-# `mesh::budget` records and `tools/tess-lint` consumes. OPT-IN, gated
-# at the module boundary — with the feature off, `budget::armed()` is a
-# constant `false` and every recording branch in the tessellation lane
-# folds away, so a shipped build carries no telemetry state at all. The
-# lane itself has no `#[cfg]` in it: the call sites are shared and only
-# the module behind them changes, which is what keeps the two
-# configurations from drifting. `demo-tour tess-budget` is the consumer
+# The tessellation budget meter (issue #320): the per-face measurements
+# `mesh::budget` records, `tools/tess-meter` turns into rows and
+# `tools/tess-lint` gates. OPT-IN, gated at the module boundary — with
+# the feature off, `budget::armed()` is a `const fn` answering `false`
+# and `deviation_samples()` a `const fn` answering `None`, so every
+# recording branch in the tessellation lane (the per-triangle
+# resampling included) folds away and a shipped build carries no
+# telemetry state at all. The lane itself has no `#[cfg]` in it: the
+# call sites are shared and only the module behind them changes, which
+# is what keeps the two configurations from drifting.
+#
+# NAME CAUTION: `probe` above is a SCALAR-forwarding feature and has
+# nothing to do with this one. `probe` propagates a `Real`
+# instantiation to dependencies and adds no `mesh` code.
+#
+# The measurement TYPES are public either way — they are the contract
+# with `tools/tess-meter` and they are data. What this feature adds is
+# the instrument: the thread-local, `arm`, `take`, and the recording
+# the lane does between them. `demo-tour tess-budget` is the consumer
 # (via pncad's forward of the same name).
+#
+# Its own CI row (`mesh budget meter`, ci.yml + ci-local.sh) runs
+# clippy and the suite here, because the default rows exercise the
+# INERT half. That row also carries the per-triangle certificate
+# falsifier, whose measurements this feature is what produces.
 budget = []
 
 [dependencies]
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-geom-curves = { path = "../geom-curves" }
-geom-surfaces = { path = "../geom-surfaces" }
+geom = { path = "../geom" }
 topo = { path = "../topo" }
 # Constrained Delaunay triangulation (ratified crate table; version,
 # license, and release-age vetting in the workspace dependency table).

@@ -61,6 +61,7 @@ pub(super) fn insert_null_pairs<T: Decide>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
+    declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
     let survivors: Vec<&PairRecord> = records.iter().filter(|r| r.intersect).collect();
@@ -118,8 +119,22 @@ pub(super) fn insert_null_pairs<T: Decide>(
         // direction is chosen.
         let g0_faces = (a_sectors[r0.a].face, b_sectors[r0.b].face);
         let g1_faces = (a_sectors[r1.a].face, b_sectors[r1.b].face);
-        let g0_dir = germ_dir(&a_sectors[r0.a], &b_sectors[r0.b], band)?;
-        let g1_dir = germ_dir(&a_sectors[r1.a], &b_sectors[r1.b], band)?;
+        let g0_dir = record_germ_dir(
+            a_body,
+            b_body,
+            &a_sectors[r0.a],
+            &b_sectors[r0.b],
+            declared,
+            band,
+        )?;
+        let g1_dir = record_germ_dir(
+            a_body,
+            b_body,
+            &a_sectors[r1.a],
+            &b_sectors[r1.b],
+            declared,
+            band,
+        )?;
         let (a_rec, a_swapped) = mint_directed(
             a_body,
             Operand::A,
@@ -249,6 +264,57 @@ fn anchor_dir<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<Vec3<T>, Boo
     Ok(d.normalize())
 }
 
+/// The record's germ direction, by declared class: a `Tangent` pair's
+/// sector normals are PARALLEL along the contact (the tangency), so
+/// its germ direction is the verified closed-form locus
+/// ([`super::rest::tangent_locus`] — the DEV-1 witness the door
+/// derived), signed into the sector pair by the same membership test;
+/// every other pair takes the transverse normal cross ([`germ_dir`]).
+fn record_germ_dir<T: Decide>(
+    a_body: &Body<T>,
+    b_body: &Body<T>,
+    sa: &BoolSector<T>,
+    sb: &BoolSector<T>,
+    declared: &super::DeclaredPairs,
+    band: Band,
+) -> Result<Vec3<T>, BooleanError> {
+    if declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
+        != Some(crate::contact::ContactClass::Tangent)
+    {
+        return germ_dir(sa, sb, band);
+    }
+    let surface_of = |body: &Body<T>, face| {
+        body.get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .cloned()
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "declared-Tangent face lost its surface",
+            })
+    };
+    let s_a = surface_of(a_body, sa.face)?;
+    let s_b = surface_of(b_body, sb.face)?;
+    let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
+        Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
+        Err(super::rest::TangentLocusError::Escalated(diag)) => {
+            return Err(BooleanError::Escalated { diag });
+        }
+        Err(_) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "declared-Tangent germ without a closed-form locus",
+            });
+        }
+    };
+    let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;
+    let minus = within(sa, -d, false, band)? && within(sb, -d, false, band)?;
+    match (plus, minus) {
+        (true, false) => Ok(d),
+        (false, true) => Ok(-d),
+        _ => Err(BooleanError::ClassificationInvariant {
+            what: "germ direction not uniquely within its sector pair",
+        }),
+    }
+}
+
 /// The germ's outgoing direction: the unit intersection direction of
 /// the two sector faces' planes, signed to lie within both sectors
 /// (grazes count — an on-bound germ's direction IS the bound). An
@@ -264,7 +330,7 @@ fn germ_dir<T: Decide>(
     sb: &BoolSector<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    let int = sa.normal.cross(sb.normal);
+    let int = sa.normal.vec().cross(sb.normal.vec());
     let arm = sa.arm.min(sb.arm);
     match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
         Ok(Sign::Positive) => {}
@@ -471,6 +537,7 @@ fn mint_run<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     /// The survivor-validation invariants: odd counts and dirty codes
     /// refuse loudly (unit-level; the geometric paths are pinned by the
@@ -484,8 +551,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut a = crate::fixtures::ops_cube().body;
-        let mut b = crate::fixtures::ops_cube().body;
+        let mut a = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut b = crate::fixtures::ops_cube(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -499,7 +566,8 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            &crate::boolean::DeclaredPairs::default(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
@@ -511,7 +579,8 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            &crate::boolean::DeclaredPairs::default(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
@@ -532,8 +601,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube().body;
-        let mut bbody = crate::fixtures::ops_cube().body;
+        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -553,7 +622,8 @@ mod tests {
             &[],
             &[],
             &recs,
-            geom_core::Band::linear().unwrap(),
+            &crate::boolean::DeclaredPairs::default(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap_err();
         assert!(
@@ -579,13 +649,13 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube().body;
-        let mut bbody = crate::fixtures::ops_cube().body;
+        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).
         let sectors_of = |body: &Body<f64>,
-                          normal: geom_core::Vec3<f64>,
+                          normal: geom_brep::OutwardNormal<f64>,
                           start: geom_core::Vec3<f64>,
                           end: geom_core::Vec3<f64>| {
             let (vk, v) = body.vertices().next().unwrap();
@@ -609,13 +679,13 @@ mod tests {
         // z×x = +y is uniquely within both.
         let (va, a_sectors) = sectors_of(
             &abody,
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(0.0, 0.0, 1.0), true),
             geom_core::Vec3::new(1.0, 0.0, 0.0),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
         );
         let (vb, b_sectors) = sectors_of(
             &bbody,
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_brep::OutwardNormal::from_chart(geom_core::Vec3::new(1.0, 0.0, 0.0), true),
             geom_core::Vec3::new(0.0, 1.0, 0.0),
             geom_core::Vec3::new(0.0, 0.0, 1.0),
         );
@@ -635,7 +705,8 @@ mod tests {
             &a_sectors,
             &b_sectors,
             &recs,
-            geom_core::Band::linear().unwrap(),
+            &crate::boolean::DeclaredPairs::default(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
         )
         .unwrap();
         assert_eq!(out.pairs.len(), 2);
