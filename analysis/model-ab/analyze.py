@@ -69,7 +69,7 @@ def load():
     return rows
 
 
-RANDOMIZED = ("v2", "v3")   # v2 = opus/fable pairs, v3 = {opus,opus,fable}
+RANDOMIZED = ("v2", "v3", "v4")  # v2 pairs, v3 triples, v4 {o,o,o,f} blocks
 
 
 def v2_quality(rows):
