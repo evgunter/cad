@@ -75,3 +75,18 @@ MODEL-AB-LOG row. The program-level outcomes:
   winding check).
 - GUI-3 is now unblocked (chrome exists); GUI-2 additionally
   wants GUI-1's service (in fix pass at this writing).
+
+## GUI-1 merged (2026-08-27, PR #1093, sample #30 / ordinal 401)
+
+The hit-test service exists: `Bvh::ray` with the conservative-
+superset contract now magnitude-universal (the review pair's
+bilateral overflow refutation fixed in code — both reviewer
+witnesses gate green), and `ray → StableName` through
+`editor-core::resolve::pick` with typed errors end-to-end plus the
+`NodePick` atomic provenance door (#1098 documents the raw-target
+class it closes). A 9,000-ray reviewer differential against an
+independent oracle found zero disagreements. Census NOT_CARRIED
+stands with both reviewers' endorsement; the curated
+`pncad::select` picking door is banked as a future decision.
+Program consequence: **GUI-2 is unblocked** (viewport selection —
+consumes this service and GUI-0's viewport; block GUI-B1 slot 4).
