@@ -254,6 +254,31 @@ pub(crate) struct ViewportCallback {
     pub(crate) base_color: [f32; 3],
 }
 
+impl ViewportCallback {
+    /// The uniform block, laid out as three 16-byte rows: the matrix's
+    /// four columns, the light direction, and the base colour with the
+    /// ambient term in its fourth lane.
+    ///
+    /// **Built by concatenation, not by indexed writes.** The earlier
+    /// shape wrote each scalar through `block.get_mut(i)` at indices
+    /// that are statically in range — so an index error would have
+    /// silently left a *zeroed* lane in the block, and a zeroed matrix
+    /// row or colour is an unlit or invisible viewport with no error
+    /// anywhere. Concatenation of fixed-size arrays cannot miss a
+    /// lane, and the row structure is visible in the source instead of
+    /// living in arithmetic.
+    fn block(&self) -> [f32; 24] {
+        let [c0, c1, c2, c3] = self.view_projection;
+        let [lx, ly, lz] = self.light_direction;
+        let [r, g, b] = self.base_color;
+        let mut block = [0.0f32; 24];
+        let (matrix, rest) = block.split_at_mut(16);
+        matrix.copy_from_slice(&[c0, c1, c2, c3].concat());
+        rest.copy_from_slice(&[lx, ly, lz, 0.0, r, g, b, AMBIENT]);
+        block
+    }
+}
+
 impl egui_wgpu::CallbackTrait for ViewportCallback {
     fn prepare(
         &self,
@@ -265,30 +290,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
     ) -> Vec<wgpu::CommandBuffer> {
         if let Some(renderer) = resources.get_mut::<ViewportRenderer>() {
             renderer.ensure_geometry(device, &self.scene, self.revision);
-            let mut block = [0.0f32; 24];
-            for (col, values) in self.view_projection.iter().enumerate() {
-                for (row, value) in values.iter().enumerate() {
-                    if let Some(slot) = block.get_mut(col * 4 + row) {
-                        *slot = *value;
-                    }
-                }
-            }
-            for (i, value) in self.light_direction.iter().enumerate() {
-                if let Some(slot) = block.get_mut(16 + i) {
-                    *slot = *value;
-                }
-            }
-            for (i, value) in self.base_color.iter().enumerate() {
-                if let Some(slot) = block.get_mut(20 + i) {
-                    *slot = *value;
-                }
-            }
-            // The colour row's fourth lane carries the ambient term:
-            // three 16-byte rows, no fourth one for a single scalar.
-            if let Some(slot) = block.get_mut(23) {
-                *slot = AMBIENT;
-            }
-            queue.write_buffer(&renderer.uniforms, 0, bytemuck::cast_slice(&block));
+            queue.write_buffer(&renderer.uniforms, 0, bytemuck::cast_slice(&self.block()));
         }
         Vec::new()
     }

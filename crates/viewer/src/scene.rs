@@ -46,11 +46,28 @@ impl DisplayTolerance {
     /// A display tolerance, refused unless finite and strictly
     /// positive.
     ///
+    /// **What this door checks is exactly that, and no more.** It is
+    /// `mesh::tessellate`'s `InvalidChordalTolerance` condition —
+    /// `chordal.is_finite() && chordal > 0.0` — hoisted so a caller
+    /// meets it once at construction rather than at every call.
+    ///
+    /// **What it does NOT foreclose**, stated because the first
+    /// version of this sentence implied it did: a δ that is a valid
+    /// length but too fine for a *particular* body still refuses
+    /// downstream, typed, as
+    /// [`SceneError::NotTessellated`] — `f64::MIN_POSITIVE` is
+    /// accepted here and produces `ResolutionOverflow` at
+    /// tessellation. That residual is body-dependent (it is a function
+    /// of δ against the body's own extent and curvature), so this
+    /// door, which sees no body, cannot answer it. Answering it here
+    /// would mean re-deriving the tessellator's sizing rule in a
+    /// second place — a second opinion about another crate's refusal,
+    /// which is worse than a narrower door with an honest doc.
+    ///
     /// # Errors
     ///
-    /// [`SceneError::InvalidDisplayTolerance`] — the same condition
-    /// `mesh::tessellate` refuses, checked at the door instead of
-    /// four call sites later.
+    /// [`SceneError::InvalidDisplayTolerance`] for a δ that is not a
+    /// finite, strictly positive length.
     pub fn new(delta: f64) -> Result<Self, SceneError> {
         if delta.is_finite() && delta > 0.0 {
             Ok(Self(delta))
@@ -93,6 +110,22 @@ pub enum SceneError {
     /// bounding box — nothing to look at, and nothing to frame a
     /// camera against.
     EmptyMesh,
+    /// A face patch named a vertex index outside the mesh's shared
+    /// position table.
+    ///
+    /// Its own arm because it is a **broken mesh**, not a display
+    /// outcome: `EmptyMesh` says "this body drew nothing", which a
+    /// caller might reasonably show as an empty viewport, while this
+    /// says the tessellator's two halves disagree and nothing about
+    /// the scene can be trusted. One arm for both made the code's own
+    /// comment ("a broken mesh, not a display choice") a correction of
+    /// the arm it was returning.
+    BrokenPatchIndex {
+        /// The out-of-range index.
+        index: u32,
+        /// How many positions the table actually holds.
+        positions: usize,
+    },
 }
 
 /// A drawable scene: triangles with flat normals, plus what they came
@@ -139,7 +172,9 @@ impl SceneMesh {
     /// # Errors
     ///
     /// [`SceneError::EmptyMesh`] when the tessellation carries no
-    /// triangle, or no finite bounding box.
+    /// triangle, or no finite bounding box;
+    /// [`SceneError::BrokenPatchIndex`] when a patch names a vertex
+    /// the shared position table does not have.
     pub fn build(mesh: &Mesh, delta: DisplayTolerance) -> Result<Self, SceneError> {
         let triangles: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
         if triangles == 0 {
@@ -151,9 +186,16 @@ impl SceneMesh {
             for corners in &patch.triangles {
                 let Some(corner_points) = fetch(&mesh.positions, corners) else {
                     // A patch index outside the shared position table
-                    // is a broken mesh, not a display choice: drop the
-                    // whole scene rather than a silent triangle.
-                    return Err(SceneError::EmptyMesh);
+                    // is a broken mesh: refuse the whole scene, naming
+                    // the index, rather than dropping a triangle.
+                    return Err(SceneError::BrokenPatchIndex {
+                        index: corners
+                            .iter()
+                            .copied()
+                            .find(|i| *i as usize >= mesh.positions.len())
+                            .unwrap_or_default(),
+                        positions: mesh.positions.len(),
+                    });
                 };
                 let normal = triangle_normal(&corner_points);
                 for p in corner_points {
@@ -194,8 +236,16 @@ impl SceneMesh {
         &self.indices
     }
 
-    /// The scene's bounding box, in world units — what a camera
+    /// A bounding box of the scene, in world units — what a camera
     /// frames against.
+    ///
+    /// Taken over the tessellation's whole shared position table, not
+    /// over the corners actually emitted into
+    /// [`SceneMesh::positions`]. The two coincide whenever every mesh
+    /// vertex is used by some patch, which is the tessellator's normal
+    /// output; when they do not, this is the **superset**, so a camera
+    /// framed on it still contains everything drawn. That is the safe
+    /// direction, and it is stated rather than claimed as identity.
     pub fn bounds(&self) -> Aabb {
         self.bounds
     }
@@ -206,6 +256,20 @@ impl SceneMesh {
     }
 }
 
+/// The spike's plate, in canonical metres: 60 × 40 × 8 mm.
+///
+/// **The one home for these numbers.** They are the plate's identity,
+/// and a test fixture that restates them is a copy that goes on
+/// testing a box the scene no longer has the day the plate changes.
+/// [`plate_with_hole`] authors from these, and every consumer that
+/// needs the plate's shape without evaluating it — a camera fixture,
+/// an expected-bounds assertion — reads them here.
+pub const PLATE_EXTENT: [f64; 3] = [0.060, 0.040, 0.008];
+
+/// The radius of [`plate_with_hole`]'s through hole, canonical metres
+/// (⌀24 mm). Same reason as [`PLATE_EXTENT`].
+pub const PLATE_HOLE_RADIUS: f64 = 0.012;
+
 /// The spike's document: a plate with a through hole.
 ///
 /// Authored through the ordinary document doors — one profile node
@@ -215,6 +279,21 @@ impl SceneMesh {
 /// the very first frame, which is what makes a δ change visible at
 /// all.
 ///
+/// Dimensions come from [`PLATE_EXTENT`] and [`PLATE_HOLE_RADIUS`].
+///
+/// # A library finding, recorded at the site
+///
+/// Two ways to give a length live ten lines apart below:
+/// `LoopProgram::polygon` takes bare `(f64, f64)` metres, while
+/// `LoopProgram::Circle` takes `Expr::literal(x, Dimension::Length)`.
+/// Both are canonical metres and both are correct; the asymmetry is
+/// the profile-program vocabulary's, not this scene's, and a user
+/// authoring their first ring meets it immediately. Recorded per
+/// `memories/demo-purpose.md` (awkwardness met while authoring is a
+/// library finding, never quietly worked around) — this unit does not
+/// fix it, because widening `polygon` to expressions is a
+/// `LoopProgram` decision with its own consumers.
+///
 /// # Errors
 ///
 /// Never, as written: the expressions are literal lengths and the
@@ -222,12 +301,13 @@ impl SceneMesh {
 /// because every door it calls does — a scene that silently swallowed
 /// an `EditError` would be a worse example than one that reports it.
 pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
-    // 60 × 40 × 8 mm, hole ⌀24 mm on centre. Canonical metres.
-    let outline = LoopProgram::polygon([(0.0, 0.0), (0.060, 0.0), (0.060, 0.040), (0.0, 0.040)])
+    let [width, depth, thickness] = PLATE_EXTENT;
+    let outline = LoopProgram::polygon([(0.0, 0.0), (width, 0.0), (width, depth), (0.0, depth)])
         .map_err(SceneDocError::Dimension)?;
+    // The hole sits on the plate's centre.
     let hole = LoopProgram::Circle {
-        centre: [length(0.030)?, length(0.020)?],
-        radius: length(0.012)?,
+        centre: [length(width * 0.5)?, length(depth * 0.5)?],
+        radius: length(PLATE_HOLE_RADIUS)?,
     };
     let profile = ProfileProgram {
         plane: SketchPlane::xy(),
@@ -239,7 +319,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         doc,
         Node::Extrude {
             profile: profile_node,
-            distance: length(0.008)?,
+            distance: length(thickness)?,
         },
         tol,
     )?;

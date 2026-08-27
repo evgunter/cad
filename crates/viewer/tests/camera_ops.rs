@@ -9,36 +9,14 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use bvh::Aabb;
-use viewer::camera::{self, Camera, CameraOp, CameraOpError};
+use viewer::camera::{self, Camera, CameraError, CameraOp, CameraOpError};
 
-/// A 60 × 40 × 8 mm box at the origin — the spike's plate, in the
-/// units the kernel works in.
-fn plate_bounds() -> Aabb {
-    Aabb {
-        min_x: 0.0,
-        min_y: 0.0,
-        min_z: 0.0,
-        max_x: 0.060,
-        max_y: 0.040,
-        max_z: 0.008,
-    }
-}
+mod common;
+use common::{corners, plate_bounds};
 
+/// The plate framed on a 16:9 pane.
 fn framed() -> Camera {
-    Camera::framing(&plate_bounds(), 16.0 / 9.0).expect("the plate frames")
-}
-
-/// The eight corners of a box.
-fn corners(b: &Aabb) -> Vec<pncad::geom_core::Point3<f64>> {
-    let mut out = Vec::new();
-    for x in [b.min_x, b.max_x] {
-        for y in [b.min_y, b.max_y] {
-            for z in [b.min_z, b.max_z] {
-                out.push(pncad::geom_core::Point3::new(x, y, z));
-            }
-        }
-    }
-    out
+    common::framed(16.0 / 9.0)
 }
 
 /// A framing that does not actually contain the scene is the one
@@ -62,6 +40,108 @@ fn framing_puts_the_whole_scene_inside_the_frustum() {
             "corner {corner:?} projects outside the depth range at {ndc:?}"
         );
     }
+}
+
+/// **The aspect is load-bearing, two-sidedly.** Containment alone is a
+/// one-sided assertion: the fit backs off by the *smaller* half-angle,
+/// so a projection that forgot to divide x by the aspect still lands
+/// inside `[-1, 1]` at every aspect — both reviewers measured the
+/// dropped-`/aspect` mutant surviving the containment rows above, and
+/// the credit for catching it belonged to a pan row two files away.
+///
+/// This row takes the claim where it is made. It pins the projection's
+/// own algebra: for a fixed camera, scaling the viewport's aspect by
+/// `k` scales the horizontal NDC coordinate by exactly `1/k` and
+/// leaves the vertical one alone. A dropped division reds it, and so
+/// does a division applied to the wrong axis.
+#[test]
+fn framing_uses_the_aspect_it_is_given() {
+    let camera = framed();
+    let probe = pncad::geom_core::Point3::new(0.05, 0.033, 0.006);
+    let base = camera
+        .project(probe, 1.0)
+        .expect("a finite aspect projects")
+        .expect("the probe is in front of the eye");
+    for k in [0.5f64, 1.25, 3.0] {
+        let scaled = camera
+            .project(probe, k)
+            .expect("a finite aspect projects")
+            .expect("the probe is in front of the eye");
+        assert!(
+            (scaled[0] * k - base[0]).abs() < 1e-12,
+            "aspect {k}: x is {} where the projection's own algebra says {}",
+            scaled[0],
+            base[0] / k
+        );
+        assert_eq!(
+            scaled[1], base[1],
+            "aspect {k}: the vertical axis must not depend on the aspect"
+        );
+    }
+    // And the fit is snug, not merely contained: a camera parked at
+    // the far end of the band would satisfy containment and show a
+    // speck. The binding axis must actually reach out toward the edge.
+    for aspect in [0.4f64, 1.0, 2.5] {
+        let camera = Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
+        let worst = corners(&plate_bounds())
+            .into_iter()
+            .map(|corner| {
+                let ndc = camera
+                    .project(corner, aspect)
+                    .expect("a finite aspect projects")
+                    .expect("every corner is in front of the eye");
+                ndc[0].abs().max(ndc[1].abs())
+            })
+            .fold(0.0f64, f64::max);
+        assert!(
+            (0.4..=1.0).contains(&worst),
+            "aspect {aspect}: the framed plate fills {worst} of the frustum — \
+             a fit that loose is not a fit"
+        );
+    }
+}
+
+/// A viewport too narrow to fit the scene refuses, and says what it
+/// needed — it does not clamp into the zoom band and return a camera
+/// that silently fails its own containment postcondition.
+#[test]
+fn a_viewport_too_narrow_to_fit_refuses_rather_than_clamping() {
+    let mut refusals = 0;
+    for aspect in [0.02f64, 0.005, 0.001] {
+        match Camera::framing(&plate_bounds(), aspect) {
+            Err(CameraError::Unfittable {
+                required,
+                max_distance,
+                aspect: reported,
+            }) => {
+                refusals += 1;
+                assert!(
+                    required > max_distance,
+                    "the refusal's own numbers disagree"
+                );
+                assert_eq!(reported, aspect);
+            }
+            Err(other) => panic!("aspect {aspect}: unexpected refusal {other:?}"),
+            Ok(camera) => {
+                // Fitting is the other acceptable answer, but only if
+                // it really fits.
+                for corner in corners(&plate_bounds()) {
+                    let ndc = camera
+                        .project(corner, aspect)
+                        .expect("projects")
+                        .expect("in front of the eye");
+                    assert!(
+                        ndc[0].abs() <= 1.0 && ndc[1].abs() <= 1.0,
+                        "aspect {aspect}: Ok with {corner:?} at {ndc:?} — neither fit nor refused"
+                    );
+                }
+            }
+        }
+    }
+    assert!(
+        refusals > 0,
+        "no aspect in the sweep reached the band's ceiling — the row is measuring nothing"
+    );
 }
 
 /// Framing keeps the orientation it was given: a fit is not a reset.
@@ -156,7 +236,9 @@ fn orbit_saturates_at_the_poles() {
             },
         )
         .expect("a finite orbit");
-        let limit = std::f64::consts::FRAC_PI_2 - 1e-3;
+        // Read from the camera, not restated: a literal here is a
+        // hand-synced copy of a private constant.
+        let limit = Camera::pitch_limit();
         assert!(
             (far.pitch().abs() - limit).abs() < 1e-12,
             "pitch did not saturate: {}",

@@ -29,8 +29,19 @@
 //!   stays under the cursor.
 //! - **Zoom**: a scroll notch is a fixed multiplicative step, so
 //!   zooming is scale-invariant and reversible.
+//!
+//! **The primary (left) button is bound to nothing, on purpose and
+//! only until GUI-2.** It is the button click-to-select takes — the
+//! first of `docs/GUI-DESIGN.md` G3's four items, and GUI-2's whole
+//! subject — so binding it to a navigation move here would be
+//! squatting on the one binding the next unit needs, and unbinding it
+//! again would be a behaviour change a user had already learned.
+//! Reviewers reading a maintainer's first left-drag as inert are
+//! reading it correctly; it is inert because it is reserved.
+//! Navigation lives on middle and secondary, which is mainstream CAD
+//! convention independently of that.
 
-use crate::camera::{Camera, CameraOp};
+use crate::camera::{Camera, CameraOp, Folded};
 
 /// A pointer button, named rather than numbered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -182,31 +193,76 @@ impl InputMap {
     }
 }
 
-/// Map a whole event stream to the operations it denotes, dropping
-/// the events bound to none.
+/// Fold an event stream through the camera: map each event to the
+/// operation it denotes, apply it, and stop at the first refusal —
+/// **recording** it rather than discarding the progress.
 ///
 /// The camera advances between events, which is what makes the answer
 /// faithful: a pan's world-per-pixel rate depends on the distance a
-/// preceding scroll left behind.
+/// preceding scroll left behind. Events bound to no operation are
+/// dropped, which is the mapping's own answer and not a refusal
+/// ([`InputMap::map`] returns `None` for them).
+///
+/// **This is the fold the viewport runs.** It is also, through
+/// [`map_stream`]'s `Result` view, the fold the tests run — one
+/// implementation, so the shipped path and the tested path cannot
+/// diverge in semantics the way three hand-rolled copies did.
+pub fn fold_events<'a>(
+    map: &InputMap,
+    camera: &Camera,
+    viewport: ViewportSize,
+    events: impl IntoIterator<Item = &'a ViewportEvent>,
+) -> Folded {
+    let mut current = *camera;
+    let mut applied = Vec::new();
+    for event in events {
+        let Some(op) = map.map(event, viewport, &current) else {
+            continue;
+        };
+        match crate::camera::apply(&current, &op) {
+            Ok(next) => {
+                current = next;
+                applied.push(op);
+            }
+            Err(error) => {
+                return Folded {
+                    camera: current,
+                    applied,
+                    refused: Some((op, error)),
+                };
+            }
+        }
+    }
+    Folded {
+        camera: current,
+        applied,
+        refused: None,
+    }
+}
+
+/// Map a whole event stream to the operations it denotes, dropping
+/// the events bound to none.
+///
+/// The `Result` view of [`fold_events`], for callers that only need
+/// the verdict.
 ///
 /// # Errors
 ///
-/// The first [`crate::CameraOpError`] the produced operations
-/// provoke — the camera at that point is the last good one.
+/// The first [`crate::CameraOpError`] the produced operations provoke.
+/// **The `Err` arm carries the refusal and nothing else** — a caller
+/// that also needs the camera the fold reached before it, or the
+/// operations that did apply, calls [`fold_events`], which returns
+/// both. (This sentence used to promise a camera the type does not
+/// carry; `fold_events` is the door that keeps the promise.)
 pub fn map_stream<'a>(
     map: &InputMap,
     camera: &Camera,
     viewport: ViewportSize,
     events: impl IntoIterator<Item = &'a ViewportEvent>,
 ) -> Result<(Camera, Vec<CameraOp>), crate::CameraOpError> {
-    let mut current = *camera;
-    let mut ops = Vec::new();
-    for event in events {
-        let Some(op) = map.map(event, viewport, &current) else {
-            continue;
-        };
-        current = crate::camera::apply(&current, &op)?;
-        ops.push(op);
+    let folded = fold_events(map, camera, viewport, events);
+    match folded.refused {
+        Some((_, error)) => Err(error),
+        None => Ok((folded.camera, folded.applied)),
     }
-    Ok((current, ops))
 }

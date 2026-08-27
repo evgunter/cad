@@ -13,10 +13,12 @@ use pncad::geom_core::Tol;
 use viewer::camera::Camera;
 use viewer::scene::{self, DisplayTolerance, SceneError};
 
-/// The plate's nominal dimensions and hole, in metres — the numbers
-/// `scene::plate_with_hole` authors.
-const PLATE: [f64; 3] = [0.060, 0.040, 0.008];
-const HOLE_RADIUS: f64 = 0.012;
+mod common;
+
+/// The plate's nominal dimensions, read from the scene rather than
+/// restated beside it — a copy here is a fixture that keeps testing a
+/// box the scene no longer has.
+use viewer::scene::PLATE_EXTENT as PLATE;
 
 fn delta(value: f64) -> DisplayTolerance {
     DisplayTolerance::new(value).expect("a positive display tolerance")
@@ -109,8 +111,7 @@ fn the_triangles_wind_outward_and_enclose_the_right_volume() {
     let tol = Tol::witness();
     let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(&doc, delta(1.0e-5), tol).expect("the plate tessellates");
-    let nominal = PLATE[0] * PLATE[1] * PLATE[2]
-        - std::f64::consts::PI * HOLE_RADIUS * HOLE_RADIUS * PLATE[2];
+    let nominal = common::plate_volume();
     let enclosed = enclosed_volume(&mesh);
     assert!(
         enclosed > 0.0,
@@ -131,8 +132,7 @@ fn the_triangles_wind_outward_and_enclose_the_right_volume() {
 fn a_finer_delta_never_coarsens_the_mesh() {
     let tol = Tol::witness();
     let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
-    let nominal = PLATE[0] * PLATE[1] * PLATE[2]
-        - std::f64::consts::PI * HOLE_RADIUS * HOLE_RADIUS * PLATE[2];
+    let nominal = common::plate_volume();
     let mut previous: Option<(usize, f64)> = None;
     for exponent in [3.0f64, 4.0, 5.0, 6.0] {
         let d = delta(10f64.powf(-exponent));

@@ -37,7 +37,7 @@ use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
 use crate::gpu::{DEPTH_BITS, ViewportCallback, ViewportRenderer};
-use crate::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 
 /// The window title.
@@ -86,6 +86,14 @@ pub struct ViewerApp {
     camera: Camera,
     input: InputMap,
     tree: Tree<Pane>,
+    /// A fit is owed, and will be taken by the viewport pane on the
+    /// next frame — the only place that knows the real aspect.
+    ///
+    /// The startup camera and the `Fit` button both raise this rather
+    /// than framing with an invented aspect: a `Frame` at a hardcoded
+    /// 1.0 is exact only for a square pane and under-fits every
+    /// narrower one, and the toolbar has no pane rectangle to read.
+    pending_fit: bool,
     /// The last refusal, kept so a rejected operation is visible
     /// instead of silently dropped.
     status: Option<String>,
@@ -119,6 +127,11 @@ impl ViewerApp {
         let delta = DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
+        // A provisional camera at a square aspect, because no pane has
+        // been laid out yet and there is no real aspect to read. It is
+        // provisional for exactly one frame: `pending_fit` below makes
+        // the viewport re-frame at its true aspect the first time it
+        // runs, so what a user sees is never the invented framing.
         let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
 
         let render_state = cc
@@ -141,6 +154,7 @@ impl ViewerApp {
             camera,
             input: InputMap::default(),
             tree: initial_layout(),
+            pending_fit: true,
             status: None,
         })
     }
@@ -158,18 +172,6 @@ impl ViewerApp {
                 self.status = None;
             }
             Err(error) => self.status = Some(format!("scene: {error:?}")),
-        }
-    }
-
-    /// Apply one camera operation, recording a refusal rather than
-    /// dropping it.
-    fn navigate(&mut self, op: &CameraOp) {
-        match camera::apply(&self.camera, op) {
-            Ok(next) => {
-                self.camera = next;
-                self.status = None;
-            }
-            Err(error) => self.status = Some(format!("camera: {error:?}")),
         }
     }
 
@@ -192,9 +194,10 @@ impl eframe::App for ViewerApp {
                 ui.label(WINDOW_TITLE);
                 ui.separator();
                 if ui.button("Fit").clicked() {
-                    let bounds = self.scene.bounds();
-                    let aspect = 1.0;
-                    self.navigate(&CameraOp::Frame { bounds, aspect });
+                    // The toolbar has no pane rectangle, so it asks
+                    // for a fit rather than performing one; the
+                    // viewport takes it at the real aspect.
+                    self.pending_fit = true;
                 }
                 if ui.button("Coarser δ").clicked() {
                     self.rescale_delta(DELTA_STEP);
@@ -217,6 +220,7 @@ impl eframe::App for ViewerApp {
                 revision: self.revision,
                 camera: &mut self.camera,
                 input: self.input,
+                pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
             };
             self.tree.ui(&mut behavior, ui);
@@ -233,7 +237,24 @@ struct ViewerBehavior<'a> {
     revision: u64,
     camera: &'a mut Camera,
     input: InputMap,
+    pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
+}
+
+/// Land a fold: take the camera it reached, and either show the
+/// refusal that stopped it or clear the last one.
+///
+/// **The one place a camera move becomes application state.** Both the
+/// toolbar's single operations and the viewport's event stream come
+/// through here, so "record the refusal, clear it on success" has one
+/// implementation — the two hand-rolled copies that had already
+/// drifted (one cleared the status, one did not) are gone.
+fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folded) {
+    *camera = folded.camera;
+    *status = folded
+        .refused
+        .as_ref()
+        .map(|(op, error)| format!("camera: {error:?} (from {op:?})"));
 }
 
 impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
@@ -299,14 +320,22 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
-        for event in &events {
-            let Some(op) = self.input.map(event, viewport, self.camera) else {
-                continue;
+        // An owed fit is taken here and nowhere else: this is the only
+        // place with a real aspect to fit against.
+        if *self.pending_fit {
+            *self.pending_fit = false;
+            let fit = CameraOp::Frame {
+                bounds: self.scene.bounds(),
+                aspect,
             };
-            match camera::apply(self.camera, &op) {
-                Ok(next) => *self.camera = next,
-                Err(error) => *self.status = Some(format!("camera: {error:?}")),
-            }
+            let folded = camera::fold_recorded(self.camera, std::slice::from_ref(&fit));
+            land(self.camera, self.status, &folded);
+        }
+
+        // ONE fold, the same one `map_stream` gives the tests.
+        let folded = input::fold_events(&self.input, self.camera, viewport, &events);
+        if !events.is_empty() {
+            land(self.camera, self.status, &folded);
         }
 
         let matrix = match self.camera.view_projection(aspect) {
@@ -413,16 +442,13 @@ pub fn initial_layout() -> Tree<Pane> {
 }
 
 /// Column-major `f64` matrix to the `f32` the GPU consumes.
+///
+/// Written as a `map` rather than an indexed loop on purpose: the
+/// earlier shape wrote through `get_mut` at statically-in-range
+/// indices, so a wrong index would have produced a *partly converted*
+/// matrix and no error at all. `map` cannot miss a slot.
 fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
-    let mut out = [[0.0f32; 4]; 4];
-    for (col, values) in matrix.iter().enumerate() {
-        for (row, value) in values.iter().enumerate() {
-            if let Some(slot) = out.get_mut(col).and_then(|c| c.get_mut(row)) {
-                *slot = *value as f32;
-            }
-        }
-    }
-    out
+    matrix.map(|column| column.map(|value| value as f32))
 }
 
 /// Run the application.

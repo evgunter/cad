@@ -55,6 +55,10 @@ const MAX_DISTANCE_FACTOR: f64 = 100.0;
 /// zoomed-in end where `distance − radius` is negative.
 const NEAR_FLOOR_FACTOR: f64 = 1e-3;
 
+/// Slack behind the bounding sphere's back, as a multiple of the scene
+/// radius. See [`Camera::far`] for what it is for.
+const FAR_SLACK_FACTOR: f64 = 1.0;
+
 /// A scene radius of zero (a point, an empty mesh) has no framing.
 /// Refused rather than defaulted — a made-up scale is a lie about the
 /// model.
@@ -131,9 +135,38 @@ pub enum CameraError {
         /// The offending value, in radians.
         fov_y: f64,
     },
-    /// The bounding box carried a NaN bound (`Aabb`'s poison state) or
-    /// was empty, so no scene can be derived from it.
+    /// A framing input that cannot produce a camera: a bounding box
+    /// that carried a NaN bound (`Aabb`'s poison state) or was empty,
+    /// **or** a viewport aspect that was not a positive finite ratio.
+    ///
+    /// One arm for two inputs, deliberately, and the name is the older
+    /// of the two: both are "the framing request names no view", and
+    /// the doors that return it ([`Camera::fitted`],
+    /// [`Camera::projection_matrix`]) take exactly those two arguments,
+    /// so the caller's next question — *which of my two arguments was
+    /// wrong* — is answered by which door refused. Splitting a
+    /// `UnusableAspect` arm out was considered and declined: it would
+    /// buy that one bit at the cost of a promoted review suite that
+    /// pins this arm by name.
     UnusableBounds,
+    /// The distance needed to fit the scene at this aspect lies beyond
+    /// the scene-derived zoom band, so no camera in the band contains
+    /// the scene.
+    ///
+    /// Reachable on a viewport far narrower than it is tall: the
+    /// horizontal half-angle binds, and the required stand-off grows
+    /// as `1/sin(half)`. **Refused rather than clamped** — a clamped
+    /// "fit" is a camera that silently does not contain its scene,
+    /// which is the one answer [`Camera::fitted`]'s own contract must
+    /// never give.
+    Unfittable {
+        /// The stand-off the fit needed.
+        required: f64,
+        /// The furthest the zoom band allows.
+        max_distance: f64,
+        /// The aspect that demanded it.
+        aspect: f64,
+    },
 }
 
 /// A move on a [`Camera`]: the whole navigation vocabulary.
@@ -204,8 +237,21 @@ pub enum CameraOpError {
 impl Camera {
     /// A camera from explicit state.
     ///
-    /// `pitch` is clamped to the pole margin; every other argument is
-    /// taken as given and refused if it is not usable.
+    /// **Two arguments are normalised rather than refused, and both
+    /// are normalised the way the operation that moves them does:**
+    /// `pitch` is clamped to the pole margin, exactly as
+    /// [`CameraOp::Orbit`] clamps it, and `distance` is clamped into
+    /// the scene-derived zoom band, exactly as [`CameraOp::Dolly`]
+    /// clamps it. A camera built here is therefore in the same state
+    /// space a camera reached by navigating is, which is what lets
+    /// every invariant in this module be stated over *reachable*
+    /// states rather than over constructed ones.
+    ///
+    /// The remaining arguments are taken as given and refused if they
+    /// are not usable. A caller who needs a distance *honoured* rather
+    /// than clamped — [`Camera::fitted`] is the one such caller —
+    /// checks the band itself and refuses; see
+    /// [`CameraError::Unfittable`].
     ///
     /// # Errors
     ///
@@ -251,9 +297,11 @@ impl Camera {
     ///
     /// # Errors
     ///
-    /// [`CameraError::UnusableBounds`] for an empty or poisoned box,
-    /// [`CameraError::DegenerateScene`] for a box of zero extent, and
-    /// [`CameraError::NotFinite`] for a non-finite aspect.
+    /// [`CameraError::UnusableBounds`] for an empty or poisoned box or
+    /// a non-positive aspect, [`CameraError::DegenerateScene`] for a
+    /// box of zero extent, [`CameraError::NotFinite`] for a non-finite
+    /// aspect, and [`CameraError::Unfittable`] for an aspect at which
+    /// no camera in the zoom band contains the scene.
     pub fn framing(bounds: &Aabb, aspect: f64) -> Result<Self, CameraError> {
         let (centre, radius) = sphere(bounds)?;
         let camera = Self::new(
@@ -270,9 +318,18 @@ impl Camera {
     /// This camera re-centred and backed off to fit `bounds`, keeping
     /// its orientation and field of view.
     ///
+    /// **The postcondition is containment**: every point of `bounds`
+    /// projects inside the frustum at this `aspect`. The one input
+    /// that can make containment unreachable is a viewport far
+    /// narrower than it is tall — the horizontal half-angle binds and
+    /// the required stand-off grows as `1/sin(half)` until it leaves
+    /// the zoom band. That case is [`CameraError::Unfittable`], not a
+    /// clamped near-miss: this door either fits or refuses, and the
+    /// caller's recourse is a wider pane or a narrower field of view.
+    ///
     /// # Errors
     ///
-    /// As [`Camera::framing`].
+    /// As [`Camera::framing`], plus [`CameraError::Unfittable`].
     pub fn fitted(&self, bounds: &Aabb, aspect: f64) -> Result<Self, CameraError> {
         finite("aspect", aspect)?;
         if aspect <= 0.0 {
@@ -286,6 +343,19 @@ impl Camera {
         let half_h = (half_v.tan() * aspect).atan();
         let half = half_v.min(half_h);
         let distance = radius * FRAMING_MARGIN / half.sin();
+        // The band's FLOOR can never bind here — `sin(half) <= 1`, so
+        // `distance >= radius * FRAMING_MARGIN`, which is above
+        // `radius * MIN_DISTANCE_FACTOR` for every scene. Only the
+        // ceiling is reachable, and reaching it means no camera in the
+        // band contains the scene.
+        let max_distance = radius * MAX_DISTANCE_FACTOR;
+        if distance > max_distance {
+            return Err(CameraError::Unfittable {
+                required: distance,
+                max_distance,
+                aspect,
+            });
+        }
         Self::new(centre, distance, self.yaw, self.pitch, self.fov_y, radius)
     }
 
@@ -302,6 +372,16 @@ impl Camera {
     /// Azimuth, radians, in `[−π, π)`.
     pub fn yaw(&self) -> f64 {
         self.yaw
+    }
+
+    /// The elevation limit: `|pitch|` never exceeds it, at any
+    /// reachable state.
+    ///
+    /// Public because it is a *contract*, and a test that restates it
+    /// as a literal is a hand-synced copy of a private constant — the
+    /// defect this accessor exists to remove. One home; read it.
+    pub fn pitch_limit() -> f64 {
+        std::f64::consts::FRAC_PI_2 - POLE_MARGIN
     }
 
     /// Elevation, radians, strictly inside `±(π/2 − margin)`.
@@ -386,9 +466,20 @@ impl Camera {
         (self.distance - self.scene_radius).max(floor)
     }
 
-    /// The far plane distance: the back of the bounding sphere.
+    /// The far plane distance: the back of the bounding sphere, plus
+    /// one radius of slack.
+    ///
+    /// The back of the sphere is at `distance + radius`; the extra
+    /// [`FAR_SLACK_FACTOR`] radius is there because the *sphere* is
+    /// what this camera knows and the *body* is what gets drawn — a
+    /// pan moves the target off the sphere's centre without
+    /// re-deriving either, so a far plane sitting exactly on the back
+    /// of the sphere would clip geometry the moment the view stopped
+    /// being centred on it. The cost is one bit of depth precision;
+    /// the alternative is geometry vanishing at the back of a panned
+    /// view.
     pub fn far(&self) -> f64 {
-        self.distance + self.scene_radius * 2.0
+        self.distance + self.scene_radius * (1.0 + FAR_SLACK_FACTOR)
     }
 
     /// The world→view matrix, column-major (the layout WGSL's
@@ -519,8 +610,67 @@ pub fn apply(camera: &Camera, op: &CameraOp) -> Result<Camera, CameraOpError> {
     }
 }
 
+/// What a fold reached: the camera, and the refusal that stopped it.
+///
+/// **This is the one fold in the crate**, and the reason it is a
+/// struct rather than a `Result` is that the two consumers need
+/// different halves of the same answer. A test asks *did this refuse*;
+/// an interactive viewport asks *where did I get to, and what do I
+/// show the user* — and a `Result` that carries the error cannot also
+/// carry the camera the fold reached before it, so the viewport used
+/// to hand-roll its own loop with its own drifting semantics. Both
+/// views are derived from this one ([`fold`] is the `Result` view),
+/// so there is nothing left to drift.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Folded {
+    /// The camera the fold reached: the start camera when the first
+    /// operation refused, and the fully folded one when none did.
+    pub camera: Camera,
+    /// The operations that were applied, in order — a prefix of the
+    /// input, and the whole of it when `refused` is `None`.
+    pub applied: Vec<CameraOp>,
+    /// The refusal that stopped the fold, with the operation that
+    /// provoked it. `None` when every operation applied.
+    pub refused: Option<(CameraOp, CameraOpError)>,
+}
+
+/// Perform a sequence of operations in order, stopping at the first
+/// refusal and **recording** it rather than discarding the progress.
+///
+/// Total: there is no error return, because "an operation refused" is
+/// an outcome an interactive caller renders rather than a failure it
+/// propagates.
+pub fn fold_recorded<'a>(camera: &Camera, ops: impl IntoIterator<Item = &'a CameraOp>) -> Folded {
+    let mut current = *camera;
+    let mut applied = Vec::new();
+    for op in ops {
+        match apply(&current, op) {
+            Ok(next) => {
+                current = next;
+                applied.push(*op);
+            }
+            Err(error) => {
+                return Folded {
+                    camera: current,
+                    applied,
+                    refused: Some((*op, error)),
+                };
+            }
+        }
+    }
+    Folded {
+        camera: current,
+        applied,
+        refused: None,
+    }
+}
+
 /// Perform a sequence of operations in order, stopping at the first
 /// refusal.
+///
+/// The `Result` view of [`fold_recorded`], for callers that only need
+/// the verdict. A caller that also needs the camera the fold reached
+/// before the refusal calls [`fold_recorded`] directly.
 ///
 /// # Errors
 ///
@@ -529,11 +679,11 @@ pub fn fold<'a>(
     camera: &Camera,
     ops: impl IntoIterator<Item = &'a CameraOp>,
 ) -> Result<Camera, CameraOpError> {
-    let mut current = *camera;
-    for op in ops {
-        current = apply(&current, op)?;
+    let folded = fold_recorded(camera, ops);
+    match folded.refused {
+        Some((_, error)) => Err(error),
+        None => Ok(folded.camera),
     }
-    Ok(current)
 }
 
 /// The centre and radius of a box's bounding sphere.
@@ -588,7 +738,7 @@ fn op_finite(what: &'static str, value: f64) -> Result<(), CameraOpError> {
 }
 
 fn clamp_pitch(pitch: f64) -> f64 {
-    let limit = std::f64::consts::FRAC_PI_2 - POLE_MARGIN;
+    let limit = Camera::pitch_limit();
     pitch.clamp(-limit, limit)
 }
 

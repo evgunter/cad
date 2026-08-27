@@ -8,23 +8,13 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-use bvh::Aabb;
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 
-fn plate_bounds() -> Aabb {
-    Aabb {
-        min_x: 0.0,
-        min_y: 0.0,
-        min_z: 0.0,
-        max_x: 0.060,
-        max_y: 0.040,
-        max_z: 0.008,
-    }
-}
+mod common;
 
 fn framed() -> Camera {
-    Camera::framing(&plate_bounds(), 1.6).expect("the plate frames")
+    common::framed(1.6)
 }
 
 fn viewport() -> ViewportSize {
@@ -241,5 +231,68 @@ fn the_stream_folds_the_camera_between_events() {
     assert!(
         zoomed_pan.abs() < plain_pan.abs(),
         "zooming in did not shrink the pan step: {plain_pan} then {zoomed_pan}"
+    );
+}
+
+/// **The shipped fold and the tested fold are one function.** This is
+/// the row that keeps them one: `fold_events` is what the viewport
+/// pane runs, `map_stream` is the `Result` view the rest of this suite
+/// drives, and they must agree on the camera, on the operations, and
+/// on where a refusal stops the stream.
+///
+/// It exists because they were once three hand-rolled loops with
+/// different semantics — the viewport's copy skipped a refused
+/// operation and kept going, while the tested copy stopped — so the
+/// spec's "layer 3 is headless-testable" claim was being satisfied by
+/// code the application did not run.
+#[test]
+fn the_shipped_fold_and_the_result_view_are_the_same_fold() {
+    let map = round_map();
+    let camera = framed();
+    let size = viewport();
+
+    // A clean stream: both views agree, and the recorded fold reports
+    // no refusal.
+    let clean = vec![
+        drag(PointerButton::Middle, false, 10.0, -4.0),
+        ViewportEvent::Scroll { units: 1.5 },
+        drag(PointerButton::Secondary, false, 7.0, 3.0),
+    ];
+    let folded = input::fold_events(&map, &camera, size, &clean);
+    let (end, ops) = input::map_stream(&map, &camera, size, &clean).expect("finite events");
+    assert!(folded.refused.is_none());
+    assert_eq!(folded.camera, end);
+    assert_eq!(folded.applied, ops);
+
+    // A stream that refuses part-way: the `Result` view surrenders the
+    // camera, the recorded fold keeps it — at the state reached by the
+    // operations BEFORE the refusal, and with the refusing operation
+    // named.
+    let poisoned = vec![
+        drag(PointerButton::Middle, false, 10.0, 0.0),
+        drag(PointerButton::Middle, false, f64::NAN, 0.0),
+        drag(PointerButton::Middle, false, 10.0, 0.0),
+    ];
+    let folded = input::fold_events(&map, &camera, size, &poisoned);
+    assert!(input::map_stream(&map, &camera, size, &poisoned).is_err());
+    let (refused_op, error) = folded.refused.expect("the NaN drag must refuse");
+    assert!(matches!(refused_op, CameraOp::Orbit { .. }));
+    assert!(matches!(
+        error,
+        viewer::CameraOpError::NotFinite { what: "yaw", .. }
+    ));
+    assert_eq!(
+        folded.applied.len(),
+        1,
+        "the fold stops at the first refusal: only the operation before it applied"
+    );
+    let just_the_first = camera::fold(&camera, &folded.applied).expect("the prefix folds");
+    assert_eq!(
+        folded.camera, just_the_first,
+        "the camera a refused fold carries is the one its applied prefix reaches"
+    );
+    assert_ne!(
+        folded.camera, camera,
+        "and it is NOT the start camera — the progress before the refusal is kept"
     );
 }

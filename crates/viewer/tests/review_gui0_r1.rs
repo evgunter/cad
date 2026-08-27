@@ -542,15 +542,19 @@ fn framing_contains_and_is_tight_across_realistic_aspects() {
     }
 }
 
-/// REPORTING, `#[ignore]`d — see this file's header. `Camera::fitted`
-/// documents that a frame "backs off far enough that the bounding
-/// sphere fits the vertical field of view", and `Camera` refuses rather
-/// than inventing state everywhere else. At an extreme aspect the
+/// `Camera::fitted` documents that a frame "backs off far enough that
+/// the bounding sphere fits", and `Camera` refuses rather than
+/// inventing state everywhere else. At an extreme aspect the
 /// scene-derived zoom band clamps the computed distance and the result
-/// is neither: a camera that does not contain its scene, returned `Ok`.
-/// Un-ignore when the clamp refuses, or when the contract is narrowed.
+/// used to be neither: a camera that does not contain its scene,
+/// returned `Ok`.
+///
+/// **UN-IGNORED in the fix pass** (was `#[ignore]`d and RED at the
+/// frozen head, R1's own reporting row): `fitted` now refuses
+/// `CameraError::Unfittable` instead of clamping, so both acceptable
+/// answers — fit, or refuse — are the only ones reachable, and this
+/// row gates them.
 #[test]
-#[ignore = "R1 review finding: framing under-fits silently at aspect <~ 0.03"]
 fn framing_at_an_extreme_aspect_should_contain_or_refuse() {
     let bounds = plate_bounds();
     for aspect in [0.05, 0.02, 0.005] {
