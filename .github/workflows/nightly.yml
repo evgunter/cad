@@ -1155,19 +1155,6 @@ jobs:
       # No recursion: GITHUB_TOKEN pushes trigger no workflow runs, the
       # subject carries [skip ci] as belt-and-braces, and the `gate` job
       # excludes this path from the diff it reads.
-      # CLIPPY LAST, AND `!cancelled()` RATHER THAN `always()`. Two reasons,
-      # both about keeping verdicts separate. A lint finding must never cost
-      # this run its measurement — the history entry is the job's product and
-      # is already committed by the time this runs — and a measurement that
-      # failed to land must not hide a lint finding either, which is the same
-      # rule ci.yml applies to rustfmt and the rustdoc gate. `--examples`
-      # covers `counts.rs`, the δ sweep behind the tessellation rows.
-      #
-      # This is the ONLY clippy this crate gets, and `benches/Cargo.toml`
-      # says why it is here rather than in `k-lint` with demos/tour's.
-      - name: clippy (benches — its own cargo root)
-        if: '!cancelled()'
-        run: cd benches && cargo clippy --benches --examples -- -D warnings
       - name: commit measurement to the benchmark history (main only)
         if: github.ref == 'refs/heads/main' && inputs.ref == ''
         env:
@@ -1198,6 +1185,24 @@ jobs:
           done
           echo "could not land the measurement after 4 attempts" >&2
           exit 1
+      # CLIPPY IS THE LAST STEP IN THE JOB, AND THAT POSITION IS LOAD-BEARING.
+      # A step failure skips every plain step after it, so clippy sited above
+      # the commit would let a lint finding cost this run its measurement —
+      # the history entry is this job's product, and a formatting-class
+      # verdict must not be able to destroy it. Below the commit, with
+      # `!cancelled()` rather than `always()`, the two verdicts are
+      # independent in both directions: a failed measurement does not hide a
+      # lint finding either. That is the rule ci.yml applies to rustfmt and
+      # the rustdoc gate, for the same reason — the matrix-free merge must
+      # not turn two findings into one.
+      #
+      # `--examples` covers `counts.rs`, the δ sweep behind the tessellation
+      # rows. This is the ONLY clippy this crate gets, and
+      # `benches/Cargo.toml` says why it is here rather than in `k-lint`
+      # beside demos/tour's.
+      - name: clippy (benches — its own cargo root)
+        if: '!cancelled()'
+        run: cd benches && cargo clippy --benches --examples -- -D warnings
 
   # NO LOCAL MIRROR: it pushes the append-only `nightly/<epoch>-<sha>` tag that
   # is this workflow's entire memory of when it last ran. Nothing local reads
