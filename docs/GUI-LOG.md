@@ -166,3 +166,14 @@ stands with both reviewers' endorsement; the curated
 `pncad::select` picking door is banked as a future decision.
 Program consequence: **GUI-2 is unblocked** (viewport selection —
 consumes this service and GUI-0's viewport; block GUI-B1 slot 4).
+
+**Sequencing call (2026-08-27, orchestrator, L-numbered: L-GUI-1):
+GUI-2 holds until GUI-3 lands.** Both units edit the same files in
+`crates/viewer` (app chrome, input bindings, gpu module); the
+crate-disjoint lane rule exists because same-crate concurrency
+buys cross-lane merges instead of work. GUI-3 was dispatched first
+(it re-takes the §5 seam measurement, which can also inform GUI-2's
+selection-state shape); GUI-2's spec is written when GUI-3's PR
+freezes, and its dispatch takes block GUI-B1 slot 4 (arm opus per
+the draw). Cost: one idle dispatch slot for a few hours; the plan's
+1-before-2 ordering already made GUI-2 non-blocking for GUI-3.
