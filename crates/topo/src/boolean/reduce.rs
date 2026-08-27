@@ -1704,4 +1704,158 @@ mod tests {
             );
         }
     }
+
+    // ================= R1 REVIEW PROBES (not deliverables) =========
+    // Attacks on the "|delta| <= pi so atan2's principal branch is
+    // ALWAYS correct" claim: the exact-pi boundary, a span longer than
+    // one period, a tiny span, and both winding senses.
+
+    /// A circle wound the OTHER way (axis = -z), so increasing t runs
+    /// clockwise in the global frame. The claim must not depend on the
+    /// sense.
+    fn wound_negative() -> (geom::Curve3<f64>, Point3<f64>) {
+        let center = Point3::new(1.0, 2.0, 3.0);
+        (
+            geom::Curve3::Circle {
+                center,
+                axis: -Vec3::unit_z(),
+                radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            center,
+        )
+    }
+
+    #[test]
+    fn r1_both_winding_senses_recover_the_parameter() {
+        for (carrier, center) in [axis_aligned(), wound_negative(), tilted()] {
+            for (t0, t1) in [(0.0, PI), (-5.0, -2.0), (2.5, 2.5 + TAU * 0.999)] {
+                for f in [0.01, 0.5, 0.99] {
+                    let t = t0 + (t1 - t0) * f;
+                    let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+                    println!("R1[wind] span=({t0},{t1}) t={t} got={got} err={}", got - t);
+                    assert!((got - t).abs() < 1e-9, "span ({t0},{t1}) at {t}: {got}");
+                }
+            }
+        }
+    }
+
+    /// **delta = +/- pi EXACTLY.** On a full-period span the two
+    /// endpoints sit at delta = -pi and +pi; atan2's principal branch
+    /// returns +pi for BOTH, so the t0 endpoint maps to t1. Measured,
+    /// not asserted-away: this is the one place the "principal branch
+    /// is already the right one" sentence is false, and the question is
+    /// whether anything can reach it.
+    #[test]
+    fn r1_the_exact_half_period_boundary_maps_t0_to_t1() {
+        let (carrier, center) = axis_aligned();
+        let (t0, t1) = (0.0, TAU);
+        for t in [t0, t1] {
+            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+            println!("R1[pi-boundary] span=({t0},{t1}) t={t} got={got}");
+        }
+        // And a half-period span, whose endpoints are delta = +/- pi/2:
+        let got = circle_split_param(&carrier, center, 0.0, PI, carrier.eval(0.0));
+        println!("R1[pi-boundary] half-period span t=0 got={got}");
+    }
+
+    /// **A span LONGER than one period.** The doc asserts "an edge span
+    /// is at most one period" as a fact; nothing in this function
+    /// checks it, and no decide row guards it. If such a span is
+    /// reachable the answer is silently aliased by 2pi.
+    #[test]
+    fn r1_a_span_longer_than_a_period_aliases_silently() {
+        let (carrier, center) = axis_aligned();
+        let (t0, t1) = (0.0, 3.0 * PI); // 1.5 periods
+        for f in [0.1, 0.5, 0.9] {
+            let t = t0 + (t1 - t0) * f;
+            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+            println!(
+                "R1[over-period] span=({t0},{t1}) t={t} got={got} err={} inside={}",
+                got - t,
+                got > t0 && got < t1
+            );
+        }
+    }
+
+    /// A TINY span (a hair of arc): the mid anchor is a hair from both
+    /// endpoints, so delta is tiny and the answer should still be exact.
+    #[test]
+    fn r1_a_tiny_span_still_recovers_the_parameter() {
+        let (carrier, center) = axis_aligned();
+        for w in [1e-3, 1e-6, 1e-9] {
+            let (t0, t1) = (1.0, 1.0 + w);
+            let t = t0 + w * 0.5001;
+            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+            println!(
+                "R1[tiny] w={w} t={t} got={got} err={} inside={}",
+                got - t,
+                got > t0 && got < t1
+            );
+        }
+    }
+
+    /// **The interval-lane claim that is NOT pinned by the PR's own
+    /// row.** The shipped enclosure row uses span (0, pi) only, where
+    /// `w.dot(r_mid)` is definitely positive and the branch cut is
+    /// never approached. This row walks a NEARLY-full-period span at
+    /// points near its ends — the seam-straddling regime the PR says
+    /// "widens instead of mis-selecting a branch" — and prints the
+    /// enclosure so the claim can be checked rather than assumed.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn r1_the_interval_lane_at_the_cut() {
+        use geom_core::{Bounds, Real, interval::Interval};
+
+        let center64 = Point3::new(1.0, 2.0, 3.0);
+        let carrier64 = geom::Curve3::Circle {
+            center: center64,
+            axis: Vec3::unit_z(),
+            radius: 1.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let lift_p = |p: Point3<f64>| {
+            Point3::new(
+                Interval::from_f64(p.x),
+                Interval::from_f64(p.y),
+                Interval::from_f64(p.z),
+            )
+        };
+        let lift_v = |v: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(v.x),
+                Interval::from_f64(v.y),
+                Interval::from_f64(v.z),
+            )
+        };
+        let carrier = geom::Curve3::Circle {
+            center: lift_p(center64),
+            axis: lift_v(Vec3::unit_z()),
+            radius: Interval::from_f64(1.5),
+            u_ref: lift_v(Vec3::unit_x()),
+        };
+        for (t0, t1) in [(0.0, TAU), (0.0, TAU * 0.999), (0.0, PI)] {
+            for f in [0.001, 0.02, 0.5, 0.98, 0.999] {
+                let t = t0 + (t1 - t0) * f;
+                let p = carrier64.eval(t);
+                let got64 = circle_split_param(&carrier64, center64, t0, t1, p);
+                let got = circle_split_param(
+                    &carrier,
+                    lift_p(center64),
+                    Interval::from_f64(t0),
+                    Interval::from_f64(t1),
+                    lift_p(p),
+                );
+                println!(
+                    "R1[iv-cut] span=({t0:.4},{t1:.4}) t={t:.6} f64={got64:.6} \
+                     iv=[{:.6},{:.6}] width={:.3e} encloses={} strictly_inside={}",
+                    got.lo(),
+                    got.hi(),
+                    got.hi() - got.lo(),
+                    got.lo() <= got64 && got64 <= got.hi(),
+                    got.lo() > t0 && got.hi() < t1
+                );
+            }
+        }
+    }
 }

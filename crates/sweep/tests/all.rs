@@ -242,6 +242,8 @@ mod verbs_cylcyl_r1_review_probes;
 mod verbs_cylcylb_r1_blinded_probes;
 #[path = "verbs_pierce.rs"]
 mod verbs_pierce;
+#[path = "verbs_pierce_r1_probes.rs"]
+mod verbs_pierce_r1_probes;
 #[path = "verbs_rim_closed_lever.rs"]
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
