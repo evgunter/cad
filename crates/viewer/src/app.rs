@@ -46,15 +46,18 @@ use pncad::document::{Dimension, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
+use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::{Generation, ThreadEvaluator};
 use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
+use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
 use crate::props::{SlotDriver, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp, Standing};
 use crate::tree::{RowStatus, TreeRow};
+use pncad::document::{AxisSense, Frame, MatePrimitive};
 
 /// The window title.
 const WINDOW_TITLE: &str = "viewer";
@@ -125,7 +128,25 @@ struct Drafts {
     expr_target: Option<(RecipeNodeId, SlotId)>,
     /// What is typed in it.
     expr_text: String,
+    /// The mate tool's class/alignment choice, as widget state: an
+    /// index into [`admitted_classes`], an index into
+    /// [`MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
+    /// only — the typed choice is minted at commit.
+    mate_class: usize,
+    mate_primitive: usize,
+    mate_opposed: bool,
 }
+
+/// The primitives the chrome offers, with their labels. The op
+/// vocabulary accepts any [`MatePrimitive`]; these are the three the
+/// panel can spell without a numeric field (`PlanarRest`'s offset is
+/// authored 0 — a flush rest; a standoff is typed through the tree's
+/// ordinary property doors once the node exists).
+const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
+    (MatePrimitive::FrameCoincidence, "frame coincidence"),
+    (MatePrimitive::Coaxial, "coaxial"),
+    (MatePrimitive::PlanarRest { offset: 0.0 }, "planar rest"),
+];
 
 /// Everything the application knows.
 pub struct ViewerApp {
@@ -147,6 +168,13 @@ pub struct ViewerApp {
     /// disagrees with the session's landed generation, the picture is
     /// out of date and exactly one rebuild is owed.
     scene_generation: Option<Generation>,
+    /// The display-state revision `scene` was built under — hide and
+    /// free-move are scene inputs too, so a display change owes a
+    /// rebuild exactly as a new evaluation does.
+    scene_display: Option<u64>,
+    /// The modal mate tool, when active. `None` is "not in the mate
+    /// tool"; the tool's own state (the held picks) lives inside it.
+    mate_tool: Option<MateTool>,
     camera: Camera,
     input: InputMap,
     tree: Tree<Pane>,
@@ -222,6 +250,8 @@ impl ViewerApp {
             id_log: IdQueryLog::new(),
             revision: 1,
             scene_generation: None,
+            scene_display: None,
+            mate_tool: None,
             camera,
             input: InputMap::default(),
             tree: initial_layout(),
@@ -239,11 +269,20 @@ impl ViewerApp {
     /// nothing.
     fn sync_scene(&mut self) {
         self.session.pump();
+        // The mate tool's survival step: re-read the held picks
+        // against the landed pair, reporting each typed drop.
+        if let (Some(tool), Some((doc, eval))) =
+            (self.mate_tool.as_mut(), self.session.landed_pair())
+        {
+            for event in tool.reconcile(doc, eval) {
+                self.status = Some(format!("mate tool: {event:?}"));
+            }
+        }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
         // re-attempted every frame behind a stale picture.
-        match self.picks.sync(&self.session, self.delta) {
-            pick::CacheStep::Current | pick::CacheStep::Held | pick::CacheStep::Nothing => return,
+        let rebuilt = match self.picks.sync(&self.session, self.delta) {
+            pick::CacheStep::Held | pick::CacheStep::Nothing => return,
             pick::CacheStep::Refused => {
                 self.status = self
                     .picks
@@ -251,13 +290,21 @@ impl ViewerApp {
                     .map(|error| format!("pick index: {error:?}"));
                 return;
             }
-            pick::CacheStep::Rebuilt => {}
+            pick::CacheStep::Rebuilt => true,
+            pick::CacheStep::Current => false,
+        };
+        // The scene is a function of (index, display state): a display
+        // change over a current index still owes exactly one rebuild.
+        let display_revision = self.session.display().revision();
+        if !rebuilt && self.scene_display == Some(display_revision) {
+            return;
         }
         self.scene_generation = self.session.landed_generation();
+        self.scene_display = Some(display_revision);
         let Some(index) = self.picks.index() else {
             return;
         };
-        match index.scene() {
+        match index.scene_for(&self.session.display_view()) {
             Ok(mesh) => {
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
@@ -406,6 +453,7 @@ impl eframe::App for ViewerApp {
             });
         });
 
+        let display = self.session.display_view();
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let mut behavior = ViewerBehavior {
                 session: &self.session,
@@ -416,6 +464,8 @@ impl eframe::App for ViewerApp {
                 camera: &mut self.camera,
                 input: self.input,
                 drafts: &mut self.drafts,
+                display: &display,
+                mate_tool: &mut self.mate_tool,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -424,6 +474,18 @@ impl eframe::App for ViewerApp {
             };
             self.tree.ui(&mut behavior, ui);
         });
+
+        // The mate tool consumes the selection vocabulary: while the
+        // tool is active, a face pick this frame produced is ALSO held
+        // as a tool pick (the two-sequential-picks ruling — the same
+        // single-select value, copied into tool state).
+        if let Some(tool) = self.mate_tool.as_mut() {
+            for op in &ops {
+                if let SessionOp::Select(Selection::Face(face)) = op {
+                    tool.pick(face.clone());
+                }
+            }
+        }
 
         self.perform_batch(ops);
     }
@@ -440,6 +502,10 @@ struct ViewerBehavior<'a> {
     camera: &'a mut Camera,
     input: InputMap,
     drafts: &'a mut Drafts,
+    /// The display snapshot this frame draws and picks under.
+    display: &'a DisplayView,
+    /// The modal mate tool, if active.
+    mate_tool: &'a mut Option<MateTool>,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -601,7 +667,7 @@ impl ViewerBehavior<'_> {
                 if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
                     continue;
                 }
-                match index.op_for(eval, self.camera, viewport, action) {
+                match index.op_under(eval, self.camera, viewport, action, self.display) {
                     // A hover that changes nothing is not queued: an
                     // operation per frame that performs no transition
                     // is churn in the one log a test reads.
@@ -698,6 +764,19 @@ impl ViewerBehavior<'_> {
             if ui.selectable_label(selected, label).clicked() {
                 self.ops.push(SessionOp::Select(Selection::Node(row.id)));
             }
+            // The hide toggle, on instance rows only: a hidden
+            // instance stays IN this tree (that is the point — the
+            // tree is the document, the viewport is the display), and
+            // the checkbox is the display op's chrome.
+            if row.kind == "InstantiatePart" {
+                let mut shown = !self.display.hidden.contains(&row.id);
+                if ui.checkbox(&mut shown, "shown").changed() {
+                    self.ops.push(SessionOp::SetInstanceHidden {
+                        instance: row.id,
+                        hidden: !shown,
+                    });
+                }
+            }
             match &row.status {
                 RowStatus::Ok => {}
                 RowStatus::Unevaluated => {
@@ -722,8 +801,12 @@ impl ViewerBehavior<'_> {
     fn properties_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Properties");
         ui.separator();
+        self.mate_tool_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
+        if let Some(node) = self.session.selection().node() {
+            self.instance_ui(ui, node);
+        }
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");
@@ -858,6 +941,165 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// The selected instance's display controls: the hide toggle and
+    /// the free-move probe. Draws nothing for a non-instance node —
+    /// the section is about per-instance display state, which other
+    /// nodes do not have.
+    fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+        if !crate::display::is_instance(self.session.doc(), node) {
+            return;
+        }
+        ui.separator();
+        ui.label(format!("instance {}", node.0));
+        let mut shown = !self.display.hidden.contains(&node);
+        if ui.checkbox(&mut shown, "shown in viewport").changed() {
+            self.ops.push(SessionOp::SetInstanceHidden {
+                instance: node,
+                hidden: !shown,
+            });
+        }
+        match free_move_check(self.session.doc(), node) {
+            Err(fault) => {
+                // The typed ineligibility, shown where the control
+                // would be — the same sentence the op would refuse
+                // with.
+                ui.weak(fault.to_string());
+            }
+            Ok(()) => {
+                let current = self
+                    .display
+                    .moved
+                    .get(&node)
+                    .map_or([0.0; 3], |frame| frame.translation);
+                ui.label("free-move probe (mm, display only):");
+                let mut mm = current.map(|v| v * 1000.0);
+                let mut began = false;
+                let mut previewed = false;
+                let mut stopped = false;
+                ui.horizontal(|ui| {
+                    for value in &mut mm {
+                        let widget = ui.add(egui::DragValue::new(value).speed(0.5));
+                        began |= widget.drag_started();
+                        previewed |= widget.dragged() && widget.changed();
+                        stopped |= widget.drag_stopped();
+                    }
+                });
+                // The G1 gesture triple, over DISPLAY state: begin on
+                // the first drag, one preview per changed frame, one
+                // committed value on release. The chrome offers the
+                // translation components; the op vocabulary takes any
+                // rigid frame.
+                if began {
+                    self.ops.push(SessionOp::BeginFreeMove { instance: node });
+                }
+                if previewed {
+                    self.ops.push(SessionOp::PreviewFreeMove {
+                        frame: Frame::translation(mm.map(|v| v / 1000.0)),
+                    });
+                }
+                if stopped {
+                    self.ops.push(SessionOp::CommitFreeMove);
+                }
+            }
+        }
+    }
+
+    /// The mate tool's panel: activation, the held picks, the class
+    /// choice with the kernel's admission verdicts, and the one
+    /// committed edit.
+    fn mate_tool_ui(&mut self, ui: &mut egui::Ui) {
+        // A CLONE of the small tool value, so the panel can read it
+        // while pushing ops and closing the tool — the authoritative
+        // copy stays in the application and is only ever REPLACED
+        // whole (activation, deactivation), never edited here.
+        let Some(tool) = self.mate_tool.clone() else {
+            if ui.button("Mate tool…").clicked() {
+                *self.mate_tool = Some(MateTool::new());
+            }
+            return;
+        };
+        ui.label("mate tool: pick two faces in the viewport");
+        match tool.state() {
+            MateToolState::Idle => {
+                ui.weak("no picks yet");
+            }
+            MateToolState::One(a) => {
+                ui.weak(format!("pick a: face of instance {}", a.node.0));
+            }
+            MateToolState::Two { a, b } => {
+                ui.weak(format!(
+                    "pick a: instance {}; pick b: instance {}",
+                    a.node.0, b.node.0
+                ));
+            }
+        }
+        // The class choice, offered THROUGH the kernel's admission
+        // table: each class is shown with its verdict, and the
+        // deferral (Fit and every future class) is a sentence here
+        // rather than a button — the tool never offers what the doors
+        // will not execute.
+        let classes = admitted_classes();
+        ui.horizontal(|ui| {
+            for (ix, entry) in classes.iter().enumerate() {
+                ui.radio_value(&mut self.drafts.mate_class, ix, entry.class.name());
+            }
+        });
+        if let Some(entry) = classes.get(self.drafts.mate_class) {
+            ui.weak(format!("admission: {:?}", entry.admission));
+        }
+        ui.horizontal(|ui| {
+            for (ix, (_, label)) in MATE_PRIMITIVES.iter().enumerate() {
+                ui.radio_value(&mut self.drafts.mate_primitive, ix, *label);
+            }
+        });
+        ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
+        let mut close = false;
+        ui.horizontal(|ui| {
+            if ui.button("Commit mate").clicked() {
+                match (
+                    classes.get(self.drafts.mate_class),
+                    self.session.landed_pair(),
+                ) {
+                    (Some(entry), Some((doc, eval))) => {
+                        let choice = MateChoice {
+                            class: entry.class,
+                            primitive: MATE_PRIMITIVES
+                                .get(self.drafts.mate_primitive)
+                                .map_or(MatePrimitive::FrameCoincidence, |(p, _)| *p),
+                            sense: if self.drafts.mate_opposed {
+                                AxisSense::Opposed
+                            } else {
+                                AxisSense::Aligned
+                            },
+                            clocking: None,
+                        };
+                        match tool.proposal(doc, eval, self.session.tol(), choice) {
+                            Ok(proposal) => {
+                                // Exactly one committed DocEdit; the
+                                // tool closes with it.
+                                self.ops.push(proposal.op());
+                                close = true;
+                            }
+                            Err(error) => *self.status = Some(format!("mate tool: {error}")),
+                        }
+                    }
+                    _ => {
+                        *self.status = Some(
+                            "mate tool: no landed evaluation to derive frames from".to_owned(),
+                        );
+                    }
+                }
+            }
+            if ui.button("Cancel").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            *self.mate_tool = None;
+        }
+        ui.separator();
     }
 
     /// One slot row, with the expression-driven refusal's affordance

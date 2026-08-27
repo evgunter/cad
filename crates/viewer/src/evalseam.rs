@@ -61,7 +61,7 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Doc, EvalOptions, EvalOutcome, Evaluation, ProfileProgram, evaluate,
+    CancelToken, Doc, EvalOptions, EvalOutcome, Evaluation, PartResolver, ProfileProgram, evaluate,
 };
 use pncad::geom_core::Tol;
 
@@ -112,6 +112,13 @@ pub struct EvalRequest {
     pub doc: Doc<ProfileProgram>,
     /// The ε the run decides at.
     pub tol: Tol,
+    /// The document seam this run resolves `InstantiatePart` nodes
+    /// through — the session's workspace over the opened file's own
+    /// directory, or `None` for a document with no backing file, in
+    /// which case every instantiate node refuses typed (the shipped
+    /// no-resolver semantics, rendered as the tree's badges). Shared
+    /// by `Arc` so the worker holds a handle, not a copy of the store.
+    pub resolver: Option<Arc<dyn PartResolver>>,
 }
 
 /// A finished run.
@@ -168,7 +175,10 @@ fn run_once(
         &request.doc,
         prior.as_deref(),
         cancel,
-        &EvalOptions::default(),
+        &EvalOptions {
+            resolver: request.resolver.clone(),
+            ..EvalOptions::default()
+        },
         request.tol,
     ));
     if evaluation.outcome == EvalOutcome::Completed {

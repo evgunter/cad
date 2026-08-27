@@ -148,6 +148,9 @@ struct Geometry {
     positions: wgpu::Buffer,
     normals: wgpu::Buffer,
     ids: wgpu::Buffer,
+    /// Per-corner display flags (`SceneMesh::FLAG_PROBE`): the G3
+    /// distinctness value, painted as the probe tint below.
+    flags: wgpu::Buffer,
     indices: wgpu::Buffer,
     index_count: u32,
     /// Which scene these buffers hold. The app bumps it whenever it
@@ -217,6 +220,11 @@ impl ViewportRenderer {
                         array_stride: 4,
                         step_mode: wgpu::VertexStepMode::Vertex,
                         attributes: &wgpu::vertex_attr_array![2 => Uint32],
+                    }),
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 4,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![3 => Uint32],
                     }),
                 ],
             },
@@ -288,6 +296,12 @@ impl ViewportRenderer {
             wgpu::BufferUsages::VERTEX,
             bytemuck::cast_slice(scene.ids()),
         );
+        let flags = create_init_buffer(
+            device,
+            "viewer_scene_flags",
+            wgpu::BufferUsages::VERTEX,
+            bytemuck::cast_slice(scene.flags()),
+        );
         let indices = create_init_buffer(
             device,
             "viewer_scene_indices",
@@ -298,6 +312,7 @@ impl ViewportRenderer {
             positions,
             normals,
             ids,
+            flags,
             indices,
             index_count: u32::try_from(scene.indices().len()).unwrap_or(u32::MAX),
             revision,
@@ -703,6 +718,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass.set_vertex_buffer(0, geometry.positions.slice(..));
         render_pass.set_vertex_buffer(1, geometry.normals.slice(..));
         render_pass.set_vertex_buffer(2, geometry.ids.slice(..));
+        render_pass.set_vertex_buffer(3, geometry.flags.slice(..));
         render_pass.set_index_buffer(geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..geometry.index_count, 0, 0..1);
     }
@@ -727,6 +743,7 @@ struct VertexOut {
     // Flat: every corner of a triangle carries its patch's id, so
     // interpolating one would only introduce a way for them to differ.
     @location(1) @interpolate(flat) id: u32,
+    @location(2) @interpolate(flat) flag: u32,
 };
 
 @vertex
@@ -734,11 +751,13 @@ fn vs_main(
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) id: u32,
+    @location(3) flag: u32,
 ) -> VertexOut {
     var out: VertexOut;
     out.clip_position = uniforms.view_projection * vec4<f32>(position, 1.0);
     out.normal = normal;
     out.id = id;
+    out.flag = flag;
     return out;
 }
 
@@ -750,6 +769,13 @@ fn vs_main(
 const SELECTED_TINT: vec3<f32> = vec3<f32>(1.0, 0.62, 0.16);
 const HOVERED_TINT: vec3<f32> = vec3<f32>(0.45, 0.72, 1.0);
 const TINT_STRENGTH: f32 = 0.55;
+// The free-move probe's treatment (G3's honesty requirement): a
+// strong violet tint on every corner the scene flagged, so a probed
+// placement can never be mistaken for a mated or authored one. The
+// FLAG itself is `SceneMesh::FLAG_PROBE`, asserted headlessly; this
+// constant is only how it looks.
+const PROBE_TINT: vec3<f32> = vec3<f32>(0.62, 0.35, 0.95);
+const PROBE_STRENGTH: f32 = 0.65;
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
@@ -758,6 +784,9 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let lambert = max(dot(n, to_light), 0.0);
     let ambient = uniforms.base_color.w;
     var base = uniforms.base_color.xyz;
+    if ((in.flag & 1u) != 0u) {
+        base = mix(base, PROBE_TINT, PROBE_STRENGTH);
+    }
     if (in.id != 0u && in.id == uniforms.highlight.x) {
         base = mix(base, SELECTED_TINT, TINT_STRENGTH);
     } else if (in.id != 0u && in.id == uniforms.highlight.y) {
