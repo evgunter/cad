@@ -1517,6 +1517,12 @@ pub(crate) mod staleness_posture {
                 Maintains,
                 "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
             ),
+            (
+                "replace_face_offset",
+                Maintains,
+                "the one-face spelling of `replace_faces_offset`, which re-mints the clone \
+                 before adopting it",
+            ),
             // ---- The pass itself. ----
             (
                 "mint_pcurves",
