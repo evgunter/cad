@@ -160,7 +160,12 @@ pub enum Standing {
         /// when there is no evaluation to answer against yet, which is
         /// neither "live" nor "vanished" and is not reported as
         /// either.
-        resolution: Option<Resolution>,
+        ///
+        /// Boxed for the reason [`Refusal::Edit`] is: a `Resolution`
+        /// carrying a diagnosis and a tombstone is an order of
+        /// magnitude wider than the other arms here, and this value is
+        /// returned by value on every frame.
+        resolution: Option<Box<Resolution>>,
     },
 }
 
@@ -177,7 +182,7 @@ impl Standing {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
             Self::Face { resolution, .. } => {
-                matches!(resolution, Some(Resolution::Resolved(_)))
+                matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
             }
         }
     }
@@ -192,7 +197,7 @@ impl Standing {
             Self::Face {
                 resolution: Some(resolution),
                 ..
-            } if !matches!(resolution, Resolution::Resolved(_)) => Some(resolution),
+            } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
             _ => None,
         }
     }
@@ -663,7 +668,7 @@ impl DocSession {
                 face: face.clone(),
                 resolution: self
                     .landed_pair()
-                    .map(|(doc, eval)| resolve(RunCtx { doc, eval }, &face.name)),
+                    .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, &face.name))),
             },
         }
     }

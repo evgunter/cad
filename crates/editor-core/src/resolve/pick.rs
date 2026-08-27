@@ -395,7 +395,7 @@ impl NodePick {
                         key: EntityKey::Face(patch.face),
                     },
                 )
-                .map(Clone::clone)
+                .cloned()
             })
             .collect()
     }
