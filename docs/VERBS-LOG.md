@@ -1732,3 +1732,71 @@ is unblocked. Lane swept. Also banked: the zero-jobs queued run
 superseded run with mergeable CLEAN and never start; an
 empty-commit re-roll reads as docs-only; a real code commit is
 the reliable re-roll).
+
+## DEMO2 REPORTED GREEN; ORDINAL 83 CLAIMED, REVIEW DISPATCHED (2026-08-27)
+
+Three scenes (#1054): hollowelbow (the bore visible opaque; the
+cross-scene mesh pin — the hollow door's outer walls face-for-face
+equal to the solid tube's committed 17,152, so a sizing fork
+between the doors now REDS instead of shifting a total),
+hollowtorus (genus 2 through the parameter door; the STEP
+frontier pinned self-retiring on the exact variant — one gate,
+three probes retiring together with klein wall 6 and ring), and
+budfillet (the fillets proven by assertions, not pixels: census
+3×(+1,+2,+1), the spine re-derived from scene constants, ΔV
+bracketed by the corner-square Pappus bound). Two refusals
+pinned, not worked around: the natural three-rim spelling
+refuses (mouth+lip share the pucker cone — the grain is one call
+per disjoint-support set, and the surviving lip+bore one-call
+case is pinned too); the bore-rim selector gap gets one more
+register consumer. #986's four-face prediction measured six (the
+wedge caps are faces). 18 baseline rows pure-additive per the
+runbook. Ordinal 83 claimed (main at #1060's merge); single
+fable review dispatched against frozen head 27a6efba, aimed at
+the pins' TEETH (would the mesh pin actually red on a door
+fork?) and the independent re-derivations.
+
+## ORDINAL 83 RETURNED: DEMO2 A-W-F 0/3/3; SMALL FIX PASS OUT (2026-08-27)
+
+Every pin verified by independent derivation: the mouth ball
+centre re-solved from the two tangency conditions alone (exact);
+the census/genus chains re-derived (elbow ≅ solid torus, the
+hollow torus genus 2, the bud's 3×(+1,+2,+1)); the sweep and the
+renders byte-compared (the committed PNGs identical to the hosted
+run's artifacts — no hand-produced render possible); the pins'
+TEETH probed (the mesh pin reds under a one-sided δ change; the
+UnsupportedChain detail is the sharing, not the rim count —
+measured both directions). MINs: a CI-attribution slip in the PR
+body (the sweep gated in run 1, not run 2 — the drawn-row
+bookkeeping class), two stale invalidated-premise sentences in
+klein/ring, and the cross-panel constants duplicated without a
+tie. Fix pass dispatched with probe adoption; reviewer lane
+swept.
+
+## PROTOCOL v6 RATIFIED AND ADOPTED (2026-08-27, #1064 merged)
+
+The #1016 suspension ends: from the next review dispatch, every
+implementation row gets a CROSS-MODEL dual with the R1/R2 model
+assignment randomized per dual (one urandom byte at dispatch,
+parity 0 = R1 opus + R2 fable, parity 1 = R1 fable + R2 opus;
+byte recorded in the lane-private draw file beside the arm
+draws). Stopping rule pre-registered: eight adjudicated
+unilateral MAJORs per the fixed instrument, or twelve new pairs,
+whichever first — Evan notified explicitly at the trigger.
+Read-side lane isolation enters both briefs (pushing never
+delayed; glimpses disclosed, ASM-1 shape). The v6 tally starts
+at zero — the v4/v5 pairs and attested-but-unscored pair 11 stay
+analysis input only. First affected dispatch: VERBS-PIERCE's
+review (ordinal 84) — TWO reviewer lanes, frozen-head
+concurrent. Demo-class units keep the plan's process section
+(DEMO2's ordinal-83 single predates ratification and stands).
+
+## DEMO2 MERGED (#1054, 2026-08-27) — ordinal-83 row; #986 closed
+
+Row DEMO2 in MODEL-AB-LOG. The montage gains the hollow elbow
+(bore visible opaque), the translucent genus-2 hollow torus with
+its self-retiring STEP pin, and the filleted bud with its
+proof-by-assertion. The fillet_edges composition grain
+(per-disjoint-support-set) is pinned from both directions. The
+demo queue's remaining item is THE TEAPOT — the Wave-3 finale,
+unblocked since shell merged. Lane swept.

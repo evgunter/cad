@@ -163,7 +163,7 @@ MET / MET-WITH-RECORDED-HONESTY / CARRIED (named owner).
 | **#974** coaxial cylinder×sphere `TangentLocus::Circle` arm | Named follow-up; blocks the sphere-capped tube-chain rim |
 | **#975** six M9-3 semantic residues | Kernel, none blocking |
 | **#427 Q3** authority-record home | Closes silently with the post-M9 pcurve migration; Evan's pushback window still open |
-| Lily walls 2, 7, 8 | Deferred by ruling / VERBS Wave 2 items 6+9 (see #1031) / the pcurve migration |
+| Lily walls 2, 7, 8 | Deferred by ruling / VERBS Wave 2 items 6+9 (see #1031) / ~~the pcurve migration~~ — **POST-RATIFICATION CORRECTION (2026-08-27, PCURVE P-1 substrate)**: wall 8 does NOT ride the pcurve migration. `gate_operand_edges` (boolean/reduce.rs:368-380) refuses `CurvedEdgeUnsupported` on the EDGE CARRIER's kind (`Curve3::Nurbs(_)`), which is carrier geometry, not an edge description; the migration changes descriptions and leaves that gate untouched. Wall 8's real dependency is a NURBS-carrier arm in the operand gate — breadth work. This row's dependency statement was inherited from the M9-5 spec and was wrong there too; it is the fourth instance of a stated blocker not being the binding one (wall 7/#1031, wall 2/#1059). |
 
 ## Closure affordance
 
