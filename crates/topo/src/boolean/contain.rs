@@ -112,6 +112,18 @@ pub fn contfp<T: Decide>(
     Ok(FaceContainment::In)
 }
 
+/// The circle a [`loop_disc`] loop bounds — its own type, because
+/// three components of one datum read better named than positional.
+#[derive(Clone, Copy)]
+struct LoopCircle<T> {
+    /// The circle's centre.
+    center: Point3<T>,
+    /// Its plane normal (sign-free: only `cross` reads it).
+    axis: Vec3<T>,
+    /// Its radius, in metres.
+    radius: T,
+}
+
 /// The circle a loop bounds when EVERY one of its edges is an arc of
 /// one circle — the planar analog of the curved door's iso-bounded
 /// class ([`curved_face_containment`]). `None` on any other boundary
@@ -141,8 +153,8 @@ fn loop_disc<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
-) -> Result<Option<(Point3<T>, Vec3<T>, T)>, ContainError> {
-    let mut circle: Option<(Point3<T>, Vec3<T>, T)> = None;
+) -> Result<Option<LoopCircle<T>>, ContainError> {
+    let mut circle: Option<LoopCircle<T>> = None;
     for (_, he, _) in loop_cycle_points(body, r#loop)? {
         let edge_key = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
         let carrier = body
@@ -160,8 +172,15 @@ fn loop_disc<T: Decide>(
             return Ok(None);
         };
         match circle {
-            None => circle = Some((center, axis, radius)),
-            Some((c0, a0, r0)) => {
+            None => {
+                circle = Some(LoopCircle {
+                    center,
+                    axis,
+                    radius,
+                });
+            }
+            Some(c) => {
+                let (c0, a0, r0) = (c.center, c.axis, c.radius);
                 let d = (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
                 match decide("bool_face_disc_carrier", Margin::of(d), band) {
                     Ok(Sign::Zero) => {}
@@ -177,15 +196,15 @@ fn loop_disc<T: Decide>(
 /// face's plane by [`contfp`]'s contract, so the in-plane radial
 /// distance is the whole question.
 fn disc_side<T: Decide>(
-    (center, axis, radius): (Point3<T>, Vec3<T>, T),
+    disc: LoopCircle<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, ContainError> {
-    let w = q - center;
-    let radial = w - axis * w.dot(axis);
+    let w = q - disc.center;
+    let radial = w - disc.axis * w.dot(disc.axis);
     match decide(
         "bool_face_disc_radius",
-        Margin::of(radius - radial.norm()),
+        Margin::of(disc.radius - radial.norm()),
         band,
     ) {
         Ok(Sign::Positive) => Ok(LoopContainment::In),
