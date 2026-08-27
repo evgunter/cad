@@ -301,10 +301,103 @@ impl NodePick {
         }
     }
 
+    /// Every output body of `node`, each tessellated and indexed —
+    /// the enumerating form of [`NodePick::build`].
+    ///
+    /// A consumer that wants to offer a whole node to a pick cannot
+    /// ask "how many bodies does it have": the payload's body indices
+    /// are the ones the product gather's `sources_of` assigns and they
+    /// are not a dense range (a split with one empty half occupies
+    /// index 1 and not index 0). Probing `build` at 0, 1, 2, … until
+    /// it refuses is precisely the by-hand pairing this type exists to
+    /// remove. So the enumeration is taken HERE, from the same
+    /// function the name tables key by, and each element is a
+    /// `NodePick` with its pairing established the ordinary way.
+    ///
+    /// The bodies come back in payload order. A node denoting no body
+    /// answers [`NodePickError::NotABody`] rather than an empty
+    /// vector: "this node draws nothing" and "this node has nothing to
+    /// draw yet" are different, and a caller that wants to skip the
+    /// former should say so by matching it.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::build`]: node standing, non-body payloads,
+    /// tessellation refusals (the first body that refuses stops the
+    /// whole enumeration — a partial answer would be a partial
+    /// picture), and mesh-index refusals.
+    pub fn build_all(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        delta: f64,
+        tol: Tol,
+    ) -> Result<Vec<Self>, NodePickError> {
+        let value = match eval.nodes.get(&node) {
+            Some(NodeResult::Ok(v)) => v,
+            Some(NodeResult::Failed(_)) => {
+                return Err(NodePickError::Standing(HitTestError::NodeFailed { node }));
+            }
+            Some(NodeResult::Poisoned { through }) => {
+                return Err(NodePickError::Standing(HitTestError::NodePoisoned {
+                    node,
+                    through: *through,
+                }));
+            }
+            None => {
+                return Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
+                    node,
+                }));
+            }
+        };
+        let Some(sources) = sources_of(value) else {
+            return Err(NodePickError::NotABody { node });
+        };
+        let indices: Vec<u32> = sources.into_iter().map(|(ix, _, _)| ix).collect();
+        indices
+            .into_iter()
+            .map(|body| Self::build(eval, node, body, delta, tol))
+            .collect()
+    }
+
     /// The tessellation this index was built from — the mesh to
     /// display so that what is drawn is what is picked.
     pub fn mesh(&self) -> &Mesh {
         &self.mesh
+    }
+
+    /// The stable name of every face patch of [`NodePick::mesh`], in
+    /// patch order (one entry per [`Mesh::patches`] element).
+    ///
+    /// **The inversion a DISPLAY consumer needs**, and the reason it
+    /// lives here: a patch's identity in the mesh is its
+    /// [`mesh::FacePatch::face`] arena key, and G1 forbids that key
+    /// crossing into layer 3 — so a viewer cannot ask "which name is
+    /// this patch" without either handling a key or re-deriving the
+    /// pairing this type owns. Both are the failure [`PickTarget`]'s
+    /// contract describes. Here the key never leaves: the patch index
+    /// goes in, the name comes out.
+    ///
+    /// Total, per patch, and honest about the loud arm: an
+    /// evaluated-but-unnamed face is [`HitTestError::Unnamed`] in ITS
+    /// OWN slot rather than a refusal of the whole call, because one
+    /// naming-emission bug should not cost a consumer the names of
+    /// every other patch it is drawing.
+    pub fn patch_names(&self, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+        self.mesh
+            .patches
+            .iter()
+            .map(|patch| {
+                entity_name(
+                    eval,
+                    self.node,
+                    EntityRef {
+                        body: self.body,
+                        key: EntityKey::Face(patch.face),
+                    },
+                )
+                .map(Clone::clone)
+            })
+            .collect()
     }
 
     /// The node this index answers for.

@@ -34,6 +34,7 @@
 
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Vec3};
+use pncad::select::Ray;
 
 /// Elevation is held strictly inside `±(π/2 − POLE_MARGIN)`.
 ///
@@ -557,6 +558,77 @@ impl Camera {
             return Ok(None);
         }
         Ok(Some([out[0] / out[3], out[1] / out[3], out[2] / out[3]]))
+    }
+
+    /// The world ray through a cursor position — the **un-projection**,
+    /// and the inverse of [`Camera::project`] on the frustum's
+    /// direction (not on depth: a pixel names a ray, never a point).
+    ///
+    /// `cursor_px` is in the viewport's own physical pixels, `+x`
+    /// right and `+y` DOWN — the one screen convention this crate has
+    /// ([`crate::input`]'s module docs), so the flip to the camera's
+    /// `+y`-up frame happens here and only here.
+    ///
+    /// The ray starts at the eye and its direction is a UNIT vector,
+    /// which makes the `t` a hit comes back with a world distance.
+    /// A cursor outside the viewport rectangle is not refused: it
+    /// denotes a ray outside the frustum, which is a well-defined
+    /// direction and an honest miss, and refusing it would put a
+    /// bounds check on the caller for no gain.
+    ///
+    /// # Errors
+    ///
+    /// [`CameraError::NotFinite`] for a non-finite cursor coordinate
+    /// or viewport dimension, and [`CameraError::UnusableBounds`] for
+    /// a viewport with no area — the same two refusals
+    /// [`Camera::projection_matrix`] makes about the same quantities.
+    pub fn ray_through(
+        &self,
+        cursor_px: [f64; 2],
+        viewport: crate::input::ViewportSize,
+    ) -> Result<Ray, CameraError> {
+        let [cx, cy] = cursor_px;
+        finite("cursor x", cx)?;
+        finite("cursor y", cy)?;
+        finite("viewport width", viewport.width_px)?;
+        finite("viewport height", viewport.height_px)?;
+        let Some(aspect) = viewport.aspect() else {
+            return Err(CameraError::UnusableBounds);
+        };
+        // Normalized device coordinates: the projection maps the
+        // frustum onto x, y ∈ [−1, 1] with +y UP, and pixels count
+        // down from the top edge.
+        let ndc_x = 2.0 * cx / viewport.width_px - 1.0;
+        let ndc_y = 1.0 - 2.0 * cy / viewport.height_px;
+        // The projection scales view-space x by `t / aspect` and y by
+        // `t`, where `t = cot(fov_y / 2)`; inverting that on a point at
+        // unit distance down the view axis gives the offsets below.
+        let half_height = (self.fov_y * 0.5).tan();
+        let (f, r, u) = (self.forward(), self.right(), self.up());
+        let sx = ndc_x * half_height * aspect;
+        let sy = ndc_y * half_height;
+        let dir = Vec3::new(
+            f.x + r.x * sx + u.x * sy,
+            f.y + r.y * sx + u.y * sy,
+            f.z + r.z * sx + u.z * sy,
+        );
+        let len = (dir.x * dir.x + dir.y * dir.y + dir.z * dir.z).sqrt();
+        // `forward` is a unit vector and the offsets are perpendicular
+        // to it, so the length is at least 1 for every finite cursor;
+        // the guard is here because a non-finite one would otherwise
+        // divide by NaN and hand back a poisoned ray as if it were an
+        // answer, and the finiteness checks above are on the INPUT,
+        // not on the arithmetic.
+        if !(len.is_finite() && len > 0.0) {
+            return Err(CameraError::NotFinite {
+                what: "ray direction",
+                value: len,
+            });
+        }
+        Ok(Ray {
+            origin: self.eye(),
+            dir: Vec3::new(dir.x / len, dir.y / len, dir.z / len),
+        })
     }
 }
 
