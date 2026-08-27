@@ -37,6 +37,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bud;
 mod checks;
 mod crosslap;
 mod curvedcut;
@@ -58,6 +59,7 @@ mod skinned;
 #[cfg(feature = "budget")]
 mod tessbudget;
 mod tube;
+mod tubewall;
 mod twopeg;
 mod uvdump;
 mod walls;
@@ -621,6 +623,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
     lily::wall_probes::<f64>(tol);
 
+    println!(
+        "\n-- the same bud, rounded (VERBS-ARMS-2: three CURVED support pairs in one \
+         fillet call) --"
+    );
+    for stop in bud::stops(tol) {
+        visit(&stop);
+    }
+
     println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
@@ -649,6 +659,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!("\n-- the one-call hollow ring (VERBS-RING: a holed profile, fully revolved) --");
     for stop in ring::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the tube door with a WALL (VERBS-TUBEWALL: an open elbow, then a torus \
+         shell) --"
+    );
+    for stop in tubewall::stops(tol) {
         visit(&stop);
     }
 
