@@ -115,3 +115,14 @@ consumer of the API. Concretely, landing in the GUI-0 fix pass:
 Next actions: liveness check-ins on both lanes; at each PR-open,
 freeze head, claim ordinal (recorded here, pushed), dispatch the
 v6 dual; the ruling above lands with the GUI-0 fix pass.
+
+**Incident (2026-08-27 ~17:25Z): container restart killed three
+in-flight review lanes** — GUI-0 R2 and both GUI-1 reviewers
+(GUI-0 R1 had already delivered). All three isolation worktrees
+survived with their branches (GUI-0 R2 with local commits past the
+frozen head); all three resumed by message with the post-restart
+cautions (cwd reset, suspect in-flight results, push-early, the
+isolation rule re-stated now that `gui/gui-0-review-r1` exists on
+origin). Rows at merge annotate the wall-clock gap per the
+recording discipline; reports must disclose the interruption for
+the v6 fair-pair adjudication.
