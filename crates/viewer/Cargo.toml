@@ -1,0 +1,82 @@
+[package]
+name = "viewer"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The authoring façade is the ONLY door this crate uses to reach the
+# kernel: the scene is an evaluated document's product, tessellated at a
+# display tolerance, exactly as an outside consumer would write it.
+pncad = { path = "../pncad" }
+# The box type the camera frames against, and `Aabb::from_points`. A
+# direct edge on the owning crate rather than a new re-export added to
+# `pncad`'s root — the ruling `pncad`'s own crate docs state for a type
+# the façade does not carry.
+bvh = { path = "../bvh" }
+
+# --- the `app` feature's toolkit graph (GQ6: egui; OQ-b: egui_tiles) ---
+#
+# Every entry here is optional and reached only through `app`. The
+# feature is NOT default, and that is a CI-cost decision rather than a
+# taste one: `viewer` sits downstream of every kernel crate, so with the
+# toolkit graph on by default the change filter's dependent closure would
+# compile eframe + wgpu + naga in each of the four `--workspace` jobs of
+# every kernel PR. Off by default, the toolkit is compiled once per run,
+# by the one step that names it.
+#
+# Versions carry their release dates against the ~2-week dependency-age
+# policy (memories/review-and-dependency-policy.md), taken from the
+# crates.io API on 2026-08-27.
+#
+# egui/eframe/egui-wgpu 0.36.1 (2026-08-07, 20 days): MIT OR Apache-2.0,
+# MSRV 1.95 — under the pinned 1.97.0 toolchain.
+egui = { version = "0.36.1", optional = true }
+# `wgpu` is eframe's renderer here, not glow: the viewport is a custom
+# wgpu pass and the toolkit's pin IS our wgpu version (GQ6-RESURVEY §1).
+# Default features are off because the default set carries glow.
+eframe = { version = "0.36.1", default-features = false, features = [
+    "default_fonts",
+    "wayland",
+    "wgpu",
+    "x11",
+], optional = true }
+# The paint-callback door plus the `wgpu` re-export the viewport draws
+# through. Depending on `wgpu` directly would let cargo unify a SECOND
+# major version into the graph; going through this re-export makes the
+# toolkit's pin structurally ours.
+egui-wgpu = { version = "0.36.1", optional = true }
+# OQ-b, decided here: egui_tiles over egui_dock. Licensing is the first
+# reason — MIT OR Apache-2.0 keeps both branches of this project's dual
+# license alive, where egui_dock is MIT-only. The second is shape: the
+# layout is a `Tree<Pane>` VALUE the app owns and a `Behavior` impl
+# renders, which is the same "state is a value, rendering is a view of
+# it" discipline G1 puts on everything else here.
+# 0.17.0 (2026-08-05, 22 days) is what Cargo.lock pins: 0.17.1
+# (2026-08-18) is 9 days old and inside the age window.
+egui_tiles = { version = "0.17.0", optional = true }
+# Vertex/uniform bytes for the wgpu buffers. Zlib OR Apache-2.0 OR MIT;
+# 1.25.2 released 2026-07-19.
+bytemuck = { version = "1.25.2", features = ["derive"], optional = true }
+
+[features]
+# The eframe application: windowing, the docked chrome, and the wgpu
+# viewport. Everything else in this crate — camera state, the typed
+# camera operations, the input mapping, and the scene extraction — is
+# renderer-free and compiles without it (G1: layer 3 is
+# headless-testable).
+app = ["dep:bytemuck", "dep:eframe", "dep:egui", "dep:egui-wgpu", "dep:egui_tiles"]
+
+[[bin]]
+name = "viewer"
+path = "src/bin/viewer.rs"
+required-features = ["app"]
+
+# ONE test binary for the whole suite (see tests/all.rs).
+[[test]]
+name = "all"
+path = "tests/all.rs"
