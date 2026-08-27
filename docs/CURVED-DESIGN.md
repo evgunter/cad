@@ -996,7 +996,7 @@ kernel-K half waits on the M5 exit K-snapshot (this flag's own
 trigger); the GUI-indistinguishability half is proposed there as a
 scale-relative document/editor-layer lint, not a kernel refusal.)*
 
-**T6 — Tessellation cost.** PERF-PLAN rank 1 (CDT quadratic) was
+**T6 — Tessellation cost.** PERF-PLAN §1.3's CDT entry was
 measured on analytic UV grids; trimmed NURBS faces raise point counts.
 CDT bulk-loading's trigger ("first real fine-δ export need, or corpus
 CDT dominance") very likely fires during M5 — noted so it is planned
